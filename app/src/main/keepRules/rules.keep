@@ -1,0 +1,29 @@
+# ============================================================
+# R8 rules for KeCB — minimal, precise
+# ============================================================
+
+# --- R8 全局优化开关 ------------------------------------------
+-allowaccessmodification
+
+# --- Gson ----------------------------------------------------
+-keepattributes Signature
+-keepattributes *Annotation*
+
+# Only Course is serialized via Gson; keep its fields for reflection
+-keep class com.haooz.chedule.data.Course { <fields>; }
+
+# TypeToken is used via anonymous subclasses (e.g. object : TypeToken<List<Course>>() {})
+-keep class * extends com.google.gson.reflect.TypeToken { <init>(); }
+-keep class com.google.gson.reflect.TypeToken { *; }
+
+# --- Compose -------------------------------------------------
+# R8 compat mode handles Compose internals; only protect @Composable entry points
+-keepclassmembers class * {
+    @androidx.compose.runtime.Composable <methods>;
+}
+
+# --- ViewModel ------------------------------------------------
+-keep class com.haooz.chedule.viewmodel.CourseViewModel { *; }
+
+# --- Kotlin ---------------------------------------------------
+-keepclassmembers class **$WhenMappings { <fields>; }

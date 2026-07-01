@@ -1,0 +1,173 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools">
+
+    <uses-sdk tools:overrideLibrary="top.yukonga.miuix.kmp.blur" />
+
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+    <uses-permission android:name="android.permission.INTERNET" />
+    <uses-permission android:name="android.permission.REQUEST_INSTALL_PACKAGES" />
+    <uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE"
+        android:maxSdkVersion="28" />
+    <uses-permission android:name="android.permission.SCHEDULE_EXACT_ALARM" />
+    <uses-permission android:name="android.permission.USE_EXACT_ALARM" />
+    <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_SPECIAL_USE" />
+    <uses-permission android:name="android.permission.WAKE_LOCK" />
+    <uses-permission android:name="android.permission.REQUEST_IGNORE_BATTERY_OPTIMIZATIONS" />
+    <uses-permission android:name="android.permission.POST_PROMOTED_NOTIFICATIONS" />
+
+    <application
+        android:allowBackup="true"
+        android:dataExtractionRules="@xml/data_extraction_rules"
+        android:enableOnBackInvokedCallback="true"
+        android:fullBackupContent="@xml/backup_rules"
+        android:icon="@mipmap/ic_launcher"
+        android:label="@string/app_name"
+        android:networkSecurityConfig="@xml/network_security_config"
+        android:roundIcon="@mipmap/ic_launcher_round"
+        android:supportsRtl="true"
+        android:theme="@style/Theme.课程表">
+        <activity
+            android:name=".MainActivity"
+            android:configChanges="orientation|screenSize|screenLayout|keyboardHidden|mnc|colorMode|density|fontScale|fontWeightAdjustment|keyboard|layoutDirection|locale|mcc|navigation|smallestScreenSize|touchscreen|uiMode"
+            android:exported="true"
+            android:launchMode="singleTask"
+            android:label="@string/app_name"
+            android:theme="@style/Theme.课程表"
+            android:windowSoftInputMode="adjustResize">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+        </activity>
+        <activity-alias
+            android:name=".ImportAlias"
+            android:targetActivity=".MainActivity"
+            android:exported="true"
+            android:label="导入课程表"
+            android:theme="@style/Theme.课程表">
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+                <data android:mimeType="application/json" />
+            </intent-filter>
+            <intent-filter>
+                <action android:name="android.intent.action.SEND" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <data android:mimeType="application/json" />
+            </intent-filter>
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+                <data android:mimeType="text/calendar" />
+            </intent-filter>
+            <intent-filter>
+                <action android:name="android.intent.action.SEND" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <data android:mimeType="text/calendar" />
+            </intent-filter>
+        </activity-alias>
+        <activity
+            android:name=".CourseTimeSettingsActivity"
+            android:exported="false"
+            android:label="课表时间设置"
+            android:theme="@style/Theme.课程表"
+            android:windowSoftInputMode="adjustResize" />
+        <activity
+            android:name=".CourseReminderActivity"
+            android:exported="false"
+            android:label="课程提醒"
+            android:theme="@style/Theme.课程表"
+            android:windowSoftInputMode="adjustResize" />
+        <activity
+            android:name=".WidgetIntroActivity"
+            android:exported="false"
+            android:label="桌面小部件"
+            android:theme="@style/Theme.课程表" />
+        <activity
+            android:name=".SwitchScheduleActivity"
+            android:exported="false"
+            android:label="切换课表"
+            android:theme="@style/Theme.课程表"
+            android:windowSoftInputMode="adjustResize" />
+        <activity
+            android:name=".CourseDetailActivity"
+            android:exported="false"
+            android:label="课程详情"
+            android:theme="@style/Theme.课程表"
+            android:windowSoftInputMode="adjustResize" />
+        <activity
+            android:name=".AboutActivity"
+            android:exported="false"
+            android:label="关于应用"
+            android:theme="@style/Theme.课程表" />
+        <activity
+            android:name=".UpdateSettingsActivity"
+            android:exported="false"
+            android:label="更新设置"
+            android:theme="@style/Theme.课程表" />
+        <activity
+            android:name=".PreferenceSettingsActivity"
+            android:exported="false"
+            android:label="偏好设置"
+            android:theme="@style/Theme.课程表" />
+        <activity
+            android:name=".EducationalImportActivity"
+            android:exported="false"
+            android:label="教务系统导入"
+            android:theme="@style/Theme.课程表"
+            android:windowSoftInputMode="adjustResize" />
+
+        <provider
+            android:name="androidx.core.content.FileProvider"
+            android:authorities="${applicationId}.fileprovider"
+            android:exported="false"
+            android:grantUriPermissions="true">
+            <meta-data
+                android:name="android.support.FILE_PROVIDER_PATHS"
+                android:resource="@xml/file_paths" />
+        </provider>
+
+        <receiver
+            android:name=".reminder.CourseReminderReceiver"
+            android:exported="false" />
+
+        <receiver
+            android:name=".reminder.AlarmReceiver"
+            android:exported="false" />
+
+        <receiver
+            android:name=".reminder.BootCompletedReceiver"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="android.intent.action.BOOT_COMPLETED" />
+            </intent-filter>
+        </receiver>
+
+        <service
+            android:name=".reminder.ReminderForegroundService"
+            android:exported="false"
+            android:foregroundServiceType="specialUse">
+            <property
+                android:name="android.app.PROPERTY_SPECIAL_USE_FGS_SUBTYPE"
+                android:value="schedule_management" />
+        </service>
+
+        <receiver
+            android:name=".widget.CourseWidgetProvider"
+            android:exported="true"
+            android:label="今日课程">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+            </intent-filter>
+            <meta-data
+                android:name="android.appwidget.provider"
+                android:resource="@xml/appwidget_course_schedule" />
+        </receiver>
+    </application>
+
+</manifest>

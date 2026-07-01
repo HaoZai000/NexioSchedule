@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <color name="widget_title_color">#77FFFFFF</color>
+    <color name="widget_name_color">#FFEEEEEE</color>
+    <color name="widget_info_color">#55FFFFFF</color>
+    <color name="widget_time_start_color">#88FFFFFF</color>
+    <color name="widget_time_end_color">#55FFFFFF</color>
+    <color name="widget_now_color">#FF42A5F5</color>
+    <color name="widget_empty_color">#99FFFFFF</color>
+</resources>
