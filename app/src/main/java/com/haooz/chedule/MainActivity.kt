@@ -1,3 +1,4 @@
+/** 主页面 - 应用入口 Activity */
 package com.haooz.chedule
 
 import android.annotation.SuppressLint

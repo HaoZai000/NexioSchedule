@@ -1,3 +1,4 @@
+/** 切换课程表页面 */
 package com.haooz.chedule
 
 import android.annotation.SuppressLint

@@ -1,3 +1,4 @@
+/** 课程时间设置页面 */
 package com.haooz.chedule
 
 import android.annotation.SuppressLint

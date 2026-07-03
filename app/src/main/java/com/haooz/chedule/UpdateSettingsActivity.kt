@@ -1,3 +1,4 @@
+/** 应用更新设置页面 */
 package com.haooz.chedule
 
 import android.content.Context

@@ -1,3 +1,4 @@
+/** 课程提醒设置页面 */
 package com.haooz.chedule
 
 import android.Manifest

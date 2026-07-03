@@ -1,3 +1,4 @@
+/** 关于页面 */
 package com.haooz.chedule
 
 import android.content.Intent

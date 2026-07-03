@@ -1,3 +1,4 @@
+/** 小组件使用引导页面 */
 package com.haooz.chedule
 
 import android.os.Bundle

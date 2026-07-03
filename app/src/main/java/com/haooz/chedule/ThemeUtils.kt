@@ -1,3 +1,4 @@
+/** 主题工具类 - 管理深色模式切换和状态栏样式 */
 package com.haooz.chedule
 
 import android.app.Activity

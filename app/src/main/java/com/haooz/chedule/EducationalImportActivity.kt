@@ -1,3 +1,4 @@
+/** 教务系统导入页面 */
 package com.haooz.chedule
 
 import android.os.Bundle
