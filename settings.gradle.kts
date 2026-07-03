@@ -1,3 +1,4 @@
+// Nexio课程表 - Gradle 模块配置
 pluginManagement {
     repositories {
         google {
@@ -22,6 +23,6 @@ dependencyResolutionManagement {
     }
 }
 
-rootProject.name = "课程表"
+rootProject.name = "Nexio课程表"
 include(":app")
  
