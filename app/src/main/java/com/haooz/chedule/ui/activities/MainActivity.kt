@@ -76,6 +76,7 @@ import com.haooz.chedule.ui.screens.TodayScreen
 import com.haooz.chedule.ui.theme.CourseScheduleTheme
 import com.haooz.chedule.viewmodel.CourseViewModel
 import com.haooz.chedule.viewmodel.SettingsViewModel
+import com.haooz.chedule.viewmodel.ShiftViewModel
 import com.kyant.shapes.RoundedRectangle
 import kotlinx.coroutines.launch
 import top.yukonga.miuix.kmp.basic.DropdownEntry
@@ -258,6 +259,7 @@ class MainActivity : ComponentActivity() {
 fun CourseScheduleApp() {
     val viewModel: CourseViewModel = viewModel()
     val settingsViewModel: SettingsViewModel = viewModel()
+    val shiftViewModel: ShiftViewModel = viewModel()
     val defaultHomepage by settingsViewModel.defaultHomepage.collectAsState()
     var selectedTab by remember { mutableIntStateOf(if (defaultHomepage == "今日") 0 else 1) }
     var showShiftLoading by remember { mutableStateOf(false) }
@@ -341,7 +343,7 @@ fun CourseScheduleApp() {
     val currentWeek by viewModel.currentWeek.collectAsState()
     val classStartTime by viewModel.classStartTime.collectAsState()
     val showWeekendDays by settingsViewModel.showWeekendDays.collectAsState()
-    val isShiftMode by viewModel.isShiftMode.collectAsState()
+    val isShiftMode by shiftViewModel.isShiftMode.collectAsState()
 
     var showCourseDetailPopup by remember { mutableStateOf(false) }
 
@@ -830,6 +832,7 @@ fun CourseScheduleApp() {
                             2 -> SettingsScreen(
                                 viewModel = viewModel,
                                 settingsViewModel = settingsViewModel,
+                                shiftViewModel = shiftViewModel,
                                 onEnterShiftMode = {
                                     showShiftLoading = true
                                     isExitingShift = false
@@ -840,6 +843,7 @@ fun CourseScheduleApp() {
                         when (selectedTab) {
                             0 -> ShiftScheduleScreen(
                                 viewModel = viewModel,
+                                shiftViewModel = shiftViewModel,
                                 currentDayOfWeek = currentDayOfWeek,
                                 dayRange = dayRange,
                                 pagerState = pagerState
@@ -847,6 +851,7 @@ fun CourseScheduleApp() {
                             1 -> SettingsScreen(
                                 viewModel = viewModel,
                                 settingsViewModel = settingsViewModel,
+                                shiftViewModel = shiftViewModel,
                                 isShiftMode = true,
                                 onExitShiftMode = {
                                     showShiftLoading = true
@@ -1314,10 +1319,10 @@ fun CourseScheduleApp() {
             LaunchedEffect(Unit) {
                 kotlinx.coroutines.delay(100.milliseconds)
                 if (isExitingShift) {
-                    viewModel.exitShiftMode()
+                    shiftViewModel.exitShiftMode()
                     selectedTab = 0
                 } else {
-                    viewModel.enterShiftMode()
+                    shiftViewModel.enterShiftMode()
                 }
                 kotlinx.coroutines.delay(500.milliseconds)
                 showShiftLoading = false

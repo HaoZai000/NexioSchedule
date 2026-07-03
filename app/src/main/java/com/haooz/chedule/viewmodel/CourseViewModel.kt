@@ -71,33 +71,12 @@ class CourseViewModel(application: Application) : AndroidViewModel(application) 
     private val _showSettings = MutableStateFlow(false)
     val showSettings: StateFlow<Boolean> = _showSettings.asStateFlow()
 
-    // 排班模式状态
-    private val _isShiftMode = MutableStateFlow(false)
-    val isShiftMode: StateFlow<Boolean> = _isShiftMode.asStateFlow()
-
-    // 排班模式选中的课表
-    private val _shiftSelectedSchedules = MutableStateFlow<List<String>>(emptyList())
-    val shiftSelectedSchedules: StateFlow<List<String>> = _shiftSelectedSchedules.asStateFlow()
-
-    // 排班模式各课表课程缓存 scheduleName -> List<Course>
-    private val _shiftScheduleCourses = MutableStateFlow<Map<String, List<Course>>>(emptyMap())
-    val shiftScheduleCourses: StateFlow<Map<String, List<Course>>> = _shiftScheduleCourses.asStateFlow()
-
-    // 排班模式各课表节数缓存 scheduleName -> Triple(morning, afternoon, evening)
-    private val _shiftScheduleSections = MutableStateFlow<Map<String, Triple<Int, Int, Int>>>(emptyMap())
-    val shiftScheduleSections: StateFlow<Map<String, Triple<Int, Int, Int>>> = _shiftScheduleSections.asStateFlow()
-
     init {
         loadEssentialData()
         viewModelScope.launch(Dispatchers.IO) {
             loadCourses()
         }
         rescheduleReminders()
-        _isShiftMode.value = repository.isShiftModeEnabled()
-        _shiftSelectedSchedules.value = repository.getShiftSelectedSchedules()
-        if (_isShiftMode.value) {
-            viewModelScope.launch(Dispatchers.IO) { reloadShiftData() }
-        }
     }
 
     private fun rescheduleReminders() {
@@ -394,42 +373,4 @@ class CourseViewModel(application: Application) : AndroidViewModel(application) 
         return repository.hasMultipleCoursesAtSlot(week, dayOfWeek, startSection, endSection)
     }
 
-    fun enterShiftMode() {
-        _isShiftMode.value = true
-        repository.setShiftModeEnabled(true)
-        if (_shiftSelectedSchedules.value.isEmpty()) {
-            _shiftSelectedSchedules.value = repository.getScheduleNames()
-            repository.setShiftSelectedSchedules(_shiftSelectedSchedules.value)
-        }
-        reloadShiftData()
-    }
-
-    fun exitShiftMode() {
-        _isShiftMode.value = false
-        repository.setShiftModeEnabled(false)
-    }
-
-    fun setShiftSelectedSchedules(names: List<String>) {
-        _shiftSelectedSchedules.value = names
-        repository.setShiftSelectedSchedules(names)
-        reloadShiftData()
-    }
-
-    private fun reloadShiftData() {
-        val coursesMap = mutableMapOf<String, List<Course>>()
-        val sectionsMap = mutableMapOf<String, Triple<Int, Int, Int>>()
-        val validNames = mutableListOf<String>()
-        for (name in _shiftSelectedSchedules.value) {
-            if (name !in repository.getScheduleNames()) continue
-            validNames.add(name)
-            coursesMap[name] = repository.getCoursesForSchedule(name)
-            sectionsMap[name] = repository.getSectionsForSchedule(name)
-        }
-        if (validNames.size != _shiftSelectedSchedules.value.size) {
-            _shiftSelectedSchedules.value = validNames
-            repository.setShiftSelectedSchedules(validNames)
-        }
-        _shiftScheduleCourses.value = coursesMap
-        _shiftScheduleSections.value = sectionsMap
-    }
 }

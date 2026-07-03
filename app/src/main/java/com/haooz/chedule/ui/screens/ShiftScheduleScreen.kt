@@ -41,6 +41,7 @@ import com.haooz.chedule.ui.activities.isAppDarkTheme
 import com.haooz.chedule.ui.components.SectionColumn
 import com.haooz.chedule.ui.components.ShiftDayColumn
 import com.haooz.chedule.viewmodel.CourseViewModel
+import com.haooz.chedule.viewmodel.ShiftViewModel
 import top.yukonga.miuix.kmp.basic.Card
 import top.yukonga.miuix.kmp.basic.CardDefaults
 import top.yukonga.miuix.kmp.overlay.OverlayBottomSheet
@@ -54,13 +55,14 @@ private val ShiftBlue = Color(0xFF2196F3)
 @Composable
 fun ShiftScheduleScreen(
     viewModel: CourseViewModel,
+    shiftViewModel: ShiftViewModel,
     currentDayOfWeek: Int,
     dayRange: List<Int>,
     pagerState: androidx.compose.foundation.pager.PagerState
 ) {
-    val shiftScheduleCourses by viewModel.shiftScheduleCourses.collectAsState()
-    val shiftScheduleSections by viewModel.shiftScheduleSections.collectAsState()
-    val shiftSelectedSchedules by viewModel.shiftSelectedSchedules.collectAsState()
+    val shiftScheduleCourses by shiftViewModel.shiftScheduleCourses.collectAsState()
+    val shiftScheduleSections by shiftViewModel.shiftScheduleSections.collectAsState()
+    val shiftSelectedSchedules by shiftViewModel.shiftSelectedSchedules.collectAsState()
     val currentWeek by viewModel.currentWeek.collectAsState()
     val context = LocalContext.current
     val activity = context as? ComponentActivity as? com.haooz.chedule.ui.activities.MainActivity

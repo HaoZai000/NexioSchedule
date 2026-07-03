@@ -68,6 +68,7 @@ import com.haooz.chedule.data.WebDavManager
 import com.haooz.chedule.ui.activities.isAppDarkTheme
 import com.haooz.chedule.viewmodel.CourseViewModel
 import com.haooz.chedule.viewmodel.SettingsViewModel
+import com.haooz.chedule.viewmodel.ShiftViewModel
 import kotlinx.coroutines.launch
 import top.yukonga.miuix.kmp.basic.ButtonDefaults
 import top.yukonga.miuix.kmp.basic.Card
@@ -132,6 +133,7 @@ private fun getDaysInMonth(year: Int, month: Int): Int {
 fun SettingsScreen(
     viewModel: CourseViewModel,
     settingsViewModel: SettingsViewModel,
+    shiftViewModel: ShiftViewModel,
     isShiftMode: Boolean = false,
     onExitShiftMode: () -> Unit = {},
     onEnterShiftMode: () -> Unit = {}
@@ -145,7 +147,7 @@ fun SettingsScreen(
     val afternoonSections by settingsViewModel.afternoonSections.collectAsState()
     val eveningSections by settingsViewModel.eveningSections.collectAsState()
     val scheduleNames by viewModel.scheduleNames.collectAsState()
-    val shiftSelectedSchedules by viewModel.shiftSelectedSchedules.collectAsState()
+    val shiftSelectedSchedules by shiftViewModel.shiftSelectedSchedules.collectAsState()
     val defaultHomepage by settingsViewModel.defaultHomepage.collectAsState()
     val scrollBehavior = MiuixScrollBehavior()
     val context = androidx.compose.ui.platform.LocalContext.current
@@ -552,7 +554,7 @@ fun SettingsScreen(
                                             } else {
                                                 shiftSelectedSchedules - name
                                             }
-                                            viewModel.setShiftSelectedSchedules(newList)
+                                            shiftViewModel.setShiftSelectedSchedules(newList)
                                         },
                                         checkboxLocation = CheckboxLocation.End
                                     )
