@@ -1,3 +1,4 @@
+/** 日期列组件 - 显示单日课程列表 */
 package com.haooz.chedule.ui.components
 
 import androidx.compose.foundation.background

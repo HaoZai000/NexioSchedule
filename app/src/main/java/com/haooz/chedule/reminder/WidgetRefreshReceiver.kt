@@ -1,3 +1,4 @@
+/** 小组件刷新广播接收器 */
 package com.haooz.chedule.reminder
 
 import android.content.BroadcastReceiver

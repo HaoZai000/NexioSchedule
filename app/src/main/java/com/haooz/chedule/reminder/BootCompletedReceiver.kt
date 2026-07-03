@@ -1,3 +1,4 @@
+/** 开机完成接收器 - 重新注册课程提醒闹钟 */
 package com.haooz.chedule.reminder
 
 import android.content.BroadcastReceiver

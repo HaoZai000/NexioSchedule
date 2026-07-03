@@ -1,3 +1,4 @@
+/** 设置页面 - 应用全局设置 */
 package com.haooz.chedule.ui.screens
 
 import android.content.ClipData

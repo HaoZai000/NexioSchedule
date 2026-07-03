@@ -1,3 +1,4 @@
+/** Shizuku 管理器 - 管理 Shizuku 服务的绑定和生命周期 */
 package com.haooz.chedule.shizuku
 
 import android.content.ComponentName

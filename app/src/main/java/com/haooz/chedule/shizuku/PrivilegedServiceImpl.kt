@@ -1,3 +1,4 @@
+/** Shizuku 特权服务实现 - 提供跨应用操作能力 */
 package com.haooz.chedule.shizuku
 
 import android.os.IBinder

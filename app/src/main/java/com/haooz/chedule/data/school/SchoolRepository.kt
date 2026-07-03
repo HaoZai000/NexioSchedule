@@ -1,3 +1,4 @@
+/** 学校信息仓库 - 管理学校列表和索引数据 */
 package com.haooz.chedule.data.school
 
 import android.content.Context

@@ -1,3 +1,4 @@
+/** 模糊工具类 - 提供高斯模糊效果 */
 package com.haooz.chedule.ui.components
 
 import androidx.compose.foundation.layout.Box

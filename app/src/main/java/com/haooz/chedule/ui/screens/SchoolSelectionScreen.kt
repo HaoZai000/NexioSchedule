@@ -1,3 +1,4 @@
+/** 学校选择页面 - 用于教务系统导入时选择学校 */
 package com.haooz.chedule.ui.screens
 
 import androidx.compose.foundation.clickable

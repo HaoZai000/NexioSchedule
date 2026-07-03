@@ -1,3 +1,4 @@
+/** Android 桥接层 - WebView 与原生代码通信接口 */
 package com.haooz.chedule.ui.web
 
 import android.content.Context

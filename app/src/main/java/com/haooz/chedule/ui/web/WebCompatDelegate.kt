@@ -1,3 +1,4 @@
+/** WebView 兼容性委托 - 处理不同 Android 版本的 WebView 兼容问题 */
 package com.haooz.chedule.ui.web
 
 import android.graphics.Bitmap

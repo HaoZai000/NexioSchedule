@@ -1,3 +1,4 @@
+/** 颜色定义 - 应用主题色板 */
 package com.haooz.chedule.ui.theme
 
 import androidx.compose.ui.graphics.Color

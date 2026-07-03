@@ -1,3 +1,4 @@
+/** 课程详情页面 */
 package com.haooz.chedule.ui.screens
 
 import android.graphics.Bitmap

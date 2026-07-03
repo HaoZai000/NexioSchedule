@@ -1,3 +1,4 @@
+/** 背景特效 - 绘制动态背景效果 */
 package com.haooz.chedule.effect
 
 import androidx.compose.animation.core.Animatable

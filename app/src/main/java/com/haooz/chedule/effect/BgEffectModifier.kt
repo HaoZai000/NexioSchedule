@@ -1,3 +1,4 @@
+/** 背景特效 Modifier - 为 Compose 组件添加背景动画效果 */
 package com.haooz.chedule.effect
 
 import androidx.compose.runtime.withFrameNanos

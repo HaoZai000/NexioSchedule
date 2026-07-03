@@ -1,3 +1,4 @@
+/** 超级岛通知助手 - 管理灵动岛/超级岛通知展示 */
 package com.haooz.chedule.reminder
 
 import android.app.Notification

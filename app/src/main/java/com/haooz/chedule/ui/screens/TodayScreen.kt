@@ -1,3 +1,4 @@
+/** 今日课程页面 - 显示当天课程和当前/下一节课信息 */
 package com.haooz.chedule.ui.screens
 
 import android.content.Context

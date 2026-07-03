@@ -1,3 +1,4 @@
+/** 背景特效配置 - 管理特效参数和颜色方案 */
 package com.haooz.chedule.effect
 
 internal object BgEffectConfig {

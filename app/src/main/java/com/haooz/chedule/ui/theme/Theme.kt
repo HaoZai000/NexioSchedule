@@ -1,3 +1,4 @@
+/** 应用主题 - 定义 Material3 主题配色方案 */
 package com.haooz.chedule.ui.theme
 
 import android.content.Context

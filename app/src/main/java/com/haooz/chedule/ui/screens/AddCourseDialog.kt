@@ -1,3 +1,4 @@
+/** 添加/编辑课程对话框 */
 package com.haooz.chedule.ui.screens
 
 import androidx.compose.animation.core.Animatable

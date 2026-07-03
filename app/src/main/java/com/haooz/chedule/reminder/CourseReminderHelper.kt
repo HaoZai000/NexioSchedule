@@ -1,3 +1,4 @@
+/** 课程提醒助手 - 管理课程提醒的创建、取消和调度 */
 package com.haooz.chedule.reminder
 
 import android.annotation.SuppressLint

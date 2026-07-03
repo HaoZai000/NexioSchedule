@@ -1,3 +1,4 @@
+/** 课程表桌面小组件提供者 */
 package com.haooz.chedule.widget
 
 import android.app.PendingIntent

@@ -1,3 +1,4 @@
+/** 主课程表页面 - 显示周视图课程表 */
 package com.haooz.chedule.ui.screens
 
 import androidx.activity.ComponentActivity

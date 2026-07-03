@@ -1,3 +1,4 @@
+/** OS3 风格背景特效片段 */
 package com.haooz.chedule.effect
 
 const val OS3_BG_FRAG = """

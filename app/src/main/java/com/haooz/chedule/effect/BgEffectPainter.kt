@@ -1,3 +1,4 @@
+/** 背景特效画笔 - 自定义 Canvas 绘制背景动画 */
 package com.haooz.chedule.effect
 
 import androidx.compose.ui.graphics.Brush

@@ -1,3 +1,4 @@
+/** 课程提醒广播接收器 - 处理提醒触发事件 */
 package com.haooz.chedule.reminder
 
 import android.content.BroadcastReceiver
