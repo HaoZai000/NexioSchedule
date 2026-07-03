@@ -10,7 +10,7 @@ import android.content.Intent
 import android.graphics.drawable.Icon
 import android.os.Bundle
 import android.util.Log
-import com.haooz.chedule.MainActivity
+import com.haooz.chedule.ui.activities.MainActivity
 import com.haooz.chedule.R
 import com.haooz.chedule.shizuku.ShizukuManager
 import kotlinx.coroutines.CoroutineScope

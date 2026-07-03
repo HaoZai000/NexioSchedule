@@ -41,7 +41,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.haooz.chedule.data.Course
-import com.haooz.chedule.isAppDarkTheme
+import com.haooz.chedule.ui.activities.isAppDarkTheme
 import com.haooz.chedule.viewmodel.CourseViewModel
 import kotlinx.coroutines.delay
 import top.yukonga.miuix.kmp.basic.Card

@@ -1,6 +1,7 @@
 /** 小组件使用引导页面 */
-package com.haooz.chedule
+package com.haooz.chedule.ui.activities
 
+import com.haooz.chedule.R
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.SystemBarStyle

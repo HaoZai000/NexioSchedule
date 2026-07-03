@@ -1,5 +1,5 @@
-/** 偏好设置页面 */
-package com.haooz.chedule
+﻿/** 偏好设置页面 */
+package com.haooz.chedule.ui.activities
 
 import android.content.Context
 import android.os.Bundle

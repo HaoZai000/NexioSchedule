@@ -1,5 +1,5 @@
-/** 主页面 - 应用入口 Activity */
-package com.haooz.chedule
+﻿/** 主页面 - 应用入口 Activity */
+package com.haooz.chedule.ui.activities
 
 import android.annotation.SuppressLint
 import android.content.Context

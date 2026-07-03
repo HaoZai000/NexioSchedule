@@ -1,5 +1,5 @@
-/** 关于页面 */
-package com.haooz.chedule
+﻿/** 关于页面 */
+package com.haooz.chedule.ui.activities
 
 import android.content.Intent
 import android.graphics.Bitmap

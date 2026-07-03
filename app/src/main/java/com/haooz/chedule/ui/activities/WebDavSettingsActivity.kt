@@ -1,5 +1,5 @@
-/** WebDAV 同步设置页面 */
-package com.haooz.chedule
+﻿/** WebDAV 同步设置页面 */
+package com.haooz.chedule.ui.activities
 
 import android.os.Bundle
 import androidx.activity.ComponentActivity

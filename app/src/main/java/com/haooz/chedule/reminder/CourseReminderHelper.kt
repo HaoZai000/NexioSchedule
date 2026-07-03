@@ -11,7 +11,7 @@ import android.content.Context
 import android.content.Intent
 import android.os.Build
 import androidx.core.app.NotificationCompat
-import com.haooz.chedule.MainActivity
+import com.haooz.chedule.ui.activities.MainActivity
 import com.haooz.chedule.R
 import com.haooz.chedule.data.Course
 import com.haooz.chedule.data.CourseRepository

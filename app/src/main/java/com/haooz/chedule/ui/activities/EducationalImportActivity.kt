@@ -1,5 +1,5 @@
-/** 教务系统导入页面 */
-package com.haooz.chedule
+﻿/** 教务系统导入页面 */
+package com.haooz.chedule.ui.activities
 
 import android.os.Bundle
 import android.util.Log

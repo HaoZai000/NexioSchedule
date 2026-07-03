@@ -58,14 +58,14 @@ import androidx.compose.ui.unit.DpSize
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.core.content.FileProvider
-import com.haooz.chedule.AboutActivity
-import com.haooz.chedule.CourseReminderActivity
-import com.haooz.chedule.CourseTimeSettingsActivity
-import com.haooz.chedule.PreferenceSettingsActivity
-import com.haooz.chedule.WidgetIntroActivity
+import com.haooz.chedule.ui.activities.AboutActivity
+import com.haooz.chedule.ui.activities.CourseReminderActivity
+import com.haooz.chedule.ui.activities.CourseTimeSettingsActivity
+import com.haooz.chedule.ui.activities.PreferenceSettingsActivity
+import com.haooz.chedule.ui.activities.WidgetIntroActivity
 import com.haooz.chedule.data.Course
 import com.haooz.chedule.data.WebDavManager
-import com.haooz.chedule.isAppDarkTheme
+import com.haooz.chedule.ui.activities.isAppDarkTheme
 import com.haooz.chedule.viewmodel.CourseViewModel
 import kotlinx.coroutines.launch
 import top.yukonga.miuix.kmp.basic.ButtonDefaults
@@ -608,7 +608,7 @@ fun SettingsScreen(
                                 ArrowPreference(
                                     title = "教务系统导入",
                                     onClick = {
-                                        val intent = android.content.Intent(context, com.haooz.chedule.EducationalImportActivity::class.java)
+                                        val intent = android.content.Intent(context, com.haooz.chedule.ui.activities.EducationalImportActivity::class.java)
                                         context.startActivity(intent)
                                     }
                                 )
@@ -688,7 +688,7 @@ fun SettingsScreen(
                                     title = "WebDav云同步",
                                     summary = if (webDavManager.isConfigured()) lastSyncSummary else "配置服务器后可手动同步",
                                     onClick = {
-                                        val intent = Intent(context, com.haooz.chedule.WebDavSettingsActivity::class.java)
+                                        val intent = Intent(context, com.haooz.chedule.ui.activities.WebDavSettingsActivity::class.java)
                                         context.startActivity(intent)
                                     }
                                 )

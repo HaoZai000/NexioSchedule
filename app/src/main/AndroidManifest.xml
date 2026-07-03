@@ -31,7 +31,7 @@
         android:supportsRtl="true"
         android:theme="@style/Theme.课程表">
         <activity
-            android:name=".MainActivity"
+            android:name=".ui.activities.MainActivity"
             android:configChanges="orientation|screenSize|screenLayout|keyboardHidden|mnc|colorMode|density|fontScale|fontWeightAdjustment|keyboard|layoutDirection|locale|mcc|navigation|smallestScreenSize|touchscreen|uiMode"
             android:exported="true"
             android:launchMode="singleTask"
@@ -45,7 +45,7 @@
         </activity>
         <activity-alias
             android:name=".ImportAlias"
-            android:targetActivity=".MainActivity"
+            android:targetActivity=".ui.activities.MainActivity"
             android:exported="true"
             android:label="导入课程表"
             android:theme="@style/Theme.课程表">
@@ -73,24 +73,24 @@
             </intent-filter>
         </activity-alias>
         <activity
-            android:name=".CourseTimeSettingsActivity"
+            android:name=".ui.activities.CourseTimeSettingsActivity"
             android:exported="false"
             android:label="课表时间设置"
             android:theme="@style/Theme.课程表"
             android:windowSoftInputMode="adjustResize" />
         <activity
-            android:name=".CourseReminderActivity"
+            android:name=".ui.activities.CourseReminderActivity"
             android:exported="false"
             android:label="课程提醒"
             android:theme="@style/Theme.课程表"
             android:windowSoftInputMode="adjustResize" />
         <activity
-            android:name=".WidgetIntroActivity"
+            android:name=".ui.activities.WidgetIntroActivity"
             android:exported="false"
             android:label="桌面小部件"
             android:theme="@style/Theme.课程表" />
         <activity
-            android:name=".SwitchScheduleActivity"
+            android:name=".ui.activities.SwitchScheduleActivity"
             android:exported="false"
             android:label="切换课表"
             android:theme="@style/Theme.课程表"
@@ -102,33 +102,33 @@
             android:theme="@style/Theme.课程表"
             android:windowSoftInputMode="adjustResize" />
         <activity
-            android:name=".AboutActivity"
+            android:name=".ui.activities.AboutActivity"
             android:exported="false"
             android:label="关于应用"
             android:theme="@style/Theme.课程表" />
         <activity
-            android:name=".AppreciateAuthorActivity"
+            android:name=".ui.activities.AppreciateAuthorActivity"
             android:exported="false"
             android:label="赞赏作者"
             android:theme="@style/Theme.课程表" />
         <activity
-            android:name=".UpdateSettingsActivity"
+            android:name=".ui.activities.UpdateSettingsActivity"
             android:exported="false"
             android:label="更新设置"
             android:theme="@style/Theme.课程表" />
         <activity
-            android:name=".PreferenceSettingsActivity"
+            android:name=".ui.activities.PreferenceSettingsActivity"
             android:exported="false"
             android:label="偏好设置"
             android:theme="@style/Theme.课程表" />
         <activity
-            android:name=".WebDavSettingsActivity"
+            android:name=".ui.activities.WebDavSettingsActivity"
             android:exported="false"
             android:label="WebDAV 云同步"
             android:theme="@style/Theme.课程表"
             android:windowSoftInputMode="adjustResize" />
         <activity
-            android:name=".EducationalImportActivity"
+            android:name=".ui.activities.EducationalImportActivity"
             android:exported="false"
             android:label="教务系统导入"
             android:theme="@style/Theme.课程表"

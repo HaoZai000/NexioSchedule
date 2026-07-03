@@ -1,5 +1,5 @@
-/** 课程时间设置页面 */
-package com.haooz.chedule
+﻿/** 课程时间设置页面 */
+package com.haooz.chedule.ui.activities
 
 import android.annotation.SuppressLint
 import android.os.Bundle

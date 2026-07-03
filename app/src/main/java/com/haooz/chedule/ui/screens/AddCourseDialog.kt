@@ -51,7 +51,7 @@ import androidx.compose.ui.unit.DpSize
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.haooz.chedule.data.Course
-import com.haooz.chedule.isAppDarkTheme
+import com.haooz.chedule.ui.activities.isAppDarkTheme
 import com.kyant.shapes.RoundedRectangle
 import top.yukonga.miuix.kmp.basic.Button
 import top.yukonga.miuix.kmp.basic.ButtonDefaults

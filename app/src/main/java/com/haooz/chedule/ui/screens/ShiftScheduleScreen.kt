@@ -37,7 +37,7 @@ import androidx.compose.ui.unit.DpSize
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.haooz.chedule.data.Course
-import com.haooz.chedule.isAppDarkTheme
+import com.haooz.chedule.ui.activities.isAppDarkTheme
 import com.haooz.chedule.ui.components.SectionColumn
 import com.haooz.chedule.ui.components.ShiftDayColumn
 import com.haooz.chedule.viewmodel.CourseViewModel
@@ -63,7 +63,7 @@ fun ShiftScheduleScreen(
     val shiftSelectedSchedules by viewModel.shiftSelectedSchedules.collectAsState()
     val currentWeek by viewModel.currentWeek.collectAsState()
     val context = LocalContext.current
-    val activity = context as? ComponentActivity as? com.haooz.chedule.MainActivity
+    val activity = context as? ComponentActivity as? com.haooz.chedule.ui.activities.MainActivity
     val isInFreeformWindow = activity?.isInFreeformWindow == true
     val isDark = isAppDarkTheme()
     val hapticFeedback = androidx.compose.ui.platform.LocalHapticFeedback.current

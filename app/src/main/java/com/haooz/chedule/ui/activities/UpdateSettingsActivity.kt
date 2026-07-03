@@ -1,5 +1,5 @@
-/** 应用更新设置页面 */
-package com.haooz.chedule
+﻿/** 应用更新设置页面 */
+package com.haooz.chedule.ui.activities
 
 import android.content.Context
 import android.content.Intent

@@ -1,5 +1,5 @@
-/** 课程提醒设置页面 */
-package com.haooz.chedule
+﻿/** 课程提醒设置页面 */
+package com.haooz.chedule.ui.activities
 
 import android.Manifest
 import android.content.Intent

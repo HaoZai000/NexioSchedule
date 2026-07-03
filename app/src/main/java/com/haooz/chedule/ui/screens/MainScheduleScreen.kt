@@ -48,7 +48,7 @@ import androidx.compose.ui.unit.DpSize
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.haooz.chedule.data.Course
-import com.haooz.chedule.isAppDarkTheme
+import com.haooz.chedule.ui.activities.isAppDarkTheme
 import com.haooz.chedule.ui.components.DayColumn
 import com.haooz.chedule.ui.components.SectionColumn
 import com.haooz.chedule.viewmodel.CourseViewModel
@@ -123,7 +123,7 @@ fun MainScheduleScreen(
     }
 
     val context = LocalContext.current
-    val activity = context as? ComponentActivity as? com.haooz.chedule.MainActivity
+    val activity = context as? ComponentActivity as? com.haooz.chedule.ui.activities.MainActivity
     @Suppress("RedundantInitializer")
     val isInFreeformWindow = activity?.isInFreeformWindow == true
 

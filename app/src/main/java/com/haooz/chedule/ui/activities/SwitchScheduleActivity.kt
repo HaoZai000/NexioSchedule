@@ -1,5 +1,5 @@
-/** 切换课程表页面 */
-package com.haooz.chedule
+﻿/** 切换课程表页面 */
+package com.haooz.chedule.ui.activities
 
 import android.annotation.SuppressLint
 import android.os.Bundle
