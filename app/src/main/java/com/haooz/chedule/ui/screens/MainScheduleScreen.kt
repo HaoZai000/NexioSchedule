@@ -52,6 +52,7 @@ import com.haooz.chedule.ui.activities.isAppDarkTheme
 import com.haooz.chedule.ui.components.DayColumn
 import com.haooz.chedule.ui.components.SectionColumn
 import com.haooz.chedule.viewmodel.CourseViewModel
+import com.haooz.chedule.viewmodel.SettingsViewModel
 import top.yukonga.miuix.kmp.basic.Card
 import top.yukonga.miuix.kmp.basic.CardDefaults
 import top.yukonga.miuix.kmp.basic.Icon
@@ -72,6 +73,7 @@ import kotlinx.coroutines.launch
 @Composable
 fun MainScheduleScreen(
     viewModel: CourseViewModel,
+    settingsViewModel: SettingsViewModel,
     pagerState: PagerState,
     currentDayOfWeek: Int,
     dayRange: List<Int>,
@@ -84,11 +86,11 @@ fun MainScheduleScreen(
     val showAddDialog by viewModel.showAddDialog.collectAsState()
     val showJumpWeekDialog by viewModel.showJumpWeekDialog.collectAsState()
     val editingCourse by viewModel.editingCourse.collectAsState()
-    val showNonCurrentWeek by viewModel.showNonCurrentWeek.collectAsState()
-    val morningSections by viewModel.morningSections.collectAsState()
-    val afternoonSections by viewModel.afternoonSections.collectAsState()
-    val eveningSections by viewModel.eveningSections.collectAsState()
-    val sectionTimes by viewModel.sectionTimes.collectAsState()
+    val showNonCurrentWeek by settingsViewModel.showNonCurrentWeek.collectAsState()
+    val morningSections by settingsViewModel.morningSections.collectAsState()
+    val afternoonSections by settingsViewModel.afternoonSections.collectAsState()
+    val eveningSections by settingsViewModel.eveningSections.collectAsState()
+    val sectionTimes by settingsViewModel.sectionTimes.collectAsState()
     val selectedStartSection by viewModel.selectedStartSection.collectAsState()
     val selectedEndSection by viewModel.selectedEndSection.collectAsState()
     val hapticFeedback = LocalHapticFeedback.current

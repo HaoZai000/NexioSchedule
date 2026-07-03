@@ -1,4 +1,4 @@
-﻿/** 偏好设置页面 */
+/** 偏好设置页面 */
 package com.haooz.chedule.ui.activities
 
 import android.content.Context
@@ -35,6 +35,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import com.haooz.chedule.ui.theme.CourseScheduleTheme
 import com.haooz.chedule.viewmodel.CourseViewModel
+import com.haooz.chedule.viewmodel.SettingsViewModel
 import top.yukonga.miuix.kmp.basic.Card
 import top.yukonga.miuix.kmp.basic.DropdownEntry
 import top.yukonga.miuix.kmp.basic.DropdownItem
@@ -93,7 +94,8 @@ private fun PreferenceSettingsScreen(onBack: () -> Unit) {
     var themeMode by remember { mutableStateOf(themePrefs.getString("theme_mode", "system") ?: "system") }
 
     val viewModel = remember { CourseViewModel(context.applicationContext as android.app.Application) }
-    val defaultHomepage by viewModel.defaultHomepage.collectAsState()
+    val settingsViewModel = remember { SettingsViewModel(context.applicationContext as android.app.Application) }
+    val defaultHomepage by settingsViewModel.defaultHomepage.collectAsState()
 
     val backgroundColor = MiuixTheme.colorScheme.surface
     val backdrop = rememberLayerBackdrop {
@@ -228,14 +230,14 @@ private fun PreferenceSettingsScreen(onBack: () -> Unit) {
                                         text = "今日",
                                         selected = defaultHomepage == "今日",
                                         onClick = {
-                                            viewModel.setDefaultHomepage("今日")
+                                            settingsViewModel.setDefaultHomepage("今日")
                                         }
                                     ),
                                     DropdownItem(
                                         text = "课程表",
                                         selected = defaultHomepage == "课程表",
                                         onClick = {
-                                            viewModel.setDefaultHomepage("课程表")
+                                            settingsViewModel.setDefaultHomepage("课程表")
                                         }
                                     ),
                                 )

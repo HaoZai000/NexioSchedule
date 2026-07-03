@@ -67,6 +67,7 @@ import com.haooz.chedule.data.Course
 import com.haooz.chedule.data.WebDavManager
 import com.haooz.chedule.ui.activities.isAppDarkTheme
 import com.haooz.chedule.viewmodel.CourseViewModel
+import com.haooz.chedule.viewmodel.SettingsViewModel
 import kotlinx.coroutines.launch
 import top.yukonga.miuix.kmp.basic.ButtonDefaults
 import top.yukonga.miuix.kmp.basic.Card
@@ -130,6 +131,7 @@ private fun getDaysInMonth(year: Int, month: Int): Int {
 @Composable
 fun SettingsScreen(
     viewModel: CourseViewModel,
+    settingsViewModel: SettingsViewModel,
     isShiftMode: Boolean = false,
     onExitShiftMode: () -> Unit = {},
     onEnterShiftMode: () -> Unit = {}
@@ -137,14 +139,14 @@ fun SettingsScreen(
     val totalWeeks by viewModel.totalWeeks.collectAsState()
     val currentWeek by viewModel.currentWeek.collectAsState()
     val classStartTime by viewModel.classStartTime.collectAsState()
-    val showWeekendDays by viewModel.showWeekendDays.collectAsState()
-    val showNonCurrentWeek by viewModel.showNonCurrentWeek.collectAsState()
-    val morningSections by viewModel.morningSections.collectAsState()
-    val afternoonSections by viewModel.afternoonSections.collectAsState()
-    val eveningSections by viewModel.eveningSections.collectAsState()
+    val showWeekendDays by settingsViewModel.showWeekendDays.collectAsState()
+    val showNonCurrentWeek by settingsViewModel.showNonCurrentWeek.collectAsState()
+    val morningSections by settingsViewModel.morningSections.collectAsState()
+    val afternoonSections by settingsViewModel.afternoonSections.collectAsState()
+    val eveningSections by settingsViewModel.eveningSections.collectAsState()
     val scheduleNames by viewModel.scheduleNames.collectAsState()
     val shiftSelectedSchedules by viewModel.shiftSelectedSchedules.collectAsState()
-    val defaultHomepage by viewModel.defaultHomepage.collectAsState()
+    val defaultHomepage by settingsViewModel.defaultHomepage.collectAsState()
     val scrollBehavior = MiuixScrollBehavior()
     val context = androidx.compose.ui.platform.LocalContext.current
     val hapticFeedback = LocalHapticFeedback.current
@@ -386,7 +388,7 @@ fun SettingsScreen(
                                             text = "不显示",
                                             selected = showWeekendDays.isEmpty(),
                                             onClick = {
-                                                viewModel.setShowWeekendDays(emptySet())
+                                                settingsViewModel.setShowWeekendDays(emptySet())
                                             }
                                         ),
                                     )
@@ -397,21 +399,21 @@ fun SettingsScreen(
                                             text = "仅周六",
                                             selected = showWeekendDays == setOf(6),
                                             onClick = {
-                                                viewModel.setShowWeekendDays(setOf(6))
+                                                settingsViewModel.setShowWeekendDays(setOf(6))
                                             }
                                         ),
                                         DropdownItem(
                                             text = "仅周日",
                                             selected = showWeekendDays == setOf(7),
                                             onClick = {
-                                                viewModel.setShowWeekendDays(setOf(7))
+                                                settingsViewModel.setShowWeekendDays(setOf(7))
                                             }
                                         ),
                                         DropdownItem(
                                             text = "周六与周日",
                                             selected = showWeekendDays == setOf(6, 7),
                                             onClick = {
-                                                viewModel.setShowWeekendDays(setOf(6, 7))
+                                                settingsViewModel.setShowWeekendDays(setOf(6, 7))
                                             }
                                         ),
                                     )
@@ -430,7 +432,7 @@ fun SettingsScreen(
                                     modifier = Modifier
                                         .fillMaxWidth()
                                         .clickable {
-                                            viewModel.setShowNonCurrentWeek(!showNonCurrentWeek)
+                                            settingsViewModel.setShowNonCurrentWeek(!showNonCurrentWeek)
                                         }
                                         .padding(horizontal = 16.dp, vertical = 14.dp),
                                     horizontalArrangement = Arrangement.SpaceBetween,
@@ -445,7 +447,7 @@ fun SettingsScreen(
                                     Switch(
                                         checked = showNonCurrentWeek,
                                         onCheckedChange = {
-                                            viewModel.setShowNonCurrentWeek(it)
+                                            settingsViewModel.setShowNonCurrentWeek(it)
                                         }
                                     )
                                 }
@@ -634,7 +636,7 @@ fun SettingsScreen(
                                     title = "课表导出",
                                     summary = "以JSON格式导出完整课表数据",
                                     onClick = {
-                                        exportSchedule(context, viewModel)
+                                        exportSchedule(context, viewModel, settingsViewModel)
                                     }
                                 )
                             }
@@ -1079,9 +1081,9 @@ fun SettingsScreen(
                         text = "确定",
                         onClick = {
                             hapticFeedback.performHapticFeedback(HapticFeedbackType.Confirm)
-                            viewModel.setMorningSections(tempMorningSections)
-                            viewModel.setAfternoonSections(tempAfternoonSections)
-                            viewModel.setEveningSections(tempEveningSections)
+                            settingsViewModel.setMorningSections(tempMorningSections)
+                            settingsViewModel.setAfternoonSections(tempAfternoonSections)
+                            settingsViewModel.setEveningSections(tempEveningSections)
                             showSectionDialog = false
                         },
                         colors = ButtonDefaults.textButtonColorsPrimary(),
@@ -1312,6 +1314,7 @@ fun SettingsScreen(
                                 val (_, message) = applyScheduleData(
                                     context,
                                     viewModel,
+                                    settingsViewModel,
                                     pendingImportScheduleName,
                                     pendingImportData!!
                                 )
@@ -1476,7 +1479,7 @@ private fun parseWeekString(weekStr: String): List<Int> {
 /**
  * 导出课表为JSON文件并调用系统分享
  */
-private fun exportSchedule(context: Context, viewModel: CourseViewModel) {
+private fun exportSchedule(context: Context, viewModel: CourseViewModel, settingsViewModel: SettingsViewModel) {
     val courses = viewModel.courses.value
     if (courses.isEmpty()) {
         Toast.makeText(context, "当前课表为空，无法导出", Toast.LENGTH_SHORT).show()
@@ -1489,16 +1492,16 @@ private fun exportSchedule(context: Context, viewModel: CourseViewModel) {
             "class_start_time" to viewModel.classStartTime.value,
             "current_week" to viewModel.currentWeek.value,
             "total_weeks" to viewModel.totalWeeks.value,
-            "show_weekend_days" to viewModel.showWeekendDays.value.toList(),
-            "show_non_current_week" to viewModel.showNonCurrentWeek.value,
-            "morning_sections" to viewModel.morningSections.value,
-            "afternoon_sections" to viewModel.afternoonSections.value,
-            "evening_sections" to viewModel.eveningSections.value
+            "show_weekend_days" to settingsViewModel.showWeekendDays.value.toList(),
+            "show_non_current_week" to settingsViewModel.showNonCurrentWeek.value,
+            "morning_sections" to settingsViewModel.morningSections.value,
+            "afternoon_sections" to settingsViewModel.afternoonSections.value,
+            "evening_sections" to settingsViewModel.eveningSections.value
         ),
         "times" to mapOf(
-            "morning" to viewModel.getMorningTimes().mapKeys { it.key.toString() },
-            "afternoon" to viewModel.getAfternoonTimes().mapKeys { it.key.toString() },
-            "evening" to viewModel.getEveningTimes().mapKeys { it.key.toString() }
+            "morning" to settingsViewModel.getMorningTimes().mapKeys { it.key.toString() },
+            "afternoon" to settingsViewModel.getAfternoonTimes().mapKeys { it.key.toString() },
+            "evening" to settingsViewModel.getEveningTimes().mapKeys { it.key.toString() }
         ),
         "courses" to courses.map { course ->
             mapOf(
@@ -1722,6 +1725,7 @@ private fun parseIcsEvent(event: Map<String, String>): Map<String, Any>? {
 internal fun applyScheduleData(
     @Suppress("UNUSED_PARAMETER") context: Context,
     viewModel: CourseViewModel,
+    settingsViewModel: SettingsViewModel,
     scheduleName: String,
     data: Map<String, Any>
 ): Pair<Boolean, String> {
@@ -1863,14 +1867,14 @@ internal fun applyScheduleData(
             (settings["total_weeks"] as? Number)?.toInt()?.let { viewModel.setTotalWeeks(it) }
             @Suppress("UNCHECKED_CAST")
             (settings["show_weekend_days"] as? List<Number>)?.map { it.toInt() }?.toSet()?.let {
-                viewModel.setShowWeekendDays(it)
+                settingsViewModel.setShowWeekendDays(it)
             }
             (settings["show_non_current_week"] as? Boolean)?.let {
-                viewModel.setShowNonCurrentWeek(it)
+                settingsViewModel.setShowNonCurrentWeek(it)
             }
-            (settings["morning_sections"] as? Number)?.toInt()?.let { viewModel.setMorningSections(it) }
-            (settings["afternoon_sections"] as? Number)?.toInt()?.let { viewModel.setAfternoonSections(it) }
-            (settings["evening_sections"] as? Number)?.toInt()?.let { viewModel.setEveningSections(it) }
+            (settings["morning_sections"] as? Number)?.toInt()?.let { settingsViewModel.setMorningSections(it) }
+            (settings["afternoon_sections"] as? Number)?.toInt()?.let { settingsViewModel.setAfternoonSections(it) }
+            (settings["evening_sections"] as? Number)?.toInt()?.let { settingsViewModel.setEveningSections(it) }
 
             // 保存课程时间
             @Suppress("UNCHECKED_CAST")
@@ -1893,9 +1897,9 @@ internal fun applyScheduleData(
                     k.toIntOrNull()?.let { eveningTimes[it] = v }
                 }
 
-                if (morningTimes.isNotEmpty()) viewModel.saveMorningTimes(morningTimes)
-                if (afternoonTimes.isNotEmpty()) viewModel.saveAfternoonTimes(afternoonTimes)
-                if (eveningTimes.isNotEmpty()) viewModel.saveEveningTimes(eveningTimes)
+                if (morningTimes.isNotEmpty()) settingsViewModel.saveMorningTimes(morningTimes)
+                if (afternoonTimes.isNotEmpty()) settingsViewModel.saveAfternoonTimes(afternoonTimes)
+                if (eveningTimes.isNotEmpty()) settingsViewModel.saveEveningTimes(eveningTimes)
             }
         }
 

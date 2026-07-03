@@ -1,4 +1,4 @@
-﻿/** 课程提醒设置页面 */
+/** 课程提醒设置页面 */
 package com.haooz.chedule.ui.activities
 
 import android.Manifest
@@ -55,6 +55,7 @@ import com.haooz.chedule.reminder.IslandNotificationHelper
 import com.haooz.chedule.shizuku.ShizukuManager
 import com.haooz.chedule.ui.theme.CourseScheduleTheme
 import com.haooz.chedule.viewmodel.CourseViewModel
+import com.haooz.chedule.viewmodel.SettingsViewModel
 import top.yukonga.miuix.kmp.basic.Card
 import top.yukonga.miuix.kmp.basic.Icon
 import top.yukonga.miuix.kmp.basic.IconButton
@@ -102,14 +103,15 @@ class CourseReminderActivity : ComponentActivity() {
 @Composable
 private fun CourseReminderScreen(
     onBack: () -> Unit,
-    viewModel: CourseViewModel = viewModel()
+    viewModel: CourseViewModel = viewModel(),
+    settingsViewModel: SettingsViewModel = viewModel()
 ) {
-    val preClassReminder by viewModel.preClassReminder.collectAsState()
-    val preClassReminderMinutes by viewModel.preClassReminderMinutes.collectAsState()
-    val nextDayReminder by viewModel.nextDayReminder.collectAsState()
-    val nextDayReminderHour by viewModel.nextDayReminderHour.collectAsState()
-    val nextDayReminderMinute by viewModel.nextDayReminderMinute.collectAsState()
-    val islandNotification by viewModel.islandNotification.collectAsState()
+    val preClassReminder by settingsViewModel.preClassReminder.collectAsState()
+    val preClassReminderMinutes by settingsViewModel.preClassReminderMinutes.collectAsState()
+    val nextDayReminder by settingsViewModel.nextDayReminder.collectAsState()
+    val nextDayReminderHour by settingsViewModel.nextDayReminderHour.collectAsState()
+    val nextDayReminderMinute by settingsViewModel.nextDayReminderMinute.collectAsState()
+    val islandNotification by settingsViewModel.islandNotification.collectAsState()
     val scrollBehavior = MiuixScrollBehavior()
     val context = androidx.compose.ui.platform.LocalContext.current
     val hapticFeedback = LocalHapticFeedback.current
@@ -293,8 +295,8 @@ private fun CourseReminderScreen(
                                     notificationPermissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
                                     return@SwitchPreference
                                 }
-                                viewModel.setPreClassReminder(it)
-                                viewModel.setNextDayReminder(it)
+                                settingsViewModel.setPreClassReminder(it)
+                                settingsViewModel.setNextDayReminder(it)
                                 if (it) {
                                     CourseReminderHelper.startReminderService(context)
                                 }
@@ -324,7 +326,7 @@ private fun CourseReminderScreen(
                                     notificationPermissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
                                     return@SwitchPreference
                                 }
-                                viewModel.setPreClassReminder(it)
+                                settingsViewModel.setPreClassReminder(it)
                                 if (it) {
                                     CourseReminderHelper.startReminderService(context)
                                 }
@@ -359,7 +361,7 @@ private fun CourseReminderScreen(
                                     notificationPermissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
                                     return@SwitchPreference
                                 }
-                                viewModel.setNextDayReminder(it)
+                                settingsViewModel.setNextDayReminder(it)
                                 if (it) {
                                     CourseReminderHelper.startReminderService(context)
                                 }
@@ -401,7 +403,7 @@ private fun CourseReminderScreen(
                                     summary = if (islandNotification) "已开启，课程提醒将以超级岛样式显示" else "关闭后使用普通通知",
                                     checked = islandNotification,
                                     onCheckedChange = {
-                                        viewModel.setIslandNotification(it)
+                                        settingsViewModel.setIslandNotification(it)
                                     }
                                 )
                                 // Shizuku 状态
@@ -714,7 +716,7 @@ private fun CourseReminderScreen(
                         text = "确定",
                         onClick = {
                             hapticFeedback.performHapticFeedback(HapticFeedbackType.Confirm)
-                            viewModel.setPreClassReminderMinutes(tempMinutes)
+                            settingsViewModel.setPreClassReminderMinutes(tempMinutes)
                             showMinutesDialog = false
                             CourseReminderHelper.startReminderService(context)
                         },
@@ -785,8 +787,8 @@ private fun CourseReminderScreen(
                         text = "确定",
                         onClick = {
                             hapticFeedback.performHapticFeedback(HapticFeedbackType.Confirm)
-                            viewModel.setNextDayReminderHour(tempHour)
-                            viewModel.setNextDayReminderMinute(tempMinute)
+                            settingsViewModel.setNextDayReminderHour(tempHour)
+                            settingsViewModel.setNextDayReminderMinute(tempMinute)
                             showTimeDialog = false
                             CourseReminderHelper.startReminderService(context)
                         },

@@ -1,4 +1,4 @@
-﻿/** 主页面 - 应用入口 Activity */
+/** 主页面 - 应用入口 Activity */
 package com.haooz.chedule.ui.activities
 
 import android.annotation.SuppressLint
@@ -75,6 +75,7 @@ import com.haooz.chedule.ui.screens.ShiftScheduleScreen
 import com.haooz.chedule.ui.screens.TodayScreen
 import com.haooz.chedule.ui.theme.CourseScheduleTheme
 import com.haooz.chedule.viewmodel.CourseViewModel
+import com.haooz.chedule.viewmodel.SettingsViewModel
 import com.kyant.shapes.RoundedRectangle
 import kotlinx.coroutines.launch
 import top.yukonga.miuix.kmp.basic.DropdownEntry
@@ -256,7 +257,8 @@ class MainActivity : ComponentActivity() {
 @Composable
 fun CourseScheduleApp() {
     val viewModel: CourseViewModel = viewModel()
-    val defaultHomepage by viewModel.defaultHomepage.collectAsState()
+    val settingsViewModel: SettingsViewModel = viewModel()
+    val defaultHomepage by settingsViewModel.defaultHomepage.collectAsState()
     var selectedTab by remember { mutableIntStateOf(if (defaultHomepage == "今日") 0 else 1) }
     var showShiftLoading by remember { mutableStateOf(false) }
     var isExitingShift by remember { mutableStateOf(false) }
@@ -338,7 +340,7 @@ fun CourseScheduleApp() {
     val totalWeeks by viewModel.totalWeeks.collectAsState()
     val currentWeek by viewModel.currentWeek.collectAsState()
     val classStartTime by viewModel.classStartTime.collectAsState()
-    val showWeekendDays by viewModel.showWeekendDays.collectAsState()
+    val showWeekendDays by settingsViewModel.showWeekendDays.collectAsState()
     val isShiftMode by viewModel.isShiftMode.collectAsState()
 
     var showCourseDetailPopup by remember { mutableStateOf(false) }
@@ -773,6 +775,7 @@ fun CourseScheduleApp() {
                         when (selectedTab) {
                             0 -> TodayScreen(
                                 viewModel = viewModel,
+                                settingsViewModel = settingsViewModel,
                                 onCourseClick = { courses, left, top, width, height, _ ->
                                     detailCourses = courses
                                     detailCardLeft = left
@@ -797,6 +800,7 @@ fun CourseScheduleApp() {
                             )
                             1 -> MainScheduleScreen(
                                 viewModel = viewModel,
+                                settingsViewModel = settingsViewModel,
                                 pagerState = pagerState,
                                 currentDayOfWeek = currentDayOfWeek,
                                 dayRange = dayRange,
@@ -825,6 +829,7 @@ fun CourseScheduleApp() {
                             )
                             2 -> SettingsScreen(
                                 viewModel = viewModel,
+                                settingsViewModel = settingsViewModel,
                                 onEnterShiftMode = {
                                     showShiftLoading = true
                                     isExitingShift = false
@@ -841,6 +846,7 @@ fun CourseScheduleApp() {
                             )
                             1 -> SettingsScreen(
                                 viewModel = viewModel,
+                                settingsViewModel = settingsViewModel,
                                 isShiftMode = true,
                                 onExitShiftMode = {
                                     showShiftLoading = true
@@ -898,6 +904,7 @@ fun CourseScheduleApp() {
                                         val (_, importMessage) = com.haooz.chedule.ui.screens.applyScheduleData(
                                             context,
                                             viewModel,
+                                            settingsViewModel,
                                             shareImportScheduleName,
                                             shareImportData!!
                                         )
@@ -1010,7 +1017,7 @@ fun CourseScheduleApp() {
         // 课程详情页（不受缩放影响）
         if (showDetail) {
             val windowInfo = androidx.compose.ui.platform.LocalWindowInfo.current
-            val sectionTimes by viewModel.sectionTimes.collectAsState()
+            val sectionTimes by settingsViewModel.sectionTimes.collectAsState()
             val classStartTime by viewModel.classStartTime.collectAsState()
             CourseDetailScreen(
                 courses = detailCourses,

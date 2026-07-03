@@ -11,9 +11,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
-import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.launch
-import kotlinx.coroutines.withContext
 import java.time.LocalDate
 import java.time.format.DateTimeFormatter
 import java.time.temporal.ChronoUnit
@@ -45,77 +43,6 @@ class CourseViewModel(application: Application) : AndroidViewModel(application) 
     private val _classStartTime = MutableStateFlow("2025-09-01")
     val classStartTime: StateFlow<String> = _classStartTime.asStateFlow()
 
-    // 显示周末设置 (Set of day numbers to show: 6=周六, 7=周日)
-    private val _showWeekendDays = MutableStateFlow(emptySet<Int>())
-    val showWeekendDays: StateFlow<Set<Int>> = _showWeekendDays.asStateFlow()
-
-    // 兼容旧逻辑
-    val showWeekend: Boolean get() = _showWeekendDays.value.isNotEmpty()
-
-    // 显示非本周课程
-    private val _showNonCurrentWeek = MutableStateFlow(true)
-    val showNonCurrentWeek: StateFlow<Boolean> = _showNonCurrentWeek.asStateFlow()
-
-    // 上午节数
-    private val _morningSections = MutableStateFlow(4)
-    val morningSections: StateFlow<Int> = _morningSections.asStateFlow()
-
-    // 下午节数
-    private val _afternoonSections = MutableStateFlow(4)
-    val afternoonSections: StateFlow<Int> = _afternoonSections.asStateFlow()
-
-    // 晚上节数
-    private val _eveningSections = MutableStateFlow(4)
-    val eveningSections: StateFlow<Int> = _eveningSections.asStateFlow()
-
-    // 各时段节次时间映射 (key: 时段内相对节次 1-6, value: "HH:mm-HH:mm")
-    private val _morningTimes = MutableStateFlow<Map<Int, String>>(Course.defaultMorningTimes)
-    val morningTimes: StateFlow<Map<Int, String>> = _morningTimes.asStateFlow()
-
-    private val _afternoonTimes = MutableStateFlow<Map<Int, String>>(Course.defaultAfternoonTimes)
-    val afternoonTimes: StateFlow<Map<Int, String>> = _afternoonTimes.asStateFlow()
-
-    private val _eveningTimes = MutableStateFlow<Map<Int, String>>(Course.defaultEveningTimes)
-    val eveningTimes: StateFlow<Map<Int, String>> = _eveningTimes.asStateFlow()
-
-    // 兼容：合并为绝对编号的扁平映射
-    val sectionTimes: StateFlow<Map<Int, String>> = run {
-        val combined = combine(_morningTimes, _afternoonTimes, _eveningTimes, _morningSections, _afternoonSections) { m, a, e, ms, _ ->
-            buildMap {
-                m.forEach { (k, v) -> put(k, v) }
-                a.forEach { (k, v) -> put(ms + k, v) }
-                e.forEach { (k, v) -> put(ms + _afternoonSections.value + k, v) }
-            }
-        }
-        MutableStateFlow(Course.defaultSectionTimes).also { flow ->
-            viewModelScope.launch { combined.collect { flow.value = it } }
-        }
-    }
-
-    // 课前提醒开关
-    private val _preClassReminder = MutableStateFlow(false)
-    val preClassReminder: StateFlow<Boolean> = _preClassReminder.asStateFlow()
-
-    // 课前提醒提前分钟数
-    private val _preClassReminderMinutes = MutableStateFlow(20)
-    val preClassReminderMinutes: StateFlow<Int> = _preClassReminderMinutes.asStateFlow()
-
-    // 次日课程提醒开关
-    private val _nextDayReminder = MutableStateFlow(false)
-    val nextDayReminder: StateFlow<Boolean> = _nextDayReminder.asStateFlow()
-
-    // 次日课程提醒时间（小时）
-    private val _nextDayReminderHour = MutableStateFlow(21)
-    val nextDayReminderHour: StateFlow<Int> = _nextDayReminderHour.asStateFlow()
-
-    // 次日课程提醒时间（分钟）
-    private val _nextDayReminderMinute = MutableStateFlow(0)
-    val nextDayReminderMinute: StateFlow<Int> = _nextDayReminderMinute.asStateFlow()
-
-    // 超级岛通知开关
-    private val _islandNotification = MutableStateFlow(false)
-    val islandNotification: StateFlow<Boolean> = _islandNotification.asStateFlow()
-
     // 当前选中的星期 (1-7)
     private val _selectedDay = MutableStateFlow(1)
     val selectedDay: StateFlow<Int> = _selectedDay.asStateFlow()
@@ -144,17 +71,6 @@ class CourseViewModel(application: Application) : AndroidViewModel(application) 
     private val _showSettings = MutableStateFlow(false)
     val showSettings: StateFlow<Boolean> = _showSettings.asStateFlow()
 
-    // 当前课表名称
-    private val _currentScheduleName = MutableStateFlow(repository.getCurrentScheduleId())
-    val currentScheduleName: StateFlow<String> = _currentScheduleName.asStateFlow()
-
-    // 课表列表及摘要（预加载缓存）
-    private val _scheduleNames = MutableStateFlow(repository.getScheduleNames())
-    val scheduleNames: StateFlow<List<String>> = _scheduleNames.asStateFlow()
-
-    private val _scheduleSummaries = MutableStateFlow<Map<String, String>>(emptyMap())
-    val scheduleSummaries: StateFlow<Map<String, String>> = _scheduleSummaries.asStateFlow()
-
     // 排班模式状态
     private val _isShiftMode = MutableStateFlow(false)
     val isShiftMode: StateFlow<Boolean> = _isShiftMode.asStateFlow()
@@ -162,10 +78,6 @@ class CourseViewModel(application: Application) : AndroidViewModel(application) 
     // 排班模式选中的课表
     private val _shiftSelectedSchedules = MutableStateFlow<List<String>>(emptyList())
     val shiftSelectedSchedules: StateFlow<List<String>> = _shiftSelectedSchedules.asStateFlow()
-
-    // 默认首页
-    private val _defaultHomepage = MutableStateFlow("课程表")
-    val defaultHomepage: StateFlow<String> = _defaultHomepage.asStateFlow()
 
     // 排班模式各课表课程缓存 scheduleName -> List<Course>
     private val _shiftScheduleCourses = MutableStateFlow<Map<String, List<Course>>>(emptyMap())
@@ -176,12 +88,9 @@ class CourseViewModel(application: Application) : AndroidViewModel(application) 
     val shiftScheduleSections: StateFlow<Map<String, Triple<Int, Int, Int>>> = _shiftScheduleSections.asStateFlow()
 
     init {
-        // 轻量 SP 读取在主线程同步完成，确保 currentWeek/totalWeeks 立即就绪
         loadEssentialData()
-        // 课程列表 Gson 反序列化较重，移到 IO 线程
         viewModelScope.launch(Dispatchers.IO) {
             loadCourses()
-            refreshScheduleList()
         }
         rescheduleReminders()
         _isShiftMode.value = repository.isShiftModeEnabled()
@@ -202,21 +111,6 @@ class CourseViewModel(application: Application) : AndroidViewModel(application) 
         val calculatedWeek = calculateCurrentWeekFromDate(_classStartTime.value)
         _currentWeek.value = calculatedWeek
         repository.setCurrentWeek(calculatedWeek)
-        _showWeekendDays.value = repository.getShowWeekendDays()
-        _showNonCurrentWeek.value = repository.getShowNonCurrentWeek()
-        _morningSections.value = repository.getMorningSections()
-        _afternoonSections.value = repository.getAfternoonSections()
-        _eveningSections.value = repository.getEveningSections()
-        _morningTimes.value = repository.getPeriodTimes("morning")
-        _afternoonTimes.value = repository.getPeriodTimes("afternoon")
-        _eveningTimes.value = repository.getPeriodTimes("evening")
-        _preClassReminder.value = repository.getPreClassReminder()
-        _preClassReminderMinutes.value = repository.getPreClassReminderMinutes()
-        _nextDayReminder.value = repository.getNextDayReminder()
-        _nextDayReminderHour.value = repository.getNextDayReminderHour()
-        _nextDayReminderMinute.value = repository.getNextDayReminderMinute()
-        _islandNotification.value = repository.getIslandNotification()
-        _defaultHomepage.value = repository.getDefaultHomepage()
         _dataVersion.value++
     }
 
@@ -230,23 +124,12 @@ class CourseViewModel(application: Application) : AndroidViewModel(application) 
         loadCourses()
     }
 
-    private fun refreshScheduleList() {
-        _scheduleNames.value = repository.getScheduleNames()
-        val summaries = mutableMapOf<String, String>()
-        _scheduleNames.value.forEach { name ->
-            summaries[name] = repository.getScheduleSummary(name)
-        }
-        _scheduleSummaries.value = summaries
-    }
-
     /**
      * 重新加载所有数据（切换课表后调用）
      */
     fun reloadCourses() {
         viewModelScope.launch(Dispatchers.IO) {
             loadData()
-            _currentScheduleName.value = repository.getCurrentScheduleId()
-            refreshScheduleList()
         }
     }
 
@@ -342,109 +225,6 @@ class CourseViewModel(application: Application) : AndroidViewModel(application) 
     }
 
     /**
-     * 设置显示周末
-     */
-    fun setShowWeekendDays(days: Set<Int>) {
-        _showWeekendDays.value = days
-        repository.setShowWeekendDays(days)
-    }
-
-    /**
-     * 设置显示非本周课程
-     */
-    fun setShowNonCurrentWeek(show: Boolean) {
-        _showNonCurrentWeek.value = show
-        repository.setShowNonCurrentWeek(show)
-    }
-
-    /**
-     * 设置上午节数
-     */
-    fun setMorningSections(count: Int) {
-        _morningSections.value = count
-        repository.setMorningSections(count)
-    }
-
-    /**
-     * 设置下午节数
-     */
-    fun setAfternoonSections(count: Int) {
-        _afternoonSections.value = count
-        repository.setAfternoonSections(count)
-    }
-
-    /**
-     * 设置晚上节数
-     */
-    fun setEveningSections(count: Int) {
-        _eveningSections.value = count
-        repository.setEveningSections(count)
-    }
-
-    fun getMorningTimes(): Map<Int, String> = _morningTimes.value
-    fun getAfternoonTimes(): Map<Int, String> = _afternoonTimes.value
-    fun getEveningTimes(): Map<Int, String> = _eveningTimes.value
-
-    fun saveMorningTimes(times: Map<Int, String>) {
-        _morningTimes.value = times
-        repository.savePeriodTimes("morning", times)
-    }
-
-    fun saveAfternoonTimes(times: Map<Int, String>) {
-        _afternoonTimes.value = times
-        repository.savePeriodTimes("afternoon", times)
-    }
-
-    fun saveEveningTimes(times: Map<Int, String>) {
-        _eveningTimes.value = times
-        repository.savePeriodTimes("evening", times)
-    }
-
-    fun resetSectionTimes() {
-        _morningTimes.value = Course.defaultMorningTimes
-        _afternoonTimes.value = Course.defaultAfternoonTimes
-        _eveningTimes.value = Course.defaultEveningTimes
-        repository.savePeriodTimes("morning", Course.defaultMorningTimes)
-        repository.savePeriodTimes("afternoon", Course.defaultAfternoonTimes)
-        repository.savePeriodTimes("evening", Course.defaultEveningTimes)
-    }
-
-    fun setPreClassReminder(enabled: Boolean) {
-        _preClassReminder.value = enabled
-        repository.setPreClassReminder(enabled)
-    }
-
-    fun setPreClassReminderMinutes(minutes: Int) {
-        _preClassReminderMinutes.value = minutes
-        repository.setPreClassReminderMinutes(minutes)
-    }
-
-    fun setNextDayReminder(enabled: Boolean) {
-        _nextDayReminder.value = enabled
-        repository.setNextDayReminder(enabled)
-    }
-
-    fun setNextDayReminderHour(hour: Int) {
-        _nextDayReminderHour.value = hour
-        repository.setNextDayReminderHour(hour)
-    }
-
-    fun setNextDayReminderMinute(minute: Int) {
-        _nextDayReminderMinute.value = minute
-        repository.setNextDayReminderMinute(minute)
-    }
-
-    fun setIslandNotification(enabled: Boolean) {
-        _islandNotification.value = enabled
-        repository.setIslandNotification(enabled)
-    }
-
-    fun setDefaultHomepage(homepage: String) {
-        _defaultHomepage.value = homepage
-        repository.setDefaultHomepage(homepage)
-    }
-
-    /**
      * 选择星期
      */
     fun selectDay(day: Int) {
@@ -454,12 +234,12 @@ class CourseViewModel(application: Application) : AndroidViewModel(application) 
     /**
      * 获取指定周次、星期的课程（包括非本周课程）
      */
-    fun getCoursesForDay(week: Int, dayOfWeek: Int): List<Course> {
+    fun getCoursesForDay(week: Int, dayOfWeek: Int, showNonCurrentWeek: Boolean = true): List<Course> {
         val courses = _courses.value.filter {
             it.dayOfWeek == dayOfWeek
         }.sortedBy { it.startSection }
 
-        return if (_showNonCurrentWeek.value) {
+        return if (showNonCurrentWeek) {
             courses
         } else {
             courses.filter { it.isActiveInWeek(week) }
@@ -503,43 +283,6 @@ class CourseViewModel(application: Application) : AndroidViewModel(application) 
         repository.saveCourses(coursesWithSchedule)
         _courses.value = coursesWithSchedule
         _dataVersion.value++
-    }
-
-    /**
-     * 添加新课表并切换到它
-     */
-    fun addSchedule(name: String): List<String> {
-        return repository.addSchedule(name)
-    }
-
-    /**
-     * 创建新学期课表：复制当前课表所有设置（不含课程），创建后自动切换
-     */
-    fun createNewSemesterSchedule(name: String) {
-        repository.createNewSemesterSchedule(name)
-        repository.switchToSchedule(name)
-        _currentScheduleName.value = name
-        loadData()
-        refreshScheduleList()
-    }
-
-    /**
-     * 切换到指定课表
-     */
-    fun switchToSchedule(scheduleId: String) {
-        repository.switchToSchedule(scheduleId)
-        _currentScheduleName.value = scheduleId
-        viewModelScope.launch(Dispatchers.IO) { loadData() }
-    }
-
-    /**
-     * 保存课程到指定课表（不切换当前课表）
-     */
-    fun saveCoursesToSchedule(scheduleId: String, courses: List<Course>) {
-        val oldScheduleId = repository.getCurrentScheduleId()
-        repository.setCurrentScheduleId(scheduleId)
-        repository.saveCourses(courses)
-        repository.setCurrentScheduleId(oldScheduleId)
     }
 
     /**

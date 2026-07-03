@@ -43,6 +43,7 @@ import androidx.compose.ui.unit.sp
 import com.haooz.chedule.data.Course
 import com.haooz.chedule.ui.activities.isAppDarkTheme
 import com.haooz.chedule.viewmodel.CourseViewModel
+import com.haooz.chedule.viewmodel.SettingsViewModel
 import kotlinx.coroutines.delay
 import top.yukonga.miuix.kmp.basic.Card
 import top.yukonga.miuix.kmp.basic.MiuixScrollBehavior
@@ -191,15 +192,16 @@ private fun CourseItemContent(course: Course, sectionTimes: Map<Int, String>) {
 @Composable
 fun TodayScreen(
     viewModel: CourseViewModel,
+    settingsViewModel: SettingsViewModel,
     onCourseClick: (courses: List<Course>, cardLeft: Float, cardTop: Float, cardWidth: Float, cardHeight: Float, snapshot: android.graphics.Bitmap?) -> Unit = { _, _, _, _, _, _ -> }
 ) {
     val courses by viewModel.courses.collectAsState()
     val currentWeek by viewModel.currentWeek.collectAsState()
-    val sectionTimes by viewModel.sectionTimes.collectAsState()
-    val morningSections by viewModel.morningSections.collectAsState()
-    val afternoonSections by viewModel.afternoonSections.collectAsState()
-    val eveningSections by viewModel.eveningSections.collectAsState()
-    val showWeekendDays by viewModel.showWeekendDays.collectAsState()
+    val sectionTimes by settingsViewModel.sectionTimes.collectAsState()
+    val morningSections by settingsViewModel.morningSections.collectAsState()
+    val afternoonSections by settingsViewModel.afternoonSections.collectAsState()
+    val eveningSections by settingsViewModel.eveningSections.collectAsState()
+    val showWeekendDays by settingsViewModel.showWeekendDays.collectAsState()
 
     val calendar = Calendar.getInstance()
     val currentDayOfWeek = (calendar.get(Calendar.DAY_OF_WEEK) + 5) % 7 + 1
