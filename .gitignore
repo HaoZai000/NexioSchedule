@@ -1,3 +1,5 @@
+# Nexio课程表 - Git 忽略规则
+
 # --- Android / Gradle 构建输出 ---
 /build
 app/build
