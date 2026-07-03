@@ -1,3 +1,5 @@
+# Nexio课程表 - 依赖版本目录
+
 [versions]
 agp = "9.2.1"
 coreKtx = "1.18.0"
