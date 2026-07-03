@@ -112,6 +112,10 @@ class CourseViewModel(application: Application) : AndroidViewModel(application) 
     private val _nextDayReminderMinute = MutableStateFlow(0)
     val nextDayReminderMinute: StateFlow<Int> = _nextDayReminderMinute.asStateFlow()
 
+    // 超级岛通知开关
+    private val _islandNotification = MutableStateFlow(false)
+    val islandNotification: StateFlow<Boolean> = _islandNotification.asStateFlow()
+
     // 当前选中的星期 (1-7)
     private val _selectedDay = MutableStateFlow(1)
     val selectedDay: StateFlow<Int> = _selectedDay.asStateFlow()
@@ -211,6 +215,7 @@ class CourseViewModel(application: Application) : AndroidViewModel(application) 
         _nextDayReminder.value = repository.getNextDayReminder()
         _nextDayReminderHour.value = repository.getNextDayReminderHour()
         _nextDayReminderMinute.value = repository.getNextDayReminderMinute()
+        _islandNotification.value = repository.getIslandNotification()
         _defaultHomepage.value = repository.getDefaultHomepage()
         _dataVersion.value++
     }
@@ -429,6 +434,11 @@ class CourseViewModel(application: Application) : AndroidViewModel(application) 
         repository.setNextDayReminderMinute(minute)
     }
 
+    fun setIslandNotification(enabled: Boolean) {
+        _islandNotification.value = enabled
+        repository.setIslandNotification(enabled)
+    }
+
     fun setDefaultHomepage(homepage: String) {
         _defaultHomepage.value = homepage
         repository.setDefaultHomepage(homepage)
@@ -481,8 +491,17 @@ class CourseViewModel(application: Application) : AndroidViewModel(application) 
      * 替换所有课程（导入时使用）
      */
     fun replaceCourses(courses: List<Course>) {
-        repository.saveCourses(courses)
-        _courses.value = courses
+        val currentScheduleId = repository.getCurrentScheduleId()
+        // 为导入的课程设置 scheduleId
+        val coursesWithSchedule = courses.map { course ->
+            if (course.scheduleId.isEmpty()) {
+                course.copy(scheduleId = currentScheduleId)
+            } else {
+                course
+            }
+        }
+        repository.saveCourses(coursesWithSchedule)
+        _courses.value = coursesWithSchedule
         _dataVersion.value++
     }
 

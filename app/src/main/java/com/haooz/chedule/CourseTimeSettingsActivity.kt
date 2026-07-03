@@ -131,6 +131,9 @@ fun CourseTimeSettingsScreen(onBack: () -> Unit) {
     var longBreakMorning by remember { mutableIntStateOf(repository.getLongBreakMorning()) }
     var longBreakAfternoon by remember { mutableIntStateOf(repository.getLongBreakAfternoon()) }
     var longBreakEvening by remember { mutableIntStateOf(repository.getLongBreakEvening()) }
+    var longBreakMorningSection by remember { mutableIntStateOf(repository.getLongBreakMorningSection()) }
+    var longBreakAfternoonSection by remember { mutableIntStateOf(repository.getLongBreakAfternoonSection()) }
+    var longBreakEveningSection by remember { mutableIntStateOf(repository.getLongBreakEveningSection()) }
     var morningStartHour by remember { mutableIntStateOf(repository.getMorningStartHour()) }
     var morningStartMinute by remember { mutableIntStateOf(repository.getMorningStartMinute()) }
     var afternoonStartHour by remember { mutableIntStateOf(repository.getAfternoonStartHour()) }
@@ -140,6 +143,7 @@ fun CourseTimeSettingsScreen(onBack: () -> Unit) {
     var showQuickItemDialog by remember { mutableStateOf(false) }
     var quickEditType by remember { mutableStateOf("") }
     var quickTempValue by remember { mutableIntStateOf(0) }
+    var quickTempSection by remember { mutableIntStateOf(2) }
     var quickTempHour by remember { mutableIntStateOf(0) }
     var quickTempMinute by remember { mutableIntStateOf(0) }
 
@@ -273,16 +277,16 @@ fun CourseTimeSettingsScreen(onBack: () -> Unit) {
                                             ) {
                                                 Column {
                                                     ArrowPreference(title = "上午大课间休息",
-                                                        endActions = { Text("${longBreakMorning}分钟", fontSize = 14.5.sp, color = MiuixTheme.colorScheme.onSurfaceVariantActions) },
-                                                        onClick = { quickEditType = "long_morning"; quickTempValue = longBreakMorning; showQuickItemDialog = true },
+                                                        endActions = { Text("第${longBreakMorningSection}节后 ${longBreakMorning}分钟", fontSize = 14.5.sp, color = MiuixTheme.colorScheme.onSurfaceVariantActions) },
+                                                        onClick = { quickEditType = "long_morning"; quickTempSection = longBreakMorningSection; quickTempValue = longBreakMorning; showQuickItemDialog = true },
                                                         holdDownState = showQuickItemDialog && quickEditType == "long_morning")
                                                     ArrowPreference(title = "下午大课间休息",
-                                                        endActions = { Text("${longBreakAfternoon}分钟", fontSize = 14.5.sp, color = MiuixTheme.colorScheme.onSurfaceVariantActions) },
-                                                        onClick = { quickEditType = "long_afternoon"; quickTempValue = longBreakAfternoon; showQuickItemDialog = true },
+                                                        endActions = { Text("第${longBreakAfternoonSection}节后 ${longBreakAfternoon}分钟", fontSize = 14.5.sp, color = MiuixTheme.colorScheme.onSurfaceVariantActions) },
+                                                        onClick = { quickEditType = "long_afternoon"; quickTempSection = longBreakAfternoonSection; quickTempValue = longBreakAfternoon; showQuickItemDialog = true },
                                                         holdDownState = showQuickItemDialog && quickEditType == "long_afternoon")
                                                     ArrowPreference(title = "晚上大课间休息",
-                                                        endActions = { Text("${longBreakEvening}分钟", fontSize = 14.5.sp, color = MiuixTheme.colorScheme.onSurfaceVariantActions) },
-                                                        onClick = { quickEditType = "long_evening"; quickTempValue = longBreakEvening; showQuickItemDialog = true },
+                                                        endActions = { Text("第${longBreakEveningSection}节后 ${longBreakEvening}分钟", fontSize = 14.5.sp, color = MiuixTheme.colorScheme.onSurfaceVariantActions) },
+                                                        onClick = { quickEditType = "long_evening"; quickTempSection = longBreakEveningSection; quickTempValue = longBreakEvening; showQuickItemDialog = true },
                                                         holdDownState = showQuickItemDialog && quickEditType == "long_evening")
                                                 }
                                             }
@@ -305,9 +309,12 @@ fun CourseTimeSettingsScreen(onBack: () -> Unit) {
                                                     val lbM = if (longBreakEnabled) longBreakMorning else shortBreak
                                                     val lbA = if (longBreakEnabled) longBreakAfternoon else shortBreak
                                                     val lbE = if (longBreakEnabled) longBreakEvening else shortBreak
-                                                    val mTimes = Course.calculatePeriodTimes(morningSections.value, morningStartHour, morningStartMinute, classDuration, shortBreak, lbM)
-                                                    val aTimes = Course.calculatePeriodTimes(afternoonSections.value, afternoonStartHour, afternoonStartMinute, classDuration, shortBreak, lbA)
-                                                    val eTimes = Course.calculatePeriodTimes(eveningSections.value, eveningStartHour, eveningStartMinute, classDuration, shortBreak, lbE)
+                                                    val lbsM = if (longBreakEnabled) longBreakMorningSection else 2
+                                                    val lbsA = if (longBreakEnabled) longBreakAfternoonSection else 2
+                                                    val lbsE = if (longBreakEnabled) longBreakEveningSection else 2
+                                                    val mTimes = Course.calculatePeriodTimes(morningSections.value, morningStartHour, morningStartMinute, classDuration, shortBreak, lbM, lbsM)
+                                                    val aTimes = Course.calculatePeriodTimes(afternoonSections.value, afternoonStartHour, afternoonStartMinute, classDuration, shortBreak, lbA, lbsA)
+                                                    val eTimes = Course.calculatePeriodTimes(eveningSections.value, eveningStartHour, eveningStartMinute, classDuration, shortBreak, lbE, lbsE)
                                                     morningTimes = mTimes; afternoonTimes = aTimes; eveningTimes = eTimes
                                                     repository.savePeriodTimes("morning", mTimes)
                                                     repository.savePeriodTimes("afternoon", aTimes)
@@ -401,9 +408,9 @@ fun CourseTimeSettingsScreen(onBack: () -> Unit) {
                 title = when (quickEditType) {
                     "duration" -> "每节课时长"
                     "short_break" -> "小课间休息时长"
-                    "long_morning" -> "上午大课间休息"
-                    "long_afternoon" -> "下午大课间休息"
-                    "long_evening" -> "晚上大课间休息"
+                    "long_morning" -> "上午大课间设置"
+                    "long_afternoon" -> "下午大课间设置"
+                    "long_evening" -> "晚上大课间设置"
                     "start_morning" -> "上午开始时间"
                     "start_afternoon" -> "下午开始时间"
                     "start_evening" -> "晚上开始时间"
@@ -430,6 +437,33 @@ fun CourseTimeSettingsScreen(onBack: () -> Unit) {
                                 range = minuteValues.indices, visibleItemCount = 3, itemHeight = 60.dp,
                                 label = { String.format("%02d", minuteValues[it]) }, wrapAround = true,
                                 textStyle = MiuixTheme.textStyles.title1, modifier = Modifier.weight(1f)
+                            )
+                        }
+                    } else if (quickEditType.startsWith("long_")) {
+                        val sectionCount = when (quickEditType) {
+                            "long_morning" -> morningSections.value
+                            "long_afternoon" -> afternoonSections.value
+                            "long_evening" -> eveningSections.value
+                            else -> 4
+                        }
+                        val sectionRange = 1 until sectionCount
+                        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.Center, verticalAlignment = Alignment.CenterVertically) {
+                            NumberPicker(
+                                value = quickTempSection, onValueChange = { quickTempSection = it },
+                                range = sectionRange,
+                                visibleItemCount = 3, itemHeight = 60.dp,
+                                label = { "第${it}节后" }, wrapAround = false,
+                                textStyle = MiuixTheme.textStyles.title2, modifier = Modifier.weight(1f)
+                            )
+                            val breakOptions = listOf(10, 15, 20, 25, 30)
+                            val breakIndex = breakOptions.indexOf(quickTempValue).coerceAtLeast(0)
+                            NumberPicker(
+                                value = breakIndex,
+                                onValueChange = { quickTempValue = breakOptions[it] },
+                                range = breakOptions.indices,
+                                visibleItemCount = 3, itemHeight = 60.dp,
+                                label = { "${breakOptions[it]}分钟" }, wrapAround = false,
+                                textStyle = MiuixTheme.textStyles.title2, modifier = Modifier.weight(1f)
                             )
                         }
                     } else {
@@ -462,9 +496,9 @@ fun CourseTimeSettingsScreen(onBack: () -> Unit) {
                                 when (quickEditType) {
                                     "duration" -> { classDuration = quickTempValue; repository.setClassDuration(quickTempValue) }
                                     "short_break" -> { shortBreak = quickTempValue; repository.setShortBreak(quickTempValue) }
-                                    "long_morning" -> { longBreakMorning = quickTempValue; repository.setLongBreakMorning(quickTempValue) }
-                                    "long_afternoon" -> { longBreakAfternoon = quickTempValue; repository.setLongBreakAfternoon(quickTempValue) }
-                                    "long_evening" -> { longBreakEvening = quickTempValue; repository.setLongBreakEvening(quickTempValue) }
+                                    "long_morning" -> { longBreakMorning = quickTempValue; longBreakMorningSection = quickTempSection; repository.setLongBreakMorning(quickTempValue); repository.setLongBreakMorningSection(quickTempSection) }
+                                    "long_afternoon" -> { longBreakAfternoon = quickTempValue; longBreakAfternoonSection = quickTempSection; repository.setLongBreakAfternoon(quickTempValue); repository.setLongBreakAfternoonSection(quickTempSection) }
+                                    "long_evening" -> { longBreakEvening = quickTempValue; longBreakEveningSection = quickTempSection; repository.setLongBreakEvening(quickTempValue); repository.setLongBreakEveningSection(quickTempSection) }
                                     "start_morning" -> { morningStartHour = quickTempHour; morningStartMinute = quickTempMinute; repository.setMorningStartHour(quickTempHour); repository.setMorningStartMinute(quickTempMinute) }
                                     "start_afternoon" -> { afternoonStartHour = quickTempHour; afternoonStartMinute = quickTempMinute; repository.setAfternoonStartHour(quickTempHour); repository.setAfternoonStartMinute(quickTempMinute) }
                                     "start_evening" -> { eveningStartHour = quickTempHour; eveningStartMinute = quickTempMinute; repository.setEveningStartHour(quickTempHour); repository.setEveningStartMinute(quickTempMinute) }

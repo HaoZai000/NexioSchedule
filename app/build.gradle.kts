@@ -11,8 +11,8 @@ android {
         applicationId = "com.haooz.chedule"
         minSdk = 33
         targetSdk = 37
-        versionCode = 100
-        versionName = "1.0.0-0701"
+        versionCode = 104
+        versionName = "1.0.4-0703"
 
         ndk {
             abiFilters += listOf("arm64-v8a")
@@ -45,6 +45,7 @@ android {
     }
     buildFeatures {
         compose = true
+        aidl = true
     }
 }
 
@@ -73,6 +74,13 @@ dependencies {
 
     // Gson for JSON serialization
     implementation(libs.gson)
+
+    // Focus Notification / Super Island
+    implementation(libs.focus.api)
+
+    // Shizuku
+    implementation(libs.shizuku.api)
+    implementation(libs.shizuku.provider)
 
     // OkHttp for network requests
     implementation(libs.okhttp)

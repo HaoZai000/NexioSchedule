@@ -6,16 +6,34 @@ import com.google.gson.Gson
 import com.google.gson.reflect.TypeToken
 
 /**
- * 课程数据仓库 - 使用 SharedPreferences 存储
+ * 课程数据仓库 - 使用 SharedPreferences 存储（单例）
  */
-class CourseRepository(context: Context) {
+class CourseRepository private constructor(context: Context) {
 
-    private val prefs: SharedPreferences = context.getSharedPreferences(
+    private val prefs: SharedPreferences = context.applicationContext.getSharedPreferences(
         PREFS_NAME, Context.MODE_PRIVATE
     )
     private val gson = Gson()
 
+    // 变更回调
+    var onCourseChanged: ((action: String, courseId: String) -> Unit)? = null
+
+    private fun notifyCourseChanged(action: String, courseId: String = "") {
+        onCourseChanged?.invoke(action, courseId)
+    }
+
     companion object {
+        @Volatile
+        private var INSTANCE: CourseRepository? = null
+
+        fun getInstance(context: Context): CourseRepository {
+            return INSTANCE ?: synchronized(this) {
+                INSTANCE ?: CourseRepository(context.applicationContext).also { INSTANCE = it }
+            }
+        }
+
+        // 兼容旧代码的构造方式
+        operator fun invoke(context: Context): CourseRepository = getInstance(context)
         private const val PREFS_NAME = "course_schedule_prefs"
         private const val KEY_COURSES = "courses"
         private const val KEY_CURRENT_WEEK = "current_week"
@@ -41,6 +59,7 @@ class CourseRepository(context: Context) {
         private const val KEY_NEXT_DAY_REMINDER = "next_day_reminder"
         private const val KEY_NEXT_DAY_REMINDER_HOUR = "next_day_reminder_hour"
         private const val KEY_NEXT_DAY_REMINDER_MINUTE = "next_day_reminder_minute"
+        private const val KEY_ISLAND_NOTIFICATION = "island_notification"
         private const val KEY_SHIFT_MODE = "shift_mode_enabled"
         private const val KEY_SHIFT_SELECTED_SCHEDULES = "shift_selected_schedules"
         private const val KEY_DEFAULT_HOMEPAGE = "default_homepage"
@@ -59,6 +78,16 @@ class CourseRepository(context: Context) {
         } catch (e: Exception) {
             emptyList()
         }
+    }
+
+    /**
+     * 保存指定课表的课程列表
+     */
+    fun saveCoursesForSchedule(scheduleId: String, courses: List<Course>, notify: Boolean = true) {
+        val key = "$SCHEDULE_KEY_PREFIX${scheduleId}_$KEY_COURSES"
+        val json = gson.toJson(courses)
+        prefs.edit().putString(key, json).apply()
+        if (notify) onCourseChanged?.invoke("bulk", "")
     }
 
     /**
@@ -103,10 +132,11 @@ class CourseRepository(context: Context) {
     /**
      * 保存课程列表
      */
-    fun saveCourses(courses: List<Course>) {
+    fun saveCourses(courses: List<Course>, notify: Boolean = true) {
         val key = "${getScheduleKeyPrefix()}$KEY_COURSES"
         val json = gson.toJson(courses)
         prefs.edit().putString(key, json).apply()
+        if (notify) onCourseChanged?.invoke("bulk", "")
     }
 
     /**
@@ -114,8 +144,15 @@ class CourseRepository(context: Context) {
      */
     fun addCourse(course: Course): List<Course> {
         val courses = getAllCourses().toMutableList()
-        courses.add(course)
-        saveCourses(courses)
+        // 自动设置 scheduleId
+        val courseWithSchedule = if (course.scheduleId.isEmpty()) {
+            course.copy(scheduleId = getCurrentScheduleId())
+        } else {
+            course
+        }
+        courses.add(courseWithSchedule)
+        saveCourses(courses, notify = false)
+        onCourseChanged?.invoke("add", courseWithSchedule.id)
         return courses
     }
 
@@ -126,8 +163,9 @@ class CourseRepository(context: Context) {
         val courses = getAllCourses().toMutableList()
         val index = courses.indexOfFirst { it.id == course.id }
         if (index != -1) {
-            courses[index] = course
-            saveCourses(courses)
+            courses[index] = course.copy(lastModified = System.currentTimeMillis())
+            saveCourses(courses, notify = false)
+            onCourseChanged?.invoke("update", course.id)
         }
         return courses
     }
@@ -138,7 +176,8 @@ class CourseRepository(context: Context) {
     fun deleteCourse(courseId: String): List<Course> {
         val courses = getAllCourses().toMutableList()
         courses.removeAll { it.id == courseId }
-        saveCourses(courses)
+        saveCourses(courses, notify = false)
+        onCourseChanged?.invoke("delete", courseId)
         return courses
     }
 
@@ -172,6 +211,7 @@ class CourseRepository(context: Context) {
     fun setCurrentWeek(week: Int) {
         val key = "${getScheduleKeyPrefix()}$KEY_CURRENT_WEEK"
         prefs.edit().putInt(key, week).apply()
+        notifyCourseChanged("settings")
     }
 
     /**
@@ -188,6 +228,7 @@ class CourseRepository(context: Context) {
     fun setTotalWeeks(weeks: Int) {
         val key = "${getScheduleKeyPrefix()}$KEY_TOTAL_WEEKS"
         prefs.edit().putInt(key, weeks).apply()
+        notifyCourseChanged("settings")
     }
 
     /**
@@ -218,6 +259,7 @@ class CourseRepository(context: Context) {
     fun setClassStartTime(time: String) {
         val key = "${getScheduleKeyPrefix()}$KEY_CLASS_START_TIME"
         prefs.edit().putString(key, time).apply()
+        notifyCourseChanged("settings")
     }
 
     /**
@@ -240,6 +282,7 @@ class CourseRepository(context: Context) {
     fun setShowWeekendDays(days: Set<Int>) {
         val key = "${getScheduleKeyPrefix()}$KEY_SHOW_WEEKEND"
         prefs.edit().putString(key, days.joinToString(",")).apply()
+        notifyCourseChanged("settings")
     }
 
     /**
@@ -256,6 +299,7 @@ class CourseRepository(context: Context) {
     fun setShowNonCurrentWeek(show: Boolean) {
         val key = "${getScheduleKeyPrefix()}$KEY_SHOW_NON_CURRENT_WEEK"
         prefs.edit().putBoolean(key, show).apply()
+        notifyCourseChanged("settings")
     }
 
     /**
@@ -272,6 +316,7 @@ class CourseRepository(context: Context) {
     fun setMorningSections(count: Int) {
         val key = "${getScheduleKeyPrefix()}$KEY_MORNING_SECTIONS"
         prefs.edit().putInt(key, count).apply()
+        notifyCourseChanged("settings")
     }
 
     /**
@@ -288,6 +333,7 @@ class CourseRepository(context: Context) {
     fun setAfternoonSections(count: Int) {
         val key = "${getScheduleKeyPrefix()}$KEY_AFTERNOON_SECTIONS"
         prefs.edit().putInt(key, count).apply()
+        notifyCourseChanged("settings")
     }
 
     /**
@@ -304,6 +350,7 @@ class CourseRepository(context: Context) {
     fun setEveningSections(count: Int) {
         val key = "${getScheduleKeyPrefix()}$KEY_EVENING_SECTIONS"
         prefs.edit().putInt(key, count).apply()
+        notifyCourseChanged("settings")
     }
 
     /**
@@ -350,6 +397,7 @@ class CourseRepository(context: Context) {
             existing["${period}_$idx"] = v
         }
         prefs.edit().putString(sharedKey, gson.toJson(existing)).apply()
+        notifyCourseChanged("settings")
     }
 
     private fun getDefaultTimesForPeriod(period: String): Map<Int, String> = when (period) {
@@ -387,6 +435,7 @@ class CourseRepository(context: Context) {
     fun setQuickTimeEnabled(enabled: Boolean) {
         val key = "${getScheduleKeyPrefix()}$KEY_QUICK_TIME_ENABLED"
         prefs.edit().putBoolean(key, enabled).apply()
+        notifyCourseChanged("settings")
     }
 
     fun getClassDuration(): Int {
@@ -397,6 +446,7 @@ class CourseRepository(context: Context) {
     fun setClassDuration(minutes: Int) {
         val key = "${getScheduleKeyPrefix()}$KEY_CLASS_DURATION"
         prefs.edit().putInt(key, minutes).apply()
+        notifyCourseChanged("settings")
     }
 
     fun getShortBreak(): Int {
@@ -407,6 +457,7 @@ class CourseRepository(context: Context) {
     fun setShortBreak(minutes: Int) {
         val key = "${getScheduleKeyPrefix()}$KEY_SHORT_BREAK"
         prefs.edit().putInt(key, minutes).apply()
+        notifyCourseChanged("settings")
     }
 
     fun getLongBreakEnabled(): Boolean {
@@ -417,6 +468,7 @@ class CourseRepository(context: Context) {
     fun setLongBreakEnabled(enabled: Boolean) {
         val key = "${getScheduleKeyPrefix()}${KEY_LONG_BREAK}_enabled"
         prefs.edit().putBoolean(key, enabled).apply()
+        notifyCourseChanged("settings")
     }
 
     fun getLongBreakMorning(): Int {
@@ -427,6 +479,7 @@ class CourseRepository(context: Context) {
     fun setLongBreakMorning(minutes: Int) {
         val key = "${getScheduleKeyPrefix()}${KEY_LONG_BREAK}_morning"
         prefs.edit().putInt(key, minutes).apply()
+        notifyCourseChanged("settings")
     }
 
     fun getLongBreakAfternoon(): Int {
@@ -437,6 +490,7 @@ class CourseRepository(context: Context) {
     fun setLongBreakAfternoon(minutes: Int) {
         val key = "${getScheduleKeyPrefix()}${KEY_LONG_BREAK}_afternoon"
         prefs.edit().putInt(key, minutes).apply()
+        notifyCourseChanged("settings")
     }
 
     fun getLongBreakEvening(): Int {
@@ -447,6 +501,40 @@ class CourseRepository(context: Context) {
     fun setLongBreakEvening(minutes: Int) {
         val key = "${getScheduleKeyPrefix()}${KEY_LONG_BREAK}_evening"
         prefs.edit().putInt(key, minutes).apply()
+        notifyCourseChanged("settings")
+    }
+
+    fun getLongBreakMorningSection(): Int {
+        val key = "${getScheduleKeyPrefix()}${KEY_LONG_BREAK}_morning_section"
+        return prefs.getInt(key, 2)
+    }
+
+    fun setLongBreakMorningSection(section: Int) {
+        val key = "${getScheduleKeyPrefix()}${KEY_LONG_BREAK}_morning_section"
+        prefs.edit().putInt(key, section).apply()
+        notifyCourseChanged("settings")
+    }
+
+    fun getLongBreakAfternoonSection(): Int {
+        val key = "${getScheduleKeyPrefix()}${KEY_LONG_BREAK}_afternoon_section"
+        return prefs.getInt(key, 2)
+    }
+
+    fun setLongBreakAfternoonSection(section: Int) {
+        val key = "${getScheduleKeyPrefix()}${KEY_LONG_BREAK}_afternoon_section"
+        prefs.edit().putInt(key, section).apply()
+        notifyCourseChanged("settings")
+    }
+
+    fun getLongBreakEveningSection(): Int {
+        val key = "${getScheduleKeyPrefix()}${KEY_LONG_BREAK}_evening_section"
+        return prefs.getInt(key, 2)
+    }
+
+    fun setLongBreakEveningSection(section: Int) {
+        val key = "${getScheduleKeyPrefix()}${KEY_LONG_BREAK}_evening_section"
+        prefs.edit().putInt(key, section).apply()
+        notifyCourseChanged("settings")
     }
 
     fun getMorningStartHour(): Int {
@@ -457,6 +545,7 @@ class CourseRepository(context: Context) {
     fun setMorningStartHour(hour: Int) {
         val key = "${getScheduleKeyPrefix()}$KEY_MORNING_START"
         prefs.edit().putInt(key, hour).apply()
+        notifyCourseChanged("settings")
     }
 
     fun getMorningStartMinute(): Int {
@@ -467,6 +556,7 @@ class CourseRepository(context: Context) {
     fun setMorningStartMinute(minute: Int) {
         val key = "${getScheduleKeyPrefix()}${KEY_MORNING_START}_min"
         prefs.edit().putInt(key, minute).apply()
+        notifyCourseChanged("settings")
     }
 
     fun getAfternoonStartHour(): Int {
@@ -477,6 +567,7 @@ class CourseRepository(context: Context) {
     fun setAfternoonStartHour(hour: Int) {
         val key = "${getScheduleKeyPrefix()}$KEY_AFTERNOON_START"
         prefs.edit().putInt(key, hour).apply()
+        notifyCourseChanged("settings")
     }
 
     fun getAfternoonStartMinute(): Int {
@@ -487,6 +578,7 @@ class CourseRepository(context: Context) {
     fun setAfternoonStartMinute(minute: Int) {
         val key = "${getScheduleKeyPrefix()}${KEY_AFTERNOON_START}_min"
         prefs.edit().putInt(key, minute).apply()
+        notifyCourseChanged("settings")
     }
 
     fun getEveningStartHour(): Int {
@@ -497,6 +589,7 @@ class CourseRepository(context: Context) {
     fun setEveningStartHour(hour: Int) {
         val key = "${getScheduleKeyPrefix()}$KEY_EVENING_START"
         prefs.edit().putInt(key, hour).apply()
+        notifyCourseChanged("settings")
     }
 
     fun getEveningStartMinute(): Int {
@@ -507,6 +600,7 @@ class CourseRepository(context: Context) {
     fun setEveningStartMinute(minute: Int) {
         val key = "${getScheduleKeyPrefix()}${KEY_EVENING_START}_min"
         prefs.edit().putInt(key, minute).apply()
+        notifyCourseChanged("settings")
     }
 
     fun getPreClassReminder(): Boolean {
@@ -547,6 +641,14 @@ class CourseRepository(context: Context) {
 
     fun setNextDayReminderMinute(minute: Int) {
         prefs.edit().putInt(KEY_NEXT_DAY_REMINDER_MINUTE, minute).apply()
+    }
+
+    fun getIslandNotification(): Boolean {
+        return prefs.getBoolean(KEY_ISLAND_NOTIFICATION, false)
+    }
+
+    fun setIslandNotification(enabled: Boolean) {
+        prefs.edit().putBoolean(KEY_ISLAND_NOTIFICATION, enabled).apply()
     }
 
     /**
@@ -644,6 +746,7 @@ class CourseRepository(context: Context) {
      */
     fun setCurrentScheduleId(scheduleId: String) {
         prefs.edit().putString(KEY_CURRENT_SCHEDULE_ID, scheduleId).apply()
+        notifyCourseChanged("settings")
     }
 
     /**
@@ -655,6 +758,7 @@ class CourseRepository(context: Context) {
             names.add(name)
             saveScheduleNames(names)
         }
+        notifyCourseChanged("settings")
         return names
     }
 
@@ -719,6 +823,7 @@ class CourseRepository(context: Context) {
         if (getCurrentScheduleId() == name && names.isNotEmpty()) {
             setCurrentScheduleId(names.first())
         }
+        notifyCourseChanged("settings")
         return names
     }
 
@@ -736,6 +841,7 @@ class CourseRepository(context: Context) {
                 setCurrentScheduleId(newName)
             }
         }
+        notifyCourseChanged("settings")
         return names
     }
 
@@ -775,6 +881,74 @@ class CourseRepository(context: Context) {
 
     fun setDefaultHomepage(homepage: String) {
         prefs.edit().putString(KEY_DEFAULT_HOMEPAGE, homepage).apply()
+    }
+
+    /**
+     * 导出所有课表相关的 SharedPreferences 数据（用于云备份）
+     * 返回所有 schedule_* 前缀和全局课表配置的键值对
+     */
+    fun exportAllPreferences(): Map<String, Any> {
+        val result = mutableMapOf<String, Any>()
+        val relevantKeys = listOf(
+            KEY_SCHEDULE_NAMES,
+            KEY_CURRENT_SCHEDULE_ID,
+            KEY_SHIFT_MODE,
+            KEY_SHIFT_SELECTED_SCHEDULES,
+            KEY_DEFAULT_HOMEPAGE
+        )
+        for ((key, value) in prefs.all) {
+            if (key.startsWith(SCHEDULE_KEY_PREFIX) || key in relevantKeys) {
+                when (value) {
+                    is String -> result[key] = value
+                    is Int -> result[key] = value
+                    is Boolean -> result[key] = value
+                    is Float -> result[key] = value
+                    is Long -> result[key] = value
+                    is Set<*> -> {
+                        @Suppress("UNCHECKED_CAST")
+                        result[key] = (value as Set<String>).toList()
+                    }
+                }
+            }
+        }
+        return result
+    }
+
+    /**
+     * 从备份数据恢复所有课表配置
+     */
+    fun importAllPreferences(data: Map<String, Any>) {
+        val editor = prefs.edit()
+        // 先清除所有旧的课表数据
+        for ((key) in prefs.all) {
+            if (key.startsWith(SCHEDULE_KEY_PREFIX)) {
+                editor.remove(key)
+            }
+        }
+        // 清除全局课表配置
+        editor.remove(KEY_SCHEDULE_NAMES)
+        editor.remove(KEY_CURRENT_SCHEDULE_ID)
+        editor.remove(KEY_SHIFT_MODE)
+        editor.remove(KEY_SHIFT_SELECTED_SCHEDULES)
+
+        // 写入备份数据
+        for ((key, value) in data) {
+            when (value) {
+                is String -> editor.putString(key, value)
+                is Int -> editor.putInt(key, value)
+                is Boolean -> editor.putBoolean(key, value)
+                is Double -> editor.putFloat(key, value.toFloat())
+                is Long -> editor.putLong(key, value)
+                is List<*> -> {
+                    // Set<String> 被导出为 List，需要还原
+                    @Suppress("UNCHECKED_CAST")
+                    val list = value.filterIsInstance<String>()
+                    editor.putString(key, gson.toJson(list))
+                }
+            }
+        }
+        editor.apply()
+        onCourseChanged?.invoke("restore", "")
     }
 
     fun getSectionsForSchedule(scheduleId: String): Triple<Int, Int, Int> {

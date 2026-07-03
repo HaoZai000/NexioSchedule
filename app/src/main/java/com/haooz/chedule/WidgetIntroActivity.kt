@@ -147,7 +147,7 @@ private fun WidgetIntroScreen(onBack: () -> Unit) {
                 horizontalAlignment = Alignment.CenterHorizontally
             ) {
                 Text(
-                    text = "1. 长按桌面空白处\n2. 选择「全部应用」内的「安卓小部件」\n3. 找到「Hyper课程表」并添加",
+                    text = "1. 长按桌面空白处\n2. 选择「全部应用」内的「安卓小部件」\n3. 找到「Nexio课程表」并添加",
                     fontSize = 14.sp,
                     lineHeight = 24.sp,
                     color = MiuixTheme.colorScheme.onSurfaceVariantActions

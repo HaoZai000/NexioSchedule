@@ -50,6 +50,8 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.haooz.chedule.reminder.CourseReminderHelper
+import com.haooz.chedule.reminder.IslandNotificationHelper
+import com.haooz.chedule.shizuku.ShizukuManager
 import com.haooz.chedule.ui.theme.CourseScheduleTheme
 import com.haooz.chedule.viewmodel.CourseViewModel
 import top.yukonga.miuix.kmp.basic.Card
@@ -106,6 +108,7 @@ private fun CourseReminderScreen(
     val nextDayReminder by viewModel.nextDayReminder.collectAsState()
     val nextDayReminderHour by viewModel.nextDayReminderHour.collectAsState()
     val nextDayReminderMinute by viewModel.nextDayReminderMinute.collectAsState()
+    val islandNotification by viewModel.islandNotification.collectAsState()
     val scrollBehavior = MiuixScrollBehavior()
     val context = androidx.compose.ui.platform.LocalContext.current
     val hapticFeedback = LocalHapticFeedback.current
@@ -117,6 +120,11 @@ private fun CourseReminderScreen(
     var tempHour by remember { mutableIntStateOf(nextDayReminderHour) }
     var tempMinute by remember { mutableIntStateOf(nextDayReminderMinute) }
 
+    // Shizuku 状态
+    var shizukuRunning by remember { mutableStateOf(false) }
+    var shizukuAuthorized by remember { mutableStateOf(false) }
+    var isIslandSupported by remember { mutableStateOf(false) }
+
     val masterEnabled = preClassReminder || nextDayReminder
     var isIgnoringBattery by remember { mutableStateOf(true) }
     val batteryOptLauncher = androidx.activity.compose.rememberLauncherForActivityResult(
@@ -125,11 +133,28 @@ private fun CourseReminderScreen(
         val pm = context.getSystemService(android.content.Context.POWER_SERVICE) as PowerManager
         isIgnoringBattery = pm.isIgnoringBatteryOptimizations(context.packageName)
     }
+    val autoStartLauncher = androidx.activity.compose.rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.StartActivityForResult()
+    ) {
+        // 返回后刷新状态
+    }
     var canPostPromoted by remember { mutableStateOf(false) }
+    var canScheduleExactAlarms by remember { mutableStateOf(true) }
     val promotedSettingsLauncher = androidx.activity.compose.rememberLauncherForActivityResult(
         contract = ActivityResultContracts.StartActivityForResult()
     ) {
         canPostPromoted = CourseReminderHelper.canPostPromotedNotifications(context)
+    }
+    val exactAlarmLauncher = androidx.activity.compose.rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.StartActivityForResult()
+    ) {
+        val alarmManager = context.getSystemService(android.content.Context.ALARM_SERVICE) as android.app.AlarmManager
+        canScheduleExactAlarms = if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.S) {
+            alarmManager.canScheduleExactAlarms()
+        } else true
+        if (canScheduleExactAlarms && masterEnabled) {
+            CourseReminderHelper.startReminderService(context)
+        }
     }
 
     LaunchedEffect(masterEnabled) {
@@ -137,6 +162,15 @@ private fun CourseReminderScreen(
             val pm = context.getSystemService(android.content.Context.POWER_SERVICE) as PowerManager
             isIgnoringBattery = pm.isIgnoringBatteryOptimizations(context.packageName)
             canPostPromoted = CourseReminderHelper.canPostPromotedNotifications(context)
+            // 检查精确闹钟权限
+            val alarmManager = context.getSystemService(android.content.Context.ALARM_SERVICE) as android.app.AlarmManager
+            canScheduleExactAlarms = if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.S) {
+                alarmManager.canScheduleExactAlarms()
+            } else true
+            // 检查 Shizuku 和超级岛支持
+            shizukuRunning = ShizukuManager.isShizukuRunning()
+            shizukuAuthorized = ShizukuManager.checkSelfPermission()
+            isIslandSupported = IslandNotificationHelper.isIslandSupported(context)
         }
     }
 
@@ -350,6 +384,87 @@ private fun CourseReminderScreen(
                     }
                 }
 
+                // 超级岛设置
+                if (masterEnabled && isIslandSupported) {
+                    item {
+                        Card(
+                            cornerRadius = 20.dp,
+                            modifier = Modifier.fillMaxWidth(),
+                            insideMargin = PaddingValues(0.dp)
+                        ) {
+                            Column(
+                                modifier = Modifier.fillMaxWidth()
+                            ) {
+                                SwitchPreference(
+                                    title = "小米超级岛",
+                                    summary = if (islandNotification) "已开启，课程提醒将以超级岛样式显示" else "关闭后使用普通通知",
+                                    checked = islandNotification,
+                                    onCheckedChange = {
+                                        viewModel.setIslandNotification(it)
+                                    }
+                                )
+                                // Shizuku 状态
+                                if (islandNotification) {
+                                    Column(
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .padding(horizontal = 16.dp)
+                                            .padding(bottom = 16.dp)
+                                    ) {
+                                        Row(
+                                            modifier = Modifier.fillMaxWidth(),
+                                            verticalAlignment = Alignment.CenterVertically
+                                        ) {
+                                            Text(
+                                                text = "Shizuku 状态",
+                                                fontSize = 14.sp,
+                                                color = MiuixTheme.colorScheme.onSurfaceVariantSummary
+                                            )
+                                            Spacer(modifier = Modifier.weight(1f))
+                                            Text(
+                                                text = when {
+                                                    !shizukuRunning -> "未运行"
+                                                    !shizukuAuthorized -> "未授权"
+                                                    else -> "已就绪"
+                                                },
+                                                fontSize = 14.sp,
+                                                color = when {
+                                                    !shizukuRunning -> ComposeColor(0xFFFF6B6B)
+                                                    !shizukuAuthorized -> ComposeColor(0xFFFFB347)
+                                                    else -> ComposeColor(0xFF4CAF50)
+                                                }
+                                            )
+                                        }
+                                        if (!shizukuRunning) {
+                                            Spacer(modifier = Modifier.height(8.dp))
+                                            Text(
+                                                text = "请安装并启动 Shizuku 应用",
+                                                style = MiuixTheme.textStyles.body2,
+                                                color = MiuixTheme.colorScheme.onSurfaceVariantSummary
+                                            )
+                                        } else if (!shizukuAuthorized) {
+                                            Spacer(modifier = Modifier.height(12.dp))
+                                            TextButton(
+                                                text = "授权 Shizuku",
+                                                onClick = {
+                                                    IslandNotificationHelper.requestShizukuPermission { granted ->
+                                                        shizukuAuthorized = granted
+                                                        if (!granted) {
+                                                            Toast.makeText(context, "Shizuku 授权失败", Toast.LENGTH_SHORT).show()
+                                                        }
+                                                    }
+                                                },
+                                                colors = top.yukonga.miuix.kmp.basic.ButtonDefaults.textButtonColorsPrimary(),
+                                                modifier = Modifier.fillMaxWidth()
+                                            )
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+
                 // 电池优化提示
                 if (masterEnabled && !isIgnoringBattery) {
                     item {
@@ -395,6 +510,86 @@ private fun CourseReminderScreen(
                     }
                 }
 
+                // 自启动权限提示
+                if (masterEnabled && !isIgnoringBattery) {
+                    item {
+                        Card(
+                            cornerRadius = 20.dp,
+                            modifier = Modifier.fillMaxWidth(),
+                            insideMargin = PaddingValues(0.dp)
+                        ) {
+                            Column(
+                                modifier = Modifier.fillMaxWidth().padding(16.dp)
+                            ) {
+                                Text(
+                                    text = "开启自启动权限",
+                                    fontWeight = FontWeight.Medium,
+                                    fontSize = 17.sp,
+                                    color = MiuixTheme.colorScheme.onSurface
+                                )
+                                Spacer(modifier = Modifier.height(4.dp))
+                                Text(
+                                    text = "不同厂商路径不同，通常在「设置」→「应用管理」→「自启动」中开启，确保课程提醒不会被系统杀死",
+                                    style = MiuixTheme.textStyles.body2,
+                                    color = MiuixTheme.colorScheme.onSurfaceVariantSummary
+                                )
+                                Spacer(modifier = Modifier.height(12.dp))
+                                TextButton(
+                                    text = "前往开启自启动",
+                                    onClick = {
+                                        val intent = Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS).apply {
+                                            data = Uri.parse("package:${context.packageName}")
+                                        }
+                                        autoStartLauncher.launch(intent)
+                                    },
+                                    colors = top.yukonga.miuix.kmp.basic.ButtonDefaults.textButtonColorsPrimary(),
+                                    modifier = Modifier.fillMaxWidth()
+                                )
+                            }
+                        }
+                    }
+                }
+
+                // 精确闹钟权限提示
+                if (masterEnabled && !canScheduleExactAlarms) {
+                    item {
+                        Card(
+                            cornerRadius = 20.dp,
+                            modifier = Modifier.fillMaxWidth(),
+                            insideMargin = PaddingValues(0.dp)
+                        ) {
+                            Column(
+                                modifier = Modifier.fillMaxWidth().padding(16.dp)
+                            ) {
+                                Text(
+                                    text = "开启精确闹钟权限",
+                                    fontWeight = FontWeight.Medium,
+                                    fontSize = 17.sp,
+                                    color = MiuixTheme.colorScheme.onSurface
+                                )
+                                Spacer(modifier = Modifier.height(4.dp))
+                                Text(
+                                    text = "精确闹钟权限可确保课程提醒准时触发，不受系统省电策略影响",
+                                    style = MiuixTheme.textStyles.body2,
+                                    color = MiuixTheme.colorScheme.onSurfaceVariantSummary
+                                )
+                                Spacer(modifier = Modifier.height(12.dp))
+                                TextButton(
+                                    text = "前往开启",
+                                    onClick = {
+                                        val intent = Intent(android.provider.Settings.ACTION_REQUEST_SCHEDULE_EXACT_ALARM).apply {
+                                            data = Uri.parse("package:${context.packageName}")
+                                        }
+                                        exactAlarmLauncher.launch(intent)
+                                    },
+                                    colors = top.yukonga.miuix.kmp.basic.ButtonDefaults.textButtonColorsPrimary(),
+                                    modifier = Modifier.fillMaxWidth()
+                                )
+                            }
+                        }
+                    }
+                }
+
                 // 实况通知提示
                 if (masterEnabled && !canPostPromoted && android.os.Build.VERSION.SDK_INT >= 36) {
                     item {
@@ -414,7 +609,7 @@ private fun CourseReminderScreen(
                                 )
                                 Spacer(modifier = Modifier.height(4.dp))
                                 Text(
-                                    text = "开启后，下节课倒计时将显示在状态栏和锁屏上，无需打开应用即可查看",
+                                    text = "开启后，下节课倒计时将实时显示在状态栏和锁屏上，无需打开应用即可查看",
                                     style = MiuixTheme.textStyles.body2,
                                     color = MiuixTheme.colorScheme.onSurfaceVariantSummary
                                 )
@@ -442,6 +637,41 @@ private fun CourseReminderScreen(
                     }
                 }
             }
+
+            // 发送测试通知 - 固定在底部
+            TextButton(
+                text = if (islandNotification && isIslandSupported) "测试小米超级岛" else "测试实时活动",
+                onClick = {
+                    val repo = com.haooz.chedule.data.CourseRepository(context)
+                    val nextCourse = CourseReminderHelper.findNextCourseToday(context)
+                    val courseName = nextCourse?.name ?: "暂无课程"
+                    val classroom = nextCourse?.classroom ?: ""
+                    val startTime = nextCourse?.let { CourseReminderHelper.getCourseStartTime(it, repo) } ?: ""
+                    val section = nextCourse?.let { it.getSectionText() } ?: ""
+                    if (islandNotification && isIslandSupported) {
+                        IslandNotificationHelper.sendTestIslandNotification(context)
+                        Toast.makeText(context, "已发送超级岛测试通知", Toast.LENGTH_SHORT).show()
+                    } else {
+                        val startMillis = System.currentTimeMillis() + 30_000L
+                        val endMillis = startMillis + 45 * 60_000L
+                        CourseReminderHelper.showPreClassCountdownNotification(
+                            context = context,
+                            courseName = courseName,
+                            classroom = classroom,
+                            section = section,
+                            startTime = startTime,
+                            startMillis = startMillis,
+                            endMillis = endMillis
+                        )
+                        Toast.makeText(context, "已发送: $courseName (模拟30秒后上课)", Toast.LENGTH_SHORT).show()
+                    }
+                },
+                colors = top.yukonga.miuix.kmp.basic.ButtonDefaults.textButtonColorsPrimary(),
+                modifier = Modifier
+                    .align(Alignment.BottomCenter)
+                    .fillMaxWidth()
+                    .padding(start = 32.dp, end = 32.dp, bottom = 48.dp)
+            )
         }
 
         // 提前提醒分钟数弹窗
@@ -485,6 +715,7 @@ private fun CourseReminderScreen(
                             hapticFeedback.performHapticFeedback(HapticFeedbackType.Confirm)
                             viewModel.setPreClassReminderMinutes(tempMinutes)
                             showMinutesDialog = false
+                            CourseReminderHelper.startReminderService(context)
                         },
                         colors = top.yukonga.miuix.kmp.basic.ButtonDefaults.textButtonColorsPrimary(),
                         modifier = Modifier.weight(1f)
@@ -515,6 +746,8 @@ private fun CourseReminderScreen(
                         range = 0..23,
                         visibleItemCount = 3,
                         itemHeight = 60.dp,
+                        label = { String.format("%02d", it) },
+                        wrapAround = true,
                         modifier = Modifier.weight(1f)
                     )
                     Text(":",
@@ -530,6 +763,8 @@ private fun CourseReminderScreen(
                         range = 0..59,
                         visibleItemCount = 3,
                         itemHeight = 60.dp,
+                        label = { String.format("%02d", it) },
+                        wrapAround = true,
                         modifier = Modifier.weight(1f)
                     )
                 }
@@ -552,6 +787,7 @@ private fun CourseReminderScreen(
                             viewModel.setNextDayReminderHour(tempHour)
                             viewModel.setNextDayReminderMinute(tempMinute)
                             showTimeDialog = false
+                            CourseReminderHelper.startReminderService(context)
                         },
                         colors = top.yukonga.miuix.kmp.basic.ButtonDefaults.textButtonColorsPrimary(),
                         modifier = Modifier.weight(1f)

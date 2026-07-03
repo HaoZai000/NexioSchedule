@@ -50,6 +50,7 @@ class EducationalImportActivity : ComponentActivity() {
         private val _updateProgress = MutableStateFlow(0f)
         private val _dataVersion = MutableStateFlow(0)
         private val _initialLoadDone = MutableStateFlow(false)
+        private val _updateMessage = MutableStateFlow<String?>(null)
 
         fun isUpdating() = _isUpdating.asStateFlow()
         fun isChecking() = _isChecking.asStateFlow()
@@ -109,16 +110,22 @@ class EducationalImportActivity : ComponentActivity() {
                             if (progress > 0.05f) _isChecking.value = false
                         }
                     )
-                    val msg = if (result) "已是最新版本" else "更新失败"
+                    val msg = when (result) {
+                        0 -> "已是最新版本"
+                        1 -> "更新完成"
+                        else -> "更新失败"
+                    }
                     withContext(Dispatchers.Main) {
                         Toast.makeText(context, msg, Toast.LENGTH_SHORT).show()
                     }
-                    val prefs = context.getSharedPreferences(PREFS_NAME, android.content.Context.MODE_PRIVATE)
-                    prefs.edit().putLong(KEY_LAST_UPDATE_TIME, System.currentTimeMillis()).apply()
+                    if (result >= 0) {
+                        val prefs = context.getSharedPreferences(PREFS_NAME, android.content.Context.MODE_PRIVATE)
+                        prefs.edit().putLong(KEY_LAST_UPDATE_TIME, System.currentTimeMillis()).apply()
+                    }
                 } catch (e: Exception) {
                     Log.e(TAG, "手动更新失败: ${e.message}")
                     withContext(Dispatchers.Main) {
-                        Toast.makeText(context, "更新失败: ${e.message}", Toast.LENGTH_SHORT).show()
+                        Toast.makeText(context, "更新失败", Toast.LENGTH_SHORT).show()
                     }
                 } finally {
                     _isChecking.value = false

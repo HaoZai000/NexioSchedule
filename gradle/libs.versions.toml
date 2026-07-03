@@ -14,6 +14,8 @@ shapes = "1.2.0"
 jgit = "5.13.5.202508271544-r"
 slf4j = "2.0.18"
 slf4j_android = "1.7.36"
+focus-api = "1.4"
+shizuku = "13.1.5"
 
 [libraries]
 androidx-core-ktx = { group = "androidx.core", name = "core-ktx", version.ref = "coreKtx" }
@@ -47,6 +49,13 @@ okhttp = { group = "com.squareup.okhttp3", name = "okhttp", version = "4.12.0" }
 jgit = { module = "org.eclipse.jgit:org.eclipse.jgit", version.ref = "jgit" }
 slf4j-api = { group = "org.slf4j", name = "slf4j-api", version.ref = "slf4j" }
 slf4j-android = { group = "org.slf4j", name = "slf4j-android", version.ref = "slf4j_android" }
+
+# Focus Notification / Super Island
+focus-api = { group = "com.xzakota.hyper.notification", name = "focus-api", version.ref = "focus-api" }
+
+# Shizuku
+shizuku-api = { group = "dev.rikka.shizuku", name = "api", version.ref = "shizuku" }
+shizuku-provider = { group = "dev.rikka.shizuku", name = "provider", version.ref = "shizuku" }
 
 # Shapes
 shapes = { group = "io.github.kyant0", name = "shapes", version.ref = "shapes" }

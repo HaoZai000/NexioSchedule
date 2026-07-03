@@ -15,7 +15,9 @@ data class Course(
     val endWeek: Int,           // 结束周次
     val weekType: Int,          // 周类型: 0=全周, 1=单周, 2=双周
     val colorRes: Long,         // 课程颜色
-    val selectedWeeks: List<Int> = emptyList() // 选中的具体周次列表（为空时使用startWeek/endWeek/weekType）
+    val selectedWeeks: List<Int> = emptyList(), // 选中的具体周次列表（为空时使用startWeek/endWeek/weekType）
+    val scheduleId: String = "", // 所属课表ID（空字符串表示未指定，用于云同步区分课表）
+    val lastModified: Long = System.currentTimeMillis() // 最后修改时间戳
 ) {
     companion object {
         const val WEEK_TYPE_ALL = 0   // 全部周
@@ -77,7 +79,8 @@ data class Course(
             startMinute: Int,
             classDuration: Int,
             shortBreak: Int,
-            longBreak: Int
+            longBreak: Int,
+            longBreakSection: Int = 2
         ): Map<Int, String> {
             if (sectionCount <= 0) return emptyMap()
             val result = mutableMapOf<Int, String>()
@@ -91,7 +94,7 @@ data class Course(
                 result[i] = String.format("%02d:%02d-%02d:%02d", sH, sM, eH, eM)
                 currentMinute = endMinute
                 if (i < sectionCount) {
-                    currentMinute += if (i % 2 == 0) longBreak else shortBreak
+                    currentMinute += if (i == longBreakSection) longBreak else shortBreak
                 }
             }
             return result

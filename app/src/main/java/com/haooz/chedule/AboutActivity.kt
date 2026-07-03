@@ -5,11 +5,12 @@ import android.graphics.Bitmap
 import android.graphics.Canvas
 import android.os.Bundle
 import androidx.activity.ComponentActivity
+import androidx.activity.SystemBarStyle
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
-import androidx.activity.SystemBarStyle
-import androidx.core.view.WindowCompat
 import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.tween
 import androidx.compose.animation.expandVertically
 import androidx.compose.animation.shrinkVertically
 import androidx.compose.foundation.Image
@@ -39,8 +40,6 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
-import androidx.compose.animation.core.animateFloatAsState
-import androidx.compose.animation.core.tween
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -120,7 +119,7 @@ private fun AboutScreen(onBack: () -> Unit) {
     val appName = remember {
         packageInfo?.applicationInfo?.labelRes?.let {
             context.getString(it)
-        } ?: context.applicationInfo?.nonLocalizedLabel?.toString() ?: "Hyper课程表"
+        } ?: context.applicationInfo?.nonLocalizedLabel?.toString() ?: "Nexio课程表"
     }
     val appVersion = remember {
         packageInfo?.versionName ?: "未知版本"
@@ -567,7 +566,7 @@ private fun AboutScreen(onBack: () -> Unit) {
                                             verticalAlignment = Alignment.CenterVertically
                                         ) {
                                             Text(
-                                                text = "Warehouse",
+                                                text = "warehouse",
                                                 fontSize = 15.sp,
                                                 fontWeight = FontWeight.Medium,
                                                 color = MiuixTheme.colorScheme.primary,
@@ -582,11 +581,98 @@ private fun AboutScreen(onBack: () -> Unit) {
                                                 color = MiuixTheme.colorScheme.onSurfaceVariantActions
                                             )
                                         }
+                                        Spacer(modifier = Modifier.height(12.dp))
+                                        Row(
+                                            modifier = Modifier
+                                                .fillMaxWidth()
+                                                .padding(horizontal = 4.dp),
+                                            horizontalArrangement = Arrangement.SpaceBetween,
+                                            verticalAlignment = Alignment.CenterVertically
+                                        ) {
+                                            Text(
+                                                text = "HyperNotification",
+                                                fontSize = 15.sp,
+                                                fontWeight = FontWeight.Medium,
+                                                color = MiuixTheme.colorScheme.primary,
+                                                modifier = Modifier.clickable {
+                                                    uriHandler.openUri("https://github.com/limczhh/HyperNotification")
+                                                }
+                                            )
+                                            Text(
+                                                text = "limczhh",
+                                                fontSize = 15.sp,
+                                                fontWeight = FontWeight.Medium,
+                                                color = MiuixTheme.colorScheme.onSurfaceVariantActions
+                                            )
+                                        }
+                                        Spacer(modifier = Modifier.height(12.dp))
+                                        Row(
+                                            modifier = Modifier
+                                                .fillMaxWidth()
+                                                .padding(horizontal = 4.dp),
+                                            horizontalArrangement = Arrangement.SpaceBetween,
+                                            verticalAlignment = Alignment.CenterVertically
+                                        ) {
+                                            Text(
+                                                text = "Shizuku",
+                                                fontSize = 15.sp,
+                                                fontWeight = FontWeight.Medium,
+                                                color = MiuixTheme.colorScheme.primary,
+                                                modifier = Modifier.clickable {
+                                                    uriHandler.openUri("https://github.com/RikkaApps/Shizuku")
+                                                }
+                                            )
+                                            Text(
+                                                text = "RikkaApps",
+                                                fontSize = 15.sp,
+                                                fontWeight = FontWeight.Medium,
+                                                color = MiuixTheme.colorScheme.onSurfaceVariantActions
+                                            )
+                                        }
                                     }
                                 }
                             }
                         }
-                        Spacer(modifier = Modifier.height(12.dp))
+                        Spacer(modifier = Modifier.height(20.dp))
+                        Column(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(bottom = 60.dp),
+                            horizontalAlignment = Alignment.CenterHorizontally
+                        ) {
+                            val uriHandler = LocalUriHandler.current
+
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Text(
+                                    text = "© 2026 Nexio课程表 · 作者:",
+                                    fontSize = 13.sp,
+                                    color = MiuixTheme.colorScheme.onSurfaceVariantActions
+                                )
+                                Text(
+                                    text = "Haooz",
+                                    fontSize = 13.sp,
+                                    color = MiuixTheme.colorScheme.primary,
+                                    modifier = Modifier
+                                        .clickable {
+                                            uriHandler.openUri("https://www.coolapk.com/u/29693763")
+                                        }
+                                        .padding(start = 4.dp)
+                                )
+                            }
+                            Spacer(modifier = Modifier.height(4.dp))
+                            Text(
+                                text = "赞赏作者",
+                                fontSize = 13.sp,
+                                color = MiuixTheme.colorScheme.primary,
+                                modifier = Modifier
+                                    .clickable {
+                                        val intent = Intent(context, AppreciateAuthorActivity::class.java)
+                                        context.startActivity(intent)
+                                    }
+                            )
+                        }
                     }
                 }
             }

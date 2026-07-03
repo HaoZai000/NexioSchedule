@@ -6,6 +6,7 @@
 
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
     <uses-permission android:name="android.permission.INTERNET" />
+    <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
     <uses-permission android:name="android.permission.REQUEST_INSTALL_PACKAGES" />
     <uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE"
         android:maxSdkVersion="28" />
@@ -106,6 +107,11 @@
             android:label="关于应用"
             android:theme="@style/Theme.课程表" />
         <activity
+            android:name=".AppreciateAuthorActivity"
+            android:exported="false"
+            android:label="赞赏作者"
+            android:theme="@style/Theme.课程表" />
+        <activity
             android:name=".UpdateSettingsActivity"
             android:exported="false"
             android:label="更新设置"
@@ -115,6 +121,12 @@
             android:exported="false"
             android:label="偏好设置"
             android:theme="@style/Theme.课程表" />
+        <activity
+            android:name=".WebDavSettingsActivity"
+            android:exported="false"
+            android:label="WebDAV 云同步"
+            android:theme="@style/Theme.课程表"
+            android:windowSoftInputMode="adjustResize" />
         <activity
             android:name=".EducationalImportActivity"
             android:exported="false"
@@ -132,6 +144,14 @@
                 android:resource="@xml/file_paths" />
         </provider>
 
+        <provider
+            android:name="rikka.shizuku.ShizukuProvider"
+            android:authorities="${applicationId}.shizuku"
+            android:multiprocess="false"
+            android:enabled="true"
+            android:exported="true"
+            android:permission="android.permission.INTERACT_ACROSS_USERS_FULL" />
+
         <receiver
             android:name=".reminder.CourseReminderReceiver"
             android:exported="false" />
@@ -141,21 +161,27 @@
             android:exported="false" />
 
         <receiver
+            android:name=".reminder.IslandExpandReceiver"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="com.haooz.chedule.ACTION_ISLAND_EXPAND" />
+            </intent-filter>
+        </receiver>
+
+        <receiver
+            android:name=".reminder.WidgetRefreshReceiver"
+            android:exported="false" />
+
+        <receiver
+            android:name=".reminder.CourseStartReceiver"
+            android:exported="false" />
+        <receiver
             android:name=".reminder.BootCompletedReceiver"
             android:exported="true">
             <intent-filter>
                 <action android:name="android.intent.action.BOOT_COMPLETED" />
             </intent-filter>
         </receiver>
-
-        <service
-            android:name=".reminder.ReminderForegroundService"
-            android:exported="false"
-            android:foregroundServiceType="specialUse">
-            <property
-                android:name="android.app.PROPERTY_SPECIAL_USE_FGS_SUBTYPE"
-                android:value="schedule_management" />
-        </service>
 
         <receiver
             android:name=".widget.CourseWidgetProvider"

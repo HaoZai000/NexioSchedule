@@ -293,9 +293,9 @@ class ScriptRepository(private val context: Context, private val repoUrl: String
     /**
      * 一键更新：先检查索引版本，再决定是否下载资源
      * onProgress: 0.0~0.3=检查索引, 0.3~1.0=下载资源
-     * 返回 true 表示有更新并完成，false 表示已是最新或失败
+     * 返回 0=已是最新, 1=更新完成, -1=失败
      */
-    fun updateAll(onLog: (String) -> Unit, onProgress: (Float) -> Unit = {}): Boolean {
+    fun updateAll(onLog: (String) -> Unit, onProgress: (Float) -> Unit = {}): Int {
         onLog("=== 开始检查更新 ===")
         onProgress(0f)
 
@@ -307,14 +307,14 @@ class ScriptRepository(private val context: Context, private val repoUrl: String
         if (indexResult.isFatalIndexError) {
             onLog("\n!!! 索引校验失败，终止")
             cleanupTempDirs()
-            return false
+            return -1
         }
 
         // 索引版本未变 → 已是最新
         if (indexResult.indexFileContent == null) {
             onLog("\n=== 数据已是最新，无需更新 ===")
             cleanupTempDirs()
-            return true
+            return 0
         }
 
         // 阶段二：索引有更新，下载资源
@@ -329,7 +329,7 @@ class ScriptRepository(private val context: Context, private val repoUrl: String
         if (!resourceSuccess) {
             onLog("\n!!! 资源更新失败，终止")
             cleanupTempDirs()
-            return false
+            return -1
         }
 
         resourceResult.indexFileContent = indexResult.indexFileContent
@@ -341,10 +341,10 @@ class ScriptRepository(private val context: Context, private val repoUrl: String
 
         return if (commitSuccess) {
             onLog("\n=== 更新完成 ===")
-            true
+            1
         } else {
             onLog("\n!!! 写入失败 ===")
-            false
+            -1
         }
     }
 

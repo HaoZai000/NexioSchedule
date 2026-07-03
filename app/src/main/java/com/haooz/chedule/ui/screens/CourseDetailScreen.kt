@@ -234,7 +234,7 @@ fun CourseDetailScreen(
                     translationY = s.translationY
                 }
                 .clip(clipShape)
-                .background(if (fromToday) MiuixTheme.colorScheme.background else if (isDark) ComposeColor(0xFF434343) else ComposeColor(0xFFFFFFFF))
+                .background(if (fromToday) MiuixTheme.colorScheme.background else if (isDark) ComposeColor(0xFF363636) else ComposeColor(0xFFFFFFFF))
         ) {
             if (cardSnapshot != null && s.snapshotAlpha > 0f) {
                 Image(

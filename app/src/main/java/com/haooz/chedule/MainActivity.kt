@@ -66,6 +66,7 @@ import androidx.compose.ui.unit.sp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.haooz.chedule.data.Course
 import com.haooz.chedule.reminder.CourseReminderHelper
+import com.haooz.chedule.reminder.IslandNotificationHelper
 import com.haooz.chedule.ui.screens.CourseDetailScreen
 import com.haooz.chedule.ui.screens.MainScheduleScreen
 import com.haooz.chedule.ui.screens.SettingsScreen
@@ -146,6 +147,7 @@ class MainActivity : ComponentActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+
         enableEdgeToEdge(
             statusBarStyle = SystemBarStyle.light(
                 android.graphics.Color.TRANSPARENT,
@@ -158,6 +160,9 @@ class MainActivity : ComponentActivity() {
         updateFreeformWindowState()
         handleReminderSettingsIntent(intent)
         CourseReminderHelper.startReminderService(this)
+
+        // 初始化超级岛通知助手
+        IslandNotificationHelper.init(this)
 
         // 自动检查更新：每天进入应用时检查一次
         val prefs = getSharedPreferences("update_settings", MODE_PRIVATE)
@@ -213,7 +218,7 @@ class MainActivity : ComponentActivity() {
     }
 
     override fun onMultiWindowModeChanged(isInMultiWindowMode: Boolean, newConfig: Configuration) {
-        super.onMultiWindowModeChanged(isInMultiWindowMode, newConfig)
+        super.onMultiWindowModeChanged(isInMultiWindowMode)
         isInFreeformWindow = isInMultiWindowMode
     }
 
@@ -256,8 +261,19 @@ fun CourseScheduleApp() {
     var isExitingShift by remember { mutableStateOf(false) }
     var shiftModeInitialized by remember { mutableStateOf(false) }
 
-    // 更新弹窗状态
+    // 初始化 SyncManager 并检查云端更新
     val context = LocalContext.current
+
+    LaunchedEffect(Unit) {
+        val syncManager = com.haooz.chedule.data.SyncManager.getInstance(context)
+        val repository = com.haooz.chedule.data.CourseRepository(context)
+        val webDavManager = com.haooz.chedule.data.WebDavManager(context)
+        syncManager.start(repository, webDavManager)
+        // 启动时检查云端是否有更新
+        syncManager.checkAndSyncOnStart()
+    }
+
+    // 更新弹窗状态
     val updatePrefs = remember { context.getSharedPreferences("update_settings", Context.MODE_PRIVATE) }
     var showUpdateDialog by remember { mutableStateOf(false) }
     var updateTagName by remember { mutableStateOf("") }
@@ -298,6 +314,7 @@ fun CourseScheduleApp() {
             }
         }
     }
+
     val backgroundColor = MiuixTheme.colorScheme.surface
     val backdrop = rememberLayerBackdrop {
         drawRect(backgroundColor)
@@ -332,6 +349,7 @@ fun CourseScheduleApp() {
     var detailCardHeight by remember { mutableFloatStateOf(0f) }
     var detailSnapshot by remember { mutableStateOf<android.graphics.Bitmap?>(null) }
     var showDetail by remember { mutableStateOf(false) }
+
     var detailFromToday by remember { mutableStateOf(false) }
     var screenSnapshot by remember { mutableStateOf<android.graphics.Bitmap?>(null) }
     var mainContentSnapshot by remember { mutableStateOf<android.graphics.Bitmap?>(null) }

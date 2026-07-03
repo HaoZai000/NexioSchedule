@@ -8,6 +8,7 @@ import android.os.Environment
 import android.widget.Toast
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -40,6 +41,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.RectangleShape
 import androidx.compose.ui.graphics.lerp
@@ -47,6 +49,10 @@ import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.SpanStyle
+import androidx.compose.ui.text.buildAnnotatedString
+import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.unit.DpSize
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -57,6 +63,7 @@ import com.haooz.chedule.CourseTimeSettingsActivity
 import com.haooz.chedule.PreferenceSettingsActivity
 import com.haooz.chedule.WidgetIntroActivity
 import com.haooz.chedule.data.Course
+import com.haooz.chedule.data.WebDavManager
 import com.haooz.chedule.isAppDarkTheme
 import com.haooz.chedule.viewmodel.CourseViewModel
 import kotlinx.coroutines.launch
@@ -144,6 +151,7 @@ fun SettingsScreen(
     var showShiftModeConfirmDialog by remember { mutableStateOf(false) }
     var showNewSemesterDialog by remember { mutableStateOf(false) }
     var newSemesterName by remember { mutableStateOf("") }
+    var showDonateDialog by remember { mutableStateOf(false) }
 
     val courseTimeSettingsLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.StartActivityForResult()
@@ -173,6 +181,16 @@ fun SettingsScreen(
     var showImportConfirmDialog by remember { mutableStateOf(false) }
     var pendingImportData by remember { mutableStateOf<Map<String, Any>?>(null) }
     var pendingImportScheduleName by remember { mutableStateOf("") }
+
+    // WebDAV 云同步
+    val webDavManager = remember { WebDavManager(context) }
+    val lastSyncTimeMs = webDavManager.lastSyncTime
+    val lastSyncSummary = remember(lastSyncTimeMs) {
+        if (lastSyncTimeMs > 0L) {
+            val sdf = java.text.SimpleDateFormat("yyyy-MM-dd HH:mm", java.util.Locale.getDefault())
+            "上次同步: ${sdf.format(java.util.Date(lastSyncTimeMs))}"
+        } else "未同步"
+    }
 
     // 教务导入仓库源设置
     val coroutineScope = rememberCoroutineScope()
@@ -665,10 +683,14 @@ fun SettingsScreen(
                                         context.startActivity(intent)
                                     }
                                 )
-                                //ArrowPreference(
-                                    //title = "WebDev云同步",
-                                  //  onClick = {}
-                                //)
+                                ArrowPreference(
+                                    title = "WebDav云同步",
+                                    summary = if (webDavManager.isConfigured()) lastSyncSummary else "配置服务器后可手动同步",
+                                    onClick = {
+                                        val intent = Intent(context, com.haooz.chedule.WebDavSettingsActivity::class.java)
+                                        context.startActivity(intent)
+                                    }
+                                )
                                 ArrowPreference(
                                     title = "关于应用",
                                     onClick = {
@@ -1305,6 +1327,7 @@ fun SettingsScreen(
             }
         }
     }
+
     }
 }
 
@@ -1834,7 +1857,7 @@ internal fun applyScheduleData(
         if (settings != null) {
             // 切换到新课表来保存设置
             viewModel.switchToSchedule(scheduleName)
-            
+
             (settings["class_start_time"] as? String)?.let { viewModel.setClassStartTime(it) }
             (settings["total_weeks"] as? Number)?.toInt()?.let { viewModel.setTotalWeeks(it) }
             @Suppress("UNCHECKED_CAST")
@@ -1847,7 +1870,7 @@ internal fun applyScheduleData(
             (settings["morning_sections"] as? Number)?.toInt()?.let { viewModel.setMorningSections(it) }
             (settings["afternoon_sections"] as? Number)?.toInt()?.let { viewModel.setAfternoonSections(it) }
             (settings["evening_sections"] as? Number)?.toInt()?.let { viewModel.setEveningSections(it) }
-            
+
             // 保存课程时间
             @Suppress("UNCHECKED_CAST")
             val times = data["times"] as? Map<String, Any>
