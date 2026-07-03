@@ -1,3 +1,4 @@
+// Nexio课程表 - 应用模块构建配置
 plugins {
     alias(libs.plugins.android.application)
     alias(libs.plugins.kotlin.compose)
