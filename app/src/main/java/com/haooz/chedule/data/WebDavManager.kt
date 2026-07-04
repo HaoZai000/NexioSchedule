@@ -122,7 +122,8 @@ class WebDavManager(private val context: Context) {
         }
     }
 
-    private fun checkAndCreateDir(dirUrl: String): Result<Boolean> {
+    private fun checkAndCreateDir(dirUrl: String, retries: Int = 2): Result<Boolean> {
+        // 先检查目录是否存在
         val checkRequest = Request.Builder()
             .url(dirUrl)
             .header("Authorization", authHeader())
@@ -132,18 +133,26 @@ class WebDavManager(private val context: Context) {
         client.newCall(checkRequest).execute().use { checkResponse ->
             if (checkResponse.isSuccessful) return Result.success(true)
         }
-        val mkcolRequest = Request.Builder()
-            .url(dirUrl)
-            .header("Authorization", authHeader())
-            .method("MKCOL", "".toRequestBody(null))
-            .build()
-        client.newCall(mkcolRequest).execute().use { mkcolResponse ->
-            return if (mkcolResponse.isSuccessful || mkcolResponse.code == 405) {
-                Result.success(true)
-            } else {
-                Result.failure(Exception("创建目录失败: ${mkcolResponse.code}"))
+
+        // 目录不存在，尝试创建（含重试）
+        var lastError: String? = null
+        for (attempt in 0..retries) {
+            if (attempt > 0) {
+                Thread.sleep(1000L * attempt) // 递增等待
+            }
+            val mkcolRequest = Request.Builder()
+                .url(dirUrl)
+                .header("Authorization", authHeader())
+                .method("MKCOL", "".toRequestBody(null))
+                .build()
+            client.newCall(mkcolRequest).execute().use { mkcolResponse ->
+                if (mkcolResponse.isSuccessful || mkcolResponse.code == 405) {
+                    return Result.success(true)
+                }
+                lastError = "${mkcolResponse.code}"
             }
         }
+        return Result.failure(Exception("创建目录失败: $lastError"))
     }
 
     // ============ 课表 Manifest 操作 ============
