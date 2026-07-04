@@ -964,4 +964,64 @@ class CourseRepository private constructor(context: Context) {
         val evening = prefs.getInt("${prefix}$KEY_EVENING_SECTIONS", 4)
         return Triple(morning, afternoon, evening)
     }
+
+    // ============ 课表设置导出/导入（用于云同步） ============
+
+    /**
+     * 导出单个课表的设置（不含课程数据）
+     */
+    fun exportScheduleSettings(scheduleId: String): Map<String, Any> {
+        val prefix = "$SCHEDULE_KEY_PREFIX${scheduleId}_"
+        val settings = mutableMapOf<String, Any>()
+        val settingKeys = listOf(
+            KEY_TOTAL_WEEKS, KEY_CLASS_START_TIME, KEY_CURRENT_WEEK,
+            KEY_SHOW_WEEKEND, KEY_SHOW_NON_CURRENT_WEEK,
+            KEY_MORNING_SECTIONS, KEY_AFTERNOON_SECTIONS, KEY_EVENING_SECTIONS,
+            KEY_SECTION_TIMES,
+            KEY_QUICK_TIME_ENABLED, KEY_CLASS_DURATION, KEY_SHORT_BREAK,
+            "${KEY_LONG_BREAK}_enabled", "${KEY_LONG_BREAK}_morning", "${KEY_LONG_BREAK}_afternoon", "${KEY_LONG_BREAK}_evening",
+            "${KEY_LONG_BREAK}_morning_section", "${KEY_LONG_BREAK}_afternoon_section", "${KEY_LONG_BREAK}_evening_section",
+            KEY_MORNING_START, "${KEY_MORNING_START}_min",
+            KEY_AFTERNOON_START, "${KEY_AFTERNOON_START}_min",
+            KEY_EVENING_START, "${KEY_EVENING_START}_min"
+        )
+        for (key in settingKeys) {
+            val fullKey = "$prefix$key"
+            when (val value = prefs.all[fullKey]) {
+                is String -> settings[key] = value
+                is Int -> settings[key] = value
+                is Boolean -> settings[key] = value
+                is Float -> settings[key] = value.toDouble()
+            }
+        }
+        return settings
+    }
+
+    /**
+     * 导入单个课表的设置
+     */
+    fun importScheduleSettings(scheduleId: String, settings: Map<String, Any>) {
+        val prefix = "$SCHEDULE_KEY_PREFIX${scheduleId}_"
+        val editor = prefs.edit()
+        for ((key, value) in settings) {
+            val fullKey = "$prefix$key"
+            when (value) {
+                is String -> editor.putString(fullKey, value)
+                is Double -> editor.putInt(fullKey, value.toInt())
+                is Number -> {
+                    // Gson 默认数字为 Double，也处理 Int
+                    val numVal = value.toDouble()
+                    val intVal = numVal.toInt()
+                    if (numVal == intVal.toDouble()) {
+                        editor.putInt(fullKey, intVal)
+                    } else {
+                        editor.putFloat(fullKey, numVal.toFloat())
+                    }
+                }
+                is Boolean -> editor.putBoolean(fullKey, value)
+            }
+        }
+        editor.apply()
+        onCourseChanged?.invoke("settings", "")
+    }
 }
