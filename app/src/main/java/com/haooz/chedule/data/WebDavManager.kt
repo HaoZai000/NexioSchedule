@@ -487,12 +487,16 @@ class WebDavManager(private val context: Context) {
             // 5c. 同步课表设置（时间、节数、周数等）
             @Suppress("UNCHECKED_CAST")
             val remoteSettings = remoteManifest["settings"] as? Map<String, Any> ?: emptyMap()
+            val localSettingsTime = repository.getLocalSettingsLastModified(scheduleId)
+            val remoteSettingsTime = (remoteSettings["lastModified"] as? Number)?.toLong() ?: 0L
 
-            if (remoteSettings.isNotEmpty()) {
-                // 远程有设置 → 用远程设置覆盖本地（远程为准）
+            if (remoteSettings.isNotEmpty() && remoteSettingsTime > localSettingsTime) {
+                // 远程设置更新 → 导入远程设置
                 repository.importScheduleSettings(scheduleId, remoteSettings)
+            } else if (remoteSettings.isEmpty() && localSettingsTime > 0) {
+                // 远程没有设置但本地有 → 步骤 6 会上传
             }
-            // 如果远程没有设置，保留本地设置（步骤 6 上传时会带上）
+            // 如果本地更新或时间相同，保留本地设置
 
             // 6. 构建合并后的 manifest 并上传
             val mergedCourses = repository.getCoursesForSchedule(scheduleId)

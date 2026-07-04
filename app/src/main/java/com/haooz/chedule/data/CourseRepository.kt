@@ -967,6 +967,16 @@ class CourseRepository private constructor(context: Context) {
 
     // ============ 课表设置导出/导入（用于云同步） ============
 
+    private fun getSettingsLastModified(scheduleId: String): Long {
+        val prefix = "$SCHEDULE_KEY_PREFIX${scheduleId}_"
+        return prefs.getLong("${prefix}_settings_last_modified", 0L)
+    }
+
+    private fun setSettingsLastModified(scheduleId: String, time: Long) {
+        val prefix = "$SCHEDULE_KEY_PREFIX${scheduleId}_"
+        prefs.edit().putLong("${prefix}_settings_last_modified", time).apply()
+    }
+
     /**
      * 导出单个课表的设置（不含课程数据）
      */
@@ -994,7 +1004,15 @@ class CourseRepository private constructor(context: Context) {
                 is Float -> settings[key] = value.toDouble()
             }
         }
+        settings["lastModified"] = getSettingsLastModified(scheduleId)
         return settings
+    }
+
+    /**
+     * 获取本地设置的最后修改时间
+     */
+    fun getLocalSettingsLastModified(scheduleId: String): Long {
+        return getSettingsLastModified(scheduleId)
     }
 
     /**
@@ -1004,12 +1022,12 @@ class CourseRepository private constructor(context: Context) {
         val prefix = "$SCHEDULE_KEY_PREFIX${scheduleId}_"
         val editor = prefs.edit()
         for ((key, value) in settings) {
+            if (key == "lastModified") continue // 跳过时间戳，单独处理
             val fullKey = "$prefix$key"
             when (value) {
                 is String -> editor.putString(fullKey, value)
                 is Double -> editor.putInt(fullKey, value.toInt())
                 is Number -> {
-                    // Gson 默认数字为 Double，也处理 Int
                     val numVal = value.toDouble()
                     val intVal = numVal.toInt()
                     if (numVal == intVal.toDouble()) {
@@ -1021,6 +1039,9 @@ class CourseRepository private constructor(context: Context) {
                 is Boolean -> editor.putBoolean(fullKey, value)
             }
         }
+        // 保存导入的时间戳
+        val remoteTime = (settings["lastModified"] as? Number)?.toLong() ?: System.currentTimeMillis()
+        editor.putLong("${prefix}_settings_last_modified", remoteTime)
         editor.apply()
         onCourseChanged?.invoke("settings", "")
     }
