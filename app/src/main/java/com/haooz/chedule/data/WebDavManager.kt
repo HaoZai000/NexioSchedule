@@ -456,6 +456,30 @@ class WebDavManager(private val context: Context) {
             return@withContext SyncResult.Error("请先配置 WebDAV 服务器")
         }
 
+        // 1. 确保远程目录存在
+        val dirResult = ensureRemoteDir()
+        if (dirResult.isFailure) {
+            return@withContext SyncResult.Error("创建目录失败: ${dirResult.exceptionOrNull()?.message}")
+        }
+
+        // 2. 同步课表索引
+        val remoteIndexResult = downloadSchedulesIndex()
+        if (remoteIndexResult.isSuccess) {
+            val remoteIndex = remoteIndexResult.getOrThrow()
+            @Suppress("UNCHECKED_CAST")
+            val remoteSchedules = remoteIndex["schedules"] as? Map<String, Any> ?: emptyMap()
+            val localNames = repository.getScheduleNames().toMutableList()
+
+            // 远程有、本地没有的课表 → 创建本地课表
+            for ((remoteName, info) in remoteSchedules) {
+                if (remoteName !in localNames) {
+                    repository.addSchedule(remoteName)
+                    localNames.add(remoteName)
+                }
+            }
+        }
+
+        // 3. 同步所有课表
         val scheduleNames = repository.getScheduleNames()
         var totalUploaded = 0
         var totalDownloaded = 0
@@ -470,13 +494,16 @@ class WebDavManager(private val context: Context) {
                 }
                 is SyncResult.Error -> {
                     lastError = result.message
-                    // 继续同步其他课表
                 }
                 is SyncResult.NoChange -> {
                     // 继续
                 }
             }
         }
+
+        // 4. 上传更新后的课表索引
+        val newIndex = buildSchedulesIndex(repository)
+        uploadSchedulesIndex(newIndex)
 
         if (lastError != null && totalUploaded == 0 && totalDownloaded == 0) {
             SyncResult.Error(lastError)
