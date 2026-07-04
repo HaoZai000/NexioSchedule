@@ -390,7 +390,21 @@ class WebDavManager(private val context: Context) {
      */
     suspend fun deleteRemoteSchedule(scheduleId: String): Result<Unit> = withContext(Dispatchers.IO) {
         try {
-            // 删除 manifest
+            // 1. 先下载 manifest 获取课程列表
+            val manifestResult = downloadScheduleManifest(scheduleId)
+            val courses = if (manifestResult.isSuccess) {
+                @Suppress("UNCHECKED_CAST")
+                manifestResult.getOrThrow()["courses"] as? Map<String, Any> ?: emptyMap()
+            } else {
+                emptyMap()
+            }
+
+            // 2. 删除所有课程文件
+            for (courseId in courses.keys) {
+                deleteRemoteCourse(courseId)
+            }
+
+            // 3. 最后删除 manifest
             val manifestRequest = Request.Builder()
                 .url(scheduleManifestUrl(scheduleId))
                 .header("Authorization", authHeader())
@@ -398,16 +412,6 @@ class WebDavManager(private val context: Context) {
                 .build()
             client.newCall(manifestRequest).execute().use { it.close() }
 
-            // 下载 manifest 获取课程列表，逐个删除课程文件
-            val manifestResult = downloadScheduleManifest(scheduleId)
-            if (manifestResult.isSuccess) {
-                val manifest = manifestResult.getOrThrow()
-                @Suppress("UNCHECKED_CAST")
-                val courses = manifest["courses"] as? Map<String, Any> ?: emptyMap()
-                for (courseId in courses.keys) {
-                    deleteRemoteCourse(courseId)
-                }
-            }
             Result.success(Unit)
         } catch (e: Exception) {
             Result.failure(Exception("删除远程课表失败: ${e.message}"))
@@ -566,6 +570,15 @@ class WebDavManager(private val context: Context) {
             for (remoteName in remoteSchedules.keys) {
                 if (remoteName in lastKnownSchedules && remoteName !in localNames) {
                     deleteRemoteSchedule(remoteName)
+                    deletedSchedules++
+                }
+            }
+
+            // 上次已知有、但远程没有、本地有 → 远程删除了，删除本地
+            for (lastKnownName in lastKnownSchedules.keys) {
+                if (lastKnownName !in remoteSchedules && lastKnownName in localNames) {
+                    repository.deleteSchedule(lastKnownName)
+                    localNames.remove(lastKnownName)
                     deletedSchedules++
                 }
             }
