@@ -19,6 +19,11 @@ class CourseRepository private constructor(context: Context) {
     var onCourseChanged: ((action: String, courseId: String) -> Unit)? = null
 
     private fun notifyCourseChanged(action: String, courseId: String = "") {
+        if (action == "settings") {
+            // 设置变更时更新时间戳，确保本地修改不会被远程覆盖
+            val prefix = getScheduleKeyPrefix()
+            prefs.edit().putLong("${prefix}_settings_last_modified", System.currentTimeMillis()).apply()
+        }
         onCourseChanged?.invoke(action, courseId)
     }
 
