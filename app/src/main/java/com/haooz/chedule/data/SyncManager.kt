@@ -48,6 +48,9 @@ class SyncManager private constructor(private val context: Context) {
     private var webDavManager: WebDavManager? = null
     private var networkCallback: ConnectivityManager.NetworkCallback? = null
 
+    // 同步完成回调（用于通知 ViewModel 刷新内存缓存）
+    var onSyncCompleted: (() -> Unit)? = null
+
     // 节流控制
     private var lastSyncCompletedTime = 0L
     private var pendingSyncJob: kotlinx.coroutines.Job? = null
@@ -154,6 +157,7 @@ class SyncManager private constructor(private val context: Context) {
                     clearPendingQueue()
                     lastSyncCompletedTime = System.currentTimeMillis()
                     _syncState.value = SyncState.Success(result.uploaded, result.downloaded)
+                    onSyncCompleted?.invoke()
                     Log.d(TAG, "Sync completed: uploaded=${result.uploaded}, downloaded=${result.downloaded}")
                 }
                 is SyncResult.Error -> {

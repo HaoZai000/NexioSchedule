@@ -276,6 +276,11 @@ fun CourseScheduleApp() {
         val repository = com.haooz.chedule.data.CourseRepository(context)
         val webDavManager = com.haooz.chedule.data.WebDavManager(context)
         syncManager.start(repository, webDavManager)
+        // 同步完成后刷新 ViewModel 内存缓存
+        syncManager.onSyncCompleted = {
+            viewModel.refreshEssentialData()
+            settingsViewModel.refreshSettings()
+        }
         // 启动时检查云端是否有更新
         syncManager.checkAndSyncOnStart()
     }

@@ -117,6 +117,16 @@ class CourseViewModel(application: Application) : AndroidViewModel(application) 
     }
 
     /**
+     * 刷新周次和日期等基本数据（云同步导入后调用）
+     */
+    fun refreshEssentialData() {
+        _totalWeeks.value = repository.getTotalWeeks()
+        _classStartTime.value = repository.getClassStartTime()
+        val calculatedWeek = calculateCurrentWeekFromDate(_classStartTime.value)
+        _currentWeek.value = calculatedWeek
+    }
+
+    /**
      * 设置当前周次（今天是第几周）
      * 保留原日期的星期几，通过周次差值调整：新日期 = 原日期 + (旧周次 - 新周次) * 7
      */

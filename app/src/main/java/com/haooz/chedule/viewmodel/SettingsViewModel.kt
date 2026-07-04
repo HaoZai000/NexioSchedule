@@ -93,6 +93,27 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
 
     // --- 显示设置 ---
 
+    /**
+     * 从 SharedPreferences 重新加载所有设置（云同步导入后调用）
+     */
+    fun refreshSettings() {
+        _showWeekendDays.value = repository.getShowWeekendDays()
+        _showNonCurrentWeek.value = repository.getShowNonCurrentWeek()
+        _morningSections.value = repository.getMorningSections()
+        _afternoonSections.value = repository.getAfternoonSections()
+        _eveningSections.value = repository.getEveningSections()
+        _morningTimes.value = repository.getPeriodTimes("morning")
+        _afternoonTimes.value = repository.getPeriodTimes("afternoon")
+        _eveningTimes.value = repository.getPeriodTimes("evening")
+        _preClassReminder.value = repository.getPreClassReminder()
+        _preClassReminderMinutes.value = repository.getPreClassReminderMinutes()
+        _nextDayReminder.value = repository.getNextDayReminder()
+        _nextDayReminderHour.value = repository.getNextDayReminderHour()
+        _nextDayReminderMinute.value = repository.getNextDayReminderMinute()
+        _islandNotification.value = repository.getIslandNotification()
+        _defaultHomepage.value = repository.getDefaultHomepage()
+    }
+
     fun setShowWeekendDays(days: Set<Int>) {
         _showWeekendDays.value = days
         repository.setShowWeekendDays(days)
