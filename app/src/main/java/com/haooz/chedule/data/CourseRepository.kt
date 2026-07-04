@@ -984,28 +984,21 @@ class CourseRepository private constructor(context: Context) {
     fun exportScheduleSettings(scheduleId: String, useCurrentTime: Boolean = false): Map<String, Any> {
         val prefix = "$SCHEDULE_KEY_PREFIX${scheduleId}_"
         val settings = mutableMapOf<String, Any>()
-        val settingKeys = listOf(
-            KEY_TOTAL_WEEKS, KEY_CLASS_START_TIME, KEY_CURRENT_WEEK,
-            KEY_SHOW_WEEKEND, KEY_SHOW_NON_CURRENT_WEEK,
-            KEY_MORNING_SECTIONS, KEY_AFTERNOON_SECTIONS, KEY_EVENING_SECTIONS,
-            KEY_SECTION_TIMES,
-            KEY_QUICK_TIME_ENABLED, KEY_CLASS_DURATION, KEY_SHORT_BREAK,
-            "${KEY_LONG_BREAK}_enabled", "${KEY_LONG_BREAK}_morning", "${KEY_LONG_BREAK}_afternoon", "${KEY_LONG_BREAK}_evening",
-            "${KEY_LONG_BREAK}_morning_section", "${KEY_LONG_BREAK}_afternoon_section", "${KEY_LONG_BREAK}_evening_section",
-            KEY_MORNING_START, "${KEY_MORNING_START}_min",
-            KEY_AFTERNOON_START, "${KEY_AFTERNOON_START}_min",
-            KEY_EVENING_START, "${KEY_EVENING_START}_min"
-        )
-        for (key in settingKeys) {
-            val fullKey = "$prefix$key"
-            when (val value = prefs.all[fullKey]) {
-                is String -> settings[key] = value
-                is Int -> settings[key] = value
-                is Boolean -> settings[key] = value
-                is Float -> settings[key] = value.toDouble()
-            }
-        }
-        // 上传时用当前时间，下载比较时用存储的时间
+
+        // 用显式 getter 读取，确保默认值也能导出
+        settings[KEY_TOTAL_WEEKS] = prefs.getInt("${prefix}$KEY_TOTAL_WEEKS", 20)
+        settings[KEY_CLASS_START_TIME] = prefs.getString("${prefix}$KEY_CLASS_START_TIME", "") ?: ""
+        settings[KEY_CURRENT_WEEK] = prefs.getInt("${prefix}$KEY_CURRENT_WEEK", 1)
+        settings[KEY_SHOW_WEEKEND] = prefs.getString("${prefix}$KEY_SHOW_WEEKEND", "") ?: ""
+        settings[KEY_SHOW_NON_CURRENT_WEEK] = prefs.getBoolean("${prefix}$KEY_SHOW_NON_CURRENT_WEEK", true)
+        settings[KEY_MORNING_SECTIONS] = prefs.getInt("${prefix}$KEY_MORNING_SECTIONS", 4)
+        settings[KEY_AFTERNOON_SECTIONS] = prefs.getInt("${prefix}$KEY_AFTERNOON_SECTIONS", 4)
+        settings[KEY_EVENING_SECTIONS] = prefs.getInt("${prefix}$KEY_EVENING_SECTIONS", 4)
+        settings[KEY_SECTION_TIMES] = prefs.getString("${prefix}$KEY_SECTION_TIMES", "") ?: ""
+        settings[KEY_QUICK_TIME_ENABLED] = prefs.getBoolean("${prefix}$KEY_QUICK_TIME_ENABLED", false)
+        settings[KEY_CLASS_DURATION] = prefs.getInt("${prefix}$KEY_CLASS_DURATION", 45)
+        settings[KEY_SHORT_BREAK] = prefs.getInt("${prefix}$KEY_SHORT_BREAK", 10)
+
         settings["lastModified"] = if (useCurrentTime) System.currentTimeMillis() else getSettingsLastModified(scheduleId)
         return settings
     }
