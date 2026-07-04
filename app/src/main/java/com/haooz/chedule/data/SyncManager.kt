@@ -271,7 +271,8 @@ class SyncManager private constructor(private val context: Context) {
         val callback = object : ConnectivityManager.NetworkCallback() {
             override fun onAvailable(network: Network) {
                 Log.d(TAG, "Network available, processing queue...")
-                if (_pendingCount.value > 0) {
+                val mgr = webDavManager
+                if (mgr != null && mgr.isConfigured() && mgr.autoSyncEnabled && _pendingCount.value > 0) {
                     val now = System.currentTimeMillis()
                     val timeUntilNextSync = (SYNC_COOLDOWN_MS - (now - lastSyncCompletedTime)).coerceAtLeast(0L)
                     pendingSyncJob?.cancel()
