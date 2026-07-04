@@ -1,4 +1,4 @@
-﻿/** WebDAV 同步设置页面 */
+/** WebDAV 同步设置页面 */
 package com.haooz.chedule.ui.activities
 
 import android.os.Bundle
@@ -519,7 +519,7 @@ fun WebDavSettingsScreen(onBack: () -> Unit) {
                             when (syncManager.syncState.value) {
                                 is SyncManager.SyncState.Success -> {
                                     val s = syncManager.syncState.value as SyncManager.SyncState.Success
-                                    statusText = "已同步: 上传${s.uploaded}条, 删除${s.downloaded}条"
+                                    statusText = "已同步: 上传${s.uploaded}条, 下载${s.downloaded}条"
                                     statusIsError = false
                                 }
                                 is SyncManager.SyncState.Error -> {
