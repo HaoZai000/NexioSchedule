@@ -252,19 +252,32 @@ class WebDavManager(private val context: Context) {
     }
 
     /**
-     * 检查远程是否有更新（只检查 lastSyncTime，不下载课程）
+     * 检查远程是否有更新（检查索引 + manifest，不下载课程）
      */
     suspend fun hasRemoteChanges(repository: CourseRepository): Boolean = withContext(Dispatchers.IO) {
         if (!isConfigured()) return@withContext false
 
         try {
+            // 1. 检查课表索引 — 是否有远程新增的课表
+            val indexResult = downloadSchedulesIndex()
+            if (indexResult.isSuccess) {
+                val index = indexResult.getOrThrow()
+                @Suppress("UNCHECKED_CAST")
+                val remoteSchedules = index["schedules"] as? Map<String, Any> ?: emptyMap()
+                val localNames = repository.getScheduleNames().toSet()
+                // 远程有、本地没有的课表 → 有变化
+                if (remoteSchedules.keys.any { it !in localNames }) {
+                    return@withContext true
+                }
+            }
+
+            // 2. 检查已有课表的 manifest — 是否有更新
             val scheduleNames = repository.getScheduleNames()
             for (scheduleId in scheduleNames) {
                 val manifestResult = downloadScheduleManifest(scheduleId)
                 if (manifestResult.isSuccess) {
                     val manifest = manifestResult.getOrThrow()
                     val remoteSyncTime = (manifest["lastSyncTime"] as? Number)?.toLong() ?: 0L
-                    // 如果远程有课程且 lastSyncTime 更新，说明有变化
                     @Suppress("UNCHECKED_CAST")
                     val courses = manifest["courses"] as? Map<String, Any> ?: emptyMap()
                     if (courses.isNotEmpty() && remoteSyncTime > lastSyncTime) {
