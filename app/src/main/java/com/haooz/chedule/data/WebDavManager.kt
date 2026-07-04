@@ -507,8 +507,8 @@ class WebDavManager(private val context: Context) {
                     "deleted" to false
                 )
             }
-            // 导出当前课表设置
-            val currentSettings = repository.exportScheduleSettings(scheduleId)
+            // 导出当前课表设置（上传时使用当前时间）
+            val currentSettings = repository.exportScheduleSettings(scheduleId, useCurrentTime = true)
             val newManifest = mapOf(
                 "version" to 5,
                 "scheduleId" to scheduleId,

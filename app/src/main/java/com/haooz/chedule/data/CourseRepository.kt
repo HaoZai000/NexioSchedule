@@ -979,8 +979,9 @@ class CourseRepository private constructor(context: Context) {
 
     /**
      * 导出单个课表的设置（不含课程数据）
+     * 上传时使用当前时间作为时间戳
      */
-    fun exportScheduleSettings(scheduleId: String): Map<String, Any> {
+    fun exportScheduleSettings(scheduleId: String, useCurrentTime: Boolean = false): Map<String, Any> {
         val prefix = "$SCHEDULE_KEY_PREFIX${scheduleId}_"
         val settings = mutableMapOf<String, Any>()
         val settingKeys = listOf(
@@ -1004,7 +1005,8 @@ class CourseRepository private constructor(context: Context) {
                 is Float -> settings[key] = value.toDouble()
             }
         }
-        settings["lastModified"] = getSettingsLastModified(scheduleId)
+        // 上传时用当前时间，下载比较时用存储的时间
+        settings["lastModified"] = if (useCurrentTime) System.currentTimeMillis() else getSettingsLastModified(scheduleId)
         return settings
     }
 
