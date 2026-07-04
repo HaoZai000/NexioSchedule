@@ -397,15 +397,23 @@ class WebDavManager(private val context: Context) {
                 }
             }
 
-            // 5b. 遍历远程课程 — 找本地已删除的课程，删除远程
-            var deleted = 0
+            // 5b. 遍历远程课程 — 下载本地没有的课程
             val localIds = localCourses.map { it.id }.toSet()
+            val downloadedCourses = mutableListOf<Course>()
             for ((id, info) in remoteCourses) {
                 if (id in localIds) continue
-
-                // 远程有，本地没有 → 本地已删除，删除远程
-                val deleteResult = deleteRemoteCourse(id)
-                if (deleteResult.isSuccess) deleted++
+                // 远程有，本地没有 → 下载到本地
+                val downloadResult = downloadCourse(id)
+                if (downloadResult.isSuccess) {
+                    downloadedCourses.add(downloadResult.getOrThrow())
+                    downloaded++
+                }
+            }
+            // 将下载的课程合并到本地
+            if (downloadedCourses.isNotEmpty()) {
+                val allCourses = repository.getCoursesForSchedule(scheduleId).toMutableList()
+                allCourses.addAll(downloadedCourses)
+                repository.saveCoursesForSchedule(scheduleId, allCourses, notify = false)
             }
 
             // 6. 构建合并后的 manifest 并上传
@@ -430,10 +438,10 @@ class WebDavManager(private val context: Context) {
             }
             lastSyncTime = System.currentTimeMillis()
 
-            if (uploaded == 0 && deleted == 0) {
+            if (uploaded == 0 && downloaded == 0) {
                 SyncResult.NoChange("数据已是最新")
             } else {
-                SyncResult.Merged(uploaded, deleted)
+                SyncResult.Merged(uploaded, downloaded)
             }
         } catch (e: Exception) {
             SyncResult.Error("同步失败: ${e.message}")
