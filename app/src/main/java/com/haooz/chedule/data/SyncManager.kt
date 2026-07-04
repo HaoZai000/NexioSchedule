@@ -168,6 +168,7 @@ class SyncManager private constructor(private val context: Context) {
                 else -> {
                     lastSyncCompletedTime = System.currentTimeMillis()
                     _syncState.value = SyncState.Idle
+                    onSyncCompleted?.invoke()
                 }
             }
         } catch (e: Exception) {
