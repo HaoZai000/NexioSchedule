@@ -16,6 +16,7 @@ import java.util.concurrent.TimeUnit
 class WebDavManager(private val context: Context) {
 
     private val configPrefs = context.getSharedPreferences("webdav_config", Context.MODE_PRIVATE)
+    private val syncPrefs = context.getSharedPreferences("webdav_sync_state", Context.MODE_PRIVATE)
     private val gson = Gson()
 
     private val client = OkHttpClient.Builder()
@@ -59,6 +60,22 @@ class WebDavManager(private val context: Context) {
         set(value) = configPrefs.edit().putBoolean(KEY_AUTO_SYNC, value).apply()
 
     fun isConfigured(): Boolean = serverUrl.isNotBlank() && username.isNotBlank() && password.isNotBlank()
+
+    // ============ 本地同步状态缓存 ============
+
+    private fun getLastKnownIndex(): Map<String, Any> {
+        val json = syncPrefs.getString("last_known_index", null) ?: return emptyMap()
+        return try {
+            val type = object : TypeToken<Map<String, Any>>() {}.type
+            gson.fromJson(json, type) ?: emptyMap()
+        } catch (_: Exception) {
+            emptyMap()
+        }
+    }
+
+    private fun saveLastKnownIndex(index: Map<String, Any>) {
+        syncPrefs.edit().putString("last_known_index", gson.toJson(index)).apply()
+    }
 
     private fun authHeader(): String = Credentials.basic(username, password)
     private fun baseUrl() = "$serverUrl/$BACKUP_DIR"
@@ -359,6 +376,35 @@ class WebDavManager(private val context: Context) {
         }
     }
 
+    /**
+     * 删除远程课表的 manifest 和所有课程文件
+     */
+    suspend fun deleteRemoteSchedule(scheduleId: String): Result<Unit> = withContext(Dispatchers.IO) {
+        try {
+            // 删除 manifest
+            val manifestRequest = Request.Builder()
+                .url(scheduleManifestUrl(scheduleId))
+                .header("Authorization", authHeader())
+                .delete()
+                .build()
+            client.newCall(manifestRequest).execute().use { it.close() }
+
+            // 下载 manifest 获取课程列表，逐个删除课程文件
+            val manifestResult = downloadScheduleManifest(scheduleId)
+            if (manifestResult.isSuccess) {
+                val manifest = manifestResult.getOrThrow()
+                @Suppress("UNCHECKED_CAST")
+                val courses = manifest["courses"] as? Map<String, Any> ?: emptyMap()
+                for (courseId in courses.keys) {
+                    deleteRemoteCourse(courseId)
+                }
+            }
+            Result.success(Unit)
+        } catch (e: Exception) {
+            Result.failure(Exception("删除远程课表失败: ${e.message}"))
+        }
+    }
+
     // ============ 核心合并逻辑 ============
 
     /**
@@ -475,24 +521,44 @@ class WebDavManager(private val context: Context) {
             return@withContext SyncResult.Error("创建目录失败: ${dirResult.exceptionOrNull()?.message}")
         }
 
-        // 2. 同步课表索引
+        // 2. 同步课表索引：对比远程和本地，决定新增或删除
+        val localNames = repository.getScheduleNames().toMutableList()
         val remoteIndexResult = downloadSchedulesIndex()
+        var deletedSchedules = 0
+
+        // 读取上次同步时的索引（用于判断哪些课表是本地删除的）
+        val lastKnownIndex = getLastKnownIndex()
+        @Suppress("UNCHECKED_CAST")
+        val lastKnownSchedules = lastKnownIndex["schedules"] as? Map<String, Any> ?: emptyMap()
+
         if (remoteIndexResult.isSuccess) {
             val remoteIndex = remoteIndexResult.getOrThrow()
             @Suppress("UNCHECKED_CAST")
             val remoteSchedules = remoteIndex["schedules"] as? Map<String, Any> ?: emptyMap()
-            val localNames = repository.getScheduleNames().toMutableList()
 
-            // 远程有、本地没有的课表 → 创建本地课表
-            for ((remoteName, info) in remoteSchedules) {
-                if (remoteName !in localNames) {
+            // 远程有、上次已知也有、但本地没有 → 本地删除了，删除远程
+            for (remoteName in remoteSchedules.keys) {
+                if (remoteName in lastKnownSchedules && remoteName !in localNames) {
+                    deleteRemoteSchedule(remoteName)
+                    deletedSchedules++
+                }
+            }
+
+            // 远程有、本地没有、上次也没见过 → 新课表，创建本地
+            for (remoteName in remoteSchedules.keys) {
+                if (remoteName !in localNames && remoteName !in lastKnownSchedules) {
                     repository.addSchedule(remoteName)
                     localNames.add(remoteName)
                 }
             }
         }
 
-        // 3. 同步所有课表
+        // 保存本次索引为"已知"状态
+        if (remoteIndexResult.isSuccess) {
+            saveLastKnownIndex(remoteIndexResult.getOrThrow())
+        }
+
+        // 3. 同步所有本地课表
         val scheduleNames = repository.getScheduleNames()
         var totalUploaded = 0
         var totalDownloaded = 0
@@ -518,9 +584,9 @@ class WebDavManager(private val context: Context) {
         val newIndex = buildSchedulesIndex(repository)
         uploadSchedulesIndex(newIndex)
 
-        if (lastError != null && totalUploaded == 0 && totalDownloaded == 0) {
+        if (lastError != null && totalUploaded == 0 && totalDownloaded == 0 && deletedSchedules == 0) {
             SyncResult.Error(lastError)
-        } else if (totalUploaded == 0 && totalDownloaded == 0) {
+        } else if (totalUploaded == 0 && totalDownloaded == 0 && deletedSchedules == 0) {
             SyncResult.NoChange("所有课表已是最新")
         } else {
             SyncResult.Merged(totalUploaded, totalDownloaded)

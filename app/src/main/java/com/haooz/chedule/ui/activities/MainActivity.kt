@@ -75,6 +75,7 @@ import com.haooz.chedule.ui.screens.ShiftScheduleScreen
 import com.haooz.chedule.ui.screens.TodayScreen
 import com.haooz.chedule.ui.theme.CourseScheduleTheme
 import com.haooz.chedule.viewmodel.CourseViewModel
+import com.haooz.chedule.viewmodel.ScheduleViewModel
 import com.haooz.chedule.viewmodel.SettingsViewModel
 import com.haooz.chedule.viewmodel.ShiftViewModel
 import com.kyant.shapes.RoundedRectangle
@@ -258,6 +259,7 @@ class MainActivity : ComponentActivity() {
 @Composable
 fun CourseScheduleApp() {
     val viewModel: CourseViewModel = viewModel()
+    val scheduleViewModel: ScheduleViewModel = viewModel()
     val settingsViewModel: SettingsViewModel = viewModel()
     val shiftViewModel: ShiftViewModel = viewModel()
     val defaultHomepage by settingsViewModel.defaultHomepage.collectAsState()
@@ -831,6 +833,7 @@ fun CourseScheduleApp() {
                             )
                             2 -> SettingsScreen(
                                 viewModel = viewModel,
+                                scheduleViewModel = scheduleViewModel,
                                 settingsViewModel = settingsViewModel,
                                 shiftViewModel = shiftViewModel,
                                 onEnterShiftMode = {
@@ -850,6 +853,7 @@ fun CourseScheduleApp() {
                             )
                             1 -> SettingsScreen(
                                 viewModel = viewModel,
+                                scheduleViewModel = scheduleViewModel,
                                 settingsViewModel = settingsViewModel,
                                 shiftViewModel = shiftViewModel,
                                 isShiftMode = true,
@@ -909,6 +913,7 @@ fun CourseScheduleApp() {
                                         val (_, importMessage) = com.haooz.chedule.ui.screens.applyScheduleData(
                                             context,
                                             viewModel,
+                                            scheduleViewModel,
                                             settingsViewModel,
                                             shareImportScheduleName,
                                             shareImportData!!
@@ -1237,9 +1242,9 @@ fun CourseScheduleApp() {
                         switchContentRootY = y
                     },
                     pageScale = 1f,
-                    initialScheduleNames = viewModel.scheduleNames.collectAsState().value,
-                    initialCurrentScheduleId = viewModel.currentScheduleName.collectAsState().value,
-                    initialScheduleSummaries = viewModel.scheduleSummaries.collectAsState().value
+                    initialScheduleNames = scheduleViewModel.scheduleNames.collectAsState().value,
+                    initialCurrentScheduleId = scheduleViewModel.currentScheduleName.collectAsState().value,
+                    initialScheduleSummaries = scheduleViewModel.scheduleSummaries.collectAsState().value
                 )
             }
             // 动画覆盖层（顶层）

@@ -2,10 +2,10 @@ package com.haooz.chedule.viewmodel
 
 import android.app.Application
 import androidx.lifecycle.AndroidViewModel
-import com.haooz.chedule.reminder.CourseReminderHelper
 import androidx.lifecycle.viewModelScope
 import com.haooz.chedule.data.Course
 import com.haooz.chedule.data.CourseRepository
+import com.haooz.chedule.reminder.CourseReminderHelper
 import com.haooz.chedule.widget.CourseWidgetProvider
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -34,6 +34,10 @@ class CourseViewModel(application: Application) : AndroidViewModel(application) 
     // 当前周次
     private val _currentWeek = MutableStateFlow(1)
     val currentWeek: StateFlow<Int> = _currentWeek.asStateFlow()
+
+    // 学期是否已开始（开学日期的周一 <= 今天）
+    private val _isSemesterStarted = MutableStateFlow(true)
+    val isSemesterStarted: StateFlow<Boolean> = _isSemesterStarted.asStateFlow()
 
     // 总周数
     private val _totalWeeks = MutableStateFlow(20)
@@ -143,24 +147,6 @@ class CourseViewModel(application: Application) : AndroidViewModel(application) 
     }
 
     /**
-     * 根据当前周次计算该周的周一日期
-     * 公式：周一 = 开学周一 + (week - 1) * 7
-     * 开学周一 = 开始上课日期所在周的周一
-     */
-    private fun calculateStartDateFromWeek(week: Int): String {
-        return try {
-            val startDate = LocalDate.parse(_classStartTime.value.replace("/", "-"))
-            // 找到开始日期所在周的周一
-            val startMonday = startDate.minusDays((startDate.dayOfWeek.value - 1).toLong())
-            // 计算目标周的周一
-            val targetMonday = startMonday.plusDays((week - 1).toLong() * 7)
-            targetMonday.format(DateTimeFormatter.ofPattern("yyyy/MM/dd"))
-        } catch (e: Exception) {
-            _classStartTime.value
-        }
-    }
-
-    /**
      * 设置总周数
      */
     fun setTotalWeeks(weeks: Int) {
@@ -179,27 +165,15 @@ class CourseViewModel(application: Application) : AndroidViewModel(application) 
             val start = LocalDate.parse(startDate.replace("/", "-"))
             // 找到开始日期所在周的周一
             val startMonday = start.minusDays((start.dayOfWeek.value - 1).toLong())
+            // 判断学期是否已开始
+            _isSemesterStarted.value = !today.isBefore(startMonday)
             val daysBetween = ChronoUnit.DAYS.between(startMonday, today)
             val week = (daysBetween / 7 + 1).toInt()
             // 确保周次在合理范围内
             week.coerceIn(1, _totalWeeks.value)
         } catch (e: Exception) {
+            _isSemesterStarted.value = true
             1
-        }
-    }
-
-    /**
-     * 根据周次差异计算新的上课日期
-     * 公式：新上课日期 = 原始上课日期 + (原始周次 - 目标周次) * 7
-     */
-    private fun calculateStartDateFromWeekDifference(originalWeek: Int, targetWeek: Int): String {
-        return try {
-            val startDate = LocalDate.parse(_classStartTime.value.replace("/", "-"))
-            val daysDifference = (originalWeek - targetWeek) * 7L
-            val newStartDate = startDate.plusDays(daysDifference)
-            newStartDate.format(DateTimeFormatter.ofPattern("yyyy/MM/dd"))
-        } catch (e: Exception) {
-            _classStartTime.value
         }
     }
 
@@ -307,34 +281,6 @@ class CourseViewModel(application: Application) : AndroidViewModel(application) 
      */
     fun hideJumpWeekDialog() {
         _showJumpWeekDialog.value = false
-    }
-
-    /**
-     * 显示/隐藏设置
-     */
-    fun toggleSettings() {
-        _showSettings.value = !_showSettings.value
-    }
-
-    /**
-     * 检查课程时间冲突
-     */
-    fun hasTimeConflict(
-        dayOfWeek: Int,
-        startSection: Int,
-        endSection: Int,
-        startWeek: Int,
-        endWeek: Int,
-        excludeId: String? = null
-    ): Boolean {
-        return _courses.value.any { course ->
-            if (excludeId != null && course.id == excludeId) return@any false
-            course.dayOfWeek == dayOfWeek &&
-                    course.startSection <= endSection &&
-                    course.endSection >= startSection &&
-                    course.startWeek <= endWeek &&
-                    course.endWeek >= startWeek
-        }
     }
 
     /**

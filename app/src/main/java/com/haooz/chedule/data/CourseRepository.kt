@@ -407,6 +407,12 @@ class CourseRepository private constructor(context: Context) {
         else -> emptyMap()
     }
 
+    /**
+     * 迁移旧版节次时间格式到新的时段分离格式
+     * 旧格式：全局绝对节次号作为key（如 "3" -> "10:00-10:45"）
+     * 新格式：时段前缀+相对节次号（如 "morning_3" -> "10:00-10:45"）
+     * 迁移逻辑：根据上午/下午/晚上节数，将绝对节次映射到对应时段的相对节次
+     */
     private fun migrateOldSectionTimes(raw: Map<*, *>, period: String): Map<Int, String> {
         val oldMap = mutableMapOf<Int, String>()
         for ((k, v) in raw) {

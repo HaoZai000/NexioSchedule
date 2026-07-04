@@ -73,6 +73,10 @@ data class Course(
                 return map
             }
 
+        /**
+         * 根据参数自动计算每个节次的时间区间
+         * 算法：从起始时间开始，依次累加课时长度和休息时间，在指定节次处插入长休息
+         */
         fun calculatePeriodTimes(
             sectionCount: Int,
             startHour: Int,
@@ -100,8 +104,6 @@ data class Course(
             return result
         }
 
-        // 节次时间映射（兼容旧引用）
-        val sectionTimes: Map<Int, String> get() = defaultSectionTimes
     }
 
     /**
@@ -164,6 +166,11 @@ data class Course(
         }
     }
 
+    /**
+     * 将周次列表格式化为紧凑显示字符串
+     * 算法：检测全单周/全双周模式，然后按连续性分组压缩
+     * 例：[1,3,5,7,9] → "1-9周 (单周)"，[1,2,3,5,6] → "1-3、5-6周"
+     */
     private fun formatWeeks(sorted: List<Int>): String {
         val allOdd = sorted.all { it % 2 == 1 }
         val allEven = sorted.all { it % 2 == 0 }
@@ -177,6 +184,11 @@ data class Course(
         }
     }
 
+    /**
+     * 将连续的数字序列分组压缩
+     * @param step 步长，全周为1，单双周为2
+     * @param suffix 后缀字符串，如"周"、" (单周)"、" (双周)"
+     */
     private fun groupConsecutive(sorted: List<Int>, step: Int, suffix: String): String {
         val groups = mutableListOf<Pair<Int, Int>>()
         var start = sorted[0]

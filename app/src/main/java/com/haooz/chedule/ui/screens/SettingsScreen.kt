@@ -67,6 +67,7 @@ import com.haooz.chedule.data.Course
 import com.haooz.chedule.data.WebDavManager
 import com.haooz.chedule.ui.activities.isAppDarkTheme
 import com.haooz.chedule.viewmodel.CourseViewModel
+import com.haooz.chedule.viewmodel.ScheduleViewModel
 import com.haooz.chedule.viewmodel.SettingsViewModel
 import com.haooz.chedule.viewmodel.ShiftViewModel
 import kotlinx.coroutines.launch
@@ -132,6 +133,7 @@ private fun getDaysInMonth(year: Int, month: Int): Int {
 @Composable
 fun SettingsScreen(
     viewModel: CourseViewModel,
+    scheduleViewModel: ScheduleViewModel,
     settingsViewModel: SettingsViewModel,
     shiftViewModel: ShiftViewModel,
     isShiftMode: Boolean = false,
@@ -140,13 +142,14 @@ fun SettingsScreen(
 ) {
     val totalWeeks by viewModel.totalWeeks.collectAsState()
     val currentWeek by viewModel.currentWeek.collectAsState()
+    val isSemesterStarted by viewModel.isSemesterStarted.collectAsState()
     val classStartTime by viewModel.classStartTime.collectAsState()
     val showWeekendDays by settingsViewModel.showWeekendDays.collectAsState()
     val showNonCurrentWeek by settingsViewModel.showNonCurrentWeek.collectAsState()
     val morningSections by settingsViewModel.morningSections.collectAsState()
     val afternoonSections by settingsViewModel.afternoonSections.collectAsState()
     val eveningSections by settingsViewModel.eveningSections.collectAsState()
-    val scheduleNames by viewModel.scheduleNames.collectAsState()
+    val scheduleNames by scheduleViewModel.scheduleNames.collectAsState()
     val shiftSelectedSchedules by shiftViewModel.shiftSelectedSchedules.collectAsState()
     val defaultHomepage by settingsViewModel.defaultHomepage.collectAsState()
     val scrollBehavior = MiuixScrollBehavior()
@@ -353,7 +356,7 @@ fun SettingsScreen(
                                 title = "当前周数",
                                 endActions = {
                                     Text(
-                                        text = "第${currentWeek}周",
+                                        text = if (isSemesterStarted) "第${currentWeek}周" else "未开始",
                                         fontSize = 14.5.sp,
                                         color = MiuixTheme.colorScheme.onSurfaceVariantActions
                                     )
@@ -543,7 +546,7 @@ fun SettingsScreen(
                         ) {
                             Column(modifier = Modifier.fillMaxWidth()) {
                                 scheduleNames.forEach { name ->
-                                    val summary = viewModel.scheduleSummaries.collectAsState().value[name] ?: ""
+                                    val summary = scheduleViewModel.scheduleSummaries.collectAsState().value[name] ?: ""
                                     CheckboxPreference(
                                         title = name,
                                         summary = summary,
@@ -638,7 +641,7 @@ fun SettingsScreen(
                                     title = "课表导出",
                                     summary = "以JSON格式导出完整课表数据",
                                     onClick = {
-                                        exportSchedule(context, viewModel, settingsViewModel)
+                                        exportSchedule(context, viewModel, scheduleViewModel, settingsViewModel)
                                     }
                                 )
                             }
@@ -795,7 +798,7 @@ fun SettingsScreen(
                             hapticFeedback.performHapticFeedback(HapticFeedbackType.Confirm)
                             if (newSemesterName.isNotBlank()) {
                                 val name = newSemesterName
-                                viewModel.createNewSemesterSchedule(name)
+                                scheduleViewModel.createNewSemesterSchedule(name)
                                 showNewSemesterDialog = false
                                 newSemesterName = ""
                                 Toast.makeText(context, "「${name}」创建成功", Toast.LENGTH_SHORT).show()
@@ -1316,6 +1319,7 @@ fun SettingsScreen(
                                 val (_, message) = applyScheduleData(
                                     context,
                                     viewModel,
+                                    scheduleViewModel,
                                     settingsViewModel,
                                     pendingImportScheduleName,
                                     pendingImportData!!
@@ -1481,7 +1485,7 @@ private fun parseWeekString(weekStr: String): List<Int> {
 /**
  * 导出课表为JSON文件并调用系统分享
  */
-private fun exportSchedule(context: Context, viewModel: CourseViewModel, settingsViewModel: SettingsViewModel) {
+private fun exportSchedule(context: Context, viewModel: CourseViewModel, scheduleViewModel: ScheduleViewModel, settingsViewModel: SettingsViewModel) {
     val courses = viewModel.courses.value
     if (courses.isEmpty()) {
         Toast.makeText(context, "当前课表为空，无法导出", Toast.LENGTH_SHORT).show()
@@ -1489,7 +1493,7 @@ private fun exportSchedule(context: Context, viewModel: CourseViewModel, setting
     }
 
     val data = mapOf(
-        "schedule_name" to viewModel.currentScheduleName.value,
+        "schedule_name" to scheduleViewModel.currentScheduleName.value,
         "settings" to mapOf(
             "class_start_time" to viewModel.classStartTime.value,
             "current_week" to viewModel.currentWeek.value,
@@ -1524,7 +1528,7 @@ private fun exportSchedule(context: Context, viewModel: CourseViewModel, setting
 
     try {
         val dir = context.getExternalFilesDir(Environment.DIRECTORY_DOCUMENTS)
-        val fileName = "${viewModel.currentScheduleName.value}.json"
+        val fileName = "${scheduleViewModel.currentScheduleName.value}.json"
         val file = java.io.File(dir, fileName)
         file.writeText(json, Charsets.UTF_8)
 
@@ -1727,13 +1731,14 @@ private fun parseIcsEvent(event: Map<String, String>): Map<String, Any>? {
 internal fun applyScheduleData(
     @Suppress("UNUSED_PARAMETER") context: Context,
     viewModel: CourseViewModel,
+    scheduleViewModel: ScheduleViewModel,
     settingsViewModel: SettingsViewModel,
     scheduleName: String,
     data: Map<String, Any>
 ): Pair<Boolean, String> {
     try {
         // 创建新课表
-        viewModel.addSchedule(scheduleName)
+        scheduleViewModel.addSchedule(scheduleName)
 
         // 保存课程数据到新课表
         @Suppress("UNCHECKED_CAST")
@@ -1856,14 +1861,14 @@ internal fun applyScheduleData(
         }
 
         // 保存课程到新课表
-        viewModel.saveCoursesToSchedule(scheduleName, courses)
+        scheduleViewModel.saveCoursesToSchedule(scheduleName, courses)
 
         // 保存设置到新课表
         @Suppress("UNCHECKED_CAST")
         val settings = data["settings"] as? Map<String, Any>
         if (settings != null) {
             // 切换到新课表来保存设置
-            viewModel.switchToSchedule(scheduleName)
+            scheduleViewModel.switchToSchedule(scheduleName)
 
             (settings["class_start_time"] as? String)?.let { viewModel.setClassStartTime(it) }
             (settings["total_weeks"] as? Number)?.toInt()?.let { viewModel.setTotalWeeks(it) }
