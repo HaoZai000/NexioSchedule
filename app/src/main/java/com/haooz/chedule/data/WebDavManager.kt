@@ -33,6 +33,7 @@ class WebDavManager(private val context: Context) {
         private const val BACKUP_DIR = "HyperSchedule"
         private const val MANIFEST_FILE = "manifest.json"
         private const val COURSES_DIR = "courses"
+        private const val INDEX_FILE = "schedules_index.json"
     }
 
     // ============ 配置读写 ============
@@ -63,6 +64,7 @@ class WebDavManager(private val context: Context) {
     private fun baseUrl() = "$serverUrl/$BACKUP_DIR"
     private fun scheduleManifestUrl(scheduleId: String) = "${baseUrl()}/$scheduleId.json"
     private fun courseUrl(courseId: String) = "${baseUrl()}/$COURSES_DIR/$courseId.json"
+    private fun schedulesIndexUrl() = "${baseUrl()}/$INDEX_FILE"
 
     // ============ WebDAV 基础操作 ============
 
@@ -173,6 +175,80 @@ class WebDavManager(private val context: Context) {
         } catch (e: Exception) {
             Result.failure(Exception("上传课表 manifest 失败: ${e.message}"))
         }
+    }
+
+    // ============ 课表索引操作 ============
+
+    /**
+     * 下载课表索引
+     */
+    suspend fun downloadSchedulesIndex(): Result<Map<String, Any>> = withContext(Dispatchers.IO) {
+        try {
+            val request = Request.Builder()
+                .url(schedulesIndexUrl())
+                .header("Authorization", authHeader())
+                .get()
+                .build()
+            client.newCall(request).execute().use { response ->
+                when {
+                    response.isSuccessful -> {
+                        val body = response.body?.string() ?: "{}"
+                        val type = object : TypeToken<Map<String, Any>>() {}.type
+                        val index: Map<String, Any> = gson.fromJson(body, type) ?: emptyMap()
+                        Result.success(index)
+                    }
+                    response.code == 404 -> Result.success(emptyMap())
+                    else -> Result.failure(Exception("下载课表索引失败: ${response.code}"))
+                }
+            }
+        } catch (e: Exception) {
+            Result.failure(Exception("下载课表索引失败: ${e.message}"))
+        }
+    }
+
+    /**
+     * 上传课表索引
+     */
+    suspend fun uploadSchedulesIndex(index: Map<String, Any>): Result<Unit> = withContext(Dispatchers.IO) {
+        try {
+            ensureRemoteDir()
+            val json = gson.toJson(index)
+            val body = json.toRequestBody("application/json".toMediaType())
+            val request = Request.Builder()
+                .url(schedulesIndexUrl())
+                .header("Authorization", authHeader())
+                .put(body)
+                .build()
+            client.newCall(request).execute().use { response ->
+                if (response.isSuccessful) {
+                    Result.success(Unit)
+                } else {
+                    Result.failure(Exception("上传课表索引失败: ${response.code}"))
+                }
+            }
+        } catch (e: Exception) {
+            Result.failure(Exception("上传课表索引失败: ${e.message}"))
+        }
+    }
+
+    /**
+     * 从本地课表构建索引数据
+     */
+    fun buildSchedulesIndex(repository: CourseRepository): Map<String, Any> {
+        val scheduleNames = repository.getScheduleNames()
+        val schedules = mutableMapOf<String, Any>()
+        for (name in scheduleNames) {
+            val courses = repository.getCoursesForSchedule(name)
+            schedules[name] = mapOf(
+                "name" to name,
+                "courseCount" to courses.size,
+                "lastModified" to (courses.maxOfOrNull { it.lastModified } ?: 0L)
+            )
+        }
+        return mapOf(
+            "schedules" to schedules,
+            "lastSyncTime" to System.currentTimeMillis()
+        )
     }
 
     /**
