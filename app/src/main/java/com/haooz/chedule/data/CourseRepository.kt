@@ -10,10 +10,23 @@ import com.google.gson.reflect.TypeToken
  */
 class CourseRepository private constructor(context: Context) {
 
-    private val prefs: SharedPreferences = context.applicationContext.getSharedPreferences(
+    private val appContext: Context = context.applicationContext
+    private val prefs: SharedPreferences = appContext.getSharedPreferences(
         PREFS_NAME, Context.MODE_PRIVATE
     )
     private val gson = Gson()
+
+    // 壁纸内存缓存：避免每次进入搭配页都重新解码 PNG（解码耗时是主要瓶颈）
+    // 按可用内存的 1/8 计算，单位为字节
+    private val wallpaperCache: android.util.LruCache<Long, android.graphics.Bitmap> =
+        run {
+            val maxBytes = (Runtime.getRuntime().maxMemory() / 8).coerceAtLeast(4L * 1024 * 1024)
+            object : android.util.LruCache<Long, android.graphics.Bitmap>(maxBytes.toInt()) {
+                override fun sizeOf(key: Long, value: android.graphics.Bitmap): Int {
+                    return value.byteCount
+                }
+            }
+        }
 
     // 变更回调
     var onCourseChanged: ((action: String, courseId: String) -> Unit)? = null
@@ -68,7 +81,24 @@ class CourseRepository private constructor(context: Context) {
         private const val KEY_SHIFT_MODE = "shift_mode_enabled"
         private const val KEY_SHIFT_SELECTED_SCHEDULES = "shift_selected_schedules"
         private const val KEY_DEFAULT_HOMEPAGE = "default_homepage"
+        private const val KEY_NAV_BAR_STYLE = "nav_bar_style"
+        private const val KEY_WALLPAPER_OFFSET_X = "wallpaper_offset_x"
+        private const val KEY_WALLPAPER_OFFSET_Y = "wallpaper_offset_y"
+        private const val KEY_WALLPAPER_SCALE = "wallpaper_scale"
+        private const val WALLPAPER_FILE_NAME = "schedule_wallpaper.png"
         private const val SCHEDULE_KEY_PREFIX = "schedule_"
+        // 多搭配支持
+        private const val KEY_COMBINATION_IDS = "combination_ids"
+        private const val KEY_CURRENT_COMBINATION_ID = "current_combination_id"
+        private const val COMBINATION_WALLPAPER_PREFIX = "combination_wallpaper_"
+        private const val COMBINATION_SNAPSHOT_PREFIX = "combination_snapshot_"
+        private const val KEY_COMBINATION_OFFSET_X_PREFIX = "comb_offset_x_"
+        private const val KEY_COMBINATION_OFFSET_Y_PREFIX = "comb_offset_y_"
+        private const val KEY_COMBINATION_SCALE_PREFIX = "comb_scale_"
+        private const val KEY_COMBINATION_CARD_BLUR_PREFIX = "comb_card_blur_"
+        private const val KEY_COMBINATION_CARD_ALPHA_PREFIX = "comb_card_alpha_"
+        private const val KEY_COMBINATION_CARD_HEIGHT_PREFIX = "comb_card_height_"
+        private const val KEY_COMBINATION_CARD_CORNER_PREFIX = "comb_card_corner_"
     }
 
     /**
@@ -894,6 +924,240 @@ class CourseRepository private constructor(context: Context) {
         prefs.edit().putString(KEY_DEFAULT_HOMEPAGE, homepage).apply()
     }
 
+    fun getNavBarStyle(): String {
+        return prefs.getString(KEY_NAV_BAR_STYLE, "standard") ?: "standard"
+    }
+
+    fun setNavBarStyle(style: String) {
+        prefs.edit().putString(KEY_NAV_BAR_STYLE, style).apply()
+    }
+
+    // --- 壁纸设置 ---
+
+    fun saveWallpaperState(offsetX: Float, offsetY: Float, scale: Float) {
+        prefs.edit()
+            .putFloat(KEY_WALLPAPER_OFFSET_X, offsetX)
+            .putFloat(KEY_WALLPAPER_OFFSET_Y, offsetY)
+            .putFloat(KEY_WALLPAPER_SCALE, scale)
+            .apply()
+    }
+
+    fun getWallpaperOffsetX(): Float = prefs.getFloat(KEY_WALLPAPER_OFFSET_X, 0f)
+
+    fun getWallpaperOffsetY(): Float = prefs.getFloat(KEY_WALLPAPER_OFFSET_Y, 0f)
+
+    fun getWallpaperScale(): Float = prefs.getFloat(KEY_WALLPAPER_SCALE, 1f)
+
+    fun saveWallpaperBitmap(bitmap: android.graphics.Bitmap): Boolean {
+        return try {
+            val file = java.io.File(appContext.filesDir, WALLPAPER_FILE_NAME)
+            java.io.FileOutputStream(file).use { out ->
+                bitmap.compress(android.graphics.Bitmap.CompressFormat.PNG, 100, out)
+            }
+            true
+        } catch (_: Exception) {
+            false
+        }
+    }
+
+    fun loadWallpaperBitmap(): android.graphics.Bitmap? {
+        val file = java.io.File(appContext.filesDir, WALLPAPER_FILE_NAME)
+        if (!file.exists()) return null
+        return try {
+            android.graphics.BitmapFactory.decodeFile(file.absolutePath)
+        } catch (_: Exception) {
+            null
+        }
+    }
+
+    fun clearWallpaper() {
+        val file = java.io.File(appContext.filesDir, WALLPAPER_FILE_NAME)
+        if (file.exists()) file.delete()
+        prefs.edit()
+            .remove(KEY_WALLPAPER_OFFSET_X)
+            .remove(KEY_WALLPAPER_OFFSET_Y)
+            .remove(KEY_WALLPAPER_SCALE)
+            .apply()
+    }
+
+    // --- 多搭配支持 ---
+
+    /** 获取所有搭配 ID 列表（按创建顺序） */
+    fun getCombinationIds(): List<Long> {
+        val idsStr = prefs.getString(KEY_COMBINATION_IDS, null) ?: return listOf(0L)
+        return idsStr.split(",").mapNotNull { it.toLongOrNull() }
+    }
+
+    /** 获取当前选中的搭配 ID */
+    fun getCurrentCombinationId(): Long {
+        return prefs.getLong(KEY_CURRENT_COMBINATION_ID, 0L)
+    }
+
+    /** 设置当前选中的搭配 ID */
+    fun setCurrentCombinationId(id: Long) {
+        prefs.edit().putLong(KEY_CURRENT_COMBINATION_ID, id).apply()
+    }
+
+    /** 添加新搭配，返回新 ID */
+    fun addCombination(): Long {
+        val ids = getCombinationIds().toMutableList()
+        val newId = (ids.maxOrNull() ?: -1L) + 1L
+        ids.add(newId)
+        prefs.edit()
+            .putString(KEY_COMBINATION_IDS, ids.joinToString(","))
+            .putFloat("${KEY_COMBINATION_OFFSET_X_PREFIX}$newId", 0f)
+            .putFloat("${KEY_COMBINATION_OFFSET_Y_PREFIX}$newId", 0f)
+            .putFloat("${KEY_COMBINATION_SCALE_PREFIX}$newId", 1f)
+            .apply()
+        return newId
+    }
+
+    /** 删除指定搭配，包括其壁纸、快照和 SharedPreferences 中的状态 */
+    fun deleteCombination(id: Long) {
+        val ids = getCombinationIds().toMutableList()
+        if (!ids.remove(id)) return
+        prefs.edit()
+            .putString(KEY_COMBINATION_IDS, ids.joinToString(","))
+            .remove("${KEY_COMBINATION_OFFSET_X_PREFIX}$id")
+            .remove("${KEY_COMBINATION_OFFSET_Y_PREFIX}$id")
+            .remove("${KEY_COMBINATION_SCALE_PREFIX}$id")
+            .remove("${KEY_COMBINATION_CARD_BLUR_PREFIX}$id")
+            .remove("${KEY_COMBINATION_CARD_ALPHA_PREFIX}$id")
+            .apply()
+        // 删除壁纸与快照文件
+        java.io.File(appContext.filesDir, "${COMBINATION_WALLPAPER_PREFIX}$id.png").delete()
+        java.io.File(appContext.filesDir, "${COMBINATION_SNAPSHOT_PREFIX}$id.png").delete()
+        // 同步清理内存缓存，防止读到已删除搭配的旧 bitmap
+        wallpaperCache.remove(id)
+        // 若删除的是当前搭配，且仍有其他搭配，则切换到第一个
+        if (ids.isNotEmpty() && getCurrentCombinationId() == id) {
+            setCurrentCombinationId(ids.first())
+        } else if (ids.isEmpty()) {
+            // 删光后重新创建一个默认搭配 id=0
+            prefs.edit().putString(KEY_COMBINATION_IDS, "0").apply()
+            setCurrentCombinationId(0L)
+        }
+    }
+
+    /** 保存指定搭配的壁纸图片 */
+    fun saveCombinationWallpaper(id: Long, bitmap: android.graphics.Bitmap): Boolean {
+        return try {
+            val file = java.io.File(appContext.filesDir, "${COMBINATION_WALLPAPER_PREFIX}$id.png")
+            java.io.FileOutputStream(file).use { out ->
+                bitmap.compress(android.graphics.Bitmap.CompressFormat.PNG, 100, out)
+            }
+            // 同步更新内存缓存，避免下次读取再用旧图重新解码
+            wallpaperCache.put(id, bitmap)
+            true
+        } catch (_: Exception) {
+            false
+        }
+    }
+
+    /** 加载指定搭配的壁纸图片（带内存缓存，命中时零延迟） */
+    fun loadCombinationWallpaper(id: Long): android.graphics.Bitmap? {
+        // 1. 缓存命中：直接返回，避免重复解码
+        wallpaperCache.get(id)?.let { return it }
+        // 2. 缓存未命中：从磁盘解码
+        val file = java.io.File(appContext.filesDir, "${COMBINATION_WALLPAPER_PREFIX}$id.png")
+        if (!file.exists()) return null
+        return try {
+            android.graphics.BitmapFactory.decodeFile(file.absolutePath)?.also { bmp ->
+                wallpaperCache.put(id, bmp)
+            }
+        } catch (_: Exception) {
+            null
+        }
+    }
+
+    /** 保存指定搭配的偏移和缩放 */
+    fun saveCombinationState(id: Long, offsetX: Float, offsetY: Float, scale: Float) {
+        prefs.edit()
+            .putFloat("${KEY_COMBINATION_OFFSET_X_PREFIX}$id", offsetX)
+            .putFloat("${KEY_COMBINATION_OFFSET_Y_PREFIX}$id", offsetY)
+            .putFloat("${KEY_COMBINATION_SCALE_PREFIX}$id", scale)
+            .apply()
+    }
+
+    fun getCombinationOffsetX(id: Long): Float = prefs.getFloat("${KEY_COMBINATION_OFFSET_X_PREFIX}$id", 0f)
+    fun getCombinationOffsetY(id: Long): Float = prefs.getFloat("${KEY_COMBINATION_OFFSET_Y_PREFIX}$id", 0f)
+    fun getCombinationScale(id: Long): Float = prefs.getFloat("${KEY_COMBINATION_SCALE_PREFIX}$id", 1f)
+
+    fun saveCombinationCardBlur(id: Long, blurRadius: Float) {
+        prefs.edit()
+            .putFloat("${KEY_COMBINATION_CARD_BLUR_PREFIX}$id", blurRadius)
+            .apply()
+    }
+
+    fun getCombinationCardBlur(id: Long): Float = prefs.getFloat("${KEY_COMBINATION_CARD_BLUR_PREFIX}$id", 0f)
+
+    fun saveCombinationCardAlpha(id: Long, alpha: Float) {
+        prefs.edit()
+            .putFloat("${KEY_COMBINATION_CARD_ALPHA_PREFIX}$id", alpha)
+            .apply()
+    }
+
+    fun getCombinationCardAlpha(id: Long): Float = prefs.getFloat("${KEY_COMBINATION_CARD_ALPHA_PREFIX}$id", 0.15f)
+
+    fun saveCombinationCardHeight(id: Long, height: Float) {
+        prefs.edit()
+            .putFloat("${KEY_COMBINATION_CARD_HEIGHT_PREFIX}$id", height)
+            .apply()
+    }
+
+    fun getCombinationCardHeight(id: Long): Float = prefs.getFloat("${KEY_COMBINATION_CARD_HEIGHT_PREFIX}$id", 54f)
+
+    fun saveCombinationCardCornerRadius(id: Long, cornerRadius: Float) {
+        prefs.edit()
+            .putFloat("${KEY_COMBINATION_CARD_CORNER_PREFIX}$id", cornerRadius)
+            .apply()
+    }
+
+    fun getCombinationCardCornerRadius(id: Long): Float = prefs.getFloat("${KEY_COMBINATION_CARD_CORNER_PREFIX}$id", 8f)
+
+    /** 保存指定搭配的完整快照（课表+壁纸预览） */
+    fun saveCombinationSnapshot(id: Long, bitmap: android.graphics.Bitmap): Boolean {
+        return try {
+            val file = java.io.File(appContext.filesDir, "${COMBINATION_SNAPSHOT_PREFIX}$id.png")
+            java.io.FileOutputStream(file).use { out ->
+                bitmap.compress(android.graphics.Bitmap.CompressFormat.PNG, 100, out)
+            }
+            true
+        } catch (_: Exception) {
+            false
+        }
+    }
+
+    /** 加载指定搭配的完整快照 */
+    fun loadCombinationSnapshot(id: Long): android.graphics.Bitmap? {
+        val file = java.io.File(appContext.filesDir, "${COMBINATION_SNAPSHOT_PREFIX}$id.png")
+        if (!file.exists()) return null
+        return try {
+            android.graphics.BitmapFactory.decodeFile(file.absolutePath)
+        } catch (_: Exception) {
+            null
+        }
+    }
+
+    /** 迁移：如果只有旧的单搭配数据（无 combination_ids），将其作为 id=0 的搭配 */
+    fun migrateToCombinationsIfNeeded() {
+        if (prefs.contains(KEY_COMBINATION_IDS)) return
+        // 首次迁移：将现有单搭配数据作为 id=0
+        prefs.edit()
+            .putString(KEY_COMBINATION_IDS, "0")
+            .putLong(KEY_CURRENT_COMBINATION_ID, 0L)
+            .putFloat("${KEY_COMBINATION_OFFSET_X_PREFIX}0", getWallpaperOffsetX())
+            .putFloat("${KEY_COMBINATION_OFFSET_Y_PREFIX}0", getWallpaperOffsetY())
+            .putFloat("${KEY_COMBINATION_SCALE_PREFIX}0", getWallpaperScale())
+            .apply()
+        // 复制壁纸文件
+        val oldFile = java.io.File(appContext.filesDir, WALLPAPER_FILE_NAME)
+        if (oldFile.exists()) {
+            val newFile = java.io.File(appContext.filesDir, "${COMBINATION_WALLPAPER_PREFIX}0.png")
+            try { oldFile.copyTo(newFile, overwrite = true) } catch (_: Exception) {}
+        }
+    }
+
     /**
      * 导出所有课表相关的 SharedPreferences 数据（用于云备份）
      * 返回所有 schedule_* 前缀和全局课表配置的键值对
@@ -905,7 +1169,8 @@ class CourseRepository private constructor(context: Context) {
             KEY_CURRENT_SCHEDULE_ID,
             KEY_SHIFT_MODE,
             KEY_SHIFT_SELECTED_SCHEDULES,
-            KEY_DEFAULT_HOMEPAGE
+            KEY_DEFAULT_HOMEPAGE,
+            KEY_NAV_BAR_STYLE
         )
         for ((key, value) in prefs.all) {
             if (key.startsWith(SCHEDULE_KEY_PREFIX) || key in relevantKeys) {

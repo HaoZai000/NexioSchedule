@@ -1,4 +1,4 @@
-﻿/** 应用更新设置页面 */
+/** 应用更新设置页面 */
 package com.haooz.chedule.ui.activities
 
 import android.content.Context
@@ -255,8 +255,8 @@ private fun UpdateSettingsScreen(onBack: () -> Unit) {
         drawContent()
     }
     val isDark = isAppDarkTheme()
-    val blurAlpha = if (listScrollY < 50) 0f else ((listScrollY - 50) / 50f).coerceIn(0f, 0.7f)
-    val topBarColorProgress = ((listScrollY - 50) / 50f).coerceIn(0f, 1f)
+    val blurAlpha = if (listScrollY < 50) 0f else ((listScrollY - 50) / 30f).coerceIn(0f, 0.7f)
+    val topBarColorProgress = ((listScrollY - 50) / 30f).coerceIn(0f, 1f)
     val topBarColor = if (listScrollY < 50) {
         MiuixTheme.colorScheme.surface
     } else {

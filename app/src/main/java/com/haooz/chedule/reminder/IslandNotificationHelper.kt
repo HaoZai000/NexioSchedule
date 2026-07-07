@@ -17,6 +17,8 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import org.json.JSONObject
 
 object IslandNotificationHelper {
@@ -25,6 +27,57 @@ object IslandNotificationHelper {
     private const val CHANNEL_NAME = "课程提醒超级岛"
 
     private val scope = CoroutineScope(Dispatchers.IO)
+    // 串行化 Shizuku bypass 流程，避免并发导致 XMSF 网络状态错乱
+    private val shizukuBypassMutex = Mutex()
+
+    /**
+     * 统一的 Shizuku bypass 执行器：
+     * - 用 Mutex 串行化，避免 disable→notify→enable 序列在并发下互相错位
+     * - 用 try/finally 保证 XMSF 网络一定被恢复，即使 notify 抛异常或协程被取消
+     * - 不可用或 disable 失败时仍直接发送通知（降级路径）
+     */
+    private suspend fun withShizukuBypass(
+        context: Context,
+        notificationId: Int,
+        notification: Notification,
+        useShizukuBypass: Boolean
+    ) {
+        if (!useShizukuBypass || !isShizukuAvailable()) {
+            sendNotificationDirect(context, notificationId, notification)
+            return
+        }
+        shizukuBypassMutex.withLock {
+            val disabled = try {
+                ShizukuManager.setXmsfNetworkingEnabled(context, false)
+            } catch (e: Exception) {
+                Log.e(TAG, "Failed to disable XMSF networking", e)
+                sendNotificationDirect(context, notificationId, notification)
+                return@withLock
+            }
+            if (!disabled) {
+                Log.w(TAG, "Failed to disable XMSF networking, sending notification anyway")
+                sendNotificationDirect(context, notificationId, notification)
+                return@withLock
+            }
+            try {
+                Log.d(TAG, "XMSF networking disabled, sending notification")
+                sendNotificationDirect(context, notificationId, notification)
+                delay(100)
+            } finally {
+                try {
+                    ShizukuManager.setXmsfNetworkingEnabled(context, true)
+                    Log.d(TAG, "XMSF networking restored")
+                } catch (e: Exception) {
+                    Log.e(TAG, "CRITICAL: Failed to restore XMSF networking!", e)
+                }
+            }
+        }
+    }
+
+    private fun sendNotificationDirect(context: Context, notificationId: Int, notification: Notification) {
+        val manager = context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
+        manager.notify(notificationId, notification)
+    }
 
     fun init(context: Context) {
         ShizukuManager.init(context)
@@ -361,40 +414,15 @@ object IslandNotificationHelper {
         val notification = builder.build()
         notification.extras.putString("miui.focus.param", islandParams)
 
-        if (useShizukuBypass && isShizukuAvailable()) {
-            scope.launch {
-                try {
-                    val disabled = ShizukuManager.setXmsfNetworkingEnabled(context, false)
-                    if (disabled) {
-                        Log.d(TAG, "XMSF networking disabled, sending notification")
-                        val manager = context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
-                        manager.notify(notificationId, notification)
-                        delay(100)
-                        ShizukuManager.setXmsfNetworkingEnabled(context, true)
-                        Log.d(TAG, "XMSF networking restored")
-                    } else {
-                        Log.w(TAG, "Failed to disable XMSF networking, sending notification anyway")
-                        val manager = context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
-                        manager.notify(notificationId, notification)
-                    }
-                } catch (e: Exception) {
-                    Log.e(TAG, "Failed to send notification with Shizuku bypass", e)
-                    val manager = context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
-                    manager.notify(notificationId, notification)
-                }
-            }
-        } else if (useShizukuBypass && !isShizukuAvailable()) {
+        if (useShizukuBypass && !isShizukuAvailable()) {
             // 超级岛开启但 Shizuku 不可用，提示用户
             Log.w(TAG, "Shizuku not available, showing toast and sending notification")
             android.os.Handler(android.os.Looper.getMainLooper()).post {
                 android.widget.Toast.makeText(context, "Shizuku 未授权，超级岛通知可能无法正常显示", android.widget.Toast.LENGTH_LONG).show()
             }
-            val manager = context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
-            manager.notify(notificationId, notification)
-        } else {
-            Log.d(TAG, "Shizuku bypass disabled, sending notification without bypass")
-            val manager = context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
-            manager.notify(notificationId, notification)
+        }
+        scope.launch {
+            withShizukuBypass(context, notificationId, notification, useShizukuBypass)
         }
     }
 
@@ -518,27 +546,8 @@ object IslandNotificationHelper {
         val notification = builder.build()
         notification.extras.putString("miui.focus.param", islandParams)
 
-        if (isShizukuAvailable()) {
-            scope.launch {
-                try {
-                    val disabled = ShizukuManager.setXmsfNetworkingEnabled(context, false)
-                    if (disabled) {
-                        val manager = context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
-                        manager.notify(1002, notification)
-                        delay(100)
-                        ShizukuManager.setXmsfNetworkingEnabled(context, true)
-                    } else {
-                        val manager = context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
-                        manager.notify(1002, notification)
-                    }
-                } catch (e: Exception) {
-                    val manager = context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
-                    manager.notify(1002, notification)
-                }
-            }
-        } else {
-            val manager = context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
-            manager.notify(1002, notification)
+        scope.launch {
+            withShizukuBypass(context, 1002, notification, useShizukuBypass = true)
         }
     }
 
@@ -564,8 +573,9 @@ object IslandNotificationHelper {
         val courseName = nextCourse?.name ?: "课程"
         val teacher = nextCourse?.teacher ?: ""
 
-        // 使用时间戳作为 Notification ID，避免缓存问题
-        val testNotificationId = (System.currentTimeMillis() % 10000).toInt()
+        // 使用固定 ID 5000 区分正式通知（1001-1003）和明日通知（1002），
+        // 便于取消时精确匹配，避免残留闹钟
+        val testNotificationId = 5000
 
         // 计算精确的课程开始时间戳
         val courseStartTimestamp = if (startTime != null) {
@@ -659,28 +669,11 @@ object IslandNotificationHelper {
                 if (granted) {
                     Log.d(TAG, "Shizuku permission granted, sending notification")
                     scope.launch {
-                        try {
-                            val disabled = ShizukuManager.setXmsfNetworkingEnabled(context, false)
-                            if (disabled) {
-                                Log.d(TAG, "Sending test island notification with bypass")
-                                val manager = context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
-                                manager.notify(testNotificationId, notification)
-                                delay(100)
-                                ShizukuManager.setXmsfNetworkingEnabled(context, true)
-                            } else {
-                                val manager = context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
-                                manager.notify(testNotificationId, notification)
-                            }
-                        } catch (e: Exception) {
-                            Log.e(TAG, "Failed to send test notification", e)
-                            val manager = context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
-                            manager.notify(testNotificationId, notification)
-                        }
+                        withShizukuBypass(context, testNotificationId, notification, useShizukuBypass = true)
                     }
                 } else {
                     Log.w(TAG, "Shizuku permission denied, sending without bypass")
-                    val manager = context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
-                    manager.notify(testNotificationId, notification)
+                    sendNotificationDirect(context, testNotificationId, notification)
                 }
             }
             return
@@ -688,23 +681,7 @@ object IslandNotificationHelper {
 
         // Shizuku 已可用，直接发送
         scope.launch {
-            try {
-                val disabled = ShizukuManager.setXmsfNetworkingEnabled(context, false)
-                if (disabled) {
-                    Log.d(TAG, "Sending test island notification with bypass")
-                    val manager = context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
-                    manager.notify(testNotificationId, notification)
-                    delay(100)
-                    ShizukuManager.setXmsfNetworkingEnabled(context, true)
-                } else {
-                    val manager = context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
-                    manager.notify(testNotificationId, notification)
-                }
-            } catch (e: Exception) {
-                Log.e(TAG, "Failed to send test notification", e)
-                val manager = context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
-                manager.notify(testNotificationId, notification)
-            }
+            withShizukuBypass(context, testNotificationId, notification, useShizukuBypass = true)
         }
 
         // 测试模式：倒计时结束后触发展开态弹出

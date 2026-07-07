@@ -66,27 +66,65 @@ class CourseWidgetProvider : AppWidgetProvider() {
             .sortedBy { it.startSection }
 
         val calendar = Calendar.getInstance()
-        val dayOfWeek = getTodayOfWeek()
-        val dayNames = listOf("周一", "周二", "周三", "周四", "周五", "周六", "周日")
-        views.setTextViewText(R.id.widget_title, "今天 / ${dayNames[dayOfWeek - 1]}")
-        views.setTextViewText(R.id.widget_week, "第${currentWeek}周")
-
         val currentMinutes = calendar.get(Calendar.HOUR_OF_DAY) * 60 + calendar.get(Calendar.MINUTE)
 
-        val activeCourses = todayCourses.filter { course ->
-            val end = getCourseEndTime(course, repository) ?: return@filter false
-            val endParts = end.split(":")
-            if (endParts.size == 2) {
-                val endMinutes = (endParts[0].toIntOrNull() ?: 0) * 60 + (endParts[1].toIntOrNull() ?: 0)
-                endMinutes > currentMinutes
-            } else false
-        }.take(2)
+        // 判断是否应显示明日课程：次日提醒已启用 且 当前时间 >= 提醒时间 且 今日课程已上完
+        val isNextDayReminderEnabled = repository.getNextDayReminder()
+        val reminderMinutes = repository.getNextDayReminderHour() * 60 + repository.getNextDayReminderMinute()
+        val todayCoursesFinished = if (todayCourses.isNotEmpty()) {
+            val lastCourse = todayCourses.maxByOrNull { it.endSection }
+            val lastEndTime = lastCourse?.let { getCourseEndTime(it, repository) }
+            if (lastEndTime != null) {
+                val parts = lastEndTime.split(":")
+                if (parts.size == 2) {
+                    val endMinutes = (parts[0].toIntOrNull() ?: 0) * 60 + (parts[1].toIntOrNull() ?: 0)
+                    currentMinutes >= endMinutes
+                } else true
+            } else true
+        } else true // 今日无课，视为已上完
+        val showTomorrow = isNextDayReminderEnabled && currentMinutes >= reminderMinutes && todayCoursesFinished
 
-        if (activeCourses.isEmpty()) {
+        // 计算目标星期和周次
+        val dayNames = listOf("周一", "周二", "周三", "周四", "周五", "周六", "周日")
+        val dayOfWeek: Int
+        val targetWeek: Int
+        if (showTomorrow) {
+            val tomorrow = today + 1
+            dayOfWeek = if (tomorrow > 7) 1 else tomorrow
+            targetWeek = if (tomorrow > 7) currentWeek + 1 else currentWeek
+        } else {
+            dayOfWeek = today
+            targetWeek = currentWeek
+        }
+
+        val targetCourses = courses.filter { it.dayOfWeek == dayOfWeek && it.isActiveInWeek(targetWeek) }
+            .sortedBy { it.startSection }
+
+        // 设置标题和周次
+        val prefix = if (showTomorrow) "明日课程" else "今天"
+        views.setTextViewText(R.id.widget_title, "$prefix / ${dayNames[dayOfWeek - 1]}")
+        views.setTextViewText(R.id.widget_week, "第${targetWeek}周")
+
+        // 显示明日课程时取前2门；显示今日课程时取未结束的前2门
+        val displayCourses = if (showTomorrow) {
+            targetCourses.take(2)
+        } else {
+            todayCourses.filter { course ->
+                val end = getCourseEndTime(course, repository) ?: return@filter false
+                val endParts = end.split(":")
+                if (endParts.size == 2) {
+                    val endMinutes = (endParts[0].toIntOrNull() ?: 0) * 60 + (endParts[1].toIntOrNull() ?: 0)
+                    endMinutes > currentMinutes
+                } else false
+            }.take(2)
+        }
+
+        if (displayCourses.isEmpty()) {
             views.setViewVisibility(R.id.widget_course1, View.GONE)
             views.setViewVisibility(R.id.widget_course2, View.GONE)
             views.setViewVisibility(R.id.widget_empty, View.VISIBLE)
-            val emptyText = if (todayCourses.isEmpty()) "今日无课" else "今日课程已上完"
+            val emptyText = if (showTomorrow) "明日无课"
+            else if (todayCourses.isEmpty()) "今日无课" else "今日课程已上完"
             views.setTextViewText(R.id.widget_empty_text, emptyText)
         } else {
             views.setViewVisibility(R.id.widget_empty, View.GONE)
@@ -94,7 +132,7 @@ class CourseWidgetProvider : AppWidgetProvider() {
             views.setViewVisibility(R.id.widget_course2, View.VISIBLE)
 
             // Course 1
-            val c1 = activeCourses[0]
+            val c1 = displayCourses[0]
             views.setViewVisibility(R.id.widget_course1, View.VISIBLE)
             views.setTextViewText(R.id.widget_name1, c1.name)
             views.setBitmap(R.id.widget_color1, "setImageBitmap", createColorBarBitmap(context, c1.colorRes.toInt()))
@@ -102,7 +140,8 @@ class CourseWidgetProvider : AppWidgetProvider() {
             val end1 = getCourseEndTime(c1, repository) ?: ""
             views.setTextViewText(R.id.widget_time_start1, start1)
             views.setTextViewText(R.id.widget_time_end1, end1)
-            val remaining1 = getRemainingMinutes(start1, end1, currentMinutes)
+            // 显示明日课程时不显示倒计时，因为课程尚未开始
+            val remaining1 = if (showTomorrow) null else getRemainingMinutes(start1, end1, currentMinutes)
             views.setViewVisibility(R.id.widget_now1, if (remaining1 != null) View.VISIBLE else View.GONE)
             if (remaining1 != null) views.setTextViewText(R.id.widget_now1, "${remaining1}分钟结束")
             views.setInt(R.id.widget_course1, "setBackgroundResource",
@@ -114,15 +153,15 @@ class CourseWidgetProvider : AppWidgetProvider() {
             })
 
             // Course 2
-            if (activeCourses.size >= 2) {
-                val c2 = activeCourses[1]
+            if (displayCourses.size >= 2) {
+                val c2 = displayCourses[1]
                 views.setTextViewText(R.id.widget_name2, c2.name)
                 views.setBitmap(R.id.widget_color2, "setImageBitmap", createColorBarBitmap(context, c2.colorRes.toInt()))
                 val start2 = getCourseStartTime(c2, repository) ?: ""
                 val end2 = getCourseEndTime(c2, repository) ?: ""
                 views.setTextViewText(R.id.widget_time_start2, start2)
                 views.setTextViewText(R.id.widget_time_end2, end2)
-                val remaining2 = getRemainingMinutes(start2, end2, currentMinutes)
+                val remaining2 = if (showTomorrow) null else getRemainingMinutes(start2, end2, currentMinutes)
                 views.setViewVisibility(R.id.widget_now2, if (remaining2 != null) View.VISIBLE else View.GONE)
                 if (remaining2 != null) views.setTextViewText(R.id.widget_now2, "${remaining2}分钟结束")
                 views.setInt(R.id.widget_course2, "setBackgroundResource",

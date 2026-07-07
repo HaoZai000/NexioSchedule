@@ -5,8 +5,8 @@ import android.content.Context
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.SystemBarStyle
-import androidx.activity.enableEdgeToEdge
 import androidx.activity.compose.setContent
+import androidx.activity.enableEdgeToEdge
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -33,6 +33,7 @@ import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
+import androidx.core.content.edit
 import com.haooz.chedule.ui.theme.CourseScheduleTheme
 import com.haooz.chedule.viewmodel.CourseViewModel
 import com.haooz.chedule.viewmodel.SettingsViewModel
@@ -55,12 +56,10 @@ import top.yukonga.miuix.kmp.icon.MiuixIcons
 import top.yukonga.miuix.kmp.icon.extended.Back
 import top.yukonga.miuix.kmp.preference.OverlayDropdownPreference
 import top.yukonga.miuix.kmp.preference.RadioButtonPreference
-import top.yukonga.miuix.kmp.preference.SwitchPreference
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 import top.yukonga.miuix.kmp.utils.overScrollVertical
 import top.yukonga.miuix.kmp.utils.scrollEndHaptic
 import androidx.compose.ui.graphics.Color as ComposeColor
-import androidx.core.content.edit
 
 class PreferenceSettingsActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -96,6 +95,7 @@ private fun PreferenceSettingsScreen(onBack: () -> Unit) {
     val viewModel = remember { CourseViewModel(context.applicationContext as android.app.Application) }
     val settingsViewModel = remember { SettingsViewModel(context.applicationContext as android.app.Application) }
     val defaultHomepage by settingsViewModel.defaultHomepage.collectAsState()
+    val navBarStyle by settingsViewModel.navBarStyle.collectAsState()
 
     val backgroundColor = MiuixTheme.colorScheme.surface
     val backdrop = rememberLayerBackdrop {
@@ -103,8 +103,8 @@ private fun PreferenceSettingsScreen(onBack: () -> Unit) {
         drawContent()
     }
     val isDark = isAppDarkTheme()
-    val blurAlpha = if (listScrollY < 50) 0f else ((listScrollY - 50) / 50f).coerceIn(0f, 0.7f)
-    val topBarColorProgress = ((listScrollY - 50) / 50f).coerceIn(0f, 1f)
+    val blurAlpha = if (listScrollY < 50) 0f else ((listScrollY - 50) / 30f).coerceIn(0f, 0.7f)
+    val topBarColorProgress = ((listScrollY - 50) / 30f).coerceIn(0f, 1f)
     val topBarColor = if (listScrollY < 50) {
         MiuixTheme.colorScheme.surface
     } else {
@@ -208,6 +208,42 @@ private fun PreferenceSettingsScreen(onBack: () -> Unit) {
                                     themeMode = "dark"
                                     themePrefs.edit { putString("theme_mode", "dark") }
                                 }
+                            )
+                        }
+                    }
+                }
+
+                item {
+                    Card(
+                        cornerRadius = 20.dp,
+                        modifier = Modifier.fillMaxWidth(),
+                        insideMargin = PaddingValues(0.dp)
+                    ) {
+                        Column(modifier = Modifier.fillMaxWidth()) {
+                            val navBarEntry = DropdownEntry(
+                                items = listOf(
+                                    DropdownItem(
+                                        text = "标准导航栏",
+                                        selected = navBarStyle == "standard",
+                                        onClick = {
+                                            settingsViewModel.setNavBarStyle("standard")
+                                        }
+                                    ),
+                                    DropdownItem(
+                                        text = "悬浮导航栏",
+                                        selected = navBarStyle == "floating",
+                                        onClick = {
+                                            settingsViewModel.setNavBarStyle("floating")
+                                        }
+                                    ),
+                                )
+                            )
+
+                            OverlayDropdownPreference(
+                                title = "底栏样式",
+                                summary = "选择导航栏的显示样式",
+                                entry = navBarEntry,
+                                collapseOnSelection = true
                             )
                         }
                     }

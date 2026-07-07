@@ -6,7 +6,6 @@ import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -21,8 +20,8 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -262,10 +261,10 @@ fun AddCourseDialog(
                             fontWeight = FontWeight.Medium,
                             color = MiuixTheme.colorScheme.onSurface
                         )
-                        androidx.compose.foundation.text.BasicTextField(
+                        BasicTextField(
                             value = name,
                             onValueChange = { name = it },
-                            modifier = Modifier.widthIn(max = 180.dp),
+                            modifier = Modifier.fillMaxWidth(0.65f),
                             singleLine = true,
                             textStyle = TextStyle(
                                 textAlign = TextAlign.End,
@@ -304,10 +303,10 @@ fun AddCourseDialog(
                             fontWeight = FontWeight.Medium,
                             color = MiuixTheme.colorScheme.onSurface
                         )
-                        androidx.compose.foundation.text.BasicTextField(
+                        BasicTextField(
                             value = classroom,
                             onValueChange = { classroom = it },
-                            modifier = Modifier.widthIn(max = 180.dp),
+                            modifier = Modifier.fillMaxWidth(0.65f),
                             singleLine = true,
                             textStyle = TextStyle(
                                 textAlign = TextAlign.End,
@@ -346,10 +345,10 @@ fun AddCourseDialog(
                             fontWeight = FontWeight.Medium,
                             color = MiuixTheme.colorScheme.onSurface
                         )
-                        androidx.compose.foundation.text.BasicTextField(
+                        BasicTextField(
                             value = teacher,
                             onValueChange = { teacher = it },
-                            modifier = Modifier.widthIn(max = 180.dp),
+                            modifier = Modifier.fillMaxWidth(0.65f),
                             singleLine = true,
                             textStyle = TextStyle(
                                 textAlign = TextAlign.End,

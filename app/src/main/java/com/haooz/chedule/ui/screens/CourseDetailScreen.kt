@@ -3,9 +3,6 @@ package com.haooz.chedule.ui.screens
 
 import android.graphics.Bitmap
 import androidx.activity.compose.BackHandler
-import androidx.compose.animation.core.Animatable
-import androidx.compose.animation.core.CubicBezierEasing
-import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.isSystemInDarkTheme
@@ -30,7 +27,6 @@ import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
@@ -89,10 +85,10 @@ private class AnimClipShape(
     private val screenWidth: Float,
     private val screenCornerRadiusPx: Float,
     private val startCornerRadiusPx: Float,
-    private val animState: androidx.compose.runtime.State<AnimState>
+    private val animState: AnimState
 ) : androidx.compose.ui.graphics.Shape {
     override fun createOutline(size: androidx.compose.ui.geometry.Size, layoutDirection: androidx.compose.ui.unit.LayoutDirection, density: androidx.compose.ui.unit.Density): androidx.compose.ui.graphics.Outline {
-        val s = animState.value
+        val s = animState
         // 动画结束后圆角归零
         val radiusPx = if (s.progress >= 1f) 0f
         else startCornerRadiusPx + (screenCornerRadiusPx - startCornerRadiusPx) * s.progress
@@ -119,6 +115,7 @@ fun CourseDetailScreen(
     fromToday: Boolean = false,
     sectionTimes: Map<Int, String>,
     classStartTime: String,
+    animProgress: Float,
     onBackStart: () -> Unit,
     onBack: () -> Unit
 ) {
@@ -137,49 +134,23 @@ fun CourseDetailScreen(
     }
 
     val density = LocalDensity.current
-    val animProgress = remember { Animatable(0f) }
-    val scope = rememberCoroutineScope()
     val hapticFeedback = LocalHapticFeedback.current
     val startCornerRadiusPx = 20f * density.density
-    val morphOpenEase = CubicBezierEasing(0.3f, 0.72f, 0.2f, 1.0f)
-    val morphExitEase = CubicBezierEasing(0.3f, 0.65f, 0.35f, 1.0f)
+
+    val animState = remember(animProgress) {
+        val p = animProgress
+        val bgAlpha = (p * 0.5f).coerceIn(0f, 0.5f)
+        val snapAlpha = (1f - p * 3f).coerceIn(0f, 1f)
+        val contAlpha = ((p - 0.1f) / 0.5f).coerceIn(0f, 1f)
+        val scale = cardWidth / screenWidth + (1f - cardWidth / screenWidth) * p
+        val translationX = (cardLeft + cardWidth / 2f - screenWidth / 2f) * (1f - p)
+        val translationY = cardTop * (1f - p)
+        val clipBottom = cardHeight + 20 + (screenHeight - cardHeight - 20) * p
+        AnimState(bgAlpha, snapAlpha, contAlpha, translationX, translationY, scale, clipBottom, p)
+    }
 
     BackHandler {
         onBackStart()
-        scope.launch {
-            animProgress.animateTo(
-                targetValue = 0f,
-                animationSpec = tween(
-                    durationMillis = 370,
-                    easing = morphExitEase
-                )
-            )
-            onBack()
-        }
-    }
-
-    LaunchedEffect(Unit) {
-        animProgress.animateTo(
-            targetValue = 1f,
-            animationSpec = tween(
-                durationMillis = 520,
-                easing = morphOpenEase
-            )
-        )
-    }
-
-    val animState = remember {
-        derivedStateOf {
-            val p = animProgress.value
-            val bgAlpha = (p * 0.5f).coerceIn(0f, 0.5f)
-            val snapAlpha = (1f - p * 3f).coerceIn(0f, 1f)
-            val contAlpha = ((p - 0.1f) / 0.5f).coerceIn(0f, 1f)
-            val scale = cardWidth / screenWidth + (1f - cardWidth / screenWidth) * p
-            val translationX = (cardLeft + cardWidth / 2f - screenWidth / 2f) * (1f - p)
-            val translationY = cardTop * (1f - p)
-            val clipBottom = cardHeight + 20 + (screenHeight - cardHeight - 20) * p
-            AnimState(bgAlpha, snapAlpha, contAlpha, translationX, translationY, scale, clipBottom, p)
-        }
     }
 
     val isDark = isAppDarkTheme()
@@ -213,15 +184,15 @@ fun CourseDetailScreen(
         modifier = Modifier
             .fillMaxSize()
             .background(
-                if (isDark) ComposeColor(0xFF2C2C2C).copy(alpha = animState.value.bgAlpha)
-                else ComposeColor.Black.copy(alpha = animState.value.bgAlpha)
+                if (isDark) ComposeColor(0xFF2C2C2C).copy(alpha = animState.bgAlpha)
+                else ComposeColor.Black.copy(alpha = animState.bgAlpha)
             )
             .pointerInput(Unit) {
                 // Block touch events without the overhead of clickable
             }
     ) {
-        val s = animState.value
-        val clipShape = remember { AnimClipShape(screenWidth, screenCornerRadius, startCornerRadiusPx, animState) }
+        val s = animState
+        val clipShape = remember(animProgress) { AnimClipShape(screenWidth, screenCornerRadius, startCornerRadiusPx, animState) }
 
         Box(
             modifier = Modifier
@@ -275,16 +246,6 @@ fun CourseDetailScreen(
                                     IconButton(onClick = {
                                         hapticFeedback.performHapticFeedback(HapticFeedbackType.Confirm)
                                         onBackStart()
-                                        scope.launch {
-                                            animProgress.animateTo(
-                                                targetValue = 0f,
-                                                animationSpec = tween(
-                                                    durationMillis = 400,
-                                                    easing = morphExitEase
-                                                )
-                                            )
-                                            onBack()
-                                        }
                                     },
                                         modifier = Modifier.padding(start = 4.dp)
                                     ) {

@@ -40,15 +40,80 @@ object CourseReminderHelper {
     const val CHANNEL_LIVE_ID = "course_reminder_live"
     const val CHANNEL_LIVE_NAME = "课程提醒实况"
 
+    private const val PREF_SENT_HISTORY = "reminder_sent_history"
+    private const val KEY_LAST_SENT_COURSE = "last_sent_course"
+    private const val KEY_LAST_SENT_TIME = "last_sent_time"
+    // 同课程在 10 分钟内不重复发送立即通知
+    private const val SENT_DEDUP_WINDOW_MS = 10 * 60 * 1000L
+
+    // 跨日重调度检测
+    private const val PREF_DAY_CHANGE = "day_change_state"
+    private const val KEY_LAST_SCHEDULE_DATE = "last_schedule_date"
+
+    /**
+     * 记录已发送课前提醒的课程（去重用）
+     */
+    fun recordPreClassSent(context: Context, courseId: String) {
+        context.getSharedPreferences(PREF_SENT_HISTORY, Context.MODE_PRIVATE)
+            .edit()
+            .putString(KEY_LAST_SENT_COURSE, courseId)
+            .putLong(KEY_LAST_SENT_TIME, System.currentTimeMillis())
+            .apply()
+    }
+
+    /**
+     * 判断该课程是否在去重窗口内已发送过
+     */
+    fun isPreClassSentRecently(context: Context, courseId: String): Boolean {
+        val prefs = context.getSharedPreferences(PREF_SENT_HISTORY, Context.MODE_PRIVATE)
+        val lastCourse = prefs.getString(KEY_LAST_SENT_COURSE, null) ?: return false
+        val lastTime = prefs.getLong(KEY_LAST_SENT_TIME, 0L)
+        if (lastCourse != courseId) return false
+        return System.currentTimeMillis() - lastTime < SENT_DEDUP_WINDOW_MS
+    }
+
+    /**
+     * 跨日检测：若系统日期与上次调度日期不同，重新调度所有提醒。
+     * 解决"次日课程无提醒"问题：原调度仅基于今天的课程，
+     * 跨日后 widget refresh 触发本方法，自动为新一天重新注册课前/次日闹钟。
+     *
+     * 即使课前闹钟时间已过，[schedulePreClassAlarms] 的立即发送分支会兜底通知。
+     * 每分钟由 WidgetRefreshReceiver 调用，开销极低（仅 SharedPreferences 读取）。
+     */
+    fun checkAndRescheduleOnDayChange(context: Context) {
+        val today = getTodayDateString()
+        val prefs = context.getSharedPreferences(PREF_DAY_CHANGE, Context.MODE_PRIVATE)
+        val lastDate = prefs.getString(KEY_LAST_SCHEDULE_DATE, null)
+
+        if (lastDate == today) return
+
+        // 日期变化（或首次运行），重新调度
+        prefs.edit().putString(KEY_LAST_SCHEDULE_DATE, today).apply()
+        startReminderService(context)
+    }
+
+    private fun getTodayDateString(): String {
+        val cal = Calendar.getInstance()
+        val year = cal.get(Calendar.YEAR)
+        val month = cal.get(Calendar.MONTH) + 1
+        val day = cal.get(Calendar.DAY_OF_MONTH)
+        return "%04d-%02d-%02d".format(year, month, day)
+    }
+
     fun startReminderService(context: Context) {
         startReminderService(context, CourseRepository(context))
     }
 
     fun startReminderService(context: Context, repository: CourseRepository) {
+        val alarmManager = context.getSystemService(Context.ALARM_SERVICE) as AlarmManager
         if (!repository.getPreClassReminder() && !repository.getNextDayReminder()) {
+            // 两个开关都关闭时，取消所有提醒相关的闹钟
+            // 注意：widget 刷新闹钟独立于通知开关，不取消，避免桌面小部件停止刷新
+            cancelAllAlarms(context, alarmManager)
+            cancelIslandExpandAlarms(context, alarmManager)
+            cancelCourseStartAlarms(context, alarmManager)
             return
         }
-        val alarmManager = context.getSystemService(Context.ALARM_SERVICE) as AlarmManager
         scheduleAllAlarms(context, repository, alarmManager)
         scheduleWidgetRefresh(context, alarmManager)
     }
@@ -56,7 +121,9 @@ object CourseReminderHelper {
     fun stopReminderService(context: Context) {
         val alarmManager = context.getSystemService(Context.ALARM_SERVICE) as AlarmManager
         cancelAllAlarms(context, alarmManager)
-        cancelWidgetRefresh(context, alarmManager)
+        cancelIslandExpandAlarms(context, alarmManager)
+        cancelCourseStartAlarms(context, alarmManager)
+        // 注意：不取消 widget 刷新闹钟，避免桌面小部件停止刷新
     }
 
     fun isServiceRunning(): Boolean {
@@ -95,6 +162,43 @@ object CourseReminderHelper {
         alarmManager.cancel(nextDayPendingIntent)
     }
 
+    /**
+     * 取消所有 IslandExpandReceiver 闹钟（"已上课"切换触发器）
+     * 覆盖正式通知（1001-1003）和测试通知（5000）的固定 ID
+     */
+    private fun cancelIslandExpandAlarms(context: Context, alarmManager: AlarmManager) {
+        // 所有用过的固定 ID（详见 IslandNotificationHelper 中的定义）
+        val knownIds = listOf(1001, 1002, 1003, 5000)
+        for (id in knownIds) {
+            val intent = Intent(context, IslandExpandReceiver::class.java)
+            val pendingIntent = PendingIntent.getBroadcast(
+                context,
+                id,
+                intent,
+                PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+            )
+            alarmManager.cancel(pendingIntent)
+        }
+    }
+
+    /**
+     * 取消所有 CourseStartReceiver 闹钟（非岛模式下的"已上课"切换）
+     * request code 为 10000 + courseName.hashCode()
+     */
+    private fun cancelCourseStartAlarms(context: Context, alarmManager: AlarmManager) {
+        val allCourses = CourseRepository(context).getAllCourses()
+        for (course in allCourses) {
+            val intent = Intent(context, CourseStartReceiver::class.java)
+            val pendingIntent = PendingIntent.getBroadcast(
+                context,
+                10000 + course.name.hashCode(),
+                intent,
+                PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+            )
+            alarmManager.cancel(pendingIntent)
+        }
+    }
+
     private fun schedulePreClassAlarms(
         context: Context,
         repository: CourseRepository,
@@ -118,7 +222,6 @@ object CourseReminderHelper {
             course.dayOfWeek == today && course.isActiveInWeek(currentWeek)
         }.sortedBy { it.startSection }
 
-        var immediateSent = false
         val useIsland = repository.getIslandNotification() && IslandNotificationHelper.isIslandSupported(context)
 
         for ((index, course) in todayCourses.withIndex()) {
@@ -161,9 +264,12 @@ object CourseReminderHelper {
             }
 
             if (currentMinutes >= triggerMinutes) {
-                // 已过触发时间，只对下一个未开始的课程发送立即通知
-                if (currentMinutes < startTotalMinutes && !immediateSent) {
-                    immediateSent = true
+                // 已过触发时间，对未开始的课程发送立即通知
+                // 去重依赖 isPreClassSentRecently，每门课独立判断，不再用 immediateSent 阻断
+                val dedupCourseId = "${course.name}|${course.getSectionText()}|$startTime"
+                if (currentMinutes < startTotalMinutes
+                    && !isPreClassSentRecently(context, dedupCourseId)) {
+                    recordPreClassSent(context, dedupCourseId)
                     if (useIsland) {
                         val minutesUntil = startTotalMinutes - currentMinutes
                         IslandNotificationHelper.sendPreClassIslandNotification(
@@ -237,7 +343,14 @@ object CourseReminderHelper {
                 putExtra(EXTRA_COURSE_SECTION, course.getSectionText())
                 putExtra(EXTRA_COURSE_START_TIME, startTime)
                 putExtra(EXTRA_COURSE_TEACHER, course.teacher)
-                val courseStartMillis = alarmTime.timeInMillis + minutesBefore * 60_000L
+                // courseStartMillis 必须是课程实际上课时间，与 alarmTime（触发时间）解耦
+                // 连堂课触发时间可能是上一节课的结束时间，不能用 alarmTime + minutesBefore
+                val courseStartMillis = Calendar.getInstance().apply {
+                    set(Calendar.HOUR_OF_DAY, startHour)
+                    set(Calendar.MINUTE, startMinute)
+                    set(Calendar.SECOND, 0)
+                    set(Calendar.MILLISECOND, 0)
+                }.timeInMillis
                 putExtra(EXTRA_COURSE_START_MILLIS, courseStartMillis)
                 val endTimeStr = getCourseEndTime(course, repository)
                 if (endTimeStr != null) {
@@ -311,6 +424,96 @@ object CourseReminderHelper {
     }
 
     private fun scheduleWidgetRefresh(context: Context, alarmManager: AlarmManager) {
+        // 链式调度：每次触发后由 WidgetRefreshReceiver 重新注册下一次
+        // 根据是否有课进行中决定间隔，避免无课时每分钟唤醒
+        scheduleNextWidgetRefresh(context, alarmManager)
+    }
+
+    /**
+     * 计算下一次 widget 刷新的最佳触发时间：
+     * - 有课程进行中：下一分钟整点（保证倒计时及时更新）
+     * - 课程即将开始（5分钟内）：下一分钟整点（提前进入倒计时）
+     * - 其他情况（无课/课程远未开始）：下一次课程开始时间或 30 分钟后取较早者
+     *
+     * @return 下一次刷新的时间戳（毫秒）
+     */
+    fun computeNextWidgetRefreshTime(context: Context): Long {
+        val now = System.currentTimeMillis()
+        val cal = Calendar.getInstance()
+        val currentMinutes = cal.get(Calendar.HOUR_OF_DAY) * 60 + cal.get(Calendar.MINUTE)
+        val repository = CourseRepository(context)
+        val todayCourses = getTodayCourses(context)
+
+        // 检查是否有课程正在进行或即将开始（5分钟内）
+        var hasActiveCourse = false
+        var nextEventTime: Long? = null  // 下一个课程开始/结束时间
+
+        for (course in todayCourses) {
+            val startTime = getCourseStartTime(course, repository)
+            val endTime = getCourseEndTime(course, repository)
+            if (startTime == null || endTime == null) continue
+
+            val startParts = startTime.split(":")
+            val endParts = endTime.split(":")
+            if (startParts.size != 2 || endParts.size != 2) continue
+
+            val startMin = (startParts[0].toIntOrNull() ?: 0) * 60 + (startParts[1].toIntOrNull() ?: 0)
+            val endMin = (endParts[0].toIntOrNull() ?: 0) * 60 + (endParts[1].toIntOrNull() ?: 0)
+
+            // 课程进行中：需要每分钟刷新
+            if (currentMinutes in startMin until endMin) {
+                hasActiveCourse = true
+                break
+            }
+
+            // 课程即将开始（5分钟内）
+            val minutesToStart = startMin - currentMinutes
+            if (minutesToStart in 0..5) {
+                hasActiveCourse = true
+                break
+            }
+
+            // 记录下一个课程开始时间（仅未开始的课程）
+            if (minutesToStart > 0) {
+                val startCal = Calendar.getInstance().apply {
+                    set(Calendar.HOUR_OF_DAY, startParts[0].toInt())
+                    set(Calendar.MINUTE, startParts[1].toInt())
+                    set(Calendar.SECOND, 0)
+                    set(Calendar.MILLISECOND, 0)
+                }
+                if (startCal.timeInMillis > now) {
+                    if (nextEventTime == null || startCal.timeInMillis < nextEventTime) {
+                        nextEventTime = startCal.timeInMillis
+                    }
+                }
+            }
+        }
+
+        return if (hasActiveCourse) {
+            // 有课进行中：下一分钟整点刷新（对齐到分钟边界，确保倒计时及时变化）
+            val nextMinute = Calendar.getInstance().apply {
+                add(Calendar.MINUTE, 1)
+                set(Calendar.SECOND, 0)
+                set(Calendar.MILLISECOND, 0)
+            }
+            nextMinute.timeInMillis
+        } else if (nextEventTime != null) {
+            // 无课但有未来课程：在课程开始时间前 5 分钟开始刷新（提前显示倒计时）
+            // 但最迟不超过 30 分钟，避免长时间不刷新导致跨日检测延迟
+            val earlyRefresh = nextEventTime - 5 * 60 * 1000L
+            val maxRefresh = now + 30 * 60 * 1000L
+            minOf(earlyRefresh, maxRefresh)
+        } else {
+            // 今日无课或课程已全部结束：30 分钟后刷新（用于跨日检测）
+            now + 30 * 60 * 1000L
+        }
+    }
+
+    /**
+     * 调度下一次 widget 刷新（链式调度，由 WidgetRefreshReceiver 每次触发后调用）
+     * 使用 setExactAndAllowWhileIdle 保证在 Doze 模式下也能精确触发
+     */
+    fun scheduleNextWidgetRefresh(context: Context, alarmManager: AlarmManager) {
         val intent = Intent(context, WidgetRefreshReceiver::class.java).apply {
             action = WidgetRefreshReceiver.ACTION_REFRESH_WIDGET
         }
@@ -320,12 +523,16 @@ object CourseReminderHelper {
             intent,
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
         )
-        val triggerAt = System.currentTimeMillis() + 60_000L
+        // 先取消已有的刷新闹钟，避免重复
+        alarmManager.cancel(pendingIntent)
+
+        val triggerAt = computeNextWidgetRefreshTime(context)
         try {
-            alarmManager.setRepeating(
-                AlarmManager.RTC,
+            // 用 setExactAndAllowWhileIdle 保证在 Doze 下精确触发
+            // 用 RTC_WAKEUP 唤醒 CPU 进行刷新
+            alarmManager.setExactAndAllowWhileIdle(
+                AlarmManager.RTC_WAKEUP,
                 triggerAt,
-                60_000L,
                 pendingIntent
             )
         } catch (_: SecurityException) { }

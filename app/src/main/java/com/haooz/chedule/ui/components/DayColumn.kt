@@ -1,8 +1,9 @@
 /** 日期列组件 - 显示单日课程列表 */
 package com.haooz.chedule.ui.components
 
+import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
-import androidx.compose.foundation.clickable
+import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.fillMaxHeight
@@ -32,6 +33,7 @@ import top.yukonga.miuix.kmp.utils.PressFeedbackType
 /**
  * 单列星期（显示该天的所有课程）
  */
+@OptIn(ExperimentalFoundationApi::class)
 @Composable
 fun DayColumn(
     dayOfWeek: Int,
@@ -39,6 +41,7 @@ fun DayColumn(
     currentDay: Int,
     onCourseClick: (Course) -> Unit,
     onEmptyClick: (Int) -> Unit,
+    onEmptyLongPress: () -> Unit = {},
     morningSections: Int = 4,
     afternoonSections: Int = 4,
     eveningSections: Int = 3,
@@ -46,9 +49,14 @@ fun DayColumn(
     pendingDay: Int = -1,
     pendingSection: Int = -1,
     onPendingChange: (day: Int, section: Int) -> Unit = { _, _ -> },
+    wallpaperBackdrop: top.yukonga.miuix.kmp.blur.LayerBackdrop? = null,
+    cardBlurRadius: Float = 0f,
+    cardAlpha: Float = 0.15f,
+    cardHeightPerSection: Float = 54f,
+    cardCornerRadius: Float = 8f,
     modifier: Modifier = Modifier
 ) {
-    val totalHeight = (morningSections + afternoonSections + eveningSections) * 54 + 24 * 2
+    val totalHeight = ((morningSections + afternoonSections + eveningSections) * cardHeightPerSection + 24 * 2).toInt()
     val isDark = isAppDarkTheme()
     val isPendingDay = pendingDay == dayOfWeek
     val hapticFeedback = LocalHapticFeedback.current
@@ -70,13 +78,19 @@ fun DayColumn(
                 Box(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .height(54.dp)
+                        .height(cardHeightPerSection.dp)
                         .offset(y = currentOffset.dp)
                         .then(
                             if (!isSectionPending) {
-                                Modifier.clickable {
-                                    onPendingChange(dayOfWeek, section)
-                                }
+                                Modifier.combinedClickable(
+                                    onClick = {
+                                        onPendingChange(dayOfWeek, section)
+                                    },
+                                    onLongClick = {
+                                        hapticFeedback.performHapticFeedback(HapticFeedbackType.LongPress)
+                                        onEmptyLongPress()
+                                    }
+                                )
                             } else {
                                 Modifier
                             }
@@ -88,7 +102,7 @@ fun DayColumn(
                             modifier = Modifier
                                 .fillMaxSize()
                                 .padding(horizontal = 2.dp, vertical = 2.dp),
-                            cornerRadius = 8.dp,
+                            cornerRadius = cardCornerRadius.dp,
                             insideMargin = PaddingValues(0.dp),
                             pressFeedbackType = PressFeedbackType.Sink,
                             showIndication = true,
@@ -114,10 +128,11 @@ fun DayColumn(
                         }
                     }
                 }
-                currentOffset += 54
+                currentOffset += cardHeightPerSection.toInt()
             }
 
             // 午休分界线
+            val dividerColor = if (cardBlurRadius > 0f) Color.Transparent else MiuixTheme.colorScheme.surfaceContainer
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -129,7 +144,7 @@ fun DayColumn(
                     modifier = Modifier
                         .fillMaxWidth()
                         .height(20.dp)
-                        .background(MiuixTheme.colorScheme.surfaceContainer)
+                        .background(dividerColor)
                 )
             }
             currentOffset += 24
@@ -142,13 +157,19 @@ fun DayColumn(
                 Box(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .height(54.dp)
+                        .height(cardHeightPerSection.dp)
                         .offset(y = currentOffset.dp)
                         .then(
                             if (!isSectionPending) {
-                                Modifier.clickable {
-                                    onPendingChange(dayOfWeek, section)
-                                }
+                                Modifier.combinedClickable(
+                                    onClick = {
+                                        onPendingChange(dayOfWeek, section)
+                                    },
+                                    onLongClick = {
+                                        hapticFeedback.performHapticFeedback(HapticFeedbackType.LongPress)
+                                        onEmptyLongPress()
+                                    }
+                                )
                             } else {
                                 Modifier
                             }
@@ -160,12 +181,12 @@ fun DayColumn(
                             modifier = Modifier
                                 .fillMaxSize()
                                 .padding(horizontal = 2.dp, vertical = 2.dp),
-                            cornerRadius = 8.dp,
+                            cornerRadius = cardCornerRadius.dp,
                             insideMargin = PaddingValues(0.dp),
                             pressFeedbackType = PressFeedbackType.Sink,
                             showIndication = true,
                             colors = CardDefaults.defaultColors(
-                                color = Color(0xFF9E9E9E).copy(alpha = if (isDark) 0.14f else 0.08f),
+                                color = Color(0xFF9E9E9E).copy(alpha = if (isDark) 0.13f else 0.15f),
                                 contentColor = Color(0xFF9E9E9E).copy(alpha = 0.5f)
                             ),
                             onClick = {
@@ -186,7 +207,7 @@ fun DayColumn(
                         }
                     }
                 }
-                currentOffset += 54
+                currentOffset += cardHeightPerSection.toInt()
             }
 
             // 晚休分界线
@@ -201,7 +222,7 @@ fun DayColumn(
                     modifier = Modifier
                         .fillMaxWidth()
                         .height(20.dp)
-                        .background(MiuixTheme.colorScheme.surfaceContainer)
+                        .background(dividerColor)
                 )
             }
             currentOffset += 24
@@ -214,13 +235,19 @@ fun DayColumn(
                 Box(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .height(54.dp)
+                        .height(cardHeightPerSection.dp)
                         .offset(y = currentOffset.dp)
                         .then(
                             if (!isSectionPending) {
-                                Modifier.clickable {
-                                    onPendingChange(dayOfWeek, section)
-                                }
+                                Modifier.combinedClickable(
+                                    onClick = {
+                                        onPendingChange(dayOfWeek, section)
+                                    },
+                                    onLongClick = {
+                                        hapticFeedback.performHapticFeedback(HapticFeedbackType.LongPress)
+                                        onEmptyLongPress()
+                                    }
+                                )
                             } else {
                                 Modifier
                             }
@@ -232,7 +259,7 @@ fun DayColumn(
                             modifier = Modifier
                                 .fillMaxSize()
                                 .padding(horizontal = 2.dp, vertical = 2.dp),
-                            cornerRadius = 8.dp,
+                            cornerRadius = cardCornerRadius.dp,
                             insideMargin = PaddingValues(0.dp),
                             pressFeedbackType = PressFeedbackType.Sink,
                             showIndication = true,
@@ -258,7 +285,7 @@ fun DayColumn(
                         }
                     }
                 }
-                currentOffset += 54
+                currentOffset += cardHeightPerSection.toInt()
             }
 
             // 课程卡片
@@ -302,11 +329,11 @@ fun DayColumn(
             displayedCourses.forEach { course ->
                 var courseOffset = 0
                 if (course.startSection <= morningSections) {
-                    courseOffset = (course.startSection - 1) * 54
+                    courseOffset = ((course.startSection - 1) * cardHeightPerSection).toInt()
                 } else if (course.startSection <= morningSections + afternoonSections) {
-                    courseOffset = morningSections * 54 + 24 + (course.startSection - morningSections - 1) * 54
+                    courseOffset = (morningSections * cardHeightPerSection + 24 + (course.startSection - morningSections - 1) * cardHeightPerSection).toInt()
                 } else {
-                    courseOffset = morningSections * 54 + 24 + afternoonSections * 54 + 24 + (course.startSection - morningSections - afternoonSections - 1) * 54
+                    courseOffset = (morningSections * cardHeightPerSection + 24 + afternoonSections * cardHeightPerSection + 24 + (course.startSection - morningSections - afternoonSections - 1) * cardHeightPerSection).toInt()
                 }
 
                 val isCurrentWeekCourse = course.isActiveInWeek(currentWeek)
@@ -321,6 +348,11 @@ fun DayColumn(
                         course = course,
                         isCurrentWeek = isCurrentWeekCourse,
                         hasMultipleCourses = hasHiddenCourses,
+                        wallpaperBackdrop = wallpaperBackdrop,
+                        cardBlurRadius = cardBlurRadius,
+                        cardAlpha = cardAlpha,
+                        cardHeightPerSection = cardHeightPerSection,
+                        cardCornerRadius = cardCornerRadius,
                         onClick = {
                             onPendingChange(-1, -1)
                             onCourseClick(course)

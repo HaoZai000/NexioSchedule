@@ -13,8 +13,14 @@ class WidgetRefreshReceiver : BroadcastReceiver() {
 
     override fun onReceive(context: Context, intent: Intent) {
         if (intent.action == ACTION_REFRESH_WIDGET) {
+            // 跨日检测：日期变化时重新调度闹钟（覆盖次日课程无提醒的场景）
+            CourseReminderHelper.checkAndRescheduleOnDayChange(context)
             com.haooz.chedule.widget.CourseWidgetProvider.updateAllWidgets(context)
             CourseReminderHelper.updateActiveCountdown(context)
+            // 链式调度下一次刷新：根据是否有课进行中决定下次刷新时间
+            // 有课时每分钟刷新（保证倒计时及时更新），无课时延长间隔省电
+            val alarmManager = context.getSystemService(Context.ALARM_SERVICE) as android.app.AlarmManager
+            CourseReminderHelper.scheduleNextWidgetRefresh(context, alarmManager)
         }
     }
 }

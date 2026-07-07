@@ -7,13 +7,10 @@ import top.yukonga.miuix.kmp.blur.asBrush
 import kotlin.math.cos
 import kotlin.math.sin
 
-internal class BgEffectPainter(
-    private val isOs3: Boolean = true,
-) {
+internal class BgEffectPainter {
 
     val runtimeShader by lazy {
-        val shaderCode = if (isOs3) OS3_BG_FRAG else OS2_BG_FRAG
-        RuntimeShader(shaderCode).also {
+        RuntimeShader(OS3_BG_FRAG).also {
             initStaticUniforms(it)
         }
     }
@@ -27,7 +24,7 @@ internal class BgEffectPainter(
 
     private var animTime = Float.NaN
     private var isDarkCached: Boolean? = null
-    private var deviceTypeCached: DeviceType? = null
+    private var isTabletCached: Boolean? = null
 
     private var presetApplied = false
 
@@ -131,18 +128,18 @@ internal class BgEffectPainter(
         cachedTotalWidth = totalWidth
     }
 
-    fun updatePresetIfNeeded(deviceType: DeviceType, isDark: Boolean) {
-        if (presetApplied && isDarkCached == isDark && deviceTypeCached == deviceType) return
+    fun updatePresetIfNeeded(isDark: Boolean, isTablet: Boolean) {
+        if (presetApplied && isDarkCached == isDark && isTabletCached == isTablet) return
 
-        applyPreset(deviceType, isDark)
+        applyPreset(isDark, isTablet)
 
         isDarkCached = isDark
-        deviceTypeCached = deviceType
+        isTabletCached = isTablet
         presetApplied = true
     }
 
-    private fun applyPreset(deviceType: DeviceType, isDark: Boolean) {
-        val preset = BgEffectConfig.get(deviceType, isDark, isOs3)
+    private fun applyPreset(isDark: Boolean, isTablet: Boolean) {
+        val preset = BgEffectConfig.get(isDark, isTablet)
 
         runtimeShader.setFloatUniform("uPoints", preset.points)
         runtimeShader.setFloatUniform("uLightOffset", preset.lightOffset)

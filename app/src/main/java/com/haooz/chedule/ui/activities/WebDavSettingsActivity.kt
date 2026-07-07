@@ -7,6 +7,7 @@ import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.activity.SystemBarStyle
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -19,7 +20,7 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.widthIn
+
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.material3.Text
@@ -36,6 +37,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.RectangleShape
 import androidx.compose.ui.graphics.SolidColor
@@ -154,8 +156,8 @@ fun WebDavSettingsScreen(onBack: () -> Unit) {
         drawContent()
     }
     val isDark = isAppDarkTheme()
-    val blurAlpha = if (listScrollY < 50) 0f else ((listScrollY - 50) / 50f).coerceIn(0f, 0.7f)
-    val topBarColorProgress = ((listScrollY - 50) / 50f).coerceIn(0f, 1f)
+    val blurAlpha = if (listScrollY < 50) 0f else ((listScrollY - 50) / 30f).coerceIn(0f, 0.7f)
+    val topBarColorProgress = ((listScrollY - 50) / 30f).coerceIn(0f, 1f)
     val topBarColor = if (listScrollY < 50) {
         MiuixTheme.colorScheme.surface
     } else {
@@ -238,7 +240,7 @@ fun WebDavSettingsScreen(onBack: () -> Unit) {
             )
         }
     ) { paddingValues ->
-        Column(
+        Box(
             modifier = Modifier
                 .fillMaxSize()
                 .layerBackdrop(backdrop)
@@ -253,7 +255,7 @@ fun WebDavSettingsScreen(onBack: () -> Unit) {
             LazyColumn(
                 state = listState,
                 modifier = Modifier
-                    .weight(1f)
+                    .fillMaxSize()
                     .overScrollVertical()
                     .scrollEndHaptic(
                         hapticFeedbackType = HapticFeedbackType.TextHandleMove
@@ -263,7 +265,7 @@ fun WebDavSettingsScreen(onBack: () -> Unit) {
                     start = 16.dp,
                     end = 16.dp,
                     top = paddingValues.calculateTopPadding() + 12.dp,
-                    bottom = 16.dp
+                    bottom = 120.dp
                 ),
                 verticalArrangement = Arrangement.spacedBy(12.dp)
             ) {
@@ -338,7 +340,7 @@ fun WebDavSettingsScreen(onBack: () -> Unit) {
                                 androidx.compose.foundation.text.BasicTextField(
                                     value = serverUrl,
                                     onValueChange = { serverUrl = it },
-                                    modifier = Modifier.widthIn(max = 200.dp),
+                                    modifier = Modifier.fillMaxWidth(0.65f),
                                     singleLine = true,
                                     textStyle = TextStyle(
                                         textAlign = TextAlign.End,
@@ -380,7 +382,7 @@ fun WebDavSettingsScreen(onBack: () -> Unit) {
                                 androidx.compose.foundation.text.BasicTextField(
                                     value = username,
                                     onValueChange = { username = it },
-                                    modifier = Modifier.widthIn(max = 200.dp),
+                                    modifier = Modifier.fillMaxWidth(0.65f),
                                     singleLine = true,
                                     textStyle = TextStyle(
                                         textAlign = TextAlign.End,
@@ -422,7 +424,7 @@ fun WebDavSettingsScreen(onBack: () -> Unit) {
                                 androidx.compose.foundation.text.BasicTextField(
                                     value = password,
                                     onValueChange = { password = it },
-                                    modifier = Modifier.widthIn(max = 200.dp),
+                                    modifier = Modifier.fillMaxWidth(0.65f),
                                     singleLine = true,
                                     textStyle = TextStyle(
                                         textAlign = TextAlign.End,
@@ -502,6 +504,24 @@ fun WebDavSettingsScreen(onBack: () -> Unit) {
                 }
             }
 
+            // 底部渐变遮罩
+            Box(
+                modifier = Modifier
+                    .align(Alignment.BottomCenter)
+                    .fillMaxWidth()
+                    .height(120.dp)
+                    .background(
+                        brush = Brush.verticalGradient(
+                            colorStops = arrayOf(
+                                0.0f to ComposeColor.Transparent,
+                                0.15f to backgroundColor.copy(alpha = 0.5f),
+                                0.5f to backgroundColor.copy(alpha = 0.85f),
+                                1.0f to backgroundColor
+                            )
+                        )
+                    )
+            )
+
             // 立即同步按钮 - 固定在底部
             TextButton(
                 text = if (syncing) "同步中..." else "立即同步",
@@ -538,6 +558,7 @@ fun WebDavSettingsScreen(onBack: () -> Unit) {
                 },
                 colors = ButtonDefaults.textButtonColorsPrimary(),
                 modifier = Modifier
+                    .align(Alignment.BottomCenter)
                     .fillMaxWidth()
                     .padding(start = 32.dp, end = 32.dp, bottom = 48.dp)
             )

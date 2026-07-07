@@ -14,6 +14,7 @@ import androidx.activity.SystemBarStyle
 import androidx.activity.enableEdgeToEdge
 import androidx.activity.compose.setContent
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -40,6 +41,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.RectangleShape
 import androidx.compose.ui.graphics.lerp
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
@@ -193,8 +195,8 @@ private fun CourseReminderScreen(
         drawContent()
     }
     val isDark = isAppDarkTheme()
-    val blurAlpha = if (listScrollY < 50) 0f else ((listScrollY - 50) / 50f).coerceIn(0f, 0.7f)
-    val topBarColorProgress = ((listScrollY - 50) / 50f).coerceIn(0f, 1f)
+    val blurAlpha = if (listScrollY < 50) 0f else ((listScrollY - 50) / 30f).coerceIn(0f, 0.7f)
+    val topBarColorProgress = ((listScrollY - 50) / 30f).coerceIn(0f, 1f)
     val topBarColor = if (listScrollY < 50) {
         MiuixTheme.colorScheme.surface
     } else {
@@ -252,10 +254,19 @@ private fun CourseReminderScreen(
         ) {
             val listState = rememberLazyListState()
             LaunchedEffect(listState) {
-                snapshotFlow { listState.firstVisibleItemScrollOffset }
-                    .collect { offset ->
-                        listScrollY = offset
+                snapshotFlow {
+                    listState.firstVisibleItemIndex to listState.firstVisibleItemScrollOffset
+                }.collect { (index, offset) ->
+                    listScrollY = if (index > 0) {
+                        val firstItem = listState.layoutInfo.visibleItemsInfo.firstOrNull()
+                        val accumulated = if (firstItem != null)
+                            (firstItem.offset - listState.layoutInfo.beforeContentPadding).coerceAtLeast(0)
+                        else 0
+                        accumulated + offset
+                    } else {
+                        offset
                     }
+                }
             }
             LazyColumn(
                 state = listState,
@@ -299,6 +310,9 @@ private fun CourseReminderScreen(
                                 settingsViewModel.setNextDayReminder(it)
                                 if (it) {
                                     CourseReminderHelper.startReminderService(context)
+                                } else {
+                                    // 关闭总开关：取消所有已注册闹钟，避免残留
+                                    CourseReminderHelper.stopReminderService(context)
                                 }
                             }
                         )
@@ -327,9 +341,8 @@ private fun CourseReminderScreen(
                                     return@SwitchPreference
                                 }
                                 settingsViewModel.setPreClassReminder(it)
-                                if (it) {
-                                    CourseReminderHelper.startReminderService(context)
-                                }
+                                // 无论开启还是关闭，都重新调度（startReminderService 内部会处理关闭分支）
+                                CourseReminderHelper.startReminderService(context)
                             }
                         )
                         if (preClassReminder && masterEnabled) {
@@ -362,9 +375,8 @@ private fun CourseReminderScreen(
                                     return@SwitchPreference
                                 }
                                 settingsViewModel.setNextDayReminder(it)
-                                if (it) {
-                                    CourseReminderHelper.startReminderService(context)
-                                }
+                                // 无论开启还是关闭，都重新调度（startReminderService 内部会处理关闭分支）
+                                CourseReminderHelper.startReminderService(context)
                             }
                         )
                         if (nextDayReminder && masterEnabled) {
@@ -400,7 +412,7 @@ private fun CourseReminderScreen(
                             ) {
                                 SwitchPreference(
                                     title = "小米超级岛",
-                                    summary = if (islandNotification) "已开启，课程提醒将以超级岛样式显示" else "关闭后使用普通通知",
+                                    summary = if (islandNotification) "已开启，课程提醒将以超级岛样式显示" else "关闭后使用实时动态通知",
                                     checked = islandNotification,
                                     onCheckedChange = {
                                         settingsViewModel.setIslandNotification(it)
@@ -457,7 +469,6 @@ private fun CourseReminderScreen(
                                                         }
                                                     }
                                                 },
-                                                colors = top.yukonga.miuix.kmp.basic.ButtonDefaults.textButtonColorsPrimary(),
                                                 modifier = Modifier.fillMaxWidth()
                                             )
                                         }
@@ -505,7 +516,6 @@ private fun CourseReminderScreen(
                                             batteryOptLauncher.launch(intent)
                                         }
                                     },
-                                    colors = top.yukonga.miuix.kmp.basic.ButtonDefaults.textButtonColorsPrimary(),
                                     modifier = Modifier.fillMaxWidth()
                                 )
                             }
@@ -545,7 +555,6 @@ private fun CourseReminderScreen(
                                         }
                                         autoStartLauncher.launch(intent)
                                     },
-                                    colors = top.yukonga.miuix.kmp.basic.ButtonDefaults.textButtonColorsPrimary(),
                                     modifier = Modifier.fillMaxWidth()
                                 )
                             }
@@ -578,14 +587,13 @@ private fun CourseReminderScreen(
                                 )
                                 Spacer(modifier = Modifier.height(12.dp))
                                 TextButton(
-                                    text = "前往开启",
+                                    text = "前往开启精确闹钟",
                                     onClick = {
                                         val intent = Intent(android.provider.Settings.ACTION_REQUEST_SCHEDULE_EXACT_ALARM).apply {
                                             data = Uri.parse("package:${context.packageName}")
                                         }
                                         exactAlarmLauncher.launch(intent)
                                     },
-                                    colors = top.yukonga.miuix.kmp.basic.ButtonDefaults.textButtonColorsPrimary(),
                                     modifier = Modifier.fillMaxWidth()
                                 )
                             }
@@ -618,7 +626,7 @@ private fun CourseReminderScreen(
                                 )
                                 Spacer(modifier = Modifier.height(12.dp))
                                 TextButton(
-                                    text = "前往开启",
+                                    text = "前往开启实时动态",
                                     onClick = {
                                         try {
                                             val intent = Intent("android.settings.MANAGE_APP_PROMOTED_NOTIFICATIONS").apply {
@@ -640,6 +648,24 @@ private fun CourseReminderScreen(
                     }
                 }
             }
+
+            // 底部渐变遮罩
+            Box(
+                modifier = Modifier
+                    .align(Alignment.BottomCenter)
+                    .fillMaxWidth()
+                    .height(120.dp)
+                    .background(
+                        brush = Brush.verticalGradient(
+                            colorStops = arrayOf(
+                                0.0f to ComposeColor.Transparent,
+                                0.15f to backgroundColor.copy(alpha = 0.5f),
+                                0.5f to backgroundColor.copy(alpha = 0.85f),
+                                1.0f to backgroundColor
+                            )
+                        )
+                    )
+            )
 
             // 发送测试通知 - 固定在底部
             TextButton(

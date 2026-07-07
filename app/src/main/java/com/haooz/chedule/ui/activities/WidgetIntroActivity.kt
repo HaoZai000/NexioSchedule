@@ -32,6 +32,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.platform.LocalHapticFeedback
@@ -118,13 +119,34 @@ private fun WidgetIntroScreen(onBack: () -> Unit) {
                 modifier = Modifier.fillMaxWidth().padding(horizontal = 18.dp),
                 verticalArrangement = Arrangement.spacedBy(20.dp)
             ) {
-                FeatureItem("今日课程一目了然", "桌面直接显示当天课程、时间、地点和教师信息")
+                FeatureItem("今日课程一目了然", "桌面显示当天课程、时间、地点和教师信息")
+                FeatureItem("明日课程提前预览", "开启次日课程提醒后，智能显示明日课程")
                 FeatureItem("进行中课程高亮", "正在上课的课程高亮显示剩余时间")
                 FeatureItem("智能显示状态", "智能提醒今日课程当前状态")
             }
 
-            Spacer(modifier = Modifier.weight(1f))
+            Spacer(modifier = Modifier.height(120.dp))
+        }
 
+            // 底部渐变遮罩
+            Box(
+                modifier = Modifier
+                    .align(Alignment.BottomCenter)
+                    .fillMaxWidth()
+                    .height(120.dp)
+                    .background(
+                        brush = Brush.verticalGradient(
+                            colorStops = arrayOf(
+                                0.0f to ComposeColor.Transparent,
+                                0.15f to MiuixTheme.colorScheme.surface.copy(alpha = 0.5f),
+                                0.5f to MiuixTheme.colorScheme.surface.copy(alpha = 0.85f),
+                                1.0f to MiuixTheme.colorScheme.surface
+                            )
+                        )
+                    )
+            )
+
+            // 添加到桌面按钮 - 固定在底部
             TextButton(
                 text = "添加到桌面",
                 onClick = {
@@ -133,10 +155,10 @@ private fun WidgetIntroScreen(onBack: () -> Unit) {
                 },
                 colors = top.yukonga.miuix.kmp.basic.ButtonDefaults.textButtonColorsPrimary(),
                 modifier = Modifier
+                    .align(Alignment.BottomCenter)
                     .fillMaxWidth()
-                    .padding(top = 24.dp, end= 16.dp, start = 16.dp, bottom = 32.dp)
+                    .padding(start = 32.dp, end = 32.dp, bottom = 48.dp)
             )
-        }
 
         OverlayDialog(
             title = "添加桌面小部件",

@@ -3,7 +3,6 @@ package com.haooz.chedule.effect
 
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.spring
-import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.Box
 import com.haooz.chedule.ui.activities.isAppDarkTheme
 import androidx.compose.foundation.layout.BoxScope
@@ -13,6 +12,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalConfiguration
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.isActive
 import top.yukonga.miuix.kmp.blur.isRuntimeShaderSupported
@@ -26,7 +26,6 @@ fun BgEffectBackground(
     bgModifier: Modifier = Modifier,
     isFullSize: Boolean = false,
     effectBackground: Boolean = true,
-    isOs3Effect: Boolean = true,
     alpha: () -> Float = { 1f },
     content: @Composable (BoxScope.() -> Unit),
 ) {
@@ -39,12 +38,12 @@ fun BgEffectBackground(
         modifier = modifier,
     ) {
         val surface = MiuixTheme.colorScheme.surface
-        val deviceType = DeviceType.PHONE
         val isDarkTheme = isAppDarkTheme()
-        val painter = remember(isOs3Effect) { BgEffectPainter(isOs3Effect) }
+        val isTablet = LocalConfiguration.current.screenWidthDp >= 600
+        val painter = remember { BgEffectPainter() }
 
-        val preset = remember(deviceType, isDarkTheme, isOs3Effect) {
-            BgEffectConfig.get(deviceType, isDarkTheme, isOs3Effect)
+        val preset = remember(isDarkTheme, isTablet) {
+            BgEffectConfig.get(isDarkTheme, isTablet)
         }
 
         val colorStage = remember { Animatable(0f) }
@@ -72,7 +71,6 @@ fun BgEffectBackground(
                 .bgEffectDraw(
                     painter = painter,
                     preset = preset,
-                    deviceType = deviceType,
                     isDarkTheme = isDarkTheme,
                     surface = surface,
                     effectBackground = effectBackground,
@@ -80,6 +78,7 @@ fun BgEffectBackground(
                     playing = dynamicBackground,
                     colorStage = { colorStage.value },
                     alpha = alpha,
+                    isTablet = isTablet,
                 ),
         )
         content()

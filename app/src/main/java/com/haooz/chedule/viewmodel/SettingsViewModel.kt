@@ -76,6 +76,10 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
     private val _defaultHomepage = MutableStateFlow(repository.getDefaultHomepage())
     val defaultHomepage: StateFlow<String> = _defaultHomepage.asStateFlow()
 
+    // 底栏样式
+    private val _navBarStyle = MutableStateFlow(repository.getNavBarStyle())
+    val navBarStyle: StateFlow<String> = _navBarStyle.asStateFlow()
+
     // 兼容：将各时段的相对节次时间合并为全局绝对编号的扁平映射
     // 上午节次保持原编号，下午节次偏移上午节数，晚上节次偏移上午+下午节数
     val sectionTimes: StateFlow<Map<Int, String>> = run {
@@ -112,6 +116,7 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
         _nextDayReminderMinute.value = repository.getNextDayReminderMinute()
         _islandNotification.value = repository.getIslandNotification()
         _defaultHomepage.value = repository.getDefaultHomepage()
+        _navBarStyle.value = repository.getNavBarStyle()
     }
 
     fun setShowWeekendDays(days: Set<Int>) {
@@ -127,6 +132,11 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
     fun setDefaultHomepage(homepage: String) {
         _defaultHomepage.value = homepage
         repository.setDefaultHomepage(homepage)
+    }
+
+    fun setNavBarStyle(style: String) {
+        _navBarStyle.value = style
+        repository.setNavBarStyle(style)
     }
 
     // --- 节数设置 ---

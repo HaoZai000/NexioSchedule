@@ -16,4 +16,7 @@
     <color name="widget_time_end_color">#55000000</color>
     <color name="widget_now_color">#FF2196F3</color>
     <color name="widget_empty_color">#99000000</color>
+
+    <!-- 启动背景：与主界面背景一致，避免冷启动白屏/二次闪烁 -->
+    <color name="launch_background">#FFF7F7F7</color>
 </resources>

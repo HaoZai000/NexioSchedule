@@ -7,6 +7,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import com.haooz.chedule.ui.activities.isAppDarkTheme
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -23,6 +24,8 @@ fun SectionColumn(
     afternoonSections: Int = 4,
     eveningSections: Int = 3,
     sectionTimes: Map<Int, String> = Course.defaultSectionTimes,
+    cardHeightPerSection: Float = 54f,
+    cardBlurRadius: Float = 0f,
     modifier: Modifier = Modifier
 ) {
     // 缓存时间字符串拆分结果，避免每次重组重复 split
@@ -34,7 +37,7 @@ fun SectionColumn(
         }
     }
 
-    val totalHeight = totalSections * 54 + 24 * 2
+    val totalHeight = (totalSections * cardHeightPerSection + 24 * 2).toInt()
 
     Box(
         modifier = modifier
@@ -46,11 +49,12 @@ fun SectionColumn(
         // 上午节次
         (1..morningSections).forEach { section ->
             val (startTime, endTime) = timePairs[section - 1]
-            SectionItem(section, startTime, endTime, currentOffset)
-            currentOffset += 54
+            SectionItem(section, startTime, endTime, currentOffset, cardHeightPerSection)
+            currentOffset += cardHeightPerSection.toInt()
         }
 
         // 午休分界线
+        val dividerColor = if (cardBlurRadius > 0f) Color.Transparent else MiuixTheme.colorScheme.surfaceContainer
         Box(
             modifier = Modifier
                 .fillMaxWidth()
@@ -62,7 +66,7 @@ fun SectionColumn(
                 modifier = Modifier
                     .fillMaxWidth()
                     .height(20.dp)
-                    .background(MiuixTheme.colorScheme.surfaceContainer)
+                    .background(dividerColor)
             )
         }
         currentOffset += 24
@@ -72,8 +76,8 @@ fun SectionColumn(
         val afternoonEnd = morningSections + afternoonSections
         (afternoonStart..afternoonEnd).forEach { section ->
             val (startTime, endTime) = timePairs[section - 1]
-            SectionItem(section, startTime, endTime, currentOffset)
-            currentOffset += 54
+            SectionItem(section, startTime, endTime, currentOffset, cardHeightPerSection)
+            currentOffset += cardHeightPerSection.toInt()
         }
 
         // 晚休分界线
@@ -88,7 +92,7 @@ fun SectionColumn(
                 modifier = Modifier
                     .fillMaxWidth()
                     .height(20.dp)
-                    .background(MiuixTheme.colorScheme.surfaceContainer)
+                    .background(dividerColor)
             )
         }
         currentOffset += 24
@@ -98,18 +102,18 @@ fun SectionColumn(
         val eveningEnd = morningSections + afternoonSections + eveningSections
         (eveningStart..eveningEnd).forEach { section ->
             val (startTime, endTime) = timePairs[section - 1]
-            SectionItem(section, startTime, endTime, currentOffset)
-            currentOffset += 54
+            SectionItem(section, startTime, endTime, currentOffset, cardHeightPerSection)
+            currentOffset += cardHeightPerSection.toInt()
         }
     }
 }
 
 @Composable
-private fun SectionItem(section: Int, startTime: String, endTime: String, yOffset: Int) {
+private fun SectionItem(section: Int, startTime: String, endTime: String, yOffset: Int, cardHeightPerSection: Float = 54f) {
     Box(
         modifier = Modifier
             .fillMaxWidth()
-            .height(54.dp)
+            .height(cardHeightPerSection.dp)
             .offset(y = yOffset.dp),
         contentAlignment = Alignment.Center
     ) {

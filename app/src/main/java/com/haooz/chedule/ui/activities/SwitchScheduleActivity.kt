@@ -1,4 +1,4 @@
-﻿/** 切换课程表页面 */
+/** 切换课程表页面 */
 package com.haooz.chedule.ui.activities
 
 import android.annotation.SuppressLint
@@ -199,8 +199,8 @@ fun SwitchScheduleScreen(
         saturation = 1.2f
     )
 
-    val blurAlpha by remember { derivedStateOf { if (listScrollY < 50) 0f else ((listScrollY - 50) / 50f).coerceIn(0f, 0.7f) } }
-    val topBarColorProgress by remember { derivedStateOf { ((listScrollY - 50) / 50f).coerceIn(0f, 1f) } }
+    val blurAlpha by remember { derivedStateOf { if (listScrollY < 50) 0f else ((listScrollY - 50) / 30f).coerceIn(0f, 0.7f) } }
+    val topBarColorProgress by remember { derivedStateOf { ((listScrollY - 50) / 30f).coerceIn(0f, 1f) } }
     val surface = MiuixTheme.colorScheme.surface
     val darkTarget = if (isDark) ComposeColor.Black.copy(alpha = 0.7f) else ComposeColor.White.copy(alpha = 0.7f)
     val topBarColor by remember {

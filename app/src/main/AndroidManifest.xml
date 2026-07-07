@@ -186,7 +186,7 @@
         <receiver
             android:name=".widget.CourseWidgetProvider"
             android:exported="true"
-            android:label="今日课程">
+            android:label="课程提醒">
             <intent-filter>
                 <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
             </intent-filter>

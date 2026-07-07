@@ -1,8 +1,7 @@
-﻿/** 关于页面 */
+/** 关于页面 */
 package com.haooz.chedule.ui.activities
 
 import android.content.Intent
-import android.graphics.Bitmap
 import android.graphics.Canvas
 import android.os.Bundle
 import androidx.activity.ComponentActivity
@@ -57,6 +56,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.LayoutDirection
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.core.graphics.createBitmap
 import com.haooz.chedule.effect.BgEffectBackground
 import com.haooz.chedule.ui.components.BlurredBar
 import com.haooz.chedule.ui.components.rememberBlurBackdrop
@@ -149,7 +149,6 @@ private fun AboutScreen(onBack: () -> Unit) {
     val blurActive by remember(backdrop) { derivedStateOf { backdrop != null && scrollProgress == 1f } }
 
     var dynamicBackground by remember { mutableStateOf(true) }
-    var isOs3Effect by remember { mutableStateOf(true) }
 
     val logoBlend = remember(isInDark) {
         if (isInDark) {
@@ -216,7 +215,6 @@ private fun AboutScreen(onBack: () -> Unit) {
     ) { innerPadding ->
         BgEffectBackground(
             dynamicBackground = dynamicBackground,
-            isOs3Effect = isOs3Effect,
             isFullSize = true,
             modifier = Modifier.fillMaxSize(),
             bgModifier = if (backdrop != null) Modifier.layerBackdrop(backdrop) else Modifier,
@@ -237,10 +235,9 @@ private fun AboutScreen(onBack: () -> Unit) {
                         context.getDrawable(resId)
                     }
                     if (drawable != null) {
-                        val bitmap = Bitmap.createBitmap(
+                        val bitmap = createBitmap(
                             drawable.intrinsicWidth.coerceAtLeast(1),
-                            drawable.intrinsicHeight.coerceAtLeast(1),
-                            Bitmap.Config.ARGB_8888
+                            drawable.intrinsicHeight.coerceAtLeast(1)
                         )
                         val canvas = Canvas(bitmap)
                         drawable.setBounds(0, 0, canvas.width, canvas.height)
@@ -353,7 +350,7 @@ private fun AboutScreen(onBack: () -> Unit) {
                         Card(
                             modifier = Modifier
                                 .padding(horizontal = 16.dp)
-                                .padding(top = 8.dp)
+                                .padding(top = 16.dp)
                                 .then(
                                     if (backdrop != null) {
                                         Modifier.textureBlur(
@@ -634,45 +631,48 @@ private fun AboutScreen(onBack: () -> Unit) {
                                 }
                             }
                         }
-                        Spacer(modifier = Modifier.height(20.dp))
-                        Column(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(bottom = 60.dp),
-                            horizontalAlignment = Alignment.CenterHorizontally
+                        Spacer(modifier = Modifier.height(8.dp))
+                        Card(
+                            modifier = Modifier.fillMaxWidth(),
+                            colors = CardDefaults.defaultColors(
+                                color = Color.Transparent,
+                            )
                         ) {
-                            val uriHandler = LocalUriHandler.current
-
-                            Row(
-                                verticalAlignment = Alignment.CenterVertically
+                            Column(
+                                modifier = Modifier.fillMaxWidth().padding(16.dp),
+                                horizontalAlignment = Alignment.CenterHorizontally
                             ) {
+                                Row(
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Text(
+                                        text = "© 2026 Nexio课程表 · 作者:",
+                                        fontSize = 13.sp,
+                                        color = MiuixTheme.colorScheme.onSurfaceVariantActions
+                                    )
+                                    Text(
+                                        text = "Haooz",
+                                        fontSize = 13.sp,
+                                        color = MiuixTheme.colorScheme.primary,
+                                        modifier = Modifier
+                                            .clickable {
+                                                uriHandler.openUri("https://www.coolapk.com/u/29693763")
+                                            }
+                                            .padding(start = 4.dp)
+                                    )
+                                }
+                                Spacer(modifier = Modifier.height(4.dp))
                                 Text(
-                                    text = "© 2026 Nexio课程表 · 作者:",
-                                    fontSize = 13.sp,
-                                    color = MiuixTheme.colorScheme.onSurfaceVariantActions
-                                )
-                                Text(
-                                    text = "Haooz",
+                                    text = "赞赏作者",
                                     fontSize = 13.sp,
                                     color = MiuixTheme.colorScheme.primary,
                                     modifier = Modifier
                                         .clickable {
-                                            uriHandler.openUri("https://www.coolapk.com/u/29693763")
+                                            val intent = Intent(context, AppreciateAuthorActivity::class.java)
+                                            context.startActivity(intent)
                                         }
-                                        .padding(start = 4.dp)
                                 )
                             }
-                            Spacer(modifier = Modifier.height(4.dp))
-                            Text(
-                                text = "赞赏作者",
-                                fontSize = 13.sp,
-                                color = MiuixTheme.colorScheme.primary,
-                                modifier = Modifier
-                                    .clickable {
-                                        val intent = Intent(context, AppreciateAuthorActivity::class.java)
-                                        context.startActivity(intent)
-                                    }
-                            )
                         }
                     }
                 }
