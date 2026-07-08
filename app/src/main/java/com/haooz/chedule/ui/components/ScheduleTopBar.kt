@@ -131,11 +131,15 @@ internal fun ScheduleTopBar(
                 .fillMaxWidth()
                 .height(titleBarHeight + 40.dp)
                 .then(
-                    Modifier.textureBlur(
-                        backdrop = backdrop,
-                        shape = RectangleShape,
-                        colors = topAppBarColors
-                    )
+                    if (appStyle != "liquidglass") {
+                        Modifier.textureBlur(
+                            backdrop = backdrop,
+                            shape = RectangleShape,
+                            colors = topAppBarColors
+                        )
+                    } else {
+                        Modifier
+                    }
                 )
         )
         Column {

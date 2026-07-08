@@ -34,6 +34,7 @@ fun LiquidNavigationRail(
     LaunchedEffect(selectedTab) { liquidSelectedTab = selectedTab }
 
     val statusBarPadding = WindowInsets.statusBars.asPaddingValues().calculateTopPadding()
+    val topPadding = if (statusBarPadding > 0.dp) statusBarPadding else 36.dp
 
     Box(
         modifier = modifier.fillMaxSize(),
@@ -45,12 +46,12 @@ fun LiquidNavigationRail(
             backdrop = backdrop,
             tabsCount = if (!isShiftMode) 3 else 2,
             modifier = Modifier
-                .padding(top = statusBarPadding)
+                .padding(top = topPadding + 4.dp)
                 .width(240.dp)
-                .height(36.dp),
-            containerHeight = 36.dp,
-            highlightHeight = 30.dp,
-            selectorHeight = 30.dp
+                .height(38.dp),
+            containerHeight = 38.dp,
+            highlightHeight = 32.dp,
+            selectorHeight = 32.dp
         ) {
             if (!isShiftMode) {
                 LiquidBottomTab({ onTabSelected(0) }) {
