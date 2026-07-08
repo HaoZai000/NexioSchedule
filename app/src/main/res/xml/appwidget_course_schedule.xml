@@ -7,4 +7,4 @@
     android:targetCellHeight="2"
     android:updatePeriodMillis="1800000"
     android:widgetCategory="home_screen"
-    android:previewLayout="@layout/widget_course_preview" />
+    android:previewImage="@drawable/widget_course_preview" />

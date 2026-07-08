@@ -1,4 +1,4 @@
-/** 调课日期列组件 - 显示调课视图中的日期列 */
+/** 排班课表组件 - 显示排班视图中的日期列 */
 package com.haooz.chedule.ui.components
 
 import androidx.compose.foundation.background
@@ -25,9 +25,10 @@ fun ShiftDayColumn(
     eveningSections: Int,
     currentWeek: Int,
     onSlotClick: (dayOfWeek: Int, startSection: Int, courses: List<Pair<String, Course>>) -> Unit = { _, _, _ -> },
+    cardHeightPerSection: Float = 54f,
     modifier: Modifier = Modifier
 ) {
-    val totalHeight = (morningSections + afternoonSections + eveningSections) * 54 + 24 * 2
+    val totalHeight = ((morningSections + afternoonSections + eveningSections) * cardHeightPerSection + 24 * 2).toInt()
 
     val allCourses = mutableListOf<Pair<String, Course>>()
     for ((name, courses) in allScheduleCourses) {
@@ -63,13 +64,13 @@ fun ShiftDayColumn(
         groups.add(MergedGroup(course.startSection, course.endSection, sameRange))
     }
 
-    fun sectionToY(section: Int): Int {
+    fun sectionToY(section: Int): Float {
         val m = morningSections
         val a = afternoonSections
         return when {
-            section <= m -> (section - 1) * 54
-            section <= m + a -> m * 54 + 24 + (section - m - 1) * 54
-            else -> m * 54 + 24 + a * 54 + 24 + (section - m - a - 1) * 54
+            section <= m -> (section - 1) * cardHeightPerSection
+            section <= m + a -> m * cardHeightPerSection + 24 + (section - m - 1) * cardHeightPerSection
+            else -> m * cardHeightPerSection + 24 + a * cardHeightPerSection + 24 + (section - m - a - 1) * cardHeightPerSection
         }
     }
 
@@ -79,16 +80,16 @@ fun ShiftDayColumn(
         Box(
             modifier = Modifier.fillMaxWidth().fillMaxHeight()
         ) {
-            var currentOffset = 0
+            var currentOffset = 0f
 
             for (section in 1..morningSections) {
                 Box(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .height(54.dp)
+                        .height(cardHeightPerSection.dp)
                         .offset(y = currentOffset.dp)
                 )
-                currentOffset += 54
+                currentOffset += cardHeightPerSection
             }
             Box(
                 modifier = Modifier
@@ -109,10 +110,10 @@ fun ShiftDayColumn(
                 Box(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .height(54.dp)
+                        .height(cardHeightPerSection.dp)
                         .offset(y = currentOffset.dp)
                 )
-                currentOffset += 54
+                currentOffset += cardHeightPerSection
             }
             Box(
                 modifier = Modifier
@@ -133,16 +134,16 @@ fun ShiftDayColumn(
                 Box(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .height(54.dp)
+                        .height(cardHeightPerSection.dp)
                         .offset(y = currentOffset.dp)
                 )
-                currentOffset += 54
+                currentOffset += cardHeightPerSection
             }
         }
 
         for (group in groups) {
             val span = group.endSection - group.startSection + 1
-            val cardHeight = span * 54 + (span - 1) * 0
+            val cardHeight = span * cardHeightPerSection
             val y = sectionToY(group.startSection)
             ShiftCell(
                 courses = group.items,

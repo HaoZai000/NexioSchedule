@@ -25,8 +25,6 @@ import androidx.compose.foundation.pager.PagerState
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Text
-import androidx.compose.animation.core.Animatable
-import androidx.compose.animation.core.tween
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
@@ -56,9 +54,9 @@ import androidx.compose.ui.unit.DpSize
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.haooz.chedule.data.Course
-import com.haooz.chedule.ui.activities.isAppDarkTheme
 import com.haooz.chedule.ui.components.DayColumn
 import com.haooz.chedule.ui.components.SectionColumn
+import com.haooz.chedule.ui.utils.isAppDarkTheme
 import com.haooz.chedule.viewmodel.CourseViewModel
 import com.haooz.chedule.viewmodel.SettingsViewModel
 import kotlinx.coroutines.launch
@@ -212,6 +210,8 @@ fun MainScheduleScreen(
                     contentScale = ContentScale.Fit
                 )
             }
+        } else {
+            Box(modifier = Modifier.fillMaxSize().background(wallpaperBackdropColor))
         }
 
         // 用于手势回调中读取最新值，避免 pointerInput(Unit) 捕获陈旧状态
@@ -542,40 +542,6 @@ fun MainScheduleScreen(
                 }
                 Spacer(modifier = Modifier.height(60.dp))
             }
-        }
-
-        if (showAddDialog) {
-            val editingStartSection =
-                editingCourse?.startSection ?: selectedStartSection
-            val editingEndSection = editingCourse?.endSection ?: selectedEndSection
-
-            AddCourseDialog(
-                course = editingCourse,
-                selectedDay = viewModel.selectedDay.collectAsState().value,
-                totalWeeks = viewModel.totalWeeks.collectAsState().value,
-                totalSections = totalSections,
-                defaultStartSection = editingStartSection,
-                defaultEndSection = editingEndSection,
-                getOccupiedWeeks = { dayOfWeek, startSection, endSection ->
-                    viewModel.getOccupiedWeeks(
-                        dayOfWeek = dayOfWeek,
-                        startSection = startSection,
-                        endSection = endSection,
-                        excludeId = editingCourse?.id
-                    )
-                },
-                onDismiss = { viewModel.hideDialog() },
-                onConfirm = { course ->
-                    if (editingCourse != null) {
-                        viewModel.updateCourse(course)
-                    } else {
-                        viewModel.addCourse(course)
-                    }
-                },
-                onDelete = { courseId ->
-                    viewModel.deleteCourse(courseId)
-                }
-            )
         }
 
         OverlayDialog(

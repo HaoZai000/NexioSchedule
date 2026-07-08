@@ -39,10 +39,6 @@
 -keep class org.eclipse.jgit.** { *; }
 -keep class com.googlecode.javaewah.** { *; }
 
-# ============================================================
-# 超级岛通知 & Shizuku
-# ============================================================
-
 # --- Shizuku 应用层代码 ---
 # PrivilegedServiceImpl 通过 ComponentName(name) 绑定到 Shizuku 进程
 # IPrivilegedService.Stub Binder 协议依赖类名不被混淆
@@ -59,7 +55,3 @@
 -keep class rikka.sui.** { *; }
 -dontwarn rikka.shizuku.**
 -dontwarn rikka.sui.**
-
-# --- Focus API 库 (超级岛焦点通知) ---
--keep class com.xzakota.hyper.notification.** { *; }
--dontwarn com.xzakota.hyper.notification.**

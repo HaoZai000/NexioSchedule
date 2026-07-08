@@ -1,4 +1,4 @@
-/** 调课视图页面 */
+/** 排班课表页面 */
 package com.haooz.chedule.ui.screens
 
 import androidx.activity.ComponentActivity
@@ -37,7 +37,7 @@ import androidx.compose.ui.unit.DpSize
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.haooz.chedule.data.Course
-import com.haooz.chedule.ui.activities.isAppDarkTheme
+import com.haooz.chedule.ui.utils.isAppDarkTheme
 import com.haooz.chedule.ui.components.SectionColumn
 import com.haooz.chedule.ui.components.ShiftDayColumn
 import com.haooz.chedule.viewmodel.CourseViewModel
@@ -58,7 +58,8 @@ fun ShiftScheduleScreen(
     shiftViewModel: ShiftViewModel,
     currentDayOfWeek: Int,
     dayRange: List<Int>,
-    pagerState: androidx.compose.foundation.pager.PagerState
+    pagerState: androidx.compose.foundation.pager.PagerState,
+    cardHeightPerSection: Float = 54f
 ) {
     val shiftScheduleCourses by shiftViewModel.shiftScheduleCourses.collectAsState()
     val shiftScheduleSections by shiftViewModel.shiftScheduleSections.collectAsState()
@@ -124,7 +125,8 @@ fun ShiftScheduleScreen(
                         morningSections = maxMorning,
                         afternoonSections = maxAfternoon,
                         eveningSections = maxEvening,
-                        sectionTimes = emptyMap()
+                        sectionTimes = emptyMap(),
+                        cardHeightPerSection = cardHeightPerSection
                     )
 
                     dayRange.forEach { dayOfWeek ->
@@ -141,13 +143,14 @@ fun ShiftScheduleScreen(
                                 detailCourses = courses
                                 showDetail = true
                             },
+                            cardHeightPerSection = cardHeightPerSection,
                             modifier = Modifier.weight(1f)
                         )
                     }
                 }
 
-                val morningHeight = maxMorning * 54
-                val afternoonHeight = maxAfternoon * 54
+                val morningHeight = (maxMorning * cardHeightPerSection).toInt()
+                val afternoonHeight = (maxAfternoon * cardHeightPerSection).toInt()
                 val dinnerBreakY = morningHeight + 24 + afternoonHeight
 
                 Box(

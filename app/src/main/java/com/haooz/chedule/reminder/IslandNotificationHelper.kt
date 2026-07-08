@@ -20,11 +20,16 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import org.json.JSONObject
+import kotlin.time.Duration.Companion.milliseconds
 
 object IslandNotificationHelper {
     private const val TAG = "IslandNotificationHelper"
     private const val CHANNEL_ID = "course_reminder_island"
     private const val CHANNEL_NAME = "课程提醒超级岛"
+    // business: 运营场景标识（官方必选字段）
+    private const val BUSINESS_TAG = "course_reminder"
+    // 通知更新序号计数器：保证课前→已上课等多次更新不乱序（官方 sequence 字段）
+    private val sequenceCounter = java.util.concurrent.atomic.AtomicLong(0)
 
     private val scope = CoroutineScope(Dispatchers.IO)
     // 串行化 Shizuku bypass 流程，避免并发导致 XMSF 网络状态错乱
@@ -62,7 +67,7 @@ object IslandNotificationHelper {
             try {
                 Log.d(TAG, "XMSF networking disabled, sending notification")
                 sendNotificationDirect(context, notificationId, notification)
-                delay(100)
+                delay(100.milliseconds)
             } finally {
                 try {
                     ShizukuManager.setXmsfNetworkingEnabled(context, true)
@@ -137,9 +142,14 @@ object IslandNotificationHelper {
 
         // param_v2 部分
         val paramV2 = JSONObject().apply {
+            put("business", BUSINESS_TAG)
             put("protocol", 1)
             put("enableFloat", true)
             put("updatable", true)
+            // reopen=reopen：课前提醒→已上课切换会重发同 id 通知，需允许再次显示
+            put("reopen", "reopen")
+            // sequence：每次更新递增，避免课前态/已上课态展示乱序
+            put("sequence", sequenceCounter.incrementAndGet())
 
             // 模板9：文本2 + 识别1 + 按钮2
             // 上半部分：文本组件2 baseInfo（type=2）
@@ -284,72 +294,6 @@ object IslandNotificationHelper {
         return json.toString()
     }
 
-    /**
-     * 构建明日课程岛参数 JSON
-     */
-    private fun buildNextDayIslandParamsJson(
-        title: String,
-        content: String,
-        courseCount: Int
-    ): String {
-        val json = JSONObject()
-
-        val paramV2 = JSONObject().apply {
-            put("protocol", 1)
-            put("enableFloat", true)
-
-            // 焦点通知数据
-            val baseInfo = JSONObject().apply {
-                put("title", title)
-                put("content", content)
-                put("type", 2)
-                put("colorTitle", "#FF6700")
-            }
-            put("baseInfo", baseInfo)
-
-            // 岛数据
-            val paramIsland = JSONObject().apply {
-                put("islandProperty", 1)
-                put("islandTimeout", 60) // 1分钟超时
-
-                // 大岛区域
-                val bigIslandArea = JSONObject().apply {
-                    val imageTextInfoLeft = JSONObject().apply {
-                        put("type", 1)
-                        val picInfo = JSONObject().apply {
-                            put("type", 1)
-                            put("pic", "miui.focus.pic_tomorrow")
-                        }
-                        put("picInfo", picInfo)
-                        val textInfo = JSONObject().apply {
-                            put("frontTitle", "明日课程")
-                            put("title", "${courseCount}节")
-                            put("content", "点击查看")
-                            put("useHighLight", true)
-                        }
-                        put("textInfo", textInfo)
-                    }
-                    put("imageTextInfoLeft", imageTextInfoLeft)
-                }
-                put("bigIslandArea", bigIslandArea)
-
-                // 小岛区域
-                val smallIslandArea = JSONObject().apply {
-                    val picInfo = JSONObject().apply {
-                        put("type", 1)
-                        put("pic", "miui.focus.pic_small_tomorrow")
-                    }
-                    put("picInfo", picInfo)
-                }
-                put("smallIslandArea", smallIslandArea)
-            }
-            put("param_island", paramIsland)
-        }
-
-        json.put("param_v2", paramV2)
-        return json.toString()
-    }
-
     fun sendIslandNotification(
         context: Context,
         notificationId: Int,
@@ -399,7 +343,7 @@ object IslandNotificationHelper {
             courseStartTimestamp = courseStartTimestamp
         )
 
-        // 添加图片 Bundle（大岛模板6：A图文1 + B等宽数字timer）
+        // 添加图片 Bundle（大岛模板2：A图文1 + B文本textInfo）
         val picsBundle = Bundle().apply {
             putParcelable("miui.focus.pic_app_icon", Icon.createWithResource(context, R.mipmap.ic_launcher))
             putParcelable("miui.focus.pic_app_icon_dark", Icon.createWithResource(context, R.mipmap.ic_launcher))
@@ -475,80 +419,6 @@ object IslandNotificationHelper {
             minutesUntil = minutesUntil,
             courseStartTimestamp = courseStartTimestamp
         )
-    }
-
-    fun sendNextDayIslandNotification(
-        context: Context,
-        courses: List<com.haooz.chedule.data.Course>,
-        repository: com.haooz.chedule.data.CourseRepository
-    ) {
-        if (courses.isEmpty()) {
-            sendIslandNotification(
-                context = context,
-                notificationId = 1002,
-                title = "明日无课",
-                content = "明天没有课程安排"
-            )
-            return
-        }
-
-        val title = "明日课程（${courses.size}节）"
-        val details = courses.joinToString("\n") { course ->
-            val startTime = CourseReminderHelper.getCourseStartTime(course, repository)
-            val endTime = CourseReminderHelper.getCourseEndTime(course, repository)
-            val timeRange = if (startTime != null && endTime != null) {
-                "$startTime-$endTime"
-            } else ""
-            buildString {
-                if (timeRange.isNotEmpty()) append(timeRange).append(" ")
-                append(course.name)
-                if (course.classroom.isNotEmpty()) append(" @").append(course.classroom)
-            }
-        }
-
-        if (!isIslandSupported(context)) return
-
-        ensureChannel(context)
-
-        val contentIntent = Intent(context, MainActivity::class.java).apply {
-            flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP
-        }
-        val pendingIntent = PendingIntent.getActivity(
-            context,
-            1002,
-            contentIntent,
-            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
-        )
-
-        val builder = Notification.Builder(context, CHANNEL_ID)
-            .setSmallIcon(R.mipmap.ic_launcher)
-            .setContentTitle(title)
-            .setContentText(details.replace("\n", " "))
-            .setContentIntent(pendingIntent)
-            .setAutoCancel(true)
-
-        // 构建明日课程岛参数
-        val islandParams = buildNextDayIslandParamsJson(
-            title = title,
-            content = details,
-            courseCount = courses.size
-        )
-
-        // 添加图片
-        val picsBundle = Bundle().apply {
-            putParcelable("miui.focus.pic_tomorrow", Icon.createWithResource(context, R.mipmap.ic_launcher))
-            putParcelable("miui.focus.pic_small_tomorrow", Icon.createWithResource(context, R.mipmap.ic_launcher))
-        }
-        builder.addExtras(Bundle().apply {
-            putBundle("miui.focus.pics", picsBundle)
-        })
-
-        val notification = builder.build()
-        notification.extras.putString("miui.focus.param", islandParams)
-
-        scope.launch {
-            withShizukuBypass(context, 1002, notification, useShizukuBypass = true)
-        }
     }
 
     /**
@@ -685,15 +555,15 @@ object IslandNotificationHelper {
         }
 
         // 测试模式：倒计时结束后触发展开态弹出
-        if (minutesUntil != null && minutesUntil > 0) {
+        if (minutesUntil > 0) {
             val handler = android.os.Handler(android.os.Looper.getMainLooper())
             val expandRunnable = Runnable {
                 Log.d(TAG, "Test countdown finished, sending class started notification")
                 sendClassStartedNotification(
                     context = context,
                     courseName = courseName,
-                    classroom = classroom ?: "",
-                    section = section ?: "",
+                    classroom = classroom,
+                    section = section,
                     startTime = startTime ?: "",
                     notificationId = testNotificationId
                 )
@@ -746,7 +616,7 @@ object IslandNotificationHelper {
         // 15秒后自动消除通知
         val handler = android.os.Handler(android.os.Looper.getMainLooper())
         handler.postDelayed({
-            val manager = context.getSystemService(Context.NOTIFICATION_SERVICE) as android.app.NotificationManager
+            val manager = context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
             manager.cancel(notificationId)
             Log.d(TAG, "Notification cancelled after 15 seconds")
         }, 15_000L)

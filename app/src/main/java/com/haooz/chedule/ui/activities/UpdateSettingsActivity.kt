@@ -1,5 +1,7 @@
 /** 应用更新设置页面 */
 package com.haooz.chedule.ui.activities
+import com.haooz.chedule.ui.utils.isAppDarkTheme
+import com.haooz.chedule.ui.utils.applyThemeAwareSystemBars
 
 import android.content.Context
 import android.content.Intent

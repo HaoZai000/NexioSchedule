@@ -1,5 +1,7 @@
 /** 课程提醒设置页面 */
 package com.haooz.chedule.ui.activities
+import com.haooz.chedule.ui.utils.isAppDarkTheme
+import com.haooz.chedule.ui.utils.applyThemeAwareSystemBars
 
 import android.Manifest
 import android.content.Intent

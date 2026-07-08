@@ -1,13 +1,15 @@
-﻿/** 教务系统导入页面 */
+/** 教务系统导入页面 */
 package com.haooz.chedule.ui.activities
+import com.haooz.chedule.ui.screens.WebViewScreen
+import com.haooz.chedule.ui.screens.SchoolSelectionScreen
 
 import android.os.Bundle
 import android.util.Log
 import android.widget.Toast
 import androidx.activity.ComponentActivity
 import androidx.activity.SystemBarStyle
-import androidx.activity.enableEdgeToEdge
 import androidx.activity.compose.setContent
+import androidx.activity.enableEdgeToEdge
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -18,8 +20,7 @@ import com.haooz.chedule.data.CourseRepository
 import com.haooz.chedule.data.school.AdapterData
 import com.haooz.chedule.data.school.SchoolData
 import com.haooz.chedule.data.school.ScriptRepository
-import com.haooz.chedule.ui.screens.SchoolSelectionScreen
-import com.haooz.chedule.ui.screens.WebViewScreen
+import com.haooz.chedule.ui.utils.applyThemeAwareSystemBars
 import com.haooz.chedule.ui.theme.CourseScheduleTheme
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers

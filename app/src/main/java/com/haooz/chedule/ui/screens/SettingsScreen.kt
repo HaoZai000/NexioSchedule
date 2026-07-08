@@ -65,7 +65,7 @@ import com.haooz.chedule.ui.activities.PreferenceSettingsActivity
 import com.haooz.chedule.ui.activities.WidgetIntroActivity
 import com.haooz.chedule.data.Course
 import com.haooz.chedule.data.WebDavManager
-import com.haooz.chedule.ui.activities.isAppDarkTheme
+import com.haooz.chedule.ui.utils.isAppDarkTheme
 import com.haooz.chedule.viewmodel.CourseViewModel
 import com.haooz.chedule.viewmodel.ScheduleViewModel
 import com.haooz.chedule.viewmodel.SettingsViewModel
@@ -356,7 +356,11 @@ fun SettingsScreen(
                                 title = "当前周数",
                                 endActions = {
                                     Text(
-                                        text = if (isSemesterStarted) "第${currentWeek}周" else "未开始",
+                                        text = when {
+                                            !isSemesterStarted -> "未开始"
+                                            currentWeek > totalWeeks -> "放假中"
+                                            else -> "第${currentWeek}周"
+                                        },
                                         fontSize = 14.5.sp,
                                         color = MiuixTheme.colorScheme.onSurfaceVariantActions
                                     )

@@ -50,7 +50,7 @@ import androidx.compose.ui.unit.DpSize
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.haooz.chedule.data.Course
-import com.haooz.chedule.ui.activities.isAppDarkTheme
+import com.haooz.chedule.ui.utils.isAppDarkTheme
 import com.kyant.shapes.RoundedRectangle
 import top.yukonga.miuix.kmp.basic.Button
 import top.yukonga.miuix.kmp.basic.ButtonDefaults
@@ -77,10 +77,6 @@ import top.yukonga.miuix.kmp.utils.PressFeedbackType
 import top.yukonga.miuix.kmp.utils.overScrollVertical
 import java.util.UUID
 
-/**
- * 添加/编辑课程对话框
- * 以设置页为基准优化UI
- */
 @Composable
 fun AddCourseDialog(
     course: Course?,
@@ -375,9 +371,71 @@ fun AddCourseDialog(
                 }
             }
 
-            // 节次范围
             Column(modifier = Modifier.fillMaxWidth()) {
                 SmallTitle(text = "详细设置")
+                Card(
+                    cornerRadius = 20.dp,
+                    modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp),
+                    colors = CardDefaults.defaultColors(
+                        color = if (isDark) Color(0xFF363636) else Color(0xFFFFFFFF),
+                        contentColor = MiuixTheme.colorScheme.onSurface
+                    )
+                ) {
+                    Column(modifier = Modifier.fillMaxWidth()) {
+                        // 上课星期
+                        Column(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(horizontal = 16.dp, vertical = 14.dp)
+                        ) {
+                            Text(
+                                text = "上课星期",
+                                fontSize = 17.sp,
+                                fontWeight = FontWeight.Medium,
+                                color = MiuixTheme.colorScheme.onSurface,
+                                modifier = Modifier.padding(bottom = 10.dp)
+                            )
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.spacedBy(6.dp)
+                            ) {
+                                val dayLabels = listOf("一", "二", "三", "四", "五", "六", "日")
+                                for (day in 1..7) {
+                                    val isSelected = day == dayOfWeek
+                                    Card(
+                                        modifier = Modifier
+                                            .weight(1f)
+                                            .height(32.dp),
+                                        cornerRadius = 10.dp,
+                                        insideMargin = PaddingValues(0.dp),
+                                        pressFeedbackType = PressFeedbackType.Sink,
+                                        colors = CardDefaults.defaultColors(
+                                            color = if (isSelected) MiuixTheme.colorScheme.primary
+                                            else if (isDark) Color(0xFF505050) else Color(0xFFF7F7F7),
+                                            contentColor = if (isSelected) Color.White else MiuixTheme.colorScheme.onSurfaceVariantSummary
+                                        ),
+                                        onClick = { dayOfWeek = day }
+                                    ) {
+                                        Box(
+                                            modifier = Modifier.fillMaxSize(),
+                                            contentAlignment = Alignment.Center
+                                        ) {
+                                            Text(
+                                                text = dayLabels[day - 1],
+                                                fontSize = 14.sp,
+                                                color = if (isSelected) Color.White else MiuixTheme.colorScheme.onSurfaceVariantSummary
+                                            )
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+
+            // 节次范围
+            Column(modifier = Modifier.fillMaxWidth()) {
                 Card(
                     cornerRadius = 20.dp,
                     modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp),
@@ -944,7 +1002,7 @@ fun AddCourseDialog(
             Button(
                 modifier = Modifier.weight(1f),
                 onClick = {
-                    onDelete(course!!.id)
+                    course?.id?.let { onDelete(it) }
                     showDeleteDialog = false
                     showBottomSheet = false
                 },

@@ -4,7 +4,7 @@ package com.haooz.chedule.effect
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.spring
 import androidx.compose.foundation.layout.Box
-import com.haooz.chedule.ui.activities.isAppDarkTheme
+import com.haooz.chedule.ui.utils.isAppDarkTheme
 import androidx.compose.foundation.layout.BoxScope
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
@@ -39,7 +39,7 @@ fun BgEffectBackground(
     ) {
         val surface = MiuixTheme.colorScheme.surface
         val isDarkTheme = isAppDarkTheme()
-        val isTablet = LocalConfiguration.current.screenWidthDp >= 600
+        val isTablet = LocalConfiguration.current.smallestScreenWidthDp > 500
         val painter = remember { BgEffectPainter() }
 
         val preset = remember(isDarkTheme, isTablet) {

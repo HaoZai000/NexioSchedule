@@ -1,5 +1,7 @@
 /** WebDAV 同步设置页面 */
 package com.haooz.chedule.ui.activities
+import com.haooz.chedule.ui.utils.isAppDarkTheme
+import com.haooz.chedule.ui.utils.applyThemeAwareSystemBars
 
 import android.os.Bundle
 import androidx.activity.ComponentActivity

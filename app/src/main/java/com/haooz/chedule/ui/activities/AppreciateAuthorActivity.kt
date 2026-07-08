@@ -1,5 +1,7 @@
 /** 赞赏作者页面 */
 package com.haooz.chedule.ui.activities
+import com.haooz.chedule.ui.utils.isAppDarkTheme
+import com.haooz.chedule.ui.utils.applyThemeAwareSystemBars
 
 import com.haooz.chedule.R
 import android.os.Bundle

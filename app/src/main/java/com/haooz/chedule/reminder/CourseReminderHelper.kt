@@ -1,7 +1,6 @@
 /** 课程提醒助手 - 管理课程提醒的创建、取消和调度 */
 package com.haooz.chedule.reminder
 
-import android.annotation.SuppressLint
 import android.app.AlarmManager
 import android.app.Notification
 import android.app.NotificationChannel
@@ -11,10 +10,11 @@ import android.content.Context
 import android.content.Intent
 import android.os.Build
 import androidx.core.app.NotificationCompat
-import com.haooz.chedule.ui.activities.MainActivity
 import com.haooz.chedule.R
 import com.haooz.chedule.data.Course
 import com.haooz.chedule.data.CourseRepository
+import com.haooz.chedule.reminder.CourseReminderHelper.schedulePreClassAlarms
+import com.haooz.chedule.ui.activities.MainActivity
 import java.util.Calendar
 
 object CourseReminderHelper {
@@ -32,7 +32,6 @@ object CourseReminderHelper {
     const val TYPE_PRE_CLASS = 1
     const val TYPE_NEXT_DAY = 2
 
-    const val COUNTDOWN_NOTIFICATION_ID = 2
     const val WIDGET_REFRESH_REQUEST_CODE = 88888
 
     const val CHANNEL_REMINDER_ID = "course_reminder_alert"
@@ -124,10 +123,6 @@ object CourseReminderHelper {
         cancelIslandExpandAlarms(context, alarmManager)
         cancelCourseStartAlarms(context, alarmManager)
         // 注意：不取消 widget 刷新闹钟，避免桌面小部件停止刷新
-    }
-
-    fun isServiceRunning(): Boolean {
-        return true
     }
 
     private fun scheduleAllAlarms(context: Context, repository: CourseRepository, alarmManager: AlarmManager) {
@@ -389,6 +384,11 @@ object CourseReminderHelper {
         repository: CourseRepository,
         alarmManager: AlarmManager
     ) {
+        // 学期已结束，不再调度明日课程提醒
+        val currentWeek = repository.getCurrentWeek()
+        val totalWeeks = repository.getTotalWeeks()
+        if (currentWeek > totalWeeks) return
+
         val hour = repository.getNextDayReminderHour()
         val minute = repository.getNextDayReminderMinute()
 
@@ -538,19 +538,6 @@ object CourseReminderHelper {
         } catch (_: SecurityException) { }
     }
 
-    private fun cancelWidgetRefresh(context: Context, alarmManager: AlarmManager) {
-        val intent = Intent(context, WidgetRefreshReceiver::class.java).apply {
-            action = WidgetRefreshReceiver.ACTION_REFRESH_WIDGET
-        }
-        val pendingIntent = PendingIntent.getBroadcast(
-            context,
-            WIDGET_REFRESH_REQUEST_CODE,
-            intent,
-            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
-        )
-        alarmManager.cancel(pendingIntent)
-    }
-
     private fun isConsecutiveCourse(prev: Course, current: Course, morningSections: Int, afternoonSections: Int): Boolean {
         val prevPeriod = getCoursePeriod(prev.startSection, morningSections, afternoonSections)
         val currentPeriod = getCoursePeriod(current.startSection, morningSections, afternoonSections)
@@ -670,41 +657,10 @@ object CourseReminderHelper {
         return null
     }
 
-    fun getMinutesUntilNextCourse(context: Context): Int? {
-        val repository = CourseRepository(context)
-        val nextCourse = findNextCourseToday(context) ?: return null
-        val startTime = getCourseStartTime(nextCourse, repository) ?: return null
-        val parts = startTime.split(":")
-        if (parts.size != 2) return null
-        val h = parts[0].toIntOrNull() ?: return null
-        val m = parts[1].toIntOrNull() ?: return null
-        val now = Calendar.getInstance()
-        val currentMinutes = now.get(Calendar.HOUR_OF_DAY) * 60 + now.get(Calendar.MINUTE)
-        return h * 60 + m - currentMinutes
-    }
-
     fun canPostPromotedNotifications(context: Context): Boolean {
         if (Build.VERSION.SDK_INT < 36) return false
         val manager = context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
         return manager.canPostPromotedNotifications()
-    }
-
-    fun openPromotedNotificationsSettings(context: Context) {
-        if (Build.VERSION.SDK_INT >= 36) {
-            try {
-                val intent = Intent("android.settings.MANAGE_APP_PROMOTED_NOTIFICATIONS").apply {
-                    data = android.net.Uri.parse("package:${context.packageName}")
-                    addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-                }
-                context.startActivity(intent)
-            } catch (_: Exception) {
-                val intent = Intent(android.provider.Settings.ACTION_APP_NOTIFICATION_SETTINGS).apply {
-                    putExtra(android.provider.Settings.EXTRA_APP_PACKAGE, context.packageName)
-                    addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-                }
-                context.startActivity(intent)
-            }
-        }
     }
 
     private fun ensureNotificationChannels(context: Context) {
@@ -731,17 +687,6 @@ object CourseReminderHelper {
             }
             manager.createNotificationChannel(alertChannel)
             manager.createNotificationChannel(liveChannel)
-        }
-    }
-
-    private fun formatCountdown(minutes: Int): String {
-        return when {
-            minutes >= 60 -> {
-                val hours = minutes / 60
-                val mins = minutes % 60
-                if (mins > 0) "${hours}小时${mins}分钟" else "${hours}小时"
-            }
-            else -> "${minutes}分钟"
         }
     }
 

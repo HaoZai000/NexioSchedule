@@ -14,29 +14,24 @@ import androidx.activity.enableEdgeToEdge
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.CubicBezierEasing
-import androidx.compose.animation.core.animate
+import androidx.compose.animation.core.FastOutSlowInEasing
+import androidx.compose.animation.core.animateDpAsState
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
-import androidx.compose.foundation.clickable
-import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.asPaddingValues
-import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBars
-import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -55,9 +50,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.drawWithContent
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
-import androidx.compose.ui.graphics.RectangleShape
 import androidx.compose.ui.graphics.TransformOrigin
 import androidx.compose.ui.graphics.asAndroidBitmap
 import androidx.compose.ui.graphics.asComposeRenderEffect
@@ -67,18 +60,23 @@ import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.rememberGraphicsLayer
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.layout.ContentScale
-import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.unit.DpSize
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.haooz.chedule.data.Course
 import com.haooz.chedule.reminder.CourseReminderHelper
 import com.haooz.chedule.reminder.IslandNotificationHelper
+import com.haooz.chedule.ui.components.LongPressCustomizeButton
+import com.haooz.chedule.ui.components.ScheduleBottomBar
+import com.haooz.chedule.ui.components.ScheduleTopBar
+import com.haooz.chedule.ui.components.ShareImportDialog
+import com.haooz.chedule.ui.components.UpdateDialog
+import com.haooz.chedule.ui.components.liquidglass.LiquidAddButton
+import com.haooz.chedule.ui.screens.AddCourseDialog
 import com.haooz.chedule.ui.screens.CourseDetailScreen
 import com.haooz.chedule.ui.screens.CustomizeScheduleScreen
 import com.haooz.chedule.ui.screens.MainScheduleScreen
@@ -86,6 +84,9 @@ import com.haooz.chedule.ui.screens.SettingsScreen
 import com.haooz.chedule.ui.screens.ShiftScheduleScreen
 import com.haooz.chedule.ui.screens.TodayScreen
 import com.haooz.chedule.ui.theme.CourseScheduleTheme
+import com.haooz.chedule.ui.utils.UpdateChecker
+import com.haooz.chedule.ui.utils.applyThemeAwareSystemBars
+import com.haooz.chedule.ui.utils.isAppDarkTheme
 import com.haooz.chedule.viewmodel.CourseViewModel
 import com.haooz.chedule.viewmodel.ScheduleViewModel
 import com.haooz.chedule.viewmodel.SettingsViewModel
@@ -94,41 +95,18 @@ import com.kyant.shapes.RoundedRectangle
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
-import top.yukonga.miuix.kmp.basic.DropdownEntry
-import top.yukonga.miuix.kmp.basic.DropdownItem
-import top.yukonga.miuix.kmp.basic.FloatingNavigationBar
-import top.yukonga.miuix.kmp.basic.FloatingNavigationBarItem
-import top.yukonga.miuix.kmp.basic.Icon
-import top.yukonga.miuix.kmp.basic.IconButton
-import top.yukonga.miuix.kmp.basic.NavigationBar
-import top.yukonga.miuix.kmp.basic.NavigationBarDisplayMode
-import top.yukonga.miuix.kmp.basic.NavigationBarItem
-import top.yukonga.miuix.kmp.basic.NavigationRail
-import top.yukonga.miuix.kmp.basic.NavigationRailItem
+import top.yukonga.miuix.kmp.basic.NavigationRailDefaults
 import top.yukonga.miuix.kmp.basic.Scaffold
-import top.yukonga.miuix.kmp.basic.SmallTopAppBar
+import top.yukonga.miuix.kmp.basic.rememberNavigationRailState
 import top.yukonga.miuix.kmp.blur.BlendColorEntry
 import top.yukonga.miuix.kmp.blur.BlurBlendMode
 import top.yukonga.miuix.kmp.blur.BlurDefaults
-import top.yukonga.miuix.kmp.blur.highlight.BloomStroke
-import top.yukonga.miuix.kmp.blur.highlight.Highlight
-import top.yukonga.miuix.kmp.blur.highlight.rememberTiltLight
 import top.yukonga.miuix.kmp.blur.layerBackdrop
 import top.yukonga.miuix.kmp.blur.rememberLayerBackdrop
-import top.yukonga.miuix.kmp.blur.textureBlur
-import top.yukonga.miuix.kmp.icon.MiuixIcons
-import top.yukonga.miuix.kmp.icon.extended.Album
-import top.yukonga.miuix.kmp.icon.extended.ConvertFile
-import top.yukonga.miuix.kmp.icon.extended.Months
-import top.yukonga.miuix.kmp.icon.extended.More
-import top.yukonga.miuix.kmp.icon.extended.Reset
-import top.yukonga.miuix.kmp.icon.extended.Settings
-import top.yukonga.miuix.kmp.menu.OverlayIconDropdownMenu
-import top.yukonga.miuix.kmp.overlay.OverlayDialog
+import com.kyant.backdrop.backdrops.layerBackdrop as liquidGlassLayerBackdrop
 import top.yukonga.miuix.kmp.squircle.addSquircleRect
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 import java.time.LocalDate
-import java.time.format.DateTimeFormatter
 import java.util.Calendar
 import kotlin.time.Duration.Companion.milliseconds
 import androidx.compose.ui.graphics.Color as ComposeColor
@@ -182,19 +160,6 @@ class MainActivity : ComponentActivity() {
         shareIntentAction = null
     }
 
-    private fun isNewerVersion(remote: String, local: String): Boolean {
-        val remoteParts = remote.split(".").mapNotNull { it.toIntOrNull() }
-        val localParts = local.split(".").mapNotNull { it.toIntOrNull() }
-        val maxSize = maxOf(remoteParts.size, localParts.size)
-        for (i in 0 until maxSize) {
-            val r = remoteParts.getOrElse(i) { 0 }
-            val l = localParts.getOrElse(i) { 0 }
-            if (r > l) return true
-            if (r < l) return false
-        }
-        return false
-    }
-
     private fun updateFreeformWindowState() {
         isInFreeformWindow = isInMultiWindowMode
     }
@@ -245,51 +210,8 @@ class MainActivity : ComponentActivity() {
         }
 
         // 自动检查更新：每天进入应用时检查一次
-        val prefs = getSharedPreferences("update_settings", MODE_PRIVATE)
-        val autoCheck = prefs.getBoolean("auto_check_update", true)
-        if (autoCheck) {
-            val lastCheckDate = prefs.getString("last_check_date", "")
-            val today = java.text.SimpleDateFormat("yyyy-MM-dd", java.util.Locale.getDefault()).format(java.util.Date())
-            if (lastCheckDate != today) {
-                kotlinx.coroutines.GlobalScope.launch(Dispatchers.IO) {
-                    try {
-                        val response = java.net.URL("https://gitee.com/api/v5/repos/com_haooz_account/hyper_schedule/releases/latest").readText()
-                        val json = org.json.JSONObject(response)
-                        val tagName = json.getString("tag_name")
-                        val currentVersion = try {
-                            packageManager.getPackageInfo(packageName, 0).versionName ?: ""
-                        } catch (_: Exception) { "" }
-                        val tagVer = tagName.removePrefix("v").substringBefore("-")
-                        val appVer = currentVersion.removePrefix("v").substringBefore("-")
-                        val hasUpdate = isNewerVersion(tagVer, appVer)
-                        prefs.edit()
-                            .putString("last_check_date", today)
-                            .putBoolean("has_update", hasUpdate)
-                            .apply()
-                        if (hasUpdate) {
-                            var apkUrl = ""
-                            val assets = json.optJSONArray("assets")
-                            if (assets != null) {
-                                for (i in 0 until assets.length()) {
-                                    val a = assets.getJSONObject(i)
-                                    if (a.getString("name").endsWith(".apk")) {
-                                        apkUrl = a.getString("browser_download_url"); break
-                                    }
-                                }
-                            }
-                            prefs.edit()
-                                .putString("latest_url", json.getString("html_url"))
-                                .putString("latest_tag", tagName)
-                                .putString("latest_name", json.getString("name"))
-                                .putString("latest_body", json.optString("body", ""))
-                                .putString("latest_apk_url", apkUrl)
-                                .putString("latest_date", json.getString("created_at"))
-                                .apply()
-                        }
-                    } catch (_: Exception) {}
-                }
-            }
-        }
+        UpdateChecker.checkOnLaunch(this)
+
         setContent {
             CourseScheduleTheme {
                 CourseScheduleApp()
@@ -360,59 +282,11 @@ fun CourseScheduleApp() {
         // 同步完成后刷新 ViewModel 内存缓存
         syncManager.onSyncCompleted = {
             viewModel.refreshEssentialData()
+            viewModel.reloadCourses()
             settingsViewModel.refreshSettings()
         }
         // 启动时检查云端是否有更新
         syncManager.checkAndSyncOnStart()
-    }
-
-    // 更新弹窗状态
-    val updatePrefs =
-        remember { context.getSharedPreferences("update_settings", Context.MODE_PRIVATE) }
-    var showUpdateDialog by remember { mutableStateOf(false) }
-    var updateTagName by remember { mutableStateOf("") }
-    var updateBody by remember { mutableStateOf("") }
-    var hasDownloadedApk by remember { mutableStateOf(false) }
-
-    LaunchedEffect(Unit) {
-        kotlinx.coroutines.delay(1400)
-        val hasUpdate = updatePrefs.getBoolean("has_update", false)
-        val updateReminder = updatePrefs.getBoolean("update_reminder", true)
-        val tag = updatePrefs.getString("latest_tag", "") ?: ""
-        val body = updatePrefs.getString("latest_body", "") ?: ""
-        if (hasUpdate && updateReminder && tag.isNotBlank()) {
-            val currentVersion = try {
-                context.packageManager.getPackageInfo(context.packageName, 0).versionName ?: ""
-            } catch (_: Exception) {
-                ""
-            }
-            val latestVer = tag.removePrefix("v").substringBefore("-")
-            val localVer = currentVersion.removePrefix("v").substringBefore("-")
-            val remoteParts = latestVer.split(".").mapNotNull { it.toIntOrNull() }
-            val localParts = localVer.split(".").mapNotNull { it.toIntOrNull() }
-            val maxSize = maxOf(remoteParts.size, localParts.size)
-            var actuallyNewer = false
-            for (i in 0 until maxSize) {
-                val r = remoteParts.getOrElse(i) { 0 }
-                val l = localParts.getOrElse(i) { 0 }
-                if (r > l) {
-                    actuallyNewer = true; break
-                }
-                if (r < l) {
-                    actuallyNewer = false; break
-                }
-            }
-            if (actuallyNewer) {
-                updateTagName = tag
-                updateBody = body
-                val apkFile = java.io.File(context.filesDir, "update-$tag.apk")
-                hasDownloadedApk = apkFile.exists() && apkFile.length() > 0
-                kotlinx.coroutines.delay(800.milliseconds)
-                showUpdateDialog = true
-            } else {
-                updatePrefs.edit().putBoolean("has_update", false).apply()
-            }
-        }
     }
 
     val backgroundColor = MiuixTheme.colorScheme.surface
@@ -421,6 +295,11 @@ fun CourseScheduleApp() {
         drawContent()
     }
     val isDark = isAppDarkTheme()
+    val themePrefs = remember { context.getSharedPreferences("app_theme_prefs", Context.MODE_PRIVATE) }
+    val appStyle = remember { themePrefs.getString("app_style", "hyperos3") ?: "hyperos3" }
+    val liquidGlassBackdrop = if (appStyle == "liquidglass") {
+        com.kyant.backdrop.backdrops.rememberLayerBackdrop()
+    } else null
     val blurColors = BlurDefaults.blurColors(
         blendColors = listOf(
             if (isDark) BlendColorEntry(
@@ -433,59 +312,36 @@ fun CourseScheduleApp() {
         contrast = 1f,
         saturation = 1.2f
     )
-    val bottomblurColors = BlurDefaults.blurColors(
-        blendColors = listOf(
-            if (isDark) BlendColorEntry(
-                MiuixTheme.colorScheme.background.copy(alpha = 0.7f),
-                BlurBlendMode.Screen
-            )
-            else BlendColorEntry(ComposeColor.White.copy(alpha = 0.7f), BlurBlendMode.Screen)
-        ),
-        brightness = 0f,
-        contrast = 1f,
-        saturation = 1.2f
-    )
-
-    val baseStyle = Highlight.GlassStrokeSmallLight.style as BloomStroke
-    val tiltPrimary = rememberTiltLight(
-        basePosition = baseStyle.primaryLight.position,
-        intensity = baseStyle.primaryLight.intensity,
-        sensitivity = 0.15f,
-    )
-    val tiltSecondary = rememberTiltLight(
-        basePosition = baseStyle.secondaryLight.position,
-        intensity = baseStyle.secondaryLight.intensity,
-        sensitivity = 0.12f,
-    )
-    val floatingNavBarHighlight = Highlight.GlassStrokeSmallLight.copy(
-        style = baseStyle.copy(
-            primaryLight = tiltPrimary,
-            secondaryLight = tiltSecondary,
-        ),
-    )
 
     val totalWeeks by viewModel.totalWeeks.collectAsState()
     val currentWeek by viewModel.currentWeek.collectAsState()
     val classStartTime by viewModel.classStartTime.collectAsState()
     val showWeekendDays by settingsViewModel.showWeekendDays.collectAsState()
+    val morningSections by settingsViewModel.morningSections.collectAsState()
+    val afternoonSections by settingsViewModel.afternoonSections.collectAsState()
+    val eveningSections by settingsViewModel.eveningSections.collectAsState()
+    val totalSections = morningSections + afternoonSections + eveningSections
     val activity = LocalActivity.current as? MainActivity
     val resumeCount = activity?.resumeCount ?: 0
-    val storedNavBarStyle by remember(resumeCount) {
-        mutableStateOf(
-            com.haooz.chedule.data.CourseRepository(
-                context
-            ).getNavBarStyle()
-        )
-    }
     val windowInfo = androidx.compose.ui.platform.LocalWindowInfo.current
     val currentDensity = LocalDensity.current.density
-    val navBarStyle = if (storedNavBarStyle == "standard") {
+    val navBarStyle = run {
         val shortestSidePx = minOf(windowInfo.containerSize.width, windowInfo.containerSize.height)
         val shortestSideDp = shortestSidePx / currentDensity
-        if (shortestSideDp.toFloat() >= 600f) "rail" else "standard"
-    } else {
-        storedNavBarStyle
+        if (shortestSideDp.toFloat() > 500f) "rail" else "standard"
     }
+    val railState = if (navBarStyle == "rail") rememberNavigationRailState() else null
+    val railPaddingStart by animateDpAsState(
+        targetValue = if (railState != null && railState.isExpanded) {
+            NavigationRailDefaults.ExpandedWidth
+        } else if (navBarStyle == "rail") {
+            NavigationRailDefaults.MinWidth
+        } else {
+            0.dp
+        },
+        animationSpec = tween(durationMillis = 320, easing = FastOutSlowInEasing),
+        label = "railPadding",
+    )
     val isShiftMode by shiftViewModel.isShiftMode.collectAsState()
 
     var showCourseDetailPopup by remember { mutableStateOf(false) }
@@ -499,15 +355,12 @@ fun CourseScheduleApp() {
     var showDetail by remember { mutableStateOf(false) }
 
     var detailFromToday by remember { mutableStateOf(false) }
-    val detailAnimProgress = remember { Animatable(0f) }
     val morphOpenEase = CubicBezierEasing(0.3f, 0.72f, 0.2f, 1.0f)
     val morphExitEase = CubicBezierEasing(0.3f, 0.65f, 0.35f, 1.0f)
 
     // 长按空白区域"自定义课表"按钮状态
     var showLongPressButton by remember { mutableStateOf(false) }
     var showLongPressOverlay by remember { mutableStateOf(false) }
-    var longPressScale by remember { mutableFloatStateOf(0f) }
-    var longPressAlpha by remember { mutableFloatStateOf(0f) }
 
     // 自定义课表页面状态
     var showCustomizePage by remember { mutableStateOf(false) }
@@ -657,6 +510,8 @@ fun CourseScheduleApp() {
     }
     val cutoutMainScale = remember { Animatable(1f) }
     var cutoutCenterYRatio by remember { mutableFloatStateOf(0.5f) }
+    // 弹窗打开时的同步上移偏移（直接 translationY，与 CustomizeScheduleScreen 同帧）
+    var sheetOffsetY by remember { mutableFloatStateOf(0f) }
     LaunchedEffect(isWindowCutoutActive) {
         if (isWindowCutoutActive) {
             // 进入编辑模式时，同步当前搭配的值到 live 状态
@@ -683,46 +538,8 @@ fun CourseScheduleApp() {
         }
     }
     LaunchedEffect(showLongPressButton) {
-        if (showLongPressButton) {
-            showLongPressOverlay = true
-            kotlinx.coroutines.coroutineScope {
-                launch {
-                    animate(
-                        initialValue = 0.4f,
-                        targetValue = 1f,
-                        animationSpec = tween(
-                            400,
-                            easing = CubicBezierEasing(0.175f, 0.885f, 0.32f, 1.15f)
-                        )
-                    ) { value, _ -> longPressScale = value }
-                }
-                launch {
-                    animate(
-                        initialValue = 0f,
-                        targetValue = 1f,
-                        animationSpec = tween(400)
-                    ) { value, _ -> longPressAlpha = value }
-                }
-            }
-        } else if (longPressScale > 0.001f) {
-            kotlinx.coroutines.coroutineScope {
-                launch {
-                    animate(
-                        initialValue = longPressScale,
-                        targetValue = 0.6f,
-                        animationSpec = tween(120, easing = CubicBezierEasing(0.4f, 0f, 1f, 1f))
-                    ) { value, _ -> longPressScale = value }
-                }
-                launch {
-                    animate(
-                        initialValue = 1f,
-                        targetValue = 0f,
-                        animationSpec = tween(120)
-                    ) { value, _ -> longPressAlpha = value }
-                }
-            }
-            showLongPressOverlay = false
-        }
+        // 显隐由 LongPressCustomizeButton 内部驱动动画，这里只同步 visible 状态
+        showLongPressOverlay = showLongPressButton
     }
     // 切换页面时关闭长按按钮
     LaunchedEffect(selectedTab) {
@@ -845,13 +662,8 @@ fun CourseScheduleApp() {
         detailCardHeight = cardHeight
         detailFromToday = fromToday
         coroutineScope.launch {
-            // 等待两帧确保 UI 状态更新
-            withFrameNanos { }
-            withFrameNanos { }
-            // 捕获全屏快照
             val fullSnapshot = screenGraphicsLayer.toImageBitmap().asAndroidBitmap()
             screenSnapshot = fullSnapshot
-            // 裁剪卡片区域
             detailSnapshot = try {
                 val x = cardLeft.toInt().coerceIn(0, fullSnapshot.width - 1)
                 val y = cardTop.toInt().coerceIn(0, fullSnapshot.height - 1)
@@ -861,22 +673,152 @@ fun CourseScheduleApp() {
             } catch (_: Exception) {
                 null
             }
-            // 启动动画
             showDetail = true
-            kotlinx.coroutines.coroutineScope {
-                launch {
-                    backgroundScale.animateTo(
-                        0.92f,
-                        animationSpec = tween(520, easing = morphOpenEase)
-                    )
-                }
-                launch {
-                    detailAnimProgress.animateTo(
-                        1f,
-                        animationSpec = tween(520, easing = morphOpenEase)
-                    )
+            backgroundScale.animateTo(0.92f, animationSpec = tween(520, easing = morphOpenEase))
+        }
+    }
+
+    // 进入"自定义课表"搭配页：捕获当前及相邻搭配快照后打开搭配页。
+    // 由顶栏"课表外观"菜单和长按"自定义课表"按钮共用。
+    val enterCustomizePage: () -> Unit = {
+        coroutineScope.launch {
+            val screenW = windowInfo.containerSize.width.toFloat()
+            customizeExitTargetScale = (screenW * 0.65f) / screenW
+            // 重排序：将当前搭配移到 index 0（加号卡右侧），其余保持相对顺序
+            if (currentCombinationIndex > 0 && combinations.isNotEmpty()) {
+                val list = combinations.toMutableList()
+                val curr = list.removeAt(currentCombinationIndex)
+                list.add(0, curr)
+                combinations = list.toList()
+                currentCombinationIndex = 0
+            }
+            // 清除所有旧快照（每次进入搭配页时重新捕获）
+            combinations = combinations.map { it.copy(snapshot = null) }
+            // 先加载模糊设置，确保快照捕获时包含模糊效果
+            courseCardBlur = combinations.getOrNull(currentCombinationIndex)?.cardBlurRadius ?: 0f
+            courseCardAlpha = combinations.getOrNull(currentCombinationIndex)?.cardAlpha ?: 0.15f
+            kotlinx.coroutines.delay(50.milliseconds)
+            // 截取当前搭配快照
+            val currentSnapshot = screenGraphicsLayer.toImageBitmap().asAndroidBitmap()
+            customizeSnapshot = currentSnapshot
+            if (combinations.isNotEmpty()) {
+                combinations = combinations.toMutableList().also {
+                    it[0] = it[0].copy(snapshot = currentSnapshot)
                 }
             }
+            // 立即捕获相邻搭配快照（相邻卡片已可见）
+            if (combinations.size > 1) {
+                // 用当前搭配快照遮挡，避免用户看到壁纸切换
+                snapshotCoverBitmap = customizeSnapshot
+                val nextComb = combinations[1]
+                val savedWp2 = wallpaperBitmap
+                val savedOf2 = wallpaperOffset
+                val savedSc2 = wallpaperScale
+                val savedBlur2 = courseCardBlur
+                val savedAlpha2 = courseCardAlpha
+                val savedHeight2 = courseCardHeight
+                val savedCorner2 = courseCardCornerRadius
+                val savedOrigWp2 = originalWallpaperBitmap
+                val savedOrigOf2 = originalWallpaperOffset
+                val savedOrigSc2 = originalWallpaperScale
+                val savedOrigBlur2 = originalCourseCardBlur
+                val savedOrigAlpha2 = originalCourseCardAlpha
+                val savedOrigHeight2 = originalCourseCardHeight
+                val savedOrigCorner2 = originalCourseCardCornerRadius
+                wallpaperBitmap = nextComb.bitmap
+                wallpaperOffset = nextComb.offset
+                wallpaperScale = nextComb.scale
+                courseCardBlur = nextComb.cardBlurRadius
+                courseCardAlpha = nextComb.cardAlpha
+                courseCardHeight = nextComb.cardHeight
+                courseCardCornerRadius = nextComb.cardCornerRadius
+                originalWallpaperBitmap = nextComb.bitmap
+                originalWallpaperOffset = nextComb.offset
+                originalWallpaperScale = nextComb.scale
+                originalCourseCardBlur = nextComb.cardBlurRadius
+                originalCourseCardAlpha = nextComb.cardAlpha
+                originalCourseCardHeight = nextComb.cardHeight
+                originalCourseCardCornerRadius = nextComb.cardCornerRadius
+                kotlinx.coroutines.delay(120.milliseconds)
+                val nextSnap = screenGraphicsLayer.toImageBitmap().asAndroidBitmap()
+                combinations = combinations.toMutableList().also {
+                    it[1] = it[1].copy(snapshot = nextSnap)
+                }
+                wallpaperBitmap = savedWp2
+                wallpaperOffset = savedOf2
+                wallpaperScale = savedSc2
+                courseCardBlur = savedBlur2
+                courseCardAlpha = savedAlpha2
+                courseCardHeight = savedHeight2
+                courseCardCornerRadius = savedCorner2
+                originalWallpaperBitmap = savedOrigWp2
+                originalWallpaperOffset = savedOrigOf2
+                originalWallpaperScale = savedOrigSc2
+                originalCourseCardBlur = savedOrigBlur2
+                originalCourseCardAlpha = savedOrigAlpha2
+                originalCourseCardHeight = savedOrigHeight2
+                originalCourseCardCornerRadius = savedOrigCorner2
+                snapshotCoverBitmap = null
+            }
+            // 立即打开搭配页（用户看到当前搭配的正确快照）
+            customizeExitScale.snapTo(1f)
+            customizeExitAlpha.snapTo(1f)
+            showCustomizePage = true
+            isNewCombinationCreated = false
+            // 记录进入搭配页时的原始搭配（重排序后当前搭配在 index 0）
+            originalCombinationIndex = 0
+            originalWallpaperBitmap = wallpaperBitmap
+            originalWallpaperOffset = wallpaperOffset
+            originalWallpaperScale = wallpaperScale
+            originalCourseCardBlur = courseCardBlur
+            originalCourseCardAlpha = courseCardAlpha
+            originalCourseCardHeight = courseCardHeight
+            originalCourseCardCornerRadius = courseCardCornerRadius
+            // 后台逐个捕获其他搭配快照（等打开动画结束后再开始，避免动画期间主界面壁纸跳变）
+            kotlinx.coroutines.delay(500.milliseconds)
+            val savedWp = wallpaperBitmap
+            val savedOf = wallpaperOffset
+            val savedSc = wallpaperScale
+            val savedBlur = courseCardBlur
+            val savedAlpha = courseCardAlpha
+            val savedHeight = courseCardHeight
+            val savedCorner = courseCardCornerRadius
+            for (i in 1 until combinations.size) {
+                val comb = combinations[i]
+                wallpaperBitmap = comb.bitmap
+                wallpaperOffset = comb.offset
+                wallpaperScale = comb.scale
+                courseCardBlur = comb.cardBlurRadius
+                courseCardAlpha = comb.cardAlpha
+                courseCardHeight = comb.cardHeight
+                courseCardCornerRadius = comb.cardCornerRadius
+                originalWallpaperBitmap = comb.bitmap
+                originalWallpaperOffset = comb.offset
+                originalWallpaperScale = comb.scale
+                originalCourseCardBlur = comb.cardBlurRadius
+                originalCourseCardAlpha = comb.cardAlpha
+                originalCourseCardHeight = comb.cardHeight
+                originalCourseCardCornerRadius = comb.cardCornerRadius
+                kotlinx.coroutines.delay(120.milliseconds)
+                val snap = screenGraphicsLayer.toImageBitmap().asAndroidBitmap()
+                combinations = combinations.toMutableList().also {
+                    it[i] = it[i].copy(snapshot = snap)
+                }
+            }
+            wallpaperBitmap = savedWp
+            wallpaperOffset = savedOf
+            wallpaperScale = savedSc
+            courseCardBlur = savedBlur
+            courseCardAlpha = savedAlpha
+            courseCardHeight = savedHeight
+            courseCardCornerRadius = savedCorner
+            originalWallpaperBitmap = savedWp
+            originalWallpaperOffset = savedOf
+            originalWallpaperScale = savedSc
+            originalCourseCardBlur = savedBlur
+            originalCourseCardAlpha = savedAlpha
+            originalCourseCardHeight = savedHeight
+            originalCourseCardCornerRadius = savedCorner
         }
     }
 
@@ -910,68 +852,6 @@ fun CourseScheduleApp() {
     var switchCapturingSnapshot by remember { mutableStateOf(false) }
     var scheduleChanged by remember { mutableStateOf(false) }
 
-    // 处理从系统分享导入的JSON文件
-    var showShareImportDialog by remember { mutableStateOf(false) }
-    var shareImportData by remember { mutableStateOf<Map<String, Any>?>(null) }
-    var shareImportScheduleName by remember { mutableStateOf("") }
-
-
-    // 监听 intentVersion 变化，每次有新 intent 都会触发
-    LaunchedEffect(activity?.shareIntentVersion) {
-        val uri = activity?.shareIntentUri
-        val action = activity?.shareIntentAction
-        if (uri != null && action != null) {
-            activity.clearShareIntent()
-
-            val intentData = when (action) {
-                android.content.Intent.ACTION_VIEW -> uri
-                android.content.Intent.ACTION_SEND -> uri
-                else -> null
-            }
-
-            intentData?.let { shareUri ->
-                try {
-                    val inputStream = context.contentResolver.openInputStream(shareUri)
-                    val text =
-                        inputStream?.bufferedReader()?.use { reader -> reader.readText() } ?: ""
-                    inputStream?.close()
-
-                    if (text.isNotBlank()) {
-                        val fileName = shareUri.lastPathSegment?.lowercase() ?: ""
-                        val isIcs = fileName.endsWith(".ics")
-
-                        val (success, message, data) = if (isIcs) {
-                            com.haooz.chedule.ui.screens.parseIcsFile(text)
-                        } else {
-                            com.haooz.chedule.ui.screens.parseFullScheduleJson(text)
-                        }
-
-                        if (success && data != null) {
-                            val scheduleName =
-                                if (isIcs) "ICS导入课表" else (data["schedule_name"] as? String)
-                                    ?: "导入的课表"
-                            shareImportData = data
-                            shareImportScheduleName = scheduleName
-                            showShareImportDialog = true
-                        } else {
-                            android.widget.Toast.makeText(
-                                context,
-                                message,
-                                android.widget.Toast.LENGTH_SHORT
-                            ).show()
-                        }
-                    }
-                } catch (e: Exception) {
-                    android.widget.Toast.makeText(
-                        context,
-                        "导入失败: ${e.message}",
-                        android.widget.Toast.LENGTH_SHORT
-                    ).show()
-                }
-            }
-        }
-    }
-
     val isViewingCurrentWeek = currentViewingWeek == currentWeek
 
     // 退出缩放中心：与搭配界面卡片中心对齐
@@ -995,11 +875,11 @@ fun CourseScheduleApp() {
         }
     }
     Box(modifier = Modifier.fillMaxSize().background(MiuixTheme.colorScheme.surface)) {
-        val isDetailActive = showDetail && !showCourseDetailPopup
+        val isDetailActive = showDetail && screenSnapshot != null && !showCourseDetailPopup
         val shouldRecordGL = !isDetailActive
         val isEntryAnimating = showSwitchSchedule && switchAnimForward && switchAnimRunning
         val mainContentAlpha = when {
-            isDetailActive -> 1f
+            isDetailActive -> 0f
             showSwitchSchedule && switchScreenSnapshot != null -> 0f
             else -> 1f
         }
@@ -1036,6 +916,9 @@ fun CourseScheduleApp() {
                     scaleX = baseScale * effectiveScale
                     scaleY = baseScale * effectiveScale
                     alpha = mainContentAlpha
+                    // 弹窗打开时同步上移（直接 translationY，与 CustomizeScheduleScreen 同帧）
+                    // cutout 区域的偏移贡献为 sheetOffsetY * (1-scaleProg)，scale=0.75 时 = 0.7143
+                    translationY = sheetOffsetY * 0.7143f
                     if (isCustomizeExiting) {
                         transformOrigin = TransformOrigin(0.5f, 0.58f)
                     }
@@ -1103,367 +986,65 @@ fun CourseScheduleApp() {
                                 ).asComposeRenderEffect()
                             }
                         } else Modifier
-                    } else if (isDetailActive) {
-                        // 详情页打开时，直接模糊主内容
-                        val blurR = animationState.value.first
-                        if (blurR > 0.01f) {
-                            Modifier.graphicsLayer {
-                                val px = blurR * density.density
-                                renderEffect = android.graphics.RenderEffect.createBlurEffect(
-                                    px, px, android.graphics.Shader.TileMode.CLAMP
-                                ).asComposeRenderEffect()
-                            }
-                        } else Modifier
                     } else Modifier
                 )
         ) {
             Scaffold(
                 bottomBar = {
-                    if (navBarStyle == "rail") {
-                        Box(modifier = Modifier.fillMaxSize()) {
-                            NavigationRail(
-                                modifier = Modifier.fillMaxHeight(),
-                                color = if (isDark) Color.Black else Color.White,
-                                minWidth = 74.dp,
-                                defaultWindowInsetsPadding = false
-                            ) {
-                                Spacer(modifier = Modifier.weight(1f))
-                                if (!isShiftMode) {
-                                    NavigationRailItem(
-                                        selected = selectedTab == 0,
-                                        onClick = {
-                                            hapticFeedback.performHapticFeedback(HapticFeedbackType.VirtualKey); selectedTab =
-                                            0
-                                        },
-                                        icon = MiuixIcons.Album,
-                                        label = "今日"
-                                    )
-                                    NavigationRailItem(
-                                        selected = selectedTab == 1,
-                                        onClick = {
-                                            hapticFeedback.performHapticFeedback(HapticFeedbackType.VirtualKey); selectedTab =
-                                            1
-                                        },
-                                        icon = MiuixIcons.Months,
-                                        label = "课程表"
-                                    )
-                                    NavigationRailItem(
-                                        selected = selectedTab == 2,
-                                        onClick = {
-                                            hapticFeedback.performHapticFeedback(HapticFeedbackType.VirtualKey); selectedTab =
-                                            2
-                                        },
-                                        icon = MiuixIcons.Demibold.Settings,
-                                        label = "设置"
-                                    )
-                                } else {
-                                    NavigationRailItem(
-                                        selected = selectedTab == 0,
-                                        onClick = {
-                                            hapticFeedback.performHapticFeedback(HapticFeedbackType.VirtualKey); selectedTab =
-                                            0
-                                        },
-                                        icon = MiuixIcons.Months,
-                                        label = "排班课表"
-                                    )
-                                    NavigationRailItem(
-                                        selected = selectedTab == 1,
-                                        onClick = {
-                                            hapticFeedback.performHapticFeedback(HapticFeedbackType.VirtualKey); selectedTab =
-                                            1
-                                        },
-                                        icon = MiuixIcons.Demibold.Settings,
-                                        label = "设置"
-                                    )
-                                }
-                            }
-                        }
-                    } else if (navBarStyle == "floating") {
-                        Column(modifier = Modifier.offset(y = 8.dp)) {
-                            Box(
-                                modifier = Modifier
-                            ) {
-                                FloatingNavigationBar(
-                                    modifier = Modifier
-                                        .textureBlur(
-                                            backdrop = backdrop,
-                                            shape = RoundedRectangle(28.dp),
-                                            highlight = floatingNavBarHighlight,
-                                            colors = blurColors
-                                        ),
-
-                                    shadowElevation = 0.dp
-                                ) {
-                                    if (!isShiftMode) {
-                                        FloatingNavigationBarItem(
-                                            selected = selectedTab == 0,
-                                            onClick = {
-                                                hapticFeedback.performHapticFeedback(
-                                                    HapticFeedbackType.VirtualKey
-                                                ); selectedTab = 0
-                                            },
-                                            icon = MiuixIcons.Album,
-                                            label = "今日"
-                                        )
-                                        FloatingNavigationBarItem(
-                                            selected = selectedTab == 1,
-                                            onClick = {
-                                                hapticFeedback.performHapticFeedback(
-                                                    HapticFeedbackType.VirtualKey
-                                                ); selectedTab = 1
-                                            },
-                                            icon = MiuixIcons.Months,
-                                            label = "课程表"
-                                        )
-                                        FloatingNavigationBarItem(
-                                            selected = selectedTab == 2,
-                                            onClick = {
-                                                hapticFeedback.performHapticFeedback(
-                                                    HapticFeedbackType.VirtualKey
-                                                ); selectedTab = 2
-                                            },
-                                            icon = MiuixIcons.Demibold.Settings,
-                                            label = "设置"
-                                        )
-                                    } else {
-                                        FloatingNavigationBarItem(
-                                            selected = selectedTab == 0,
-                                            onClick = {
-                                                hapticFeedback.performHapticFeedback(
-                                                    HapticFeedbackType.VirtualKey
-                                                ); selectedTab = 0
-                                            },
-                                            icon = MiuixIcons.Months,
-                                            label = "排班课表"
-                                        )
-                                        FloatingNavigationBarItem(
-                                            selected = selectedTab == 1,
-                                            onClick = {
-                                                hapticFeedback.performHapticFeedback(
-                                                    HapticFeedbackType.VirtualKey
-                                                ); selectedTab = 1
-                                            },
-                                            icon = MiuixIcons.Demibold.Settings,
-                                            label = "设置"
-                                        )
-                                    }
-                                }
-                            }
-                        }
-                    } else if (navBarStyle != "rail") {
-                        NavigationBar(
-                            modifier = Modifier.height(74.dp).textureBlur(
-                                backdrop = backdrop,
-                                shape = RectangleShape,
-                                colors = blurColors
-                            ),
-                            mode = NavigationBarDisplayMode.IconAndText,
-                            color = ComposeColor.Transparent
-                        ) {
-                            if (!isShiftMode) {
-                                NavigationBarItem(
-                                    selected = selectedTab == 0,
-                                    onClick = {
-                                        hapticFeedback.performHapticFeedback(HapticFeedbackType.VirtualKey); selectedTab =
-                                        0
-                                    },
-                                    icon = MiuixIcons.Album,
-                                    label = "今日"
-                                )
-                                NavigationBarItem(
-                                    selected = selectedTab == 1,
-                                    onClick = {
-                                        hapticFeedback.performHapticFeedback(HapticFeedbackType.VirtualKey); selectedTab =
-                                        1
-                                    },
-                                    icon = MiuixIcons.Months,
-                                    label = "课程表"
-                                )
-                                NavigationBarItem(
-                                    selected = selectedTab == 2,
-                                    onClick = {
-                                        hapticFeedback.performHapticFeedback(HapticFeedbackType.VirtualKey); selectedTab =
-                                        2
-                                    },
-                                    icon = MiuixIcons.Demibold.Settings,
-                                    label = "设置"
-                                )
-                            } else {
-                                NavigationBarItem(
-                                    selected = selectedTab == 0,
-                                    onClick = {
-                                        hapticFeedback.performHapticFeedback(HapticFeedbackType.VirtualKey); selectedTab =
-                                        0
-                                    },
-                                    icon = MiuixIcons.Months,
-                                    label = "排班课表"
-                                )
-                                NavigationBarItem(
-                                    selected = selectedTab == 1,
-                                    onClick = {
-                                        hapticFeedback.performHapticFeedback(HapticFeedbackType.VirtualKey); selectedTab =
-                                        1
-                                    },
-                                    icon = MiuixIcons.Demibold.Settings,
-                                    label = "设置"
-                                )
-                            }
-                        }
-                    }
+                    ScheduleBottomBar(
+                        navBarStyle = navBarStyle,
+                        isShiftMode = isShiftMode,
+                        selectedTab = selectedTab,
+                        onTabSelected = { selectedTab = it },
+                        railState = railState,
+                        backdrop = backdrop,
+                        blurColors = blurColors,
+                        isDark = isDark,
+                        liquidGlassBackdrop = liquidGlassBackdrop
+                    )
                 },
                 topBar = {
-                    if ((!isShiftMode && selectedTab == 1) || (isShiftMode && selectedTab == 0)) {
-                        Box(
-                            modifier = Modifier.then(
-                                if (navBarStyle == "rail") Modifier.padding(
-                                    start = 74.dp
-                                ) else Modifier
-                            )
-                        ) {
-                            Box(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .height((activity?.titleBarHeight ?: 56.dp) + 40.dp)
-                                    .then(
-                                        Modifier.textureBlur(
-                                            backdrop = backdrop,
-                                            shape = RectangleShape,
-                                            colors = topAppBarColors
-                                        )
-                                    )
-                            )
-                            Column {
-                                SmallTopAppBar(
-                                    title = "第${pagerState.currentPage + 1}周",
-                                    color = ComposeColor.Transparent,
-                                    modifier = Modifier.onGloballyPositioned { coordinates ->
-                                        activity?.titleBarHeight =
-                                            with(density) { coordinates.size.height.toDp() }
-                                    },
-                                    navigationIcon = {
-                                        AnimatedVisibility(
-                                            visible = !isViewingCurrentWeek,
-                                            enter = fadeIn(animationSpec = tween(180)),
-                                            exit = fadeOut(animationSpec = tween(120))
-                                        ) {
-                                            IconButton(
-                                                onClick = {
-                                                    coroutineScope.launch {
-                                                        val targetPage = (currentWeek - 1).coerceIn(
-                                                            0,
-                                                            (totalWeeks - 1).coerceAtLeast(0)
-                                                        )
-                                                        pagerState.animateScrollToPage(targetPage)
-                                                    }
-                                                },
-                                                modifier = Modifier.padding(start = 4.dp)
-                                            ) {
-                                                Icon(
-                                                    imageVector = MiuixIcons.Medium.Reset,
-                                                    contentDescription = "返回本周",
-                                                    modifier = Modifier.size(25.dp)
-                                                )
-                                            }
-                                        }
-                                    },
-                                    actions = {
-                                        if (!isShiftMode) {
-                                            IconButton(
-                                                onClick = {
-                                                    if (!showSwitchSchedule) {
-                                                        coroutineScope.launch {
-                                                            mainContentSnapshot =
-                                                                screenGraphicsLayer.toImageBitmap()
-                                                                    .asAndroidBitmap()
-                                                            switchPendingReverse = true
-                                                            switchCapturingSnapshot = true
-                                                            showSwitchSchedule = true
-                                                        }
-                                                    }
-                                                },
-                                                modifier = Modifier.padding(end = 4.dp)
-                                            ) {
-                                                Icon(
-                                                    imageVector = MiuixIcons.Normal.ConvertFile,
-                                                    contentDescription = "课表切换",
-                                                    modifier = Modifier.size(27.dp)
-                                                )
-                                            }
-                                            val entry = remember {
-                                                DropdownEntry(
-                                                    items = listOf(
-                                                        DropdownItem(
-                                                            text = "跳转周数",
-                                                            onClick = { viewModel.showJumpWeekDialog() }
-                                                        )
-                                                    )
-                                                )
-                                            }
-                                            OverlayIconDropdownMenu(
-                                                entry = entry,
-                                                modifier = Modifier.padding(end = 4.dp)
-                                            ) {
-                                                Icon(
-                                                    imageVector = MiuixIcons.More,
-                                                    contentDescription = "更多",
-                                                    modifier = Modifier.size(22.dp)
-                                                )
-                                            }
-                                        }
-                                    }
-                                )
-                                Row(
-                                    modifier = Modifier
-                                        .fillMaxWidth()
-                                        .height(40.dp)
-                                ) {
-                                    Spacer(modifier = Modifier.width(36.dp))
-                                    val dayNames =
-                                        listOf(
-                                            "周一",
-                                            "周二",
-                                            "周三",
-                                            "周四",
-                                            "周五",
-                                            "周六",
-                                            "周日"
-                                        )
-                                    dayRange.forEach { dayOfWeek ->
-                                        val index = dayOfWeek - 1
-                                        val name = dayNames[index]
-                                        val isToday =
-                                            dayOfWeek == currentDayOfWeek && pagerState.currentPage + 1 == currentWeek
-                                        Box(
-                                            modifier = Modifier.weight(1f).height(40.dp),
-                                            contentAlignment = Alignment.Center
-                                        ) {
-                                            Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                                                Text(
-                                                    text = name,
-                                                    style = MiuixTheme.textStyles.footnote1.copy(
-                                                        fontWeight = if (isToday) FontWeight.Bold else FontWeight.Normal
-                                                    ),
-                                                    color = if (isToday) MiuixTheme.colorScheme.primary
-                                                    else MiuixTheme.colorScheme.onSurface
-                                                )
-                                                if (weekDates.isNotEmpty() && index < weekDates.size) {
-                                                    val dateText = weekDates[index].format(
-                                                        DateTimeFormatter.ofPattern("MM/dd")
-                                                    )
-                                                    Text(
-                                                        text = dateText,
-                                                        style = MiuixTheme.textStyles.footnote2,
-                                                        color = if (isToday) MiuixTheme.colorScheme.primary
-                                                        else MiuixTheme.colorScheme.onSurfaceVariantActions
-                                                    )
-                                                }
-                                            }
-                                        }
-                                    }
+                    ScheduleTopBar(
+                        visible = (!isShiftMode && selectedTab == 1) || (isShiftMode && selectedTab == 0),
+                        navBarStyle = navBarStyle,
+                        railState = railState,
+                        pagerCurrentPage = pagerState.currentPage,
+                        currentWeek = currentWeek,
+                        totalWeeks = totalWeeks,
+                        isViewingCurrentWeek = isViewingCurrentWeek,
+                        titleBarHeight = activity?.titleBarHeight ?: 56.dp,
+                        topAppBarColors = topAppBarColors,
+                        backdrop = backdrop,
+                        dayRange = dayRange,
+                        currentDayOfWeek = currentDayOfWeek,
+                        isCurrentWeek = pagerState.currentPage + 1 == currentWeek && currentWeek in 1..totalWeeks,
+                        weekDates = weekDates,
+                        onBackToCurrentWeek = {
+                            coroutineScope.launch {
+                                val targetPage = (currentWeek - 1).coerceIn(0, (totalWeeks - 1).coerceAtLeast(0))
+                                pagerState.animateScrollToPage(targetPage)
+                            }
+                        },
+                        onOpenSwitchSchedule = {
+                            if (!isShiftMode && !showSwitchSchedule) {
+                                coroutineScope.launch {
+                                    mainContentSnapshot = screenGraphicsLayer.toImageBitmap().asAndroidBitmap()
+                                    switchPendingReverse = true
+                                    switchCapturingSnapshot = true
+                                    showSwitchSchedule = true
                                 }
                             }
-                        }
-                    }
+                        },
+                        onJumpWeek = { viewModel.showJumpWeekDialog() },
+                        onOpenCustomize = {
+                            coroutineScope.launch {
+                                // 等待弹窗菜单收回后再截屏
+                                kotlinx.coroutines.delay(200.milliseconds)
+                                enterCustomizePage()
+                            }
+                        },
+                        onTitleBarMeasured = { activity?.titleBarHeight = it }
+                    )
                 }
             ) { _ ->
                 // 不再用 combinations.isEmpty() 门控整个内容区：
@@ -1473,9 +1054,15 @@ fun CourseScheduleApp() {
                 Box(
                     modifier = Modifier
                         .fillMaxSize()
-                        .then(if (navBarStyle == "rail") Modifier.padding(start = 74.dp) else Modifier)
+                        .padding(start = railPaddingStart)
                         .layerBackdrop(backdrop)
                 ) {
+                    Box(
+                        modifier = Modifier.fillMaxSize().then(
+                            if (liquidGlassBackdrop != null) Modifier.liquidGlassLayerBackdrop(liquidGlassBackdrop)
+                            else Modifier
+                        )
+                    ) {
                     if (!isShiftMode) {
                         when (selectedTab) {
                             0 -> TodayScreen(
@@ -1532,7 +1119,8 @@ fun CourseScheduleApp() {
                                 shiftViewModel = shiftViewModel,
                                 currentDayOfWeek = currentDayOfWeek,
                                 dayRange = dayRange,
-                                pagerState = pagerState
+                                pagerState = pagerState,
+                                cardHeightPerSection = courseCardHeight
                             )
 
                             1 -> SettingsScreen(
@@ -1552,324 +1140,87 @@ fun CourseScheduleApp() {
                             )
                         }
                     }
+                    }
                 }
                 // 长按空白区域后显示的"自定义课表"按钮
-                if (showLongPressOverlay) {
-                    Box(modifier = Modifier.fillMaxSize()) {
-                        Box(
-                            modifier = Modifier
-                                .fillMaxSize()
-                                .clickable(
-                                    indication = null,
-                                    interactionSource = remember { androidx.compose.foundation.interaction.MutableInteractionSource() }
-                                ) { showLongPressButton = false }
-                        )
-                        Box(
-                            modifier = Modifier
-                                .align(Alignment.BottomCenter)
-                                .padding(bottom = 92.dp)
-                                .graphicsLayer {
-                                    scaleX = longPressScale
-                                    scaleY = longPressScale
-                                    transformOrigin = TransformOrigin.Center
-                                    alpha = longPressAlpha
-                                }
-                                .textureBlur(
-                                    backdrop = backdrop,
-                                    shape = RoundedRectangle(25.dp),
-                                    blurRadius = 25f,
-                                    colors = bottomblurColors,
-                                )
-                                .clip(RoundedRectangle(25.dp))
-                        ) {
-                            top.yukonga.miuix.kmp.basic.Button(
-                                modifier = Modifier.width(140.dp).height(48.dp),
-                                onClick = {
-                                    showLongPressButton = false
-                                    coroutineScope.launch {
-                                        kotlinx.coroutines.delay(120.milliseconds)
-                                        showLongPressOverlay = false
-                                        val screenW = windowInfo.containerSize.width.toFloat()
-                                        customizeExitTargetScale = (screenW * 0.65f) / screenW
-                                        // 重排序：将当前搭配移到 index 0（加号卡右侧），其余保持相对顺序
-                                        if (currentCombinationIndex > 0 && combinations.isNotEmpty()) {
-                                            val list = combinations.toMutableList()
-                                            val curr = list.removeAt(currentCombinationIndex)
-                                            list.add(0, curr)
-                                            combinations = list.toList()
-                                            currentCombinationIndex = 0
-                                        }
-                                        // 清除所有旧快照（每次进入搭配页时重新捕获）
-                                        combinations = combinations.map { it.copy(snapshot = null) }
-                                        // 先加载模糊设置，确保快照捕获时包含模糊效果
-                                        courseCardBlur =
-                                            combinations.getOrNull(currentCombinationIndex)?.cardBlurRadius
-                                                ?: 0f
-                                        courseCardAlpha =
-                                            combinations.getOrNull(currentCombinationIndex)?.cardAlpha
-                                                ?: 0.15f
-                                        kotlinx.coroutines.delay(50.milliseconds)
-                                        // 截取当前搭配快照
-                                        val currentSnapshot =
-                                            screenGraphicsLayer.toImageBitmap().asAndroidBitmap()
-                                        customizeSnapshot = currentSnapshot
-                                        if (combinations.isNotEmpty()) {
-                                            combinations = combinations.toMutableList().also {
-                                                it[0] = it[0].copy(snapshot = currentSnapshot)
-                                            }
-                                        }
-                                        // 立即捕获相邻搭配快照（相邻卡片已可见）
-                                        if (combinations.size > 1) {
-                                            // 用当前搭配快照遮挡，避免用户看到壁纸切换
-                                            snapshotCoverBitmap = customizeSnapshot
-                                            val nextComb = combinations[1]
-                                            val savedWp2 = wallpaperBitmap
-                                            val savedOf2 = wallpaperOffset
-                                            val savedSc2 = wallpaperScale
-                                            val savedBlur2 = courseCardBlur
-                                            val savedAlpha2 = courseCardAlpha
-                                            val savedHeight2 = courseCardHeight
-                                            val savedCorner2 = courseCardCornerRadius
-                                            val savedOrigWp2 = originalWallpaperBitmap
-                                            val savedOrigOf2 = originalWallpaperOffset
-                                            val savedOrigSc2 = originalWallpaperScale
-                                            val savedOrigBlur2 = originalCourseCardBlur
-                                            val savedOrigAlpha2 = originalCourseCardAlpha
-                                            val savedOrigHeight2 = originalCourseCardHeight
-                                            val savedOrigCorner2 = originalCourseCardCornerRadius
-                                            wallpaperBitmap = nextComb.bitmap
-                                            wallpaperOffset = nextComb.offset
-                                            wallpaperScale = nextComb.scale
-                                            courseCardBlur = nextComb.cardBlurRadius
-                                            courseCardAlpha = nextComb.cardAlpha
-                                            courseCardHeight = nextComb.cardHeight
-                                            courseCardCornerRadius = nextComb.cardCornerRadius
-                                            originalWallpaperBitmap = nextComb.bitmap
-                                            originalWallpaperOffset = nextComb.offset
-                                            originalWallpaperScale = nextComb.scale
-                                            originalCourseCardBlur = nextComb.cardBlurRadius
-                                            originalCourseCardAlpha = nextComb.cardAlpha
-                                            originalCourseCardHeight = nextComb.cardHeight
-                                            originalCourseCardCornerRadius = nextComb.cardCornerRadius
-                                            kotlinx.coroutines.delay(120.milliseconds)
-                                            val nextSnap = screenGraphicsLayer.toImageBitmap().asAndroidBitmap()
-                                            combinations = combinations.toMutableList().also {
-                                                it[1] = it[1].copy(snapshot = nextSnap)
-                                            }
-                                            wallpaperBitmap = savedWp2
-                                            wallpaperOffset = savedOf2
-                                            wallpaperScale = savedSc2
-                                            courseCardBlur = savedBlur2
-                                            courseCardAlpha = savedAlpha2
-                                            courseCardHeight = savedHeight2
-                                            courseCardCornerRadius = savedCorner2
-                                            originalWallpaperBitmap = savedOrigWp2
-                                            originalWallpaperOffset = savedOrigOf2
-                                            originalWallpaperScale = savedOrigSc2
-                                            originalCourseCardBlur = savedOrigBlur2
-                                            originalCourseCardAlpha = savedOrigAlpha2
-                                            originalCourseCardHeight = savedOrigHeight2
-                                            originalCourseCardCornerRadius = savedOrigCorner2
-                                            snapshotCoverBitmap = null
-                                        }
-                                        // 立即打开搭配页（用户看到当前搭配的正确快照）
-                                        customizeExitScale.snapTo(1f)
-                                        customizeExitAlpha.snapTo(1f)
-                                        showCustomizePage = true
-                                        isNewCombinationCreated = false
-                                        // 记录进入搭配页时的原始搭配（重排序后当前搭配在 index 0）
-                                        originalCombinationIndex = 0
-                                        originalWallpaperBitmap = wallpaperBitmap
-                                        originalWallpaperOffset = wallpaperOffset
-                                        originalWallpaperScale = wallpaperScale
-                                        originalCourseCardBlur = courseCardBlur
-                                        originalCourseCardAlpha = courseCardAlpha
-                                        originalCourseCardHeight = courseCardHeight
-                                        originalCourseCardCornerRadius = courseCardCornerRadius
-                                        // 后台逐个捕获其他搭配快照（等打开动画结束后再开始，避免动画期间主界面壁纸跳变）
-                                        kotlinx.coroutines.delay(500.milliseconds)
-                                        val savedWp = wallpaperBitmap
-                                        val savedOf = wallpaperOffset
-                                        val savedSc = wallpaperScale
-                                        val savedBlur = courseCardBlur
-                                        val savedAlpha = courseCardAlpha
-                                        val savedHeight = courseCardHeight
-                                        val savedCorner = courseCardCornerRadius
-                                        for (i in 1 until combinations.size) {
-                                            val comb = combinations[i]
-                                            wallpaperBitmap = comb.bitmap
-                                            wallpaperOffset = comb.offset
-                                            wallpaperScale = comb.scale
-                                            courseCardBlur = comb.cardBlurRadius
-                                            courseCardAlpha = comb.cardAlpha
-                                            courseCardHeight = comb.cardHeight
-                                            courseCardCornerRadius = comb.cardCornerRadius
-                                            originalWallpaperBitmap = comb.bitmap
-                                            originalWallpaperOffset = comb.offset
-                                            originalWallpaperScale = comb.scale
-                                            originalCourseCardBlur = comb.cardBlurRadius
-                                            originalCourseCardAlpha = comb.cardAlpha
-                                            originalCourseCardHeight = comb.cardHeight
-                                            originalCourseCardCornerRadius = comb.cardCornerRadius
-                                            kotlinx.coroutines.delay(120.milliseconds)
-                                            val snap = screenGraphicsLayer.toImageBitmap()
-                                                .asAndroidBitmap()
-                                            combinations = combinations.toMutableList().also {
-                                                it[i] = it[i].copy(snapshot = snap)
-                                            }
-                                        }
-                                        wallpaperBitmap = savedWp
-                                        wallpaperOffset = savedOf
-                                        wallpaperScale = savedSc
-                                        courseCardBlur = savedBlur
-                                        courseCardAlpha = savedAlpha
-                                        courseCardHeight = savedHeight
-                                        courseCardCornerRadius = savedCorner
-                                        originalWallpaperBitmap = savedWp
-                                        originalWallpaperOffset = savedOf
-                                        originalWallpaperScale = savedSc
-                                        originalCourseCardBlur = savedBlur
-                                        originalCourseCardAlpha = savedAlpha
-                                        originalCourseCardHeight = savedHeight
-                                        originalCourseCardCornerRadius = savedCorner
-                                    }
-                                },
-                                colors = top.yukonga.miuix.kmp.basic.ButtonDefaults.buttonColors(
-                                    color = Color.Transparent
-                                )
-                            ) {
-                                Text(
-                                    text = "自定义课表",
-                                    fontSize = 15.sp,
-                                    fontWeight = FontWeight.Medium,
-                                    color = MiuixTheme.colorScheme.onSurface
-                                )
-                            }
+                LongPressCustomizeButton(
+                    visible = showLongPressOverlay,
+                    backdrop = backdrop,
+                    isDark = isDark,
+                    onClick = {
+                        showLongPressButton = false
+                        coroutineScope.launch {
+                            kotlinx.coroutines.delay(120.milliseconds)
+                            showLongPressOverlay = false
+                            enterCustomizePage()
                         }
-                    }
-                }
+                    },
+                    onDismiss = { showLongPressButton = false }
+                )
                 // 分享导入确认弹窗（必须在 Scaffold 内部）
-                OverlayDialog(
-                    title = "导入课表",
-                    summary = "是否导入课表「$shareImportScheduleName」？\n确定导入将创建一个新的课表",
-                    show = showShareImportDialog,
-                    outsideMargin = DpSize(17.dp, 12.dp),
-                    onDismissRequest = {
-                        showShareImportDialog = false
-                        shareImportData = null
-                        shareImportScheduleName = ""
-                    }
-                ) {
-                    Column(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalAlignment = Alignment.CenterHorizontally
+                ShareImportDialog(
+                    activity = activity,
+                    shareIntentVersion = activity?.shareIntentVersion ?: 0,
+                    courseViewModel = viewModel,
+                    scheduleViewModel = scheduleViewModel,
+                    settingsViewModel = settingsViewModel
+                )
+
+                // 更新弹窗
+                UpdateDialog()
+
+                // LiquidGlass 添加课程浮动按钮
+                if (appStyle == "liquidglass" && liquidGlassBackdrop != null) {
+                    Box(
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .padding(end = 20.dp, bottom = 28.dp),
+                        contentAlignment = Alignment.BottomEnd
                     ) {
-                        top.yukonga.miuix.kmp.basic.TextField(
-                            value = shareImportScheduleName,
-                            onValueChange = { shareImportScheduleName = it },
-                            label = "课表名称",
-                            modifier = Modifier.fillMaxWidth()
+                        LiquidAddButton(
+                            onClick = { viewModel.showAddDialog() },
+                            backdrop = liquidGlassBackdrop
                         )
-                        Row(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(top = 16.dp),
-                            horizontalArrangement = Arrangement.spacedBy(12.dp)
-                        ) {
-                            top.yukonga.miuix.kmp.basic.TextButton(
-                                text = "取消",
-                                onClick = {
-                                    showShareImportDialog = false
-                                    shareImportData = null
-                                    shareImportScheduleName = ""
-                                },
-                                modifier = Modifier.weight(1f)
-                            )
-                            top.yukonga.miuix.kmp.basic.TextButton(
-                                text = "确定导入",
-                                onClick = {
-                                    if (shareImportScheduleName.isNotBlank() && shareImportData != null) {
-                                        val (_, importMessage) = com.haooz.chedule.ui.screens.applyScheduleData(
-                                            context,
-                                            viewModel,
-                                            scheduleViewModel,
-                                            settingsViewModel,
-                                            shareImportScheduleName,
-                                            shareImportData!!
-                                        )
-                                        android.widget.Toast.makeText(
-                                            context,
-                                            importMessage,
-                                            android.widget.Toast.LENGTH_LONG
-                                        ).show()
-                                    }
-                                    showShareImportDialog = false
-                                    shareImportData = null
-                                    shareImportScheduleName = ""
-                                },
-                                colors = top.yukonga.miuix.kmp.basic.ButtonDefaults.textButtonColorsPrimary(),
-                                modifier = Modifier.weight(1f)
-                            )
-                        }
                     }
                 }
 
-                // 更新弹窗
-                if (showUpdateDialog) {
-                    OverlayDialog(
-                        title = "发现新版本",
-                        summary = "最新版本: $updateTagName",
-                        show = showUpdateDialog,
-                        outsideMargin = DpSize(17.dp, 12.dp),
-                        onDismissRequest = { showUpdateDialog = false }
-                    ) {
-                        Column(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalAlignment = Alignment.CenterHorizontally
-                        ) {
-                            if (updateBody.isNotBlank()) {
-                                Text(
-                                    text = updateBody.take(300),
-                                    fontSize = 14.sp,
-                                    color = MiuixTheme.colorScheme.onSurfaceVariantActions,
-                                    modifier = Modifier.padding(bottom = 16.dp)
-                                )
+                // 添加课程对话框
+                val showAddDialog by viewModel.showAddDialog.collectAsState()
+                val editingCourse by viewModel.editingCourse.collectAsState()
+                val selectedStartSection by viewModel.selectedStartSection.collectAsState()
+                val selectedEndSection by viewModel.selectedEndSection.collectAsState()
+                if (showAddDialog) {
+                    val editingStartSection =
+                        editingCourse?.startSection ?: selectedStartSection
+                    val editingEndSection = editingCourse?.endSection ?: selectedEndSection
+
+                    AddCourseDialog(
+                        course = editingCourse,
+                        selectedDay = viewModel.selectedDay.collectAsState().value,
+                        totalWeeks = totalWeeks,
+                        totalSections = totalSections,
+                        defaultStartSection = editingStartSection,
+                        defaultEndSection = editingEndSection,
+                        getOccupiedWeeks = { dayOfWeek, startSection, endSection ->
+                            viewModel.getOccupiedWeeks(
+                                dayOfWeek = dayOfWeek,
+                                startSection = startSection,
+                                endSection = endSection,
+                                excludeId = editingCourse?.id
+                            )
+                        },
+                        onDismiss = { viewModel.hideDialog() },
+                        onConfirm = { course ->
+                            if (editingCourse != null) {
+                                viewModel.updateCourse(course)
+                            } else {
+                                viewModel.addCourse(course)
                             }
-                            Row(
-                                modifier = Modifier.fillMaxWidth(),
-                                horizontalArrangement = Arrangement.spacedBy(12.dp)
-                            ) {
-                                top.yukonga.miuix.kmp.basic.TextButton(
-                                    text = "稍后",
-                                    onClick = {
-                                        hapticFeedback.performHapticFeedback(HapticFeedbackType.Confirm)
-                                        showUpdateDialog = false
-                                    },
-                                    modifier = Modifier.weight(1f)
-                                )
-                                top.yukonga.miuix.kmp.basic.Button(
-                                    modifier = Modifier.weight(1f),
-                                    onClick = {
-                                        hapticFeedback.performHapticFeedback(HapticFeedbackType.Confirm)
-                                        showUpdateDialog = false
-                                        val intent = android.content.Intent(
-                                            context,
-                                            UpdateSettingsActivity::class.java
-                                        )
-                                        context.startActivity(intent)
-                                    },
-                                    colors = top.yukonga.miuix.kmp.basic.ButtonDefaults.buttonColorsPrimary()
-                                ) {
-                                    Text(
-                                        text = if (hasDownloadedApk) "安装" else "更新",
-                                        fontSize = 16.sp,
-                                        fontWeight = FontWeight.Medium,
-                                        color = ComposeColor.White
-                                    )
-                                }
-                            }
+                        },
+                        onDelete = { courseId ->
+                            viewModel.deleteCourse(courseId)
                         }
-                    }
+                    )
                 }
             }
         }
@@ -2102,7 +1453,11 @@ fun CourseScheduleApp() {
                                         if (combIdx < it.size) it[combIdx] =
                                             it[combIdx].copy(snapshot = snap)
                                     }
-                                    customizeSnapshot = snap
+                                    // 仅当用户仍停留在该搭配时才更新 customizeSnapshot，
+                                    // 避免快速切换时旧协程覆盖为非当前搭配的快照
+                                    if (combIdx == currentCombinationIndex) {
+                                        customizeSnapshot = snap
+                                    }
                                 }
                             }
                         }
@@ -2223,6 +1578,7 @@ fun CourseScheduleApp() {
                         }
                     },
                     onCutoutCenterChange = { cutoutCenterYRatio = it },
+                    onSheetOffsetChange = { sheetOffsetY = it },
                     onEffectValueChange = { blur, alpha ->
                         courseCardBlur = blur
                         courseCardAlpha = alpha
@@ -2322,6 +1678,32 @@ fun CourseScheduleApp() {
                 windowInsetsController?.isAppearanceLightNavigationBars = true
             }
         }
+        // 课程详情页背景快照
+        if (isDetailActive) {
+            val s = animationState.value
+            Image(
+                bitmap = screenSnapshot!!.asImageBitmap(),
+                contentDescription = null,
+                modifier = Modifier
+                    .fillMaxSize()
+                    .then(
+                        if (s.first > 0.01f) {
+                            Modifier.graphicsLayer {
+                                val px = s.first * density.density
+                                renderEffect = android.graphics.RenderEffect.createBlurEffect(
+                                    px, px, android.graphics.Shader.TileMode.CLAMP
+                                ).asComposeRenderEffect()
+                            }
+                        } else Modifier
+                    )
+                    .graphicsLayer {
+                        scaleX = s.third
+                        scaleY = s.third
+                    }
+                    .clip(RoundedRectangle(s.second)),
+                contentScale = ContentScale.Crop
+            )
+        }
         // 课程详情页（不受缩放影响）
         if (showDetail) {
             val windowInfo = androidx.compose.ui.platform.LocalWindowInfo.current
@@ -2340,30 +1722,14 @@ fun CourseScheduleApp() {
                 fromToday = detailFromToday,
                 sectionTimes = sectionTimes,
                 classStartTime = classStartTime,
-                animProgress = detailAnimProgress.value,
                 onBackStart = {
                     coroutineScope.launch {
-                        kotlinx.coroutines.coroutineScope {
-                            launch {
-                                backgroundScale.animateTo(
-                                    1f,
-                                    animationSpec = tween(370, easing = morphExitEase)
-                                )
-                            }
-                            launch {
-                                detailAnimProgress.animateTo(
-                                    0f,
-                                    animationSpec = tween(370, easing = morphExitEase)
-                                )
-                            }
-                        }
-                        // 动画完成后关闭详情页
-                        showDetail = false
-                        screenSnapshot = null
+                        backgroundScale.animateTo(1f, animationSpec = tween(370, easing = morphExitEase))
                     }
                 },
                 onBack = {
-                    // 由 onBackStart 中的动画完成回调处理
+                    showDetail = false
+                    screenSnapshot = null
                 }
             )
         }

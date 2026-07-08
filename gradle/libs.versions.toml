@@ -1,67 +1,74 @@
 # Nexio课程表 - 依赖版本目录
 
 [versions]
-agp = "9.2.1"
-coreKtx = "1.18.0"
-junit = "4.13.2"
-junitVersion = "1.2.1"
-espressoCore = "3.6.1"
-lifecycleRuntimeKtx = "2.9.1"
-activityCompose = "1.10.1"
-kotlin = "2.4.0"
-composeBom = "2026.05.01"
-miuix = "0.9.2"
-gson = "2.11.0"
-shapes = "1.2.0"
-jgit = "5.13.5.202508271544-r"
-slf4j = "2.0.18"
-slf4j_android = "1.7.36"
-focus-api = "1.4"
-shizuku = "13.1.5"
+# 构建工具
+agp = "9.2.1"                          # Android Gradle Plugin
+kotlin = "2.4.0"                       # Kotlin 编译器（含 Compose 编译插件）
 
-[libraries]
-androidx-core-ktx = { group = "androidx.core", name = "core-ktx", version.ref = "coreKtx" }
-junit = { group = "junit", name = "junit", version.ref = "junit" }
-androidx-junit = { group = "androidx.test.ext", name = "junit", version.ref = "junitVersion" }
-androidx-espresso-core = { group = "androidx.test.espresso", name = "espresso-core", version.ref = "espressoCore" }
-androidx-lifecycle-runtime-ktx = { group = "androidx.lifecycle", name = "lifecycle-runtime-ktx", version.ref = "lifecycleRuntimeKtx" }
-androidx-lifecycle-viewmodel-compose = { group = "androidx.lifecycle", name = "lifecycle-viewmodel-compose", version.ref = "lifecycleRuntimeKtx" }
-androidx-activity-compose = { group = "androidx.activity", name = "activity-compose", version.ref = "activityCompose" }
-androidx-compose-bom = { group = "androidx.compose", name = "compose-bom", version.ref = "composeBom" }
-androidx-compose-ui = { group = "androidx.compose.ui", name = "ui" }
-androidx-compose-ui-graphics = { group = "androidx.compose.ui", name = "ui-graphics" }
-androidx-compose-ui-tooling = { group = "androidx.compose.ui", name = "ui-tooling" }
-androidx-compose-ui-tooling-preview = { group = "androidx.compose.ui", name = "ui-tooling-preview" }
-androidx-compose-ui-test-manifest = { group = "androidx.compose.ui", name = "ui-test-manifest" }
-androidx-compose-ui-test-junit4 = { group = "androidx.compose.ui", name = "ui-test-junit4" }
-androidx-compose-material3 = { group = "androidx.compose.material3", name = "material3" }
+# AndroidX 基础
+coreKtx = "1.18.0"                     # AndroidX Core KTX
+lifecycleRuntimeKtx = "2.9.1"         # 生命周期运行时 KTX
+activityCompose = "1.10.1"            # Activity 与 Compose 集成
+composeBom = "2026.05.01"             # Compose BOM 版本对齐
 
-# Miuix UI
-miuix-ui = { group = "top.yukonga.miuix.kmp", name = "miuix-ui-android", version.ref = "miuix" }
-miuix-preference = { group = "top.yukonga.miuix.kmp", name = "miuix-preference-android", version.ref = "miuix" }
-miuix-icons = { group = "top.yukonga.miuix.kmp", name = "miuix-icons-android", version.ref = "miuix" }
-miuix-blur = { group = "top.yukonga.miuix.kmp", name = "miuix-blur-android", version.ref = "miuix" }
-miuix-squircle = { group = "top.yukonga.miuix.kmp", name = "miuix-squircle-android", version.ref = "miuix" }
-miuix-navigation3 = { group = "top.yukonga.miuix.kmp", name = "miuix-navigation3-ui-android", version.ref = "miuix" }
+# 第三方 UI
+miuix = "0.9.3"                       # Miuix 小米风格组件库
+shapes = "1.2.0"                      # 自定义形状库（星形、多边形等）
+backdrop = "2.0.0"                    # Backdrop 模糊背景库
 
-gson = { group = "com.google.code.gson", name = "gson", version.ref = "gson" }
-okhttp = { group = "com.squareup.okhttp3", name = "okhttp", version = "4.12.0" }
+# 序列化 / 网络
+gson = "2.11.0"                       # Gson JSON 序列化
+okhttp = "4.12.0"                     # OkHttp HTTP 客户端（版本硬编码于 libraries 段）
 
-# JGit for Git operations
-jgit = { module = "org.eclipse.jgit:org.eclipse.jgit", version.ref = "jgit" }
-slf4j-api = { group = "org.slf4j", name = "slf4j-api", version.ref = "slf4j" }
-slf4j-android = { group = "org.slf4j", name = "slf4j-android", version.ref = "slf4j_android" }
-
-# Focus Notification / Super Island
-focus-api = { group = "com.xzakota.hyper.notification", name = "focus-api", version.ref = "focus-api" }
+# Git
+jgit = "5.13.5.202508271544-r"       # JGit 纯 Java Git 库
+slf4j = "2.0.18"                      # SLF4J API 日志门面
+slf4j_android = "1.7.36"             # SLF4J Android 实现
 
 # Shizuku
-shizuku-api = { group = "dev.rikka.shizuku", name = "api", version.ref = "shizuku" }
-shizuku-provider = { group = "dev.rikka.shizuku", name = "provider", version.ref = "shizuku" }
+shizuku = "13.1.5"                    # Shizuku 免 Root 高权限框架
+
+[libraries]
+# ===== AndroidX 基础 =====
+androidx-core-ktx = { group = "androidx.core", name = "core-ktx", version.ref = "coreKtx" }                       # 核心 KTX 扩展
+androidx-lifecycle-runtime-ktx = { group = "androidx.lifecycle", name = "lifecycle-runtime-ktx", version.ref = "lifecycleRuntimeKtx" }  # 生命周期运行时
+androidx-lifecycle-viewmodel-compose = { group = "androidx.lifecycle", name = "lifecycle-viewmodel-compose", version.ref = "lifecycleRuntimeKtx" }  # ViewModel + Compose
+androidx-activity-compose = { group = "androidx.activity", name = "activity-compose", version.ref = "activityCompose" }  # Activity setContent 入口
+
+# ===== Compose（BOM 统一管理版本）=====
+androidx-compose-bom = { group = "androidx.compose", name = "compose-bom", version.ref = "composeBom" }            # Compose 版本对齐 BOM
+androidx-compose-ui = { group = "androidx.compose.ui", name = "ui" }                                              # Compose UI 核心
+androidx-compose-ui-graphics = { group = "androidx.compose.ui", name = "ui-graphics" }                            # Compose 图形模块
+androidx-compose-ui-tooling = { group = "androidx.compose.ui", name = "ui-tooling" }                              # Layout Inspector / 预览工具
+androidx-compose-material3 = { group = "androidx.compose.material3", name = "material3" }                        # Material3 组件
+
+# Miuix UI（小米风格组件库）
+miuix-ui = { group = "top.yukonga.miuix.kmp", name = "miuix-ui-android", version.ref = "miuix" }                   # 基础组件（Scaffold/TopAppBar/Card）
+miuix-preference = { group = "top.yukonga.miuix.kmp", name = "miuix-preference-android", version.ref = "miuix" }   # 偏好组件（Switch/Dropdown）
+miuix-icons = { group = "top.yukonga.miuix.kmp", name = "miuix-icons-android", version.ref = "miuix" }             # 图标资源
+miuix-blur = { group = "top.yukonga.miuix.kmp", name = "miuix-blur-android", version.ref = "miuix" }               # 模糊效果
+miuix-squircle = { group = "top.yukonga.miuix.kmp", name = "miuix-squircle-android", version.ref = "miuix" }       # 超椭圆形状
+miuix-navigation3 = { group = "top.yukonga.miuix.kmp", name = "miuix-navigation3-ui-android", version.ref = "miuix" }  # Navigation3 导航
+
+# ===== 序列化 / 网络 =====
+gson = { group = "com.google.code.gson", name = "gson", version.ref = "gson" }                                     # JSON 序列化
+okhttp = { group = "com.squareup.okhttp3", name = "okhttp", version = "4.12.0" }                                  # HTTP 客户端
+
+# JGit for Git operations
+jgit = { module = "org.eclipse.jgit:org.eclipse.jgit", version.ref = "jgit" }                                      # 纯 Java Git 库
+slf4j-api = { group = "org.slf4j", name = "slf4j-api", version.ref = "slf4j" }                                     # JGit 日志门面
+slf4j-android = { group = "org.slf4j", name = "slf4j-android", version.ref = "slf4j_android" }                     # 日志转发至 Logcat
+
+# Shizuku
+shizuku-api = { group = "dev.rikka.shizuku", name = "api", version.ref = "shizuku" }                              # Shizuku 运行时 API
+shizuku-provider = { group = "dev.rikka.shizuku", name = "provider", version.ref = "shizuku" }                   # Shizuku IPC 接入
 
 # Shapes
-shapes = { group = "io.github.kyant0", name = "shapes", version.ref = "shapes" }
+shapes = { group = "io.github.kyant0", name = "shapes", version.ref = "shapes" }                                   # 自定义形状（卡片装饰）
+
+# Backdrop
+backdrop = { group = "io.github.kyant0", name = "backdrop", version.ref = "backdrop" }                             # 模糊背景库
 
 [plugins]
-android-application = { id = "com.android.application", version.ref = "agp" }
-kotlin-compose = { id = "org.jetbrains.kotlin.plugin.compose", version.ref = "kotlin" }
+android-application = { id = "com.android.application", version.ref = "agp" }     # Android 应用插件
+kotlin-compose = { id = "org.jetbrains.kotlin.plugin.compose", version.ref = "kotlin" }  # Compose 编译插件

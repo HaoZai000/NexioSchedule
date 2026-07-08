@@ -67,9 +67,11 @@ data class Course(
         val defaultSectionTimes: Map<Int, String>
             get() {
                 val map = mutableMapOf<Int, String>()
+                val morningCount = defaultMorningTimes.size
+                val afternoonCount = defaultAfternoonTimes.size
                 defaultMorningTimes.forEach { (k, v) -> map[k] = v }
-                defaultAfternoonTimes.forEach { (k, v) -> map[4 + k] = v }
-                defaultEveningTimes.forEach { (k, v) -> map[4 + 4 + k] = v }
+                defaultAfternoonTimes.forEach { (k, v) -> map[morningCount + k] = v }
+                defaultEveningTimes.forEach { (k, v) -> map[morningCount + afternoonCount + k] = v }
                 return map
             }
 

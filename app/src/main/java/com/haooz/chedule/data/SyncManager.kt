@@ -297,13 +297,4 @@ class SyncManager private constructor(private val context: Context) {
         networkCallback = callback
         cm.registerNetworkCallback(request, callback)
     }
-
-    /**
-     * 停止同步管理器
-     */
-    fun stop() {
-        repository?.onCourseChanged = null
-        networkCallback?.let { cm.unregisterNetworkCallback(it) }
-        networkCallback = null
-    }
 }

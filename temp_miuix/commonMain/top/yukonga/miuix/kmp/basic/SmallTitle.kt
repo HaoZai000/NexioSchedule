@@ -1,0 +1,43 @@
+// Copyright 2025, compose-miuix-ui contributors
+// SPDX-License-Identifier: Apache-2.0
+
+package top.yukonga.miuix.kmp.basic
+
+import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.padding
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.NonRestartableComposable
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.unit.dp
+import top.yukonga.miuix.kmp.theme.MiuixTheme
+
+/**
+ * A [SmallTitle] with Miuix style.
+ *
+ * @param text The text to be displayed in the [SmallTitle].
+ * @param modifier The modifier to be applied to the [SmallTitle].
+ * @param textColor The color of the [SmallTitle].
+ * @param insideMargin The margin inside the [SmallTitle].
+ */
+@Composable
+@NonRestartableComposable
+fun SmallTitle(
+    text: String,
+    modifier: Modifier = Modifier,
+    textColor: Color = MiuixTheme.colorScheme.onBackgroundVariant,
+    insideMargin: PaddingValues = SmallTitleDefaults.InsideMargin,
+) {
+    Text(
+        modifier = modifier.padding(insideMargin),
+        text = text,
+        style = MiuixTheme.textStyles.subtitle,
+        color = textColor,
+    )
+}
+
+/** Contains default values used by [SmallTitle]. */
+object SmallTitleDefaults {
+    /** The default inside margin of the [SmallTitle]. */
+    val InsideMargin = PaddingValues(28.dp, 8.dp)
+}

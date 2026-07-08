@@ -179,8 +179,8 @@ class CourseViewModel(application: Application) : AndroidViewModel(application) 
             _isSemesterStarted.value = !today.isBefore(startMonday)
             val daysBetween = ChronoUnit.DAYS.between(startMonday, today)
             val week = (daysBetween / 7 + 1).toInt()
-            // 确保周次在合理范围内
-            week.coerceIn(1, _totalWeeks.value)
+            // 不做任何 clamp，允许返回 0 或负数（学期未开始）或超过 totalWeeks（学期已结束）
+            week
         } catch (e: Exception) {
             _isSemesterStarted.value = true
             1
@@ -253,9 +253,7 @@ class CourseViewModel(application: Application) : AndroidViewModel(application) 
      */
     fun showAddDialog(dayOfWeek: Int? = null, startSection: Int? = null, endSection: Int? = null) {
         _editingCourse.value = null
-        if (dayOfWeek != null) {
-            _selectedDay.value = dayOfWeek
-        }
+        _selectedDay.value = dayOfWeek ?: 0
         if (startSection != null) {
             _selectedStartSection.value = startSection
             _selectedEndSection.value = endSection ?: startSection
@@ -316,17 +314,4 @@ class CourseViewModel(application: Application) : AndroidViewModel(application) 
     ): List<Course> {
         return repository.getCoursesAtSlot(week, dayOfWeek, startSection, endSection)
     }
-
-    /**
-     * 获取指定时间段是否有多个课程
-     */
-    fun hasMultipleCoursesAtSlot(
-        week: Int,
-        dayOfWeek: Int,
-        startSection: Int,
-        endSection: Int
-    ): Boolean {
-        return repository.hasMultipleCoursesAtSlot(week, dayOfWeek, startSection, endSection)
-    }
-
 }

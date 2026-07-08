@@ -101,9 +101,15 @@ class CourseWidgetProvider : AppWidgetProvider() {
             .sortedBy { it.startSection }
 
         // 设置标题和周次
+        val totalWeeks = repository.getTotalWeeks()
         val prefix = if (showTomorrow) "明日课程" else "今天"
         views.setTextViewText(R.id.widget_title, "$prefix / ${dayNames[dayOfWeek - 1]}")
-        views.setTextViewText(R.id.widget_week, "第${targetWeek}周")
+        val weekText = when {
+            currentWeek > totalWeeks -> "放假中"
+            currentWeek < 1 -> "未开始"
+            else -> "第${currentWeek}周"
+        }
+        views.setTextViewText(R.id.widget_week, weekText)
 
         // 显示明日课程时取前2门；显示今日课程时取未结束的前2门
         val displayCourses = if (showTomorrow) {
@@ -123,8 +129,13 @@ class CourseWidgetProvider : AppWidgetProvider() {
             views.setViewVisibility(R.id.widget_course1, View.GONE)
             views.setViewVisibility(R.id.widget_course2, View.GONE)
             views.setViewVisibility(R.id.widget_empty, View.VISIBLE)
-            val emptyText = if (showTomorrow) "明日无课"
-            else if (todayCourses.isEmpty()) "今日无课" else "今日课程已上完"
+            val emptyText = when {
+                currentWeek > totalWeeks -> "假期中，暂无课程"
+                currentWeek < 1 -> "学期暂未开始"
+                showTomorrow -> "明日无课"
+                todayCourses.isEmpty() -> "今日无课"
+                else -> "今日课程已上完"
+            }
             views.setTextViewText(R.id.widget_empty_text, emptyText)
         } else {
             views.setViewVisibility(R.id.widget_empty, View.GONE)

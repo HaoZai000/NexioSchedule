@@ -743,18 +743,6 @@ class CourseRepository private constructor(context: Context) {
     }
 
     /**
-     * 获取指定时间段是否有多个课程
-     */
-    fun hasMultipleCoursesAtSlot(
-        week: Int,
-        dayOfWeek: Int,
-        startSection: Int,
-        endSection: Int
-    ): Boolean {
-        return getCoursesAtSlot(week, dayOfWeek, startSection, endSection).size > 1
-    }
-
-    /**
      * 获取所有课表名称
      */
     fun getScheduleNames(): List<String> {
@@ -922,14 +910,6 @@ class CourseRepository private constructor(context: Context) {
 
     fun setDefaultHomepage(homepage: String) {
         prefs.edit().putString(KEY_DEFAULT_HOMEPAGE, homepage).apply()
-    }
-
-    fun getNavBarStyle(): String {
-        return prefs.getString(KEY_NAV_BAR_STYLE, "standard") ?: "standard"
-    }
-
-    fun setNavBarStyle(style: String) {
-        prefs.edit().putString(KEY_NAV_BAR_STYLE, style).apply()
     }
 
     // --- 壁纸设置 ---

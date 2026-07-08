@@ -1,5 +1,7 @@
 /** 偏好设置页面 */
 package com.haooz.chedule.ui.activities
+import com.haooz.chedule.ui.utils.isAppDarkTheme
+import com.haooz.chedule.ui.utils.applyThemeAwareSystemBars
 
 import android.content.Context
 import android.os.Bundle
@@ -91,11 +93,11 @@ private fun PreferenceSettingsScreen(onBack: () -> Unit) {
 
     val themePrefs = remember { context.getSharedPreferences("app_theme_prefs", Context.MODE_PRIVATE) }
     var themeMode by remember { mutableStateOf(themePrefs.getString("theme_mode", "system") ?: "system") }
+    var appStyle by remember { mutableStateOf(themePrefs.getString("app_style", "hyperos3") ?: "hyperos3") }
 
     val viewModel = remember { CourseViewModel(context.applicationContext as android.app.Application) }
     val settingsViewModel = remember { SettingsViewModel(context.applicationContext as android.app.Application) }
     val defaultHomepage by settingsViewModel.defaultHomepage.collectAsState()
-    val navBarStyle by settingsViewModel.navBarStyle.collectAsState()
 
     val backgroundColor = MiuixTheme.colorScheme.surface
     val backdrop = rememberLayerBackdrop {
@@ -212,37 +214,38 @@ private fun PreferenceSettingsScreen(onBack: () -> Unit) {
                         }
                     }
                 }
-
                 item {
+
                     Card(
                         cornerRadius = 20.dp,
                         modifier = Modifier.fillMaxWidth(),
                         insideMargin = PaddingValues(0.dp)
                     ) {
                         Column(modifier = Modifier.fillMaxWidth()) {
-                            val navBarEntry = DropdownEntry(
+                            val appStyleEntry = DropdownEntry(
                                 items = listOf(
                                     DropdownItem(
-                                        text = "标准导航栏",
-                                        selected = navBarStyle == "standard",
+                                        text = "HyperOS3",
+                                        selected = appStyle == "hyperos3",
                                         onClick = {
-                                            settingsViewModel.setNavBarStyle("standard")
+                                            appStyle = "hyperos3"
+                                            themePrefs.edit { putString("app_style", "hyperos3") }
                                         }
                                     ),
                                     DropdownItem(
-                                        text = "悬浮导航栏",
-                                        selected = navBarStyle == "floating",
+                                        text = "LiquidGlass",
+                                        selected = appStyle == "liquidglass",
                                         onClick = {
-                                            settingsViewModel.setNavBarStyle("floating")
+                                            appStyle = "liquidglass"
+                                            themePrefs.edit { putString("app_style", "liquidglass") }
                                         }
                                     ),
                                 )
                             )
 
                             OverlayDropdownPreference(
-                                title = "底栏样式",
-                                summary = "选择导航栏的显示样式",
-                                entry = navBarEntry,
+                                title = "应用风格",
+                                entry = appStyleEntry,
                                 collapseOnSelection = true
                             )
                         }

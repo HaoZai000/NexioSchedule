@@ -37,13 +37,6 @@ data class AdapterData(
         const val CATEGORY_BACHELOR = 2
         const val CATEGORY_POSTGRADUATE = 3
     }
-
-    fun getCategoryDisplayName(): String = when (category) {
-        CATEGORY_GENERAL_TOOL -> "通用工具"
-        CATEGORY_BACHELOR -> "本科/专科教务"
-        CATEGORY_POSTGRADUATE -> "研究生教务"
-        else -> "其他"
-    }
 }
 
 /**
