@@ -81,7 +81,7 @@ fun LiquidAddButton(
         contentAlignment = Alignment.Center
     ) {
         Icon(
-            imageVector = MiuixIcons.Medium.Add,
+            imageVector = MiuixIcons.Demibold.Add,
             contentDescription = "添加课程",
             modifier = Modifier.size(24.dp),
             tint = if (isLightTheme) Color.Black.copy(alpha = 0.8f) else Color.White.copy(alpha = 0.8f)

@@ -152,8 +152,17 @@ internal fun ScheduleBottomBar(
             backdrop = liquidGlassBackdrop,
             tabsCount = if (!isShiftMode) 3 else 2,
             modifier = Modifier
-                .padding(start = 20.dp, end = 0.dp, bottom = 28.dp)
-                .fillMaxWidth(0.65f)
+                .then(
+                    if (isShiftMode) {
+                        Modifier
+                            .fillMaxWidth(0.46f)
+                            .padding(bottom = 28.dp)
+                    } else {
+                        Modifier
+                            .padding(start = 20.dp, end = 0.dp, bottom = 28.dp)
+                            .fillMaxWidth(0.65f)
+                    }
+                )
                 .height(56.dp)
         ) {
             if (!isShiftMode) {

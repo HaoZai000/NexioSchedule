@@ -1172,7 +1172,7 @@ fun CourseScheduleApp() {
                 UpdateDialog()
 
                 // LiquidGlass 添加课程浮动按钮
-                if (appStyle == "liquidglass" && liquidGlassBackdrop != null) {
+                if (appStyle == "liquidglass" && liquidGlassBackdrop != null && !isShiftMode) {
                     Box(
                         modifier = Modifier
                             .fillMaxSize()
