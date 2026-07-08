@@ -136,8 +136,6 @@ private fun CourseReminderScreen(
     var isIslandSupported by remember { mutableStateOf(false) }
 
     val masterEnabled = preClassReminder || nextDayReminder
-    var isIgnoringBattery by remember { mutableStateOf(true) }
-    var autoStartDismissed by remember { mutableStateOf(false) }
     var permissionRefreshKey by remember { mutableIntStateOf(0) }
     val batteryOptLauncher = androidx.activity.compose.rememberLauncherForActivityResult(
         contract = ActivityResultContracts.StartActivityForResult()
@@ -164,9 +162,8 @@ private fun CourseReminderScreen(
         contract = ActivityResultContracts.StartActivityForResult()
     ) {
         val alarmManager = context.getSystemService(android.content.Context.ALARM_SERVICE) as android.app.AlarmManager
-        canScheduleExactAlarms = if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.S) {
+        canScheduleExactAlarms =
             alarmManager.canScheduleExactAlarms()
-        } else true
         if (canScheduleExactAlarms && masterEnabled) {
             CourseReminderHelper.startReminderService(context)
         }
@@ -179,13 +176,23 @@ private fun CourseReminderScreen(
             canPostPromoted = CourseReminderHelper.canPostPromotedNotifications(context)
             // 检查精确闹钟权限
             val alarmManager = context.getSystemService(android.content.Context.ALARM_SERVICE) as android.app.AlarmManager
-            canScheduleExactAlarms = if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.S) {
+            canScheduleExactAlarms =
                 alarmManager.canScheduleExactAlarms()
-            } else true
             // 检查 Shizuku 和超级岛支持
             shizukuRunning = ShizukuManager.isShizukuRunning()
             shizukuAuthorized = ShizukuManager.checkSelfPermission()
             isIslandSupported = IslandNotificationHelper.isIslandSupported(context)
+        }
+    }
+
+    // 监听权限刷新，重新检查所有权限状态
+    LaunchedEffect(permissionRefreshKey) {
+        if (permissionRefreshKey > 0) {
+            val pm = context.getSystemService(android.content.Context.POWER_SERVICE) as PowerManager
+            isIgnoringBattery = pm.isIgnoringBatteryOptimizations(context.packageName)
+            canPostPromoted = CourseReminderHelper.canPostPromotedNotifications(context)
+            val alarmManager = context.getSystemService(android.content.Context.ALARM_SERVICE) as android.app.AlarmManager
+            canScheduleExactAlarms = alarmManager.canScheduleExactAlarms()
         }
     }
 
