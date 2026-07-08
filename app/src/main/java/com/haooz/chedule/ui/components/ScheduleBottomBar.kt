@@ -28,6 +28,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.haooz.chedule.ui.components.liquidglass.LiquidBottomTab
 import com.haooz.chedule.ui.components.liquidglass.LiquidBottomTabs
+import com.haooz.chedule.ui.components.liquidglass.LiquidNavigationRail
 import com.kyant.backdrop.Backdrop
 import top.yukonga.miuix.kmp.basic.NavigationBar
 import top.yukonga.miuix.kmp.basic.NavigationBarDisplayMode
@@ -83,7 +84,17 @@ internal fun ScheduleBottomBar(
     val themePrefs = remember { context.getSharedPreferences("app_theme_prefs", Context.MODE_PRIVATE) }
     val appStyle = remember { themePrefs.getString("app_style", "hyperos3") ?: "hyperos3" }
 
-    if (navBarStyle == "rail") {
+    if (navBarStyle == "rail" && appStyle == "liquidglass" && liquidGlassBackdrop != null) {
+        // Pad 端液态玻璃导航栏
+        Box(modifier = Modifier.fillMaxSize()) {
+            LiquidNavigationRail(
+                selectedTab = selectedTab,
+                onTabSelected = { onSelect(it) },
+                backdrop = liquidGlassBackdrop,
+                isShiftMode = isShiftMode
+            )
+        }
+    } else if (navBarStyle == "rail") {
         Box(modifier = Modifier.fillMaxSize()) {
             NavigationRail(
                 modifier = Modifier.fillMaxHeight(),
