@@ -134,16 +134,21 @@ private fun CourseReminderScreen(
 
     val masterEnabled = preClassReminder || nextDayReminder
     var isIgnoringBattery by remember { mutableStateOf(true) }
+    var autoStartDismissed by remember { mutableStateOf(false) }
+    var permissionRefreshKey by remember { mutableIntStateOf(0) }
     val batteryOptLauncher = androidx.activity.compose.rememberLauncherForActivityResult(
         contract = ActivityResultContracts.StartActivityForResult()
     ) {
         val pm = context.getSystemService(android.content.Context.POWER_SERVICE) as PowerManager
         isIgnoringBattery = pm.isIgnoringBatteryOptimizations(context.packageName)
+        permissionRefreshKey++
     }
     val autoStartLauncher = androidx.activity.compose.rememberLauncherForActivityResult(
         contract = ActivityResultContracts.StartActivityForResult()
     ) {
-        // 返回后刷新状态
+        val pm = context.getSystemService(android.content.Context.POWER_SERVICE) as PowerManager
+        isIgnoringBattery = pm.isIgnoringBatteryOptimizations(context.packageName)
+        permissionRefreshKey++
     }
     var canPostPromoted by remember { mutableStateOf(false) }
     var canScheduleExactAlarms by remember { mutableStateOf(true) }
@@ -541,7 +546,7 @@ private fun CourseReminderScreen(
                 }
 
                 // 自启动权限提示
-                if (masterEnabled && !isIgnoringBattery) {
+                if (masterEnabled && !autoStartDismissed) {
                     item {
                         Card(
                             cornerRadius = 20.dp,
@@ -564,16 +569,26 @@ private fun CourseReminderScreen(
                                     color = MiuixTheme.colorScheme.onSurfaceVariantSummary
                                 )
                                 Spacer(modifier = Modifier.height(12.dp))
-                                TextButton(
-                                    text = "前往开启自启动",
-                                    onClick = {
-                                        val intent = Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS).apply {
-                                            data = Uri.parse("package:${context.packageName}")
-                                        }
-                                        autoStartLauncher.launch(intent)
-                                    },
-                                    modifier = Modifier.fillMaxWidth()
-                                )
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                                ) {
+                                    TextButton(
+                                        text = "前往开启",
+                                        onClick = {
+                                            val intent = Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS).apply {
+                                                data = Uri.parse("package:${context.packageName}")
+                                            }
+                                            autoStartLauncher.launch(intent)
+                                        },
+                                        modifier = Modifier.weight(1f)
+                                    )
+                                    TextButton(
+                                        text = "已开启",
+                                        onClick = { autoStartDismissed = true },
+                                        modifier = Modifier.weight(1f)
+                                    )
+                                }
                             }
                         }
                     }
