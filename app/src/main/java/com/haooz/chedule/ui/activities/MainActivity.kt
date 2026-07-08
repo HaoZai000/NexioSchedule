@@ -87,6 +87,7 @@ import com.haooz.chedule.ui.theme.CourseScheduleTheme
 import com.haooz.chedule.ui.utils.UpdateChecker
 import com.haooz.chedule.ui.utils.applyThemeAwareSystemBars
 import com.haooz.chedule.ui.utils.isAppDarkTheme
+import com.haooz.chedule.ui.utils.rememberAppStyle
 import com.haooz.chedule.viewmodel.CourseViewModel
 import com.haooz.chedule.viewmodel.ScheduleViewModel
 import com.haooz.chedule.viewmodel.SettingsViewModel
@@ -296,7 +297,7 @@ fun CourseScheduleApp() {
     }
     val isDark = isAppDarkTheme()
     val themePrefs = remember { context.getSharedPreferences("app_theme_prefs", Context.MODE_PRIVATE) }
-    val appStyle = remember { themePrefs.getString("app_style", "hyperos3") ?: "hyperos3" }
+    val appStyle = rememberAppStyle()
     val liquidGlassBackdrop = if (appStyle == "liquidglass") {
         com.kyant.backdrop.backdrops.rememberLayerBackdrop()
     } else null

@@ -38,6 +38,27 @@ fun isAppDarkTheme(): Boolean {
     }
 }
 
+@Composable
+fun rememberAppStyle(): String {
+    val context = LocalContext.current
+    val prefs = remember { context.getSharedPreferences("app_theme_prefs", Context.MODE_PRIVATE) }
+    val appStyle = remember { mutableStateOf(prefs.getString("app_style", "hyperos3") ?: "hyperos3") }
+
+    DisposableEffect(prefs) {
+        val listener = SharedPreferences.OnSharedPreferenceChangeListener { _: SharedPreferences, key: String? ->
+            if (key == "app_style") {
+                appStyle.value = prefs.getString("app_style", "hyperos3") ?: "hyperos3"
+            }
+        }
+        prefs.registerOnSharedPreferenceChangeListener(listener)
+        onDispose {
+            prefs.unregisterOnSharedPreferenceChangeListener(listener)
+        }
+    }
+
+    return appStyle.value
+}
+
 fun Activity.applyThemeAwareSystemBars() {
     val prefs = getSharedPreferences("app_theme_prefs", Context.MODE_PRIVATE)
     val themeMode = prefs.getString("theme_mode", "system") ?: "system"

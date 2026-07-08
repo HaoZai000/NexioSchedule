@@ -83,7 +83,7 @@ internal fun ScheduleBottomBar(
 
     val context = LocalContext.current
     val themePrefs = remember { context.getSharedPreferences("app_theme_prefs", Context.MODE_PRIVATE) }
-    val appStyle = remember { themePrefs.getString("app_style", "hyperos3") ?: "hyperos3" }
+    val appStyle = com.haooz.chedule.ui.utils.rememberAppStyle()
 
     if (navBarStyle == "rail" && appStyle == "liquidglass" && liquidGlassBackdrop != null) {
         // Pad 端液态玻璃导航栏

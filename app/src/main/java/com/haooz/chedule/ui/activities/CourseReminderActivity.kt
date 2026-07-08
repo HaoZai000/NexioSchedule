@@ -181,12 +181,24 @@ private fun CourseReminderScreen(
         }
     }
 
+    var pendingPermissionAction by remember { mutableStateOf<Boolean?>(null) }
     val notificationPermissionLauncher = androidx.activity.compose.rememberLauncherForActivityResult(
         contract = ActivityResultContracts.RequestPermission()
     ) { granted ->
         if (granted) {
             CourseReminderHelper.startReminderService(context)
+            pendingPermissionAction?.let { enable ->
+                settingsViewModel.setPreClassReminder(enable)
+                settingsViewModel.setNextDayReminder(enable)
+                if (enable) {
+                    CourseReminderHelper.startReminderService(context)
+                } else {
+                    CourseReminderHelper.stopReminderService(context)
+                }
+            }
+            pendingPermissionAction = null
         } else {
+            pendingPermissionAction = null
             Toast.makeText(context, "需要通知权限才能使用课程提醒功能", Toast.LENGTH_SHORT).show()
         }
     }
@@ -305,6 +317,7 @@ private fun CourseReminderScreen(
                                     Manifest.permission.POST_NOTIFICATIONS
                                 ) == PackageManager.PERMISSION_GRANTED
                                 if (!hasPermission) {
+                                    pendingPermissionAction = it
                                     notificationPermissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
                                     return@SwitchPreference
                                 }
@@ -339,6 +352,7 @@ private fun CourseReminderScreen(
                                     Manifest.permission.POST_NOTIFICATIONS
                                 ) == PackageManager.PERMISSION_GRANTED
                                 if (!hasPermission) {
+                                    pendingPermissionAction = it
                                     notificationPermissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
                                     return@SwitchPreference
                                 }
@@ -373,6 +387,7 @@ private fun CourseReminderScreen(
                                     Manifest.permission.POST_NOTIFICATIONS
                                 ) == PackageManager.PERMISSION_GRANTED
                                 if (!hasPermission) {
+                                    pendingPermissionAction = it
                                     notificationPermissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
                                     return@SwitchPreference
                                 }
