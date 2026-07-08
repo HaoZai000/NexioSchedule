@@ -1,5 +1,6 @@
 package com.haooz.chedule.ui.components
 
+import android.content.Context
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.animateDpAsState
 import androidx.compose.animation.core.tween
@@ -21,6 +22,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.RectangleShape
 import androidx.compose.ui.graphics.Color as ComposeColor
@@ -102,10 +104,15 @@ internal fun ScheduleTopBar(
 
     val density = LocalDensity.current
     val hapticFeedback = LocalHapticFeedback.current
+    val context = LocalContext.current
+    val themePrefs = remember { context.getSharedPreferences("app_theme_prefs", Context.MODE_PRIVATE) }
+    val appStyle = remember { themePrefs.getString("app_style", "hyperos3") ?: "hyperos3" }
     var showMorePopup by remember { mutableStateOf(false) }
 
     val railPaddingStart by animateDpAsState(
-        targetValue = if (railState != null && railState.isExpanded) {
+        targetValue = if (appStyle == "liquidglass" && navBarStyle == "rail") {
+            0.dp
+        } else if (railState != null && railState.isExpanded) {
             NavigationRailDefaults.ExpandedWidth
         } else if (navBarStyle == "rail") {
             NavigationRailDefaults.MinWidth
