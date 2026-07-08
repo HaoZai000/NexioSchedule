@@ -47,7 +47,7 @@ fun LiquidNavigationRail(
             tabsCount = if (!isShiftMode) 3 else 2,
             modifier = Modifier
                 .padding(top = topPadding + 4.dp)
-                .width(240.dp)
+                .width(if (isShiftMode) 160.dp else 240.dp)
                 .height(38.dp),
             containerHeight = 38.dp,
             highlightHeight = 32.dp,
