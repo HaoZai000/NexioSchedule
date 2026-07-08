@@ -580,7 +580,7 @@ fun CourseScheduleApp() {
 
     LaunchedEffect(isShiftMode) {
         if (shiftModeInitialized) {
-            selectedTab = 0
+            selectedTab = if (isShiftMode) 0 else if (defaultHomepage == "今日") 0 else 1
         }
         shiftModeInitialized = true
     }

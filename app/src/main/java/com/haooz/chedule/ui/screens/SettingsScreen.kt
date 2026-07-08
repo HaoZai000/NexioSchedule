@@ -164,6 +164,7 @@ fun SettingsScreen(
     val courseTimeSettingsLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.StartActivityForResult()
     ) {
+        settingsViewModel.refreshSettings()
         viewModel.reloadCourses()
     }
 
