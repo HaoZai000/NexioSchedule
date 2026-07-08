@@ -17,6 +17,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.kyant.backdrop.Backdrop
@@ -45,28 +46,28 @@ fun LiquidNavigationRail(
             tabsCount = if (!isShiftMode) 3 else 2,
             modifier = Modifier
                 .padding(top = statusBarPadding)
-                .width(280.dp)
-                .height(48.dp),
-            containerHeight = 40.dp,
-            highlightHeight = 34.dp,
-            selectorHeight = 34.dp
+                .width(240.dp)
+                .height(36.dp),
+            containerHeight = 36.dp,
+            highlightHeight = 30.dp,
+            selectorHeight = 30.dp
         ) {
             if (!isShiftMode) {
                 LiquidBottomTab({ onTabSelected(0) }) {
-                    Text("今日", fontSize = 13.sp)
+                    Text("今日", fontSize = 14.sp, fontWeight = FontWeight.Medium)
                 }
                 LiquidBottomTab({ onTabSelected(1) }) {
-                    Text("课程表", fontSize = 13.sp)
+                    Text("课程表", fontSize = 14.sp, fontWeight = FontWeight.Medium)
                 }
                 LiquidBottomTab({ onTabSelected(2) }) {
-                    Text("我的", fontSize = 13.sp)
+                    Text("我的", fontSize = 14.sp, fontWeight = FontWeight.Medium)
                 }
             } else {
                 LiquidBottomTab({ onTabSelected(0) }) {
-                    Text("排班课表", fontSize = 13.sp)
+                    Text("排班课表", fontSize = 14.sp, fontWeight = FontWeight.Medium)
                 }
                 LiquidBottomTab({ onTabSelected(1) }) {
-                    Text("设置", fontSize = 13.sp)
+                    Text("设置", fontSize = 14.sp, fontWeight = FontWeight.Medium)
                 }
             }
         }
