@@ -1,9 +1,12 @@
 package com.haooz.chedule.ui.components.liquidglass
 
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.asPaddingValues
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.statusBars
 import androidx.compose.foundation.layout.width
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -29,6 +32,8 @@ fun LiquidNavigationRail(
     var liquidSelectedTab by remember { mutableIntStateOf(selectedTab) }
     LaunchedEffect(selectedTab) { liquidSelectedTab = selectedTab }
 
+    val statusBarPadding = WindowInsets.statusBars.asPaddingValues().calculateTopPadding()
+
     Box(
         modifier = modifier.fillMaxSize(),
         contentAlignment = Alignment.TopCenter
@@ -39,9 +44,9 @@ fun LiquidNavigationRail(
             backdrop = backdrop,
             tabsCount = if (!isShiftMode) 3 else 2,
             modifier = Modifier
-                .padding(top = 48.dp)
+                .padding(top = statusBarPadding)
                 .width(280.dp)
-                .height(56.dp)
+                .height(48.dp)
         ) {
             if (!isShiftMode) {
                 LiquidBottomTab({ onTabSelected(0) }) {

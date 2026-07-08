@@ -332,7 +332,9 @@ fun CourseScheduleApp() {
     }
     val railState = if (navBarStyle == "rail") rememberNavigationRailState() else null
     val railPaddingStart by animateDpAsState(
-        targetValue = if (railState != null && railState.isExpanded) {
+        targetValue = if (appStyle == "liquidglass" && liquidGlassBackdrop != null && navBarStyle == "rail") {
+            0.dp
+        } else if (railState != null && railState.isExpanded) {
             NavigationRailDefaults.ExpandedWidth
         } else if (navBarStyle == "rail") {
             NavigationRailDefaults.MinWidth
