@@ -118,6 +118,9 @@ private fun CourseReminderScreen(
     val islandNotification by settingsViewModel.islandNotification.collectAsState()
     val scrollBehavior = MiuixScrollBehavior()
     val context = androidx.compose.ui.platform.LocalContext.current
+    val reminderPrefs = remember { context.getSharedPreferences("course_reminder_prefs", android.content.Context.MODE_PRIVATE) }
+    var isIgnoringBattery by remember { mutableStateOf(true) }
+    var autoStartDismissed by remember { mutableStateOf(reminderPrefs.getBoolean("auto_start_dismissed", false)) }
     val hapticFeedback = LocalHapticFeedback.current
     var listScrollY by remember { mutableIntStateOf(0) }
 
@@ -585,7 +588,10 @@ private fun CourseReminderScreen(
                                     )
                                     TextButton(
                                         text = "已开启",
-                                        onClick = { autoStartDismissed = true },
+                                        onClick = {
+                                            reminderPrefs.edit().putBoolean("auto_start_dismissed", true).apply()
+                                            autoStartDismissed = true
+                                        },
                                         modifier = Modifier.weight(1f)
                                     )
                                 }
