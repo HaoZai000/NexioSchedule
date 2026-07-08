@@ -61,10 +61,14 @@ private val ShiftBlue = Color(0xFF2196F3)
 fun ShiftScheduleScreen(
     viewModel: CourseViewModel,
     shiftViewModel: ShiftViewModel,
+    settingsViewModel: com.haooz.chedule.viewmodel.SettingsViewModel,
     currentDayOfWeek: Int,
     dayRange: List<Int>,
     pagerState: androidx.compose.foundation.pager.PagerState,
-    cardHeightPerSection: Float = 54f
+    cardHeightPerSection: Float = 54f,
+    wallpaperBitmap: android.graphics.Bitmap? = null,
+    wallpaperOffset: androidx.compose.ui.geometry.Offset = androidx.compose.ui.geometry.Offset.Zero,
+    wallpaperScale: Float = 1f
 ) {
     val shiftScheduleCourses by shiftViewModel.shiftScheduleCourses.collectAsState()
     val shiftScheduleSections by shiftViewModel.shiftScheduleSections.collectAsState()
@@ -75,6 +79,7 @@ fun ShiftScheduleScreen(
     val isInFreeformWindow = activity?.isInFreeformWindow == true
     val isDark = isAppDarkTheme()
     val hapticFeedback = androidx.compose.ui.platform.LocalHapticFeedback.current
+    val sectionTimes by settingsViewModel.sectionTimes.collectAsState()
 
     var showDetail by remember { mutableStateOf(false) }
     var detailCourses by remember { mutableStateOf<List<Pair<String, Course>>>(emptyList()) }
@@ -103,6 +108,10 @@ fun ShiftScheduleScreen(
 
     if (!contentReady) return
 
+    val wallpaperBackdropColor = MiuixTheme.colorScheme.surface
+
+    Box(modifier = Modifier.fillMaxSize().background(wallpaperBackdropColor)) {
+
     HorizontalPager(
         state = pagerState,
         modifier = Modifier.fillMaxSize(),
@@ -130,7 +139,7 @@ fun ShiftScheduleScreen(
                         morningSections = maxMorning,
                         afternoonSections = maxAfternoon,
                         eveningSections = maxEvening,
-                        sectionTimes = emptyMap(),
+                        sectionTimes = sectionTimes,
                         cardHeightPerSection = cardHeightPerSection
                     )
 
@@ -182,6 +191,8 @@ fun ShiftScheduleScreen(
             }
         }
     }
+
+    } // wallpaper Box
 
     OverlayBottomSheet(
         show = showDetail,

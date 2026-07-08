@@ -1119,10 +1119,14 @@ fun CourseScheduleApp() {
                             0 -> ShiftScheduleScreen(
                                 viewModel = viewModel,
                                 shiftViewModel = shiftViewModel,
+                                settingsViewModel = settingsViewModel,
                                 currentDayOfWeek = currentDayOfWeek,
                                 dayRange = dayRange,
                                 pagerState = pagerState,
-                                cardHeightPerSection = courseCardHeight
+                                cardHeightPerSection = courseCardHeight,
+                                wallpaperBitmap = wallpaperBitmap,
+                                wallpaperOffset = wallpaperOffset,
+                                wallpaperScale = wallpaperScale
                             )
 
                             1 -> SettingsScreen(
