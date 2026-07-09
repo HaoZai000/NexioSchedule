@@ -49,78 +49,70 @@ fun LiquidTopBarButton(
         )
     }
 
-    val shadowColor = if (isLightTheme) android.graphics.Color.parseColor("#18000000") else android.graphics.Color.parseColor("#30000000")
+    val shadowColor = if (isLightTheme) android.graphics.Color.parseColor("#12000000") else android.graphics.Color.parseColor("#20000000")
 
     androidx.compose.foundation.layout.Box(
         modifier = modifier
             .size(buttonHeight)
-    ) {
-        // 阴影层
-        androidx.compose.foundation.layout.Box(
-            modifier = Modifier
-                .matchParentSize()
-                .drawBehind {
-                    val blurRadius = 10f * density
-                    val cornerRadiusPx = buttonHeight.toPx() / 2f
-                    val paint = android.graphics.Paint().apply {
-                        color = shadowColor
-                        maskFilter = android.graphics.BlurMaskFilter(
-                            blurRadius,
-                            android.graphics.BlurMaskFilter.Blur.NORMAL
-                        )
-                    }
-                    drawIntoCanvas { canvas ->
-                        canvas.nativeCanvas.drawRoundRect(
-                            0f, 0f, size.width, size.height,
-                            cornerRadiusPx, cornerRadiusPx,
-                            paint
-                        )
-                    }
+            .drawBehind {
+                val blurRadius = 6f * density
+                val cornerRadiusPx = buttonHeight.toPx() / 2f
+                val paint = android.graphics.Paint().apply {
+                    color = shadowColor
+                    maskFilter = android.graphics.BlurMaskFilter(
+                        blurRadius,
+                        android.graphics.BlurMaskFilter.Blur.NORMAL
+                    )
                 }
-        )
-        // 按钮内容层
-        androidx.compose.foundation.layout.Box(
-            modifier = Modifier
-                .matchParentSize()
-                .drawBackdrop(
-                    backdrop = backdrop,
-                    shape = { CircleShape },
-                    effects = {
-                        vibrancy()
-                        blur(2f.dp.toPx())
-                        lens(12f.dp.toPx(), 12f.dp.toPx())
-                    },
-                    shadow = null,
-                    layerBlock = {
-                        val progress = interactiveHighlight.pressProgress
-                        val scale = 1f + 2f.dp.toPx() / buttonHeight.toPx() * progress
-                        scaleX = scale
-                        scaleY = scale
-                    },
-                    onDrawSurface = {
-                        drawRect(containerColor)
-                        drawRect(Color.Black.copy(alpha = 0.03f * interactiveHighlight.pressProgress))
-                    }
-                )
-                .clickable(
-                    interactionSource = null,
-                    indication = null,
-                    role = Role.Button,
-                    onClick = {
-                        hapticFeedback.performHapticFeedback(HapticFeedbackType.Confirm)
-                        onClick()
-                    }
-                )
-                .then(interactiveHighlight.modifier)
-                .then(interactiveHighlight.gestureModifier),
-            contentAlignment = Alignment.Center
-        ) {
-            Icon(
-                imageVector = icon,
-                contentDescription = contentDescription,
-                modifier = Modifier.size(iconSize),
-                tint = if (isLightTheme) Color.Black.copy(alpha = 0.8f) else Color.White.copy(alpha = 0.8f)
+                drawIntoCanvas { canvas ->
+                    canvas.nativeCanvas.drawRoundRect(
+                        0f, 0f, size.width, size.height,
+                        cornerRadiusPx, cornerRadiusPx,
+                        paint
+                    )
+                }
+            }
+            .drawBackdrop(
+                backdrop = backdrop,
+                shape = { CircleShape },
+                effects = {
+                    vibrancy()
+                    blur(2f.dp.toPx())
+                    lens(12f.dp.toPx(), 12f.dp.toPx())
+                },
+                shadow = null,
+                layerBlock = {
+                    val progress = interactiveHighlight.pressProgress
+                    val scale = 1f + 2f.dp.toPx() / buttonHeight.toPx() * progress
+                    scaleX = scale
+                    scaleY = scale
+                    val offset = interactiveHighlight.offset
+                    translationX = size.minDimension * 0.05f * offset.x / size.maxDimension
+                    translationY = size.minDimension * 0.05f * offset.y / size.maxDimension
+                },
+                onDrawSurface = {
+                    drawRect(containerColor)
+                    drawRect(Color.Black.copy(alpha = 0.03f * interactiveHighlight.pressProgress))
+                }
             )
-        }
+            .clickable(
+                interactionSource = null,
+                indication = null,
+                role = Role.Button,
+                onClick = {
+                    hapticFeedback.performHapticFeedback(HapticFeedbackType.Confirm)
+                    onClick()
+                }
+            )
+            .then(interactiveHighlight.modifier)
+            .then(interactiveHighlight.gestureModifier),
+        contentAlignment = Alignment.Center
+    ) {
+        Icon(
+            imageVector = icon,
+            contentDescription = contentDescription,
+            modifier = Modifier.size(iconSize),
+            tint = if (isLightTheme) Color.Black.copy(alpha = 0.8f) else Color.White.copy(alpha = 0.8f)
+        )
     }
 }
