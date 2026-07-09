@@ -279,6 +279,8 @@ fun CourseScheduleApp() {
     var shiftModeInitialized by remember { mutableStateOf(false) }
     var settingsScrollY by remember { mutableIntStateOf(0) }
     val settingsScrollBehavior = MiuixScrollBehavior()
+    var todayScrollY by remember { mutableIntStateOf(0) }
+    val todayScrollBehavior = MiuixScrollBehavior()
 
     // 初始化 SyncManager 并检查云端更新
     val context = LocalContext.current
@@ -1065,6 +1067,15 @@ fun CourseScheduleApp() {
                             navBarStyle = navBarStyle,
                         )
                     }
+                    // 今日页标题栏（液态玻璃模式下在 Activity 层级渲染）
+                    if (!isShiftMode && selectedTab == 0) {
+                        TodayTopBar(
+                            liquidGlassBackdrop = liquidGlassBackdrop,
+                            isDark = isDark,
+                            navBarStyle = navBarStyle,
+                            currentDayOfWeek = currentDayOfWeek,
+                        )
+                    }
                 }
             ) { _ ->
                 // 不再用 combinations.isEmpty() 门控整个内容区：
@@ -1092,7 +1103,9 @@ fun CourseScheduleApp() {
                                     openCourseDetail(courses, left, top, width, height, fromToday = true)
                                 },
                                 navBarStyle = navBarStyle,
-                                liquidGlassBackdrop = liquidGlassBackdrop
+                                liquidGlassBackdrop = liquidGlassBackdrop,
+                                onScrollYChanged = { todayScrollY = it },
+                                settingsScrollBehavior = todayScrollBehavior
                             )
 
                             1 -> MainScheduleScreen(
