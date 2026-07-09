@@ -126,7 +126,7 @@ fun LiquidTopBarButton(
         Icon(
             imageVector = icon,
             contentDescription = contentDescription,
-            modifier = Modifier.size(iconSize).offset(iconOffset),
+            modifier = Modifier.size(iconSize).offset(iconOffset.x, iconOffset.y),
             tint = if (isLightTheme) Color.Black.copy(alpha = 0.8f) else Color.White.copy(alpha = 0.8f)
         )
     }

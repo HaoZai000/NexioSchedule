@@ -47,6 +47,7 @@ import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.DpSize
 import androidx.compose.ui.unit.DpOffset
+import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.zIndex
 import com.haooz.chedule.data.Course
@@ -217,11 +218,13 @@ fun CourseTimeSettingsScreen(onBack: () -> Unit) {
                     LiquidTopBarButton(
                         onClick = { onBack() },
                         backdrop = liquidGlassBackdrop,
-                        icon = MiuixIcons.ChevronBackward,
+                        icon = MiuixIcons.Medium.ChevronBackward,
                         contentDescription = "返回",
                         modifier = Modifier
                             .zIndex(2f)
                             .offset(x = 20.dp, y = statusBarPadding + 5.dp),
+                        iconSize = 22.dp,
+                        iconOffset = DpOffset(x = (-2).dp, y = 0.dp),
                         useBackdropShadow = true
                     )
                 }
@@ -268,7 +271,7 @@ fun CourseTimeSettingsScreen(onBack: () -> Unit) {
                     .then(
                         if (!isLiquidGlass) Modifier.nestedScroll(scrollBehavior.nestedScrollConnection) else Modifier
                     ),
-                contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = paddingValues.calculateTopPadding() + 12.dp, bottom = 60.dp),
+                contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = paddingValues.calculateTopPadding() + if (isLiquidGlass) 0.dp else 12.dp, bottom = 60.dp),
                 verticalArrangement = Arrangement.spacedBy(12.dp)
             ) {
                 // 快捷设置
