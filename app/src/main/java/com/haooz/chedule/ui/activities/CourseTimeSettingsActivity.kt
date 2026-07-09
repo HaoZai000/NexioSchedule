@@ -206,8 +206,8 @@ fun CourseTimeSettingsScreen(onBack: () -> Unit) {
             else Modifier
         )
     ) {
-    Scaffold(
-        topBar = {
+        Scaffold(
+            topBar = {
             if (isLiquidGlass && liquidGlassBackdrop != null) {
                 ProgressiveBlurTopBar(
                     backdrop = liquidGlassBackdrop,
