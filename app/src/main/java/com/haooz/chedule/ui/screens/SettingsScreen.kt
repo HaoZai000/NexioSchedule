@@ -357,7 +357,7 @@ fun SettingsScreen(
             modifier = Modifier
                 .fillMaxSize()
                 .then(
-                    if (isLiquidGlass && liquidGlassBackdrop != null)
+                    if (isLiquidGlass && liquidGlassBackdrop is com.kyant.backdrop.backdrops.LayerBackdrop)
                         Modifier.liquidGlassLayerBackdrop(liquidGlassBackdrop)
                     else Modifier
                 )
