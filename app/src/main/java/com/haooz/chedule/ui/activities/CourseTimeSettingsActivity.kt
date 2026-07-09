@@ -74,6 +74,8 @@ import top.yukonga.miuix.kmp.blur.BlurDefaults
 import top.yukonga.miuix.kmp.blur.layerBackdrop
 import top.yukonga.miuix.kmp.blur.rememberLayerBackdrop
 import top.yukonga.miuix.kmp.blur.textureBlur
+import com.kyant.backdrop.backdrops.layerBackdrop as liquidGlassLayerBackdrop
+import com.haooz.chedule.ui.components.liquidglass.LiquidTopBarButton
 import top.yukonga.miuix.kmp.icon.MiuixIcons
 import top.yukonga.miuix.kmp.icon.extended.Back
 import top.yukonga.miuix.kmp.overlay.OverlayDialog
@@ -209,16 +211,13 @@ fun CourseTimeSettingsScreen(onBack: () -> Unit) {
                         title = "课程时间",
                         modifier = Modifier.zIndex(1f),
                         navigationIcon = {
-                            IconButton(
+                            LiquidTopBarButton(
                                 onClick = { onBack() },
-                                modifier = Modifier
-                                    .padding(start = 4.dp)
-                                    .size(40.dp)
-                                    .clip(CircleShape)
-                                    .background(MiuixTheme.colorScheme.surface.copy(alpha = 0.3f))
-                            ) {
-                                Icon(MiuixIcons.Back, contentDescription = "返回", modifier = Modifier.size(22.dp))
-                            }
+                                backdrop = liquidGlassBackdrop,
+                                icon = MiuixIcons.Back,
+                                contentDescription = "返回",
+                                modifier = Modifier.padding(start = 4.dp)
+                            )
                         },
                     )
                 }
@@ -242,7 +241,12 @@ fun CourseTimeSettingsScreen(onBack: () -> Unit) {
             }
         }
     ) { paddingValues ->
-        Box(modifier = Modifier.fillMaxSize().layerBackdrop(backdrop)) {
+        Box(modifier = Modifier.fillMaxSize().layerBackdrop(backdrop)
+            .then(
+                if (liquidGlassBackdrop != null) Modifier.liquidGlassLayerBackdrop(liquidGlassBackdrop)
+                else Modifier
+            )
+        ) {
             val listState = rememberLazyListState()
             LaunchedEffect(listState) {
                 snapshotFlow { listState.firstVisibleItemScrollOffset }
