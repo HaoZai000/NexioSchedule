@@ -58,6 +58,7 @@ fun DayColumn(
 ) {
     val totalHeight = ((morningSections + afternoonSections + eveningSections) * cardHeightPerSection + 24 * 2).toInt()
     val isDark = isAppDarkTheme()
+    val hasBlur = cardBlurRadius > 0f && wallpaperBackdrop != null
     val isPendingDay = pendingDay == dayOfWeek
     val hapticFeedback = LocalHapticFeedback.current
 
@@ -108,7 +109,7 @@ fun DayColumn(
                             showIndication = true,
                             colors = CardDefaults.defaultColors(
                                 color = Color(0xFF9E9E9E).copy(alpha = if (isDark) 0.13f else 0.15f),
-                                contentColor = Color(0xFF9E9E9E).copy(alpha = 0.5f)
+                                contentColor = if (hasBlur) Color(0xFF6E6E6E).copy(alpha = if (isDark) 0.7f else 0.85f) else Color(0xFF9E9E9E).copy(alpha = 0.5f)
                             ),
                             onClick = {
                                 hapticFeedback.performHapticFeedback(HapticFeedbackType.Confirm)
@@ -187,7 +188,7 @@ fun DayColumn(
                             showIndication = true,
                             colors = CardDefaults.defaultColors(
                                 color = Color(0xFF9E9E9E).copy(alpha = if (isDark) 0.13f else 0.15f),
-                                contentColor = Color(0xFF9E9E9E).copy(alpha = 0.5f)
+                                contentColor = if (hasBlur) Color(0xFF6E6E6E).copy(alpha = if (isDark) 0.7f else 0.85f) else Color(0xFF9E9E9E).copy(alpha = 0.5f)
                             ),
                             onClick = {
                                 hapticFeedback.performHapticFeedback(HapticFeedbackType.Confirm)
@@ -265,7 +266,7 @@ fun DayColumn(
                             showIndication = true,
                             colors = CardDefaults.defaultColors(
                                 color = Color(0xFF9E9E9E).copy(alpha = if (isDark) 0.13f else 0.15f),
-                                contentColor = Color(0xFF9E9E9E).copy(alpha = 0.5f)
+                                contentColor = if (hasBlur) Color(0xFF6E6E6E).copy(alpha = if (isDark) 0.7f else 0.85f) else Color(0xFF9E9E9E).copy(alpha = 0.5f)
                             ),
                             onClick = {
                                 hapticFeedback.performHapticFeedback(HapticFeedbackType.Confirm)

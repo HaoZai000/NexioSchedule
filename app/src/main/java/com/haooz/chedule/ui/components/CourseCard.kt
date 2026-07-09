@@ -61,7 +61,11 @@ fun CourseCard(
     val textColor = if (isCurrentWeek) {
         Color(course.colorRes)
     } else {
-        Color(0xFF9E9E9E).copy(alpha = if (isAppDarkTheme()) 0.28f else 0.45f)
+        if (hasBlur) {
+            Color(0xFF6E6E6E).copy(alpha = if (isAppDarkTheme()) 0.6f else 0.8f)
+        } else {
+            Color(0xFF9E9E9E).copy(alpha = if (isAppDarkTheme()) 0.28f else 0.45f)
+        }
     }
 
     val blurColors = if (hasBlur) BlurDefaults.blurColors(
