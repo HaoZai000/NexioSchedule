@@ -325,7 +325,7 @@ fun MainScheduleScreen(
                                         colors = BlurDefaults.blurColors(
                                             blendColors = listOf(
                                                 BlendColorEntry(
-                                                    color = if (isAppDarkTheme())Color.Black.copy(alpha = cardAlpha * 2)
+                                                    color = if (isAppDarkTheme())Color.Black.copy(alpha = cardAlpha)
                                                     else Color.White.copy(alpha = cardAlpha * 2),
                                                     mode = BlurBlendMode.SrcOver
                                                 )
@@ -356,7 +356,7 @@ fun MainScheduleScreen(
                                         colors = BlurDefaults.blurColors(
                                             blendColors = listOf(
                                                 BlendColorEntry(
-                                                    color = if (isAppDarkTheme())Color.Black.copy(alpha = cardAlpha * 2)
+                                                    color = if (isAppDarkTheme())Color.Black.copy(alpha = cardAlpha)
                                                             else Color.White.copy(alpha = cardAlpha * 2),
                                                     mode = BlurBlendMode.SrcOver
                                                 )
