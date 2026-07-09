@@ -179,7 +179,7 @@ fun CustomizeScheduleScreen(
     val isLiquidGlass = appStyle == "liquidglass"
     val primaryColor = MiuixTheme.colorScheme.primary
     val isDarkForLiquid = isAppDarkTheme()
-    val exitContainerColor = if (isDarkForLiquid) Color(0xFF121212).copy(0.4f) else Color(0xFFFAFAFA).copy(0.4f)
+    val exitContainerColor = if (isDarkForLiquid) Color.Black.copy(0.4f) else Color.White.copy(0.4f)
     val exitIconColor = if (isDarkForLiquid) Color.White.copy(alpha = 0.8f) else Color.Black.copy(alpha = 0.8f)
 
     // ================================================================

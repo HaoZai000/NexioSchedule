@@ -224,7 +224,7 @@ internal fun ScheduleTopBar(
                                 Icon(
                                     imageVector = MiuixIcons.Medium.Reset,
                                     contentDescription = "返回本周",
-                                    modifier = Modifier.size(25.dp)
+                                    modifier = Modifier.size(24.dp)
                                 )
                             }
                         }
@@ -251,7 +251,7 @@ internal fun ScheduleTopBar(
                                     Icon(
                                         imageVector = MiuixIcons.Medium.Reset,
                                         contentDescription = "返回本周",
-                                        modifier = Modifier.size(25.dp)
+                                        modifier = Modifier.size(24.dp)
                                     )
                                 }
                             }
