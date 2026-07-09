@@ -206,7 +206,7 @@ internal fun ScheduleTopBar(
                                 currentWeek < 1 -> "学期未开始"
                                 else -> "第${pagerCurrentPage + 1}周"
                             },
-                            fontSize = 20.sp,
+                            fontSize = 21.sp,
                             fontWeight = FontWeight.Medium,
                             color = MiuixTheme.colorScheme.onSurface,
                             modifier = Modifier.padding(start = 12.dp)

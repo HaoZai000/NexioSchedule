@@ -2165,7 +2165,7 @@ private fun SettingsTopBar(
                 {
                     Text(
                         text = "我的",
-                        fontSize = 20.sp,
+                        fontSize = 21.sp,
                         fontWeight = FontWeight.Medium,
                         color = MiuixTheme.colorScheme.onSurface,
                         modifier = Modifier.padding(start = 12.dp)
@@ -2203,7 +2203,7 @@ private fun TodayTopBar(
                 {
                     Text(
                         text = "今天是$dayOfWeekName",
-                        fontSize = 20.sp,
+                        fontSize = 21.sp,
                         fontWeight = FontWeight.Medium,
                         color = MiuixTheme.colorScheme.onSurface,
                         modifier = Modifier.padding(start = 12.dp)

@@ -214,7 +214,7 @@ fun CourseTimeSettingsScreen(onBack: () -> Unit) {
                                 onClick = { onBack() },
                                 modifier = Modifier
                                     .padding(start = 4.dp)
-                                    .size(36.dp)
+                                    .size(40.dp)
                                     .clip(CircleShape)
                                     .background(MiuixTheme.colorScheme.surface.copy(alpha = 0.3f))
                             ) {
