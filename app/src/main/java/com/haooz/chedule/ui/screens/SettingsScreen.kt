@@ -277,33 +277,29 @@ fun SettingsScreen(
         Scaffold(
         topBar = {
             if (isLiquidGlass) {
-                SmallTopAppBar(
-                    modifier = if (blurAlpha > 0f) {
-                        Modifier.textureBlur(
-                            backdrop = backdrop,
-                            shape = RectangleShape,
-                            colors = topAppBarColors
-                        )
-                    } else {
-                        Modifier
-                    },
-                    color = topBarColor,
-                    title = if (isTabletLiquidGlass) "" else "我的",
-                    scrollBehavior = scrollBehavior,
-                    navigationIcon = if (isTabletLiquidGlass) {
-                        {
-                            Text(
-                                text = "我的",
-                                fontSize = 20.sp,
-                                fontWeight = FontWeight.Medium,
-                                color = MiuixTheme.colorScheme.onSurface,
-                                modifier = Modifier.padding(start = 12.dp)
-                            )
-                        }
-                    } else {
-                        {}
-                    },
-                )
+                ProgressiveBlurTopBar(
+                    backdrop = liquidGlassBackdrop!!,
+                    height = 100.dp,
+                ) {
+                    SmallTopAppBar(
+                        color = topBarColor,
+                        title = if (isTabletLiquidGlass) "" else "我的",
+                        scrollBehavior = scrollBehavior,
+                        navigationIcon = if (isTabletLiquidGlass) {
+                            {
+                                Text(
+                                    text = "我的",
+                                    fontSize = 20.sp,
+                                    fontWeight = FontWeight.Medium,
+                                    color = MiuixTheme.colorScheme.onSurface,
+                                    modifier = Modifier.padding(start = 12.dp)
+                                )
+                            }
+                        } else {
+                            {}
+                        },
+                    )
+                }
             } else {
                 TopAppBar(
                     modifier = if (blurAlpha > 0f) {
