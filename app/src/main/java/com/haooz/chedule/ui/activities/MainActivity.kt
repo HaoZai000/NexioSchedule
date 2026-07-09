@@ -2177,3 +2177,41 @@ private fun SettingsTopBar(
         )
     }
 }
+
+@Composable
+private fun TodayTopBar(
+    liquidGlassBackdrop: com.kyant.backdrop.Backdrop?,
+    isDark: Boolean,
+    navBarStyle: String,
+    currentDayOfWeek: Int,
+) {
+    if (liquidGlassBackdrop == null) return
+    val appStyle = com.haooz.chedule.ui.utils.rememberAppStyle()
+    if (appStyle != "liquidglass") return
+    val isTabletLiquidGlass = navBarStyle == "rail"
+    val dayOfWeekNames = listOf("周一", "周二", "周三", "周四", "周五", "周六", "周日")
+    val dayOfWeekName = if (currentDayOfWeek in 1..7) dayOfWeekNames[currentDayOfWeek - 1] else ""
+
+    com.haooz.chedule.ui.components.liquidglass.ProgressiveBlurTopBar(
+        backdrop = liquidGlassBackdrop,
+    ) {
+        top.yukonga.miuix.kmp.basic.SmallTopAppBar(
+            color = androidx.compose.ui.graphics.Color.Transparent,
+            title = if (isTabletLiquidGlass) "" else "今天是$dayOfWeekName",
+            modifier = Modifier.zIndex(1f),
+            navigationIcon = if (isTabletLiquidGlass) {
+                {
+                    Text(
+                        text = "今天是$dayOfWeekName",
+                        fontSize = 20.sp,
+                        fontWeight = FontWeight.Medium,
+                        color = MiuixTheme.colorScheme.onSurface,
+                        modifier = Modifier.padding(start = 12.dp)
+                    )
+                }
+            } else {
+                {}
+            },
+        )
+    }
+}
