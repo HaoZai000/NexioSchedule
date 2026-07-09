@@ -213,12 +213,12 @@ fun CourseTimeSettingsScreen(onBack: () -> Unit) {
                             IconButton(
                                 onClick = { onBack() },
                                 modifier = Modifier
-                                    .padding(start = 12.dp)
+                                    .padding(start = 4.dp)
                                     .size(36.dp)
                                     .clip(CircleShape)
                                     .background(MiuixTheme.colorScheme.surface.copy(alpha = 0.3f))
                             ) {
-                                Icon(MiuixIcons.Back, contentDescription = "返回", modifier = Modifier.size(20.dp))
+                                Icon(MiuixIcons.Back, contentDescription = "返回", modifier = Modifier.size(22.dp))
                             }
                         },
                     )
@@ -258,7 +258,9 @@ fun CourseTimeSettingsScreen(onBack: () -> Unit) {
                     .scrollEndHaptic(
                         hapticFeedbackType = HapticFeedbackType.TextHandleMove
                     )
-                    .nestedScroll(scrollBehavior.nestedScrollConnection),
+                    .then(
+                        if (!isLiquidGlass) Modifier.nestedScroll(scrollBehavior.nestedScrollConnection) else Modifier
+                    ),
                 contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = paddingValues.calculateTopPadding() + 12.dp, bottom = 60.dp),
                 verticalArrangement = Arrangement.spacedBy(12.dp)
             ) {
