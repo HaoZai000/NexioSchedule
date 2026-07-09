@@ -20,7 +20,10 @@ import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.asPaddingValues
 import androidx.compose.foundation.layout.offset
+import androidx.compose.foundation.layout.statusBars
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
@@ -200,6 +203,7 @@ fun CourseTimeSettingsScreen(onBack: () -> Unit) {
     Scaffold(
         topBar = {
             if (isLiquidGlass && liquidGlassBackdrop != null) {
+                val statusBarPadding = WindowInsets.statusBars.asPaddingValues().calculateTopPadding()
                 ProgressiveBlurTopBar(
                     backdrop = liquidGlassBackdrop,
                 ) {
@@ -207,16 +211,16 @@ fun CourseTimeSettingsScreen(onBack: () -> Unit) {
                         color = Color.Transparent,
                         title = "课程时间",
                         modifier = Modifier.zIndex(1f),
-                        navigationIcon = {
-                            LiquidTopBarButton(
-                                onClick = { onBack() },
-                                backdrop = liquidGlassBackdrop,
-                                icon = MiuixIcons.Back,
-                                contentDescription = "返回",
-                                modifier = Modifier.padding(start = 4.dp),
-                                useBackdropShadow = true
-                            )
-                        },
+                        navigationIcon = {}
+                    )
+                    LiquidTopBarButton(
+                        onClick = { onBack() },
+                        backdrop = liquidGlassBackdrop,
+                        icon = MiuixIcons.Back,
+                        contentDescription = "返回",
+                        modifier = Modifier
+                            .offset(x = 20.dp, y = statusBarPadding + 5.dp),
+                        useBackdropShadow = true
                     )
                 }
             } else {
