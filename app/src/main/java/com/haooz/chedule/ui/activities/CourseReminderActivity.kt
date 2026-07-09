@@ -86,6 +86,7 @@ import top.yukonga.miuix.kmp.blur.textureBlur
 import com.kyant.backdrop.backdrops.layerBackdrop as liquidGlassLayerBackdrop
 import top.yukonga.miuix.kmp.icon.MiuixIcons
 import top.yukonga.miuix.kmp.icon.extended.Back
+import top.yukonga.miuix.kmp.icon.extended.ChevronBackward
 import top.yukonga.miuix.kmp.overlay.OverlayDialog
 import top.yukonga.miuix.kmp.preference.ArrowPreference
 import top.yukonga.miuix.kmp.preference.SwitchPreference
@@ -274,11 +275,13 @@ private fun CourseReminderScreen(
                     LiquidTopBarButton(
                         onClick = { onBack() },
                         backdrop = liquidGlassBackdrop,
-                        icon = MiuixIcons.Back,
+                        icon = MiuixIcons.Medium.ChevronBackward,
                         contentDescription = "返回",
                         modifier = Modifier
                             .zIndex(2f)
-                            .offset(x = 20.dp, y = if (statusBarPadding > 0.dp) statusBarPadding + 5.dp else 56.dp),
+                            .offset(x = 20.dp, y = if (statusBarPadding > 0.dp) statusBarPadding + 5.dp else 42.dp),
+                        iconSize = 22.dp,
+                        iconOffset = DpOffset(x = (-2).dp, y = 0.dp),
                         useBackdropShadow = true
                     )
                 }
@@ -353,7 +356,8 @@ private fun CourseReminderScreen(
                     ),
                 contentPadding = PaddingValues(
                     start = 16.dp,
-                    top = paddingValues.calculateTopPadding() + if (isLiquidGlass) { if (WindowInsets.statusBars.asPaddingValues().calculateTopPadding() > 0.dp) 0.dp else (-12).dp } else 0.dp,
+                    top = paddingValues.calculateTopPadding() +
+                            if (isLiquidGlass) { if (WindowInsets.statusBars.asPaddingValues().calculateTopPadding() > 0.dp) -12.dp else (-24).dp } else 0.dp,
                     end = 16.dp,
                     bottom = 120.dp
                 ),
