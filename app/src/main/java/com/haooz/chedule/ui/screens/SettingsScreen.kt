@@ -269,12 +269,13 @@ fun SettingsScreen(
     )
 
     val appStyle = rememberAppStyle()
-    val isTabletLiquidGlass = navBarStyle == "rail" && appStyle == "liquidglass" && liquidGlassBackdrop != null
+    val isLiquidGlass = appStyle == "liquidglass" && liquidGlassBackdrop != null
+    val isTabletLiquidGlass = navBarStyle == "rail" && isLiquidGlass
 
     Box(modifier = Modifier.fillMaxSize()) {
         Scaffold(
         topBar = {
-            if (isTabletLiquidGlass) {
+            if (isLiquidGlass) {
                 SmallTopAppBar(
                     modifier = if (blurAlpha > 0f) {
                         Modifier.textureBlur(
@@ -286,16 +287,20 @@ fun SettingsScreen(
                         Modifier
                     },
                     color = topBarColor,
-                    title = "",
+                    title = if (isTabletLiquidGlass) "" else "我的",
                     scrollBehavior = scrollBehavior,
-                    navigationIcon = {
-                        Text(
-                            text = "我的",
-                            fontSize = 20.sp,
-                            fontWeight = FontWeight.Medium,
-                            color = MiuixTheme.colorScheme.onSurface,
-                            modifier = Modifier.padding(start = 28.dp)
-                        )
+                    navigationIcon = if (isTabletLiquidGlass) {
+                        {
+                            Text(
+                                text = "我的",
+                                fontSize = 20.sp,
+                                fontWeight = FontWeight.Medium,
+                                color = MiuixTheme.colorScheme.onSurface,
+                                modifier = Modifier.padding(start = 28.dp)
+                            )
+                        }
+                    } else {
+                        {}
                     },
                 )
             } else {
