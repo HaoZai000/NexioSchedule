@@ -68,14 +68,20 @@ import top.yukonga.miuix.kmp.basic.ButtonDefaults
 import top.yukonga.miuix.kmp.basic.Card
 import top.yukonga.miuix.kmp.basic.DropdownEntry
 import top.yukonga.miuix.kmp.basic.DropdownItem
+import top.yukonga.miuix.kmp.basic.MiuixScrollBehavior
 import top.yukonga.miuix.kmp.basic.NumberPicker
 import top.yukonga.miuix.kmp.basic.Scaffold
 import top.yukonga.miuix.kmp.basic.SmallTitle
 import top.yukonga.miuix.kmp.basic.Switch
 import top.yukonga.miuix.kmp.basic.TextButton
 import top.yukonga.miuix.kmp.basic.TextField
+import top.yukonga.miuix.kmp.basic.TopAppBar
+import top.yukonga.miuix.kmp.blur.BlendColorEntry
+import top.yukonga.miuix.kmp.blur.BlurBlendMode
+import top.yukonga.miuix.kmp.blur.BlurDefaults
 import top.yukonga.miuix.kmp.blur.layerBackdrop
 import top.yukonga.miuix.kmp.blur.rememberLayerBackdrop
+import top.yukonga.miuix.kmp.blur.textureBlur
 import top.yukonga.miuix.kmp.overlay.OverlayDialog
 import top.yukonga.miuix.kmp.preference.ArrowPreference
 import top.yukonga.miuix.kmp.preference.CheckboxLocation
@@ -129,7 +135,7 @@ fun SettingsScreen(
     navBarStyle: String = "standard",
     liquidGlassBackdrop: com.kyant.backdrop.Backdrop? = null,
     onScrollYChanged: (Int) -> Unit = {},
-    scrollBehavior: top.yukonga.miuix.kmp.basic.ScrollBehavior? = null
+    settingsScrollBehavior: top.yukonga.miuix.kmp.basic.ScrollBehavior? = null
 ) {
     val totalWeeks by viewModel.totalWeeks.collectAsState()
     val currentWeek by viewModel.currentWeek.collectAsState()
@@ -244,10 +250,47 @@ fun SettingsScreen(
 
     val appStyle = rememberAppStyle()
     val isLiquidGlass = appStyle == "liquidglass" && liquidGlassBackdrop != null
+    val isTabletLiquidGlass = navBarStyle == "rail" && isLiquidGlass
+
+    // HyperOS 模式需要的变量
+    val scrollBehavior = if (!isLiquidGlass) settingsScrollBehavior else null
+    val blurAlpha = if (!isLiquidGlass) {
+        if (listScrollY < 50) 0f else ((listScrollY - 50) / 50f).coerceIn(0f, 0.7f)
+    } else 0f
+    val topBarColorProgress = if (!isLiquidGlass) ((listScrollY - 50) / 50f).coerceIn(0f, 1f) else 0f
+    val topBarColor = if (!isLiquidGlass) {
+        if (listScrollY < 50) MiuixTheme.colorScheme.surface
+        else {
+            val surface = MiuixTheme.colorScheme.surface
+            val target = if (isDark) ComposeColor.Black.copy(alpha = 0.7f) else ComposeColor.White.copy(alpha = 0.7f)
+            lerp(surface, target, topBarColorProgress)
+        }
+    } else MiuixTheme.colorScheme.surface
+    val topAppBarColors = if (!isLiquidGlass) {
+        BlurDefaults.blurColors(
+            blendColors = listOf(
+                if (isDark) BlendColorEntry(ComposeColor.Black.copy(alpha = blurAlpha), BlurBlendMode.SrcOver)
+                else BlendColorEntry(ComposeColor.White.copy(alpha = blurAlpha), BlurBlendMode.SrcOver)
+            ),
+            brightness = 0f, contrast = 1f, saturation = 1.2f
+        )
+    } else null
 
     Box(modifier = Modifier.fillMaxSize()) {
         Scaffold(
-        topBar = {}
+        topBar = {
+            if (!isLiquidGlass) {
+                TopAppBar(
+                    modifier = if (blurAlpha > 0f) {
+                        Modifier.textureBlur(backdrop = backdrop, shape = RectangleShape, colors = topAppBarColors!!)
+                    } else Modifier,
+                    color = topBarColor,
+                    title = "我的",
+                    largeTitle = "我的",
+                    scrollBehavior = scrollBehavior,
+                )
+            }
+        }
     ) { paddingValues ->
         Box(
             modifier = Modifier
@@ -274,7 +317,7 @@ fun SettingsScreen(
                     ),
                 contentPadding = PaddingValues(
                     start = 16.dp,
-                    top = paddingValues.calculateTopPadding(),
+                    top = if (isLiquidGlass) paddingValues.calculateTopPadding() + 56.dp else paddingValues.calculateTopPadding(),
                     end = 16.dp,
                     bottom = 120.dp
                 ),
