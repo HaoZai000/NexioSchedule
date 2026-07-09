@@ -13,10 +13,13 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.asPaddingValues
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.statusBars
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.runtime.Composable
@@ -34,9 +37,14 @@ import androidx.compose.ui.graphics.lerp
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.unit.DpOffset
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.zIndex
 import androidx.core.content.edit
 import com.haooz.chedule.ui.theme.CourseScheduleTheme
+import com.haooz.chedule.ui.utils.rememberAppStyle
+import com.haooz.chedule.ui.components.liquidglass.LiquidTopBarButton
+import com.haooz.chedule.ui.components.liquidglass.ProgressiveBlurTopBar
 import com.haooz.chedule.viewmodel.CourseViewModel
 import com.haooz.chedule.viewmodel.SettingsViewModel
 import top.yukonga.miuix.kmp.basic.Card
@@ -47,6 +55,7 @@ import top.yukonga.miuix.kmp.basic.IconButton
 import top.yukonga.miuix.kmp.basic.MiuixScrollBehavior
 import top.yukonga.miuix.kmp.basic.Scaffold
 import top.yukonga.miuix.kmp.basic.SmallTitle
+import top.yukonga.miuix.kmp.basic.SmallTopAppBar
 import top.yukonga.miuix.kmp.basic.TopAppBar
 import top.yukonga.miuix.kmp.blur.BlendColorEntry
 import top.yukonga.miuix.kmp.blur.BlurBlendMode
@@ -54,8 +63,10 @@ import top.yukonga.miuix.kmp.blur.BlurDefaults
 import top.yukonga.miuix.kmp.blur.layerBackdrop
 import top.yukonga.miuix.kmp.blur.rememberLayerBackdrop
 import top.yukonga.miuix.kmp.blur.textureBlur
+import com.kyant.backdrop.backdrops.layerBackdrop as liquidGlassLayerBackdrop
 import top.yukonga.miuix.kmp.icon.MiuixIcons
 import top.yukonga.miuix.kmp.icon.extended.Back
+import top.yukonga.miuix.kmp.icon.extended.ChevronBackward
 import top.yukonga.miuix.kmp.preference.OverlayDropdownPreference
 import top.yukonga.miuix.kmp.preference.RadioButtonPreference
 import top.yukonga.miuix.kmp.theme.MiuixTheme
@@ -105,6 +116,11 @@ private fun PreferenceSettingsScreen(onBack: () -> Unit) {
         drawContent()
     }
     val isDark = isAppDarkTheme()
+    val currentAppStyle = rememberAppStyle()
+    val liquidGlassBackdrop = if (currentAppStyle == "liquidglass") {
+        com.kyant.backdrop.backdrops.rememberLayerBackdrop()
+    } else null
+    val isLiquidGlass = currentAppStyle == "liquidglass"
     val blurAlpha = if (listScrollY < 50) 0f else ((listScrollY - 50) / 30f).coerceIn(0f, 0.7f)
     val topBarColorProgress = ((listScrollY - 50) / 30f).coerceIn(0f, 1f)
     val topBarColor = if (listScrollY < 50) {
@@ -126,32 +142,66 @@ private fun PreferenceSettingsScreen(onBack: () -> Unit) {
 
     Scaffold(
         topBar = {
-            TopAppBar(
-                modifier = if (blurAlpha > 0f) {
-                    Modifier.textureBlur(backdrop = backdrop, shape = RectangleShape, colors = topAppBarColors)
-                } else {
-                    Modifier
-                },
-                color = topBarColor,
-                title = "应用偏好设置",
-                largeTitle = "应用偏好设置",
-                scrollBehavior = scrollBehavior,
-                navigationIconPadding = 20.dp,
-                navigationIcon = {
-                    IconButton(onClick = {
-                        onBack()
-                    }) {
-                        Icon(
-                            imageVector = MiuixIcons.Back,
-                            contentDescription = "返回",
-                            modifier = Modifier.size(28.dp)
-                        )
-                    }
+            if (isLiquidGlass && liquidGlassBackdrop != null) {
+                val statusBarPadding = WindowInsets.statusBars.asPaddingValues().calculateTopPadding()
+                ProgressiveBlurTopBar(
+                    backdrop = liquidGlassBackdrop,
+                ) {
+                    SmallTopAppBar(
+                        color = ComposeColor.Transparent,
+                        title = "应用偏好设置",
+                        modifier = Modifier.zIndex(1f),
+                        navigationIcon = {}
+                    )
+                    LiquidTopBarButton(
+                        onClick = { onBack() },
+                        backdrop = liquidGlassBackdrop,
+                        icon = MiuixIcons.Medium.ChevronBackward,
+                        contentDescription = "返回",
+                        modifier = Modifier
+                            .zIndex(2f)
+                            .offset(x = 20.dp, y = if (statusBarPadding > 0.dp) statusBarPadding + 5.dp else 42.dp),
+                        iconSize = 22.dp,
+                        iconOffset = DpOffset(x = (-2).dp, y = 0.dp),
+                        useBackdropShadow = true
+                    )
                 }
-            )
+            } else {
+                TopAppBar(
+                    modifier = if (blurAlpha > 0f) {
+                        Modifier.textureBlur(backdrop = backdrop, shape = RectangleShape, colors = topAppBarColors)
+                    } else {
+                        Modifier
+                    },
+                    color = topBarColor,
+                    title = "应用偏好设置",
+                    largeTitle = "应用偏好设置",
+                    scrollBehavior = scrollBehavior,
+                    navigationIconPadding = 20.dp,
+                    navigationIcon = {
+                        IconButton(onClick = {
+                            onBack()
+                        }) {
+                            Icon(
+                                imageVector = MiuixIcons.Back,
+                                contentDescription = "返回",
+                                modifier = Modifier.size(28.dp)
+                            )
+                        }
+                    }
+                )
+            }
         }
     ) { paddingValues ->
-        Box(modifier = Modifier.fillMaxSize().layerBackdrop(backdrop)) {
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .layerBackdrop(backdrop)
+                .then(
+                    if (liquidGlassBackdrop != null) Modifier.liquidGlassLayerBackdrop(liquidGlassBackdrop)
+                    else Modifier
+                )
+        ) {
             val listState = rememberLazyListState()
             LaunchedEffect(listState) {
                 snapshotFlow { listState.firstVisibleItemScrollOffset }
@@ -167,11 +217,14 @@ private fun PreferenceSettingsScreen(onBack: () -> Unit) {
                     .scrollEndHaptic(
                         hapticFeedbackType = HapticFeedbackType.TextHandleMove
                     )
-                    .nestedScroll(scrollBehavior.nestedScrollConnection),
+                    .then(
+                        if (!isLiquidGlass) Modifier.nestedScroll(scrollBehavior.nestedScrollConnection) else Modifier
+                    ),
                 contentPadding = PaddingValues(
                     start = 16.dp,
                     end = 16.dp,
-                    top = paddingValues.calculateTopPadding(),
+                    top = paddingValues.calculateTopPadding() +
+                            if (isLiquidGlass) { if (WindowInsets.statusBars.asPaddingValues().calculateTopPadding() > 0.dp) -12.dp else (-24).dp } else 0.dp,
                     bottom = 60.dp
                 ),
                 verticalArrangement = Arrangement.spacedBy(12.dp)
