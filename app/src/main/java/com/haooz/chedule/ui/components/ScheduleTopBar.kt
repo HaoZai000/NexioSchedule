@@ -194,42 +194,80 @@ internal fun ScheduleTopBar(
                         enter = fadeIn(animationSpec = tween(180)),
                         exit = fadeOut(animationSpec = tween(120))
                     ) {
-                        IconButton(
-                            onClick = onBackToCurrentWeek,
-                            modifier = Modifier.padding(start = 4.dp)
-                        ) {
-                            Icon(
-                                imageVector = MiuixIcons.Medium.Reset,
+                        if (appStyle == "liquidglass" && liquidGlassBackdrop != null && navBarStyle != "rail") {
+                            LiquidTopBarButton(
+                                onClick = onBackToCurrentWeek,
+                                backdrop = liquidGlassBackdrop,
+                                icon = MiuixIcons.Medium.Reset,
                                 contentDescription = "返回本周",
-                                modifier = Modifier.size(25.dp)
+                                iconSize = 25.dp,
+                                modifier = Modifier.padding(start = 4.dp)
                             )
+                        } else {
+                            IconButton(
+                                onClick = onBackToCurrentWeek,
+                                modifier = Modifier.padding(start = 4.dp)
+                            ) {
+                                Icon(
+                                    imageVector = MiuixIcons.Medium.Reset,
+                                    contentDescription = "返回本周",
+                                    modifier = Modifier.size(25.dp)
+                                )
+                            }
                         }
                     }
                 },
                 actions = {
-                    IconButton(
-                        onClick = {
-                            hapticFeedback.performHapticFeedback(HapticFeedbackType.VirtualKey)
-                            onOpenSwitchSchedule()
-                        },
-                        modifier = Modifier.padding(end = 4.dp)
-                    ) {
-                        Icon(
-                            imageVector = MiuixIcons.Normal.ConvertFile,
+                    if (appStyle == "liquidglass" && liquidGlassBackdrop != null && navBarStyle != "rail") {
+                        LiquidTopBarButton(
+                            onClick = {
+                                hapticFeedback.performHapticFeedback(HapticFeedbackType.VirtualKey)
+                                onOpenSwitchSchedule()
+                            },
+                            backdrop = liquidGlassBackdrop,
+                            icon = MiuixIcons.Normal.ConvertFile,
                             contentDescription = "课表切换",
-                            modifier = Modifier.size(27.dp)
+                            iconSize = 27.dp,
+                            modifier = Modifier.padding(end = 4.dp)
                         )
+                    } else {
+                        IconButton(
+                            onClick = {
+                                hapticFeedback.performHapticFeedback(HapticFeedbackType.VirtualKey)
+                                onOpenSwitchSchedule()
+                            },
+                            modifier = Modifier.padding(end = 4.dp)
+                        ) {
+                            Icon(
+                                imageVector = MiuixIcons.Normal.ConvertFile,
+                                contentDescription = "课表切换",
+                                modifier = Modifier.size(27.dp)
+                            )
+                        }
                     }
                     Box(modifier = Modifier.padding(end = 4.dp)) {
-                        IconButton(onClick = {
-                            hapticFeedback.performHapticFeedback(HapticFeedbackType.VirtualKey)
-                            showMorePopup = true
-                        }) {
-                            Icon(
-                                imageVector = MiuixIcons.More,
+                        if (appStyle == "liquidglass" && liquidGlassBackdrop != null && navBarStyle != "rail") {
+                            LiquidTopBarButton(
+                                onClick = {
+                                    hapticFeedback.performHapticFeedback(HapticFeedbackType.VirtualKey)
+                                    showMorePopup = true
+                                },
+                                backdrop = liquidGlassBackdrop,
+                                icon = MiuixIcons.More,
                                 contentDescription = "更多",
-                                modifier = Modifier.size(22.dp)
+                                iconSize = 22.dp
                             )
+                        } else {
+                            IconButton(onClick = {
+                                hapticFeedback.performHapticFeedback(HapticFeedbackType.VirtualKey)
+                                showMorePopup = true
+                            }) {
+                                Icon(
+                                    imageVector = MiuixIcons.More,
+                                    contentDescription = "更多",
+                                    modifier = Modifier.size(22.dp)
+                                )
+                            }
                         }
                         OverlayListPopup(
                             show = showMorePopup,
