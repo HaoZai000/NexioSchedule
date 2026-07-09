@@ -272,14 +272,20 @@ fun TodayScreen(
     Scaffold(
         topBar = {
             if (isLiquidGlass) {
-                ProgressiveBlurTopBar(backdrop = liquidGlassBackdrop!!) {
-                    SmallTopAppBar(
-                        modifier = Modifier,
-                        color = ComposeColor.Transparent,
-                        title = "今天是$dayOfWeekName",
-                        scrollBehavior = scrollBehavior,
-                    )
-                }
+                SmallTopAppBar(
+                    modifier = if (blurAlpha > 0f) {
+                        Modifier.textureBlur(
+                            backdrop = backdrop,
+                            shape = RectangleShape,
+                            colors = topAppBarColors
+                        )
+                    } else {
+                        Modifier
+                    },
+                    color = topBarColor,
+                    title = "今天是$dayOfWeekName",
+                    scrollBehavior = scrollBehavior,
+                )
             } else {
                 TopAppBar(
                     modifier = if (blurAlpha > 0f) {
