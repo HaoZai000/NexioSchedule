@@ -79,6 +79,7 @@ import top.yukonga.miuix.kmp.utils.PressFeedbackType
 import top.yukonga.miuix.kmp.utils.overScrollVertical
 import java.util.UUID
 import com.haooz.chedule.ui.utils.rememberAppStyle
+import com.haooz.chedule.ui.utils.isAppDarkTheme
 import com.kyant.backdrop.drawBackdrop
 import com.kyant.backdrop.effects.blur
 import com.kyant.backdrop.effects.lens
@@ -106,6 +107,9 @@ fun AddCourseDialog(
     val hapticFeedback = androidx.compose.ui.platform.LocalHapticFeedback.current
     val appStyle = rememberAppStyle()
     val isLiquidGlass = appStyle == "liquidglass" && liquidGlassBackdrop != null
+    val isDark = isAppDarkTheme()
+    val closeContainerColor = if (isDark) Color(0xFF121212).copy(0.4f) else Color(0xFFFAFAFA).copy(0.4f)
+    val closeIconColor = if (isDark) Color.White.copy(alpha = 0.8f) else Color.Black.copy(alpha = 0.8f)
 
     var name by remember { mutableStateOf(course?.name ?: "") }
     var classroom by remember { mutableStateOf(course?.classroom ?: "") }
@@ -197,7 +201,7 @@ fun AddCourseDialog(
                                 translationY = size.minDimension * 0.05f * offset.y / size.maxDimension
                             },
                             onDrawSurface = {
-                                drawRect(Color.White.copy(0.6f))
+                                drawRect(closeContainerColor)
                                 drawRect(Color.Black.copy(alpha = 0.03f * closeHighlight.pressProgress))
                             }
                         )
@@ -218,7 +222,7 @@ fun AddCourseDialog(
                         imageVector = MiuixIcons.Close,
                         contentDescription = "取消",
                         modifier = Modifier.size(22.dp),
-                        tint = Color.Black.copy(alpha = 0.8f)
+                        tint = closeIconColor
                     )
                 }
             } else {

@@ -178,6 +178,9 @@ fun CustomizeScheduleScreen(
     } else null
     val isLiquidGlass = appStyle == "liquidglass"
     val primaryColor = MiuixTheme.colorScheme.primary
+    val isDarkForLiquid = isAppDarkTheme()
+    val exitContainerColor = if (isDarkForLiquid) Color(0xFF121212).copy(0.4f) else Color(0xFFFAFAFA).copy(0.4f)
+    val exitIconColor = if (isDarkForLiquid) Color.White.copy(alpha = 0.8f) else Color.Black.copy(alpha = 0.8f)
 
     // ================================================================
     // 二、UI 状态：加载指示 / 底部弹窗 / 删除流程
@@ -921,7 +924,7 @@ fun CustomizeScheduleScreen(
                                 translationY = size.minDimension * 0.05f * offset.y / size.maxDimension
                             },
                             onDrawSurface = {
-                                drawRect(Color.White.copy(0.8f))
+                                drawRect(exitContainerColor)
                                 drawRect(Color.Black.copy(alpha = 0.03f * exitHighlight.pressProgress))
                             }
                         )
@@ -949,7 +952,7 @@ fun CustomizeScheduleScreen(
                 ) {
                     Text(
                         text = if (isCutoutActive) "取消" else "退出",
-                        color = Color.Black.copy(alpha = 0.8f), fontSize = 16.sp, fontWeight = FontWeight.Medium
+                        color = exitIconColor, fontSize = 16.sp, fontWeight = FontWeight.Medium
                     )
                 }
                 Box(
