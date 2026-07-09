@@ -187,7 +187,7 @@ internal fun ScheduleTopBar(
         )
         Column {
             SmallTopAppBar(
-                title = if (navBarStyle == "rail" && appStyle == "liquidglass" && liquidGlassBackdrop != null) "" else when {
+                title = when {
                     currentWeek > totalWeeks -> "放假中"
                     currentWeek < 1 -> "学期未开始"
                     else -> "第${pagerCurrentPage + 1}周"
@@ -199,79 +199,67 @@ internal fun ScheduleTopBar(
                         onTitleBarMeasured(with(density) { coordinates.size.height.toDp() })
                     },
                 navigationIcon = {
-                    if (navBarStyle == "rail" && appStyle == "liquidglass" && liquidGlassBackdrop != null) {
-                        Text(
-                            text = when {
-                                currentWeek > totalWeeks -> "放假中"
-                                currentWeek < 1 -> "学期未开始"
-                                else -> "第${pagerCurrentPage + 1}周"
-                            },
-                            fontSize = 21.sp,
-                            fontWeight = FontWeight.Medium,
-                            color = MiuixTheme.colorScheme.onSurface,
-                            modifier = Modifier.padding(start = 12.dp)
-                        )
-                    } else {
-                        AnimatedVisibility(
-                            visible = !isViewingCurrentWeek && navBarStyle != "rail",
-                            enter = fadeIn(animationSpec = tween(180)),
-                            exit = fadeOut(animationSpec = tween(120))
-                        ) {
-                            if (appStyle == "liquidglass" && liquidGlassBackdrop != null) {
-                                LiquidTopBarButton(
-                                    onClick = onBackToCurrentWeek,
-                                    backdrop = liquidGlassBackdrop,
-                                    icon = MiuixIcons.Medium.Reset,
-                                    contentDescription = "返回本周",
-                                    iconSize = 22.dp,
-                                    modifier = Modifier.padding(start = 4.dp)
-                                )
-                            } else {
-                                IconButton(
-                                    onClick = onBackToCurrentWeek,
-                                    modifier = Modifier.padding(start = 4.dp)
-                                ) {
-                                    Icon(
-                                        imageVector = MiuixIcons.Medium.Reset,
+                    Row {
+                        if (navBarStyle == "rail") {
+                            AnimatedVisibility(
+                                visible = !isViewingCurrentWeek,
+                                enter = fadeIn(animationSpec = tween(180)),
+                                exit = fadeOut(animationSpec = tween(120))
+                            ) {
+                                if (appStyle == "liquidglass" && liquidGlassBackdrop != null) {
+                                    LiquidTopBarButton(
+                                        onClick = onBackToCurrentWeek,
+                                        backdrop = liquidGlassBackdrop,
+                                        icon = MiuixIcons.Medium.Reset,
                                         contentDescription = "返回本周",
-                                        modifier = Modifier.size(25.dp)
+                                        iconSize = 22.dp,
+                                        modifier = Modifier.padding(start = 20.dp)
                                     )
+                                } else {
+                                    IconButton(
+                                        onClick = onBackToCurrentWeek,
+                                        modifier = Modifier.padding(start = 20.dp)
+                                    ) {
+                                        Icon(
+                                            imageVector = MiuixIcons.Medium.Reset,
+                                            contentDescription = "返回本周",
+                                            modifier = Modifier.size(25.dp)
+                                        )
+                                    }
+                                }
+                            }
+                        } else {
+                            AnimatedVisibility(
+                                visible = !isViewingCurrentWeek,
+                                enter = fadeIn(animationSpec = tween(180)),
+                                exit = fadeOut(animationSpec = tween(120))
+                            ) {
+                                if (appStyle == "liquidglass" && liquidGlassBackdrop != null) {
+                                    LiquidTopBarButton(
+                                        onClick = onBackToCurrentWeek,
+                                        backdrop = liquidGlassBackdrop,
+                                        icon = MiuixIcons.Medium.Reset,
+                                        contentDescription = "返回本周",
+                                        iconSize = 22.dp,
+                                        modifier = Modifier.padding(start = 4.dp)
+                                    )
+                                } else {
+                                    IconButton(
+                                        onClick = onBackToCurrentWeek,
+                                        modifier = Modifier.padding(start = 4.dp)
+                                    ) {
+                                        Icon(
+                                            imageVector = MiuixIcons.Medium.Reset,
+                                            contentDescription = "返回本周",
+                                            modifier = Modifier.size(25.dp)
+                                        )
+                                    }
                                 }
                             }
                         }
                     }
                 },
                 actions = {
-                    if (navBarStyle == "rail") {
-                        AnimatedVisibility(
-                            visible = !isViewingCurrentWeek,
-                            enter = fadeIn(animationSpec = tween(180)),
-                            exit = fadeOut(animationSpec = tween(120))
-                        ) {
-                            if (appStyle == "liquidglass" && liquidGlassBackdrop != null) {
-                                LiquidTopBarButton(
-                                    onClick = onBackToCurrentWeek,
-                                    backdrop = liquidGlassBackdrop,
-                                    icon = MiuixIcons.Medium.Reset,
-                                    contentDescription = "返回本周",
-                                    iconSize = 22.dp,
-                                    buttonHeight = 38.dp,
-                                    modifier = Modifier.padding(end = 6.dp, top = 4.dp)
-                                )
-                            } else {
-                                IconButton(
-                                    onClick = onBackToCurrentWeek,
-                                    modifier = Modifier.padding(end = 6.dp)
-                                ) {
-                                    Icon(
-                                        imageVector = MiuixIcons.Medium.Reset,
-                                        contentDescription = "返回本周",
-                                        modifier = Modifier.size(25.dp)
-                                    )
-                                }
-                            }
-                        }
-                    }
                     if (appStyle == "liquidglass" && liquidGlassBackdrop != null) {
                         LiquidTopBarCapsuleButton(
                             onLeftClick = {
