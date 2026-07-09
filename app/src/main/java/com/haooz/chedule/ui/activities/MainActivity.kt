@@ -1113,7 +1113,9 @@ fun CourseScheduleApp() {
                                 onEnterShiftMode = {
                                     showShiftLoading = true
                                     isExitingShift = false
-                                }
+                                },
+                                navBarStyle = navBarStyle,
+                                liquidGlassBackdrop = liquidGlassBackdrop
                             )
                         }
                     } else {
@@ -1144,7 +1146,9 @@ fun CourseScheduleApp() {
                                 onEnterShiftMode = {
                                     showShiftLoading = true
                                     isExitingShift = false
-                                }
+                                },
+                                navBarStyle = navBarStyle,
+                                liquidGlassBackdrop = liquidGlassBackdrop
                             )
                         }
                     }

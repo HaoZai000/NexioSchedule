@@ -9,7 +9,6 @@ import android.os.Environment
 import android.widget.Toast
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
-import androidx.compose.foundation.Image
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -42,7 +41,6 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
-import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.RectangleShape
 import androidx.compose.ui.graphics.lerp
@@ -50,22 +48,19 @@ import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.SpanStyle
-import androidx.compose.ui.text.buildAnnotatedString
-import androidx.compose.ui.text.style.TextAlign
-import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.unit.DpSize
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.core.content.FileProvider
+import com.haooz.chedule.data.Course
+import com.haooz.chedule.data.WebDavManager
 import com.haooz.chedule.ui.activities.AboutActivity
 import com.haooz.chedule.ui.activities.CourseReminderActivity
 import com.haooz.chedule.ui.activities.CourseTimeSettingsActivity
 import com.haooz.chedule.ui.activities.PreferenceSettingsActivity
 import com.haooz.chedule.ui.activities.WidgetIntroActivity
-import com.haooz.chedule.data.Course
-import com.haooz.chedule.data.WebDavManager
 import com.haooz.chedule.ui.utils.isAppDarkTheme
+import com.haooz.chedule.ui.utils.rememberAppStyle
 import com.haooz.chedule.viewmodel.CourseViewModel
 import com.haooz.chedule.viewmodel.ScheduleViewModel
 import com.haooz.chedule.viewmodel.SettingsViewModel
@@ -138,7 +133,9 @@ fun SettingsScreen(
     shiftViewModel: ShiftViewModel,
     isShiftMode: Boolean = false,
     onExitShiftMode: () -> Unit = {},
-    onEnterShiftMode: () -> Unit = {}
+    onEnterShiftMode: () -> Unit = {},
+    navBarStyle: String = "standard",
+    liquidGlassBackdrop: com.kyant.backdrop.Backdrop? = null
 ) {
     val totalWeeks by viewModel.totalWeeks.collectAsState()
     val currentWeek by viewModel.currentWeek.collectAsState()
@@ -270,6 +267,9 @@ fun SettingsScreen(
         saturation = 1.2f
     )
 
+    val appStyle = rememberAppStyle()
+    val isTabletLiquidGlass = navBarStyle == "rail" && appStyle == "liquidglass" && liquidGlassBackdrop != null
+
     Box(modifier = Modifier.fillMaxSize()) {
         Scaffold(
         topBar = {
@@ -284,9 +284,20 @@ fun SettingsScreen(
                     Modifier
                 },
                 color = topBarColor,
-                title = "我的",
-                largeTitle = "我的",
+                title = if (isTabletLiquidGlass) "" else "我的",
+                largeTitle = if (isTabletLiquidGlass) "" else "我的",
                 scrollBehavior = scrollBehavior,
+                navigationIcon = if (isTabletLiquidGlass) {
+                    {
+                        Text(
+                            text = "我的",
+                            fontSize = 20.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = MiuixTheme.colorScheme.onSurface,
+                            modifier = Modifier.padding(start = 28.dp)
+                        )
+                    }
+                } else null,
             )
         }
     ) { paddingValues ->
