@@ -245,6 +245,9 @@ internal fun ScheduleTopBar(
                             )
                         }
                     }
+                    if (appStyle == "liquidglass" && liquidGlassBackdrop != null && navBarStyle != "rail") {
+                        Spacer(modifier = Modifier.width(8.dp))
+                    }
                     Box(modifier = Modifier.padding(end = 4.dp)) {
                         if (appStyle == "liquidglass" && liquidGlassBackdrop != null && navBarStyle != "rail") {
                             LiquidTopBarButton(
