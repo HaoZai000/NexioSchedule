@@ -198,7 +198,9 @@ fun TodayScreen(
     settingsViewModel: SettingsViewModel,
     onCourseClick: (courses: List<Course>, cardLeft: Float, cardTop: Float, cardWidth: Float, cardHeight: Float, snapshot: android.graphics.Bitmap?) -> Unit = { _, _, _, _, _, _ -> },
     navBarStyle: String = "standard",
-    liquidGlassBackdrop: com.kyant.backdrop.Backdrop? = null
+    liquidGlassBackdrop: com.kyant.backdrop.Backdrop? = null,
+    onScrollYChanged: (Int) -> Unit = {},
+    settingsScrollBehavior: top.yukonga.miuix.kmp.basic.ScrollBehavior? = null
 ) {
     val courses by viewModel.courses.collectAsState()
     val currentWeek by viewModel.currentWeek.collectAsState()
