@@ -33,6 +33,7 @@ import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
+import com.haooz.chedule.ui.utils.isAppDarkTheme
 import top.yukonga.miuix.kmp.basic.DropdownImpl
 import top.yukonga.miuix.kmp.basic.Icon
 import top.yukonga.miuix.kmp.basic.IconButton
@@ -128,7 +129,7 @@ internal fun ScheduleTopBar(
     )
 
     val isDark = isAppDarkTheme()
-    val tintColor = if (isDark) ComposeColor(0xFF808080) else ComposeColor.White
+    val tintColor = if (isDark) ComposeColor(0xFF000000) else ComposeColor.
 
     Box(
         modifier = Modifier.padding(start = railPaddingStart)
