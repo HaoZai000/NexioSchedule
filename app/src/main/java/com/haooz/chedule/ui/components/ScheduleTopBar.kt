@@ -224,6 +224,7 @@ internal fun ScheduleTopBar(
                                     icon = MiuixIcons.Medium.Reset,
                                     contentDescription = "返回本周",
                                     iconSize = 22.dp,
+                                    modifier = Modifier.padding(start = 4.dp)
                                 )
                             } else {
                                 IconButton(
