@@ -186,7 +186,7 @@ internal fun ScheduleTopBar(
         )
         Column {
             SmallTopAppBar(
-                title = when {
+                title = if (navBarStyle == "rail" && appStyle == "liquidglass" && liquidGlassBackdrop != null) "" else when {
                     currentWeek > totalWeeks -> "放假中"
                     currentWeek < 1 -> "学期未开始"
                     else -> "第${pagerCurrentPage + 1}周"
@@ -329,6 +329,22 @@ internal fun ScheduleTopBar(
                     }
                 }
             )
+            if (navBarStyle == "rail" && appStyle == "liquidglass" && liquidGlassBackdrop != null) {
+                Text(
+                    text = when {
+                        currentWeek > totalWeeks -> "放假中"
+                        currentWeek < 1 -> "学期未开始"
+                        else -> "第${pagerCurrentPage + 1}周"
+                    },
+                    style = MiuixTheme.textStyles.title1.copy(
+                        fontWeight = FontWeight.Bold
+                    ),
+                    color = MiuixTheme.colorScheme.onSurface,
+                    modifier = Modifier
+                        .padding(start = 24.dp, top = 4.dp)
+                        .zIndex(1f)
+                )
+            }
             Row(
                 modifier = Modifier.fillMaxWidth().height(40.dp)
             ) {
