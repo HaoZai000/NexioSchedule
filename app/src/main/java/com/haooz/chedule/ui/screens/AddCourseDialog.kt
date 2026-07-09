@@ -44,6 +44,7 @@ import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.state.ToggleableState
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
@@ -52,7 +53,13 @@ import androidx.compose.ui.unit.DpSize
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.haooz.chedule.data.Course
+import com.haooz.chedule.ui.components.liquidglass.InteractiveHighlight
 import com.haooz.chedule.ui.utils.isAppDarkTheme
+import com.haooz.chedule.ui.utils.rememberAppStyle
+import com.kyant.backdrop.drawBackdrop
+import com.kyant.backdrop.effects.blur
+import com.kyant.backdrop.effects.lens
+import com.kyant.backdrop.effects.vibrancy
 import com.kyant.shapes.RoundedRectangle
 import top.yukonga.miuix.kmp.basic.Button
 import top.yukonga.miuix.kmp.basic.ButtonDefaults
@@ -78,16 +85,6 @@ import top.yukonga.miuix.kmp.theme.MiuixTheme
 import top.yukonga.miuix.kmp.utils.PressFeedbackType
 import top.yukonga.miuix.kmp.utils.overScrollVertical
 import java.util.UUID
-import com.haooz.chedule.ui.utils.rememberAppStyle
-import com.haooz.chedule.ui.utils.isAppDarkTheme
-import com.kyant.backdrop.drawBackdrop
-import com.kyant.backdrop.effects.blur
-import com.kyant.backdrop.effects.lens
-import com.kyant.backdrop.effects.vibrancy
-import com.kyant.shapes.Capsule
-import com.haooz.chedule.ui.components.liquidglass.InteractiveHighlight
-import androidx.compose.foundation.interaction.MutableInteractionSource
-import androidx.compose.ui.semantics.Role
 
 @Composable
 fun AddCourseDialog(
@@ -180,7 +177,7 @@ fun AddCourseDialog(
                 val closeHighlight = remember(animationScope) { InteractiveHighlight(animationScope) }
                 Box(
                     modifier = Modifier
-                        .padding(horizontal = 20.dp)
+                        .padding(horizontal = 24.dp)
                         .size(40.dp)
                         .drawBackdrop(
                             backdrop = liquidGlassBackdrop,
@@ -242,7 +239,7 @@ fun AddCourseDialog(
                 val primaryColor = MiuixTheme.colorScheme.primary
                 Box(
                     modifier = Modifier
-                        .padding(horizontal = 20.dp)
+                        .padding(horizontal = 24.dp)
                         .size(40.dp)
                         .drawBackdrop(
                             backdrop = liquidGlassBackdrop,
