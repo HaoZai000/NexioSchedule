@@ -313,7 +313,7 @@ fun SwitchScheduleScreen(
                             icon = if (isEditMode) MiuixIcons.Close else MiuixIcons.Medium.ChevronBackward,
                             contentDescription = if (isEditMode) "关闭" else "返回",
                             modifier = Modifier.offset(x = 20.dp),
-                            iconSize = if (isEditMode) 20.dp else 22.dp,
+                            iconSize = if (isEditMode) 21.dp else 22.dp,
                             iconOffset = if (isEditMode) DpOffset.Zero else DpOffset(x = (-2).dp, y = 0.dp),
                             useBackdropShadow = true
                         )
@@ -324,7 +324,7 @@ fun SwitchScheduleScreen(
                                 icon = MiuixIcons.Edit,
                                 contentDescription = "编辑",
                                 modifier = Modifier.offset(x = (-20).dp),
-                                iconSize = 22.dp,
+                                iconSize = 23.dp,
                                 useBackdropShadow = true
                             )
                         }
