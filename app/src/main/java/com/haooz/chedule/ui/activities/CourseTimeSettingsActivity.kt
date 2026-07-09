@@ -43,6 +43,7 @@ import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.RectangleShape
 import androidx.compose.ui.graphics.lerp
 import androidx.compose.ui.zIndex
@@ -54,6 +55,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.haooz.chedule.data.Course
 import com.haooz.chedule.data.CourseRepository
+import com.haooz.chedule.ui.components.liquidglass.ProgressiveBlurTopBar
 import com.haooz.chedule.ui.theme.CourseScheduleTheme
 import top.yukonga.miuix.kmp.basic.ButtonDefaults
 import top.yukonga.miuix.kmp.basic.Card
@@ -63,6 +65,7 @@ import top.yukonga.miuix.kmp.basic.MiuixScrollBehavior
 import top.yukonga.miuix.kmp.basic.NumberPicker
 import top.yukonga.miuix.kmp.basic.Scaffold
 import top.yukonga.miuix.kmp.basic.SmallTitle
+import top.yukonga.miuix.kmp.basic.SmallTopAppBar
 import top.yukonga.miuix.kmp.basic.Switch
 import top.yukonga.miuix.kmp.basic.TextButton
 import top.yukonga.miuix.kmp.basic.TopAppBar
@@ -199,11 +202,11 @@ fun CourseTimeSettingsScreen(onBack: () -> Unit) {
     Scaffold(
         topBar = {
             if (isLiquidGlass && liquidGlassBackdrop != null) {
-                com.haooz.chedule.ui.components.liquidglass.ProgressiveBlurTopBar(
+                ProgressiveBlurTopBar(
                     backdrop = liquidGlassBackdrop,
                 ) {
-                    top.yukonga.miuix.kmp.basic.SmallTopAppBar(
-                        color = androidx.compose.ui.graphics.Color.Transparent,
+                    SmallTopAppBar(
+                        color = Color.Transparent,
                         title = "课程时间",
                         modifier = Modifier.zIndex(1f),
                         navigationIcon = {
@@ -212,7 +215,7 @@ fun CourseTimeSettingsScreen(onBack: () -> Unit) {
                                 modifier = Modifier
                                     .padding(start = 12.dp)
                                     .size(36.dp)
-                                    .clip(androidx.compose.foundation.shape.CircleShape)
+                                    .clip(CircleShape)
                                     .background(MiuixTheme.colorScheme.surface.copy(alpha = 0.3f))
                             ) {
                                 Icon(MiuixIcons.Back, contentDescription = "返回", modifier = Modifier.size(20.dp))
