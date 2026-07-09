@@ -75,11 +75,18 @@ import top.yukonga.miuix.kmp.blur.rememberLayerBackdrop
 import top.yukonga.miuix.kmp.blur.textureBlur
 import top.yukonga.miuix.kmp.icon.MiuixIcons
 import top.yukonga.miuix.kmp.icon.extended.Back
+import top.yukonga.miuix.kmp.icon.extended.ChevronBackward
 import top.yukonga.miuix.kmp.overlay.OverlayDialog
 import top.yukonga.miuix.kmp.preference.ArrowPreference
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 import top.yukonga.miuix.kmp.utils.overScrollVertical
 import top.yukonga.miuix.kmp.utils.scrollEndHaptic
+import com.haooz.chedule.ui.components.liquidglass.LiquidTopBarButton
+import com.haooz.chedule.ui.components.liquidglass.ProgressiveBlurTopBar
+import com.haooz.chedule.ui.utils.rememberAppStyle
+import com.kyant.backdrop.backdrops.layerBackdrop as liquidGlassLayerBackdrop
+import androidx.compose.ui.zIndex
+import androidx.compose.ui.unit.DpOffset
 import java.io.File
 import java.io.FileOutputStream
 import java.net.HttpURLConnection
@@ -257,6 +264,11 @@ private fun UpdateSettingsScreen(onBack: () -> Unit) {
         drawContent()
     }
     val isDark = isAppDarkTheme()
+    val currentAppStyle = rememberAppStyle()
+    val isLiquidGlass = currentAppStyle == "liquidglass"
+    val liquidGlassBackdrop = if (isLiquidGlass) {
+        com.kyant.backdrop.backdrops.rememberLayerBackdrop()
+    } else null
     val blurAlpha = if (listScrollY < 50) 0f else ((listScrollY - 50) / 30f).coerceIn(0f, 0.7f)
     val topBarColorProgress = ((listScrollY - 50) / 30f).coerceIn(0f, 1f)
     val topBarColor = if (listScrollY < 50) {
@@ -278,22 +290,47 @@ private fun UpdateSettingsScreen(onBack: () -> Unit) {
 
     Scaffold(
         topBar = {
-            TopAppBar(
-                modifier = if (blurAlpha > 0f) {
-                    Modifier.textureBlur(backdrop = backdrop, shape = RectangleShape, colors = topAppBarColors)
-                } else {
-                    Modifier
-                },
-                color = topBarColor,
-                title = "更新设置",
-                largeTitle = "更新设置",
-                scrollBehavior = scrollBehavior,
-                navigationIconPadding = 20.dp,
-                navigationIcon = {
-                    IconButton(onClick = {
-                        onBack()
-                    }) {
-                        Icon(
+            if (isLiquidGlass && liquidGlassBackdrop != null) {
+                val statusBarPadding = WindowInsets.statusBars.asPaddingValues().calculateTopPadding()
+                ProgressiveBlurTopBar(
+                    backdrop = liquidGlassBackdrop,
+                ) {
+                    SmallTopAppBar(
+                        color = Color.Transparent,
+                        title = "更新设置",
+                        modifier = Modifier.zIndex(1f),
+                        navigationIcon = {}
+                    )
+                    LiquidTopBarButton(
+                        onClick = { onBack() },
+                        backdrop = liquidGlassBackdrop,
+                        icon = MiuixIcons.Medium.ChevronBackward,
+                        contentDescription = "返回",
+                        modifier = Modifier
+                            .zIndex(2f)
+                            .offset(x = 20.dp, y = if (statusBarPadding > 0.dp) statusBarPadding + 5.dp else 42.dp),
+                        iconSize = 22.dp,
+                        iconOffset = DpOffset(x = (-2).dp, y = 0.dp),
+                        useBackdropShadow = true
+                    )
+                }
+            } else {
+                TopAppBar(
+                    modifier = if (blurAlpha > 0f) {
+                        Modifier.textureBlur(backdrop = backdrop, shape = RectangleShape, colors = topAppBarColors)
+                    } else {
+                        Modifier
+                    },
+                    color = topBarColor,
+                    title = "更新设置",
+                    largeTitle = "更新设置",
+                    scrollBehavior = scrollBehavior,
+                    navigationIconPadding = 20.dp,
+                    navigationIcon = {
+                        IconButton(onClick = {
+                            onBack()
+                        }) {
+                            Icon(
                             imageVector = MiuixIcons.Back,
                             contentDescription = "返回",
                             modifier = Modifier.size(28.dp)
