@@ -85,6 +85,9 @@ import top.yukonga.miuix.kmp.blur.BlurDefaults
 import top.yukonga.miuix.kmp.blur.layerBackdrop
 import top.yukonga.miuix.kmp.blur.rememberLayerBackdrop
 import top.yukonga.miuix.kmp.blur.textureBlur
+import com.kyant.backdrop.drawPlainBackdrop
+import com.kyant.backdrop.effects.blur
+import com.kyant.backdrop.effects.runtimeShaderEffect
 import top.yukonga.miuix.kmp.overlay.OverlayDialog
 import top.yukonga.miuix.kmp.preference.ArrowPreference
 import top.yukonga.miuix.kmp.preference.CheckboxLocation
@@ -271,38 +274,62 @@ fun SettingsScreen(
     val appStyle = rememberAppStyle()
     val isLiquidGlass = appStyle == "liquidglass" && liquidGlassBackdrop != null
     val isTabletLiquidGlass = navBarStyle == "rail" && isLiquidGlass
+    val tintColor = if (isDark) ComposeColor(0xFF808080) else ComposeColor.White
 
     Box(modifier = Modifier.fillMaxSize()) {
         Scaffold(
         topBar = {
             if (isLiquidGlass) {
-                SmallTopAppBar(
-                    modifier = if (blurAlpha > 0f) {
-                        Modifier.textureBlur(
-                            backdrop = backdrop,
-                            shape = RectangleShape,
-                            colors = topAppBarColors
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .drawPlainBackdrop(
+                            backdrop = liquidGlassBackdrop!!,
+                            shape = { RectangleShape },
+                            effects = {
+                                blur(4f.dp.toPx())
+                                runtimeShaderEffect(
+                                    "AlphaMask",
+                                    """
+    uniform shader content;
+    uniform float2 size;
+    layout(color) uniform half4 tint;
+    uniform float tintIntensity;
+
+    half4 main(float2 coord) {
+        float blurAlpha = smoothstep(size.y, size.y * 0.6, coord.y);
+        float tintAlpha = smoothstep(size.y, size.y * 0.7, coord.y);
+        return mix(content.eval(coord) * blurAlpha, tint * tintAlpha, tintIntensity);
+    }""",
+                                    "content"
+                                ) {
+                                    setFloatUniform("size", size.width, size.height)
+                                    setColorUniform("tint", tintColor)
+                                    setFloatUniform("tintIntensity", 0.2f)
+                                }
+                            }
                         )
-                    } else {
-                        Modifier
-                    },
-                    color = topBarColor,
-                    title = if (isTabletLiquidGlass) "" else "我的",
-                    scrollBehavior = scrollBehavior,
-                    navigationIcon = if (isTabletLiquidGlass) {
-                        {
-                            Text(
-                                text = "我的",
-                                fontSize = 20.sp,
-                                fontWeight = FontWeight.Medium,
-                                color = MiuixTheme.colorScheme.onSurface,
-                                modifier = Modifier.padding(start = 28.dp)
-                            )
-                        }
-                    } else {
-                        {}
-                    },
-                )
+                ) {
+                    SmallTopAppBar(
+                        modifier = Modifier,
+                        color = ComposeColor.Transparent,
+                        title = if (isTabletLiquidGlass) "" else "我的",
+                        scrollBehavior = scrollBehavior,
+                        navigationIcon = if (isTabletLiquidGlass) {
+                            {
+                                Text(
+                                    text = "我的",
+                                    fontSize = 20.sp,
+                                    fontWeight = FontWeight.Medium,
+                                    color = MiuixTheme.colorScheme.onSurface,
+                                    modifier = Modifier.padding(start = 28.dp)
+                                )
+                            }
+                        } else {
+                            {}
+                        },
+                    )
+                }
             } else {
                 TopAppBar(
                     modifier = if (blurAlpha > 0f) {

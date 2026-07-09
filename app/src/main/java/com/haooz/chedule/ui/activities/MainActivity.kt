@@ -1074,7 +1074,9 @@ fun CourseScheduleApp() {
                                 settingsViewModel = settingsViewModel,
                                 onCourseClick = { courses, left, top, width, height, _ ->
                                     openCourseDetail(courses, left, top, width, height, fromToday = true)
-                                }
+                                },
+                                navBarStyle = navBarStyle,
+                                liquidGlassBackdrop = liquidGlassBackdrop
                             )
 
                             1 -> MainScheduleScreen(
