@@ -13,6 +13,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.platform.LocalHapticFeedback
@@ -54,6 +55,12 @@ fun LiquidTopBarCapsuleButton(
         modifier = modifier
             .height(buttonHeight)
             .width(88.dp)
+            .shadow(
+                elevation = 6.dp,
+                shape = Capsule(),
+                ambientColor = Color.Black.copy(alpha = 0.15f),
+                spotColor = Color.Black.copy(alpha = 0.1f)
+            )
             .drawBackdrop(
                 backdrop = backdrop,
                 shape = { Capsule() },
@@ -62,6 +69,7 @@ fun LiquidTopBarCapsuleButton(
                     blur(2f.dp.toPx())
                     lens(12f.dp.toPx(), 12f.dp.toPx())
                 },
+                shadow = null,
                 layerBlock = {
                     val progress = interactiveHighlight.pressProgress
                     val scale = 1f + 2f.dp.toPx() / buttonHeight.toPx() * progress
