@@ -200,17 +200,33 @@ internal fun ScheduleTopBar(
                     },
                 navigationIcon = {
                     if (navBarStyle == "rail" && appStyle == "liquidglass" && liquidGlassBackdrop != null) {
-                        Text(
-                            text = when {
-                                currentWeek > totalWeeks -> "放假中"
-                                currentWeek < 1 -> "学期未开始"
-                                else -> "第${pagerCurrentPage + 1}周"
-                            },
-                            fontSize = 21.sp,
-                            fontWeight = FontWeight.Medium,
-                            color = MiuixTheme.colorScheme.onSurface,
-                            modifier = Modifier.padding(start = 12.dp)
-                        )
+                        Row {
+                            AnimatedVisibility(
+                                visible = !isViewingCurrentWeek,
+                                enter = fadeIn(animationSpec = tween(180)),
+                                exit = fadeOut(animationSpec = tween(120))
+                            ) {
+                                LiquidTopBarButton(
+                                    onClick = onBackToCurrentWeek,
+                                    backdrop = liquidGlassBackdrop,
+                                    icon = MiuixIcons.Medium.Reset,
+                                    contentDescription = "返回本周",
+                                    iconSize = 22.dp,
+                                    modifier = Modifier.padding(start = 20.dp)
+                                )
+                            }
+                            Text(
+                                text = when {
+                                    currentWeek > totalWeeks -> "放假中"
+                                    currentWeek < 1 -> "学期未开始"
+                                    else -> "第${pagerCurrentPage + 1}周"
+                                },
+                                fontSize = 21.sp,
+                                fontWeight = FontWeight.Medium,
+                                color = MiuixTheme.colorScheme.onSurface,
+                                modifier = Modifier.padding(start = 12.dp)
+                            )
+                        }
                     } else {
                         AnimatedVisibility(
                             visible = !isViewingCurrentWeek && navBarStyle != "rail",
@@ -242,32 +258,21 @@ internal fun ScheduleTopBar(
                     }
                 },
                 actions = {
-                    if (navBarStyle == "rail") {
+                    if (navBarStyle == "rail" && !(appStyle == "liquidglass" && liquidGlassBackdrop != null)) {
                         AnimatedVisibility(
                             visible = !isViewingCurrentWeek,
                             enter = fadeIn(animationSpec = tween(180)),
                             exit = fadeOut(animationSpec = tween(120))
                         ) {
-                            if (appStyle == "liquidglass" && liquidGlassBackdrop != null) {
-                                LiquidTopBarButton(
-                                    onClick = onBackToCurrentWeek,
-                                    backdrop = liquidGlassBackdrop,
-                                    icon = MiuixIcons.Medium.Reset,
+                            IconButton(
+                                onClick = onBackToCurrentWeek,
+                                modifier = Modifier.padding(start = 4.dp)
+                            ) {
+                                Icon(
+                                    imageVector = MiuixIcons.Medium.Reset,
                                     contentDescription = "返回本周",
-                                    iconSize = 22.dp,
-                                    modifier = Modifier.padding(start = 20.dp)
+                                    modifier = Modifier.size(25.dp)
                                 )
-                            } else {
-                                IconButton(
-                                    onClick = onBackToCurrentWeek,
-                                    modifier = Modifier.padding(end = 6.dp)
-                                ) {
-                                    Icon(
-                                        imageVector = MiuixIcons.Medium.Reset,
-                                        contentDescription = "返回本周",
-                                        modifier = Modifier.size(25.dp)
-                                    )
-                                }
                             }
                         }
                     }
