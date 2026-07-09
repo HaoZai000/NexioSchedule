@@ -1046,7 +1046,8 @@ fun CourseScheduleApp() {
                                 enterCustomizePage()
                             }
                         },
-                        onTitleBarMeasured = { activity?.titleBarHeight = it }
+                        onTitleBarMeasured = { activity?.titleBarHeight = it },
+                        liquidGlassBackdrop = liquidGlassBackdrop
                     )
                 }
             ) { _ ->

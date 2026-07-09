@@ -46,6 +46,9 @@ import top.yukonga.miuix.kmp.basic.NavigationRailState
 import top.yukonga.miuix.kmp.blur.BlurColors
 import top.yukonga.miuix.kmp.blur.LayerBackdrop
 import top.yukonga.miuix.kmp.blur.textureBlur
+import com.kyant.backdrop.drawPlainBackdrop
+import com.kyant.backdrop.effects.blur
+import com.kyant.backdrop.effects.runtimeShaderEffect
 import top.yukonga.miuix.kmp.icon.MiuixIcons
 import top.yukonga.miuix.kmp.icon.extended.ConvertFile
 import top.yukonga.miuix.kmp.icon.extended.More
@@ -98,7 +101,8 @@ internal fun ScheduleTopBar(
     onOpenSwitchSchedule: () -> Unit,
     onJumpWeek: () -> Unit,
     onOpenCustomize: () -> Unit,
-    onTitleBarMeasured: (Dp) -> Unit
+    onTitleBarMeasured: (Dp) -> Unit,
+    liquidGlassBackdrop: com.kyant.backdrop.Backdrop? = null
 ) {
     if (!visible) return
 
@@ -123,6 +127,9 @@ internal fun ScheduleTopBar(
         label = "topBarRailPadding",
     )
 
+    val isDark = isAppDarkTheme()
+    val tintColor = if (isDark) ComposeColor(0xFF808080) else ComposeColor.White
+
     Box(
         modifier = Modifier.padding(start = railPaddingStart)
     ) {
@@ -131,7 +138,34 @@ internal fun ScheduleTopBar(
                 .fillMaxWidth()
                 .height(titleBarHeight + 40.dp)
                 .then(
-                    if (appStyle != "liquidglass") {
+                    if (appStyle == "liquidglass" && liquidGlassBackdrop != null) {
+                        Modifier.drawPlainBackdrop(
+                            backdrop = liquidGlassBackdrop,
+                            shape = { RectangleShape },
+                            effects = {
+                                blur(4f.dp.toPx())
+                                runtimeShaderEffect(
+                                    "AlphaMask",
+                                    """
+    uniform shader content;
+    uniform float2 size;
+    layout(color) uniform half4 tint;
+    uniform float tintIntensity;
+
+    half4 main(float2 coord) {
+        float blurAlpha = smoothstep(size.y, size.y * 0.5, coord.y);
+        float tintAlpha = smoothstep(size.y, size.y * 0.5, coord.y);
+        return mix(content.eval(coord) * blurAlpha, tint * tintAlpha, tintIntensity);
+    }""",
+                                    "content"
+                                ) {
+                                    setFloatUniform("size", size.width, size.height)
+                                    setColorUniform("tint", tintColor)
+                                    setFloatUniform("tintIntensity", 0.8f)
+                                }
+                            }
+                        )
+                    } else if (appStyle != "liquidglass") {
                         Modifier.textureBlur(
                             backdrop = backdrop,
                             shape = RectangleShape,
