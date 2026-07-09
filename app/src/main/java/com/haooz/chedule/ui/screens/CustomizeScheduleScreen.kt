@@ -76,7 +76,14 @@ import androidx.compose.ui.unit.DpSize
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.zIndex
+import com.haooz.chedule.ui.components.liquidglass.InteractiveHighlight
 import com.haooz.chedule.ui.utils.isAppDarkTheme
+import com.haooz.chedule.ui.utils.rememberAppStyle
+import com.kyant.backdrop.drawBackdrop
+import com.kyant.backdrop.effects.blur
+import com.kyant.backdrop.effects.lens
+import com.kyant.backdrop.effects.vibrancy
+import com.kyant.shapes.Capsule
 import com.kyant.shapes.RoundedRectangle
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
@@ -100,16 +107,6 @@ import top.yukonga.miuix.kmp.icon.extended.GridView
 import top.yukonga.miuix.kmp.icon.extended.Image
 import top.yukonga.miuix.kmp.overlay.OverlayBottomSheet
 import top.yukonga.miuix.kmp.shader.isRuntimeShaderSupported
-import com.haooz.chedule.ui.utils.rememberAppStyle
-import top.yukonga.miuix.kmp.blur.rememberLayerBackdrop
-import top.yukonga.miuix.kmp.blur.layerBackdrop
-import com.kyant.backdrop.backdrops.layerBackdrop as liquidGlassLayerBackdrop
-import com.kyant.backdrop.drawBackdrop
-import com.kyant.backdrop.effects.blur
-import com.kyant.backdrop.effects.lens
-import com.kyant.backdrop.effects.vibrancy
-import com.kyant.shapes.Capsule
-import com.haooz.chedule.ui.components.liquidglass.InteractiveHighlight
 import top.yukonga.miuix.kmp.squircle.addSquircleRect
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 import kotlin.math.absoluteValue
@@ -178,7 +175,6 @@ fun CustomizeScheduleScreen(
     } else null
     val isLiquidGlass = appStyle == "liquidglass"
     val primaryColor = MiuixTheme.colorScheme.primary
-    val isDarkForLiquid = isAppDarkTheme()
     val exitContainerColor = Color.White.copy(0.08f)
     val exitIconColor = Color.White
 
