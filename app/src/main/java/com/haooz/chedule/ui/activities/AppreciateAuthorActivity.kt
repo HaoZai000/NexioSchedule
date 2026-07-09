@@ -42,7 +42,6 @@ import androidx.compose.ui.graphics.lerp
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.layout.ContentScale
-import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -94,7 +93,6 @@ class AppreciateAuthorActivity : ComponentActivity() {
 
 @Composable
 private fun AppreciateAuthorScreen(onBack: () -> Unit) {
-    val hapticFeedback = LocalHapticFeedback.current
     val scrollBehavior = MiuixScrollBehavior()
     var listScrollY by remember { mutableIntStateOf(0) }
 
