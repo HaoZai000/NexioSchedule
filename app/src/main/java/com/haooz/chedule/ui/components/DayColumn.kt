@@ -129,7 +129,7 @@ fun DayColumn(
                                     showIndication = true,
                                     colors = CardDefaults.defaultColors(
                                         color = Color(0xFF9E9E9E).copy(alpha = if (isDark) 0.13f else 0.15f),
-                                        contentColor = Color(0xFF6E6E6E).copy(alpha = if (isDark) 0.7f else 0.85f)
+                                        contentColor = Color(0xFF6E6E6E).copy(alpha = if (isDark) 0.8f else 0.7f)
                                     ),
                                     onClick = {
                                         hapticFeedback.performHapticFeedback(HapticFeedbackType.Confirm)

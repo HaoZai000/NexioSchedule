@@ -70,7 +70,7 @@ fun CourseCard(
 
     val blurColors = if (hasBlur) BlurDefaults.blurColors(
         blendColors = listOf(
-            if (isAppDarkTheme()) BlendColorEntry(color = Color.Black.copy(alpha = cardAlpha), mode = BlurBlendMode.Multiply)
+            if (isAppDarkTheme()) BlendColorEntry(color = Color.Black.copy(alpha = cardAlpha * 0.4f), mode = BlurBlendMode.Multiply)
             else BlendColorEntry(color = Color.White.copy(alpha = cardAlpha), mode = BlurBlendMode.Screen)
         )
     ) else null

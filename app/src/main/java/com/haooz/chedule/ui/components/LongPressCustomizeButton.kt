@@ -128,7 +128,7 @@ internal fun LongPressCustomizeButton(
         Box(
             modifier = Modifier
                 .align(Alignment.BottomCenter)
-                .padding(bottom = 92.dp)
+                .padding(bottom = 100.dp)
                 .graphicsLayer {
                     scaleX = scale
                     scaleY = scale
