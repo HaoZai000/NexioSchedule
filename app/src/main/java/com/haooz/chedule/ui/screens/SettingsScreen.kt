@@ -276,9 +276,9 @@ fun SettingsScreen(
     Box(modifier = Modifier.fillMaxSize()) {
         Scaffold(
         topBar = {
-            if (isLiquidGlass) {
+            if (isLiquidGlass && liquidGlassBackdrop != null) {
                 ProgressiveBlurTopBar(
-                    backdrop = liquidGlassBackdrop!!,
+                    backdrop = liquidGlassBackdrop,
                     height = 100.dp,
                 ) {
                     SmallTopAppBar(
