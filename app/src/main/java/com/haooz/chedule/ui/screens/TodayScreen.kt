@@ -235,7 +235,6 @@ fun TodayScreen(
         it.startSection > morningSections + afternoonSections
     }
 
-    val scrollBehavior = MiuixScrollBehavior()
     val hapticFeedback = LocalHapticFeedback.current
     var listScrollY by remember { mutableIntStateOf(0) }
 
@@ -245,24 +244,6 @@ fun TodayScreen(
         drawRect(backgroundColor)
         drawContent()
     }
-    val blurAlpha = if (listScrollY < 50) 0f else ((listScrollY - 50) / 50f).coerceIn(0f, 0.7f)
-    val topBarColorProgress = ((listScrollY - 50) / 50f).coerceIn(0f, 1f)
-    val topBarColor = if (listScrollY < 50) {
-        MiuixTheme.colorScheme.surface
-    } else {
-        val surface = MiuixTheme.colorScheme.surface
-        val target = if (isDark) ComposeColor.Black.copy(alpha = 0.7f) else ComposeColor.White.copy(alpha = 0.7f)
-        lerp(surface, target, topBarColorProgress)
-    }
-    val topAppBarColors = BlurDefaults.blurColors(
-        blendColors = listOf(
-            if (isDark) BlendColorEntry(ComposeColor.Black.copy(alpha = blurAlpha), BlurBlendMode.SrcOver)
-            else BlendColorEntry(ComposeColor.White.copy(alpha = blurAlpha), BlurBlendMode.SrcOver)
-        ),
-        brightness = 0f,
-        contrast = 1f,
-        saturation = 1.2f
-    )
     val today = LocalDate.now()
     val dayOfWeekNames = listOf("周一", "周二", "周三", "周四", "周五", "周六", "周日")
     val dayOfWeekName = if (currentDayOfWeek in 1..7) dayOfWeekNames[currentDayOfWeek - 1] else ""
@@ -271,34 +252,37 @@ fun TodayScreen(
     val appStyle = rememberAppStyle()
     val isLiquidGlass = appStyle == "liquidglass" && liquidGlassBackdrop != null
 
+    // HyperOS 模式需要的变量
+    val scrollBehavior = if (!isLiquidGlass) settingsScrollBehavior else null
+    val blurAlpha = if (!isLiquidGlass) {
+        if (listScrollY < 50) 0f else ((listScrollY - 50) / 50f).coerceIn(0f, 0.7f)
+    } else 0f
+    val topBarColorProgress = if (!isLiquidGlass) ((listScrollY - 50) / 50f).coerceIn(0f, 1f) else 0f
+    val topBarColor = if (!isLiquidGlass) {
+        if (listScrollY < 50) MiuixTheme.colorScheme.surface
+        else {
+            val surface = MiuixTheme.colorScheme.surface
+            val target = if (isDark) ComposeColor.Black.copy(alpha = 0.7f) else ComposeColor.White.copy(alpha = 0.7f)
+            lerp(surface, target, topBarColorProgress)
+        }
+    } else MiuixTheme.colorScheme.surface
+    val topAppBarColors = if (!isLiquidGlass) {
+        BlurDefaults.blurColors(
+            blendColors = listOf(
+                if (isDark) BlendColorEntry(ComposeColor.Black.copy(alpha = blurAlpha), BlurBlendMode.SrcOver)
+                else BlendColorEntry(ComposeColor.White.copy(alpha = blurAlpha), BlurBlendMode.SrcOver)
+            ),
+            brightness = 0f, contrast = 1f, saturation = 1.2f
+        )
+    } else null
+
     Scaffold(
         topBar = {
-            if (isLiquidGlass) {
-                SmallTopAppBar(
-                    modifier = if (blurAlpha > 0f) {
-                        Modifier.textureBlur(
-                            backdrop = backdrop,
-                            shape = RectangleShape,
-                            colors = topAppBarColors
-                        )
-                    } else {
-                        Modifier
-                    },
-                    color = topBarColor,
-                    title = "今天是$dayOfWeekName",
-                    scrollBehavior = scrollBehavior,
-                )
-            } else {
+            if (!isLiquidGlass) {
                 TopAppBar(
                     modifier = if (blurAlpha > 0f) {
-                        Modifier.textureBlur(
-                            backdrop = backdrop,
-                            shape = RectangleShape,
-                            colors = topAppBarColors
-                        )
-                    } else {
-                        Modifier
-                    },
+                        Modifier.textureBlur(backdrop = backdrop, shape = RectangleShape, colors = topAppBarColors!!)
+                    } else Modifier,
                     color = topBarColor,
                     title = "今天是$dayOfWeekName",
                     largeTitle = "今天是$dayOfWeekName",
@@ -317,6 +301,7 @@ fun TodayScreen(
                 snapshotFlow { listState.firstVisibleItemScrollOffset }
                     .collect { offset ->
                         listScrollY = offset
+                        onScrollYChanged(offset)
                     }
             }
 
@@ -328,10 +313,12 @@ fun TodayScreen(
                     .scrollEndHaptic(
                         hapticFeedbackType = HapticFeedbackType.TextHandleMove
                     )
-                    .nestedScroll(scrollBehavior.nestedScrollConnection),
+                    .then(
+                        if (scrollBehavior != null) Modifier.nestedScroll(scrollBehavior.nestedScrollConnection) else Modifier
+                    ),
                 contentPadding = PaddingValues(
                     start = 16.dp,
-                    top = paddingValues.calculateTopPadding(),
+                    top = if (isLiquidGlass) paddingValues.calculateTopPadding() + 56.dp else paddingValues.calculateTopPadding(),
                     end = 16.dp,
                     bottom = 120.dp
                 ),
