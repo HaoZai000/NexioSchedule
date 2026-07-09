@@ -74,6 +74,7 @@ import top.yukonga.miuix.kmp.basic.MiuixScrollBehavior
 import top.yukonga.miuix.kmp.basic.NumberPicker
 import top.yukonga.miuix.kmp.basic.Scaffold
 import top.yukonga.miuix.kmp.basic.SmallTitle
+import top.yukonga.miuix.kmp.basic.SmallTopAppBar
 import top.yukonga.miuix.kmp.basic.Switch
 import top.yukonga.miuix.kmp.basic.TextButton
 import top.yukonga.miuix.kmp.basic.TextField
@@ -273,34 +274,47 @@ fun SettingsScreen(
     Box(modifier = Modifier.fillMaxSize()) {
         Scaffold(
         topBar = {
-            TopAppBar(
-                modifier = if (blurAlpha > 0f) {
-                    Modifier.textureBlur(
-                        backdrop = backdrop,
-                        shape = RectangleShape,
-                        colors = topAppBarColors
-                    )
-                } else {
-                    Modifier
-                },
-                color = topBarColor,
-                title = if (isTabletLiquidGlass) "" else "我的",
-                largeTitle = if (isTabletLiquidGlass) "" else "我的",
-                scrollBehavior = scrollBehavior,
-                navigationIcon = if (isTabletLiquidGlass) {
-                    {
+            if (isTabletLiquidGlass) {
+                SmallTopAppBar(
+                    modifier = if (blurAlpha > 0f) {
+                        Modifier.textureBlur(
+                            backdrop = backdrop,
+                            shape = RectangleShape,
+                            colors = topAppBarColors
+                        )
+                    } else {
+                        Modifier
+                    },
+                    color = topBarColor,
+                    title = "",
+                    scrollBehavior = scrollBehavior,
+                    navigationIcon = {
                         Text(
                             text = "我的",
                             fontSize = 20.sp,
-                            fontWeight = FontWeight.Bold,
+                            fontWeight = FontWeight.Medium,
                             color = MiuixTheme.colorScheme.onSurface,
                             modifier = Modifier.padding(start = 28.dp)
                         )
-                    }
-                } else {
-                    {}
-                },
-            )
+                    },
+                )
+            } else {
+                TopAppBar(
+                    modifier = if (blurAlpha > 0f) {
+                        Modifier.textureBlur(
+                            backdrop = backdrop,
+                            shape = RectangleShape,
+                            colors = topAppBarColors
+                        )
+                    } else {
+                        Modifier
+                    },
+                    color = topBarColor,
+                    title = "我的",
+                    largeTitle = "我的",
+                    scrollBehavior = scrollBehavior,
+                )
+            }
         }
     ) { paddingValues ->
         Box(
