@@ -106,9 +106,6 @@ import top.yukonga.miuix.kmp.blur.BlurBlendMode
 import top.yukonga.miuix.kmp.blur.BlurDefaults
 import top.yukonga.miuix.kmp.blur.layerBackdrop
 import top.yukonga.miuix.kmp.blur.rememberLayerBackdrop
-import com.kyant.backdrop.drawPlainBackdrop
-import com.kyant.backdrop.effects.blur
-import com.kyant.backdrop.effects.runtimeShaderEffect
 import com.kyant.backdrop.backdrops.layerBackdrop as liquidGlassLayerBackdrop
 import top.yukonga.miuix.kmp.squircle.addSquircleRect
 import top.yukonga.miuix.kmp.theme.MiuixTheme
@@ -2143,40 +2140,10 @@ private fun SettingsTopBar(
     val appStyle = com.haooz.chedule.ui.utils.rememberAppStyle()
     if (appStyle != "liquidglass") return
     val isTabletLiquidGlass = navBarStyle == "rail"
-    val tintColor = if (isDark) androidx.compose.ui.graphics.Color(0xFF808080) else androidx.compose.ui.graphics.Color.White
 
-    Box {
-        Box(
-            modifier = Modifier
-                .fillMaxWidth()
-                .height(100.dp)
-                .drawPlainBackdrop(
-                    backdrop = liquidGlassBackdrop,
-                    shape = { RectangleShape },
-                    effects = {
-                        blur(4f.dp.toPx())
-                        runtimeShaderEffect(
-                            "ProgressiveBlurAlphaMask",
-                            """
-    uniform shader content;
-    uniform float2 size;
-    layout(color) uniform half4 tint;
-    uniform float tintIntensity;
-
-    half4 main(float2 coord) {
-        float blurAlpha = smoothstep(size.y, size.y * 0.6, coord.y);
-        float tintAlpha = smoothstep(size.y, size.y * 0.7, coord.y);
-        return mix(content.eval(coord) * blurAlpha, tint * tintAlpha, tintIntensity);
-    }""",
-                            "content"
-                        ) {
-                            setFloatUniform("size", size.width, size.height)
-                            setColorUniform("tint", tintColor)
-                            setFloatUniform("tintIntensity", 0.2f)
-                        }
-                    }
-                )
-        )
+    com.haooz.chedule.ui.components.liquidglass.ProgressiveBlurTopBar(
+        backdrop = liquidGlassBackdrop,
+    ) {
         top.yukonga.miuix.kmp.basic.SmallTopAppBar(
             color = androidx.compose.ui.graphics.Color.Transparent,
             title = if (isTabletLiquidGlass) "" else "我的",

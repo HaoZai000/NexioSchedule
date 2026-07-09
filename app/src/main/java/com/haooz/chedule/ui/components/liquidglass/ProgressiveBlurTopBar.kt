@@ -31,7 +31,7 @@ import com.kyant.backdrop.effects.runtimeShaderEffect
 fun ProgressiveBlurTopBar(
     backdrop: Backdrop,
     modifier: Modifier = Modifier,
-    height: Dp = 100.dp,
+    height: Dp = 120.dp,
     content: @Composable BoxScope.() -> Unit
 ) {
     val isLightTheme = !isSystemInDarkTheme()
