@@ -213,7 +213,8 @@ fun CourseTimeSettingsScreen(onBack: () -> Unit) {
                                 backdrop = liquidGlassBackdrop,
                                 icon = MiuixIcons.Back,
                                 contentDescription = "返回",
-                                modifier = Modifier.padding(start = 4.dp)
+                                modifier = Modifier.padding(start = 4.dp),
+                                useBackdropShadow = true
                             )
                         },
                     )

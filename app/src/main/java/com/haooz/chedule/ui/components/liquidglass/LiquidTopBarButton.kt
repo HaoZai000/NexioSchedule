@@ -89,7 +89,7 @@ fun LiquidTopBarButton(
                     lens(12f.dp.toPx(), 12f.dp.toPx())
                 },
                 shadow = if (useBackdropShadow) {
-                    { Shadow(alpha = 0.3f) }
+                    { Shadow(alpha = 0.7f) }
                 } else {
                     null
                 },
