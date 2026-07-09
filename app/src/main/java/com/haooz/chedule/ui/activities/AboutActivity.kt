@@ -65,7 +65,6 @@ import androidx.compose.ui.unit.sp
 import androidx.compose.ui.zIndex
 import androidx.core.graphics.createBitmap
 import com.haooz.chedule.effect.BgEffectBackground
-import com.haooz.chedule.ui.components.BlurredBar
 import com.haooz.chedule.ui.components.liquidglass.LiquidTopBarButton
 import com.haooz.chedule.ui.components.liquidglass.ProgressiveBlurTopBar
 import com.haooz.chedule.ui.components.rememberBlurBackdrop
@@ -92,6 +91,8 @@ import top.yukonga.miuix.kmp.preference.ArrowPreference
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 import top.yukonga.miuix.kmp.utils.overScrollVertical
 import top.yukonga.miuix.kmp.utils.scrollEndHaptic
+import androidx.compose.ui.graphics.RectangleShape
+import androidx.compose.ui.graphics.lerp
 import androidx.compose.ui.graphics.BlendMode as ComposeBlendMode
 import com.kyant.backdrop.backdrops.layerBackdrop as liquidGlassLayerBackdrop
 
@@ -163,8 +164,24 @@ private fun AboutScreen(onBack: () -> Unit) {
         }
     }
 
-    val collapsed by remember { derivedStateOf { scrollProgress == 1f } }
-    val blurActive by remember(backdrop) { derivedStateOf { backdrop != null && scrollProgress == 1f } }
+    val blurAlpha = if (scrollProgress < 0.3f) 0f else ((scrollProgress - 0.3f) / 0.7f).coerceIn(0f, 1f)
+    val topBarColorProgress = ((scrollProgress - 0.3f) / 0.7f).coerceIn(0f, 1f)
+    val topBarColor = if (scrollProgress < 0.3f) {
+        Color.Transparent
+    } else {
+        val surface = MiuixTheme.colorScheme.surface
+        val target = if (isInDark) Color.Black.copy(alpha = 0.7f) else Color.White.copy(alpha = 0.7f)
+        lerp(surface, target, topBarColorProgress)
+    }
+    val topAppBarColors = BlurDefaults.blurColors(
+        blendColors = listOf(
+            if (isInDark) BlendColorEntry(Color.Black.copy(alpha = blurAlpha * 0.7f), BlurBlendMode.SrcOver)
+            else BlendColorEntry(Color.White.copy(alpha = blurAlpha * 0.7f), BlurBlendMode.SrcOver)
+        ),
+        brightness = 0f,
+        contrast = 1f,
+        saturation = 1.2f
+    )
 
     var dynamicBackground by remember { mutableStateOf(true) }
 
@@ -225,36 +242,34 @@ private fun AboutScreen(onBack: () -> Unit) {
                     )
                 }
             } else {
-                val barColor = if (blurActive) {
-                    Color.Transparent
-                } else {
-                    if (collapsed) MiuixTheme.colorScheme.surface else Color.Transparent
-                }
                 val titleColor = MiuixTheme.colorScheme.onSurface.copy(
                     alpha = ((scrollProgress - 0.35f) / 0.65f).coerceIn(0f, 1f),
                 )
-                BlurredBar(backdrop, blurActive) {
-                    SmallTopAppBar(
-                        title = "关于应用",
-                        scrollBehavior = scrollBehavior,
-                        color = barColor,
-                        titleColor = titleColor,
-                        defaultWindowInsetsPadding = false,
-                        navigationIcon = {
-                            IconButton(onClick = {
-                                hapticFeedback.performHapticFeedback(HapticFeedbackType.VirtualKey)
-                                onBack() },
-                                modifier = Modifier.padding(start = 4.dp)
-                            ) {
-                                Icon(
-                                    imageVector = MiuixIcons.Back,
-                                    contentDescription = "返回",
-                                    modifier = Modifier.size(28.dp)
-                                )
-                            }
+                SmallTopAppBar(
+                    modifier = if (blurAlpha > 0f && backdrop != null) {
+                        Modifier.textureBlur(backdrop = backdrop, shape = RectangleShape, colors = topAppBarColors)
+                    } else {
+                        Modifier
+                    },
+                    title = "关于应用",
+                    scrollBehavior = scrollBehavior,
+                    color = topBarColor,
+                    titleColor = titleColor,
+                    defaultWindowInsetsPadding = false,
+                    navigationIcon = {
+                        IconButton(onClick = {
+                            hapticFeedback.performHapticFeedback(HapticFeedbackType.VirtualKey)
+                            onBack() },
+                            modifier = Modifier.padding(start = 4.dp)
+                        ) {
+                            Icon(
+                                imageVector = MiuixIcons.Back,
+                                contentDescription = "返回",
+                                modifier = Modifier.size(28.dp)
+                            )
                         }
-                    )
-                }
+                    }
+                )
             }
         }
     ) { innerPadding ->
