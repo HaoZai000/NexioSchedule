@@ -273,7 +273,7 @@ fun CourseTimeSettingsScreen(onBack: () -> Unit) {
                     ),
                 contentPadding = PaddingValues(start = 16.dp, end = 16.dp,
                     top = paddingValues.calculateTopPadding() +
-                            if (isLiquidGlass) { if (WindowInsets.statusBars.asPaddingValues().calculateTopPadding() > 0.dp) 0.dp else (-12).dp } else 12.dp, bottom = 60.dp),
+                            if (isLiquidGlass) { if (WindowInsets.statusBars.asPaddingValues().calculateTopPadding() > 0.dp) (-8).dp else (-20).dp } else 12.dp, bottom = 60.dp),
                 verticalArrangement = Arrangement.spacedBy(12.dp)
             ) {
                 // 快捷设置

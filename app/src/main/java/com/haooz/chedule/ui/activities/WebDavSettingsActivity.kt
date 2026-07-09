@@ -354,7 +354,7 @@ fun WebDavSettingsScreen(onBack: () -> Unit) {
                     end = 16.dp,
                     top = paddingValues.calculateTopPadding() +
                             if (isLiquidGlass) {
-                                if (WindowInsets.statusBars.asPaddingValues().calculateTopPadding() > 0.dp) 0.dp else (-12).dp
+                                if (WindowInsets.statusBars.asPaddingValues().calculateTopPadding() > 0.dp) (-8).dp else (-20).dp
                             } else 12.dp,
                     bottom = 120.dp
                 ),

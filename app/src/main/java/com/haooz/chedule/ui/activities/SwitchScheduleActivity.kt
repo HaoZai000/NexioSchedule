@@ -589,7 +589,7 @@ fun SwitchScheduleScreen(
                     end = 16.dp,
                     top = paddingValues.calculateTopPadding() +
                             if (isLiquidGlass) {
-                                if (WindowInsets.statusBars.asPaddingValues().calculateTopPadding() > 0.dp) -12.dp else (-24).dp
+                                if (WindowInsets.statusBars.asPaddingValues().calculateTopPadding() > 0.dp) (-16).dp else (-28).dp
                             } else 0.dp,
                     bottom = 60.dp
                 ),
