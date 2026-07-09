@@ -39,6 +39,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.zIndex
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.graphics.Color
@@ -61,7 +62,9 @@ import com.haooz.chedule.ui.activities.PreferenceSettingsActivity
 import com.haooz.chedule.ui.activities.WidgetIntroActivity
 import com.haooz.chedule.ui.utils.isAppDarkTheme
 import com.haooz.chedule.ui.utils.rememberAppStyle
-import com.haooz.chedule.ui.components.liquidglass.ProgressiveBlurTopBar
+import com.kyant.backdrop.drawPlainBackdrop
+import com.kyant.backdrop.effects.blur
+import com.kyant.backdrop.effects.runtimeShaderEffect
 import com.haooz.chedule.viewmodel.CourseViewModel
 import com.haooz.chedule.viewmodel.ScheduleViewModel
 import com.haooz.chedule.viewmodel.SettingsViewModel
@@ -272,19 +275,49 @@ fun SettingsScreen(
     val appStyle = rememberAppStyle()
     val isLiquidGlass = appStyle == "liquidglass" && liquidGlassBackdrop != null
     val isTabletLiquidGlass = navBarStyle == "rail" && isLiquidGlass
+    val tintColor = if (isDark) Color(0xFF808080) else Color.White
 
     Box(modifier = Modifier.fillMaxSize()) {
         Scaffold(
         topBar = {
             if (isLiquidGlass && liquidGlassBackdrop != null) {
-                ProgressiveBlurTopBar(
-                    backdrop = liquidGlassBackdrop,
-                    height = 100.dp,
-                ) {
+                Box {
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(100.dp)
+                            .drawPlainBackdrop(
+                                backdrop = liquidGlassBackdrop,
+                                shape = { RectangleShape },
+                                effects = {
+                                    blur(4f.dp.toPx())
+                                    runtimeShaderEffect(
+                                        "ProgressiveBlurAlphaMask",
+                                        """
+    uniform shader content;
+    uniform float2 size;
+    layout(color) uniform half4 tint;
+    uniform float tintIntensity;
+
+    half4 main(float2 coord) {
+        float blurAlpha = smoothstep(size.y, size.y * 0.6, coord.y);
+        float tintAlpha = smoothstep(size.y, size.y * 0.7, coord.y);
+        return mix(content.eval(coord) * blurAlpha, tint * tintIntensity);
+    }""",
+                                        "content"
+                                    ) {
+                                        setFloatUniform("size", size.width, size.height)
+                                        setColorUniform("tint", tintColor)
+                                        setFloatUniform("tintIntensity", 0.2f)
+                                    }
+                                }
+                            )
+                    )
                     SmallTopAppBar(
                         color = topBarColor,
                         title = if (isTabletLiquidGlass) "" else "我的",
                         scrollBehavior = scrollBehavior,
+                        modifier = Modifier.zIndex(1f),
                         navigationIcon = if (isTabletLiquidGlass) {
                             {
                                 Text(
