@@ -27,7 +27,6 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.asPaddingValues
 import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
@@ -51,6 +50,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.drawWithContent
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.TransformOrigin
 import androidx.compose.ui.graphics.asAndroidBitmap
@@ -67,6 +67,7 @@ import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.zIndex
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.haooz.chedule.data.Course
 import com.haooz.chedule.reminder.CourseReminderHelper
@@ -77,6 +78,7 @@ import com.haooz.chedule.ui.components.ScheduleTopBar
 import com.haooz.chedule.ui.components.ShareImportDialog
 import com.haooz.chedule.ui.components.UpdateDialog
 import com.haooz.chedule.ui.components.liquidglass.LiquidAddButton
+import com.haooz.chedule.ui.components.liquidglass.ProgressiveBlurTopBar
 import com.haooz.chedule.ui.screens.AddCourseDialog
 import com.haooz.chedule.ui.screens.CourseDetailScreen
 import com.haooz.chedule.ui.screens.CustomizeScheduleScreen
@@ -100,23 +102,20 @@ import kotlinx.coroutines.withContext
 import top.yukonga.miuix.kmp.basic.MiuixScrollBehavior
 import top.yukonga.miuix.kmp.basic.NavigationRailDefaults
 import top.yukonga.miuix.kmp.basic.Scaffold
+import top.yukonga.miuix.kmp.basic.SmallTopAppBar
 import top.yukonga.miuix.kmp.basic.rememberNavigationRailState
 import top.yukonga.miuix.kmp.blur.BlendColorEntry
 import top.yukonga.miuix.kmp.blur.BlurBlendMode
 import top.yukonga.miuix.kmp.blur.BlurDefaults
 import top.yukonga.miuix.kmp.blur.layerBackdrop
 import top.yukonga.miuix.kmp.blur.rememberLayerBackdrop
-import com.kyant.backdrop.backdrops.layerBackdrop as liquidGlassLayerBackdrop
 import top.yukonga.miuix.kmp.squircle.addSquircleRect
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 import java.time.LocalDate
 import java.util.Calendar
 import kotlin.time.Duration.Companion.milliseconds
 import androidx.compose.ui.graphics.Color as ComposeColor
-import androidx.compose.ui.graphics.RectangleShape
-import androidx.compose.ui.graphics.lerp
-import androidx.compose.ui.zIndex
-import top.yukonga.miuix.kmp.blur.textureBlur
+import com.kyant.backdrop.backdrops.layerBackdrop as liquidGlassLayerBackdrop
 
 class MainActivity : ComponentActivity() {
 
@@ -1063,7 +1062,6 @@ fun CourseScheduleApp() {
                     if (selectedTab == 2 || (isShiftMode && selectedTab == 1)) {
                         SettingsTopBar(
                             liquidGlassBackdrop = liquidGlassBackdrop,
-                            isDark = isDark,
                             navBarStyle = navBarStyle,
                         )
                     }
@@ -1071,7 +1069,6 @@ fun CourseScheduleApp() {
                     if (!isShiftMode && selectedTab == 0) {
                         TodayTopBar(
                             liquidGlassBackdrop = liquidGlassBackdrop,
-                            isDark = isDark,
                             navBarStyle = navBarStyle,
                             currentDayOfWeek = currentDayOfWeek,
                         )
@@ -2146,19 +2143,18 @@ fun CourseScheduleApp() {
 @Composable
 private fun SettingsTopBar(
     liquidGlassBackdrop: com.kyant.backdrop.Backdrop?,
-    isDark: Boolean,
     navBarStyle: String,
 ) {
     if (liquidGlassBackdrop == null) return
-    val appStyle = com.haooz.chedule.ui.utils.rememberAppStyle()
+    val appStyle = rememberAppStyle()
     if (appStyle != "liquidglass") return
     val isTabletLiquidGlass = navBarStyle == "rail"
 
-    com.haooz.chedule.ui.components.liquidglass.ProgressiveBlurTopBar(
+    ProgressiveBlurTopBar(
         backdrop = liquidGlassBackdrop,
     ) {
-        top.yukonga.miuix.kmp.basic.SmallTopAppBar(
-            color = androidx.compose.ui.graphics.Color.Transparent,
+        SmallTopAppBar(
+            color = Color.Transparent,
             title = if (isTabletLiquidGlass) "" else "我的",
             modifier = Modifier.zIndex(1f),
             navigationIcon = if (isTabletLiquidGlass) {
@@ -2181,22 +2177,21 @@ private fun SettingsTopBar(
 @Composable
 private fun TodayTopBar(
     liquidGlassBackdrop: com.kyant.backdrop.Backdrop?,
-    isDark: Boolean,
     navBarStyle: String,
     currentDayOfWeek: Int,
 ) {
     if (liquidGlassBackdrop == null) return
-    val appStyle = com.haooz.chedule.ui.utils.rememberAppStyle()
+    val appStyle = rememberAppStyle()
     if (appStyle != "liquidglass") return
     val isTabletLiquidGlass = navBarStyle == "rail"
     val dayOfWeekNames = listOf("周一", "周二", "周三", "周四", "周五", "周六", "周日")
     val dayOfWeekName = if (currentDayOfWeek in 1..7) dayOfWeekNames[currentDayOfWeek - 1] else ""
 
-    com.haooz.chedule.ui.components.liquidglass.ProgressiveBlurTopBar(
+    ProgressiveBlurTopBar(
         backdrop = liquidGlassBackdrop,
     ) {
-        top.yukonga.miuix.kmp.basic.SmallTopAppBar(
-            color = androidx.compose.ui.graphics.Color.Transparent,
+        SmallTopAppBar(
+            color = Color.Transparent,
             title = if (isTabletLiquidGlass) "" else "今天是$dayOfWeekName",
             modifier = Modifier.zIndex(1f),
             navigationIcon = if (isTabletLiquidGlass) {
