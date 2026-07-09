@@ -2,6 +2,7 @@
 package com.haooz.chedule.ui.activities
 import com.haooz.chedule.ui.utils.isAppDarkTheme
 import com.haooz.chedule.ui.utils.applyThemeAwareSystemBars
+import com.haooz.chedule.ui.utils.rememberAppStyle
 
 import android.annotation.SuppressLint
 import android.os.Bundle
@@ -14,6 +15,7 @@ import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.animateDpAsState
 import androidx.compose.animation.expandVertically
 import androidx.compose.animation.shrinkVertically
+import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.Arrangement
@@ -39,6 +41,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.RectangleShape
 import androidx.compose.ui.graphics.lerp
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
@@ -167,6 +170,11 @@ fun CourseTimeSettingsScreen(onBack: () -> Unit) {
         drawContent()
     }
     val isDark = isAppDarkTheme()
+    val appStyle = rememberAppStyle()
+    val liquidGlassBackdrop = if (appStyle == "liquidglass") {
+        com.kyant.backdrop.backdrops.rememberLayerBackdrop()
+    } else null
+    val isLiquidGlass = appStyle == "liquidglass" && liquidGlassBackdrop != null
     val blurAlpha = if (listScrollY < 50) 0f else ((listScrollY - 50) / 30f).coerceIn(0f, 0.7f)
     val topBarColorProgress = ((listScrollY - 50) / 30f).coerceIn(0f, 1f)
     val topBarColor = if (listScrollY < 50) {
@@ -188,24 +196,46 @@ fun CourseTimeSettingsScreen(onBack: () -> Unit) {
 
     Scaffold(
         topBar = {
-            TopAppBar(
-                modifier = if (blurAlpha > 0f) {
-                    Modifier.textureBlur(backdrop = backdrop, shape = RectangleShape, colors = topAppBarColors)
-                } else {
-                    Modifier
-                },
-                color = topBarColor,
-                title = "课程时间", largeTitle = "课程时间",
-                scrollBehavior = scrollBehavior,
-                navigationIconPadding = 20.dp,
-                navigationIcon = {
-                    IconButton(onClick = { onBack() }) {
-                        Icon(MiuixIcons.Back,
-                            contentDescription = "返回",
-                            modifier = Modifier.size(28.dp))
-                    }
+            if (isLiquidGlass && liquidGlassBackdrop != null) {
+                com.haooz.chedule.ui.components.liquidglass.ProgressiveBlurTopBar(
+                    backdrop = liquidGlassBackdrop,
+                ) {
+                    top.yukonga.miuix.kmp.basic.SmallTopAppBar(
+                        color = androidx.compose.ui.graphics.Color.Transparent,
+                        title = "课程时间",
+                        modifier = Modifier.zIndex(1f),
+                        navigationIcon = {
+                            IconButton(
+                                onClick = { onBack() },
+                                modifier = Modifier
+                                    .padding(start = 12.dp)
+                                    .size(36.dp)
+                                    .clip(androidx.compose.foundation.shape.CircleShape)
+                                    .background(MiuixTheme.colorScheme.surface.copy(alpha = 0.3f))
+                            ) {
+                                Icon(MiuixIcons.Back, contentDescription = "返回", modifier = Modifier.size(20.dp))
+                            }
+                        },
+                    )
                 }
-            )
+            } else {
+                TopAppBar(
+                    modifier = if (blurAlpha > 0f) {
+                        Modifier.textureBlur(backdrop = backdrop, shape = RectangleShape, colors = topAppBarColors)
+                    } else Modifier,
+                    color = topBarColor,
+                    title = "课程时间", largeTitle = "课程时间",
+                    scrollBehavior = scrollBehavior,
+                    navigationIconPadding = 20.dp,
+                    navigationIcon = {
+                        IconButton(onClick = { onBack() }) {
+                            Icon(MiuixIcons.Back,
+                                contentDescription = "返回",
+                                modifier = Modifier.size(28.dp))
+                        }
+                    }
+                )
+            }
         }
     ) { paddingValues ->
         Box(modifier = Modifier.fillMaxSize().layerBackdrop(backdrop)) {
