@@ -294,24 +294,41 @@ fun SwitchScheduleScreen(
                         modifier = Modifier.zIndex(1f),
                         navigationIcon = {}
                     )
-                    LiquidTopBarButton(
-                        onClick = {
-                            if (isEditMode) {
-                                isEditMode = false
-                                editMode = ""
-                                checkboxStates.clear()
-                            } else { switchToCurrentSchedule() }
-                        },
-                        backdrop = liquidGlassBackdrop,
-                        icon = MiuixIcons.Medium.ChevronBackward,
-                        contentDescription = "返回",
+                    Row(
                         modifier = Modifier
+                            .fillMaxWidth()
                             .zIndex(2f)
-                            .offset(x = 20.dp, y = if (statusBarPadding > 0.dp) statusBarPadding + 5.dp else 42.dp),
-                        iconSize = 22.dp,
-                        iconOffset = DpOffset(x = (-2).dp, y = 0.dp),
-                        useBackdropShadow = true
-                    )
+                            .offset(y = if (statusBarPadding > 0.dp) statusBarPadding + 5.dp else 42.dp),
+                        horizontalArrangement = Arrangement.SpaceBetween
+                    ) {
+                        LiquidTopBarButton(
+                            onClick = {
+                                if (isEditMode) {
+                                    isEditMode = false
+                                    editMode = ""
+                                    checkboxStates.clear()
+                                } else { switchToCurrentSchedule() }
+                            },
+                            backdrop = liquidGlassBackdrop,
+                            icon = if (isEditMode) MiuixIcons.Close else MiuixIcons.Medium.ChevronBackward,
+                            contentDescription = if (isEditMode) "关闭" else "返回",
+                            modifier = Modifier.offset(x = 20.dp),
+                            iconSize = if (isEditMode) 20.dp else 22.dp,
+                            iconOffset = if (isEditMode) DpOffset.Zero else DpOffset(x = (-2).dp, y = 0.dp),
+                            useBackdropShadow = true
+                        )
+                        if (!isEditMode) {
+                            LiquidTopBarButton(
+                                onClick = { isEditMode = true },
+                                backdrop = liquidGlassBackdrop,
+                                icon = MiuixIcons.Edit,
+                                contentDescription = "编辑",
+                                modifier = Modifier.offset(x = (-20).dp),
+                                iconSize = 22.dp,
+                                useBackdropShadow = true
+                            )
+                        }
+                    }
                 }
             } else {
                 val allTitleAlpha = remember { Animatable(1f) }
@@ -564,7 +581,9 @@ fun SwitchScheduleScreen(
                     .scrollEndHaptic(
                         hapticFeedbackType = HapticFeedbackType.TextHandleMove
                     )
-                    .nestedScroll(scrollBehavior.nestedScrollConnection),
+                    .then(
+                        if (!isLiquidGlass) Modifier.nestedScroll(scrollBehavior.nestedScrollConnection) else Modifier
+                    ),
                 contentPadding = PaddingValues(
                     start = 16.dp,
                     end = 16.dp,
