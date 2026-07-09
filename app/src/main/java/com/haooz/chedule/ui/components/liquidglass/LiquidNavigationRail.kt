@@ -48,27 +48,27 @@ fun LiquidNavigationRail(
             modifier = Modifier
                 .padding(top = topPadding + 4.dp)
                 .width(if (isShiftMode) 160.dp else 240.dp)
-                .height(38.dp),
-            containerHeight = 38.dp,
-            highlightHeight = 32.dp,
-            selectorHeight = 32.dp
+                .height(40.dp),
+            containerHeight = 400.dp,
+            highlightHeight = 34.dp,
+            selectorHeight = 34.dp
         ) {
             if (!isShiftMode) {
                 LiquidBottomTab({ onTabSelected(0) }) {
-                    Text("今日", fontSize = 14.sp, fontWeight = FontWeight.Medium)
+                    Text("今日", fontSize = 15.sp, fontWeight = FontWeight.Medium)
                 }
                 LiquidBottomTab({ onTabSelected(1) }) {
-                    Text("课程表", fontSize = 14.sp, fontWeight = FontWeight.Medium)
+                    Text("课程表", fontSize = 15.sp, fontWeight = FontWeight.Medium)
                 }
                 LiquidBottomTab({ onTabSelected(2) }) {
-                    Text("我的", fontSize = 14.sp, fontWeight = FontWeight.Medium)
+                    Text("我的", fontSize = 15.sp, fontWeight = FontWeight.Medium)
                 }
             } else {
                 LiquidBottomTab({ onTabSelected(0) }) {
-                    Text("排班课表", fontSize = 14.sp, fontWeight = FontWeight.Medium)
+                    Text("排班课表", fontSize = 15.sp, fontWeight = FontWeight.Medium)
                 }
                 LiquidBottomTab({ onTabSelected(1) }) {
-                    Text("设置", fontSize = 14.sp, fontWeight = FontWeight.Medium)
+                    Text("设置", fontSize = 15.sp, fontWeight = FontWeight.Medium)
                 }
             }
         }
