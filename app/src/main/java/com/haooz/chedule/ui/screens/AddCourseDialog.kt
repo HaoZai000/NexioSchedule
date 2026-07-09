@@ -187,7 +187,7 @@ fun AddCourseDialog(
                                 blur(2f.dp.toPx())
                                 lens(12f.dp.toPx(), 12f.dp.toPx())
                             },
-                            shadow = { com.kyant.backdrop.shadow.Shadow(alpha = 0.3f) },
+                            shadow = { com.kyant.backdrop.shadow.Shadow(alpha = 1f) },
                             layerBlock = {
                                 val progress = closeHighlight.pressProgress
                                 val scale = 1f + 2f.dp.toPx() / 40.dp.toPx() * progress
@@ -249,7 +249,7 @@ fun AddCourseDialog(
                                 blur(2f.dp.toPx())
                                 lens(12f.dp.toPx(), 12f.dp.toPx())
                             },
-                            shadow = { com.kyant.backdrop.shadow.Shadow(alpha = 0.3f) },
+                            shadow = { com.kyant.backdrop.shadow.Shadow(alpha = 1f) },
                             layerBlock = {
                                 val progress = okHighlight.pressProgress
                                 val scale = 1f + 2f.dp.toPx() / 40.dp.toPx() * progress

@@ -179,8 +179,8 @@ fun CustomizeScheduleScreen(
     val isLiquidGlass = appStyle == "liquidglass"
     val primaryColor = MiuixTheme.colorScheme.primary
     val isDarkForLiquid = isAppDarkTheme()
-    val exitContainerColor = if (isDarkForLiquid) Color.Black.copy(0.4f) else Color.White.copy(0.4f)
-    val exitIconColor = if (isDarkForLiquid) Color.White.copy(alpha = 0.8f) else Color.Black.copy(alpha = 0.8f)
+    val exitContainerColor = Color.White.copy(0.08f)
+    val exitIconColor = Color.White
 
     // ================================================================
     // 二、UI 状态：加载指示 / 底部弹窗 / 删除流程
