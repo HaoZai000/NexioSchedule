@@ -284,8 +284,8 @@ fun SettingsScreen(
                     Modifier
                 },
                 color = topBarColor,
-                title = "设置",
-                largeTitle = "设置",
+                title = "我的",
+                largeTitle = "我的",
                 scrollBehavior = scrollBehavior,
             )
         }

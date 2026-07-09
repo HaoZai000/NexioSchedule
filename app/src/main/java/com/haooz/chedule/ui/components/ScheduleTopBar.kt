@@ -209,7 +209,7 @@ internal fun ScheduleTopBar(
                             fontSize = 20.sp,
                             fontWeight = FontWeight.Medium,
                             color = MiuixTheme.colorScheme.onSurface,
-                            modifier = Modifier.padding(start = 24.dp)
+                            modifier = Modifier.padding(start = 28.dp)
                         )
                     } else {
                         AnimatedVisibility(
