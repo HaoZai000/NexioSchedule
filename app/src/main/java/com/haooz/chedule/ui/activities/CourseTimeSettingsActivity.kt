@@ -200,6 +200,12 @@ fun CourseTimeSettingsScreen(onBack: () -> Unit) {
         saturation = 1.2f
     )
 
+    Box(
+        modifier = Modifier.fillMaxSize().then(
+            if (liquidGlassBackdrop != null) Modifier.liquidGlassLayerBackdrop(liquidGlassBackdrop)
+            else Modifier
+        )
+    ) {
     Scaffold(
         topBar = {
             if (isLiquidGlass && liquidGlassBackdrop != null) {
@@ -241,12 +247,7 @@ fun CourseTimeSettingsScreen(onBack: () -> Unit) {
             }
         }
     ) { paddingValues ->
-        Box(modifier = Modifier.fillMaxSize().layerBackdrop(backdrop)
-            .then(
-                if (liquidGlassBackdrop != null) Modifier.liquidGlassLayerBackdrop(liquidGlassBackdrop)
-                else Modifier
-            )
-        ) {
+        Box(modifier = Modifier.fillMaxSize().layerBackdrop(backdrop)) {
             val listState = rememberLazyListState()
             LaunchedEffect(listState) {
                 snapshotFlow { listState.firstVisibleItemScrollOffset }
