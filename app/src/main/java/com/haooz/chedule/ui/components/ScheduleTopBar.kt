@@ -201,8 +201,7 @@ internal fun ScheduleTopBar(
                                 backdrop = liquidGlassBackdrop,
                                 icon = MiuixIcons.Medium.Reset,
                                 contentDescription = "返回本周",
-                                iconSize = 25.dp,
-                                modifier = Modifier.padding(start = 4.dp)
+                                iconSize = 22.dp,
                             )
                         } else {
                             IconButton(
@@ -229,8 +228,7 @@ internal fun ScheduleTopBar(
                                 hapticFeedback.performHapticFeedback(HapticFeedbackType.VirtualKey)
                                 showMorePopup = true
                             },
-                            backdrop = liquidGlassBackdrop,
-                            modifier = Modifier.padding(end = 4.dp)
+                            backdrop = liquidGlassBackdrop
                         )
                     } else {
                         IconButton(
