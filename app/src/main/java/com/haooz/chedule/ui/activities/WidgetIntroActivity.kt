@@ -170,10 +170,8 @@ private fun WidgetIntroScreen(onBack: () -> Unit) {
                 .verticalScroll(rememberScrollState()),
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
-            val topPadding =
-                if (isLiquidGlass) { paddingValues.calculateTopPadding() +
-                    if (WindowInsets.statusBars.asPaddingValues().calculateTopPadding() > 0.dp) 0.dp else (-12).dp
-                } else 12.dp
+            val topPadding = if (isLiquidGlass) { paddingValues.calculateTopPadding() +
+                    if (WindowInsets.statusBars.asPaddingValues().calculateTopPadding() > 0.dp) 0.dp else (-12).dp } else 12.dp
             Spacer(modifier = Modifier.height(topPadding))
 
             WidgetPreview()

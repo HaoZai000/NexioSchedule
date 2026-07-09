@@ -21,12 +21,15 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.asPaddingValues
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.statusBars
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.material3.Text
@@ -47,6 +50,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.drawWithContent
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.RectangleShape
 import androidx.compose.ui.graphics.asAndroidBitmap
 import androidx.compose.ui.graphics.graphicsLayer
@@ -56,12 +60,17 @@ import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.DpOffset
 import androidx.compose.ui.unit.DpSize
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.zIndex
 import com.haooz.chedule.data.CourseRepository
+import com.haooz.chedule.ui.components.liquidglass.LiquidTopBarButton
+import com.haooz.chedule.ui.components.liquidglass.ProgressiveBlurTopBar
 import com.haooz.chedule.ui.utils.applyThemeAwareSystemBars
 import com.haooz.chedule.ui.utils.isAppDarkTheme
+import com.haooz.chedule.ui.utils.rememberAppStyle
 import com.haooz.chedule.ui.theme.CourseScheduleTheme
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.launch
@@ -77,6 +86,7 @@ import top.yukonga.miuix.kmp.basic.NavigationBarDisplayMode
 import top.yukonga.miuix.kmp.basic.NavigationBarItem
 import top.yukonga.miuix.kmp.basic.Scaffold
 import top.yukonga.miuix.kmp.basic.SmallTitle
+import top.yukonga.miuix.kmp.basic.SmallTopAppBar
 import top.yukonga.miuix.kmp.basic.TextButton
 import top.yukonga.miuix.kmp.basic.TextField
 import top.yukonga.miuix.kmp.basic.TopAppBar
@@ -89,6 +99,7 @@ import top.yukonga.miuix.kmp.blur.textureBlur
 import top.yukonga.miuix.kmp.icon.MiuixIcons
 import top.yukonga.miuix.kmp.icon.extended.Add
 import top.yukonga.miuix.kmp.icon.extended.Back
+import top.yukonga.miuix.kmp.icon.extended.ChevronBackward
 import top.yukonga.miuix.kmp.icon.extended.Close
 import top.yukonga.miuix.kmp.icon.extended.Delete
 import top.yukonga.miuix.kmp.icon.extended.Edit
@@ -102,6 +113,7 @@ import top.yukonga.miuix.kmp.utils.overScrollVertical
 import top.yukonga.miuix.kmp.utils.scrollEndHaptic
 import kotlin.time.Duration.Companion.milliseconds
 import androidx.compose.ui.graphics.Color as ComposeColor
+import com.kyant.backdrop.backdrops.layerBackdrop as liquidGlassLayerBackdrop
 
 class SwitchScheduleActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -189,6 +201,11 @@ fun SwitchScheduleScreen(
         drawContent()
     }
     val isDark = isAppDarkTheme()
+    val appStyle = rememberAppStyle()
+    val liquidGlassBackdrop = if (appStyle == "liquidglass") {
+        com.kyant.backdrop.backdrops.rememberLayerBackdrop()
+    } else null
+    val isLiquidGlass = appStyle == "liquidglass"
     val colors = BlurDefaults.blurColors(
         blendColors = listOf(
             if (isDark) BlendColorEntry(ComposeColor.Black.copy(alpha = 0.7f), BlurBlendMode.SrcOver)
@@ -250,41 +267,88 @@ fun SwitchScheduleScreen(
 
     Scaffold(
         topBar = {
-            val allTitleAlpha = remember { Animatable(1f) }
-            val editTitleAlpha = remember { Animatable(0f) }
-            var displayTitle by remember { mutableStateOf("全部课表") }
-            LaunchedEffect(isEditMode) {
-                if (isEditMode) {
-                    allTitleAlpha.animateTo(0f, animationSpec = tween(80))
-                    kotlinx.coroutines.delay(16.milliseconds)
-                    displayTitle = "编辑课表"
-                    editTitleAlpha.animateTo(1f, animationSpec = tween(170))
-                } else {
-                    editTitleAlpha.animateTo(0f, animationSpec = tween(80))
-                    kotlinx.coroutines.delay(16.milliseconds)
-                    displayTitle = "全部课表"
-                    allTitleAlpha.animateTo(1f, animationSpec = tween(170))
+            if (isLiquidGlass && liquidGlassBackdrop != null) {
+                val statusBarPadding = WindowInsets.statusBars.asPaddingValues().calculateTopPadding()
+                val allTitleAlpha = remember { Animatable(1f) }
+                val editTitleAlpha = remember { Animatable(0f) }
+                var displayTitle by remember { mutableStateOf("全部课表") }
+                LaunchedEffect(isEditMode) {
+                    if (isEditMode) {
+                        allTitleAlpha.animateTo(0f, animationSpec = tween(80))
+                        kotlinx.coroutines.delay(16.milliseconds)
+                        displayTitle = "编辑课表"
+                        editTitleAlpha.animateTo(1f, animationSpec = tween(170))
+                    } else {
+                        editTitleAlpha.animateTo(0f, animationSpec = tween(80))
+                        kotlinx.coroutines.delay(16.milliseconds)
+                        displayTitle = "全部课表"
+                        allTitleAlpha.animateTo(1f, animationSpec = tween(170))
+                    }
                 }
-            }
-            val surfaceColor = MiuixTheme.colorScheme.onSurface
-            TopAppBar(
-                modifier = if (blurAlpha > 0f) {
-                    Modifier.textureBlur(
-                        backdrop = backdrop,
-                        shape = RectangleShape,
-                        colors = topAppBarColors
+                ProgressiveBlurTopBar(
+                    backdrop = liquidGlassBackdrop,
+                ) {
+                    SmallTopAppBar(
+                        color = Color.Transparent,
+                        title = displayTitle,
+                        modifier = Modifier.zIndex(1f),
+                        navigationIcon = {}
                     )
-                } else {
-                    Modifier
-                },
-                color = topBarColor,
-                title = displayTitle,
-                largeTitle = displayTitle,
-                largeTitleColor = surfaceColor.copy(alpha = maxOf(allTitleAlpha.value, editTitleAlpha.value)),
-                titleColor = surfaceColor.copy(alpha = maxOf(allTitleAlpha.value, editTitleAlpha.value)),
-                scrollBehavior = scrollBehavior,
-                navigationIconPadding = 20.dp,
-                navigationIcon = {
+                    LiquidTopBarButton(
+                        onClick = {
+                            if (isEditMode) {
+                                isEditMode = false
+                                editMode = ""
+                                checkboxStates.clear()
+                            } else { switchToCurrentSchedule() }
+                        },
+                        backdrop = liquidGlassBackdrop,
+                        icon = MiuixIcons.Medium.ChevronBackward,
+                        contentDescription = "返回",
+                        modifier = Modifier
+                            .zIndex(2f)
+                            .offset(x = 20.dp, y = if (statusBarPadding > 0.dp) statusBarPadding + 5.dp else 42.dp),
+                        iconSize = 22.dp,
+                        iconOffset = DpOffset(x = (-2).dp, y = 0.dp),
+                        useBackdropShadow = true
+                    )
+                }
+            } else {
+                val allTitleAlpha = remember { Animatable(1f) }
+                val editTitleAlpha = remember { Animatable(0f) }
+                var displayTitle by remember { mutableStateOf("全部课表") }
+                LaunchedEffect(isEditMode) {
+                    if (isEditMode) {
+                        allTitleAlpha.animateTo(0f, animationSpec = tween(80))
+                        kotlinx.coroutines.delay(16.milliseconds)
+                        displayTitle = "编辑课表"
+                        editTitleAlpha.animateTo(1f, animationSpec = tween(170))
+                    } else {
+                        editTitleAlpha.animateTo(0f, animationSpec = tween(80))
+                        kotlinx.coroutines.delay(16.milliseconds)
+                        displayTitle = "全部课表"
+                        allTitleAlpha.animateTo(1f, animationSpec = tween(170))
+                    }
+                }
+                val surfaceColor = MiuixTheme.colorScheme.onSurface
+                TopAppBar(
+                    modifier = if (blurAlpha > 0f) {
+                        Modifier.textureBlur(
+                            backdrop = backdrop,
+                            shape = RectangleShape,
+                            colors = topAppBarColors
+                        )
+                    } else {
+                        Modifier
+                    },
+                    color = topBarColor,
+                    title = displayTitle,
+                    largeTitle = displayTitle,
+                    largeTitleColor = surfaceColor.copy(alpha = maxOf(allTitleAlpha.value, editTitleAlpha.value)),
+                    titleColor = surfaceColor.copy(alpha = maxOf(allTitleAlpha.value, editTitleAlpha.value)),
+                    scrollBehavior = scrollBehavior,
+                    navigationIconPadding = 20.dp,
+                    navigationIcon = {
                     val backAlpha = remember { Animatable(1f) }
                     val closeAlpha = remember { Animatable(0f) }
                     LaunchedEffect(isEditMode) {
@@ -339,6 +403,7 @@ fun SwitchScheduleScreen(
                     }
                 }
             )
+            }
         },
         bottomBar = {
             var navBarVisible by remember { mutableStateOf(false) }
@@ -478,6 +543,10 @@ fun SwitchScheduleScreen(
                     drawContent()
                 }
                 .layerBackdrop(backdrop)
+                .then(
+                    if (liquidGlassBackdrop != null) Modifier.liquidGlassLayerBackdrop(liquidGlassBackdrop)
+                    else Modifier
+                )
         ) {
             val listState = rememberLazyListState()
             LaunchedEffect(listState) {
@@ -496,7 +565,15 @@ fun SwitchScheduleScreen(
                         hapticFeedbackType = HapticFeedbackType.TextHandleMove
                     )
                     .nestedScroll(scrollBehavior.nestedScrollConnection),
-                contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = paddingValues.calculateTopPadding(), bottom = 60.dp),
+                contentPadding = PaddingValues(
+                    start = 16.dp,
+                    end = 16.dp,
+                    top = paddingValues.calculateTopPadding() +
+                            if (isLiquidGlass) {
+                                if (WindowInsets.statusBars.asPaddingValues().calculateTopPadding() > 0.dp) -12.dp else (-24).dp
+                            } else 0.dp,
+                    bottom = 60.dp
+                ),
                 verticalArrangement = Arrangement.spacedBy(12.dp)
             ) {
                 item {
