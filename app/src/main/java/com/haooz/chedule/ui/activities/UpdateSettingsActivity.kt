@@ -348,7 +348,6 @@ private fun UpdateSettingsScreen(onBack: () -> Unit) {
     ) { paddingValues ->
         Box(modifier = Modifier
             .fillMaxSize()
-            .layerBackdrop(backdrop)
             .then(
                 if (liquidGlassBackdrop != null) Modifier.liquidGlassLayerBackdrop(liquidGlassBackdrop)
                 else Modifier
