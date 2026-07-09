@@ -17,9 +17,11 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.haooz.chedule.ui.utils.isAppDarkTheme
 import com.kyant.backdrop.Backdrop
 
 @Composable
@@ -35,6 +37,8 @@ fun LiquidNavigationRail(
 
     val statusBarPadding = WindowInsets.statusBars.asPaddingValues().calculateTopPadding()
     val topPadding = if (statusBarPadding > 0.dp) statusBarPadding else 36.dp
+    val isDark = isAppDarkTheme()
+    val textColor = if (isDark) Color.White.copy(alpha = 0.8f) else Color.Black.copy(alpha = 0.8f)
 
     Box(
         modifier = modifier.fillMaxSize(),
@@ -55,20 +59,20 @@ fun LiquidNavigationRail(
         ) {
             if (!isShiftMode) {
                 LiquidBottomTab({ onTabSelected(0) }) {
-                    Text("今日", fontSize = 15.sp, fontWeight = FontWeight.Medium)
+                    Text("今日", fontSize = 15.sp, fontWeight = FontWeight.Medium, color = textColor)
                 }
                 LiquidBottomTab({ onTabSelected(1) }) {
-                    Text("课程表", fontSize = 15.sp, fontWeight = FontWeight.Medium)
+                    Text("课程表", fontSize = 15.sp, fontWeight = FontWeight.Medium, color = textColor)
                 }
                 LiquidBottomTab({ onTabSelected(2) }) {
-                    Text("我的", fontSize = 15.sp, fontWeight = FontWeight.Medium)
+                    Text("我的", fontSize = 15.sp, fontWeight = FontWeight.Medium, color = textColor)
                 }
             } else {
                 LiquidBottomTab({ onTabSelected(0) }) {
-                    Text("排班课表", fontSize = 15.sp, fontWeight = FontWeight.Medium)
+                    Text("排班课表", fontSize = 15.sp, fontWeight = FontWeight.Medium, color = textColor)
                 }
                 LiquidBottomTab({ onTabSelected(1) }) {
-                    Text("设置", fontSize = 15.sp, fontWeight = FontWeight.Medium)
+                    Text("设置", fontSize = 15.sp, fontWeight = FontWeight.Medium, color = textColor)
                 }
             }
         }
