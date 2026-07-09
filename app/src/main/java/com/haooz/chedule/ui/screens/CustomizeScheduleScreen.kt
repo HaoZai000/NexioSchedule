@@ -98,6 +98,15 @@ import top.yukonga.miuix.kmp.icon.extended.GridView
 import top.yukonga.miuix.kmp.icon.extended.Image
 import top.yukonga.miuix.kmp.overlay.OverlayBottomSheet
 import top.yukonga.miuix.kmp.shader.isRuntimeShaderSupported
+import com.haooz.chedule.ui.utils.rememberAppStyle
+import top.yukonga.miuix.kmp.blur.rememberLayerBackdrop
+import top.yukonga.miuix.kmp.blur.layerBackdrop
+import com.kyant.backdrop.backdrops.layerBackdrop as liquidGlassLayerBackdrop
+import com.kyant.backdrop.drawBackdrop
+import com.kyant.backdrop.effects.blur
+import com.kyant.backdrop.effects.lens
+import com.kyant.backdrop.effects.vibrancy
+import com.kyant.shapes.Capsule
 import top.yukonga.miuix.kmp.squircle.addSquircleRect
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 import kotlin.math.absoluteValue
@@ -158,6 +167,14 @@ fun CustomizeScheduleScreen(
 
     // 模糊支持检测（API 31+ 支持 graphicsLayer blurRadius）
     val blurSupported = isRuntimeShaderSupported()
+
+    // 液态玻璃支持
+    val appStyle = rememberAppStyle()
+    val liquidGlassBackdrop = if (appStyle == "liquidglass") {
+        com.kyant.backdrop.backdrops.rememberLayerBackdrop()
+    } else null
+    val isLiquidGlass = appStyle == "liquidglass"
+    val primaryColor = MiuixTheme.colorScheme.primary
 
     // ================================================================
     // 二、UI 状态：加载指示 / 底部弹窗 / 删除流程
@@ -874,6 +891,67 @@ fun CustomizeScheduleScreen(
                     .padding(horizontal = 20.dp),
                 horizontalArrangement = Arrangement.SpaceBetween
             ) {
+            if (isLiquidGlass && liquidGlassBackdrop != null) {
+                Box(
+                    modifier = Modifier
+                        .width(84.dp).height(40.dp)
+                        .drawBackdrop(
+                            backdrop = liquidGlassBackdrop,
+                            shape = { Capsule() },
+                            effects = {
+                                vibrancy()
+                                blur(2f.dp.toPx())
+                                lens(12f.dp.toPx(), 12f.dp.toPx())
+                            },
+                            shadow = { com.kyant.backdrop.shadow.Shadow(alpha = 0.3f) },
+                            onDrawSurface = {
+                                drawRect(Color(0xFFFAFAFA).copy(0.4f))
+                            }
+                        )
+                        .clickable {
+                            if (isPageAnimating || isCutoutAnimating) { /* 动画中不响应 */ }
+                            else if (isCutoutActive) {
+                                isCutoutActive = false
+                                sheetResetKey++
+                                onRevertWallpaper()
+                                scope.launch {
+                                    kotlinx.coroutines.delay(400.milliseconds)
+                                    onCancelCutout()
+                                }
+                            } else onDismiss()
+                        },
+                    contentAlignment = Alignment.Center
+                ) {
+                    Text(
+                        text = if (isCutoutActive) "取消" else "退出",
+                        color = Color.Black.copy(alpha = 0.8f), fontSize = 16.sp, fontWeight = FontWeight.Medium
+                    )
+                }
+                Box(
+                    modifier = Modifier
+                        .width(84.dp).height(40.dp)
+                        .drawBackdrop(
+                            backdrop = liquidGlassBackdrop,
+                            shape = { Capsule() },
+                            effects = {
+                                vibrancy()
+                                blur(2f.dp.toPx())
+                                lens(12f.dp.toPx(), 12f.dp.toPx())
+                            },
+                            shadow = { com.kyant.backdrop.shadow.Shadow(alpha = 0.3f) },
+                            onDrawSurface = {
+                                drawRect(primaryColor.copy(0.8f))
+                            }
+                        )
+                        .clickable(enabled = !showApplyLoading) {
+                            showApplyLoading = true
+                            onApply()
+                        },
+                    contentAlignment = Alignment.Center
+                ) {
+                    Text("应用", color = Color.White, fontSize = 16.sp, fontWeight = FontWeight.Medium)
+                }
+            } else {
             Box(
                 modifier = Modifier
                     .width(84.dp).height(40.dp)
@@ -910,6 +988,7 @@ fun CustomizeScheduleScreen(
                 contentAlignment = Alignment.Center
             ) {
                 Text("应用", color = Color.White, fontSize = 16.sp, fontWeight = FontWeight.Medium)
+            }
             }
             }
         }
