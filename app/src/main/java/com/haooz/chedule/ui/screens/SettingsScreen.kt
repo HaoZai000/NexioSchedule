@@ -62,6 +62,7 @@ import com.haooz.chedule.ui.activities.PreferenceSettingsActivity
 import com.haooz.chedule.ui.activities.WidgetIntroActivity
 import com.haooz.chedule.ui.utils.isAppDarkTheme
 import com.haooz.chedule.ui.utils.rememberAppStyle
+import com.kyant.backdrop.backdrops.layerBackdrop as liquidGlassLayerBackdrop
 import com.kyant.backdrop.drawPlainBackdrop
 import com.kyant.backdrop.effects.blur
 import com.kyant.backdrop.effects.runtimeShaderEffect
@@ -355,6 +356,11 @@ fun SettingsScreen(
         Box(
             modifier = Modifier
                 .fillMaxSize()
+                .then(
+                    if (isLiquidGlass && liquidGlassBackdrop != null)
+                        Modifier.liquidGlassLayerBackdrop(liquidGlassBackdrop)
+                    else Modifier
+                )
                 .layerBackdrop(backdrop)
         ) {
             val listState = rememberLazyListState()
