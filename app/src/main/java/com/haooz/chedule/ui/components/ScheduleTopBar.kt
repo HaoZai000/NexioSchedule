@@ -198,29 +198,44 @@ internal fun ScheduleTopBar(
                         onTitleBarMeasured(with(density) { coordinates.size.height.toDp() })
                     },
                 navigationIcon = {
-                    AnimatedVisibility(
-                        visible = !isViewingCurrentWeek && navBarStyle != "rail",
-                        enter = fadeIn(animationSpec = tween(180)),
-                        exit = fadeOut(animationSpec = tween(120))
-                    ) {
-                        if (appStyle == "liquidglass" && liquidGlassBackdrop != null) {
-                            LiquidTopBarButton(
-                                onClick = onBackToCurrentWeek,
-                                backdrop = liquidGlassBackdrop,
-                                icon = MiuixIcons.Medium.Reset,
-                                contentDescription = "返回本周",
-                                iconSize = 22.dp,
-                            )
-                        } else {
-                            IconButton(
-                                onClick = onBackToCurrentWeek,
-                                modifier = Modifier.padding(start = 4.dp)
-                            ) {
-                                Icon(
-                                    imageVector = MiuixIcons.Medium.Reset,
+                    if (navBarStyle == "rail" && appStyle == "liquidglass" && liquidGlassBackdrop != null) {
+                        Text(
+                            text = when {
+                                currentWeek > totalWeeks -> "放假中"
+                                currentWeek < 1 -> "学期未开始"
+                                else -> "第${pagerCurrentPage + 1}周"
+                            },
+                            style = MiuixTheme.textStyles.title1.copy(
+                                fontWeight = FontWeight.Bold
+                            ),
+                            color = MiuixTheme.colorScheme.onSurface,
+                            modifier = Modifier.padding(start = 24.dp)
+                        )
+                    } else {
+                        AnimatedVisibility(
+                            visible = !isViewingCurrentWeek && navBarStyle != "rail",
+                            enter = fadeIn(animationSpec = tween(180)),
+                            exit = fadeOut(animationSpec = tween(120))
+                        ) {
+                            if (appStyle == "liquidglass" && liquidGlassBackdrop != null) {
+                                LiquidTopBarButton(
+                                    onClick = onBackToCurrentWeek,
+                                    backdrop = liquidGlassBackdrop,
+                                    icon = MiuixIcons.Medium.Reset,
                                     contentDescription = "返回本周",
-                                    modifier = Modifier.size(25.dp)
+                                    iconSize = 22.dp,
                                 )
+                            } else {
+                                IconButton(
+                                    onClick = onBackToCurrentWeek,
+                                    modifier = Modifier.padding(start = 4.dp)
+                                ) {
+                                    Icon(
+                                        imageVector = MiuixIcons.Medium.Reset,
+                                        contentDescription = "返回本周",
+                                        modifier = Modifier.size(25.dp)
+                                    )
+                                }
                             }
                         }
                     }
@@ -329,22 +344,6 @@ internal fun ScheduleTopBar(
                     }
                 }
             )
-            if (navBarStyle == "rail" && appStyle == "liquidglass" && liquidGlassBackdrop != null) {
-                Text(
-                    text = when {
-                        currentWeek > totalWeeks -> "放假中"
-                        currentWeek < 1 -> "学期未开始"
-                        else -> "第${pagerCurrentPage + 1}周"
-                    },
-                    style = MiuixTheme.textStyles.title1.copy(
-                        fontWeight = FontWeight.Bold
-                    ),
-                    color = MiuixTheme.colorScheme.onSurface,
-                    modifier = Modifier
-                        .padding(start = 24.dp, top = 4.dp)
-                        .zIndex(1f)
-                )
-            }
             Row(
                 modifier = Modifier.fillMaxWidth().height(40.dp)
             ) {
