@@ -10,8 +10,10 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.graphics.drawscope.drawIntoCanvas
+import androidx.compose.ui.graphics.nativeCanvas
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.platform.LocalHapticFeedback
@@ -50,50 +52,51 @@ fun LiquidTopBarButton(
     androidx.compose.foundation.layout.Box(
         modifier = modifier
             .size(buttonHeight)
-            .shadow(
-                elevation = 6.dp,
-                shape = CircleShape,
-                ambientColor = Color.Black.copy(alpha = 0.15f),
-                spotColor = Color.Black.copy(alpha = 0.1f)
-            )
-            .drawBackdrop(
-                backdrop = backdrop,
-                shape = { CircleShape },
-                effects = {
-                    vibrancy()
-                    blur(2f.dp.toPx())
-                    lens(12f.dp.toPx(), 12f.dp.toPx())
-                },
-                shadow = null,
-                layerBlock = {
-                    val progress = interactiveHighlight.pressProgress
-                    val scale = 1f + 2f.dp.toPx() / buttonHeight.toPx() * progress
-                    scaleX = scale
-                    scaleY = scale
-                },
-                onDrawSurface = {
-                    drawRect(containerColor)
-                    drawRect(Color.Black.copy(alpha = 0.03f * interactiveHighlight.pressProgress))
-                }
-            )
-            .clickable(
-                interactionSource = null,
-                indication = null,
-                role = Role.Button,
-                onClick = {
-                    hapticFeedback.performHapticFeedback(HapticFeedbackType.Confirm)
-                    onClick()
-                }
-            )
-            .then(interactiveHighlight.modifier)
-            .then(interactiveHighlight.gestureModifier),
-        contentAlignment = Alignment.Center
+            .graphicsLayer {
+                shadowElevation = 6.dp.toPx()
+                shape = CircleShape
+                ambientShadowColor = Color.Black.copy(alpha = 0.15f)
+                spotShadowColor = Color.Black.copy(alpha = 0.1f)
+            }
     ) {
-        Icon(
-            imageVector = icon,
-            contentDescription = contentDescription,
-            modifier = Modifier.size(iconSize),
-            tint = if (isLightTheme) Color.Black.copy(alpha = 0.8f) else Color.White.copy(alpha = 0.8f)
-        )
-    }
-}
+        androidx.compose.foundation.layout.Box(
+            modifier = Modifier
+                .matchParentSize()
+                .drawBackdrop(
+                    backdrop = backdrop,
+                    shape = { CircleShape },
+                    effects = {
+                        vibrancy()
+                        blur(2f.dp.toPx())
+                        lens(12f.dp.toPx(), 12f.dp.toPx())
+                    },
+                    shadow = null,
+                    layerBlock = {
+                        val progress = interactiveHighlight.pressProgress
+                        val scale = 1f + 2f.dp.toPx() / buttonHeight.toPx() * progress
+                        scaleX = scale
+                        scaleY = scale
+                    },
+                    onDrawSurface = {
+                        drawRect(containerColor)
+                        drawRect(Color.Black.copy(alpha = 0.03f * interactiveHighlight.pressProgress))
+                    }
+                )
+                .clickable(
+                    interactionSource = null,
+                    indication = null,
+                    role = Role.Button,
+                    onClick = {
+                        hapticFeedback.performHapticFeedback(HapticFeedbackType.Confirm)
+                        onClick()
+                    }
+                )
+                .then(interactiveHighlight.modifier)
+                .then(interactiveHighlight.gestureModifier),
+            contentAlignment = Alignment.Center
+        ) {
+            Icon(
+                imageVector = icon,
+                contentDescription = contentDescription,
+                modifier = Modifier.size(iconSize),
+                tint = if (isL
