@@ -136,7 +136,7 @@ internal fun ScheduleTopBar(
         Box(
             modifier = Modifier
                 .fillMaxWidth()
-                .height(titleBarHeight + 60.dp)
+                .height(titleBarHeight + 70.dp)
                 .then(
                     if (appStyle == "liquidglass" && liquidGlassBackdrop != null) {
                         Modifier.drawPlainBackdrop(
@@ -153,7 +153,7 @@ internal fun ScheduleTopBar(
     uniform float tintIntensity;
 
     half4 main(float2 coord) {
-        float blurAlpha = smoothstep(size.y, size.y * 0.7, coord.y);
+        float blurAlpha = smoothstep(size.y, size.y * 0.6, coord.y);
         float tintAlpha = smoothstep(size.y, size.y * 0.7, coord.y);
         return mix(content.eval(coord) * blurAlpha, tint * tintAlpha, tintIntensity);
     }""",
