@@ -377,8 +377,7 @@ private fun AboutScreen(onBack: () -> Unit) {
                     ),
                 contentPadding = PaddingValues(
                     top = innerPadding.calculateTopPadding() +
-                            if (isLiquidGlass) { if (WindowInsets.statusBars.asPaddingValues().calculateTopPadding() > 0.dp) -12.dp else (-24).dp } else 0.dp,
-
+                            if (isLiquidGlass) { if (WindowInsets.statusBars.asPaddingValues().calculateTopPadding() > 0.dp) -20.dp else (-32).dp } else 0.dp,
                     start = WindowInsets.displayCutout.asPaddingValues().calculateLeftPadding(LayoutDirection.Ltr),
                     end = WindowInsets.displayCutout.asPaddingValues().calculateRightPadding(LayoutDirection.Ltr),
                 ),

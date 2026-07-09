@@ -357,7 +357,7 @@ private fun CourseReminderScreen(
                 contentPadding = PaddingValues(
                     start = 16.dp,
                     top = paddingValues.calculateTopPadding() +
-                            if (isLiquidGlass) { if (WindowInsets.statusBars.asPaddingValues().calculateTopPadding() > 0.dp) -12.dp else (-24).dp } else 0.dp,
+                            if (isLiquidGlass) { if (WindowInsets.statusBars.asPaddingValues().calculateTopPadding() > 0.dp) (-20).dp else (-32).dp } else 0.dp,
                     end = 16.dp,
                     bottom = 120.dp
                 ),
