@@ -265,13 +265,13 @@ private fun AboutScreen(onBack: () -> Unit) {
                     else Modifier
                 )
         ) {
-        BgEffectBackground(
-            dynamicBackground = dynamicBackground,
-            isFullSize = true,
-            modifier = Modifier.fillMaxSize(),
-            bgModifier = if (backdrop != null) Modifier.layerBackdrop(backdrop) else Modifier,
-            alpha = { 1f - scrollProgress },
-        ) {
+            BgEffectBackground(
+                dynamicBackground = dynamicBackground,
+                isFullSize = true,
+                modifier = Modifier.fillMaxSize(),
+                bgModifier = if (backdrop != null) Modifier.layerBackdrop(backdrop) else Modifier,
+                alpha = { 1f - scrollProgress },
+            ) {
             Column(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -733,6 +733,7 @@ private fun AboutScreen(onBack: () -> Unit) {
                     }
                 }
             }
+        }
         }
     }
 }
