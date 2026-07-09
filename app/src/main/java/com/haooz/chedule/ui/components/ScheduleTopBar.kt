@@ -19,6 +19,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBars
 import androidx.compose.foundation.layout.width
+import androidx.compose.ui.zIndex
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -191,9 +192,11 @@ internal fun ScheduleTopBar(
                     else -> "第${pagerCurrentPage + 1}周"
                 },
                 color = ComposeColor.Transparent,
-                modifier = Modifier.onGloballyPositioned { coordinates ->
-                    onTitleBarMeasured(with(density) { coordinates.size.height.toDp() })
-                },
+                modifier = Modifier
+                    .zIndex(1f)
+                    .onGloballyPositioned { coordinates ->
+                        onTitleBarMeasured(with(density) { coordinates.size.height.toDp() })
+                    },
                 navigationIcon = {
                     AnimatedVisibility(
                         visible = !isViewingCurrentWeek && navBarStyle != "rail",
