@@ -37,6 +37,7 @@ import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import com.haooz.chedule.ui.utils.isAppDarkTheme
 import top.yukonga.miuix.kmp.basic.DropdownImpl
 import top.yukonga.miuix.kmp.basic.Icon
@@ -205,9 +206,8 @@ internal fun ScheduleTopBar(
                                 currentWeek < 1 -> "学期未开始"
                                 else -> "第${pagerCurrentPage + 1}周"
                             },
-                            style = MiuixTheme.textStyles.title1.copy(
-                                fontWeight = FontWeight.Bold
-                            ),
+                            fontSize = 20.sp,
+                            fontWeight = FontWeight.Medium,
                             color = MiuixTheme.colorScheme.onSurface,
                             modifier = Modifier.padding(start = 24.dp)
                         )
