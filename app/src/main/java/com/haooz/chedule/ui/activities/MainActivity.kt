@@ -27,6 +27,7 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.asPaddingValues
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
@@ -104,6 +105,9 @@ import top.yukonga.miuix.kmp.blur.BlurBlendMode
 import top.yukonga.miuix.kmp.blur.BlurDefaults
 import top.yukonga.miuix.kmp.blur.layerBackdrop
 import top.yukonga.miuix.kmp.blur.rememberLayerBackdrop
+import com.kyant.backdrop.drawPlainBackdrop
+import com.kyant.backdrop.effects.blur
+import com.kyant.backdrop.effects.runtimeShaderEffect
 import com.kyant.backdrop.backdrops.layerBackdrop as liquidGlassLayerBackdrop
 import top.yukonga.miuix.kmp.squircle.addSquircleRect
 import top.yukonga.miuix.kmp.theme.MiuixTheme
@@ -111,6 +115,10 @@ import java.time.LocalDate
 import java.util.Calendar
 import kotlin.time.Duration.Companion.milliseconds
 import androidx.compose.ui.graphics.Color as ComposeColor
+import androidx.compose.ui.graphics.RectangleShape
+import androidx.compose.ui.graphics.lerp
+import androidx.compose.ui.zIndex
+import top.yukonga.miuix.kmp.blur.textureBlur
 
 class MainActivity : ComponentActivity() {
 
@@ -271,6 +279,7 @@ fun CourseScheduleApp() {
     var showShiftLoading by remember { mutableStateOf(false) }
     var isExitingShift by remember { mutableStateOf(false) }
     var shiftModeInitialized by remember { mutableStateOf(false) }
+    var settingsScrollY by remember { mutableIntStateOf(0) }
 
     // 初始化 SyncManager 并检查云端更新
     val context = LocalContext.current
@@ -1049,6 +1058,17 @@ fun CourseScheduleApp() {
                         onTitleBarMeasured = { activity?.titleBarHeight = it },
                         liquidGlassBackdrop = liquidGlassBackdrop
                     )
+                    // 设置页标题栏（Activity 层级渲染，避免 drawPlainBackdrop native crash）
+                    if (selectedTab == 2 || (isShiftMode && selectedTab == 1)) {
+                        SettingsTopBar(
+                            backdrop = backdrop,
+                            liquidGlassBackdrop = liquidGlassBackdrop,
+                            isDark = isDark,
+                            scrollY = settingsScrollY,
+                            navBarStyle = navBarStyle,
+                            titleBarHeight = activity?.titleBarHeight ?: 56.dp,
+                        )
+                    }
                 }
             ) { _ ->
                 // 不再用 combinations.isEmpty() 门控整个内容区：
@@ -1117,7 +1137,8 @@ fun CourseScheduleApp() {
                                     isExitingShift = false
                                 },
                                 navBarStyle = navBarStyle,
-                                liquidGlassBackdrop = liquidGlassBackdrop
+                                liquidGlassBackdrop = liquidGlassBackdrop,
+                                onScrollYChanged = { settingsScrollY = it }
                             )
                         }
                     } else {
@@ -1150,7 +1171,8 @@ fun CourseScheduleApp() {
                                     isExitingShift = false
                                 },
                                 navBarStyle = navBarStyle,
-                                liquidGlassBackdrop = liquidGlassBackdrop
+                                liquidGlassBackdrop = liquidGlassBackdrop,
+                                onScrollYChanged = { settingsScrollY = it }
                             )
                         }
                     }
@@ -2107,5 +2129,108 @@ fun CourseScheduleApp() {
                 }
             }
         }
+    }
+}
+
+@Composable
+private fun SettingsTopBar(
+    backdrop: top.yukonga.miuix.kmp.blur.LayerBackdrop,
+    liquidGlassBackdrop: com.kyant.backdrop.Backdrop?,
+    isDark: Boolean,
+    scrollY: Int,
+    navBarStyle: String,
+    titleBarHeight: androidx.compose.ui.unit.Dp,
+) {
+    val appStyle = com.haooz.chedule.ui.utils.rememberAppStyle()
+    val isLiquidGlass = appStyle == "liquidglass" && liquidGlassBackdrop != null
+    val isTabletLiquidGlass = navBarStyle == "rail" && isLiquidGlass
+
+    val blurAlpha = if (scrollY < 50) 0f else ((scrollY - 50) / 50f).coerceIn(0f, 0.7f)
+    val topBarColorProgress = ((scrollY - 50) / 50f).coerceIn(0f, 1f)
+    val surface = MiuixTheme.colorScheme.surface
+    val topBarColor = if (scrollY < 50) {
+        surface
+    } else {
+        val target = if (isDark) ComposeColor.Black.copy(alpha = 0.7f) else ComposeColor.White.copy(alpha = 0.7f)
+        lerp(surface, target, topBarColorProgress)
+    }
+    val topAppBarColors = BlurDefaults.blurColors(
+        blendColors = listOf(
+            if (isDark) BlendColorEntry(ComposeColor.Black.copy(alpha = blurAlpha), BlurBlendMode.SrcOver)
+            else BlendColorEntry(ComposeColor.White.copy(alpha = blurAlpha), BlurBlendMode.SrcOver)
+        ),
+        brightness = 0f,
+        contrast = 1f,
+        saturation = 1.2f
+    )
+    val tintColor = if (isDark) androidx.compose.ui.graphics.Color(0xFF808080) else androidx.compose.ui.graphics.Color.White
+
+    if (isLiquidGlass && liquidGlassBackdrop != null) {
+        Box {
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(100.dp)
+                    .drawPlainBackdrop(
+                        backdrop = liquidGlassBackdrop,
+                        shape = { RectangleShape },
+                        effects = {
+                            blur(4f.dp.toPx())
+                            runtimeShaderEffect(
+                                "ProgressiveBlurAlphaMask",
+                                """
+    uniform shader content;
+    uniform float2 size;
+    layout(color) uniform half4 tint;
+    uniform float tintIntensity;
+
+    half4 main(float2 coord) {
+        float blurAlpha = smoothstep(size.y, size.y * 0.6, coord.y);
+        float tintAlpha = smoothstep(size.y, size.y * 0.7, coord.y);
+        return mix(content.eval(coord) * blurAlpha, tint * tintAlpha, tintIntensity);
+    }""",
+                                "content"
+                            ) {
+                                setFloatUniform("size", size.width, size.height)
+                                setColorUniform("tint", tintColor)
+                                setFloatUniform("tintIntensity", 0.2f)
+                            }
+                        }
+                    )
+            )
+            top.yukonga.miuix.kmp.basic.SmallTopAppBar(
+                color = topBarColor,
+                title = if (isTabletLiquidGlass) "" else "我的",
+                modifier = Modifier.zIndex(1f),
+                navigationIcon = if (isTabletLiquidGlass) {
+                    {
+                        Text(
+                            text = "我的",
+                            fontSize = 20.sp,
+                            fontWeight = FontWeight.Medium,
+                            color = MiuixTheme.colorScheme.onSurface,
+                            modifier = Modifier.padding(start = 12.dp)
+                        )
+                    }
+                } else {
+                    {}
+                },
+            )
+        }
+    } else {
+        top.yukonga.miuix.kmp.basic.TopAppBar(
+            modifier = if (blurAlpha > 0f) {
+                Modifier.textureBlur(
+                    backdrop = backdrop,
+                    shape = RectangleShape,
+                    colors = topAppBarColors
+                )
+            } else {
+                Modifier
+            },
+            color = topBarColor,
+            title = "我的",
+            largeTitle = "我的",
+        )
     }
 }
