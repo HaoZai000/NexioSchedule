@@ -51,6 +51,7 @@ import com.kyant.backdrop.drawPlainBackdrop
 import com.kyant.backdrop.effects.blur
 import com.kyant.backdrop.effects.runtimeShaderEffect
 import com.haooz.chedule.ui.components.liquidglass.LiquidTopBarButton
+import com.haooz.chedule.ui.components.liquidglass.LiquidTopBarCapsuleButton
 import top.yukonga.miuix.kmp.icon.MiuixIcons
 import top.yukonga.miuix.kmp.icon.extended.ConvertFile
 import top.yukonga.miuix.kmp.icon.extended.More
@@ -219,15 +220,16 @@ internal fun ScheduleTopBar(
                 },
                 actions = {
                     if (appStyle == "liquidglass" && liquidGlassBackdrop != null && navBarStyle != "rail") {
-                        LiquidTopBarButton(
-                            onClick = {
+                        LiquidTopBarCapsuleButton(
+                            onLeftClick = {
                                 hapticFeedback.performHapticFeedback(HapticFeedbackType.VirtualKey)
                                 onOpenSwitchSchedule()
                             },
+                            onRightClick = {
+                                hapticFeedback.performHapticFeedback(HapticFeedbackType.VirtualKey)
+                                showMorePopup = true
+                            },
                             backdrop = liquidGlassBackdrop,
-                            icon = MiuixIcons.Normal.ConvertFile,
-                            contentDescription = "课表切换",
-                            iconSize = 27.dp,
                             modifier = Modifier.padding(end = 4.dp)
                         )
                     } else {
@@ -245,22 +247,8 @@ internal fun ScheduleTopBar(
                             )
                         }
                     }
-                    if (appStyle == "liquidglass" && liquidGlassBackdrop != null && navBarStyle != "rail") {
-                        Spacer(modifier = Modifier.width(8.dp))
-                    }
                     Box(modifier = Modifier.padding(end = 4.dp)) {
-                        if (appStyle == "liquidglass" && liquidGlassBackdrop != null && navBarStyle != "rail") {
-                            LiquidTopBarButton(
-                                onClick = {
-                                    hapticFeedback.performHapticFeedback(HapticFeedbackType.VirtualKey)
-                                    showMorePopup = true
-                                },
-                                backdrop = liquidGlassBackdrop,
-                                icon = MiuixIcons.More,
-                                contentDescription = "更多",
-                                iconSize = 22.dp
-                            )
-                        } else {
+                        if (appStyle != "liquidglass" || liquidGlassBackdrop == null || navBarStyle == "rail") {
                             IconButton(onClick = {
                                 hapticFeedback.performHapticFeedback(HapticFeedbackType.VirtualKey)
                                 showMorePopup = true
