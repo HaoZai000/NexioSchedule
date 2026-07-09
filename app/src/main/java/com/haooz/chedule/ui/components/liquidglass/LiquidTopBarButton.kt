@@ -39,7 +39,8 @@ fun LiquidTopBarButton(
     iconSize: Dp = 24.dp,
     iconOffset: DpOffset = DpOffset.Zero,
     buttonHeight: Dp = 40.dp,
-    useBackdropShadow: Boolean = false
+    useBackdropShadow: Boolean = false,
+    iconTint: Color = Color.Unspecified
 ) {
     val animationScope = rememberCoroutineScope()
     val hapticFeedback = LocalHapticFeedback.current
@@ -127,7 +128,7 @@ fun LiquidTopBarButton(
             imageVector = icon,
             contentDescription = contentDescription,
             modifier = Modifier.size(iconSize).offset(iconOffset.x, iconOffset.y),
-            tint = if (isLightTheme) Color.Black.copy(alpha = 0.8f) else Color.White.copy(alpha = 0.8f)
+            tint = if (iconTint != Color.Unspecified) iconTint else if (isLightTheme) Color.Black.copy(alpha = 0.8f) else Color.White.copy(alpha = 0.8f)
         )
     }
 }

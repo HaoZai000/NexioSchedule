@@ -202,60 +202,63 @@ fun WebDavSettingsScreen(onBack: () -> Unit) {
                         color = Color.Transparent,
                         title = "WebDAV 云同步",
                         modifier = Modifier.zIndex(1f),
-                        navigationIcon = {},
-                        actions = {
-                            IconButton(
-                                onClick = {
-                                    hapticFeedback.performHapticFeedback(HapticFeedbackType.Confirm)
-                                    if (!testing) {
-                                        testing = true
-                                        statusText = ""
-                                        connected = false
-                                        coroutineScope.launch {
-                                            webDavManager.serverUrl = serverUrl
-                                            webDavManager.username = username
-                                            webDavManager.password = password
-                                            val result = webDavManager.testConnection()
-                                            if (result.isSuccess) {
-                                                statusText = result.getOrThrow()
-                                                statusIsError = false
-                                                connected = true
-                                            } else {
-                                                statusText = result.exceptionOrNull()?.message ?: "连接失败"
-                                                statusIsError = true
-                                                connected = false
-                                            }
-                                            testing = false
-                                        }
-                                    }
-                                },
-                                enabled = canTest && !testing && !connected
-                            ) {
-                                Icon(
-                                    imageVector = if (connected) MiuixIcons.Ok else MiuixIcons.Play,
-                                    contentDescription = if (connected) "连接成功" else "测试连接",
-                                    modifier = Modifier.size(26.dp),
-                                    tint = if (connected) ComposeColor(0xFF4CAF50) else MiuixTheme.colorScheme.onSurface.copy(alpha = if (canTest) 1f else 0.3f)
-                                )
-                            }
-                        }
+                        navigationIcon = {}
                     )
-                    LiquidTopBarButton(
-                        onClick = {
-                            hapticFeedback.performHapticFeedback(HapticFeedbackType.VirtualKey)
-                            saveConfig()
-                            onBack()
-                        },
-                        backdrop = liquidGlassBackdrop,
-                        icon = MiuixIcons.Medium.ChevronBackward,
-                        contentDescription = "返回",
+                    Row(
                         modifier = Modifier
+                            .fillMaxWidth()
                             .zIndex(2f)
-                            .offset(x = 20.dp, y = if (statusBarPadding > 0.dp) statusBarPadding + 5.dp else 42.dp),
-                        iconSize = 22.dp,
-                        iconOffset = DpOffset(x = (-2).dp, y = 0.dp),
-                        useBackdropShadow = true
-                    )
+                            .offset(y = if (statusBarPadding > 0.dp) statusBarPadding + 5.dp else 42.dp),
+                        horizontalArrangement = Arrangement.SpaceBetween
+                    ) {
+                        LiquidTopBarButton(
+                            onClick = {
+                                hapticFeedback.performHapticFeedback(HapticFeedbackType.VirtualKey)
+                                saveConfig()
+                                onBack()
+                            },
+                            backdrop = liquidGlassBackdrop,
+                            icon = MiuixIcons.Medium.ChevronBackward,
+                            contentDescription = "返回",
+                            modifier = Modifier.offset(x = 20.dp),
+                            iconSize = 22.dp,
+                            iconOffset = DpOffset(x = (-2).dp, y = 0.dp),
+                            useBackdropShadow = true
+                        )
+                        LiquidTopBarButton(
+                            onClick = {
+                                hapticFeedback.performHapticFeedback(HapticFeedbackType.Confirm)
+                                if (!testing) {
+                                    testing = true
+                                    statusText = ""
+                                    connected = false
+                                    coroutineScope.launch {
+                                        webDavManager.serverUrl = serverUrl
+                                        webDavManager.username = username
+                                        webDavManager.password = password
+                                        val result = webDavManager.testConnection()
+                                        if (result.isSuccess) {
+                                            statusText = result.getOrThrow()
+                                            statusIsError = false
+                                            connected = true
+                                        } else {
+                                            statusText = result.exceptionOrNull()?.message ?: "连接失败"
+                                            statusIsError = true
+                                            connected = false
+                                        }
+                                        testing = false
+                                    }
+                                }
+                            },
+                            backdrop = liquidGlassBackdrop,
+                            icon = if (connected) MiuixIcons.Ok else MiuixIcons.Medium.Play,
+                            contentDescription = if (connected) "连接成功" else "测试连接",
+                            modifier = Modifier.offset(x = (-20).dp),
+                            iconSize = 22.dp,
+                            iconTint = if (connected) ComposeColor(0xFF4CAF50) else Color.Unspecified,
+                            useBackdropShadow = true
+                        )
+                    }
                 }
             } else {
                 TopAppBar(
