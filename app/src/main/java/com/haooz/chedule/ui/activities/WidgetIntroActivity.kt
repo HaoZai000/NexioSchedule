@@ -160,7 +160,10 @@ private fun WidgetIntroScreen(onBack: () -> Unit) {
         Column(
             modifier = Modifier
                 .fillMaxSize()
-                .padding(paddingValues)
+                .then(
+                    if (isLiquidGlass) Modifier.padding(bottom = paddingValues.calculateBottomPadding())
+                    else Modifier.padding(paddingValues)
+                )
                 .padding(horizontal = 16.dp)
                 .overScrollVertical()
                 .nestedScroll(scrollBehavior.nestedScrollConnection)
