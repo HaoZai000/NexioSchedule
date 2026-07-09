@@ -39,7 +39,6 @@ import androidx.compose.runtime.setValue
 import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.zIndex
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.graphics.Color
@@ -62,10 +61,6 @@ import com.haooz.chedule.ui.activities.PreferenceSettingsActivity
 import com.haooz.chedule.ui.activities.WidgetIntroActivity
 import com.haooz.chedule.ui.utils.isAppDarkTheme
 import com.haooz.chedule.ui.utils.rememberAppStyle
-import com.kyant.backdrop.backdrops.layerBackdrop as liquidGlassLayerBackdrop
-import com.kyant.backdrop.drawPlainBackdrop
-import com.kyant.backdrop.effects.blur
-import com.kyant.backdrop.effects.runtimeShaderEffect
 import com.haooz.chedule.viewmodel.CourseViewModel
 import com.haooz.chedule.viewmodel.ScheduleViewModel
 import com.haooz.chedule.viewmodel.SettingsViewModel
@@ -78,8 +73,6 @@ import top.yukonga.miuix.kmp.basic.DropdownItem
 import top.yukonga.miuix.kmp.basic.MiuixScrollBehavior
 import top.yukonga.miuix.kmp.basic.NumberPicker
 import top.yukonga.miuix.kmp.basic.Scaffold
-import top.yukonga.miuix.kmp.basic.SmallTitle
-import top.yukonga.miuix.kmp.basic.SmallTopAppBar
 import top.yukonga.miuix.kmp.basic.Switch
 import top.yukonga.miuix.kmp.basic.TextButton
 import top.yukonga.miuix.kmp.basic.TextField
@@ -141,7 +134,8 @@ fun SettingsScreen(
     onExitShiftMode: () -> Unit = {},
     onEnterShiftMode: () -> Unit = {},
     navBarStyle: String = "standard",
-    liquidGlassBackdrop: com.kyant.backdrop.Backdrop? = null
+    liquidGlassBackdrop: com.kyant.backdrop.Backdrop? = null,
+    onScrollYChanged: (Int) -> Unit = {}
 ) {
     val totalWeeks by viewModel.totalWeeks.collectAsState()
     val currentWeek by viewModel.currentWeek.collectAsState()
@@ -254,113 +248,18 @@ fun SettingsScreen(
         drawContent()
     }
     val isDark = isAppDarkTheme()
-    val blurAlpha = if (listScrollY < 50) 0f else ((listScrollY - 50) / 50f).coerceIn(0f, 0.7f)
-    val topBarColorProgress = ((listScrollY - 50) / 50f).coerceIn(0f, 1f)
-    val topBarColor = if (listScrollY < 50) {
-        MiuixTheme.colorScheme.surface
-    } else {
-        val surface = MiuixTheme.colorScheme.surface
-        val target = if (isDark) ComposeColor.Black.copy(alpha = 0.7f) else ComposeColor.White.copy(alpha = 0.7f)
-        lerp(surface, target, topBarColorProgress)
-    }
-    val topAppBarColors = BlurDefaults.blurColors(
-        blendColors = listOf(
-            if (isDark) BlendColorEntry(ComposeColor.Black.copy(alpha = blurAlpha), BlurBlendMode.SrcOver)
-            else BlendColorEntry(ComposeColor.White.copy(alpha = blurAlpha), BlurBlendMode.SrcOver)
-        ),
-        brightness = 0f,
-        contrast = 1f,
-        saturation = 1.2f
-    )
 
     val appStyle = rememberAppStyle()
     val isLiquidGlass = appStyle == "liquidglass" && liquidGlassBackdrop != null
     val isTabletLiquidGlass = navBarStyle == "rail" && isLiquidGlass
-    val tintColor = if (isDark) Color(0xFF808080) else Color.White
 
     Box(modifier = Modifier.fillMaxSize()) {
         Scaffold(
-        topBar = {
-            if (isLiquidGlass && liquidGlassBackdrop != null) {
-                Box {
-                    Box(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .height(100.dp)
-                            .drawPlainBackdrop(
-                                backdrop = liquidGlassBackdrop,
-                                shape = { RectangleShape },
-                                effects = {
-                                    blur(4f.dp.toPx())
-                                    runtimeShaderEffect(
-                                        "ProgressiveBlurAlphaMask",
-                                        """
-    uniform shader content;
-    uniform float2 size;
-    layout(color) uniform half4 tint;
-    uniform float tintIntensity;
-
-    half4 main(float2 coord) {
-        float blurAlpha = smoothstep(size.y, size.y * 0.6, coord.y);
-        float tintAlpha = smoothstep(size.y, size.y * 0.7, coord.y);
-        return mix(content.eval(coord) * blurAlpha, tint * tintAlpha, tintIntensity);
-    }""",
-                                        "content"
-                                    ) {
-                                        setFloatUniform("size", size.width, size.height)
-                                        setColorUniform("tint", tintColor)
-                                        setFloatUniform("tintIntensity", 0.2f)
-                                    }
-                                }
-                            )
-                    )
-                    SmallTopAppBar(
-                        color = topBarColor,
-                        title = if (isTabletLiquidGlass) "" else "我的",
-                        scrollBehavior = scrollBehavior,
-                        modifier = Modifier.zIndex(1f),
-                        navigationIcon = if (isTabletLiquidGlass) {
-                            {
-                                Text(
-                                    text = "我的",
-                                    fontSize = 20.sp,
-                                    fontWeight = FontWeight.Medium,
-                                    color = MiuixTheme.colorScheme.onSurface,
-                                    modifier = Modifier.padding(start = 12.dp)
-                                )
-                            }
-                        } else {
-                            {}
-                        },
-                    )
-                }
-            } else {
-                TopAppBar(
-                    modifier = if (blurAlpha > 0f) {
-                        Modifier.textureBlur(
-                            backdrop = backdrop,
-                            shape = RectangleShape,
-                            colors = topAppBarColors
-                        )
-                    } else {
-                        Modifier
-                    },
-                    color = topBarColor,
-                    title = "我的",
-                    largeTitle = "我的",
-                    scrollBehavior = scrollBehavior,
-                )
-            }
-        }
+        topBar = {}
     ) { paddingValues ->
         Box(
             modifier = Modifier
                 .fillMaxSize()
-                .then(
-                    if (isLiquidGlass && liquidGlassBackdrop is com.kyant.backdrop.backdrops.LayerBackdrop)
-                        Modifier.liquidGlassLayerBackdrop(liquidGlassBackdrop)
-                    else Modifier
-                )
                 .layerBackdrop(backdrop)
         ) {
             val listState = rememberLazyListState()
@@ -368,6 +267,7 @@ fun SettingsScreen(
                 snapshotFlow { listState.firstVisibleItemScrollOffset }
                     .collect { offset ->
                         listScrollY = offset
+                        onScrollYChanged(offset)
                     }
             }
             LazyColumn(
