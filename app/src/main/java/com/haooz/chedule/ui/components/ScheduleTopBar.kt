@@ -128,8 +128,7 @@ internal fun ScheduleTopBar(
         label = "topBarRailPadding",
     )
 
-    val isDark = isAppDarkTheme()
-    val tintColor = if (isDark) ComposeColor(0xFF000000) else ComposeColor.
+    val tintColor = MiuixTheme.colorScheme.surface
 
     Box(
         modifier = Modifier.padding(start = railPaddingStart)
@@ -137,7 +136,7 @@ internal fun ScheduleTopBar(
         Box(
             modifier = Modifier
                 .fillMaxWidth()
-                .height(titleBarHeight + 40.dp)
+                .height(titleBarHeight + 60.dp)
                 .then(
                     if (appStyle == "liquidglass" && liquidGlassBackdrop != null) {
                         Modifier.drawPlainBackdrop(
@@ -154,15 +153,15 @@ internal fun ScheduleTopBar(
     uniform float tintIntensity;
 
     half4 main(float2 coord) {
-        float blurAlpha = smoothstep(size.y, size.y * 0.5, coord.y);
-        float tintAlpha = smoothstep(size.y, size.y * 0.5, coord.y);
+        float blurAlpha = smoothstep(size.y, size.y * 0.7, coord.y);
+        float tintAlpha = smoothstep(size.y, size.y * 0.7, coord.y);
         return mix(content.eval(coord) * blurAlpha, tint * tintAlpha, tintIntensity);
     }""",
                                     "content"
                                 ) {
                                     setFloatUniform("size", size.width, size.height)
                                     setColorUniform("tint", tintColor)
-                                    setFloatUniform("tintIntensity", 0.8f)
+                                    setFloatUniform("tintIntensity", 0.2f)
                                 }
                             }
                         )
