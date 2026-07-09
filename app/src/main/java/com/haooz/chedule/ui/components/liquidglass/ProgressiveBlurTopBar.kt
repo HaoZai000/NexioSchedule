@@ -15,6 +15,7 @@ import com.kyant.backdrop.Backdrop
 import com.kyant.backdrop.drawPlainBackdrop
 import com.kyant.backdrop.effects.blur
 import com.kyant.backdrop.effects.runtimeShaderEffect
+import top.yukonga.miuix.kmp.theme.MiuixTheme
 
 /**
  * 渐变模糊顶部栏容器
@@ -34,8 +35,7 @@ fun ProgressiveBlurTopBar(
     height: Dp = 120.dp,
     content: @Composable BoxScope.() -> Unit
 ) {
-    val isLightTheme = !isSystemInDarkTheme()
-    val tintColor = if (isLightTheme) Color.White else Color(0xFF808080)
+    val tintColor = MiuixTheme.colorScheme.surface
 
     Box(modifier = modifier) {
         // 模糊层 - 在底层，采样 backdrop

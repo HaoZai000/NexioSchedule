@@ -1263,7 +1263,8 @@ fun CourseScheduleApp() {
                         },
                         onDelete = { courseId ->
                             viewModel.deleteCourse(courseId)
-                        }
+                        },
+                        liquidGlassBackdrop = liquidGlassBackdrop
                     )
                 }
             }
