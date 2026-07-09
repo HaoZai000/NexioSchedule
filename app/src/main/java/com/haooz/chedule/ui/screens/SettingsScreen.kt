@@ -320,7 +320,7 @@ fun SettingsScreen(
                     ),
                 contentPadding = PaddingValues(
                     start = 16.dp,
-                    top = if (isLiquidGlass && !isTabletLiquidGlass) paddingValues.calculateTopPadding() + 56.dp else paddingValues.calculateTopPadding(),
+                    top = if (isLiquidGlass) paddingValues.calculateTopPadding() + 56.dp else paddingValues.calculateTopPadding(),
                     end = 16.dp,
                     bottom = 120.dp
                 ),
