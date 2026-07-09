@@ -33,6 +33,7 @@ fun ProgressiveBlurTopBar(
     backdrop: Backdrop,
     modifier: Modifier = Modifier,
     height: Dp = 120.dp,
+    tintIntensity: Float = 0.2f,
     content: @Composable BoxScope.() -> Unit
 ) {
     val tintColor = MiuixTheme.colorScheme.surface
@@ -65,7 +66,7 @@ fun ProgressiveBlurTopBar(
                         ) {
                             setFloatUniform("size", size.width, size.height)
                             setColorUniform("tint", tintColor)
-                            setFloatUniform("tintIntensity", 0.2f)
+                            setFloatUniform("tintIntensity", tintIntensity)
                         }
                     }
                 )

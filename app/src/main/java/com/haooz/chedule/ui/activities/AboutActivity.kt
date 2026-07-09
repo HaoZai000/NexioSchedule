@@ -221,6 +221,7 @@ private fun AboutScreen(onBack: () -> Unit) {
                 val statusBarPadding = WindowInsets.statusBars.asPaddingValues().calculateTopPadding()
                 ProgressiveBlurTopBar(
                     backdrop = liquidGlassBackdrop,
+                    tintIntensity = scrollProgress * 0.2f,
                 ) {
                     SmallTopAppBar(
                         color = Color.Transparent,
