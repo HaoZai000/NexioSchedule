@@ -62,7 +62,7 @@ fun CourseCard(
         Color(course.colorRes)
     } else {
         if (hasBlur) {
-            Color(0xFF6E6E6E).copy(alpha = if (isAppDarkTheme()) 0.6f else 0.8f)
+            Color(0xFF6E6E6E).copy(alpha = if (isAppDarkTheme()) 0.7f else 0.6f)
         } else {
             Color(0xFF9E9E9E).copy(alpha = if (isAppDarkTheme()) 0.28f else 0.45f)
         }
