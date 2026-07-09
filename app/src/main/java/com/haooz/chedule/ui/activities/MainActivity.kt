@@ -2144,28 +2144,10 @@ private fun SettingsTopBar(
     val appStyle = com.haooz.chedule.ui.utils.rememberAppStyle()
     val isLiquidGlass = appStyle == "liquidglass" && liquidGlassBackdrop != null
     val isTabletLiquidGlass = navBarStyle == "rail" && isLiquidGlass
-
-    val blurAlpha = if (scrollY < 50) 0f else ((scrollY - 50) / 50f).coerceIn(0f, 0.7f)
-    val topBarColorProgress = ((scrollY - 50) / 50f).coerceIn(0f, 1f)
-    val surface = MiuixTheme.colorScheme.surface
-    val topBarColor = if (scrollY < 50) {
-        surface
-    } else {
-        val target = if (isDark) ComposeColor.Black.copy(alpha = 0.7f) else ComposeColor.White.copy(alpha = 0.7f)
-        lerp(surface, target, topBarColorProgress)
-    }
-    val topAppBarColors = BlurDefaults.blurColors(
-        blendColors = listOf(
-            if (isDark) BlendColorEntry(ComposeColor.Black.copy(alpha = blurAlpha), BlurBlendMode.SrcOver)
-            else BlendColorEntry(ComposeColor.White.copy(alpha = blurAlpha), BlurBlendMode.SrcOver)
-        ),
-        brightness = 0f,
-        contrast = 1f,
-        saturation = 1.2f
-    )
     val tintColor = if (isDark) androidx.compose.ui.graphics.Color(0xFF808080) else androidx.compose.ui.graphics.Color.White
 
     if (isLiquidGlass && liquidGlassBackdrop != null) {
+        // 液态玻璃模式：固定渐变模糊，不随滚动变化
         Box {
             Box(
                 modifier = Modifier
@@ -2199,7 +2181,7 @@ private fun SettingsTopBar(
                     )
             )
             top.yukonga.miuix.kmp.basic.SmallTopAppBar(
-                color = topBarColor,
+                color = androidx.compose.ui.graphics.Color.Transparent,
                 title = if (isTabletLiquidGlass) "" else "我的",
                 modifier = Modifier.zIndex(1f),
                 navigationIcon = if (isTabletLiquidGlass) {
@@ -2218,6 +2200,25 @@ private fun SettingsTopBar(
             )
         }
     } else {
+        // 非液态玻璃模式：textureBlur 随滚动变化
+        val blurAlpha = if (scrollY < 50) 0f else ((scrollY - 50) / 50f).coerceIn(0f, 0.7f)
+        val topBarColorProgress = ((scrollY - 50) / 50f).coerceIn(0f, 1f)
+        val surface = MiuixTheme.colorScheme.surface
+        val topBarColor = if (scrollY < 50) {
+            surface
+        } else {
+            val target = if (isDark) ComposeColor.Black.copy(alpha = 0.7f) else ComposeColor.White.copy(alpha = 0.7f)
+            lerp(surface, target, topBarColorProgress)
+        }
+        val topAppBarColors = BlurDefaults.blurColors(
+            blendColors = listOf(
+                if (isDark) BlendColorEntry(ComposeColor.Black.copy(alpha = blurAlpha), BlurBlendMode.SrcOver)
+                else BlendColorEntry(ComposeColor.White.copy(alpha = blurAlpha), BlurBlendMode.SrcOver)
+            ),
+            brightness = 0f,
+            contrast = 1f,
+            saturation = 1.2f
+        )
         top.yukonga.miuix.kmp.basic.TopAppBar(
             modifier = if (blurAlpha > 0f) {
                 Modifier.textureBlur(
