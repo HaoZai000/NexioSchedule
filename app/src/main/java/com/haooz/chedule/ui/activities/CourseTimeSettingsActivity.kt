@@ -265,15 +265,32 @@ fun CourseTimeSettingsScreen(onBack: () -> Unit) {
                     .then(
                         if (!isLiquidGlass) Modifier.nestedScroll(scrollBehavior.nestedScrollConnection) else Modifier
                     ),
-                contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = paddingValues.calculateTopPadding() + 12.dp, bottom = 60.dp),
+                contentPadding = PaddingValues(
+                    start = 16.dp,
+                    end = 16.dp,
+                    top = paddingValues.calculateTopPadding() + 12.dp,
+                    bottom = 60.dp
+                ),
                 verticalArrangement = Arrangement.spacedBy(12.dp)
             ) {
                 // 快捷设置
                 item {
-                    val topStartRadius by animateDpAsState(if (quickTimeEnabled) 20.dp else 20.dp, label = "topStart")
-                    val topEndRadius by animateDpAsState(if (quickTimeEnabled) 20.dp else 20.dp, label = "topEnd")
-                    val bottomEndRadius by animateDpAsState(if (quickTimeEnabled) 32.dp else 20.dp, label = "bottomEnd")
-                    val bottomStartRadius by animateDpAsState(if (quickTimeEnabled) 32.dp else 20.dp, label = "bottomStart")
+                    val topStartRadius by animateDpAsState(
+                        if (quickTimeEnabled) 20.dp else 20.dp,
+                        label = "topStart"
+                    )
+                    val topEndRadius by animateDpAsState(
+                        if (quickTimeEnabled) 20.dp else 20.dp,
+                        label = "topEnd"
+                    )
+                    val bottomEndRadius by animateDpAsState(
+                        if (quickTimeEnabled) 32.dp else 20.dp,
+                        label = "bottomEnd"
+                    )
+                    val bottomStartRadius by animateDpAsState(
+                        if (quickTimeEnabled) 32.dp else 20.dp,
+                        label = "bottomStart"
+                    )
                     val cardModifier = Modifier.fillMaxWidth().squircleSurface(
                         color = MiuixTheme.colorScheme.secondaryVariant,
                         topStart = topStartRadius,
@@ -281,109 +298,301 @@ fun CourseTimeSettingsScreen(onBack: () -> Unit) {
                         bottomEnd = bottomEndRadius,
                         bottomStart = bottomStartRadius
                     )
-                    Card(cornerRadius = 0.dp, modifier = cardModifier, insideMargin = PaddingValues(0.dp)) {
+                    Card(
+                        cornerRadius = 0.dp,
+                        modifier = cardModifier,
+                        insideMargin = PaddingValues(0.dp)
+                    ) {
+                        Column(modifier = Modifier.fillMaxWidth()) {
+                            Row(
+                                modifier = Modifier.fillMaxWidth()
+                                    .clickable {
+                                        quickTimeEnabled = false; repository.setQuickTimeEnabled(
+                                        false
+                                    )
+                                    }
+                                    .padding(horizontal = 16.dp, vertical = 14.dp),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Text(
+                                    "快捷设置时间",
+                                    fontSize = 17.sp,
+                                    fontWeight = FontWeight.Medium,
+                                    color = MiuixTheme.colorScheme.onSurface
+                                )
+                                Switch(
+                                    checked = quickTimeEnabled,
+                                    onCheckedChange = {
+                                        quickTimeEnabled = it; repository.setQuickTimeEnabled(it)
+                                    })
+                            }
+                            AnimatedVisibility(
+                                visible = quickTimeEnabled,
+                                enter = expandVertically(),
+                                exit = shrinkVertically()
+                            ) {
                                 Column(modifier = Modifier.fillMaxWidth()) {
+                                    ArrowPreference(
+                                        title = "每节课时长",
+                                        endActions = {
+                                            Text(
+                                                "${classDuration}分钟",
+                                                fontSize = 14.5.sp,
+                                                color = MiuixTheme.colorScheme.onSurfaceVariantActions
+                                            )
+                                        },
+                                        onClick = {
+                                            quickEditType = "duration"; quickTempValue =
+                                            classDuration; showQuickItemDialog = true
+                                        },
+                                        holdDownState = showQuickItemDialog && quickEditType == "duration"
+                                    )
+                                    ArrowPreference(
+                                        title = "课间休息",
+                                        endActions = {
+                                            Text(
+                                                "${shortBreak}分钟",
+                                                fontSize = 14.5.sp,
+                                                color = MiuixTheme.colorScheme.onSurfaceVariantActions
+                                            )
+                                        },
+                                        onClick = {
+                                            quickEditType = "short_break"; quickTempValue =
+                                            shortBreak; showQuickItemDialog = true
+                                        },
+                                        holdDownState = showQuickItemDialog && quickEditType == "short_break"
+                                    )
                                     Row(
-                                        modifier = Modifier.fillMaxWidth()
-                                            .clickable { quickTimeEnabled = false; repository.setQuickTimeEnabled(false) }
-                                            .padding(horizontal = 16.dp, vertical = 14.dp),
+                                        modifier = Modifier.fillMaxWidth().clickable {
+                                            longBreakEnabled =
+                                                !longBreakEnabled; repository.setLongBreakEnabled(
+                                            longBreakEnabled
+                                        )
+                                        }.padding(horizontal = 16.dp, vertical = 14.dp),
                                         horizontalArrangement = Arrangement.SpaceBetween,
                                         verticalAlignment = Alignment.CenterVertically
                                     ) {
-                                        Text("快捷设置时间", fontSize = 17.sp, fontWeight = FontWeight.Medium, color = MiuixTheme.colorScheme.onSurface)
-                                        Switch(checked = quickTimeEnabled, onCheckedChange = { quickTimeEnabled = it; repository.setQuickTimeEnabled(it) })
+                                        Text(
+                                            "大课间休息",
+                                            fontSize = 17.sp,
+                                            fontWeight = FontWeight.Medium,
+                                            color = MiuixTheme.colorScheme.onSurface
+                                        )
+                                        Switch(
+                                            checked = longBreakEnabled,
+                                            onCheckedChange = {
+                                                longBreakEnabled =
+                                                    it; repository.setLongBreakEnabled(it)
+                                            })
                                     }
                                     AnimatedVisibility(
-                                        visible = quickTimeEnabled,
+                                        visible = longBreakEnabled,
                                         enter = expandVertically(),
                                         exit = shrinkVertically()
                                     ) {
-                                        Column(modifier = Modifier.fillMaxWidth()) {
-                                            ArrowPreference(title = "每节课时长",
-                                                endActions = { Text("${classDuration}分钟", fontSize = 14.5.sp, color = MiuixTheme.colorScheme.onSurfaceVariantActions) },
-                                                onClick = { quickEditType = "duration"; quickTempValue = classDuration; showQuickItemDialog = true },
-                                                holdDownState = showQuickItemDialog && quickEditType == "duration")
-                                            ArrowPreference(title = "课间休息",
-                                                endActions = { Text("${shortBreak}分钟", fontSize = 14.5.sp, color = MiuixTheme.colorScheme.onSurfaceVariantActions) },
-                                                onClick = { quickEditType = "short_break"; quickTempValue = shortBreak; showQuickItemDialog = true },
-                                                holdDownState = showQuickItemDialog && quickEditType == "short_break")
-                                            Row(
-                                                modifier = Modifier.fillMaxWidth().clickable { longBreakEnabled = !longBreakEnabled; repository.setLongBreakEnabled(longBreakEnabled) }.padding(horizontal = 16.dp, vertical = 14.dp),
-                                                horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically
-                                            ) {
-                                                Text("大课间休息", fontSize = 17.sp, fontWeight = FontWeight.Medium, color = MiuixTheme.colorScheme.onSurface)
-                                                Switch(checked = longBreakEnabled, onCheckedChange = { longBreakEnabled = it; repository.setLongBreakEnabled(it) })
-                                            }
-                                            AnimatedVisibility(
-                                                visible = longBreakEnabled,
-                                                enter = expandVertically(),
-                                                exit = shrinkVertically()
-                                            ) {
-                                                Column {
-                                                    ArrowPreference(title = "上午大课间休息",
-                                                        endActions = { Text("第${longBreakMorningSection}节后 ${longBreakMorning}分钟", fontSize = 14.5.sp, color = MiuixTheme.colorScheme.onSurfaceVariantActions) },
-                                                        onClick = { quickEditType = "long_morning"; quickTempSection = longBreakMorningSection; quickTempValue = longBreakMorning; showQuickItemDialog = true },
-                                                        holdDownState = showQuickItemDialog && quickEditType == "long_morning")
-                                                    ArrowPreference(title = "下午大课间休息",
-                                                        endActions = { Text("第${longBreakAfternoonSection}节后 ${longBreakAfternoon}分钟", fontSize = 14.5.sp, color = MiuixTheme.colorScheme.onSurfaceVariantActions) },
-                                                        onClick = { quickEditType = "long_afternoon"; quickTempSection = longBreakAfternoonSection; quickTempValue = longBreakAfternoon; showQuickItemDialog = true },
-                                                        holdDownState = showQuickItemDialog && quickEditType == "long_afternoon")
-                                                    ArrowPreference(title = "晚上大课间休息",
-                                                        endActions = { Text("第${longBreakEveningSection}节后 ${longBreakEvening}分钟", fontSize = 14.5.sp, color = MiuixTheme.colorScheme.onSurfaceVariantActions) },
-                                                        onClick = { quickEditType = "long_evening"; quickTempSection = longBreakEveningSection; quickTempValue = longBreakEvening; showQuickItemDialog = true },
-                                                        holdDownState = showQuickItemDialog && quickEditType == "long_evening")
-                                                }
-                                            }
-                                            ArrowPreference(title = "上午开始时间",
-                                                endActions = { Text(String.format("%02d:%02d", morningStartHour, morningStartMinute), fontSize = 14.5.sp, color = MiuixTheme.colorScheme.onSurfaceVariantActions) },
-                                                onClick = { quickEditType = "start_morning"; quickTempHour = morningStartHour; quickTempMinute = morningStartMinute; showQuickItemDialog = true },
-                                                holdDownState = showQuickItemDialog && quickEditType == "start_morning")
-                                            ArrowPreference(title = "下午开始时间",
-                                                endActions = { Text(String.format("%02d:%02d", afternoonStartHour, afternoonStartMinute), fontSize = 14.5.sp, color = MiuixTheme.colorScheme.onSurfaceVariantActions) },
-                                                onClick = { quickEditType = "start_afternoon"; quickTempHour = afternoonStartHour; quickTempMinute = afternoonStartMinute; showQuickItemDialog = true },
-                                                holdDownState = showQuickItemDialog && quickEditType == "start_afternoon")
-                                            ArrowPreference(title = "晚上开始时间",
-                                                endActions = { Text(String.format("%02d:%02d", eveningStartHour, eveningStartMinute), fontSize = 14.5.sp, color = MiuixTheme.colorScheme.onSurfaceVariantActions) },
-                                                onClick = { quickEditType = "start_evening"; quickTempHour = eveningStartHour; quickTempMinute = eveningStartMinute; showQuickItemDialog = true },
-                                                holdDownState = showQuickItemDialog && quickEditType == "start_evening")
-                                            TextButton(
-                                                text = "应用",
-                                                onClick = {
-                                                    hapticFeedback.performHapticFeedback(HapticFeedbackType.Confirm)
-                                                    val lbM = if (longBreakEnabled) longBreakMorning else shortBreak
-                                                    val lbA = if (longBreakEnabled) longBreakAfternoon else shortBreak
-                                                    val lbE = if (longBreakEnabled) longBreakEvening else shortBreak
-                                                    val lbsM = if (longBreakEnabled) longBreakMorningSection else 2
-                                                    val lbsA = if (longBreakEnabled) longBreakAfternoonSection else 2
-                                                    val lbsE = if (longBreakEnabled) longBreakEveningSection else 2
-                                                    val mTimes = Course.calculatePeriodTimes(morningSections.value, morningStartHour, morningStartMinute, classDuration, shortBreak, lbM, lbsM)
-                                                    val aTimes = Course.calculatePeriodTimes(afternoonSections.value, afternoonStartHour, afternoonStartMinute, classDuration, shortBreak, lbA, lbsA)
-                                                    val eTimes = Course.calculatePeriodTimes(eveningSections.value, eveningStartHour, eveningStartMinute, classDuration, shortBreak, lbE, lbsE)
-                                                    morningTimes = mTimes; afternoonTimes = aTimes; eveningTimes = eTimes
-                                                    repository.savePeriodTimes("morning", mTimes)
-                                                    repository.savePeriodTimes("afternoon", aTimes)
-                                                    repository.savePeriodTimes("evening", eTimes)
-                                                    Toast.makeText(context, "课程时间已应用", Toast.LENGTH_SHORT).show()
+                                        Column {
+                                            ArrowPreference(
+                                                title = "上午大课间休息",
+                                                endActions = {
+                                                    Text(
+                                                        "第${longBreakMorningSection}节后 ${longBreakMorning}分钟",
+                                                        fontSize = 14.5.sp,
+                                                        color = MiuixTheme.colorScheme.onSurfaceVariantActions
+                                                    )
                                                 },
-                                                colors = ButtonDefaults.textButtonColorsPrimary(),
-                                                modifier = Modifier.fillMaxWidth().padding(start = 20.dp, end = 20.dp, top = 8.dp, bottom = 20.dp)
+                                                onClick = {
+                                                    quickEditType =
+                                                        "long_morning"; quickTempSection =
+                                                    longBreakMorningSection; quickTempValue =
+                                                    longBreakMorning; showQuickItemDialog = true
+                                                },
+                                                holdDownState = showQuickItemDialog && quickEditType == "long_morning"
+                                            )
+                                            ArrowPreference(
+                                                title = "下午大课间休息",
+                                                endActions = {
+                                                    Text(
+                                                        "第${longBreakAfternoonSection}节后 ${longBreakAfternoon}分钟",
+                                                        fontSize = 14.5.sp,
+                                                        color = MiuixTheme.colorScheme.onSurfaceVariantActions
+                                                    )
+                                                },
+                                                onClick = {
+                                                    quickEditType =
+                                                        "long_afternoon"; quickTempSection =
+                                                    longBreakAfternoonSection; quickTempValue =
+                                                    longBreakAfternoon; showQuickItemDialog = true
+                                                },
+                                                holdDownState = showQuickItemDialog && quickEditType == "long_afternoon"
+                                            )
+                                            ArrowPreference(
+                                                title = "晚上大课间休息",
+                                                endActions = {
+                                                    Text(
+                                                        "第${longBreakEveningSection}节后 ${longBreakEvening}分钟",
+                                                        fontSize = 14.5.sp,
+                                                        color = MiuixTheme.colorScheme.onSurfaceVariantActions
+                                                    )
+                                                },
+                                                onClick = {
+                                                    quickEditType =
+                                                        "long_evening"; quickTempSection =
+                                                    longBreakEveningSection; quickTempValue =
+                                                    longBreakEvening; showQuickItemDialog = true
+                                                },
+                                                holdDownState = showQuickItemDialog && quickEditType == "long_evening"
                                             )
                                         }
                                     }
+                                    ArrowPreference(
+                                        title = "上午开始时间",
+                                        endActions = {
+                                            Text(
+                                                String.format(
+                                                    "%02d:%02d",
+                                                    morningStartHour,
+                                                    morningStartMinute
+                                                ),
+                                                fontSize = 14.5.sp,
+                                                color = MiuixTheme.colorScheme.onSurfaceVariantActions
+                                            )
+                                        },
+                                        onClick = {
+                                            quickEditType = "start_morning"; quickTempHour =
+                                            morningStartHour; quickTempMinute =
+                                            morningStartMinute; showQuickItemDialog = true
+                                        },
+                                        holdDownState = showQuickItemDialog && quickEditType == "start_morning"
+                                    )
+                                    ArrowPreference(
+                                        title = "下午开始时间",
+                                        endActions = {
+                                            Text(
+                                                String.format(
+                                                    "%02d:%02d",
+                                                    afternoonStartHour,
+                                                    afternoonStartMinute
+                                                ),
+                                                fontSize = 14.5.sp,
+                                                color = MiuixTheme.colorScheme.onSurfaceVariantActions
+                                            )
+                                        },
+                                        onClick = {
+                                            quickEditType = "start_afternoon"; quickTempHour =
+                                            afternoonStartHour; quickTempMinute =
+                                            afternoonStartMinute; showQuickItemDialog = true
+                                        },
+                                        holdDownState = showQuickItemDialog && quickEditType == "start_afternoon"
+                                    )
+                                    ArrowPreference(
+                                        title = "晚上开始时间",
+                                        endActions = {
+                                            Text(
+                                                String.format(
+                                                    "%02d:%02d",
+                                                    eveningStartHour,
+                                                    eveningStartMinute
+                                                ),
+                                                fontSize = 14.5.sp,
+                                                color = MiuixTheme.colorScheme.onSurfaceVariantActions
+                                            )
+                                        },
+                                        onClick = {
+                                            quickEditType = "start_evening"; quickTempHour =
+                                            eveningStartHour; quickTempMinute =
+                                            eveningStartMinute; showQuickItemDialog = true
+                                        },
+                                        holdDownState = showQuickItemDialog && quickEditType == "start_evening"
+                                    )
+                                    TextButton(
+                                        text = "应用",
+                                        onClick = {
+                                            hapticFeedback.performHapticFeedback(HapticFeedbackType.Confirm)
+                                            val lbM =
+                                                if (longBreakEnabled) longBreakMorning else shortBreak
+                                            val lbA =
+                                                if (longBreakEnabled) longBreakAfternoon else shortBreak
+                                            val lbE =
+                                                if (longBreakEnabled) longBreakEvening else shortBreak
+                                            val lbsM =
+                                                if (longBreakEnabled) longBreakMorningSection else 2
+                                            val lbsA =
+                                                if (longBreakEnabled) longBreakAfternoonSection else 2
+                                            val lbsE =
+                                                if (longBreakEnabled) longBreakEveningSection else 2
+                                            val mTimes = Course.calculatePeriodTimes(
+                                                morningSections.value,
+                                                morningStartHour,
+                                                morningStartMinute,
+                                                classDuration,
+                                                shortBreak,
+                                                lbM,
+                                                lbsM
+                                            )
+                                            val aTimes = Course.calculatePeriodTimes(
+                                                afternoonSections.value,
+                                                afternoonStartHour,
+                                                afternoonStartMinute,
+                                                classDuration,
+                                                shortBreak,
+                                                lbA,
+                                                lbsA
+                                            )
+                                            val eTimes = Course.calculatePeriodTimes(
+                                                eveningSections.value,
+                                                eveningStartHour,
+                                                eveningStartMinute,
+                                                classDuration,
+                                                shortBreak,
+                                                lbE,
+                                                lbsE
+                                            )
+                                            morningTimes = mTimes; afternoonTimes =
+                                            aTimes; eveningTimes = eTimes
+                                            repository.savePeriodTimes("morning", mTimes)
+                                            repository.savePeriodTimes("afternoon", aTimes)
+                                            repository.savePeriodTimes("evening", eTimes)
+                                            Toast.makeText(
+                                                context,
+                                                "课程时间已应用",
+                                                Toast.LENGTH_SHORT
+                                            ).show()
+                                        },
+                                        colors = ButtonDefaults.textButtonColorsPrimary(),
+                                        modifier = Modifier.fillMaxWidth().padding(
+                                            start = 20.dp,
+                                            end = 20.dp,
+                                            top = 8.dp,
+                                            bottom = 20.dp
+                                        )
+                                    )
                                 }
                             }
                         }
+                    }
+                }
 
                 // 上午
                 item {
                     SmallTitle(text = "上午", modifier = Modifier.offset(x = (-16).dp))
-                    Card(cornerRadius = 20.dp, modifier = Modifier.fillMaxWidth(), insideMargin = PaddingValues(0.dp)) {
+                    Card(
+                        cornerRadius = 20.dp,
+                        modifier = Modifier.fillMaxWidth(),
+                        insideMargin = PaddingValues(0.dp)
+                    ) {
                         Column(modifier = Modifier.fillMaxWidth()) {
                             (1..morningSections.value).forEach { relSection ->
                                 val timeStr = morningTimes[relSection] ?: ""
                                 ArrowPreference(
                                     title = "第${relSection}节",
-                                    endActions = { Text(timeStr, fontSize = 14.5.sp, color = MiuixTheme.colorScheme.onSurfaceVariantActions) },
+                                    endActions = {
+                                        Text(
+                                            timeStr,
+                                            fontSize = 14.5.sp,
+                                            color = MiuixTheme.colorScheme.onSurfaceVariantActions
+                                        )
+                                    },
                                     onClick = {
                                         editingSection = relSection; editingPeriod = "morning"
                                         val (start, end) = parseTimeRange(timeStr)
@@ -401,13 +610,23 @@ fun CourseTimeSettingsScreen(onBack: () -> Unit) {
                 // 下午
                 item {
                     SmallTitle(text = "下午", modifier = Modifier.offset(x = (-16).dp))
-                    Card(cornerRadius = 20.dp, modifier = Modifier.fillMaxWidth(), insideMargin = PaddingValues(0.dp)) {
+                    Card(
+                        cornerRadius = 20.dp,
+                        modifier = Modifier.fillMaxWidth(),
+                        insideMargin = PaddingValues(0.dp)
+                    ) {
                         Column(modifier = Modifier.fillMaxWidth()) {
                             (1..afternoonSections.value).forEach { relSection ->
                                 val timeStr = afternoonTimes[relSection] ?: ""
                                 ArrowPreference(
                                     title = "第${morningSections.value + relSection}节",
-                                    endActions = { Text(timeStr, fontSize = 14.5.sp, color = MiuixTheme.colorScheme.onSurfaceVariantActions) },
+                                    endActions = {
+                                        Text(
+                                            timeStr,
+                                            fontSize = 14.5.sp,
+                                            color = MiuixTheme.colorScheme.onSurfaceVariantActions
+                                        )
+                                    },
                                     onClick = {
                                         editingSection = relSection; editingPeriod = "afternoon"
                                         val (start, end) = parseTimeRange(timeStr)
@@ -425,13 +644,23 @@ fun CourseTimeSettingsScreen(onBack: () -> Unit) {
                 // 晚上
                 item {
                     SmallTitle(text = "晚上", modifier = Modifier.offset(x = (-16).dp))
-                    Card(cornerRadius = 20.dp, modifier = Modifier.fillMaxWidth(), insideMargin = PaddingValues(0.dp)) {
+                    Card(
+                        cornerRadius = 20.dp,
+                        modifier = Modifier.fillMaxWidth(),
+                        insideMargin = PaddingValues(0.dp)
+                    ) {
                         Column(modifier = Modifier.fillMaxWidth()) {
                             (1..eveningSections.value).forEach { relSection ->
                                 val timeStr = eveningTimes[relSection] ?: ""
                                 ArrowPreference(
                                     title = "第${morningSections.value + afternoonSections.value + relSection}节",
-                                    endActions = { Text(timeStr, fontSize = 14.5.sp, color = MiuixTheme.colorScheme.onSurfaceVariantActions) },
+                                    endActions = {
+                                        Text(
+                                            timeStr,
+                                            fontSize = 14.5.sp,
+                                            color = MiuixTheme.colorScheme.onSurfaceVariantActions
+                                        )
+                                    },
                                     onClick = {
                                         editingSection = relSection; editingPeriod = "evening"
                                         val (start, end) = parseTimeRange(timeStr)
@@ -464,23 +693,47 @@ fun CourseTimeSettingsScreen(onBack: () -> Unit) {
                 outsideMargin = DpSize(17.dp, 12.dp),
                 onDismissRequest = { showQuickItemDialog = false }
             ) {
-                Column(modifier = Modifier.fillMaxWidth(), horizontalAlignment = Alignment.CenterHorizontally) {
+                Column(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalAlignment = Alignment.CenterHorizontally
+                ) {
                     if (quickEditType.startsWith("start_")) {
-                        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.Center, verticalAlignment = Alignment.CenterVertically) {
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.Center,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
                             NumberPicker(
-                                value = quickTempHour, onValueChange = { quickTempHour = it },
-                                range = when (quickEditType) { "start_morning" -> 6..12; "start_afternoon" -> 12..18; else -> 17..22 },
-                                visibleItemCount = 3, itemHeight = 60.dp,
-                                label = { String.format("%02d", it) }, wrapAround = true,
-                                textStyle = MiuixTheme.textStyles.title1, modifier = Modifier.weight(1f)
+                                value = quickTempHour,
+                                onValueChange = { quickTempHour = it },
+                                range = when (quickEditType) {
+                                    "start_morning" -> 6..12; "start_afternoon" -> 12..18; else -> 17..22
+                                },
+                                visibleItemCount = 3,
+                                itemHeight = 60.dp,
+                                label = { String.format("%02d", it) },
+                                wrapAround = true,
+                                textStyle = MiuixTheme.textStyles.title1,
+                                modifier = Modifier.weight(1f)
                             )
-                            Text(":", style = MiuixTheme.textStyles.title2, fontWeight = FontWeight.Bold, color = MiuixTheme.colorScheme.onSurface, modifier = Modifier.padding().offset(y = (-2).dp))
+                            Text(
+                                ":",
+                                style = MiuixTheme.textStyles.title2,
+                                fontWeight = FontWeight.Bold,
+                                color = MiuixTheme.colorScheme.onSurface,
+                                modifier = Modifier.padding().offset(y = (-2).dp)
+                            )
                             val qMinIdx = minuteValues.indexOf(quickTempMinute).coerceAtLeast(0)
                             NumberPicker(
-                                value = qMinIdx, onValueChange = { quickTempMinute = minuteValues[it] },
-                                range = minuteValues.indices, visibleItemCount = 3, itemHeight = 60.dp,
-                                label = { String.format("%02d", minuteValues[it]) }, wrapAround = true,
-                                textStyle = MiuixTheme.textStyles.title1, modifier = Modifier.weight(1f)
+                                value = qMinIdx,
+                                onValueChange = { quickTempMinute = minuteValues[it] },
+                                range = minuteValues.indices,
+                                visibleItemCount = 3,
+                                itemHeight = 60.dp,
+                                label = { String.format("%02d", minuteValues[it]) },
+                                wrapAround = true,
+                                textStyle = MiuixTheme.textStyles.title1,
+                                modifier = Modifier.weight(1f)
                             )
                         }
                     } else if (quickEditType.startsWith("long_")) {
@@ -491,13 +744,21 @@ fun CourseTimeSettingsScreen(onBack: () -> Unit) {
                             else -> 4
                         }
                         val sectionRange = 1 until sectionCount
-                        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.Center, verticalAlignment = Alignment.CenterVertically) {
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.Center,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
                             NumberPicker(
-                                value = quickTempSection, onValueChange = { quickTempSection = it },
+                                value = quickTempSection,
+                                onValueChange = { quickTempSection = it },
                                 range = sectionRange,
-                                visibleItemCount = 3, itemHeight = 60.dp,
-                                label = { "第${it}节后" }, wrapAround = false,
-                                textStyle = MiuixTheme.textStyles.title2, modifier = Modifier.weight(1f)
+                                visibleItemCount = 3,
+                                itemHeight = 60.dp,
+                                label = { "第${it}节后" },
+                                wrapAround = false,
+                                textStyle = MiuixTheme.textStyles.title2,
+                                modifier = Modifier.weight(1f)
                             )
                             val breakOptions = listOf(10, 15, 20, 25, 30)
                             val breakIndex = breakOptions.indexOf(quickTempValue).coerceAtLeast(0)
@@ -505,9 +766,12 @@ fun CourseTimeSettingsScreen(onBack: () -> Unit) {
                                 value = breakIndex,
                                 onValueChange = { quickTempValue = breakOptions[it] },
                                 range = breakOptions.indices,
-                                visibleItemCount = 3, itemHeight = 60.dp,
-                                label = { "${breakOptions[it]}分钟" }, wrapAround = false,
-                                textStyle = MiuixTheme.textStyles.title2, modifier = Modifier.weight(1f)
+                                visibleItemCount = 3,
+                                itemHeight = 60.dp,
+                                label = { "${breakOptions[it]}分钟" },
+                                wrapAround = false,
+                                textStyle = MiuixTheme.textStyles.title2,
+                                modifier = Modifier.weight(1f)
                             )
                         }
                     } else {
@@ -521,35 +785,89 @@ fun CourseTimeSettingsScreen(onBack: () -> Unit) {
                             value = currentIndex,
                             onValueChange = { quickTempValue = options[it] },
                             range = options.indices,
-                            visibleItemCount = 3, itemHeight = 60.dp,
-                            label = { "${options[it]}分钟" }, textStyle = MiuixTheme.textStyles.title2,
+                            visibleItemCount = 3,
+                            itemHeight = 60.dp,
+                            label = { "${options[it]}分钟" },
+                            textStyle = MiuixTheme.textStyles.title2,
                             modifier = Modifier.fillMaxWidth()
                         )
                     }
-                    Row(modifier = Modifier.fillMaxWidth().padding(top = 12.dp), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                        TextButton(text = "取消",
+                    Row(
+                        modifier = Modifier.fillMaxWidth().padding(top = 12.dp),
+                        horizontalArrangement = Arrangement.spacedBy(12.dp)
+                    ) {
+                        TextButton(
+                            text = "取消",
                             onClick = {
                                 hapticFeedback.performHapticFeedback(HapticFeedbackType.Confirm)
                                 showQuickItemDialog = false
-                                      },
-                            modifier = Modifier.weight(1f))
+                            },
+                            modifier = Modifier.weight(1f)
+                        )
                         TextButton(
                             text = "确定",
                             onClick = {
                                 hapticFeedback.performHapticFeedback(HapticFeedbackType.Confirm)
                                 when (quickEditType) {
-                                    "duration" -> { classDuration = quickTempValue; repository.setClassDuration(quickTempValue) }
-                                    "short_break" -> { shortBreak = quickTempValue; repository.setShortBreak(quickTempValue) }
-                                    "long_morning" -> { longBreakMorning = quickTempValue; longBreakMorningSection = quickTempSection; repository.setLongBreakMorning(quickTempValue); repository.setLongBreakMorningSection(quickTempSection) }
-                                    "long_afternoon" -> { longBreakAfternoon = quickTempValue; longBreakAfternoonSection = quickTempSection; repository.setLongBreakAfternoon(quickTempValue); repository.setLongBreakAfternoonSection(quickTempSection) }
-                                    "long_evening" -> { longBreakEvening = quickTempValue; longBreakEveningSection = quickTempSection; repository.setLongBreakEvening(quickTempValue); repository.setLongBreakEveningSection(quickTempSection) }
-                                    "start_morning" -> { morningStartHour = quickTempHour; morningStartMinute = quickTempMinute; repository.setMorningStartHour(quickTempHour); repository.setMorningStartMinute(quickTempMinute) }
-                                    "start_afternoon" -> { afternoonStartHour = quickTempHour; afternoonStartMinute = quickTempMinute; repository.setAfternoonStartHour(quickTempHour); repository.setAfternoonStartMinute(quickTempMinute) }
-                                    "start_evening" -> { eveningStartHour = quickTempHour; eveningStartMinute = quickTempMinute; repository.setEveningStartHour(quickTempHour); repository.setEveningStartMinute(quickTempMinute) }
+                                    "duration" -> {
+                                        classDuration = quickTempValue; repository.setClassDuration(
+                                            quickTempValue
+                                        )
+                                    }
+
+                                    "short_break" -> {
+                                        shortBreak = quickTempValue; repository.setShortBreak(
+                                            quickTempValue
+                                        )
+                                    }
+
+                                    "long_morning" -> {
+                                        longBreakMorning = quickTempValue; longBreakMorningSection =
+                                            quickTempSection; repository.setLongBreakMorning(
+                                            quickTempValue
+                                        ); repository.setLongBreakMorningSection(quickTempSection)
+                                    }
+
+                                    "long_afternoon" -> {
+                                        longBreakAfternoon =
+                                            quickTempValue; longBreakAfternoonSection =
+                                            quickTempSection; repository.setLongBreakAfternoon(
+                                            quickTempValue
+                                        ); repository.setLongBreakAfternoonSection(quickTempSection)
+                                    }
+
+                                    "long_evening" -> {
+                                        longBreakEvening = quickTempValue; longBreakEveningSection =
+                                            quickTempSection; repository.setLongBreakEvening(
+                                            quickTempValue
+                                        ); repository.setLongBreakEveningSection(quickTempSection)
+                                    }
+
+                                    "start_morning" -> {
+                                        morningStartHour = quickTempHour; morningStartMinute =
+                                            quickTempMinute; repository.setMorningStartHour(
+                                            quickTempHour
+                                        ); repository.setMorningStartMinute(quickTempMinute)
+                                    }
+
+                                    "start_afternoon" -> {
+                                        afternoonStartHour = quickTempHour; afternoonStartMinute =
+                                            quickTempMinute; repository.setAfternoonStartHour(
+                                            quickTempHour
+                                        ); repository.setAfternoonStartMinute(quickTempMinute)
+                                    }
+
+                                    "start_evening" -> {
+                                        eveningStartHour = quickTempHour; eveningStartMinute =
+                                            quickTempMinute; repository.setEveningStartHour(
+                                            quickTempHour
+                                        ); repository.setEveningStartMinute(quickTempMinute)
+                                    }
                                 }
                                 showQuickItemDialog = false
                             },
-                            colors = ButtonDefaults.textButtonColorsPrimary(), modifier = Modifier.weight(1f)
+                            colors = ButtonDefaults.textButtonColorsPrimary(),
+                            modifier = Modifier.weight(1f)
                         )
                     }
                 }
@@ -567,42 +885,142 @@ fun CourseTimeSettingsScreen(onBack: () -> Unit) {
                 outsideMargin = DpSize(17.dp, 12.dp),
                 onDismissRequest = { showTimeDialog = false }
             ) {
-                Column(modifier = Modifier.fillMaxWidth(), horizontalAlignment = Alignment.CenterHorizontally) {
-                    Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.Center) {
-                        NumberPicker(value = tempStartHour, onValueChange = { tempStartHour = it }, range = 0..23, visibleItemCount = 3, itemHeight = 60.dp, label = { String.format("%02d", it) }, wrapAround = true, textStyle = MiuixTheme.textStyles.title2, modifier = Modifier.weight(1f))
-                        Text(":", style = MiuixTheme.textStyles.paragraph, fontWeight = FontWeight.Bold, color = MiuixTheme.colorScheme.onSurface, modifier = Modifier.padding().offset(y = (-2).dp))
+                Column(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalAlignment = Alignment.CenterHorizontally
+                ) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.Center
+                    ) {
+                        NumberPicker(
+                            value = tempStartHour,
+                            onValueChange = { tempStartHour = it },
+                            range = 0..23,
+                            visibleItemCount = 3,
+                            itemHeight = 60.dp,
+                            label = { String.format("%02d", it) },
+                            wrapAround = true,
+                            textStyle = MiuixTheme.textStyles.title2,
+                            modifier = Modifier.weight(1f)
+                        )
+                        Text(
+                            ":",
+                            style = MiuixTheme.textStyles.paragraph,
+                            fontWeight = FontWeight.Bold,
+                            color = MiuixTheme.colorScheme.onSurface,
+                            modifier = Modifier.padding().offset(y = (-2).dp)
+                        )
                         val sMinIdx = minuteValues.indexOf(tempStartMinute).coerceAtLeast(0)
-                        NumberPicker(value = sMinIdx, onValueChange = { tempStartMinute = minuteValues[it] }, range = minuteValues.indices, visibleItemCount = 3, itemHeight = 60.dp, label = { String.format("%02d", minuteValues[it]) }, wrapAround = true, textStyle = MiuixTheme.textStyles.title2, modifier = Modifier.weight(1f))
-                        Text("-", style = MiuixTheme.textStyles.title2, color = MiuixTheme.colorScheme.onSurface, modifier = Modifier.padding())
-                        NumberPicker(value = tempEndHour, onValueChange = { tempEndHour = it }, range = 0..23, visibleItemCount = 3, itemHeight = 60.dp, label = { String.format("%02d", it) }, wrapAround = true, textStyle = MiuixTheme.textStyles.title2, modifier = Modifier.weight(1f))
-                        Text(":", style = MiuixTheme.textStyles.paragraph, fontWeight = FontWeight.Bold, color = MiuixTheme.colorScheme.onSurface, modifier = Modifier.padding().offset(y = (-2).dp))
+                        NumberPicker(
+                            value = sMinIdx,
+                            onValueChange = { tempStartMinute = minuteValues[it] },
+                            range = minuteValues.indices,
+                            visibleItemCount = 3,
+                            itemHeight = 60.dp,
+                            label = { String.format("%02d", minuteValues[it]) },
+                            wrapAround = true,
+                            textStyle = MiuixTheme.textStyles.title2,
+                            modifier = Modifier.weight(1f)
+                        )
+                        Text(
+                            "-",
+                            style = MiuixTheme.textStyles.title2,
+                            color = MiuixTheme.colorScheme.onSurface,
+                            modifier = Modifier.padding()
+                        )
+                        NumberPicker(
+                            value = tempEndHour,
+                            onValueChange = { tempEndHour = it },
+                            range = 0..23,
+                            visibleItemCount = 3,
+                            itemHeight = 60.dp,
+                            label = { String.format("%02d", it) },
+                            wrapAround = true,
+                            textStyle = MiuixTheme.textStyles.title2,
+                            modifier = Modifier.weight(1f)
+                        )
+                        Text(
+                            ":",
+                            style = MiuixTheme.textStyles.paragraph,
+                            fontWeight = FontWeight.Bold,
+                            color = MiuixTheme.colorScheme.onSurface,
+                            modifier = Modifier.padding().offset(y = (-2).dp)
+                        )
                         val eMinIdx = minuteValues.indexOf(tempEndMinute).coerceAtLeast(0)
-                        NumberPicker(value = eMinIdx, onValueChange = { tempEndMinute = minuteValues[it] }, range = minuteValues.indices, visibleItemCount = 3, itemHeight = 60.dp, label = { String.format("%02d", minuteValues[it]) }, wrapAround = true, textStyle = MiuixTheme.textStyles.title2, modifier = Modifier.weight(1f))
+                        NumberPicker(
+                            value = eMinIdx,
+                            onValueChange = { tempEndMinute = minuteValues[it] },
+                            range = minuteValues.indices,
+                            visibleItemCount = 3,
+                            itemHeight = 60.dp,
+                            label = { String.format("%02d", minuteValues[it]) },
+                            wrapAround = true,
+                            textStyle = MiuixTheme.textStyles.title2,
+                            modifier = Modifier.weight(1f)
+                        )
                     }
-                    Row(modifier = Modifier.fillMaxWidth().padding(top = 12.dp), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                        TextButton(text = "取消",
+                    Row(
+                        modifier = Modifier.fillMaxWidth().padding(top = 12.dp),
+                        horizontalArrangement = Arrangement.spacedBy(12.dp)
+                    ) {
+                        TextButton(
+                            text = "取消",
                             onClick = {
                                 hapticFeedback.performHapticFeedback(HapticFeedbackType.Confirm)
                                 showTimeDialog = false
-                                      },
-                            modifier = Modifier.weight(1f))
+                            },
+                            modifier = Modifier.weight(1f)
+                        )
                         TextButton(
                             text = "确定",
                             onClick = {
                                 hapticFeedback.performHapticFeedback(HapticFeedbackType.Confirm)
-                                val newTimeStr = "${String.format("%02d:%02d", tempStartHour, tempStartMinute)}-${String.format("%02d:%02d", tempEndHour, tempEndMinute)}"
+                                val newTimeStr = "${
+                                    String.format(
+                                        "%02d:%02d",
+                                        tempStartHour,
+                                        tempStartMinute
+                                    )
+                                }-${String.format("%02d:%02d", tempEndHour, tempEndMinute)}"
                                 when (editingPeriod) {
-                                    "morning" -> { morningTimes = morningTimes.toMutableMap().apply { put(editingSection, newTimeStr) }; repository.savePeriodTimes("morning", morningTimes) }
-                                    "afternoon" -> { afternoonTimes = afternoonTimes.toMutableMap().apply { put(editingSection, newTimeStr) }; repository.savePeriodTimes("afternoon", afternoonTimes) }
-                                    "evening" -> { eveningTimes = eveningTimes.toMutableMap().apply { put(editingSection, newTimeStr) }; repository.savePeriodTimes("evening", eveningTimes) }
+                                    "morning" -> {
+                                        morningTimes = morningTimes.toMutableMap().apply {
+                                            put(
+                                                editingSection,
+                                                newTimeStr
+                                            )
+                                        }; repository.savePeriodTimes("morning", morningTimes)
+                                    }
+
+                                    "afternoon" -> {
+                                        afternoonTimes = afternoonTimes.toMutableMap().apply {
+                                            put(
+                                                editingSection,
+                                                newTimeStr
+                                            )
+                                        }; repository.savePeriodTimes("afternoon", afternoonTimes)
+                                    }
+
+                                    "evening" -> {
+                                        eveningTimes = eveningTimes.toMutableMap().apply {
+                                            put(
+                                                editingSection,
+                                                newTimeStr
+                                            )
+                                        }; repository.savePeriodTimes("evening", eveningTimes)
+                                    }
                                 }
                                 showTimeDialog = false
                             },
-                            colors = ButtonDefaults.textButtonColorsPrimary(), modifier = Modifier.weight(1f)
-                                )
-                            }
-                        }
+                            colors = ButtonDefaults.textButtonColorsPrimary(),
+                            modifier = Modifier.weight(1f)
+                        )
                     }
                 }
+            }
+        }
+    }
     }
 }
