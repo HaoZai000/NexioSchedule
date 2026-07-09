@@ -56,6 +56,7 @@ import com.haooz.chedule.ui.utils.rememberAppStyle
 import top.yukonga.miuix.kmp.basic.Card
 import top.yukonga.miuix.kmp.basic.Icon
 import top.yukonga.miuix.kmp.basic.IconButton
+import top.yukonga.miuix.kmp.basic.MiuixScrollBehavior
 import top.yukonga.miuix.kmp.basic.Scaffold
 import top.yukonga.miuix.kmp.basic.SmallTopAppBar
 import top.yukonga.miuix.kmp.basic.TextButton
@@ -97,6 +98,7 @@ private fun WidgetIntroScreen(onBack: () -> Unit) {
         com.kyant.backdrop.backdrops.rememberLayerBackdrop()
     } else null
     val isLiquidGlass = appStyle == "liquidglass"
+    val scrollBehavior = MiuixScrollBehavior()
 
     Scaffold(
         topBar = {
@@ -109,7 +111,8 @@ private fun WidgetIntroScreen(onBack: () -> Unit) {
                         color = Color.Transparent,
                         title = "桌面小部件",
                         modifier = Modifier.zIndex(1f),
-                        navigationIcon = {}
+                        navigationIcon = {},
+                        scrollBehavior = scrollBehavior
                     )
                     LiquidTopBarButton(
                         onClick = { onBack() },
@@ -127,6 +130,7 @@ private fun WidgetIntroScreen(onBack: () -> Unit) {
             } else {
                 TopAppBar(
                     title = "桌面小部件",
+                    scrollBehavior = scrollBehavior,
                     navigationIcon = {
                         IconButton(
                             onClick = {
@@ -159,7 +163,7 @@ private fun WidgetIntroScreen(onBack: () -> Unit) {
                 .verticalScroll(rememberScrollState()),
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
-            Spacer(modifier = Modifier.height(24.dp))
+            Spacer(modifier = Modifier.height(if (isLiquidGlass) 0.dp else 12.dp))
 
             WidgetPreview()
 
