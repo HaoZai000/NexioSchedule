@@ -46,7 +46,7 @@ import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.DpSize
-import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.DpOffset
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.zIndex
 import com.haooz.chedule.data.Course
@@ -77,6 +77,7 @@ import top.yukonga.miuix.kmp.blur.rememberLayerBackdrop
 import top.yukonga.miuix.kmp.blur.textureBlur
 import top.yukonga.miuix.kmp.icon.MiuixIcons
 import top.yukonga.miuix.kmp.icon.extended.Back
+import top.yukonga.miuix.kmp.icon.extended.ChevronBackward
 import top.yukonga.miuix.kmp.overlay.OverlayDialog
 import top.yukonga.miuix.kmp.preference.ArrowPreference
 import top.yukonga.miuix.kmp.squircle.squircleSurface
@@ -216,9 +217,10 @@ fun CourseTimeSettingsScreen(onBack: () -> Unit) {
                     LiquidTopBarButton(
                         onClick = { onBack() },
                         backdrop = liquidGlassBackdrop,
-                        icon = MiuixIcons.Back,
+                        icon = MiuixIcons.ChevronBackward,
                         contentDescription = "返回",
                         modifier = Modifier
+                            .zIndex(2f)
                             .offset(x = 20.dp, y = statusBarPadding + 5.dp),
                         useBackdropShadow = true
                     )

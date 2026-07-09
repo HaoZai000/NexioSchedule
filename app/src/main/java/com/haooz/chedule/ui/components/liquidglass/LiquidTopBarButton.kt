@@ -2,6 +2,7 @@ package com.haooz.chedule.ui.components.liquidglass
 
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.isSystemInDarkTheme
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material3.Icon
@@ -19,6 +20,7 @@ import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.unit.Dp
+import androidx.compose.ui.unit.DpOffset
 import androidx.compose.ui.unit.dp
 import com.kyant.backdrop.Backdrop
 import com.kyant.backdrop.drawBackdrop
@@ -35,6 +37,7 @@ fun LiquidTopBarButton(
     contentDescription: String,
     modifier: Modifier = Modifier,
     iconSize: Dp = 24.dp,
+    iconOffset: DpOffset = DpOffset.Zero,
     buttonHeight: Dp = 40.dp,
     useBackdropShadow: Boolean = false
 ) {
@@ -123,7 +126,7 @@ fun LiquidTopBarButton(
         Icon(
             imageVector = icon,
             contentDescription = contentDescription,
-            modifier = Modifier.size(iconSize),
+            modifier = Modifier.size(iconSize).offset(iconOffset),
             tint = if (isLightTheme) Color.Black.copy(alpha = 0.8f) else Color.White.copy(alpha = 0.8f)
         )
     }
