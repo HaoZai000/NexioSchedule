@@ -43,6 +43,7 @@ import androidx.compose.ui.unit.sp
 import com.haooz.chedule.data.Course
 import com.haooz.chedule.ui.utils.isAppDarkTheme
 import com.haooz.chedule.ui.utils.rememberAppStyle
+import com.haooz.chedule.ui.components.liquidglass.ProgressiveBlurTopBar
 import com.haooz.chedule.viewmodel.CourseViewModel
 import com.haooz.chedule.viewmodel.SettingsViewModel
 import kotlinx.coroutines.delay
@@ -58,9 +59,6 @@ import top.yukonga.miuix.kmp.blur.BlurDefaults
 import top.yukonga.miuix.kmp.blur.layerBackdrop
 import top.yukonga.miuix.kmp.blur.rememberLayerBackdrop
 import top.yukonga.miuix.kmp.blur.textureBlur
-import com.kyant.backdrop.drawPlainBackdrop
-import com.kyant.backdrop.effects.blur
-import com.kyant.backdrop.effects.runtimeShaderEffect
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 import top.yukonga.miuix.kmp.utils.overScrollVertical
 import top.yukonga.miuix.kmp.utils.scrollEndHaptic
@@ -270,41 +268,11 @@ fun TodayScreen(
 
     val appStyle = rememberAppStyle()
     val isLiquidGlass = appStyle == "liquidglass" && liquidGlassBackdrop != null
-    val tintColor = if (isDark) ComposeColor(0xFF808080) else ComposeColor.White
 
     Scaffold(
         topBar = {
             if (isLiquidGlass) {
-                Box(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .drawPlainBackdrop(
-                            backdrop = liquidGlassBackdrop!!,
-                            shape = { RectangleShape },
-                            effects = {
-                                blur(4f.dp.toPx())
-                                runtimeShaderEffect(
-                                    "AlphaMask",
-                                    """
-    uniform shader content;
-    uniform float2 size;
-    layout(color) uniform half4 tint;
-    uniform float tintIntensity;
-
-    half4 main(float2 coord) {
-        float blurAlpha = smoothstep(size.y, size.y * 0.6, coord.y);
-        float tintAlpha = smoothstep(size.y, size.y * 0.7, coord.y);
-        return mix(content.eval(coord) * blurAlpha, tint * tintAlpha, tintIntensity);
-    }""",
-                                    "content"
-                                ) {
-                                    setFloatUniform("size", size.width, size.height)
-                                    setColorUniform("tint", tintColor)
-                                    setFloatUniform("tintIntensity", 0.2f)
-                                }
-                            }
-                        )
-                ) {
+                ProgressiveBlurTopBar(backdrop = liquidGlassBackdrop!!) {
                     SmallTopAppBar(
                         modifier = Modifier,
                         color = ComposeColor.Transparent,
