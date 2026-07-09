@@ -297,7 +297,9 @@ fun SettingsScreen(
                             modifier = Modifier.padding(start = 28.dp)
                         )
                     }
-                } else null,
+                } else {
+                    {}
+                },
             )
         }
     ) { paddingValues ->
