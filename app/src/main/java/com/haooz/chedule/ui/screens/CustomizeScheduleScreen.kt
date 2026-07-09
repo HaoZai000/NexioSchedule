@@ -64,11 +64,13 @@ import androidx.compose.ui.graphics.TransformOrigin
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.graphics.drawscope.clipPath
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.DpSize
 import androidx.compose.ui.unit.dp
@@ -107,6 +109,7 @@ import com.kyant.backdrop.effects.blur
 import com.kyant.backdrop.effects.lens
 import com.kyant.backdrop.effects.vibrancy
 import com.kyant.shapes.Capsule
+import com.haooz.chedule.ui.components.liquidglass.InteractiveHighlight
 import top.yukonga.miuix.kmp.squircle.addSquircleRect
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 import kotlin.math.absoluteValue
@@ -892,6 +895,10 @@ fun CustomizeScheduleScreen(
                 horizontalArrangement = Arrangement.SpaceBetween
             ) {
             if (isLiquidGlass && liquidGlassBackdrop != null) {
+                val animationScope = rememberCoroutineScope()
+                val exitHighlight = remember(animationScope) { InteractiveHighlight(animationScope) }
+                val applyHighlight = remember(animationScope) { InteractiveHighlight(animationScope) }
+                val hapticFeedback = LocalHapticFeedback.current
                 Box(
                     modifier = Modifier
                         .width(84.dp).height(40.dp)
@@ -904,22 +911,40 @@ fun CustomizeScheduleScreen(
                                 lens(12f.dp.toPx(), 12f.dp.toPx())
                             },
                             shadow = { com.kyant.backdrop.shadow.Shadow(alpha = 0.3f) },
+                            layerBlock = {
+                                val progress = exitHighlight.pressProgress
+                                val scale = 1f + 2f.dp.toPx() / 40.dp.toPx() * progress
+                                scaleX = scale
+                                scaleY = scale
+                                val offset = exitHighlight.offset
+                                translationX = size.minDimension * 0.05f * offset.x / size.maxDimension
+                                translationY = size.minDimension * 0.05f * offset.y / size.maxDimension
+                            },
                             onDrawSurface = {
-                                drawRect(Color.White.copy(0.6f))
+                                drawRect(Color.White.copy(0.8f))
+                                drawRect(Color.Black.copy(alpha = 0.03f * exitHighlight.pressProgress))
                             }
                         )
-                        .clickable {
-                            if (isPageAnimating || isCutoutAnimating) { /* 动画中不响应 */ }
-                            else if (isCutoutActive) {
-                                isCutoutActive = false
-                                sheetResetKey++
-                                onRevertWallpaper()
-                                scope.launch {
-                                    kotlinx.coroutines.delay(400.milliseconds)
-                                    onCancelCutout()
-                                }
-                            } else onDismiss()
-                        },
+                        .clickable(
+                            interactionSource = null,
+                            indication = null,
+                            role = androidx.compose.ui.semantics.Role.Button,
+                            onClick = {
+                                hapticFeedback.performHapticFeedback(HapticFeedbackType.VirtualKey)
+                                if (isPageAnimating || isCutoutAnimating) { /* 动画中不响应 */ }
+                                else if (isCutoutActive) {
+                                    isCutoutActive = false
+                                    sheetResetKey++
+                                    onRevertWallpaper()
+                                    scope.launch {
+                                        kotlinx.coroutines.delay(400.milliseconds)
+                                        onCancelCutout()
+                                    }
+                                } else onDismiss()
+                            }
+                        )
+                        .then(exitHighlight.modifier)
+                        .then(exitHighlight.gestureModifier),
                     contentAlignment = Alignment.Center
                 ) {
                     Text(
@@ -939,14 +964,34 @@ fun CustomizeScheduleScreen(
                                 lens(12f.dp.toPx(), 12f.dp.toPx())
                             },
                             shadow = { com.kyant.backdrop.shadow.Shadow(alpha = 0.3f) },
+                            layerBlock = {
+                                val progress = applyHighlight.pressProgress
+                                val scale = 1f + 2f.dp.toPx() / 40.dp.toPx() * progress
+                                scaleX = scale
+                                scaleY = scale
+                                val offset = applyHighlight.offset
+                                translationX = size.minDimension * 0.05f * offset.x / size.maxDimension
+                                translationY = size.minDimension * 0.05f * offset.y / size.maxDimension
+                            },
                             onDrawSurface = {
                                 drawRect(primaryColor.copy(0.8f))
+                                drawRect(Color.Black.copy(alpha = 0.03f * applyHighlight.pressProgress))
                             }
                         )
-                        .clickable(enabled = !showApplyLoading) {
-                            showApplyLoading = true
-                            onApply()
-                        },
+                        .clickable(
+                            interactionSource = null,
+                            indication = null,
+                            role = androidx.compose.ui.semantics.Role.Button,
+                            onClick = {
+                                hapticFeedback.performHapticFeedback(HapticFeedbackType.VirtualKey)
+                                if (!showApplyLoading) {
+                                    showApplyLoading = true
+                                    onApply()
+                                }
+                            }
+                        )
+                        .then(applyHighlight.modifier)
+                        .then(applyHighlight.gestureModifier),
                     contentAlignment = Alignment.Center
                 ) {
                     Text("应用", color = Color.White, fontSize = 16.sp, fontWeight = FontWeight.Medium)
