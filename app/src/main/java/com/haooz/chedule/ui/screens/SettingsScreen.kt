@@ -43,6 +43,7 @@ import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
+import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.DpSize
@@ -126,7 +127,9 @@ fun SettingsScreen(
     onExitShiftMode: () -> Unit = {},
     onEnterShiftMode: () -> Unit = {},
     navBarStyle: String = "standard",
-    liquidGlassBackdrop: com.kyant.backdrop.Backdrop? = null
+    liquidGlassBackdrop: com.kyant.backdrop.Backdrop? = null,
+    onScrollYChanged: (Int) -> Unit = {},
+    scrollBehavior: top.yukonga.miuix.kmp.basic.ScrollBehavior? = null
 ) {
     val totalWeeks by viewModel.totalWeeks.collectAsState()
     val currentWeek by viewModel.currentWeek.collectAsState()
@@ -266,6 +269,8 @@ fun SettingsScreen(
                     .overScrollVertical()
                     .scrollEndHaptic(
                         hapticFeedbackType = HapticFeedbackType.TextHandleMove
+                    ).then(
+                        if (scrollBehavior != null) Modifier.nestedScroll(scrollBehavior.nestedScrollConnection) else Modifier
                     ),
                 contentPadding = PaddingValues(
                     start = 16.dp,

@@ -97,6 +97,7 @@ import com.kyant.shapes.RoundedRectangle
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import top.yukonga.miuix.kmp.basic.MiuixScrollBehavior
 import top.yukonga.miuix.kmp.basic.NavigationRailDefaults
 import top.yukonga.miuix.kmp.basic.Scaffold
 import top.yukonga.miuix.kmp.basic.rememberNavigationRailState
@@ -280,6 +281,7 @@ fun CourseScheduleApp() {
     var isExitingShift by remember { mutableStateOf(false) }
     var shiftModeInitialized by remember { mutableStateOf(false) }
     var settingsScrollY by remember { mutableIntStateOf(0) }
+    val settingsScrollBehavior = MiuixScrollBehavior()
 
     // 初始化 SyncManager 并检查云端更新
     val context = LocalContext.current
@@ -1067,6 +1069,7 @@ fun CourseScheduleApp() {
                             scrollY = settingsScrollY,
                             navBarStyle = navBarStyle,
                             titleBarHeight = activity?.titleBarHeight ?: 56.dp,
+                            scrollBehavior = settingsScrollBehavior,
                         )
                     }
                 }
@@ -1138,7 +1141,8 @@ fun CourseScheduleApp() {
                                 },
                                 navBarStyle = navBarStyle,
                                 liquidGlassBackdrop = liquidGlassBackdrop,
-                                onScrollYChanged = { settingsScrollY = it }
+                                onScrollYChanged = { settingsScrollY = it },
+                                scrollBehavior = settingsScrollBehavior
                             )
                         }
                     } else {
@@ -1172,7 +1176,8 @@ fun CourseScheduleApp() {
                                 },
                                 navBarStyle = navBarStyle,
                                 liquidGlassBackdrop = liquidGlassBackdrop,
-                                onScrollYChanged = { settingsScrollY = it }
+                                onScrollYChanged = { settingsScrollY = it },
+                                scrollBehavior = settingsScrollBehavior
                             )
                         }
                     }
@@ -2140,6 +2145,7 @@ private fun SettingsTopBar(
     scrollY: Int,
     navBarStyle: String,
     titleBarHeight: androidx.compose.ui.unit.Dp,
+    scrollBehavior: top.yukonga.miuix.kmp.basic.ScrollBehavior? = null,
 ) {
     val appStyle = com.haooz.chedule.ui.utils.rememberAppStyle()
     val isLiquidGlass = appStyle == "liquidglass" && liquidGlassBackdrop != null
@@ -2232,6 +2238,7 @@ private fun SettingsTopBar(
             color = topBarColor,
             title = "我的",
             largeTitle = "我的",
+            scrollBehavior = scrollBehavior,
         )
     }
 }
