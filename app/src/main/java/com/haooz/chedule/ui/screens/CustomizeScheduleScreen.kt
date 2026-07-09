@@ -905,7 +905,7 @@ fun CustomizeScheduleScreen(
                             },
                             shadow = { com.kyant.backdrop.shadow.Shadow(alpha = 0.3f) },
                             onDrawSurface = {
-                                drawRect(Color(0xFFFAFAFA).copy(0.4f))
+                                drawRect(Color.White.copy(0.6f))
                             }
                         )
                         .clickable {
