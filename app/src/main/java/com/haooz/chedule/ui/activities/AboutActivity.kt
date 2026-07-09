@@ -243,8 +243,8 @@ private fun AboutScreen(onBack: () -> Unit) {
                         navigationIcon = {
                             IconButton(onClick = {
                                 hapticFeedback.performHapticFeedback(HapticFeedbackType.VirtualKey)
-                                onBack()
-                            }
+                                onBack() },
+                                modifier = Modifier.padding(start = 4.dp)
                             ) {
                                 Icon(
                                     imageVector = MiuixIcons.Back,
@@ -376,7 +376,9 @@ private fun AboutScreen(onBack: () -> Unit) {
                         else Modifier
                     ),
                 contentPadding = PaddingValues(
-                    top = innerPadding.calculateTopPadding(),
+                    top = innerPadding.calculateTopPadding() +
+                            if (isLiquidGlass) { if (WindowInsets.statusBars.asPaddingValues().calculateTopPadding() > 0.dp) -12.dp else (-24).dp } else 0.dp,
+
                     start = WindowInsets.displayCutout.asPaddingValues().calculateLeftPadding(LayoutDirection.Ltr),
                     end = WindowInsets.displayCutout.asPaddingValues().calculateRightPadding(LayoutDirection.Ltr),
                 ),
