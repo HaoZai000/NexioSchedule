@@ -92,8 +92,6 @@ import top.yukonga.miuix.kmp.preference.ArrowPreference
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 import top.yukonga.miuix.kmp.utils.overScrollVertical
 import top.yukonga.miuix.kmp.utils.scrollEndHaptic
-import androidx.compose.ui.graphics.RectangleShape
-import androidx.compose.ui.graphics.lerp
 import androidx.compose.ui.graphics.BlendMode as ComposeBlendMode
 import com.kyant.backdrop.backdrops.layerBackdrop as liquidGlassLayerBackdrop
 
