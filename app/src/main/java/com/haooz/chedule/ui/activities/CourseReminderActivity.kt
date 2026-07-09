@@ -1,20 +1,17 @@
 /** 课程提醒设置页面 */
 package com.haooz.chedule.ui.activities
-import com.haooz.chedule.ui.utils.isAppDarkTheme
-import com.haooz.chedule.ui.utils.applyThemeAwareSystemBars
 
 import android.Manifest
 import android.content.Intent
 import android.content.pm.PackageManager
-import android.net.Uri
 import android.os.Bundle
 import android.os.PowerManager
 import android.provider.Settings
 import android.widget.Toast
 import androidx.activity.ComponentActivity
 import androidx.activity.SystemBarStyle
-import androidx.activity.enableEdgeToEdge
 import androidx.activity.compose.setContent
+import androidx.activity.enableEdgeToEdge
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
@@ -53,11 +50,14 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.DpSize
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.core.net.toUri
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.haooz.chedule.reminder.CourseReminderHelper
 import com.haooz.chedule.reminder.IslandNotificationHelper
 import com.haooz.chedule.shizuku.ShizukuManager
 import com.haooz.chedule.ui.theme.CourseScheduleTheme
+import com.haooz.chedule.ui.utils.applyThemeAwareSystemBars
+import com.haooz.chedule.ui.utils.isAppDarkTheme
 import com.haooz.chedule.viewmodel.CourseViewModel
 import com.haooz.chedule.viewmodel.SettingsViewModel
 import top.yukonga.miuix.kmp.basic.Card
@@ -540,7 +540,7 @@ private fun CourseReminderScreen(
                                     onClick = {
                                         try {
                                             val intent = Intent(Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS).apply {
-                                                data = Uri.parse("package:${context.packageName}")
+                                                data = "package:${context.packageName}".toUri()
                                             }
                                             batteryOptLauncher.launch(intent)
                                         } catch (_: Exception) {
@@ -587,7 +587,7 @@ private fun CourseReminderScreen(
                                         text = "前往开启",
                                         onClick = {
                                             val intent = Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS).apply {
-                                                data = Uri.parse("package:${context.packageName}")
+                                                data = "package:${context.packageName}".toUri()
                                             }
                                             autoStartLauncher.launch(intent)
                                         },
@@ -634,8 +634,8 @@ private fun CourseReminderScreen(
                                 TextButton(
                                     text = "前往开启精确闹钟",
                                     onClick = {
-                                        val intent = Intent(android.provider.Settings.ACTION_REQUEST_SCHEDULE_EXACT_ALARM).apply {
-                                            data = Uri.parse("package:${context.packageName}")
+                                        val intent = Intent(Settings.ACTION_REQUEST_SCHEDULE_EXACT_ALARM).apply {
+                                            data = "package:${context.packageName}".toUri()
                                         }
                                         exactAlarmLauncher.launch(intent)
                                     },
@@ -675,7 +675,7 @@ private fun CourseReminderScreen(
                                     onClick = {
                                         try {
                                             val intent = Intent("android.settings.MANAGE_APP_PROMOTED_NOTIFICATIONS").apply {
-                                                data = Uri.parse("package:${context.packageName}")
+                                                data = "package:${context.packageName}".toUri()
                                             }
                                             promotedSettingsLauncher.launch(intent)
                                         } catch (_: Exception) {

@@ -63,7 +63,7 @@ class EducationalImportActivity : ComponentActivity() {
         fun startUpdate(context: android.content.Context) {
             if (_isUpdating.value || _isChecking.value) return
 
-            val prefs = context.getSharedPreferences(PREFS_NAME, android.content.Context.MODE_PRIVATE)
+            val prefs = context.getSharedPreferences(PREFS_NAME, MODE_PRIVATE)
             val lastUpdateTime = prefs.getLong(KEY_LAST_UPDATE_TIME, 0)
             val now = System.currentTimeMillis()
             val needsUpdate = lastUpdateTime == 0L || (now - lastUpdateTime > AUTO_UPDATE_INTERVAL_MS)
@@ -121,7 +121,7 @@ class EducationalImportActivity : ComponentActivity() {
                         Toast.makeText(context, msg, Toast.LENGTH_SHORT).show()
                     }
                     if (result >= 0) {
-                        val prefs = context.getSharedPreferences(PREFS_NAME, android.content.Context.MODE_PRIVATE)
+                        val prefs = context.getSharedPreferences(PREFS_NAME, MODE_PRIVATE)
                         prefs.edit().putLong(KEY_LAST_UPDATE_TIME, System.currentTimeMillis()).apply()
                     }
                 } catch (e: Exception) {
@@ -158,10 +158,10 @@ class EducationalImportActivity : ComponentActivity() {
 
     @Composable
     private fun EducationalImportApp() {
-        val isUpdating by Companion._isUpdating.collectAsState()
-        val isChecking by Companion._isChecking.collectAsState()
-        val updateProgress by Companion._updateProgress.collectAsState()
-        val dataVersion by Companion._dataVersion.collectAsState()
+        val isUpdating by _isUpdating.collectAsState()
+        val isChecking by _isChecking.collectAsState()
+        val updateProgress by _updateProgress.collectAsState()
+        val dataVersion by _dataVersion.collectAsState()
 
         var currentScreen by remember { mutableStateOf("selection") }
         var selectedSchool by remember { mutableStateOf<SchoolData?>(null) }
