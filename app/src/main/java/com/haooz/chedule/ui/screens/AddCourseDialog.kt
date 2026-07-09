@@ -21,6 +21,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Text
@@ -33,6 +34,7 @@ import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.mutableStateSetOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -97,10 +99,13 @@ fun AddCourseDialog(
     getOccupiedWeeks: (dayOfWeek: Int, startSection: Int, endSection: Int) -> Set<Int> = { _, _, _ -> emptySet() },
     onDismiss: () -> Unit,
     onConfirm: (Course) -> Unit,
-    onDelete: (String) -> Unit
+    onDelete: (String) -> Unit,
+    liquidGlassBackdrop: com.kyant.backdrop.Backdrop? = null
 ) {
     val isEdit = course != null
     val hapticFeedback = androidx.compose.ui.platform.LocalHapticFeedback.current
+    val appStyle = rememberAppStyle()
+    val isLiquidGlass = appStyle == "liquidglass" && liquidGlassBackdrop != null
 
     var name by remember { mutableStateOf(course?.name ?: "") }
     var classroom by remember { mutableStateOf(course?.classroom ?: "") }
@@ -166,62 +171,199 @@ fun AddCourseDialog(
         show = showBottomSheet,
         title = if (isEdit) "编辑课程" else "添加课程",
         startAction = {
-            IconButton(onClick = { showBottomSheet = false }, modifier = Modifier.padding(horizontal = 20.dp)) {
-                Icon(
-                    imageVector = MiuixIcons.Close,
-                    contentDescription = "取消",
-                    modifier = Modifier.size(22.dp)
-                )
+            if (isLiquidGlass && liquidGlassBackdrop != null) {
+                val animationScope = rememberCoroutineScope()
+                val closeHighlight = remember(animationScope) { InteractiveHighlight(animationScope) }
+                Box(
+                    modifier = Modifier
+                        .size(40.dp)
+                        .drawBackdrop(
+                            backdrop = liquidGlassBackdrop,
+                            shape = { CircleShape },
+                            effects = {
+                                vibrancy()
+                                blur(2f.dp.toPx())
+                                lens(12f.dp.toPx(), 12f.dp.toPx())
+                            },
+                            shadow = { com.kyant.backdrop.shadow.Shadow(alpha = 0.3f) },
+                            layerBlock = {
+                                val progress = closeHighlight.pressProgress
+                                val scale = 1f + 2f.dp.toPx() / 40.dp.toPx() * progress
+                                scaleX = scale
+                                scaleY = scale
+                                val offset = closeHighlight.offset
+                                translationX = size.minDimension * 0.05f * offset.x / size.maxDimension
+                                translationY = size.minDimension * 0.05f * offset.y / size.maxDimension
+                            },
+                            onDrawSurface = {
+                                drawRect(Color.White.copy(0.6f))
+                                drawRect(Color.Black.copy(alpha = 0.03f * closeHighlight.pressProgress))
+                            }
+                        )
+                        .clickable(
+                            interactionSource = null,
+                            indication = null,
+                            role = Role.Button,
+                            onClick = {
+                                hapticFeedback.performHapticFeedback(HapticFeedbackType.VirtualKey)
+                                showBottomSheet = false
+                            }
+                        )
+                        .then(closeHighlight.modifier)
+                        .then(closeHighlight.gestureModifier),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Icon(
+                        imageVector = MiuixIcons.Close,
+                        contentDescription = "取消",
+                        modifier = Modifier.size(22.dp),
+                        tint = Color.Black.copy(alpha = 0.8f)
+                    )
+                }
+            } else {
+                IconButton(onClick = { showBottomSheet = false }, modifier = Modifier.padding(horizontal = 20.dp)) {
+                    Icon(
+                        imageVector = MiuixIcons.Close,
+                        contentDescription = "取消",
+                        modifier = Modifier.size(22.dp)
+                    )
+                }
             }
         },
         endAction = {
-            IconButton(
-                onClick = {
-                    if (name.isNotBlank() && startSection <= endSection && selectedWeeks.isNotEmpty()) {
-                        val sortedWeeks = selectedWeeks.sorted()
-                        val minWeek = sortedWeeks.first()
-                        val maxWeek = sortedWeeks.last()
-                        val allWeeksInRange = (minWeek..maxWeek).toSet()
-                        val oddWeeksInRange = allWeeksInRange.filter { it % 2 == 1 }.toSet()
-                        val evenWeeksInRange = allWeeksInRange.filter { it % 2 == 0 }.toSet()
-
-                        val weekType = when (selectedWeeks) {
-                            allWeeksInRange -> Course.WEEK_TYPE_ALL
-                            oddWeeksInRange -> Course.WEEK_TYPE_ODD
-                            evenWeeksInRange -> Course.WEEK_TYPE_EVEN
-                            else -> Course.WEEK_TYPE_ALL
-                        }
-
-                        // 如果选中的周次不连续，保存为具体列表
-                        val isContiguous = selectedWeeks.size == (maxWeek - minWeek + 1)
-                        val weeksToSave = if (isContiguous) emptyList() else sortedWeeks
-
-                        val newCourse = Course(
-                            id = course?.id ?: UUID.randomUUID().toString(),
-                            name = name.trim(),
-                            classroom = classroom.trim(),
-                            teacher = teacher.trim(),
-                            dayOfWeek = dayOfWeek,
-                            startSection = startSection,
-                            endSection = endSection,
-                            startWeek = minWeek,
-                            endWeek = maxWeek,
-                            weekType = weekType,
-                            colorRes = selectedColor,
-                            selectedWeeks = weeksToSave
+            if (isLiquidGlass && liquidGlassBackdrop != null) {
+                val animationScope = rememberCoroutineScope()
+                val okHighlight = remember(animationScope) { InteractiveHighlight(animationScope) }
+                val primaryColor = MiuixTheme.colorScheme.primary
+                Box(
+                    modifier = Modifier
+                        .size(40.dp)
+                        .drawBackdrop(
+                            backdrop = liquidGlassBackdrop,
+                            shape = { CircleShape },
+                            effects = {
+                                vibrancy()
+                                blur(2f.dp.toPx())
+                                lens(12f.dp.toPx(), 12f.dp.toPx())
+                            },
+                            shadow = { com.kyant.backdrop.shadow.Shadow(alpha = 0.3f) },
+                            layerBlock = {
+                                val progress = okHighlight.pressProgress
+                                val scale = 1f + 2f.dp.toPx() / 40.dp.toPx() * progress
+                                scaleX = scale
+                                scaleY = scale
+                                val offset = okHighlight.offset
+                                translationX = size.minDimension * 0.05f * offset.x / size.maxDimension
+                                translationY = size.minDimension * 0.05f * offset.y / size.maxDimension
+                            },
+                            onDrawSurface = {
+                                drawRect(primaryColor.copy(0.8f))
+                                drawRect(Color.Black.copy(alpha = 0.03f * okHighlight.pressProgress))
+                            }
                         )
+                        .clickable(
+                            interactionSource = null,
+                            indication = null,
+                            role = Role.Button,
+                            onClick = {
+                                hapticFeedback.performHapticFeedback(HapticFeedbackType.VirtualKey)
+                                if (name.isNotBlank() && startSection <= endSection && selectedWeeks.isNotEmpty()) {
+                                    val sortedWeeks = selectedWeeks.sorted()
+                                    val minWeek = sortedWeeks.first()
+                                    val maxWeek = sortedWeeks.last()
+                                    val allWeeksInRange = (minWeek..maxWeek).toSet()
+                                    val oddWeeksInRange = allWeeksInRange.filter { it % 2 == 1 }.toSet()
+                                    val evenWeeksInRange = allWeeksInRange.filter { it % 2 == 0 }.toSet()
 
-                        onConfirm(newCourse)
-                        showBottomSheet = false
-                    }
-                },
-                modifier = Modifier.padding(horizontal = 20.dp)
-            ) {
-                Icon(
-                    imageVector = MiuixIcons.Ok,
-                    contentDescription = "确认",
-                    modifier = Modifier.size(26.dp)
-                )
+                                    val weekType = when (selectedWeeks) {
+                                        allWeeksInRange -> Course.WEEK_TYPE_ALL
+                                        oddWeeksInRange -> Course.WEEK_TYPE_ODD
+                                        evenWeeksInRange -> Course.WEEK_TYPE_EVEN
+                                        else -> Course.WEEK_TYPE_ALL
+                                    }
+
+                                    val isContiguous = selectedWeeks.size == (maxWeek - minWeek + 1)
+                                    val weeksToSave = if (isContiguous) emptyList() else sortedWeeks
+
+                                    val newCourse = Course(
+                                        id = course?.id ?: UUID.randomUUID().toString(),
+                                        name = name.trim(),
+                                        classroom = classroom.trim(),
+                                        teacher = teacher.trim(),
+                                        dayOfWeek = dayOfWeek,
+                                        startSection = startSection,
+                                        endSection = endSection,
+                                        startWeek = minWeek,
+                                        endWeek = maxWeek,
+                                        weekType = weekType,
+                                        colorRes = selectedColor,
+                                        selectedWeeks = weeksToSave
+                                    )
+
+                                    onConfirm(newCourse)
+                                    showBottomSheet = false
+                                }
+                            }
+                        )
+                        .then(okHighlight.modifier)
+                        .then(okHighlight.gestureModifier),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Icon(
+                        imageVector = MiuixIcons.Ok,
+                        contentDescription = "确认",
+                        modifier = Modifier.size(26.dp),
+                        tint = Color.White
+                    )
+                }
+            } else {
+                IconButton(
+                    onClick = {
+                        if (name.isNotBlank() && startSection <= endSection && selectedWeeks.isNotEmpty()) {
+                            val sortedWeeks = selectedWeeks.sorted()
+                            val minWeek = sortedWeeks.first()
+                            val maxWeek = sortedWeeks.last()
+                            val allWeeksInRange = (minWeek..maxWeek).toSet()
+                            val oddWeeksInRange = allWeeksInRange.filter { it % 2 == 1 }.toSet()
+                            val evenWeeksInRange = allWeeksInRange.filter { it % 2 == 0 }.toSet()
+
+                            val weekType = when (selectedWeeks) {
+                                allWeeksInRange -> Course.WEEK_TYPE_ALL
+                                oddWeeksInRange -> Course.WEEK_TYPE_ODD
+                                evenWeeksInRange -> Course.WEEK_TYPE_EVEN
+                                else -> Course.WEEK_TYPE_ALL
+                            }
+
+                            val isContiguous = selectedWeeks.size == (maxWeek - minWeek + 1)
+                            val weeksToSave = if (isContiguous) emptyList() else sortedWeeks
+
+                            val newCourse = Course(
+                                id = course?.id ?: UUID.randomUUID().toString(),
+                                name = name.trim(),
+                                classroom = classroom.trim(),
+                                teacher = teacher.trim(),
+                                dayOfWeek = dayOfWeek,
+                                startSection = startSection,
+                                endSection = endSection,
+                                startWeek = minWeek,
+                                endWeek = maxWeek,
+                                weekType = weekType,
+                                colorRes = selectedColor,
+                                selectedWeeks = weeksToSave
+                            )
+
+                            onConfirm(newCourse)
+                            showBottomSheet = false
+                        }
+                    },
+                    modifier = Modifier.padding(horizontal = 20.dp)
+                ) {
+                    Icon(
+                        imageVector = MiuixIcons.Ok,
+                        contentDescription = "确认",
+                        modifier = Modifier.size(26.dp)
+                    )
+                }
             }
         },
         onDismissRequest = { showBottomSheet = false },
