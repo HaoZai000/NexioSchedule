@@ -93,7 +93,6 @@ import top.yukonga.miuix.kmp.theme.MiuixTheme
 import top.yukonga.miuix.kmp.utils.overScrollVertical
 import top.yukonga.miuix.kmp.utils.scrollEndHaptic
 import androidx.compose.ui.graphics.BlendMode as ComposeBlendMode
-import com.kyant.backdrop.backdrops.layerBackdrop as liquidGlassLayerBackdrop
 
 class AboutActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -258,6 +257,14 @@ private fun AboutScreen(onBack: () -> Unit) {
             }
         }
     ) { innerPadding ->
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .then(
+                    if (liquidGlassBackdrop != null) Modifier.liquidGlassLayerBackdrop(liquidGlassBackdrop)
+                    else Modifier
+                )
+        ) {
         BgEffectBackground(
             dynamicBackground = dynamicBackground,
             isFullSize = true,
