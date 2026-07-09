@@ -86,7 +86,7 @@ fun LiquidTopBarCapsuleButton(
                 imageVector = MiuixIcons.Normal.ConvertFile,
                 contentDescription = "课表切换",
                 modifier = Modifier
-                    .size(24.dp)
+                    .size(25.dp)
                     .clickable(
                         interactionSource = null,
                         indication = null,

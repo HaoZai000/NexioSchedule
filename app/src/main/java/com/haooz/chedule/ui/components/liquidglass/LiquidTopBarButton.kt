@@ -30,7 +30,7 @@ fun LiquidTopBarButton(
     icon: ImageVector,
     contentDescription: String,
     modifier: Modifier = Modifier,
-    iconSize: Dp = 25.dp,
+    iconSize: Dp = 24.dp,
     buttonHeight: Dp = 40.dp
 ) {
     val animationScope = rememberCoroutineScope()

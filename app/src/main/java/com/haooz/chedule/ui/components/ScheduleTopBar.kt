@@ -11,10 +11,13 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.asPaddingValues
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.statusBars
 import androidx.compose.foundation.layout.width
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -115,6 +118,8 @@ internal fun ScheduleTopBar(
     val themePrefs = remember { context.getSharedPreferences("app_theme_prefs", Context.MODE_PRIVATE) }
     val appStyle = com.haooz.chedule.ui.utils.rememberAppStyle()
     var showMorePopup by remember { mutableStateOf(false) }
+    val statusBarPadding = WindowInsets.statusBars.asPaddingValues().calculateTopPadding()
+    val tabletTopPadding = if (statusBarPadding > 0.dp) statusBarPadding + 4.dp else 40.dp
 
     val railPaddingStart by animateDpAsState(
         targetValue = if (appStyle == "liquidglass" && navBarStyle == "rail") {
@@ -232,7 +237,7 @@ internal fun ScheduleTopBar(
                                     contentDescription = "返回本周",
                                     iconSize = 22.dp,
                                     buttonHeight = 38.dp,
-                                    modifier = Modifier.padding(end = 6.dp)
+                                    modifier = Modifier.padding(end = 6.dp, top = 4.dp)
                                 )
                             } else {
                                 IconButton(
@@ -258,7 +263,9 @@ internal fun ScheduleTopBar(
                                 hapticFeedback.performHapticFeedback(HapticFeedbackType.VirtualKey)
                                 showMorePopup = true
                             },
-                            backdrop = liquidGlassBackdrop
+                            backdrop = liquidGlassBackdrop,
+                            buttonHeight = if (navBarStyle == "rail") 38.dp else 40.dp,
+                            modifier = if (navBarStyle == "rail") Modifier.padding(top = 4.dp) else Modifier
                         )
                     } else {
                         IconButton(
