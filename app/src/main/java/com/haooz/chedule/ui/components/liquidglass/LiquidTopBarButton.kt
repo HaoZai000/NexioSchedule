@@ -10,8 +10,8 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.drawscope.drawIntoCanvas
 import androidx.compose.ui.graphics.nativeCanvas
 import androidx.compose.ui.graphics.vector.ImageVector
@@ -49,16 +49,36 @@ fun LiquidTopBarButton(
         )
     }
 
+    val shadowColor = if (isLightTheme) android.graphics.Color.parseColor("#18000000") else android.graphics.Color.parseColor("#30000000")
+
     androidx.compose.foundation.layout.Box(
         modifier = modifier
             .size(buttonHeight)
-            .graphicsLayer {
-                shadowElevation = 6.dp.toPx()
-                shape = CircleShape
-                ambientShadowColor = Color.Black.copy(alpha = 0.15f)
-                spotShadowColor = Color.Black.copy(alpha = 0.1f)
-            }
     ) {
+        // 阴影层
+        androidx.compose.foundation.layout.Box(
+            modifier = Modifier
+                .matchParentSize()
+                .drawBehind {
+                    val blurRadius = 10f * density
+                    val cornerRadiusPx = buttonHeight.toPx() / 2f
+                    val paint = android.graphics.Paint().apply {
+                        color = shadowColor
+                        maskFilter = android.graphics.BlurMaskFilter(
+                            blurRadius,
+                            android.graphics.BlurMaskFilter.Blur.NORMAL
+                        )
+                    }
+                    drawIntoCanvas { canvas ->
+                        canvas.nativeCanvas.drawRoundRect(
+                            0f, 0f, size.width, size.height,
+                            cornerRadiusPx, cornerRadiusPx,
+                            paint
+                        )
+                    }
+                }
+        )
+        // 按钮内容层
         androidx.compose.foundation.layout.Box(
             modifier = Modifier
                 .matchParentSize()
@@ -99,4 +119,8 @@ fun LiquidTopBarButton(
                 imageVector = icon,
                 contentDescription = contentDescription,
                 modifier = Modifier.size(iconSize),
-                tint = if (isL
+                tint = if (isLightTheme) Color.Black.copy(alpha = 0.8f) else Color.White.copy(alpha = 0.8f)
+            )
+        }
+    }
+}
