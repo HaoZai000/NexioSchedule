@@ -302,7 +302,7 @@ fun SettingsScreen(
     half4 main(float2 coord) {
         float blurAlpha = smoothstep(size.y, size.y * 0.6, coord.y);
         float tintAlpha = smoothstep(size.y, size.y * 0.7, coord.y);
-        return mix(content.eval(coord) * blurAlpha, tint * tintIntensity);
+        return mix(content.eval(coord) * blurAlpha, tint * tintAlpha, tintIntensity);
     }""",
                                         "content"
                                     ) {
