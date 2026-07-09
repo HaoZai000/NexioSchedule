@@ -201,8 +201,7 @@ internal fun ScheduleTopBar(
                                 backdrop = liquidGlassBackdrop,
                                 icon = MiuixIcons.Medium.Reset,
                                 contentDescription = "返回本周",
-                                iconSize = 25.dp,
-                                modifier = Modifier.padding(start = 20.dp)
+                                iconSize = 22.dp,
                             )
                         } else {
                             IconButton(
@@ -231,7 +230,8 @@ internal fun ScheduleTopBar(
                                     backdrop = liquidGlassBackdrop,
                                     icon = MiuixIcons.Medium.Reset,
                                     contentDescription = "返回本周",
-                                    iconSize = 25.dp,
+                                    iconSize = 22.dp,
+                                    buttonHeight = 38.dp,
                                     modifier = Modifier.padding(end = 6.dp)
                                 )
                             } else {

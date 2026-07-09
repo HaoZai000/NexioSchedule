@@ -30,7 +30,8 @@ fun LiquidTopBarButton(
     icon: ImageVector,
     contentDescription: String,
     modifier: Modifier = Modifier,
-    iconSize: Dp = 24.dp
+    iconSize: Dp = 25.dp,
+    buttonHeight: Dp = 40.dp
 ) {
     val animationScope = rememberCoroutineScope()
     val hapticFeedback = LocalHapticFeedback.current
@@ -47,7 +48,7 @@ fun LiquidTopBarButton(
 
     androidx.compose.foundation.layout.Box(
         modifier = modifier
-            .size(40.dp)
+            .size(buttonHeight)
             .drawBackdrop(
                 backdrop = backdrop,
                 shape = { CircleShape },
@@ -58,7 +59,7 @@ fun LiquidTopBarButton(
                 },
                 layerBlock = {
                     val progress = interactiveHighlight.pressProgress
-                    val scale = 1f + 2f.dp.toPx() / size.height * progress
+                    val scale = 1f + 2f.dp.toPx() / buttonHeight.toPx() * progress
                     scaleX = scale
                     scaleY = scale
                 },
