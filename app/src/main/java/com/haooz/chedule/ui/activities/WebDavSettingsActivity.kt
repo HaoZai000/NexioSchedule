@@ -251,10 +251,11 @@ fun WebDavSettingsScreen(onBack: () -> Unit) {
                                 }
                             },
                             backdrop = liquidGlassBackdrop,
-                            icon = if (connected) MiuixIcons.Ok else MiuixIcons.Medium.Play,
+                            icon = if (connected) MiuixIcons.Medium.Ok else MiuixIcons.Play,
                             contentDescription = if (connected) "连接成功" else "测试连接",
                             modifier = Modifier.offset(x = (-20).dp),
                             iconSize = 22.dp,
+                            iconOffset = if (!connected) DpOffset(x = 1.5.dp, y = 0.dp) else DpOffset.Zero,
                             iconTint = if (connected) ComposeColor(0xFF4CAF50) else Color.Unspecified,
                             useBackdropShadow = true
                         )
