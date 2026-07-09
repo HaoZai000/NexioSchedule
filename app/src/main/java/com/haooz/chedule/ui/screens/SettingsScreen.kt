@@ -43,7 +43,6 @@ import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
-import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.DpSize
@@ -68,7 +67,6 @@ import top.yukonga.miuix.kmp.basic.ButtonDefaults
 import top.yukonga.miuix.kmp.basic.Card
 import top.yukonga.miuix.kmp.basic.DropdownEntry
 import top.yukonga.miuix.kmp.basic.DropdownItem
-import top.yukonga.miuix.kmp.basic.MiuixScrollBehavior
 import top.yukonga.miuix.kmp.basic.NumberPicker
 import top.yukonga.miuix.kmp.basic.Scaffold
 import top.yukonga.miuix.kmp.basic.SmallTitle
@@ -128,8 +126,7 @@ fun SettingsScreen(
     onExitShiftMode: () -> Unit = {},
     onEnterShiftMode: () -> Unit = {},
     navBarStyle: String = "standard",
-    liquidGlassBackdrop: com.kyant.backdrop.Backdrop? = null,
-    onScrollYChanged: (Int) -> Unit = {}
+    liquidGlassBackdrop: com.kyant.backdrop.Backdrop? = null
 ) {
     val totalWeeks by viewModel.totalWeeks.collectAsState()
     val currentWeek by viewModel.currentWeek.collectAsState()
@@ -143,7 +140,6 @@ fun SettingsScreen(
     val scheduleNames by scheduleViewModel.scheduleNames.collectAsState()
     val shiftSelectedSchedules by shiftViewModel.shiftSelectedSchedules.collectAsState()
     val defaultHomepage by settingsViewModel.defaultHomepage.collectAsState()
-    val scrollBehavior = MiuixScrollBehavior()
     val context = androidx.compose.ui.platform.LocalContext.current
     val hapticFeedback = LocalHapticFeedback.current
     var listScrollY by remember { mutableIntStateOf(0) }
@@ -270,11 +266,10 @@ fun SettingsScreen(
                     .overScrollVertical()
                     .scrollEndHaptic(
                         hapticFeedbackType = HapticFeedbackType.TextHandleMove
-                    )
-                    .nestedScroll(scrollBehavior.nestedScrollConnection),
+                    ),
                 contentPadding = PaddingValues(
                     start = 16.dp,
-                    top = paddingValues.calculateTopPadding() + 56.dp,
+                    top = paddingValues.calculateTopPadding(),
                     end = 16.dp,
                     bottom = 120.dp
                 ),
