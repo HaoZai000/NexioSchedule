@@ -176,6 +176,7 @@ fun AddCourseDialog(
                 val closeHighlight = remember(animationScope) { InteractiveHighlight(animationScope) }
                 Box(
                     modifier = Modifier
+                        .padding(horizontal = 20.dp)
                         .size(40.dp)
                         .drawBackdrop(
                             backdrop = liquidGlassBackdrop,
@@ -237,6 +238,7 @@ fun AddCourseDialog(
                 val primaryColor = MiuixTheme.colorScheme.primary
                 Box(
                     modifier = Modifier
+                        .padding(horizontal = 20.dp)
                         .size(40.dp)
                         .drawBackdrop(
                             backdrop = liquidGlassBackdrop,
