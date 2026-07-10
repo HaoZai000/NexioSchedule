@@ -553,7 +553,7 @@ fun WebDavSettingsScreen(onBack: () -> Unit) {
                     ) {
                         Column {
                             Text(
-                                text = "默认 WebDAV 请按照以下步骤关联坚果云：",
+                                text = "关联坚果云步骤：",
                                 fontSize = 14.sp,
                                 fontWeight = FontWeight.Medium,
                                 color = MiuixTheme.colorScheme.onSurface
@@ -561,6 +561,32 @@ fun WebDavSettingsScreen(onBack: () -> Unit) {
                             Spacer(modifier = Modifier.height(8.dp))
                             Text(
                                 text = "① 下载并安装坚果云客户端\n② 登录后前往「设置 → 第三方应用管理」获取应用密码\n③ 将应用密码填入上方「应用密码」",
+                                fontSize = 13.sp,
+                                lineHeight = 20.sp,
+                                color = MiuixTheme.colorScheme.onSurfaceVariantActions
+                            )
+                        }
+                    }
+                }
+
+                // 备份与恢复说明
+                item {
+                    Card(
+                        cornerRadius = 20.dp,
+                        modifier = Modifier.fillMaxWidth(),
+                        insideMargin = PaddingValues(horizontal = 16.dp, vertical = 14.dp),
+                        colors = CardDefaults.defaultColors(color = MiuixTheme.colorScheme.surface),
+                    ) {
+                        Column {
+                            Text(
+                                text = "备份与恢复说明",
+                                fontSize = 14.sp,
+                                fontWeight = FontWeight.Medium,
+                                color = MiuixTheme.colorScheme.onSurface
+                            )
+                            Spacer(modifier = Modifier.height(8.dp))
+                            Text(
+                                text = "备份到云端：将全部课表数据上传为带时间戳的文件，每次备份独立保存，不覆盖历史备份。\n\n从云端恢复：下载最新的备份文件覆盖本地数据。恢复前请先备份当前数据。",
                                 fontSize = 13.sp,
                                 lineHeight = 20.sp,
                                 color = MiuixTheme.colorScheme.onSurfaceVariantActions
