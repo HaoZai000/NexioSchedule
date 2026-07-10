@@ -4,6 +4,7 @@ import com.haooz.chedule.ui.utils.UpdateChecker
 
 import android.content.Context
 import android.content.Intent
+import android.util.Log
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -24,6 +25,9 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.DpSize
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.withContext
 import top.yukonga.miuix.kmp.basic.Button
 import top.yukonga.miuix.kmp.basic.ButtonDefaults
 import top.yukonga.miuix.kmp.overlay.OverlayDialog
@@ -31,11 +35,13 @@ import top.yukonga.miuix.kmp.basic.Text
 import top.yukonga.miuix.kmp.basic.TextButton
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 import java.io.File
-import kotlin.time.Duration.Companion.milliseconds
+import java.text.SimpleDateFormat
+import java.util.Date
+import java.util.Locale
 
 /**
- * 更新弹窗：启动后延迟检查 SharedPreferences 缓存的更新标志，
- * 若存在新版本则弹出对话框，引导用户跳转到更新设置页。
+ * 更新弹窗：每天启动时检查一次更新，有新版本则弹窗提示。
+ * 检查和弹窗逻辑统一在此处完成，避免竞态条件。
  */
 @Composable
 internal fun UpdateDialog() {
@@ -49,26 +55,60 @@ internal fun UpdateDialog() {
     var hasDownloadedApk by remember { mutableStateOf(false) }
 
     LaunchedEffect(Unit) {
-        kotlinx.coroutines.delay(1400)
-        val hasUpdate = updatePrefs.getBoolean("has_update", false)
+        val autoCheck = updatePrefs.getBoolean("auto_check_update", true)
         val updateReminder = updatePrefs.getBoolean("update_reminder", true)
+
+        if (!autoCheck || !updateReminder) return@LaunchedEffect
+
+        val today = SimpleDateFormat("yyyy-MM-dd", Locale.getDefault()).format(Date())
+        val lastCheckDate = updatePrefs.getString("last_check_date", "") ?: ""
+
+        if (lastCheckDate != today) {
+            val (hasUpdate, release) = withContext(Dispatchers.IO) {
+                try {
+                    UpdateChecker.checkForUpdate(context)
+                } catch (e: Exception) {
+                    Log.e("UpdateDialog", "检查更新失败", e)
+                    Pair(false, null)
+                }
+            }
+            updatePrefs.edit()
+                .putString("last_check_date", today)
+                .putBoolean("has_update", hasUpdate)
+                .apply()
+
+            if (hasUpdate && release != null) {
+                updatePrefs.edit()
+                    .putString("latest_url", release.htmlUrl)
+                    .putString("latest_apk_url", release.apkUrl)
+                    .putString("latest_tag", release.tagName)
+                    .putString("latest_name", release.name)
+                    .putString("latest_body", release.body)
+                    .putString("latest_date", release.createdAt)
+                    .apply()
+                UpdateChecker.cleanOldApks(context, release.tagName)
+            }
+        }
+
+        delay(1400)
+
+        val hasUpdate = updatePrefs.getBoolean("has_update", false)
         val tag = updatePrefs.getString("latest_tag", "") ?: ""
         val body = updatePrefs.getString("latest_body", "") ?: ""
-        if (hasUpdate && updateReminder && tag.isNotBlank()) {
+
+        if (hasUpdate && tag.isNotBlank()) {
             val currentVersion = try {
                 context.packageManager.getPackageInfo(context.packageName, 0).versionName ?: ""
-            } catch (_: Exception) {
-                ""
-            }
+            } catch (_: Exception) { "" }
             val latestVer = tag.removePrefix("v").substringBefore("-")
             val localVer = currentVersion.removePrefix("v").substringBefore("-")
-            val actuallyNewer = UpdateChecker.isNewerVersion(latestVer, localVer)
-            if (actuallyNewer) {
+
+            if (UpdateChecker.isNewerVersion(latestVer, localVer)) {
                 updateTagName = tag
                 updateBody = body
                 val apkFile = File(context.filesDir, "update-$tag.apk")
                 hasDownloadedApk = apkFile.exists() && apkFile.length() > 0
-                kotlinx.coroutines.delay(800.milliseconds)
+                delay(800)
                 showUpdateDialog = true
             } else {
                 updatePrefs.edit().putBoolean("has_update", false).apply()

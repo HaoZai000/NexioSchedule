@@ -87,7 +87,7 @@ import com.haooz.chedule.ui.screens.SettingsScreen
 import com.haooz.chedule.ui.screens.ShiftScheduleScreen
 import com.haooz.chedule.ui.screens.TodayScreen
 import com.haooz.chedule.ui.theme.CourseScheduleTheme
-import com.haooz.chedule.ui.utils.UpdateChecker
+
 import com.haooz.chedule.ui.utils.applyThemeAwareSystemBars
 import com.haooz.chedule.ui.utils.isAppDarkTheme
 import com.haooz.chedule.ui.utils.rememberAppStyle
@@ -214,9 +214,6 @@ class MainActivity : ComponentActivity() {
                 }
             } catch (_: Exception) {}
         }
-
-        // 自动检查更新：每天进入应用时检查一次
-        UpdateChecker.checkOnLaunch(this)
 
         setContent {
             CourseScheduleTheme {

@@ -1,11 +1,8 @@
 package com.haooz.chedule.ui.utils
 
 import android.content.Context
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.GlobalScope
-import kotlinx.coroutines.launch
-import org.json.JSONObject
-import java.net.URL
+import android.util.Log
+import java.io.File
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
@@ -13,70 +10,104 @@ import java.util.Locale
 /**
  * 应用更新检查工具
  *
- * 负责每日从 Gitee releases 接口检查最新版本，并写入 SharedPreferences 缓存。
+ * 负责从 Gitee releases 接口检查最新版本。
  */
 internal object UpdateChecker {
 
-    private const val PREFS_NAME = "update_settings"
+    private const val TAG = "UpdateChecker"
+
+    data class GiteeRelease(
+        val tagName: String,
+        val name: String,
+        val body: String,
+        val htmlUrl: String,
+        val apkUrl: String,
+        val createdAt: String
+    )
 
     /**
-     * 在 IO 线程检查最新版本。每天最多触发一次网络请求。
-     * 结果写入 [PREFS_NAME] SharedPreferences。
+     * 检查是否有新版本。需在 IO 线程调用。
+     * @return Pair(hasUpdate, release)，检查失败时返回 Pair(false, null)
      */
-    fun checkOnLaunch(context: Context) {
-        val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
-        if (!prefs.getBoolean("auto_check_update", true)) return
-        val lastCheckDate = prefs.getString("last_check_date", "") ?: ""
-        val today = SimpleDateFormat("yyyy-MM-dd", Locale.getDefault()).format(Date())
-        if (lastCheckDate == today) return
+    fun checkForUpdate(context: Context): Pair<Boolean, GiteeRelease?> {
+        return try {
+            val client = okhttp3.OkHttpClient.Builder()
+                .connectTimeout(10, java.util.concurrent.TimeUnit.SECONDS)
+                .readTimeout(10, java.util.concurrent.TimeUnit.SECONDS)
+                .build()
 
-        GlobalScope.launch(Dispatchers.IO) {
-            try {
-                val response =
-                    URL("https://gitee.com/api/v5/repos/com_haooz_account/hyper_schedule/releases/latest")
-                        .readText()
-                val json = JSONObject(response)
-                val tagName = json.getString("tag_name")
-                val currentVersion = try {
-                    context.packageManager.getPackageInfo(context.packageName, 0).versionName ?: ""
-                } catch (_: Exception) {
-                    ""
+            val url = "https://gitee.com/api/v5/repos/com_haooz_account/hyper_schedule/releases/latest?t=${System.currentTimeMillis()}"
+            val request = okhttp3.Request.Builder().url(url).build()
+            val response = client.newCall(request).execute()
+
+            if (!response.isSuccessful) {
+                Log.e(TAG, "HTTP ${response.code}")
+                return Pair(false, null)
+            }
+
+            val responseBody = response.body?.string() ?: return Pair(false, null)
+            val json = com.google.gson.JsonParser.parseString(responseBody).asJsonObject
+            val tagName = json.get("tag_name")?.asString ?: ""
+            val name = json.get("name")?.asString ?: ""
+            val body = json.get("body")?.asString ?: ""
+            val htmlUrl = json.get("html_url")?.asString ?: ""
+            val createdAt = json.get("created_at")?.asString ?: ""
+
+            val assets = json.getAsJsonArray("assets")
+            var apkUrl = ""
+            if (assets != null) {
+                for (i in 0 until assets.size()) {
+                    val a = assets[i].asJsonObject
+                    val assetName = a.get("name")?.asString ?: ""
+                    if (assetName.endsWith(".apk")) {
+                        apkUrl = a.get("browser_download_url")?.asString ?: ""
+                        break
+                    }
                 }
-                val tagVer = tagName.removePrefix("v").substringBefore("-")
-                val appVer = currentVersion.removePrefix("v").substringBefore("-")
-                val hasUpdate = isNewerVersion(tagVer, appVer)
-                prefs.edit()
-                    .putString("last_check_date", today)
-                    .putBoolean("has_update", hasUpdate)
-                    .apply()
-                if (hasUpdate) {
-                    var apkUrl = ""
-                    val assets = json.optJSONArray("assets")
-                    if (assets != null) {
-                        for (i in 0 until assets.length()) {
-                            val a = assets.getJSONObject(i)
-                            if (a.getString("name").endsWith(".apk")) {
-                                apkUrl = a.getString("browser_download_url"); break
-                            }
+            }
+
+            val currentVersion = try {
+                context.packageManager.getPackageInfo(context.packageName, 0).versionName ?: ""
+            } catch (_: Exception) { "" }
+
+            val tagVersion = tagName.removePrefix("v").substringBefore("-")
+            val appVersion = currentVersion.removePrefix("v").substringBefore("-")
+            val hasUpdate = isNewerVersion(tagVersion, appVersion)
+
+            Log.d(TAG, "检查完成: hasUpdate=$hasUpdate, remote=$tagVersion, local=$appVersion")
+            Pair(hasUpdate, GiteeRelease(tagName, name, body, htmlUrl, apkUrl, createdAt))
+        } catch (e: Exception) {
+            Log.e(TAG, "检查更新失败", e)
+            Pair(false, null)
+        }
+    }
+
+    /**
+     * 清理旧版本的APK文件，只保留指定版本的文件。
+     */
+    fun cleanOldApks(context: Context, keepTag: String) {
+        try {
+            val filesDir = context.filesDir
+            val prefix = "update-"
+            val suffix = ".apk"
+            filesDir.listFiles()?.forEach { file ->
+                val name = file.name
+                if (name.startsWith(prefix) && name.endsWith(suffix)) {
+                    val tag = name.removePrefix(prefix).removeSuffix(suffix)
+                    if (tag != keepTag) {
+                        if (file.delete()) {
+                            Log.d(TAG, "已清理旧APK: $name")
                         }
                     }
-                    prefs.edit()
-                        .putString("latest_url", json.getString("html_url"))
-                        .putString("latest_tag", tagName)
-                        .putString("latest_name", json.getString("name"))
-                        .putString("latest_body", json.optString("body", ""))
-                        .putString("latest_apk_url", apkUrl)
-                        .putString("latest_date", json.getString("created_at"))
-                        .apply()
                 }
-            } catch (_: Exception) {
             }
+        } catch (e: Exception) {
+            Log.e(TAG, "清理旧APK失败", e)
         }
     }
 
     /**
      * 比较版本号字符串，返回 [remote] 是否比 [local] 更新。
-     * 例如 "1.2.3" > "1.2.2"。
      */
     fun isNewerVersion(remote: String, local: String): Boolean {
         val remoteParts = remote.split(".").mapNotNull { it.toIntOrNull() }
