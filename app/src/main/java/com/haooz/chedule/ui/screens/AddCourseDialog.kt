@@ -107,6 +107,7 @@ fun AddCourseDialog(
     val isDark = isAppDarkTheme()
     val closeContainerColor = if (isDark) Color(0xFF121212).copy(0.4f) else Color(0xFFFAFAFA).copy(0.4f)
     val closeIconColor = if (isDark) Color.White.copy(alpha = 0.8f) else Color.Black.copy(alpha = 0.8f)
+    val borderColor = if (isDark) Color.White.copy(alpha = 0.3f) else Color.Black.copy(alpha = 0.15f)
 
     var name by remember { mutableStateOf(course?.name ?: "") }
     var classroom by remember { mutableStateOf(course?.classroom ?: "") }
@@ -198,8 +199,12 @@ fun AddCourseDialog(
                                 translationY = size.minDimension * 0.05f * offset.y / size.maxDimension
                             },
                             onDrawSurface = {
-                                drawRect(closeContainerColor)
-                                drawRect(Color.Black.copy(alpha = 0.03f * closeHighlight.pressProgress))
+                                drawRect(Color.Transparent)
+                                drawRoundRect(
+                                    color = borderColor,
+                                    cornerRadius = androidx.compose.ui.geometry.CornerRadius(40.dp.toPx()),
+                                    style = androidx.compose.ui.graphics.drawscope.Stroke(width = 1.5.dp.toPx())
+                                )
                             }
                         )
                         .clickable(
