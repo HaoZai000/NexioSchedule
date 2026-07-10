@@ -543,7 +543,7 @@ class CourseRepository private constructor(context: Context) {
 
     fun getLongBreakMorning(): Int {
         val key = "${getScheduleKeyPrefix()}${KEY_LONG_BREAK}_morning"
-        return prefs.getInt(key, 20)
+        return safeGetInt(key, 20)
     }
 
     fun setLongBreakMorning(minutes: Int) {
@@ -554,7 +554,7 @@ class CourseRepository private constructor(context: Context) {
 
     fun getLongBreakAfternoon(): Int {
         val key = "${getScheduleKeyPrefix()}${KEY_LONG_BREAK}_afternoon"
-        return prefs.getInt(key, 20)
+        return safeGetInt(key, 20)
     }
 
     fun setLongBreakAfternoon(minutes: Int) {
@@ -565,7 +565,7 @@ class CourseRepository private constructor(context: Context) {
 
     fun getLongBreakEvening(): Int {
         val key = "${getScheduleKeyPrefix()}${KEY_LONG_BREAK}_evening"
-        return prefs.getInt(key, 20)
+        return safeGetInt(key, 20)
     }
 
     fun setLongBreakEvening(minutes: Int) {
@@ -576,7 +576,7 @@ class CourseRepository private constructor(context: Context) {
 
     fun getLongBreakMorningSection(): Int {
         val key = "${getScheduleKeyPrefix()}${KEY_LONG_BREAK}_morning_section"
-        return prefs.getInt(key, 2)
+        return safeGetInt(key, 2)
     }
 
     fun setLongBreakMorningSection(section: Int) {
@@ -587,7 +587,7 @@ class CourseRepository private constructor(context: Context) {
 
     fun getLongBreakAfternoonSection(): Int {
         val key = "${getScheduleKeyPrefix()}${KEY_LONG_BREAK}_afternoon_section"
-        return prefs.getInt(key, 2)
+        return safeGetInt(key, 2)
     }
 
     fun setLongBreakAfternoonSection(section: Int) {
@@ -598,7 +598,7 @@ class CourseRepository private constructor(context: Context) {
 
     fun getLongBreakEveningSection(): Int {
         val key = "${getScheduleKeyPrefix()}${KEY_LONG_BREAK}_evening_section"
-        return prefs.getInt(key, 2)
+        return safeGetInt(key, 2)
     }
 
     fun setLongBreakEveningSection(section: Int) {
@@ -609,7 +609,7 @@ class CourseRepository private constructor(context: Context) {
 
     fun getMorningStartHour(): Int {
         val key = "${getScheduleKeyPrefix()}$KEY_MORNING_START"
-        return prefs.getInt(key, 8)
+        return safeGetInt(key, 8)
     }
 
     fun setMorningStartHour(hour: Int) {
@@ -620,7 +620,7 @@ class CourseRepository private constructor(context: Context) {
 
     fun getMorningStartMinute(): Int {
         val key = "${getScheduleKeyPrefix()}${KEY_MORNING_START}_min"
-        return prefs.getInt(key, 0)
+        return safeGetInt(key, 0)
     }
 
     fun setMorningStartMinute(minute: Int) {
@@ -631,7 +631,7 @@ class CourseRepository private constructor(context: Context) {
 
     fun getAfternoonStartHour(): Int {
         val key = "${getScheduleKeyPrefix()}$KEY_AFTERNOON_START"
-        return prefs.getInt(key, 14)
+        return safeGetInt(key, 14)
     }
 
     fun setAfternoonStartHour(hour: Int) {
@@ -642,7 +642,7 @@ class CourseRepository private constructor(context: Context) {
 
     fun getAfternoonStartMinute(): Int {
         val key = "${getScheduleKeyPrefix()}${KEY_AFTERNOON_START}_min"
-        return prefs.getInt(key, 0)
+        return safeGetInt(key, 0)
     }
 
     fun setAfternoonStartMinute(minute: Int) {
@@ -653,7 +653,7 @@ class CourseRepository private constructor(context: Context) {
 
     fun getEveningStartHour(): Int {
         val key = "${getScheduleKeyPrefix()}$KEY_EVENING_START"
-        return prefs.getInt(key, 18)
+        return safeGetInt(key, 18)
     }
 
     fun setEveningStartHour(hour: Int) {
@@ -664,7 +664,7 @@ class CourseRepository private constructor(context: Context) {
 
     fun getEveningStartMinute(): Int {
         val key = "${getScheduleKeyPrefix()}${KEY_EVENING_START}_min"
-        return prefs.getInt(key, 30)
+        return safeGetInt(key, 30)
     }
 
     fun setEveningStartMinute(minute: Int) {
@@ -682,7 +682,7 @@ class CourseRepository private constructor(context: Context) {
     }
 
     fun getPreClassReminderMinutes(): Int {
-        return prefs.getInt(KEY_PRE_CLASS_REMINDER_MINUTES, 20)
+        return safeGetInt(KEY_PRE_CLASS_REMINDER_MINUTES, 20)
     }
 
     fun setPreClassReminderMinutes(minutes: Int) {
@@ -698,7 +698,7 @@ class CourseRepository private constructor(context: Context) {
     }
 
     fun getNextDayReminderHour(): Int {
-        return prefs.getInt(KEY_NEXT_DAY_REMINDER_HOUR, 21)
+        return safeGetInt(KEY_NEXT_DAY_REMINDER_HOUR, 21)
     }
 
     fun setNextDayReminderHour(hour: Int) {
@@ -706,7 +706,7 @@ class CourseRepository private constructor(context: Context) {
     }
 
     fun getNextDayReminderMinute(): Int {
-        return prefs.getInt(KEY_NEXT_DAY_REMINDER_MINUTE, 0)
+        return safeGetInt(KEY_NEXT_DAY_REMINDER_MINUTE, 0)
     }
 
     fun setNextDayReminderMinute(minute: Int) {
@@ -1244,9 +1244,9 @@ class CourseRepository private constructor(context: Context) {
 
     fun getSectionsForSchedule(scheduleId: String): Triple<Int, Int, Int> {
         val prefix = "$SCHEDULE_KEY_PREFIX${scheduleId}_"
-        val morning = prefs.getInt("${prefix}$KEY_MORNING_SECTIONS", 4)
-        val afternoon = prefs.getInt("${prefix}$KEY_AFTERNOON_SECTIONS", 4)
-        val evening = prefs.getInt("${prefix}$KEY_EVENING_SECTIONS", 4)
+        val morning = safeGetInt("${prefix}$KEY_MORNING_SECTIONS", 4)
+        val afternoon = safeGetInt("${prefix}$KEY_AFTERNOON_SECTIONS", 4)
+        val evening = safeGetInt("${prefix}$KEY_EVENING_SECTIONS", 4)
         return Triple(morning, afternoon, evening)
     }
 
@@ -1271,18 +1271,18 @@ class CourseRepository private constructor(context: Context) {
         val settings = mutableMapOf<String, Any>()
 
         // 用显式 getter 读取，确保默认值也能导出
-        settings[KEY_TOTAL_WEEKS] = prefs.getInt("${prefix}$KEY_TOTAL_WEEKS", 20)
+        settings[KEY_TOTAL_WEEKS] = safeGetInt("${prefix}$KEY_TOTAL_WEEKS", 20)
         settings[KEY_CLASS_START_TIME] = prefs.getString("${prefix}$KEY_CLASS_START_TIME", "") ?: ""
-        settings[KEY_CURRENT_WEEK] = prefs.getInt("${prefix}$KEY_CURRENT_WEEK", 1)
+        settings[KEY_CURRENT_WEEK] = safeGetInt("${prefix}$KEY_CURRENT_WEEK", 1)
         settings[KEY_SHOW_WEEKEND] = prefs.getString("${prefix}$KEY_SHOW_WEEKEND", "") ?: ""
         settings[KEY_SHOW_NON_CURRENT_WEEK] = prefs.getBoolean("${prefix}$KEY_SHOW_NON_CURRENT_WEEK", true)
-        settings[KEY_MORNING_SECTIONS] = prefs.getInt("${prefix}$KEY_MORNING_SECTIONS", 4)
-        settings[KEY_AFTERNOON_SECTIONS] = prefs.getInt("${prefix}$KEY_AFTERNOON_SECTIONS", 4)
-        settings[KEY_EVENING_SECTIONS] = prefs.getInt("${prefix}$KEY_EVENING_SECTIONS", 4)
+        settings[KEY_MORNING_SECTIONS] = safeGetInt("${prefix}$KEY_MORNING_SECTIONS", 4)
+        settings[KEY_AFTERNOON_SECTIONS] = safeGetInt("${prefix}$KEY_AFTERNOON_SECTIONS", 4)
+        settings[KEY_EVENING_SECTIONS] = safeGetInt("${prefix}$KEY_EVENING_SECTIONS", 4)
         settings[KEY_SECTION_TIMES] = prefs.getString("${prefix}$KEY_SECTION_TIMES", "") ?: ""
         settings[KEY_QUICK_TIME_ENABLED] = prefs.getBoolean("${prefix}$KEY_QUICK_TIME_ENABLED", false)
-        settings[KEY_CLASS_DURATION] = prefs.getInt("${prefix}$KEY_CLASS_DURATION", 45)
-        settings[KEY_SHORT_BREAK] = prefs.getInt("${prefix}$KEY_SHORT_BREAK", 10)
+        settings[KEY_CLASS_DURATION] = safeGetInt("${prefix}$KEY_CLASS_DURATION", 45)
+        settings[KEY_SHORT_BREAK] = safeGetInt("${prefix}$KEY_SHORT_BREAK", 10)
 
         settings["lastModified"] = if (useCurrentTime) System.currentTimeMillis() else getSettingsLastModified(scheduleId)
         return settings
