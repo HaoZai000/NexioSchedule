@@ -105,9 +105,8 @@ fun AddCourseDialog(
     val appStyle = rememberAppStyle()
     val isLiquidGlass = appStyle == "liquidglass" && liquidGlassBackdrop != null
     val isDark = isAppDarkTheme()
-    val closeContainerColor = if (isDark) Color(0xFF121212).copy(0.4f) else Color(0xFFFAFAFA).copy(0.4f)
+    val closeContainerColor = if (isDark) Color(0xFF121212).copy(1f) else Color(0xFFFAFAFA).copy(1f)
     val closeIconColor = if (isDark) Color.White.copy(alpha = 0.8f) else Color.Black.copy(alpha = 0.8f)
-    val borderColor = if (isDark) Color.White.copy(alpha = 0.3f) else Color.Black.copy(alpha = 0.15f)
 
     var name by remember { mutableStateOf(course?.name ?: "") }
     var classroom by remember { mutableStateOf(course?.classroom ?: "") }
@@ -199,12 +198,8 @@ fun AddCourseDialog(
                                 translationY = size.minDimension * 0.05f * offset.y / size.maxDimension
                             },
                             onDrawSurface = {
-                                drawRect(Color.Transparent)
-                                drawRoundRect(
-                                    color = borderColor,
-                                    cornerRadius = androidx.compose.ui.geometry.CornerRadius(40.dp.toPx()),
-                                    style = androidx.compose.ui.graphics.drawscope.Stroke(width = 1.5.dp.toPx())
-                                )
+                                drawRect(closeContainerColor)
+                                drawRect(Color.Black.copy(alpha = 0.03f * closeHighlight.pressProgress))
                             }
                         )
                         .clickable(
@@ -241,7 +236,7 @@ fun AddCourseDialog(
             if (isLiquidGlass && liquidGlassBackdrop != null) {
                 val animationScope = rememberCoroutineScope()
                 val okHighlight = remember(animationScope) { InteractiveHighlight(animationScope) }
-                val primaryColor = MiuixTheme.colorScheme.primary
+                val primaryColor = MiuixTheme.colorScheme.primary.copy(alpha = 1f)
                 Box(
                     modifier = Modifier
                         .padding(horizontal = 24.dp)
