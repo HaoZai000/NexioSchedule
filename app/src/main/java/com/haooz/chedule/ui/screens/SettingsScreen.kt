@@ -190,14 +190,14 @@ fun SettingsScreen(
     var pendingImportData by remember { mutableStateOf<Map<String, Any>?>(null) }
     var pendingImportScheduleName by remember { mutableStateOf("") }
 
-    // WebDAV 云同步
+    // WebDAV 云备份
     val webDavManager = remember { WebDavManager(context) }
     val lastSyncTimeMs = webDavManager.lastSyncTime
     val lastSyncSummary = remember(lastSyncTimeMs) {
         if (lastSyncTimeMs > 0L) {
             val sdf = java.text.SimpleDateFormat("yyyy-MM-dd HH:mm", java.util.Locale.getDefault())
-            "上次同步: ${sdf.format(java.util.Date(lastSyncTimeMs))}"
-        } else "未同步"
+            "上次操作: ${sdf.format(java.util.Date(lastSyncTimeMs))}"
+        } else "未操作"
     }
 
     // 教务导入仓库源设置
