@@ -102,6 +102,35 @@ class CourseRepository private constructor(context: Context) {
     }
 
     /**
+     * 兼容性读取 Int 值（云备份恢复时可能存为 Float）
+     */
+    private fun safeGetInt(key: String, defValue: Int): Int {
+        try {
+            return prefs.getInt(key, defValue)
+        } catch (_: ClassCastException) {
+            val floatVal = prefs.getFloat(key, defValue.toFloat())
+            val intVal = floatVal.toInt()
+            // 修正存储类型为 Int
+            prefs.edit().putInt(key, intVal).apply()
+            return intVal
+        }
+    }
+
+    /**
+     * 兼容性读取 Boolean 值（云备份恢复时可能存为其他类型）
+     */
+    private fun safeGetBoolean(key: String, defValue: Boolean): Boolean {
+        try {
+            return prefs.getBoolean(key, defValue)
+        } catch (_: ClassCastException) {
+            val intVal = prefs.getInt(key, if (defValue) 1 else 0)
+            val boolVal = intVal != 0
+            prefs.edit().putBoolean(key, boolVal).apply()
+            return boolVal
+        }
+    }
+
+    /**
      * 获取指定课表的课程列表
      */
     fun getCoursesForSchedule(scheduleId: String): List<Course> {
@@ -237,7 +266,7 @@ class CourseRepository private constructor(context: Context) {
      */
     fun getCurrentWeek(): Int {
         val key = "${getScheduleKeyPrefix()}$KEY_CURRENT_WEEK"
-        return prefs.getInt(key, 1)
+        return safeGetInt(key, 1)
     }
 
     /**
@@ -254,7 +283,7 @@ class CourseRepository private constructor(context: Context) {
      */
     fun getTotalWeeks(): Int {
         val key = "${getScheduleKeyPrefix()}$KEY_TOTAL_WEEKS"
-        return prefs.getInt(key, 20)
+        return safeGetInt(key, 20)
     }
 
     /**
@@ -342,7 +371,7 @@ class CourseRepository private constructor(context: Context) {
      */
     fun getMorningSections(): Int {
         val key = "${getScheduleKeyPrefix()}$KEY_MORNING_SECTIONS"
-        return prefs.getInt(key, 4)
+        return safeGetInt(key, 4)
     }
 
     /**
@@ -359,7 +388,7 @@ class CourseRepository private constructor(context: Context) {
      */
     fun getAfternoonSections(): Int {
         val key = "${getScheduleKeyPrefix()}$KEY_AFTERNOON_SECTIONS"
-        return prefs.getInt(key, 4)
+        return safeGetInt(key, 4)
     }
 
     /**
@@ -376,7 +405,7 @@ class CourseRepository private constructor(context: Context) {
      */
     fun getEveningSections(): Int {
         val key = "${getScheduleKeyPrefix()}$KEY_EVENING_SECTIONS"
-        return prefs.getInt(key, 4)
+        return safeGetInt(key, 4)
     }
 
     /**
@@ -481,7 +510,7 @@ class CourseRepository private constructor(context: Context) {
 
     fun getClassDuration(): Int {
         val key = "${getScheduleKeyPrefix()}$KEY_CLASS_DURATION"
-        return prefs.getInt(key, 45)
+        return safeGetInt(key, 45)
     }
 
     fun setClassDuration(minutes: Int) {
@@ -492,7 +521,7 @@ class CourseRepository private constructor(context: Context) {
 
     fun getShortBreak(): Int {
         val key = "${getScheduleKeyPrefix()}$KEY_SHORT_BREAK"
-        return prefs.getInt(key, 10)
+        return safeGetInt(key, 10)
     }
 
     fun setShortBreak(minutes: Int) {
@@ -1191,10 +1220,16 @@ class CourseRepository private constructor(context: Context) {
         for ((key, value) in data) {
             when (value) {
                 is String -> editor.putString(key, value)
-                is Int -> editor.putInt(key, value)
                 is Boolean -> editor.putBoolean(key, value)
-                is Double -> editor.putFloat(key, value.toFloat())
-                is Long -> editor.putLong(key, value)
+                is Number -> {
+                    val numVal = value.toDouble()
+                    val intVal = numVal.toInt()
+                    if (numVal == intVal.toDouble()) {
+                        editor.putInt(key, intVal)
+                    } else {
+                        editor.putFloat(key, numVal.toFloat())
+                    }
+                }
                 is List<*> -> {
                     // Set<String> 被导出为 List，需要还原
                     @Suppress("UNCHECKED_CAST")
