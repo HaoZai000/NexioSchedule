@@ -236,7 +236,7 @@ fun AddCourseDialog(
             if (isLiquidGlass && liquidGlassBackdrop != null) {
                 val animationScope = rememberCoroutineScope()
                 val okHighlight = remember(animationScope) { InteractiveHighlight(animationScope) }
-                val primaryColor = MiuixTheme.colorScheme.primary.copy(alpha = 1f)
+                val primaryColor = MiuixTheme.colorScheme.primary
                 Box(
                     modifier = Modifier
                         .padding(horizontal = 24.dp)
@@ -260,7 +260,7 @@ fun AddCourseDialog(
                                 translationY = size.minDimension * 0.05f * offset.y / size.maxDimension
                             },
                             onDrawSurface = {
-                                drawRect(primaryColor.copy(0.8f))
+                                drawRect(primaryColor.copy(1f))
                                 drawRect(Color.Black.copy(alpha = 0.03f * okHighlight.pressProgress))
                             }
                         )

@@ -204,7 +204,6 @@ fun ShiftScheduleScreen(
     ) {
         Column(
             modifier = Modifier
-                .fillMaxSize()
                 .overScrollVertical()
                 .scrollEndHaptic(
                     hapticFeedbackType = HapticFeedbackType.TextHandleMove
