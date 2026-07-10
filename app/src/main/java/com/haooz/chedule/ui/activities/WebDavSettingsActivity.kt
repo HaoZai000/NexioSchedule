@@ -1,4 +1,4 @@
-/** WebDAV 同步设置页面 */
+/** WebDAV 备份/恢复设置页面 */
 package com.haooz.chedule.ui.activities
 
 import android.os.Bundle
@@ -23,6 +23,7 @@ import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBars
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.material3.Text
@@ -117,7 +118,6 @@ fun WebDavSettingsScreen(onBack: () -> Unit) {
     val context = LocalContext.current
     val hapticFeedback = LocalHapticFeedback.current
     val webDavManager = remember { WebDavManager(context) }
-    val repository = remember { CourseRepository(context) }
     val coroutineScope = rememberCoroutineScope()
     val scrollBehavior = MiuixScrollBehavior()
     var listScrollY by remember { mutableIntStateOf(0) }
@@ -125,39 +125,59 @@ fun WebDavSettingsScreen(onBack: () -> Unit) {
     var serverUrl by remember { mutableStateOf(webDavManager.serverUrl.ifBlank { "https://dav.jianguoyun.com/dav/" }) }
     var username by remember { mutableStateOf(webDavManager.username) }
     var password by remember { mutableStateOf(webDavManager.password) }
-    var autoSync by remember { mutableStateOf(webDavManager.autoSyncEnabled) }
     var statusText by remember { mutableStateOf("") }
 
     val saveConfig = {
         webDavManager.serverUrl = serverUrl
         webDavManager.username = username
         webDavManager.password = password
-        webDavManager.autoSyncEnabled = autoSync
     }
 
-    LaunchedEffect(serverUrl, username, password, autoSync) {
+    LaunchedEffect(serverUrl, username, password) {
         saveConfig()
     }
     var statusIsError by remember { mutableStateOf(false) }
     var testing by remember { mutableStateOf(false) }
-    var syncing by remember { mutableStateOf(false) }
+    var backingUp by remember { mutableStateOf(false) }
+    var restoring by remember { mutableStateOf(false) }
     var connected by remember { mutableStateOf(false) }
 
     var lastSyncTimeMs by remember { mutableLongStateOf(webDavManager.lastSyncTime) }
     val lastSyncText = remember(lastSyncTimeMs) {
         if (lastSyncTimeMs > 0L) {
             val sdf = java.text.SimpleDateFormat("yyyy-MM-dd HH:mm", java.util.Locale.getDefault())
-            "上次同步: ${sdf.format(java.util.Date(lastSyncTimeMs))}"
+            "上次操作: ${sdf.format(java.util.Date(lastSyncTimeMs))}"
         } else ""
     }
     val canTest = serverUrl.isNotBlank() && username.isNotBlank() && password.isNotBlank()
 
-    // 观察 SyncManager 状态，后台同步完成后刷新时间
     val syncManager = remember { SyncManager.getInstance(context) }
     val syncState by syncManager.syncState.collectAsState()
     LaunchedEffect(syncState) {
-        if (syncState !is SyncManager.SyncState.Syncing) {
-            lastSyncTimeMs = webDavManager.lastSyncTime
+        when (val state = syncState) {
+            is SyncManager.SyncOperationState.BackupSuccess -> {
+                statusText = "备份成功: ${state.backupId}"
+                statusIsError = false
+                backingUp = false
+                lastSyncTimeMs = webDavManager.lastSyncTime
+            }
+            is SyncManager.SyncOperationState.RestoreSuccess -> {
+                statusText = "恢复成功: ${state.backupTime}"
+                statusIsError = false
+                restoring = false
+                lastSyncTimeMs = webDavManager.lastSyncTime
+            }
+            is SyncManager.SyncOperationState.Error -> {
+                statusText = state.message
+                statusIsError = true
+                backingUp = false
+                restoring = false
+            }
+            is SyncManager.SyncOperationState.Running -> {
+                statusText = if (backingUp) "正在备份..." else if (restoring) "正在恢复..." else "处理中..."
+                statusIsError = false
+            }
+            is SyncManager.SyncOperationState.Idle -> {}
         }
     }
 
@@ -200,7 +220,7 @@ fun WebDavSettingsScreen(onBack: () -> Unit) {
                 ) {
                     SmallTopAppBar(
                         color = Color.Transparent,
-                        title = "WebDAV 云同步",
+                        title = "WebDAV 云备份",
                         modifier = Modifier.zIndex(1f),
                         navigationIcon = {}
                     )
@@ -269,8 +289,8 @@ fun WebDavSettingsScreen(onBack: () -> Unit) {
                         Modifier
                     },
                     color = topBarColor,
-                    title = "WebDAV 云同步",
-                    largeTitle = "WebDAV 云同步",
+                    title = "WebDAV 云备份",
+                    largeTitle = "WebDAV 云备份",
                     scrollBehavior = scrollBehavior,
                     navigationIconPadding = 20.dp,
                     navigationIcon = {
@@ -360,48 +380,6 @@ fun WebDavSettingsScreen(onBack: () -> Unit) {
                 ),
                 verticalArrangement = Arrangement.spacedBy(12.dp)
             ) {
-                // 自动同步开关
-                item {
-                    Card(
-                        cornerRadius = 20.dp,
-                        modifier = Modifier.fillMaxWidth(),
-                        insideMargin = PaddingValues(0.dp)
-                    ) {
-                        Row(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .clickable {
-                                    hapticFeedback.performHapticFeedback(HapticFeedbackType.VirtualKey)
-                                    autoSync = !autoSync
-                                }
-                                .padding(horizontal = 16.dp, vertical = 14.dp),
-                            horizontalArrangement = Arrangement.SpaceBetween,
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            Column(modifier = Modifier.weight(1f)) {
-                                Text(
-                                    text = "自动同步",
-                                    fontSize = 17.sp,
-                                    fontWeight = FontWeight.Medium,
-                                    color = MiuixTheme.colorScheme.onSurface
-                                )
-                                Text(
-                                    text = "课程变更时自动同步到云端",
-                                    fontSize = 14.sp,
-                                    color = MiuixTheme.colorScheme.onSurfaceVariantActions
-                                )
-                            }
-                            top.yukonga.miuix.kmp.basic.Switch(
-                                checked = autoSync,
-                                onCheckedChange = {
-                                    hapticFeedback.performHapticFeedback(HapticFeedbackType.VirtualKey)
-                                    autoSync = it
-                                }
-                            )
-                        }
-                    }
-                }
-
                 // 服务器配置
                 item {
                     SmallTitle(
@@ -414,7 +392,6 @@ fun WebDavSettingsScreen(onBack: () -> Unit) {
                         insideMargin = PaddingValues(horizontal = 16.dp),
                     ) {
                         Column(modifier = Modifier.fillMaxWidth()) {
-                            // 服务器地址
                             Row(
                                 modifier = Modifier
                                     .fillMaxWidth()
@@ -456,7 +433,6 @@ fun WebDavSettingsScreen(onBack: () -> Unit) {
                                 )
                             }
 
-                            // 用户名
                             Row(
                                 modifier = Modifier
                                     .fillMaxWidth()
@@ -498,7 +474,6 @@ fun WebDavSettingsScreen(onBack: () -> Unit) {
                                 )
                             }
 
-                            // 密码
                             Row(
                                 modifier = Modifier
                                     .fillMaxWidth()
@@ -553,15 +528,15 @@ fun WebDavSettingsScreen(onBack: () -> Unit) {
                     ) {
                         Text(
                             text = if (!isConfigured) "请先配置服务器信息"
-                            else statusText.ifBlank { "暂无同步记录" },
+                            else statusText.ifBlank { "暂无操作记录" },
                             fontSize = 14.sp,
                             color = if (statusText.isNotBlank() && statusIsError)
                                 ComposeColor(0xFFF44336) else MiuixTheme.colorScheme.onSurfaceVariantActions
                         )
                         Spacer(modifier = Modifier.height(4.dp))
                         Text(
-                            text = if (!isConfigured) "配置后即可使用云同步功能"
-                            else lastSyncText.ifBlank { "从未同步" },
+                            text = if (!isConfigured) "配置后即可使用云备份功能"
+                            else lastSyncText.ifBlank { "从未操作" },
                             fontSize = 12.sp,
                             color = MiuixTheme.colorScheme.onSurfaceVariantActions
                         )
@@ -613,46 +588,56 @@ fun WebDavSettingsScreen(onBack: () -> Unit) {
                     )
             )
 
-            // 立即同步按钮 - 固定在底部
-            TextButton(
-                text = if (syncing) "同步中..." else "立即同步",
-                onClick = {
-                    hapticFeedback.performHapticFeedback(HapticFeedbackType.Confirm)
-                    if (!syncing) {
-                        syncing = true
-                        statusText = "正在同步..."
-                        statusIsError = false
-                        coroutineScope.launch {
-                            webDavManager.serverUrl = serverUrl
-                            webDavManager.username = username
-                            webDavManager.password = password
-                            syncManager.syncNow()
-                            when (syncManager.syncState.value) {
-                                is SyncManager.SyncState.Success -> {
-                                    val s = syncManager.syncState.value as SyncManager.SyncState.Success
-                                    statusText = "已同步: 上传${s.uploaded}条, 下载${s.downloaded}条"
-                                    statusIsError = false
-                                }
-                                is SyncManager.SyncState.Error -> {
-                                    statusText = (syncManager.syncState.value as SyncManager.SyncState.Error).message
-                                    statusIsError = true
-                                }
-                                else -> {
-                                    statusText = "同步完成"
-                                    statusIsError = false
-                                }
-                            }
-                            syncing = false
-                            lastSyncTimeMs = webDavManager.lastSyncTime
-                        }
-                    }
-                },
-                colors = ButtonDefaults.textButtonColorsPrimary(),
+            // 底部两个按钮：备份 + 恢复
+            Row(
                 modifier = Modifier
                     .align(Alignment.BottomCenter)
                     .fillMaxWidth()
-                    .padding(start = 32.dp, end = 32.dp, bottom = 48.dp)
-            )
+                    .padding(start = 24.dp, end = 24.dp, bottom = 48.dp),
+                horizontalArrangement = Arrangement.spacedBy(12.dp)
+            ) {
+                // 备份按钮
+                TextButton(
+                    text = if (backingUp) "备份中..." else "备份到云端",
+                    onClick = {
+                        hapticFeedback.performHapticFeedback(HapticFeedbackType.Confirm)
+                        if (!backingUp && !restoring) {
+                            backingUp = true
+                            statusText = "正在备份..."
+                            statusIsError = false
+                            coroutineScope.launch {
+                                webDavManager.serverUrl = serverUrl
+                                webDavManager.username = username
+                                webDavManager.password = password
+                                syncManager.backupNow()
+                            }
+                        }
+                    },
+                    colors = ButtonDefaults.textButtonColorsPrimary(),
+                    modifier = Modifier.weight(1f)
+                )
+
+                // 恢复按钮
+                TextButton(
+                    text = if (restoring) "恢复中..." else "从云端恢复",
+                    onClick = {
+                        hapticFeedback.performHapticFeedback(HapticFeedbackType.Confirm)
+                        if (!backingUp && !restoring) {
+                            restoring = true
+                            statusText = "正在恢复..."
+                            statusIsError = false
+                            coroutineScope.launch {
+                                webDavManager.serverUrl = serverUrl
+                                webDavManager.username = username
+                                webDavManager.password = password
+                                syncManager.restoreNow()
+                            }
+                        }
+                    },
+                    colors = ButtonDefaults.textButtonColorsPrimary(),
+                    modifier = Modifier.weight(1f)
+                )
+            }
         }
     }
 }

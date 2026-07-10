@@ -281,7 +281,7 @@ fun CourseScheduleApp() {
     var todayScrollY by remember { mutableIntStateOf(0) }
     val todayScrollBehavior = MiuixScrollBehavior()
 
-    // 初始化 SyncManager 并检查云端更新
+    // 初始化 SyncManager
     val context = LocalContext.current
 
     LaunchedEffect(Unit) {
@@ -289,14 +289,12 @@ fun CourseScheduleApp() {
         val repository = com.haooz.chedule.data.CourseRepository(context)
         val webDavManager = com.haooz.chedule.data.WebDavManager(context)
         syncManager.start(repository, webDavManager)
-        // 同步完成后刷新 ViewModel 内存缓存
+        // 备份/恢复完成后刷新 ViewModel 内存缓存
         syncManager.onSyncCompleted = {
             viewModel.refreshEssentialData()
             viewModel.reloadCourses()
             settingsViewModel.refreshSettings()
         }
-        // 启动时检查云端是否有更新
-        syncManager.checkAndSyncOnStart()
     }
 
     val backgroundColor = MiuixTheme.colorScheme.surface

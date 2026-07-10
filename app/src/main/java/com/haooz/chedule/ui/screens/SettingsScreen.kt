@@ -704,8 +704,8 @@ fun SettingsScreen(
                                     }
                                 )
                                 ArrowPreference(
-                                    title = "WebDav云同步",
-                                    summary = if (webDavManager.isConfigured()) lastSyncSummary else "配置服务器后可手动同步",
+                                    title = "WebDav云备份",
+                                    summary = if (webDavManager.isConfigured()) lastSyncSummary else "配置服务器后可手动备份/恢复",
                                     onClick = {
                                         val intent = Intent(context, com.haooz.chedule.ui.activities.WebDavSettingsActivity::class.java)
                                         context.startActivity(intent)
