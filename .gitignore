@@ -28,3 +28,4 @@ keystore/
 /captures
 .externalNativeBuild
 .cxx
+temp_*/
