@@ -46,7 +46,6 @@ import androidx.compose.ui.graphics.RectangleShape
 import androidx.compose.ui.graphics.lerp
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.input.nestedscroll.nestedScroll
-import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.DpSize
@@ -71,7 +70,6 @@ import top.yukonga.miuix.kmp.basic.ButtonDefaults
 import top.yukonga.miuix.kmp.basic.Card
 import top.yukonga.miuix.kmp.basic.DropdownEntry
 import top.yukonga.miuix.kmp.basic.DropdownItem
-import top.yukonga.miuix.kmp.basic.MiuixScrollBehavior
 import top.yukonga.miuix.kmp.basic.NumberPicker
 import top.yukonga.miuix.kmp.basic.Scaffold
 import top.yukonga.miuix.kmp.basic.SmallTitle
@@ -1572,13 +1570,107 @@ internal fun parseFullScheduleJson(text: String): Triple<Boolean, String, Map<St
         val type = object : com.google.gson.reflect.TypeToken<Map<String, Any>>() {}.type
         val data: Map<String, Any> = gson.fromJson(text, type)
 
-        if (!data.containsKey("settings") || !data.containsKey("courses")) {
-            return Triple(false, "无效的课表数据格式", null)
+        if (data.containsKey("settings") || data.containsKey("courses")) {
+            // 检测拾光课程表格式：有 "courses" + "config" (而非 "settings")
+            if (data.containsKey("config") && data.containsKey("courses") && !data.containsKey("settings")) {
+                return parseShiguangScheduleJson(data)
+            }
+            return Triple(true, "解析成功", data)
         }
 
-        return Triple(true, "解析成功", data)
+        return Triple(false, "无效的课表数据格式", null)
     } catch (e: Exception) {
         return Triple(false, "解析失败: ${e.message}", null)
+    }
+}
+
+/**
+ * 解析拾光课程表 JSON 格式
+ * 结构: { courses: [...], timeSlots: [...], config: {...} }
+ */
+private fun parseShiguangScheduleJson(data: Map<String, Any>): Triple<Boolean, String, Map<String, Any>?> {
+    try {
+        @Suppress("UNCHECKED_CAST")
+        val shiguangCourses = data["courses"] as? List<Map<String, Any>>
+        if (shiguangCourses.isNullOrEmpty()) {
+            return Triple(false, "未找到课程数据", null)
+        }
+
+        // 转换课程格式
+        val courses = mutableListOf<Map<String, Any>>()
+        for (sg in shiguangCourses) {
+            val name = sg["name"] as? String ?: continue
+            val teacher = sg["teacher"] as? String ?: ""
+            val position = sg["position"] as? String ?: ""
+            val day = (sg["day"] as? Number)?.toInt() ?: continue
+            val startSection = (sg["startSection"] as? Number)?.toInt() ?: continue
+            val endSection = (sg["endSection"] as? Number)?.toInt() ?: startSection
+            @Suppress("UNCHECKED_CAST")
+            val weeks = (sg["weeks"] as? List<Number>)?.map { it.toInt() } ?: emptyList()
+            val color = (sg["color"] as? Number)?.toInt()
+
+            if (weeks.isEmpty()) continue
+
+            courses.add(mapOf(
+                "name" to name,
+                "teacher" to teacher,
+                "classroom" to position,
+                "dayOfWeek" to day,
+                "startSection" to startSection,
+                "endSection" to endSection,
+                "selectedWeeks" to weeks,
+                "shiguangColor" to (color ?: -1)
+            ))
+        }
+
+        // 转换配置格式
+        @Suppress("UNCHECKED_CAST")
+        val config = data["config"] as? Map<String, Any>
+        val settings = mutableMapOf<String, Any>()
+        if (config != null) {
+            (config["semesterStartDate"] as? String)?.let { settings["class_start_time"] = it }
+            (config["semesterTotalWeeks"] as? Number)?.toInt()?.let { settings["total_weeks"] = it }
+            (config["firstDayOfWeek"] as? Number)?.toInt()?.let { settings["first_day_of_week"] = it }
+        }
+
+        // 转换 timeSlots 格式
+        @Suppress("UNCHECKED_CAST")
+        val timeSlots = data["timeSlots"] as? List<Map<String, Any>>
+        val times = mutableMapOf<String, Any>()
+        if (!timeSlots.isNullOrEmpty()) {
+            val morningTimes = mutableMapOf<String, String>()
+            val afternoonTimes = mutableMapOf<String, String>()
+            val eveningTimes = mutableMapOf<String, String>()
+
+            for (slot in timeSlots) {
+                val number = (slot["number"] as? Number)?.toInt() ?: continue
+                val startTime = slot["startTime"] as? String ?: continue
+                val endTime = slot["endTime"] as? String ?: continue
+                val timeStr = "$startTime-$endTime"
+
+                // 按节次分组：1-6上午，7-12下午，13+晚上
+                when {
+                    number <= 6 -> morningTimes[number.toString()] = timeStr
+                    number <= 12 -> afternoonTimes[(number - 6).toString()] = timeStr
+                    else -> eveningTimes[(number - 12).toString()] = timeStr
+                }
+            }
+
+            if (morningTimes.isNotEmpty()) times["morning"] = morningTimes
+            if (afternoonTimes.isNotEmpty()) times["afternoon"] = afternoonTimes
+            if (eveningTimes.isNotEmpty()) times["evening"] = eveningTimes
+        }
+
+        val result = mapOf<String, Any>(
+            "schedule_name" to "拾光课程表导入",
+            "courses" to courses,
+            "settings" to settings,
+            "times" to times
+        )
+
+        return Triple(true, "解析成功", result)
+    } catch (e: Exception) {
+        return Triple(false, "拾光课程表解析失败: ${e.message}", null)
     }
 }
 
@@ -1849,9 +1941,15 @@ internal fun applyScheduleData(
 
             if (selectedWeeks.isNotEmpty()) {
                 val colorRes = courseNameColorMap.getOrPut(name) {
-                    val color = Course.courseColors[colorIndex % Course.courseColors.size]
-                    colorIndex++
-                    color
+                    // 拾光课程表格式：使用预设颜色索引
+                    val shiguangColor = (courseMap["shiguangColor"] as? Number)?.toInt()
+                    if (shiguangColor != null && shiguangColor >= 0) {
+                        Course.courseColors[shiguangColor % Course.courseColors.size]
+                    } else {
+                        val color = Course.courseColors[colorIndex % Course.courseColors.size]
+                        colorIndex++
+                        color
+                    }
                 }
                 courses.add(
                     Course(
@@ -1874,6 +1972,9 @@ internal fun applyScheduleData(
 
         // 保存课程到新课表
         scheduleViewModel.saveCoursesToSchedule(scheduleName, courses)
+
+        // 刷新摘要，确保切换课表页面显示正确的课程数
+        scheduleViewModel.refreshScheduleList()
 
         // 保存设置到新课表
         @Suppress("UNCHECKED_CAST")

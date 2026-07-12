@@ -76,6 +76,11 @@ class CourseViewModel(application: Application) : AndroidViewModel(application) 
     val showSettings: StateFlow<Boolean> = _showSettings.asStateFlow()
 
     init {
+        repository.onCourseChanged = { action, _ ->
+            viewModelScope.launch(Dispatchers.IO) {
+                loadCourses()
+            }
+        }
         loadEssentialData()
         viewModelScope.launch(Dispatchers.IO) {
             loadCourses()
@@ -313,5 +318,10 @@ class CourseViewModel(application: Application) : AndroidViewModel(application) 
         endSection: Int
     ): List<Course> {
         return repository.getCoursesAtSlot(week, dayOfWeek, startSection, endSection)
+    }
+
+    override fun onCleared() {
+        super.onCleared()
+        repository.onCourseChanged = null
     }
 }

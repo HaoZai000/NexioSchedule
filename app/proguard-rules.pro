@@ -55,3 +55,11 @@
 -keep class rikka.sui.** { *; }
 -dontwarn rikka.shizuku.**
 -dontwarn rikka.sui.**
+
+# --- 教务导入 Gson 数据类 ---
+# 这些类通过 Gson 反射解析，字段名不可被混淆
+-keep class com.haooz.chedule.ui.web.AndroidBridge { *; }
+-keep class com.haooz.chedule.ui.web.AndroidBridge$* { <fields>; }
+-keep class com.haooz.chedule.data.school.SchoolIndexData { <fields>; }
+-keep class com.haooz.chedule.data.school.SchoolData { <fields>; }
+-keep class com.haooz.chedule.data.school.AdapterData { <fields>; }

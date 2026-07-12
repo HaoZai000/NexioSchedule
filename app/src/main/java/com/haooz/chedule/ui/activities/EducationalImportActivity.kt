@@ -196,8 +196,7 @@ class EducationalImportActivity : ComponentActivity() {
                         onBack = { currentScreen = "selection" },
                         onImportComplete = { courses ->
                             CourseRepository(this@EducationalImportActivity).saveCourses(courses)
-                            setResult(RESULT_OK)
-                            finish()
+                            Toast.makeText(this@EducationalImportActivity, "课程已保存，共 ${courses.size} 门课程", Toast.LENGTH_SHORT).show()
                         }
                     )
                 }

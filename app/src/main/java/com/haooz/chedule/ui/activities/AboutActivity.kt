@@ -646,30 +646,6 @@ private fun AboutScreen(onBack: () -> Unit) {
                                             verticalAlignment = Alignment.CenterVertically
                                         ) {
                                             Text(
-                                                text = "HyperNotification",
-                                                fontSize = 15.sp,
-                                                fontWeight = FontWeight.Medium,
-                                                color = MiuixTheme.colorScheme.primary,
-                                                modifier = Modifier.clickable {
-                                                    uriHandler.openUri("https://github.com/limczhh/HyperNotification")
-                                                }
-                                            )
-                                            Text(
-                                                text = "limczhh",
-                                                fontSize = 15.sp,
-                                                fontWeight = FontWeight.Medium,
-                                                color = MiuixTheme.colorScheme.onSurfaceVariantActions
-                                            )
-                                        }
-                                        Spacer(modifier = Modifier.height(12.dp))
-                                        Row(
-                                            modifier = Modifier
-                                                .fillMaxWidth()
-                                                .padding(horizontal = 4.dp),
-                                            horizontalArrangement = Arrangement.SpaceBetween,
-                                            verticalAlignment = Alignment.CenterVertically
-                                        ) {
-                                            Text(
                                                 text = "Shizuku",
                                                 fontSize = 15.sp,
                                                 fontWeight = FontWeight.Medium,

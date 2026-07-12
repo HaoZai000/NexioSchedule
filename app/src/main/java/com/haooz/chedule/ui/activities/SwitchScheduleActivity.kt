@@ -21,6 +21,7 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.asPaddingValues
 import androidx.compose.foundation.layout.fillMaxSize
@@ -45,6 +46,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.snapshotFlow
+import androidx.compose.runtime.withFrameNanos
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.drawWithContent
@@ -78,6 +80,7 @@ import top.yukonga.miuix.kmp.basic.Button
 import top.yukonga.miuix.kmp.basic.ButtonDefaults
 import top.yukonga.miuix.kmp.basic.Card
 import top.yukonga.miuix.kmp.basic.FloatingActionButton
+import top.yukonga.miuix.kmp.utils.PressFeedbackType
 import top.yukonga.miuix.kmp.basic.Icon
 import top.yukonga.miuix.kmp.basic.IconButton
 import top.yukonga.miuix.kmp.basic.MiuixScrollBehavior
@@ -107,7 +110,6 @@ import top.yukonga.miuix.kmp.icon.extended.Forward
 import top.yukonga.miuix.kmp.overlay.OverlayDialog
 import top.yukonga.miuix.kmp.preference.CheckboxLocation
 import top.yukonga.miuix.kmp.preference.CheckboxPreference
-import top.yukonga.miuix.kmp.preference.RadioButtonPreference
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 import top.yukonga.miuix.kmp.utils.overScrollVertical
 import top.yukonga.miuix.kmp.utils.scrollEndHaptic
@@ -188,6 +190,8 @@ fun SwitchScheduleScreen(
         repository.switchToSchedule(firstSchedule)
         onScheduleChanged()
         scope.launch {
+            withFrameNanos { }
+            withFrameNanos { }
             val bitmap = try { screenGraphicsLayer.toImageBitmap().asAndroidBitmap() } catch (_: Exception) { null }
             onBack(bitmap)
         }
@@ -603,6 +607,8 @@ fun SwitchScheduleScreen(
                     LaunchedEffect(firstCardBounds) {
                         val bounds = firstCardBounds
                         if (bounds != null) {
+                            withFrameNanos { }
+                            withFrameNanos { }
                             try {
                                 val bitmap = screenGraphicsLayer.toImageBitmap().asAndroidBitmap()
                                 val adjustedBounds = androidx.compose.ui.geometry.Rect(
@@ -645,23 +651,39 @@ fun SwitchScheduleScreen(
                                 checkboxLocation = CheckboxLocation.End
                             )
                         } else {
-                            RadioButtonPreference(
-                                title = firstSchedule,
-                                summary = firstSummary,
-                                selected = firstSchedule == currentScheduleId,
+                            Card(
+                                modifier = Modifier.fillMaxWidth(),
+                                cornerRadius = 20.dp,
+                                showIndication = true,
+                                insideMargin = PaddingValues(horizontal = 16.dp, vertical = 16.dp),
+                                pressFeedbackType = PressFeedbackType.None,
                                 onClick = { switchToCurrentSchedule() }
-                            )
+                            ) {
+                                Text(
+                                    text = firstSchedule,
+                                    fontSize = 17.sp,
+                                    fontWeight = FontWeight.Medium,
+                                    color = MiuixTheme.colorScheme.onSurface
+                                )
+                                if (firstSummary.isNotEmpty()) {
+                                    Text(
+                                        text = firstSummary,
+                                        fontSize = 14.sp,
+                                        color = MiuixTheme.colorScheme.onSurfaceVariantSummary,
+                                    )
+                                }
+                            }
                         }
                     }
                 }
                 if (scheduleNames.size > 1) {
-                    item {
-                        SmallTitle(
-                            text = "其他课表",
-                            modifier = Modifier.offset(x = (-16).dp)
-                        )
-                    }
                     items(scheduleNames.size - 1) { index ->
+                        if (index == 0) {
+                            SmallTitle(
+                                text = "其他课表",
+                                modifier = Modifier.offset(x = (-16).dp)
+                            )
+                        }
                         val scheduleName = scheduleNames[index + 1]
                         val summary = remember(scheduleName) { scheduleSummaries[scheduleName] ?: repository.getScheduleSummary(scheduleName) }
                         var cardBounds by remember { mutableStateOf<androidx.compose.ui.geometry.Rect?>(null) }
@@ -692,10 +714,12 @@ fun SwitchScheduleScreen(
                                     checkboxLocation = CheckboxLocation.End
                                 )
                             } else {
-                                RadioButtonPreference(
-                                    title = scheduleName,
-                                    summary = summary,
-                                    selected = scheduleName == currentScheduleId,
+                                Card(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    cornerRadius = 20.dp,
+                                    showIndication = true,
+                                    insideMargin = PaddingValues(horizontal = 16.dp, vertical = 16.dp),
+                                    pressFeedbackType = PressFeedbackType.None,
                                     onClick = {
                                         val names = scheduleNames.toMutableList()
                                         names.remove(scheduleName)
@@ -706,6 +730,8 @@ fun SwitchScheduleScreen(
                                         val bounds = cardBounds
                                         if (bounds != null) {
                                             scope.launch {
+                                                withFrameNanos { }
+                                                withFrameNanos { }
                                                 try {
                                                     val fullBitmap = screenGraphicsLayer.toImageBitmap().asAndroidBitmap()
                                                     val x = (bounds.left - contentRootX).toInt().coerceIn(0, fullBitmap.width - 1)
@@ -721,7 +747,21 @@ fun SwitchScheduleScreen(
                                             onBack(null)
                                         }
                                     }
-                                )
+                                ) {
+                                    Text(
+                                        text = scheduleName,
+                                        fontSize = 17.sp,
+                                        fontWeight = FontWeight.Medium,
+                                        color = MiuixTheme.colorScheme.onSurface
+                                    )
+                                    if (summary.isNotEmpty()) {
+                                        Text(
+                                            text = summary,
+                                            fontSize = 14.sp,
+                                            color = MiuixTheme.colorScheme.onSurfaceVariantSummary
+                                        )
+                                    }
+                                }
                             }
                         }
                     }
