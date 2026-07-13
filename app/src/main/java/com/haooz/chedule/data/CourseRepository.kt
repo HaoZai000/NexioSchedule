@@ -99,6 +99,8 @@ class CourseRepository private constructor(context: Context) {
         private const val KEY_COMBINATION_CARD_ALPHA_PREFIX = "comb_card_alpha_"
         private const val KEY_COMBINATION_CARD_HEIGHT_PREFIX = "comb_card_height_"
         private const val KEY_COMBINATION_CARD_CORNER_PREFIX = "comb_card_corner_"
+        private const val KEY_COMBINATION_WALLPAPER_BRIGHTNESS_PREFIX = "comb_wp_brightness_"
+        private const val KEY_COMBINATION_SHOW_BREAK_DIVIDERS_PREFIX = "comb_break_div_"
     }
 
     /**
@@ -1032,6 +1034,8 @@ class CourseRepository private constructor(context: Context) {
             .remove("${KEY_COMBINATION_SCALE_PREFIX}$id")
             .remove("${KEY_COMBINATION_CARD_BLUR_PREFIX}$id")
             .remove("${KEY_COMBINATION_CARD_ALPHA_PREFIX}$id")
+            .remove("${KEY_COMBINATION_WALLPAPER_BRIGHTNESS_PREFIX}$id")
+            .remove("${KEY_COMBINATION_SHOW_BREAK_DIVIDERS_PREFIX}$id")
             .apply()
         // 删除壁纸与快照文件
         java.io.File(appContext.filesDir, "${COMBINATION_WALLPAPER_PREFIX}$id.png").delete()
@@ -1123,6 +1127,22 @@ class CourseRepository private constructor(context: Context) {
     }
 
     fun getCombinationCardCornerRadius(id: Long): Float = prefs.getFloat("${KEY_COMBINATION_CARD_CORNER_PREFIX}$id", 8f)
+
+    fun saveCombinationWallpaperBrightness(id: Long, brightness: Float) {
+        prefs.edit()
+            .putFloat("${KEY_COMBINATION_WALLPAPER_BRIGHTNESS_PREFIX}$id", brightness)
+            .apply()
+    }
+
+    fun getCombinationWallpaperBrightness(id: Long): Float = prefs.getFloat("${KEY_COMBINATION_WALLPAPER_BRIGHTNESS_PREFIX}$id", 0f)
+
+    fun saveCombinationShowBreakDividers(id: Long, show: Boolean) {
+        prefs.edit()
+            .putBoolean("${KEY_COMBINATION_SHOW_BREAK_DIVIDERS_PREFIX}$id", show)
+            .apply()
+    }
+
+    fun getCombinationShowBreakDividers(id: Long): Boolean = prefs.getBoolean("${KEY_COMBINATION_SHOW_BREAK_DIVIDERS_PREFIX}$id", true)
 
     /** 保存指定搭配的完整快照（课表+壁纸预览） */
     fun saveCombinationSnapshot(id: Long, bitmap: android.graphics.Bitmap): Boolean {

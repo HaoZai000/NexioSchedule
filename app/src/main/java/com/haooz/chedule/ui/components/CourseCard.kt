@@ -17,6 +17,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.key
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import android.graphics.Color as AndroidColor
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
@@ -59,10 +60,19 @@ fun CourseCard(
         Color(0xFF9E9E9E).copy(alpha = cardAlpha * 0.7f)
     }
     val textColor = if (isCurrentWeek) {
-        Color(course.colorRes)
+        if (hasBlur) Color(course.colorRes).let { c ->
+            val hsv = FloatArray(3)
+            AndroidColor.RGBToHSV((c.red * 255).toInt(), (c.green * 255).toInt(), (c.blue * 255).toInt(), hsv)
+            hsv[1] = (hsv[1] * 2.0f).coerceIn(0f, 1f)
+            val boosted = AndroidColor.HSVToColor(hsv)
+            Color(AndroidColor.red(boosted), AndroidColor.green(boosted), AndroidColor.blue(boosted)).let { bc ->
+                Color(bc.red + (1f - bc.red) * 0.4f, bc.green + (1f - bc.green) * 0.4f, bc.blue + (1f - bc.blue) * 0.4f)
+            }
+        }
+        else Color(course.colorRes)
     } else {
         if (hasBlur) {
-            Color(0xFF6E6E6E).copy(alpha = if (isAppDarkTheme()) 0.7f else 0.6f)
+            Color.Black.copy(alpha = 0.5f)
         } else {
             Color(0xFF9E9E9E).copy(alpha = if (isAppDarkTheme()) 0.28f else 0.45f)
         }

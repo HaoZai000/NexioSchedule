@@ -1,7 +1,5 @@
 /** 教务系统导入页面 */
 package com.haooz.chedule.ui.activities
-import com.haooz.chedule.ui.screens.WebViewScreen
-import com.haooz.chedule.ui.screens.SchoolSelectionScreen
 
 import android.os.Bundle
 import android.util.Log
@@ -10,18 +8,26 @@ import androidx.activity.ComponentActivity
 import androidx.activity.SystemBarStyle
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
 import com.haooz.chedule.data.CourseRepository
 import com.haooz.chedule.data.school.AdapterData
 import com.haooz.chedule.data.school.SchoolData
 import com.haooz.chedule.data.school.ScriptRepository
+import com.haooz.chedule.ui.screens.WebViewScreen
+import com.haooz.chedule.ui.screens.SchoolSelectionScreen
 import com.haooz.chedule.ui.utils.applyThemeAwareSystemBars
+import com.haooz.chedule.ui.utils.rememberAppStyle
 import com.haooz.chedule.ui.theme.CourseScheduleTheme
+import com.kyant.backdrop.backdrops.LayerBackdrop
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -163,9 +169,20 @@ class EducationalImportActivity : ComponentActivity() {
         val updateProgress by _updateProgress.collectAsState()
         val dataVersion by _dataVersion.collectAsState()
 
+        val currentAppStyle = rememberAppStyle()
+        val liquidGlassBackdrop: LayerBackdrop? = if (currentAppStyle == "liquidglass") {
+            com.kyant.backdrop.backdrops.rememberLayerBackdrop()
+        } else null
+        val isLiquidGlass = currentAppStyle == "liquidglass"
+
         var currentScreen by remember { mutableStateOf("selection") }
         var selectedSchool by remember { mutableStateOf<SchoolData?>(null) }
         var selectedAdapter by remember { mutableStateOf<AdapterData?>(null) }
+
+        var isDesktopMode by remember { mutableStateOf(false) }
+        var currentAssetJsPath by remember { mutableStateOf<String?>(null) }
+        var executeImportAction by remember { mutableStateOf<(() -> Unit)?>(null) }
+        var toggleDesktopModeAction by remember { mutableStateOf<(() -> Unit)?>(null) }
 
         when (currentScreen) {
             "selection" -> {
@@ -175,6 +192,8 @@ class EducationalImportActivity : ComponentActivity() {
                     updateProgress = updateProgress,
                     dataVersion = dataVersion,
                     isInFreeformWindow = isInFreeformWindow,
+                    isLiquidGlass = isLiquidGlass,
+                    liquidGlassBackdrop = liquidGlassBackdrop,
                     onRefresh = { forceUpdate(this@EducationalImportActivity) },
                     onSchoolSelected = { school, adapter ->
                         selectedSchool = school
@@ -188,17 +207,25 @@ class EducationalImportActivity : ComponentActivity() {
                 val school = selectedSchool
                 val adapter = selectedAdapter
                 if (school != null && adapter != null) {
-                    WebViewScreen(
-                        school = school,
-                        adapterId = adapter.adapterId,
-                        importUrl = adapter.importUrl,
-                        assetJsPath = adapter.assetJsPath,
-                        onBack = { currentScreen = "selection" },
-                        onImportComplete = { courses ->
-                            CourseRepository(this@EducationalImportActivity).saveCourses(courses)
-                            Toast.makeText(this@EducationalImportActivity, "课程已保存，共 ${courses.size} 门课程", Toast.LENGTH_SHORT).show()
-                        }
-                    )
+                    Box(Modifier.fillMaxSize()) {
+                        WebViewScreen(
+                            school = school,
+                            adapterId = adapter.adapterId,
+                            importUrl = adapter.importUrl,
+                            assetJsPath = adapter.assetJsPath,
+                            isLiquidGlass = isLiquidGlass,
+                            liquidGlassBackdrop = liquidGlassBackdrop,
+                            onBack = { currentScreen = "selection" },
+                            onImportComplete = { courses ->
+                                CourseRepository(this@EducationalImportActivity).saveCourses(courses)
+                                Toast.makeText(this@EducationalImportActivity, "课程已保存，共 ${courses.size} 门课程", Toast.LENGTH_SHORT).show()
+                            },
+                            onDesktopModeChanged = { isDesktopMode = it },
+                            onAssetJsPathChanged = { currentAssetJsPath = it },
+                            onExecuteImportRef = { action -> executeImportAction = action },
+                            onToggleDesktopModeRef = { action -> toggleDesktopModeAction = action }
+                        )
+                    }
                 }
             }
         }

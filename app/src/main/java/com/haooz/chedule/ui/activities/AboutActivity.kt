@@ -17,6 +17,8 @@ import androidx.compose.animation.core.tween
 import androidx.compose.animation.expandVertically
 import androidx.compose.animation.shrinkVertically
 import androidx.compose.foundation.Image
+import androidx.compose.ui.res.painterResource
+import com.haooz.chedule.R
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -35,9 +37,10 @@ import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBars
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.rememberLazyListState
-import androidx.compose.foundation.shape.RoundedCornerShape
+
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.derivedStateOf
@@ -49,6 +52,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.ColorFilter
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
@@ -59,6 +63,7 @@ import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.DpOffset
+import androidx.compose.ui.unit.DpSize
 import androidx.compose.ui.unit.LayoutDirection
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -79,6 +84,7 @@ import top.yukonga.miuix.kmp.basic.IconButton
 import top.yukonga.miuix.kmp.basic.MiuixScrollBehavior
 import top.yukonga.miuix.kmp.basic.Scaffold
 import top.yukonga.miuix.kmp.basic.SmallTopAppBar
+import top.yukonga.miuix.kmp.basic.TextButton
 import top.yukonga.miuix.kmp.blur.BlendColorEntry
 import top.yukonga.miuix.kmp.blur.BlurBlendMode
 import top.yukonga.miuix.kmp.blur.BlurDefaults
@@ -88,6 +94,7 @@ import top.yukonga.miuix.kmp.icon.MiuixIcons
 import top.yukonga.miuix.kmp.icon.extended.Back
 import top.yukonga.miuix.kmp.icon.extended.ChevronBackward
 import top.yukonga.miuix.kmp.icon.extended.ChevronForward
+import top.yukonga.miuix.kmp.overlay.OverlayDialog
 import top.yukonga.miuix.kmp.preference.ArrowPreference
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 import top.yukonga.miuix.kmp.utils.overScrollVertical
@@ -167,6 +174,7 @@ private fun AboutScreen(onBack: () -> Unit) {
     val blurActive by remember(backdrop) { derivedStateOf { backdrop != null && scrollProgress == 1f } }
 
     var dynamicBackground by remember { mutableStateOf(true) }
+    var showRepoDialog by remember { mutableStateOf(false) }
 
     val logoBlend = remember(isInDark) {
         if (isInDark) {
@@ -439,9 +447,9 @@ private fun AboutScreen(onBack: () -> Unit) {
                                     }
                                 )
                                 ArrowPreference(
-                                    title = "项目Gitee仓库",
+                                    title = "项目仓库",
                                     onClick = {
-                                        uriHandler.openUri("https://gitee.com/com_haooz_account/hyper_schedule")
+                                        showRepoDialog = true
                                     }
                                 )
                                 AboutItem(title = "应用框架", value = "Jetpack Compose + Miuix UI")
@@ -486,7 +494,7 @@ private fun AboutScreen(onBack: () -> Unit) {
                         Card(
                             modifier = Modifier
                                 .padding(horizontal = 16.dp)
-                                .clip(RoundedCornerShape(20.dp))
+                                .clip(RoundedRectangle(20.dp))
                                 .clickable { expanded = !expanded }
                                 .then(
                                     if (backdrop != null) {
@@ -735,7 +743,82 @@ private fun AboutScreen(onBack: () -> Unit) {
                     }
                 }
             }
+            }
         }
+
+        OverlayDialog(
+            title = "项目仓库",
+            show = showRepoDialog,
+            outsideMargin = DpSize(17.dp, 12.dp),
+            onDismissRequest = { showRepoDialog = false }
+        ) {
+            Column(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalAlignment = Alignment.CenterHorizontally
+            ) {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(top = 8.dp),
+                    horizontalArrangement = Arrangement.SpaceEvenly,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Column(
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                        modifier = Modifier
+                            .clip(RoundedRectangle(18.dp))
+                            .clickable {
+                                hapticFeedback.performHapticFeedback(HapticFeedbackType.VirtualKey)
+                                uriHandler.openUri("https://github.com/HaoZai000/NexioSchedule")
+                            }
+                            .padding(horizontal = 24.dp, vertical = 12.dp)
+                    ) {
+                        Image(
+                            modifier = Modifier.size(48.dp),
+                            painter = painterResource(id = R.drawable.ic_github),
+                            contentDescription = "GitHub",
+                            colorFilter = ColorFilter.tint(MiuixTheme.colorScheme.onSurface)
+                        )
+                        Spacer(modifier = Modifier.height(8.dp))
+                        Text(
+                            text = "GitHub",
+                            fontSize = 14.sp,
+                            color = MiuixTheme.colorScheme.onSurface
+                        )
+                    }
+                    Column(
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                        modifier = Modifier
+                            .clip(RoundedRectangle(18.dp))
+                            .clickable {
+                                hapticFeedback.performHapticFeedback(HapticFeedbackType.VirtualKey)
+                                uriHandler.openUri("https://gitee.com/com_haooz_account/hyper_schedule")
+                            }
+                            .padding(horizontal = 24.dp, vertical = 12.dp)
+                    ) {
+                        Image(
+                            modifier = Modifier.size(48.dp),
+                            painter = painterResource(id = R.drawable.ic_gitee),
+                            contentDescription = "Gitee"
+                        )
+                        Spacer(modifier = Modifier.height(8.dp))
+                        Text(
+                            text = "Gitee",
+                            fontSize = 14.sp,
+                            color = MiuixTheme.colorScheme.onSurface
+                        )
+                    }
+                }
+                Spacer(modifier = Modifier.height(20.dp))
+                TextButton(
+                    text = "完成",
+                    onClick = {
+                        hapticFeedback.performHapticFeedback(HapticFeedbackType.Confirm)
+                        showRepoDialog = false
+                    },
+                    modifier = Modifier.fillMaxWidth()
+                )
+            }
         }
     }
 }

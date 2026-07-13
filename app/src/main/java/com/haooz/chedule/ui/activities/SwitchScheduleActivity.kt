@@ -173,7 +173,10 @@ fun SwitchScheduleScreen(
         scheduleNames = repository.getScheduleNames()
     }
     var currentScheduleId by remember { mutableStateOf(initialCurrentScheduleId ?: repository.getCurrentScheduleId()) }
-    val scheduleSummaries = remember { initialScheduleSummaries?.toMutableMap() ?: mutableMapOf() }
+    var scheduleSummaries by remember { mutableStateOf(initialScheduleSummaries?.toMutableMap() ?: mutableMapOf()) }
+    LaunchedEffect(initialScheduleSummaries) {
+        scheduleSummaries = initialScheduleSummaries?.toMutableMap() ?: mutableMapOf()
+    }
     var showAddDialog by remember { mutableStateOf(false) }
     var newScheduleName by remember { mutableStateOf("") }
     var isEditMode by remember { mutableStateOf(false) }
@@ -639,7 +642,7 @@ fun SwitchScheduleScreen(
                         insideMargin = PaddingValues(0.dp)
                     ) {
                         val firstSchedule = scheduleNames.firstOrNull() ?: ""
-                        val firstSummary = remember(firstSchedule) { scheduleSummaries[firstSchedule] ?: repository.getScheduleSummary(firstSchedule) }
+                        val firstSummary = remember(firstSchedule, scheduleSummaries) { scheduleSummaries[firstSchedule] ?: repository.getScheduleSummary(firstSchedule) }
                         if (isEditMode) {
                             CheckboxPreference(
                                 title = firstSchedule,
@@ -685,7 +688,7 @@ fun SwitchScheduleScreen(
                             )
                         }
                         val scheduleName = scheduleNames[index + 1]
-                        val summary = remember(scheduleName) { scheduleSummaries[scheduleName] ?: repository.getScheduleSummary(scheduleName) }
+                        val summary = remember(scheduleName, scheduleSummaries) { scheduleSummaries[scheduleName] ?: repository.getScheduleSummary(scheduleName) }
                         var cardBounds by remember { mutableStateOf<androidx.compose.ui.geometry.Rect?>(null) }
                         Card(
                             cornerRadius = 20.dp,

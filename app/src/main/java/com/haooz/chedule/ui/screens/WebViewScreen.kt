@@ -29,12 +29,15 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.asPaddingValues
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.statusBars
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
@@ -53,6 +56,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalHapticFeedback
@@ -64,11 +68,15 @@ import androidx.compose.ui.unit.sp
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
+import androidx.compose.ui.zIndex
 import com.haooz.chedule.data.Course
 import com.haooz.chedule.data.school.SchoolData
+import com.haooz.chedule.ui.components.liquidglass.LiquidTopBarButton
+import com.haooz.chedule.ui.components.liquidglass.ProgressiveBlurTopBar
 import com.haooz.chedule.ui.web.AndroidBridge
 import com.haooz.chedule.ui.web.WebCompatDelegate
 import com.haooz.chedule.ui.web.WebPostBridge
+import com.kyant.backdrop.backdrops.LayerBackdrop
 import com.kyant.shapes.Capsule
 import com.kyant.shapes.RoundedRectangle
 import top.yukonga.miuix.kmp.basic.Button
@@ -117,8 +125,14 @@ fun WebViewScreen(
     adapterId: String,
     importUrl: String?,
     assetJsPath: String?,
+    isLiquidGlass: Boolean = false,
+    liquidGlassBackdrop: LayerBackdrop? = null,
     onBack: () -> Unit,
-    onImportComplete: (List<Course>) -> Unit
+    onImportComplete: (List<Course>) -> Unit,
+    onDesktopModeChanged: (Boolean) -> Unit = {},
+    onAssetJsPathChanged: (String?) -> Unit = {},
+    onExecuteImportRef: ((() -> Unit) -> Unit)? = null,
+    onToggleDesktopModeRef: ((() -> Unit) -> Unit)? = null
 ) {
     val context = LocalContext.current
     var currentUrl by remember { mutableStateOf(importUrl ?: "about:blank") }
@@ -126,6 +140,9 @@ fun WebViewScreen(
     var pageTitle by remember { mutableStateOf("加载中...") }
     var isDesktopMode by remember { mutableStateOf(false) }
     val hapticFeedback = LocalHapticFeedback.current
+
+    LaunchedEffect(isDesktopMode) { onDesktopModeChanged(isDesktopMode) }
+    LaunchedEffect(assetJsPath) { onAssetJsPathChanged(assetJsPath) }
 
     var alertData by remember { mutableStateOf<AlertData?>(null) }
     var promptData by remember { mutableStateOf<PromptData?>(null) }
@@ -137,6 +154,7 @@ fun WebViewScreen(
                 ViewGroup.LayoutParams.MATCH_PARENT,
                 ViewGroup.LayoutParams.MATCH_PARENT
             )
+            setBackgroundColor(androidx.compose.ui.graphics.Color.Transparent.toArgb())
         }
     }
 
@@ -328,52 +346,108 @@ fun WebViewScreen(
         } ?: Toast.makeText(context, "无导入脚本", Toast.LENGTH_LONG).show()
     }
 
-    Box(modifier = Modifier.fillMaxSize()) {
+    LaunchedEffect(onExecuteImportRef) { onExecuteImportRef?.invoke(onExecuteImport) }
+    LaunchedEffect(onToggleDesktopModeRef) { onToggleDesktopModeRef?.invoke { isDesktopMode = !isDesktopMode; webView.reload() } }
+
+    Box(modifier = Modifier.fillMaxSize().background(MiuixTheme.colorScheme.surface)) {
         Scaffold(
             contentWindowInsets = WindowInsets(0, 0, 0, 0),
             topBar = {
-                SmallTopAppBar(
-                    title = pageTitle,
-                    navigationIcon = {
-                        IconButton(onClick = {
-                            hapticFeedback.performHapticFeedback(HapticFeedbackType.VirtualKey)
-                            onBack()
-                        }, modifier = Modifier.padding(start = 4.dp)) {
-                            Icon(MiuixIcons.Close, contentDescription = "关闭", modifier = Modifier.size(23.dp))
-                        }
-                    },
-                    actions = {
-                        IconButton(onClick = {
-                            hapticFeedback.performHapticFeedback(HapticFeedbackType.VirtualKey)
-                            webView.reload()
-                        }, modifier = Modifier.padding(end = 4.dp)) {
-                            Icon(MiuixIcons.Refresh, contentDescription = "刷新", modifier = Modifier.size(26.dp))
+                if (isLiquidGlass && liquidGlassBackdrop != null) {
+                    val statusBarPadding = WindowInsets.statusBars.asPaddingValues().calculateTopPadding()
+                    ProgressiveBlurTopBar(
+                        backdrop = liquidGlassBackdrop,
+                    ) {
+                        SmallTopAppBar(
+                            color = androidx.compose.ui.graphics.Color.Transparent,
+                            title = pageTitle,
+                            modifier = Modifier.zIndex(1f),
+                            navigationIcon = {}
+                        )
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .zIndex(2f)
+                                .offset(y = if (statusBarPadding > 0.dp) statusBarPadding + 5.dp else 42.dp),
+                            horizontalArrangement = Arrangement.SpaceBetween
+                        ) {
+                            LiquidTopBarButton(
+                                onClick = {
+                                    hapticFeedback.performHapticFeedback(HapticFeedbackType.VirtualKey)
+                                    onBack()
+                                },
+                                backdrop = liquidGlassBackdrop,
+                                icon = MiuixIcons.Close,
+                                contentDescription = "关闭",
+                                modifier = Modifier.offset(x = 20.dp),
+                                iconSize = 22.dp,
+                                useBackdropShadow = true
+                            )
+                            LiquidTopBarButton(
+                                onClick = {
+                                    hapticFeedback.performHapticFeedback(HapticFeedbackType.VirtualKey)
+                                    webView.reload()
+                                },
+                                backdrop = liquidGlassBackdrop,
+                                icon = MiuixIcons.Refresh,
+                                contentDescription = "刷新",
+                                modifier = Modifier.offset(x = (-20).dp),
+                                iconSize = 24.dp,
+                                useBackdropShadow = true
+                            )
                         }
                     }
-                )
+                } else {
+                    SmallTopAppBar(
+                        title = pageTitle,
+                        navigationIcon = {
+                            IconButton(onClick = {
+                                hapticFeedback.performHapticFeedback(HapticFeedbackType.VirtualKey)
+                                onBack()
+                            }, modifier = Modifier.padding(start = 4.dp)) {
+                                Icon(MiuixIcons.Close, contentDescription = "关闭", modifier = Modifier.size(23.dp))
+                            }
+                        },
+                        actions = {
+                            IconButton(onClick = {
+                                hapticFeedback.performHapticFeedback(HapticFeedbackType.VirtualKey)
+                                webView.reload()
+                            }, modifier = Modifier.padding(end = 4.dp)) {
+                                Icon(MiuixIcons.Refresh, contentDescription = "刷新", modifier = Modifier.size(26.dp))
+                            }
+                        }
+                    )
+                }
             }
         ) { paddingValues ->
-            AndroidView(
-                modifier = Modifier
-                    .padding(paddingValues)
-                    .fillMaxSize(),
-                factory = { webView },
-                update = {}
-            )
-        }
-
-        AnimatedVisibility(
-            visible = loadingProgress in 0.01f..0.99f,
-            enter = fadeIn(),
-            exit = fadeOut(),
-            modifier = Modifier.align(Alignment.TopCenter)
-        ) {
             Box(
                 modifier = Modifier
-                    .fillMaxWidth()
-                    .height(3.dp)
-                    .background(MiuixTheme.colorScheme.primary)
-            )
+                    .padding(
+                        top = (paddingValues.calculateTopPadding() + if (isLiquidGlass) (-12).dp else 0.dp).coerceAtLeast(0.dp),
+                        bottom = paddingValues.calculateBottomPadding()
+                    )
+                    .fillMaxSize()
+            ) {
+                AndroidView(
+                    modifier = Modifier.fillMaxSize(),
+                    factory = { webView },
+                    update = {}
+                )
+
+                AnimatedVisibility(
+                    visible = loadingProgress in 0.01f..0.99f,
+                    enter = fadeIn(),
+                    exit = fadeOut(),
+                    modifier = Modifier.align(Alignment.TopCenter)
+                ) {
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(3.dp)
+                            .background(MiuixTheme.colorScheme.primary)
+                    )
+                }
+            }
         }
 
         Surface(
@@ -440,8 +514,7 @@ fun WebViewScreen(
                 }
 
                 Surface(
-                    modifier = Modifier
-                        .size(44.dp),
+                    modifier = Modifier.size(44.dp),
                     shape = RoundedRectangle(22.dp),
                     color = if (assetJsPath != null)
                         MiuixTheme.colorScheme.primary
@@ -489,7 +562,7 @@ private fun WebAlertDialog(
     ) {
         Surface(
             shape = RoundedRectangle(28.dp),
-            color = MiuixTheme.colorScheme.surface,
+            color = MiuixTheme.colorScheme.background,
             modifier = Modifier
                 .fillMaxWidth()
                 .padding(horizontal = 20.dp)
@@ -543,7 +616,7 @@ private fun WebPromptDialog(
     ) {
         Surface(
             shape = RoundedRectangle(28.dp),
-            color = MiuixTheme.colorScheme.surface,
+            color = MiuixTheme.colorScheme.background,
             modifier = Modifier
                 .fillMaxWidth()
                 .padding(horizontal = 20.dp)
@@ -615,7 +688,7 @@ private fun WebSelectionDialog(
     ) {
         Surface(
             shape = RoundedRectangle(28.dp),
-            color = MiuixTheme.colorScheme.surface,
+            color = MiuixTheme.colorScheme.background,
             modifier = Modifier
                 .fillMaxWidth()
                 .padding(horizontal = 20.dp)

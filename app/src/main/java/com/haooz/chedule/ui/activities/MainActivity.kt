@@ -21,6 +21,8 @@ import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Spacer
@@ -78,6 +80,8 @@ import com.haooz.chedule.ui.components.ScheduleTopBar
 import com.haooz.chedule.ui.components.ShareImportDialog
 import com.haooz.chedule.ui.components.UpdateDialog
 import com.haooz.chedule.ui.components.liquidglass.LiquidAddButton
+import com.haooz.chedule.ui.components.liquidglass.LiquidGlassDropdownMenu
+import com.haooz.chedule.ui.components.liquidglass.LiquidGlassDropdownMenuItem
 import com.haooz.chedule.ui.components.liquidglass.ProgressiveBlurTopBar
 import com.haooz.chedule.ui.screens.AddCourseDialog
 import com.haooz.chedule.ui.screens.CourseDetailScreen
@@ -139,6 +143,10 @@ class MainActivity : ComponentActivity() {
         var cachedCourseCardHeight: Float = 54f
         @Volatile
         var cachedCourseCardCornerRadius: Float = 8f
+        @Volatile
+        var cachedWallpaperBrightness: Float = 0f
+        @Volatile
+        var cachedShowBreakDividers: Boolean = true
     }
     var shareIntentUri: android.net.Uri? = null
         private set
@@ -211,6 +219,8 @@ class MainActivity : ComponentActivity() {
                     cachedCourseCardAlpha = repo.getCombinationCardAlpha(currentIdValue)
                     cachedCourseCardHeight = repo.getCombinationCardHeight(currentIdValue)
                     cachedCourseCardCornerRadius = repo.getCombinationCardCornerRadius(currentIdValue)
+                    cachedWallpaperBrightness = repo.getCombinationWallpaperBrightness(currentIdValue)
+                    cachedShowBreakDividers = repo.getCombinationShowBreakDividers(currentIdValue)
                 }
             } catch (_: Exception) {}
         }
@@ -377,6 +387,8 @@ fun CourseScheduleApp() {
     var courseCardAlpha by remember { mutableFloatStateOf(MainActivity.cachedCourseCardAlpha) }
     var courseCardHeight by remember { mutableFloatStateOf(MainActivity.cachedCourseCardHeight) }
     var courseCardCornerRadius by remember { mutableFloatStateOf(MainActivity.cachedCourseCardCornerRadius) }
+    var wallpaperBrightness by remember { mutableFloatStateOf(MainActivity.cachedWallpaperBrightness) }
+    var showBreakDividers by remember { mutableStateOf(MainActivity.cachedShowBreakDividers) }
     var isCustomizeExiting by remember { mutableStateOf(false) }
     var customizeExitTargetScale by remember { mutableFloatStateOf(1f) }
     val customizeExitScale = remember { Animatable(1f) }
@@ -397,6 +409,8 @@ fun CourseScheduleApp() {
     var savedCourseCardAlpha by remember { mutableFloatStateOf(0.15f) }
     var savedCourseCardHeight by remember { mutableFloatStateOf(54f) }
     var savedCourseCardCornerRadius by remember { mutableFloatStateOf(8f) }
+    var savedWallpaperBrightness by remember { mutableFloatStateOf(0f) }
+    var savedShowBreakDividers by remember { mutableStateOf(true) }
     // 记录进入搭配页时已应用的原始搭配，用于退出（非应用）时还原（滑动切换不更新此项）
     var originalCombinationIndex by remember { mutableIntStateOf(0) }
     var originalWallpaperBitmap by remember { mutableStateOf<android.graphics.Bitmap?>(null) }
@@ -406,6 +420,8 @@ fun CourseScheduleApp() {
     var originalCourseCardAlpha by remember { mutableFloatStateOf(0.15f) }
     var originalCourseCardHeight by remember { mutableFloatStateOf(54f) }
     var originalCourseCardCornerRadius by remember { mutableFloatStateOf(8f) }
+    var originalWallpaperBrightness by remember { mutableFloatStateOf(0f) }
+    var originalShowBreakDividers by remember { mutableStateOf(true) }
     var isApplyingCustomize by remember { mutableStateOf(false) }
     var isNewCombinationCreated by remember { mutableStateOf(false) }
     var newCombinationIndex by remember { mutableIntStateOf(0) }
@@ -438,7 +454,9 @@ fun CourseScheduleApp() {
                     cardBlurRadius = wallpaperRepository.getCombinationCardBlur(id),
                     cardAlpha = wallpaperRepository.getCombinationCardAlpha(id),
                     cardHeight = wallpaperRepository.getCombinationCardHeight(id),
-                    cardCornerRadius = wallpaperRepository.getCombinationCardCornerRadius(id)
+                    cardCornerRadius = wallpaperRepository.getCombinationCardCornerRadius(id),
+                    wallpaperBrightness = wallpaperRepository.getCombinationWallpaperBrightness(id),
+                    showBreakDividers = wallpaperRepository.getCombinationShowBreakDividers(id)
                 )
             }
             combinations = list
@@ -463,7 +481,9 @@ fun CourseScheduleApp() {
                         cardBlurRadius = wallpaperRepository.getCombinationCardBlur(id),
                         cardAlpha = wallpaperRepository.getCombinationCardAlpha(id),
                         cardHeight = wallpaperRepository.getCombinationCardHeight(id),
-                        cardCornerRadius = wallpaperRepository.getCombinationCardCornerRadius(id)
+                        cardCornerRadius = wallpaperRepository.getCombinationCardCornerRadius(id),
+                        wallpaperBrightness = wallpaperRepository.getCombinationWallpaperBrightness(id),
+                        showBreakDividers = wallpaperRepository.getCombinationShowBreakDividers(id)
                     )
                 }
                 Triple(list, loadedIds, loadedIndex)
@@ -493,7 +513,11 @@ fun CourseScheduleApp() {
             savedCourseCardHeight = curr.cardHeight
             courseCardHeight = curr.cardHeight
             savedCourseCardCornerRadius = curr.cardCornerRadius
+            savedWallpaperBrightness = curr.wallpaperBrightness
+            savedShowBreakDividers = curr.showBreakDividers
             courseCardCornerRadius = curr.cardCornerRadius
+            wallpaperBrightness = curr.wallpaperBrightness
+            showBreakDividers = curr.showBreakDividers
             originalWallpaperBitmap = curr.bitmap
             originalWallpaperOffset = curr.offset
             originalWallpaperScale = curr.scale
@@ -531,6 +555,8 @@ fun CourseScheduleApp() {
                 courseCardAlpha = c.cardAlpha
                 courseCardHeight = c.cardHeight
                 courseCardCornerRadius = c.cardCornerRadius
+                wallpaperBrightness = c.wallpaperBrightness
+                showBreakDividers = c.showBreakDividers
             }
             cutoutMainScale.snapTo(0.65f)
             cutoutMainScale.animateTo(
@@ -704,6 +730,8 @@ fun CourseScheduleApp() {
             // 先加载模糊设置，确保快照捕获时包含模糊效果
             courseCardBlur = combinations.getOrNull(currentCombinationIndex)?.cardBlurRadius ?: 0f
             courseCardAlpha = combinations.getOrNull(currentCombinationIndex)?.cardAlpha ?: 0.15f
+            wallpaperBrightness = combinations.getOrNull(currentCombinationIndex)?.wallpaperBrightness ?: 0f
+            showBreakDividers = combinations.getOrNull(currentCombinationIndex)?.showBreakDividers ?: true
             kotlinx.coroutines.delay(50.milliseconds)
             // 截取当前搭配快照
             val currentSnapshot = screenGraphicsLayer.toImageBitmap().asAndroidBitmap()
@@ -725,6 +753,8 @@ fun CourseScheduleApp() {
                 val savedAlpha2 = courseCardAlpha
                 val savedHeight2 = courseCardHeight
                 val savedCorner2 = courseCardCornerRadius
+                val savedBri2 = wallpaperBrightness
+                val savedDiv2 = showBreakDividers
                 val savedOrigWp2 = originalWallpaperBitmap
                 val savedOrigOf2 = originalWallpaperOffset
                 val savedOrigSc2 = originalWallpaperScale
@@ -732,6 +762,7 @@ fun CourseScheduleApp() {
                 val savedOrigAlpha2 = originalCourseCardAlpha
                 val savedOrigHeight2 = originalCourseCardHeight
                 val savedOrigCorner2 = originalCourseCardCornerRadius
+                val savedOrigBri2 = originalWallpaperBrightness
                 wallpaperBitmap = nextComb.bitmap
                 wallpaperOffset = nextComb.offset
                 wallpaperScale = nextComb.scale
@@ -739,6 +770,8 @@ fun CourseScheduleApp() {
                 courseCardAlpha = nextComb.cardAlpha
                 courseCardHeight = nextComb.cardHeight
                 courseCardCornerRadius = nextComb.cardCornerRadius
+                wallpaperBrightness = nextComb.wallpaperBrightness
+                showBreakDividers = nextComb.showBreakDividers
                 originalWallpaperBitmap = nextComb.bitmap
                 originalWallpaperOffset = nextComb.offset
                 originalWallpaperScale = nextComb.scale
@@ -746,6 +779,8 @@ fun CourseScheduleApp() {
                 originalCourseCardAlpha = nextComb.cardAlpha
                 originalCourseCardHeight = nextComb.cardHeight
                 originalCourseCardCornerRadius = nextComb.cardCornerRadius
+                originalWallpaperBrightness = nextComb.wallpaperBrightness
+                originalShowBreakDividers = nextComb.showBreakDividers
                 kotlinx.coroutines.delay(120.milliseconds)
                 val nextSnap = screenGraphicsLayer.toImageBitmap().asAndroidBitmap()
                 combinations = combinations.toMutableList().also {
@@ -758,6 +793,8 @@ fun CourseScheduleApp() {
                 courseCardAlpha = savedAlpha2
                 courseCardHeight = savedHeight2
                 courseCardCornerRadius = savedCorner2
+                wallpaperBrightness = savedBri2
+                showBreakDividers = savedDiv2
                 originalWallpaperBitmap = savedOrigWp2
                 originalWallpaperOffset = savedOrigOf2
                 originalWallpaperScale = savedOrigSc2
@@ -765,6 +802,7 @@ fun CourseScheduleApp() {
                 originalCourseCardAlpha = savedOrigAlpha2
                 originalCourseCardHeight = savedOrigHeight2
                 originalCourseCardCornerRadius = savedOrigCorner2
+                originalWallpaperBrightness = savedOrigBri2
                 snapshotCoverBitmap = null
             }
             // 立即打开搭配页（用户看到当前搭配的正确快照）
@@ -781,6 +819,8 @@ fun CourseScheduleApp() {
             originalCourseCardAlpha = courseCardAlpha
             originalCourseCardHeight = courseCardHeight
             originalCourseCardCornerRadius = courseCardCornerRadius
+            originalWallpaperBrightness = wallpaperBrightness
+            originalShowBreakDividers = showBreakDividers
             // 后台逐个捕获其他搭配快照（等打开动画结束后再开始，避免动画期间主界面壁纸跳变）
             kotlinx.coroutines.delay(500.milliseconds)
             val savedWp = wallpaperBitmap
@@ -790,6 +830,8 @@ fun CourseScheduleApp() {
             val savedAlpha = courseCardAlpha
             val savedHeight = courseCardHeight
             val savedCorner = courseCardCornerRadius
+            val savedBri = wallpaperBrightness
+            val savedDiv = showBreakDividers
             for (i in 1 until combinations.size) {
                 val comb = combinations[i]
                 wallpaperBitmap = comb.bitmap
@@ -799,6 +841,8 @@ fun CourseScheduleApp() {
                 courseCardAlpha = comb.cardAlpha
                 courseCardHeight = comb.cardHeight
                 courseCardCornerRadius = comb.cardCornerRadius
+                wallpaperBrightness = comb.wallpaperBrightness
+                showBreakDividers = comb.showBreakDividers
                 originalWallpaperBitmap = comb.bitmap
                 originalWallpaperOffset = comb.offset
                 originalWallpaperScale = comb.scale
@@ -806,6 +850,8 @@ fun CourseScheduleApp() {
                 originalCourseCardAlpha = comb.cardAlpha
                 originalCourseCardHeight = comb.cardHeight
                 originalCourseCardCornerRadius = comb.cardCornerRadius
+                originalWallpaperBrightness = comb.wallpaperBrightness
+                originalShowBreakDividers = comb.showBreakDividers
                 kotlinx.coroutines.delay(120.milliseconds)
                 val snap = screenGraphicsLayer.toImageBitmap().asAndroidBitmap()
                 combinations = combinations.toMutableList().also {
@@ -819,6 +865,8 @@ fun CourseScheduleApp() {
             courseCardAlpha = savedAlpha
             courseCardHeight = savedHeight
             courseCardCornerRadius = savedCorner
+            wallpaperBrightness = savedBri
+            showBreakDividers = savedDiv
             originalWallpaperBitmap = savedWp
             originalWallpaperOffset = savedOf
             originalWallpaperScale = savedSc
@@ -826,6 +874,8 @@ fun CourseScheduleApp() {
             originalCourseCardAlpha = savedAlpha
             originalCourseCardHeight = savedHeight
             originalCourseCardCornerRadius = savedCorner
+            originalWallpaperBrightness = savedBri
+            originalShowBreakDividers = savedDiv
         }
     }
 
@@ -858,6 +908,7 @@ fun CourseScheduleApp() {
     var switchPendingReverse by remember { mutableStateOf(false) }
     var switchCapturingSnapshot by remember { mutableStateOf(false) }
     var scheduleChanged by remember { mutableStateOf(false) }
+    var showMorePopup by remember { mutableStateOf(false) }
 
     val isViewingCurrentWeek = currentViewingWeek == currentWeek
 
@@ -1051,7 +1102,9 @@ fun CourseScheduleApp() {
                             }
                         },
                         onTitleBarMeasured = { activity?.titleBarHeight = it },
-                        liquidGlassBackdrop = liquidGlassBackdrop
+                        liquidGlassBackdrop = liquidGlassBackdrop,
+                        showMorePopup = showMorePopup,
+                        onShowMorePopupChange = { showMorePopup = it }
                     )
                     // 设置页标题栏（Activity 层级渲染，避免 drawPlainBackdrop native crash）
                     if (selectedTab == 2 || (isShiftMode && selectedTab == 1)) {
@@ -1124,6 +1177,8 @@ fun CourseScheduleApp() {
                                 cardAlpha = if (showCustomizePage && !isWindowCutoutActive) originalCourseCardAlpha else courseCardAlpha,
                                 cardHeightPerSection = if (showCustomizePage && !isWindowCutoutActive) originalCourseCardHeight else courseCardHeight,
                                 cardCornerRadius = if (showCustomizePage && !isWindowCutoutActive) originalCourseCardCornerRadius else courseCardCornerRadius,
+                                wallpaperBrightness = if (showCustomizePage && !isWindowCutoutActive) originalWallpaperBrightness else wallpaperBrightness,
+                                showBreakDividers = if (showCustomizePage && !isWindowCutoutActive) originalShowBreakDividers else showBreakDividers,
                                 wallpaperHasAppeared = activity?.wallpaperHasAppeared ?: false,
                                 onWallpaperAppeared = { activity?.wallpaperHasAppeared = true }
                             )
@@ -1264,6 +1319,52 @@ fun CourseScheduleApp() {
                 }
             }
         }
+        // LiquidGlass 更多菜单（Scaffold 外层，显示在最上方）
+        if (appStyle == "liquidglass" && liquidGlassBackdrop != null) {
+            if (showMorePopup) {
+                Box(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .clickable(
+                            interactionSource = remember { MutableInteractionSource() },
+                            indication = null
+                        ) { showMorePopup = false }
+                )
+            }
+            val statusBarHeight = WindowInsets.statusBars.asPaddingValues().calculateTopPadding()
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .graphicsLayer { clip = false }
+                    .padding(top = (statusBarHeight + 38.dp).coerceAtLeast(76.dp), end = 8.dp),
+                contentAlignment = Alignment.TopEnd
+            ) {
+                    LiquidGlassDropdownMenu(
+                        show = showMorePopup,
+                        onDismissRequest = { showMorePopup = false },
+                        backdrop = liquidGlassBackdrop
+                    ) {
+                        LiquidGlassDropdownMenuItem(
+                            text = "跳转周数",
+                            onClick = {
+                                showMorePopup = false
+                                viewModel.showJumpWeekDialog()
+                            }
+                        )
+                        Spacer(modifier = Modifier.height(4.dp))
+                        LiquidGlassDropdownMenuItem(
+                            text = "课表外观",
+                            onClick = {
+                                showMorePopup = false
+                                coroutineScope.launch {
+                                    kotlinx.coroutines.delay(200.milliseconds)
+                                    enterCustomizePage()
+                                }
+                            }
+                        )
+                    }
+            }
+        }
         // 进入动画遮罩（仅颜色渐变，模糊由 SwitchScheduleScreen 自身承担）
         if (isEntryAnimating) {
             Box(
@@ -1323,6 +1424,8 @@ fun CourseScheduleApp() {
                         wallpaperRepository.saveCombinationCardAlpha(combId, courseCardAlpha)
                         wallpaperRepository.saveCombinationCardHeight(combId, courseCardHeight)
                         wallpaperRepository.saveCombinationCardCornerRadius(combId, courseCardCornerRadius)
+                        wallpaperRepository.saveCombinationWallpaperBrightness(combId, wallpaperBrightness)
+                        wallpaperRepository.saveCombinationShowBreakDividers(combId, showBreakDividers)
                         wallpaperRepository.setCurrentCombinationId(combId)
                     }
                     // 同步到当前搭配对象（快照仅存内存）
@@ -1337,7 +1440,9 @@ fun CourseScheduleApp() {
                                 cardBlurRadius = courseCardBlur,
                                 cardAlpha = courseCardAlpha,
                                 cardHeight = courseCardHeight,
-                                cardCornerRadius = courseCardCornerRadius
+                                cardCornerRadius = courseCardCornerRadius,
+                                wallpaperBrightness = wallpaperBrightness,
+                                showBreakDividers = showBreakDividers
                             )
                         }
                     }
@@ -1349,6 +1454,8 @@ fun CourseScheduleApp() {
                     savedCourseCardAlpha = courseCardAlpha
                     savedCourseCardHeight = courseCardHeight
                     savedCourseCardCornerRadius = courseCardCornerRadius
+                    savedWallpaperBrightness = wallpaperBrightness
+                    savedShowBreakDividers = showBreakDividers
                     // 等待磁盘保存完成
                     saveJob.join()
                     // 开始退出动画
@@ -1408,6 +1515,8 @@ fun CourseScheduleApp() {
                         val savedOrigAlpha = originalCourseCardAlpha
                         val savedOrigHeight = originalCourseCardHeight
                         val savedOrigCorner = originalCourseCardCornerRadius
+                        val savedOrigBri = originalWallpaperBrightness
+                        val savedOrigDiv = originalShowBreakDividers
                         // 新搭配无背景，临时清除壁纸以截取无壁纸快照
                         wallpaperBitmap = null
                         wallpaperOffset = androidx.compose.ui.geometry.Offset.Zero
@@ -1416,6 +1525,8 @@ fun CourseScheduleApp() {
                         courseCardAlpha = 0.15f
                         courseCardHeight = 54f
                         courseCardCornerRadius = 8f
+                        wallpaperBrightness = 0f
+                        showBreakDividers = true
                         // 同步更新 original* 让 MainScheduleScreen 渲染空状态
                         originalWallpaperBitmap = null
                         originalWallpaperOffset = androidx.compose.ui.geometry.Offset.Zero
@@ -1424,6 +1535,7 @@ fun CourseScheduleApp() {
                         originalCourseCardAlpha = 0.15f
                         originalCourseCardHeight = 54f
                         originalCourseCardCornerRadius = 8f
+                        originalWallpaperBrightness = 0f
                         coroutineScope.launch {
                             kotlinx.coroutines.delay(150.milliseconds)
                             val newSnapshot = screenGraphicsLayer.toImageBitmap().asAndroidBitmap()
@@ -1439,6 +1551,8 @@ fun CourseScheduleApp() {
                             courseCardAlpha = savedOrigAlpha
                             courseCardHeight = savedOrigHeight
                             courseCardCornerRadius = savedOrigCorner
+                            wallpaperBrightness = savedOrigBri
+                            showBreakDividers = savedOrigDiv
                             originalWallpaperBitmap = savedOrigWp
                             originalWallpaperOffset = savedOrigOf
                             originalWallpaperScale = savedOrigSc
@@ -1446,6 +1560,8 @@ fun CourseScheduleApp() {
                             originalCourseCardAlpha = savedOrigAlpha
                             originalCourseCardHeight = savedOrigHeight
                             originalCourseCardCornerRadius = savedOrigCorner
+                            originalWallpaperBrightness = savedOrigBri
+                            originalShowBreakDividers = savedOrigDiv
                             // 触发自动进入编辑模式
                             isWindowCutoutActive = true
                             pendingEnterCutout = true
@@ -1470,6 +1586,8 @@ fun CourseScheduleApp() {
                             courseCardAlpha = c.cardAlpha
                             courseCardHeight = c.cardHeight
                             courseCardCornerRadius = c.cardCornerRadius
+                            wallpaperBrightness = c.wallpaperBrightness
+                            showBreakDividers = c.showBreakDividers
                             // 同步更新 savedWallpaper*：编辑取消时需回退到"当前查看搭配"的未编辑状态，
                             // 切换搭配时必须同步，否则取消编辑会闪回原搭配
                             savedWallpaperBitmap = c.bitmap
@@ -1535,11 +1653,17 @@ fun CourseScheduleApp() {
                                     savedCourseCardBlur = c.cardBlurRadius
                                     savedCourseCardAlpha = c.cardAlpha
                                     savedCourseCardHeight = c.cardHeight
-                                    savedCourseCardCornerRadius = c.cardCornerRadius
+                            savedCourseCardCornerRadius = c.cardCornerRadius
+                            savedWallpaperBrightness = c.wallpaperBrightness
+                            savedShowBreakDividers = c.showBreakDividers
+                                    savedWallpaperBrightness = c.wallpaperBrightness
+                                    savedShowBreakDividers = c.showBreakDividers
                                     courseCardBlur = c.cardBlurRadius
                                     courseCardAlpha = c.cardAlpha
                                     courseCardHeight = c.cardHeight
                                     courseCardCornerRadius = c.cardCornerRadius
+                                    wallpaperBrightness = c.wallpaperBrightness
+                                    showBreakDividers = c.showBreakDividers
                                     // 无条件更新原始搭配值，确保 MainScheduleScreen 显示正确
                                     originalWallpaperBitmap = c.bitmap
                                     originalWallpaperOffset = c.offset
@@ -1548,6 +1672,8 @@ fun CourseScheduleApp() {
                                     originalCourseCardAlpha = c.cardAlpha
                                     originalCourseCardHeight = c.cardHeight
                                     originalCourseCardCornerRadius = c.cardCornerRadius
+                                    originalWallpaperBrightness = c.wallpaperBrightness
+                                    originalShowBreakDividers = c.showBreakDividers
                                     // 若删除的是原始搭配，更新原始追踪器到新的当前搭配
                                     if (deleteIdx == originalCombinationIndex) {
                                         originalCombinationIndex = currentCombinationIndex
@@ -1578,6 +1704,7 @@ fun CourseScheduleApp() {
                         courseCardAlpha = savedCourseCardAlpha
                         courseCardHeight = savedCourseCardHeight
                         courseCardCornerRadius = savedCourseCardCornerRadius
+                        wallpaperBrightness = savedWallpaperBrightness
                         // 同步恢复 combinations[idx] 的编辑字段，避免 onCustomizeValueChange 污染列表后
                         // 被 onCombinationPageChange 重新读取覆盖已恢复的变量
                         val idx = currentCombinationIndex
@@ -1590,7 +1717,9 @@ fun CourseScheduleApp() {
                                     cardBlurRadius = savedCourseCardBlur,
                                     cardAlpha = savedCourseCardAlpha,
                                     cardHeight = savedCourseCardHeight,
-                                    cardCornerRadius = savedCourseCardCornerRadius
+                                    cardCornerRadius = savedCourseCardCornerRadius,
+                                    wallpaperBrightness = savedWallpaperBrightness,
+                                    showBreakDividers = savedShowBreakDividers
                                 )
                             }
                         }
@@ -1632,6 +1761,26 @@ fun CourseScheduleApp() {
                     initialCardBlurRadius = combinations.getOrNull(currentCombinationIndex)?.cardBlurRadius
                         ?: 0f,
                     initialCardAlpha = courseCardAlpha,
+                    onWallpaperBrightnessChange = { brightness ->
+                        wallpaperBrightness = brightness
+                        val idx = currentCombinationIndex
+                        if (idx in combinations.indices) {
+                            combinations = combinations.toMutableList().also {
+                                it[idx] = it[idx].copy(wallpaperBrightness = brightness)
+                            }
+                        }
+                    },
+                    initialWallpaperBrightness = wallpaperBrightness,
+                    onShowBreakDividersChange = { show ->
+                        showBreakDividers = show
+                        val idx = currentCombinationIndex
+                        if (idx in combinations.indices) {
+                            combinations = combinations.toMutableList().also {
+                                it[idx] = it[idx].copy(showBreakDividers = show)
+                            }
+                        }
+                    },
+                    initialShowBreakDividers = showBreakDividers,
                     onCustomizeValueChange = { height, cornerRadius ->
                         courseCardHeight = height
                         courseCardCornerRadius = cornerRadius
@@ -1710,6 +1859,8 @@ fun CourseScheduleApp() {
                     courseCardAlpha = originalCourseCardAlpha
                     courseCardHeight = originalCourseCardHeight
                     courseCardCornerRadius = originalCourseCardCornerRadius
+                    wallpaperBrightness = originalWallpaperBrightness
+                    showBreakDividers = originalShowBreakDividers
                     currentCombinationIndex = originalCombinationIndex
                 }
                 // 应用时保留当前壁纸状态（已持久化到磁盘）
@@ -1781,21 +1932,21 @@ fun CourseScheduleApp() {
             val p = switchAnimProgress.value
             val morphOpenEase = CubicBezierEasing(0.3f, 0.72f, 0.2f, 1.0f)
             val switchPageScale = remember { Animatable(1f) }
-            val switchPageBlur = remember { Animatable(0f) }
+            val switchPageBlur = remember { Animatable(5f) }
             // 切换课表页始终渲染（底层，截取快照期间隐藏）
             Box(
                 modifier = Modifier
                     .fillMaxSize()
-                    .then(
+                    .graphicsLayer {
                         if (switchPageBlur.value > 0.01f) {
-                            Modifier.graphicsLayer {
-                                val px = switchPageBlur.value * density.density
-                                renderEffect = android.graphics.RenderEffect.createBlurEffect(
-                                    px, px, android.graphics.Shader.TileMode.CLAMP
-                                ).asComposeRenderEffect()
-                            }
-                        } else Modifier
-                    )
+                            val px = switchPageBlur.value * density.density
+                            renderEffect = android.graphics.RenderEffect.createBlurEffect(
+                                px, px, android.graphics.Shader.TileMode.CLAMP
+                            ).asComposeRenderEffect()
+                        } else {
+                            renderEffect = null
+                        }
+                    }
                     .graphicsLayer {
                         alpha = if (switchCapturingSnapshot) 0f else 1f
                         scaleX = switchPageScale.value
@@ -1854,7 +2005,7 @@ fun CourseScheduleApp() {
                                 }
                                 launch {
                                     switchPageBlur.animateTo(
-                                        0f,
+                                        5f,
                                         animationSpec = tween(
                                             remainingDuration,
                                             easing = morphOpenEase
@@ -1914,7 +2065,7 @@ fun CourseScheduleApp() {
                             }
                             launch {
                                 switchPageBlur.animateTo(
-                                    0f,
+                                    5f,
                                     animationSpec = tween(remainingDuration, easing = morphOpenEase)
                                 )
                             }
@@ -1960,7 +2111,7 @@ fun CourseScheduleApp() {
                             switchAnimJob = coroutineScope.launch {
                                 switchAnimProgress.snapTo(1f)
                                 switchPageScale.snapTo(1.08f)
-                                switchPageBlur.snapTo(0f)
+                                switchPageBlur.snapTo(5f)
                                 switchReturnBgScrim.snapTo(0.4f)
                                 switchCapturingSnapshot = false
                                 switchScreenSnapshot = screenBitmap

@@ -55,6 +55,8 @@ import top.yukonga.miuix.kmp.blur.textureBlur
 import com.kyant.backdrop.drawPlainBackdrop
 import com.kyant.backdrop.effects.blur
 import com.kyant.backdrop.effects.runtimeShaderEffect
+import com.haooz.chedule.ui.components.liquidglass.LiquidGlassDropdownMenu
+import com.haooz.chedule.ui.components.liquidglass.LiquidGlassDropdownMenuItem
 import com.haooz.chedule.ui.components.liquidglass.LiquidTopBarButton
 import com.haooz.chedule.ui.components.liquidglass.LiquidTopBarCapsuleButton
 import top.yukonga.miuix.kmp.icon.MiuixIcons
@@ -110,7 +112,9 @@ internal fun ScheduleTopBar(
     onJumpWeek: () -> Unit,
     onOpenCustomize: () -> Unit,
     onTitleBarMeasured: (Dp) -> Unit,
-    liquidGlassBackdrop: com.kyant.backdrop.Backdrop? = null
+    liquidGlassBackdrop: com.kyant.backdrop.Backdrop? = null,
+    showMorePopup: Boolean = false,
+    onShowMorePopupChange: (Boolean) -> Unit = {}
 ) {
     if (!visible) return
 
@@ -119,7 +123,6 @@ internal fun ScheduleTopBar(
     val context = LocalContext.current
     val themePrefs = remember { context.getSharedPreferences("app_theme_prefs", Context.MODE_PRIVATE) }
     val appStyle = com.haooz.chedule.ui.utils.rememberAppStyle()
-    var showMorePopup by remember { mutableStateOf(false) }
     val statusBarPadding = WindowInsets.statusBars.asPaddingValues().calculateTopPadding()
     val tabletTopPadding = if (statusBarPadding > 0.dp) statusBarPadding + 4.dp else 40.dp
 
@@ -283,7 +286,7 @@ internal fun ScheduleTopBar(
                             },
                             onRightClick = {
                                 hapticFeedback.performHapticFeedback(HapticFeedbackType.VirtualKey)
-                                showMorePopup = true
+                                onShowMorePopupChange(true)
                             },
                             backdrop = liquidGlassBackdrop,
                             buttonHeight = if (navBarStyle == "rail") 38.dp else 40.dp,
@@ -304,11 +307,13 @@ internal fun ScheduleTopBar(
                             )
                         }
                     }
-                    Box(modifier = Modifier.padding(end = 4.dp)) {
-                        if (appStyle != "liquidglass" || liquidGlassBackdrop == null) {
+                    if (appStyle == "liquidglass" && liquidGlassBackdrop != null) {
+                        // 液态玻璃模式：菜单在 MainActivity 主内容区渲染，这里不渲染
+                    } else {
+                        Box(modifier = Modifier.padding(end = 4.dp)) {
                             IconButton(onClick = {
                                 hapticFeedback.performHapticFeedback(HapticFeedbackType.VirtualKey)
-                                showMorePopup = true
+                                onShowMorePopupChange(true)
                             }) {
                                 Icon(
                                     imageVector = MiuixIcons.More,
@@ -316,33 +321,33 @@ internal fun ScheduleTopBar(
                                     modifier = Modifier.size(22.dp)
                                 )
                             }
-                        }
-                        OverlayListPopup(
-                            show = showMorePopup,
-                            alignment = PopupPositionProvider.Align.End,
-                            onDismissRequest = { showMorePopup = false }
-                        ) {
-                            ListPopupColumn {
-                                DropdownImpl(
-                                    text = "跳转周数",
-                                    optionSize = 2,
-                                    isSelected = false,
-                                    index = 0,
-                                    onSelectedIndexChange = {
-                                        showMorePopup = false
-                                        onJumpWeek()
-                                    }
-                                )
-                                DropdownImpl(
-                                    text = "课表外观",
-                                    optionSize = 2,
-                                    isSelected = false,
-                                    index = 1,
-                                    onSelectedIndexChange = {
-                                        showMorePopup = false
-                                        onOpenCustomize()
-                                    }
-                                )
+                            OverlayListPopup(
+                                show = showMorePopup,
+                                alignment = PopupPositionProvider.Align.End,
+                                onDismissRequest = { onShowMorePopupChange(false) }
+                            ) {
+                                ListPopupColumn {
+                                    DropdownImpl(
+                                        text = "跳转周数",
+                                        optionSize = 2,
+                                        isSelected = false,
+                                        index = 0,
+                                        onSelectedIndexChange = {
+                                            onShowMorePopupChange(false)
+                                            onJumpWeek()
+                                        }
+                                    )
+                                    DropdownImpl(
+                                        text = "课表外观",
+                                        optionSize = 2,
+                                        isSelected = false,
+                                        index = 1,
+                                        onSelectedIndexChange = {
+                                            onShowMorePopupChange(false)
+                                            onOpenCustomize()
+                                        }
+                                    )
+                                }
                             }
                         }
                     }

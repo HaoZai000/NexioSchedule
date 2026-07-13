@@ -26,6 +26,7 @@ fun SectionColumn(
     sectionTimes: Map<Int, String> = Course.defaultSectionTimes,
     cardHeightPerSection: Float = 54f,
     cardBlurRadius: Float = 0f,
+    showBreakDividers: Boolean = true,
     modifier: Modifier = Modifier
 ) {
     // 缓存时间字符串拆分结果，避免每次重组重复 split
@@ -37,7 +38,7 @@ fun SectionColumn(
         }
     }
 
-    val totalHeight = (totalSections * cardHeightPerSection + 24 * 2).toInt()
+    val totalHeight = (totalSections * cardHeightPerSection + (if (showBreakDividers) 24 * 2 else 0)).toInt()
 
     Box(
         modifier = modifier
@@ -55,21 +56,23 @@ fun SectionColumn(
 
         // 午休分界线
         val dividerColor = if (cardBlurRadius > 0f) Color.Transparent else MiuixTheme.colorScheme.surfaceContainer
-        Box(
-            modifier = Modifier
-                .fillMaxWidth()
-                .height(24.dp)
-                .offset(y = currentOffset.dp),
-            contentAlignment = Alignment.Center
-        ) {
+        if (showBreakDividers) {
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .height(20.dp)
-                    .background(dividerColor)
-            )
+                    .height(24.dp)
+                    .offset(y = currentOffset.dp),
+                contentAlignment = Alignment.Center
+            ) {
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(20.dp)
+                        .background(dividerColor)
+                )
+            }
         }
-        currentOffset += 24
+        currentOffset += if (showBreakDividers) 24 else 0
 
         // 下午节次
         val afternoonStart = morningSections + 1
@@ -81,21 +84,23 @@ fun SectionColumn(
         }
 
         // 晚休分界线
-        Box(
-            modifier = Modifier
-                .fillMaxWidth()
-                .height(24.dp)
-                .offset(y = currentOffset.dp),
-            contentAlignment = Alignment.Center
-        ) {
+        if (showBreakDividers) {
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .height(20.dp)
-                    .background(dividerColor)
-            )
+                    .height(24.dp)
+                    .offset(y = currentOffset.dp),
+                contentAlignment = Alignment.Center
+            ) {
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(20.dp)
+                        .background(dividerColor)
+                )
+            }
         }
-        currentOffset += 24
+        currentOffset += if (showBreakDividers) 24 else 0
 
         // 晚上节次
         val eveningStart = morningSections + afternoonSections + 1

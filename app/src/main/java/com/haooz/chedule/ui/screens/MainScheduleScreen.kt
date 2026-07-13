@@ -102,6 +102,8 @@ fun MainScheduleScreen(
     cardAlpha: Float = 0.15f,
     cardHeightPerSection: Float = 54f,
     cardCornerRadius: Float = 8f,
+    wallpaperBrightness: Float = 0f,
+    showBreakDividers: Boolean = true,
     wallpaperHasAppeared: Boolean = false,
     onWallpaperAppeared: () -> Unit = {}
 ) {
@@ -196,6 +198,19 @@ fun MainScheduleScreen(
         // 壁纸背景
         if (wallpaperBitmap != null) {
             Box(modifier = Modifier.fillMaxSize().layerBackdrop(wallpaperBackdrop)) {
+                val brightnessFilter = if (wallpaperBrightness != 0f) {
+                    val b = (1f + wallpaperBrightness / 50f).coerceIn(0f, 2f)
+                    androidx.compose.ui.graphics.ColorFilter.colorMatrix(
+                        androidx.compose.ui.graphics.ColorMatrix(
+                            floatArrayOf(
+                                b, 0f, 0f, 0f, 0f,
+                                0f, b, 0f, 0f, 0f,
+                                0f, 0f, b, 0f, 0f,
+                                0f, 0f, 0f, 1f, 0f
+                            )
+                        )
+                    )
+                } else null
                 androidx.compose.foundation.Image(
                     bitmap = wallpaperBitmap.asImageBitmap(),
                     contentDescription = null,
@@ -207,7 +222,8 @@ fun MainScheduleScreen(
                             translationX = wallpaperOffset.x
                             translationY = wallpaperOffset.y
                         },
-                    contentScale = ContentScale.Fit
+                    contentScale = ContentScale.Fit,
+                    colorFilter = brightnessFilter
                 )
             }
         } else {
@@ -252,7 +268,8 @@ fun MainScheduleScreen(
                             eveningSections = eveningSections,
                             sectionTimes = sectionTimes,
                             cardHeightPerSection = cardHeightPerSection,
-                            cardBlurRadius = cardBlurRadius
+                            cardBlurRadius = cardBlurRadius,
+                            showBreakDividers = showBreakDividers
                         )
 
                         dayRange.forEach { dayOfWeek ->
@@ -302,6 +319,7 @@ fun MainScheduleScreen(
                                     cardAlpha = cardAlpha,
                                     cardHeightPerSection = cardHeightPerSection,
                                     cardCornerRadius = cardCornerRadius,
+                                    showBreakDividers = showBreakDividers,
                                     modifier = Modifier.weight(1f)
                                 )
                             }
@@ -310,8 +328,10 @@ fun MainScheduleScreen(
 
                     val morningHeight = (morningSections * cardHeightPerSection).toInt()
                     val afternoonHeight = (afternoonSections * cardHeightPerSection).toInt()
-                    val dinnerBreakY = morningHeight + 24 + afternoonHeight
+                    val dividerOffset = if (showBreakDividers) 24 else 0
+                    val dinnerBreakY = morningHeight + dividerOffset + afternoonHeight
 
+                    if (showBreakDividers) {
                     Box(
                         modifier = Modifier.fillMaxWidth().offset(y = morningHeight.dp)
                             .height(24.dp)
@@ -372,6 +392,7 @@ fun MainScheduleScreen(
                             style = MiuixTheme.textStyles.footnote2,
                             color = MiuixTheme.colorScheme.onSurfaceVariantActions
                         )
+                    }
                     }
                 }
             }

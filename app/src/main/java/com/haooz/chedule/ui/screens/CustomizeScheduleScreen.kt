@@ -28,6 +28,9 @@ import androidx.compose.foundation.layout.asPaddingValues
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
@@ -97,6 +100,7 @@ import top.yukonga.miuix.kmp.basic.InfiniteProgressIndicator
 import top.yukonga.miuix.kmp.basic.Scaffold
 import top.yukonga.miuix.kmp.basic.Slider
 import top.yukonga.miuix.kmp.basic.SliderDefaults
+import top.yukonga.miuix.kmp.basic.Switch
 import top.yukonga.miuix.kmp.basic.VerticalDivider
 import top.yukonga.miuix.kmp.icon.MiuixIcons
 import top.yukonga.miuix.kmp.icon.extended.Add
@@ -145,9 +149,13 @@ fun CustomizeScheduleScreen(
     onEffectValueChange: (Float, Float) -> Unit = { _, _ -> },
     initialCardBlurRadius: Float = 0f,
     initialCardAlpha: Float = 0.15f,
+    onWallpaperBrightnessChange: (Float) -> Unit = {},
+    initialWallpaperBrightness: Float = 0f,
     onCustomizeValueChange: (Float, Float) -> Unit = { _, _ -> },
     initialCardHeight: Float = 54f,
-    initialCardCornerRadius: Float = 8f
+    initialCardCornerRadius: Float = 8f,
+    onShowBreakDividersChange: (Boolean) -> Unit = {},
+    initialShowBreakDividers: Boolean = true
 ) {
     // ================================================================
     // 一、基础环境与尺寸计算
@@ -199,15 +207,19 @@ fun CustomizeScheduleScreen(
     // 效果参数：卡片模糊 / 卡片透明度（随当前搭配切换、随重置键复位）
     var effectValue by remember(currentCombinationIndex, sheetResetKey) { mutableFloatStateOf(initialCardBlurRadius) }
     var cardAlphaValue by remember(currentCombinationIndex, sheetResetKey) { mutableFloatStateOf(initialCardAlpha) }
+    var wallpaperBrightnessValue by remember(currentCombinationIndex, sheetResetKey) { mutableFloatStateOf(initialWallpaperBrightness) }
     LaunchedEffect(effectValue, cardAlphaValue) { onEffectValueChange(effectValue, cardAlphaValue) }
+    LaunchedEffect(wallpaperBrightnessValue) { onWallpaperBrightnessChange(wallpaperBrightnessValue) }
 
     // 自定义参数：卡片高度 / 卡片圆角（随当前搭配切换、随重置键复位）
     var cardHeightValue by remember(currentCombinationIndex, sheetResetKey) { mutableFloatStateOf(initialCardHeight) }
     var cardCornerRadiusValue by remember(currentCombinationIndex, sheetResetKey) { mutableFloatStateOf(initialCardCornerRadius) }
+    var showBreakDividersValue by remember(currentCombinationIndex, sheetResetKey) { mutableStateOf(initialShowBreakDividers) }
     LaunchedEffect(cardHeightValue, cardCornerRadiusValue) {
-        kotlinx.coroutines.delay(16.milliseconds) // ~1帧防抖，避免拖动时每像素都触发重组
+        kotlinx.coroutines.delay(16.milliseconds)
         onCustomizeValueChange(cardHeightValue, cardCornerRadiusValue)
     }
+    LaunchedEffect(showBreakDividersValue) { onShowBreakDividersChange(showBreakDividersValue) }
 
     // --- 删除流程状态 ---
     // 长按删除遮罩：记录当前处于删除态的搭配 id（null 表示无遮罩）
@@ -1220,7 +1232,9 @@ fun CustomizeScheduleScreen(
         ) {
             Column(
                 modifier = Modifier
-                    .fillMaxWidth(),
+                    .fillMaxWidth()
+                    .heightIn(max = 240.dp)
+                    .verticalScroll(rememberScrollState()),
                 verticalArrangement = Arrangement.spacedBy(16.dp)
             ) {
                 Card(
@@ -1283,6 +1297,36 @@ fun CustomizeScheduleScreen(
                         )
                     }
                 }
+                Card(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 16.dp),
+                    cornerRadius = 20.dp,
+                    colors = CardDefaults.defaultColors(
+                        color = if (isAppDarkTheme()) Color(0xFF363636) else Color(0xFFFFFFFF),
+                        contentColor = MiuixTheme.colorScheme.onSurface
+                    ),
+                ) {
+                    Column(modifier = Modifier.padding(16.dp)) {
+                        Text(
+                            text = "壁纸亮度: ${wallpaperBrightnessValue.roundToInt()}",
+                            fontWeight = FontWeight.Medium,
+                            fontSize = 15.sp,
+                            color = MiuixTheme.colorScheme.onSurface,
+                            modifier = Modifier.padding(bottom = 8.dp, start = 4.dp)
+                        )
+                        Slider(
+                            value = wallpaperBrightnessValue,
+                            onValueChange = { wallpaperBrightnessValue = it },
+                            valueRange = -50f..50f,
+                            showKeyPoints = true,
+                            keyPoints = listOf(0f),
+                            magnetThreshold = 0.05f,
+                            modifier = Modifier.fillMaxWidth(),
+                            hapticEffect = SliderDefaults.SliderHapticEffect.Step
+                        )
+                    }
+                }
                 Spacer(Modifier.height(40.dp))
             }
         }
@@ -1310,7 +1354,9 @@ fun CustomizeScheduleScreen(
         ) {
             Column(
                 modifier = Modifier
-                    .fillMaxWidth(),
+                    .fillMaxWidth()
+                    .heightIn(max = 240.dp)
+                    .verticalScroll(rememberScrollState()),
                 verticalArrangement = Arrangement.spacedBy(16.dp)
             ) {
                 Card(
@@ -1370,6 +1416,35 @@ fun CustomizeScheduleScreen(
                             magnetThreshold = 0.05f,
                             modifier = Modifier.fillMaxWidth(),
                             hapticEffect = SliderDefaults.SliderHapticEffect.Step
+                        )
+                    }
+                }
+                Card(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 16.dp),
+                    cornerRadius = 20.dp,
+                    colors = CardDefaults.defaultColors(
+                        color = if (isAppDarkTheme()) Color(0xFF363636) else Color(0xFFFFFFFF),
+                        contentColor = MiuixTheme.colorScheme.onSurface
+                    ),
+                ) {
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 16.dp, vertical = 12.dp),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text(
+                            text = "午休晚休分界线",
+                            fontWeight = FontWeight.Medium,
+                            fontSize = 15.sp,
+                            color = MiuixTheme.colorScheme.onSurface
+                        )
+                        Switch(
+                            checked = showBreakDividersValue,
+                            onCheckedChange = { showBreakDividersValue = it }
                         )
                     }
                 }

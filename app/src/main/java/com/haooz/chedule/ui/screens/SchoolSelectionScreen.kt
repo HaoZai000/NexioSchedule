@@ -9,12 +9,16 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.asPaddingValues
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.statusBars
 import androidx.compose.foundation.layout.width
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.foundation.lazy.LazyColumn
@@ -33,14 +37,17 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.DpOffset
 import androidx.compose.ui.unit.DpSize
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.zIndex
 import com.haooz.chedule.data.school.AdapterData
 import com.haooz.chedule.data.school.SchoolData
 import com.haooz.chedule.data.school.SchoolRepository
@@ -58,12 +65,16 @@ import top.yukonga.miuix.kmp.basic.Surface
 import top.yukonga.miuix.kmp.basic.TextButton
 import top.yukonga.miuix.kmp.basic.TextField
 import top.yukonga.miuix.kmp.icon.MiuixIcons
+import top.yukonga.miuix.kmp.icon.extended.ChevronBackward
 import top.yukonga.miuix.kmp.icon.extended.Back
 import top.yukonga.miuix.kmp.icon.extended.Update
 import top.yukonga.miuix.kmp.overlay.OverlayDialog
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 import top.yukonga.miuix.kmp.utils.overScrollVertical
 import top.yukonga.miuix.kmp.utils.scrollEndHaptic
+import com.haooz.chedule.ui.components.liquidglass.LiquidTopBarButton
+import com.haooz.chedule.ui.components.liquidglass.ProgressiveBlurTopBar
+import com.kyant.backdrop.backdrops.LayerBackdrop
 
 @Composable
 fun SchoolSelectionScreen(
@@ -72,6 +83,8 @@ fun SchoolSelectionScreen(
     updateProgress: Float = 0f,
     dataVersion: Int = 0,
     isInFreeformWindow: Boolean = false,
+    isLiquidGlass: Boolean = false,
+    liquidGlassBackdrop: LayerBackdrop? = null,
     onRefresh: () -> Unit = {},
     onSchoolSelected: (SchoolData, AdapterData) -> Unit,
     onBack: () -> Unit
@@ -114,45 +127,110 @@ fun SchoolSelectionScreen(
 
     Scaffold(
         topBar = {
-            SmallTopAppBar(
-                title = "选择学校",
-                scrollBehavior = scrollBehavior,
-                navigationIcon = {
-                    IconButton(onClick = onBack, modifier = Modifier.padding(start = 4.dp)) {
-                        Icon(MiuixIcons.Back, contentDescription = "返回", modifier = Modifier.size(28.dp))
-                    }
-                },
-                actions = {
-                    if (isUpdating) {
-                        Row(
-                            verticalAlignment = Alignment.CenterVertically,
-                            modifier = Modifier.padding(end = 8.dp)
-                        ) {
-                            if (isChecking) {
-                                // 检查阶段：不确定进度
-                                CircularProgressIndicator()
-                            } else {
-                                // 下载阶段：确定进度
-                                CircularProgressIndicator(
-                                    progress = updateProgress
-                                )
+            if (isLiquidGlass && liquidGlassBackdrop != null) {
+                val statusBarPadding = WindowInsets.statusBars.asPaddingValues().calculateTopPadding()
+                ProgressiveBlurTopBar(
+                    backdrop = liquidGlassBackdrop,
+                ) {
+                    SmallTopAppBar(
+                        color = Color.Transparent,
+                        title = "选择学校",
+                        modifier = Modifier.zIndex(1f),
+                        navigationIcon = {}
+                    )
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .zIndex(2f)
+                            .offset(y = if (statusBarPadding > 0.dp) statusBarPadding + 5.dp else 42.dp),
+                        horizontalArrangement = Arrangement.SpaceBetween
+                    ) {
+                        LiquidTopBarButton(
+                            onClick = { onBack() },
+                            backdrop = liquidGlassBackdrop,
+                            icon = MiuixIcons.Medium.ChevronBackward,
+                            contentDescription = "返回",
+                            modifier = Modifier.offset(x = 20.dp),
+                            iconSize = 22.dp,
+                            iconOffset = DpOffset(x = (-2).dp, y = 0.dp),
+                            useBackdropShadow = true
+                        )
+                        if (!isUpdating) {
+                            LiquidTopBarButton(
+                                onClick = {
+                                    hapticFeedback.performHapticFeedback(HapticFeedbackType.VirtualKey)
+                                    onRefresh()
+                                },
+                                backdrop = liquidGlassBackdrop,
+                                icon = MiuixIcons.Normal.Update,
+                                contentDescription = "更新",
+                                modifier = Modifier.offset(x = (-20).dp),
+                                iconSize = 25.dp,
+                                useBackdropShadow = true
+                            )
+                        } else {
+                            Box(
+                                modifier = Modifier
+                                    .offset(x = (-24).dp, y = (-4).dp)
+                                    .size(40.dp),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                if (isChecking) {
+                                    CircularProgressIndicator(
+                                        modifier = Modifier.size(22.dp)
+                                    )
+                                } else {
+                                    CircularProgressIndicator(
+                                        progress = updateProgress,
+                                        modifier = Modifier.size(22.dp)
+                                    )
+                                }
                             }
-                        }
-                    } else {
-                        IconButton(onClick = {
-                            hapticFeedback.performHapticFeedback(HapticFeedbackType.VirtualKey)
-                            onRefresh()
-                        }, modifier = Modifier.padding(end = 4.dp)) {
-                            Icon(MiuixIcons.Normal.Update, contentDescription = "更新", modifier = Modifier.size(28.dp))
                         }
                     }
                 }
-            )
+            } else {
+                SmallTopAppBar(
+                    title = "选择学校",
+                    scrollBehavior = scrollBehavior,
+                    navigationIcon = {
+                        IconButton(onClick = onBack, modifier = Modifier.padding(start = 4.dp)) {
+                            Icon(MiuixIcons.Back, contentDescription = "返回", modifier = Modifier.size(28.dp))
+                        }
+                    },
+                    actions = {
+                        if (isUpdating) {
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                modifier = Modifier.padding(end = 8.dp)
+                            ) {
+                                if (isChecking) {
+                                    CircularProgressIndicator()
+                                } else {
+                                    CircularProgressIndicator(
+                                        progress = updateProgress
+                                    )
+                                }
+                            }
+                        } else {
+                            IconButton(onClick = {
+                                hapticFeedback.performHapticFeedback(HapticFeedbackType.VirtualKey)
+                                onRefresh()
+                            }, modifier = Modifier.padding(end = 4.dp)) {
+                                Icon(MiuixIcons.Normal.Update, contentDescription = "更新", modifier = Modifier.size(28.dp))
+                            }
+                        }
+                    }
+                )
+            }
         }
     ) { paddingValues ->
         Column(
             modifier = Modifier
-                .padding(top = paddingValues.calculateTopPadding())
+                .padding(top = paddingValues.calculateTopPadding() +
+                        if (isLiquidGlass) {
+                            if (WindowInsets.statusBars.asPaddingValues().calculateTopPadding() > 0.dp) (-20).dp else (-32).dp
+                        } else 0.dp)
                 .fillMaxSize()
         ) {
             SearchBar(
@@ -374,8 +452,12 @@ fun SchoolSelectionScreen(
                                 .scrollEndHaptic(
                                     hapticFeedbackType = HapticFeedbackType.TextHandleMove
                                 )
-                                .nestedScroll(scrollBehavior.nestedScrollConnection),
-                            contentPadding = PaddingValues(top = 8.dp, bottom = 60.dp)
+                                .then(
+                                    if (!isLiquidGlass) Modifier.nestedScroll(scrollBehavior.nestedScrollConnection) else Modifier
+                                ),
+                            contentPadding = PaddingValues(
+                                bottom = 60.dp
+                            )
                         ) {
                             val groupedEntries = groupedSchools.entries.toList()
                             groupedEntries.forEachIndexed { index, (letter, schools) ->

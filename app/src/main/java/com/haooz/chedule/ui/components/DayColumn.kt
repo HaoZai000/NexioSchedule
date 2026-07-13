@@ -60,9 +60,10 @@ fun DayColumn(
     cardAlpha: Float = 0.15f,
     cardHeightPerSection: Float = 54f,
     cardCornerRadius: Float = 8f,
+    showBreakDividers: Boolean = true,
     modifier: Modifier = Modifier
 ) {
-    val totalHeight = ((morningSections + afternoonSections + eveningSections) * cardHeightPerSection + 24 * 2).toInt()
+    val totalHeight = ((morningSections + afternoonSections + eveningSections) * cardHeightPerSection + (if (showBreakDividers) 24 * 2 else 0)).toInt()
     val isDark = isAppDarkTheme()
     val hasBlur = cardBlurRadius > 0f && wallpaperBackdrop != null
     val emptyCardBlurColors = if (hasBlur) BlurDefaults.blurColors(
@@ -185,21 +186,23 @@ fun DayColumn(
 
             // 午休分界线
             val dividerColor = if (cardBlurRadius > 0f) Color.Transparent else MiuixTheme.colorScheme.surfaceContainer
-            Box(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(24.dp)
-                    .offset(y = currentOffset.dp),
-                contentAlignment = Alignment.Center
-            ) {
+            if (showBreakDividers) {
                 Box(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .height(20.dp)
-                        .background(dividerColor)
-                )
+                        .height(24.dp)
+                        .offset(y = currentOffset.dp),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(20.dp)
+                            .background(dividerColor)
+                    )
+                }
             }
-            currentOffset += 24
+            currentOffset += if (showBreakDividers) 24 else 0
 
             // 下午节次
             val afternoonStart = morningSections + 1
@@ -302,21 +305,23 @@ fun DayColumn(
             }
 
             // 晚休分界线
-            Box(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(24.dp)
-                    .offset(y = currentOffset.dp),
-                contentAlignment = Alignment.Center
-            ) {
+            if (showBreakDividers) {
                 Box(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .height(20.dp)
-                        .background(dividerColor)
-                )
+                        .height(24.dp)
+                        .offset(y = currentOffset.dp),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(20.dp)
+                            .background(dividerColor)
+                    )
+                }
             }
-            currentOffset += 24
+            currentOffset += if (showBreakDividers) 24 else 0
 
             // 晚上节次
             val eveningStart = morningSections + afternoonSections + 1
@@ -458,12 +463,13 @@ fun DayColumn(
 
             displayedCourses.forEach { course ->
                 var courseOffset = 0
+                val dividerGap = if (showBreakDividers) 24 else 0
                 if (course.startSection <= morningSections) {
                     courseOffset = ((course.startSection - 1) * cardHeightPerSection).toInt()
                 } else if (course.startSection <= morningSections + afternoonSections) {
-                    courseOffset = (morningSections * cardHeightPerSection + 24 + (course.startSection - morningSections - 1) * cardHeightPerSection).toInt()
+                    courseOffset = (morningSections * cardHeightPerSection + dividerGap + (course.startSection - morningSections - 1) * cardHeightPerSection).toInt()
                 } else {
-                    courseOffset = (morningSections * cardHeightPerSection + 24 + afternoonSections * cardHeightPerSection + 24 + (course.startSection - morningSections - afternoonSections - 1) * cardHeightPerSection).toInt()
+                    courseOffset = (morningSections * cardHeightPerSection + dividerGap + afternoonSections * cardHeightPerSection + dividerGap + (course.startSection - morningSections - afternoonSections - 1) * cardHeightPerSection).toInt()
                 }
 
                 val isCurrentWeekCourse = course.isActiveInWeek(currentWeek)
