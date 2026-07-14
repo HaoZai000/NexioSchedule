@@ -330,6 +330,7 @@ fun CourseScheduleApp() {
 
     val totalWeeks by viewModel.totalWeeks.collectAsState()
     val currentWeek by viewModel.currentWeek.collectAsState()
+    val isHoliday by viewModel.isHoliday.collectAsState()
     val classStartTime by viewModel.classStartTime.collectAsState()
     val showWeekendDays by settingsViewModel.showWeekendDays.collectAsState()
     val morningSections by settingsViewModel.morningSections.collectAsState()
@@ -338,6 +339,14 @@ fun CourseScheduleApp() {
     val totalSections = morningSections + afternoonSections + eveningSections
     val activity = LocalActivity.current as? MainActivity
     val resumeCount = activity?.resumeCount ?: 0
+    // 从其他 Activity 返回时刷新设置（如教务导入应用了预设时间段）
+    LaunchedEffect(resumeCount) {
+        if (resumeCount > 0) {
+            settingsViewModel.refreshSettings()
+            viewModel.reloadCourses()
+            scheduleViewModel.refreshScheduleList()
+        }
+    }
     val windowInfo = androidx.compose.ui.platform.LocalWindowInfo.current
     val currentDensity = LocalDensity.current.density
     val navBarStyle = run {
@@ -422,6 +431,7 @@ fun CourseScheduleApp() {
     var originalCourseCardCornerRadius by remember { mutableFloatStateOf(8f) }
     var originalWallpaperBrightness by remember { mutableFloatStateOf(0f) }
     var originalShowBreakDividers by remember { mutableStateOf(true) }
+    var originalSnapshot by remember { mutableStateOf<android.graphics.Bitmap?>(null) }
     var isApplyingCustomize by remember { mutableStateOf(false) }
     var isNewCombinationCreated by remember { mutableStateOf(false) }
     var newCombinationIndex by remember { mutableIntStateOf(0) }
@@ -646,6 +656,7 @@ fun CourseScheduleApp() {
     }
 
     val currentViewingWeek = pagerState.currentPage + 1
+    val viewingIsHoliday = viewModel.isWeekHoliday(currentViewingWeek)
     val weekDates = remember(currentViewingWeek, classStartTime) {
         try {
             val startDate = LocalDate.parse(classStartTime.replace("/", "-"))
@@ -821,6 +832,7 @@ fun CourseScheduleApp() {
             originalCourseCardCornerRadius = courseCardCornerRadius
             originalWallpaperBrightness = wallpaperBrightness
             originalShowBreakDividers = showBreakDividers
+            originalSnapshot = combinations.getOrNull(currentCombinationIndex)?.snapshot
             // 后台逐个捕获其他搭配快照（等打开动画结束后再开始，避免动画期间主界面壁纸跳变）
             kotlinx.coroutines.delay(500.milliseconds)
             val savedWp = wallpaperBitmap
@@ -1069,6 +1081,7 @@ fun CourseScheduleApp() {
                         pagerCurrentPage = pagerState.currentPage,
                         currentWeek = currentWeek,
                         totalWeeks = totalWeeks,
+                        isHoliday = viewingIsHoliday,
                         isViewingCurrentWeek = isViewingCurrentWeek,
                         titleBarHeight = activity?.titleBarHeight ?: 56.dp,
                         topAppBarColors = topAppBarColors,
@@ -1336,7 +1349,7 @@ fun CourseScheduleApp() {
                 modifier = Modifier
                     .fillMaxSize()
                     .graphicsLayer { clip = false }
-                    .padding(top = (statusBarHeight + 38.dp).coerceAtLeast(76.dp), end = 8.dp),
+                    .padding(top = (statusBarHeight + 32.dp).coerceAtLeast(76.dp), end = 2.dp),
                 contentAlignment = Alignment.TopEnd
             ) {
                     LiquidGlassDropdownMenu(
@@ -1351,7 +1364,6 @@ fun CourseScheduleApp() {
                                 viewModel.showJumpWeekDialog()
                             }
                         )
-                        Spacer(modifier = Modifier.height(4.dp))
                         LiquidGlassDropdownMenuItem(
                             text = "课表外观",
                             onClick = {
@@ -1396,7 +1408,41 @@ fun CourseScheduleApp() {
                 isApplyingCustomize = false
                 coroutineScope.launch {
                     blurSnapshotJob?.cancel()
-                    isNewCombinationCreated = false
+                    // 如果本次会话创建了新搭配，退出时需删除它
+                    if (isNewCombinationCreated) {
+                        val newComb = combinations.getOrNull(currentCombinationIndex)
+                        if (newComb != null) {
+                            withContext(Dispatchers.IO) {
+                                wallpaperRepository.deleteCombination(newComb.id)
+                            }
+                            combinations = combinations.toMutableList().also {
+                                it.removeAt(currentCombinationIndex)
+                            }
+                            currentCombinationIndex = (originalCombinationIndex - 1).coerceAtLeast(0)
+                            originalCombinationIndex = currentCombinationIndex
+                            // 恢复原始搭配状态
+                            wallpaperBitmap = savedWallpaperBitmap
+                            wallpaperOffset = savedWallpaperOffset
+                            wallpaperScale = savedWallpaperScale
+                            courseCardBlur = savedCourseCardBlur
+                            courseCardAlpha = savedCourseCardAlpha
+                            courseCardHeight = savedCourseCardHeight
+                            courseCardCornerRadius = savedCourseCardCornerRadius
+                            wallpaperBrightness = savedWallpaperBrightness
+                            showBreakDividers = savedShowBreakDividers
+                            // 恢复原始搭配的快照
+                            if (originalSnapshot != null) {
+                                combinations = combinations.toMutableList().also {
+                                    val idx = currentCombinationIndex
+                                    if (idx in it.indices) {
+                                        it[idx] = it[idx].copy(snapshot = originalSnapshot)
+                                    }
+                                }
+                                customizeSnapshot = originalSnapshot
+                            }
+                        }
+                        isNewCombinationCreated = false
+                    }
                     customizeExitScale.snapTo(customizeExitTargetScale)
                     customizeExitAlpha.snapTo(1f)
                     isCustomizeExiting = true
@@ -1493,6 +1539,8 @@ fun CourseScheduleApp() {
                             return@CustomizeScheduleScreen
                         }
                         isNewCombinationCreated = true
+                        // 在插入新搭配之前，保存原始快照（customizeSnapshot 保存的是当前搭配的快照）
+                        val savedOrigSnapshot = customizeSnapshot
                         // 创建新搭配：持久化并插入到 index 0（加号卡右侧），新搭配无背景
                         val newId = wallpaperRepository.addCombination()
                         val newComb = com.haooz.chedule.data.Combination(
@@ -1562,6 +1610,15 @@ fun CourseScheduleApp() {
                             originalCourseCardCornerRadius = savedOrigCorner
                             originalWallpaperBrightness = savedOrigBri
                             originalShowBreakDividers = savedOrigDiv
+                            // 恢复原始搭配的快照
+                            if (savedOrigSnapshot != null) {
+                                combinations = combinations.toMutableList().also {
+                                    val origIdx = originalCombinationIndex
+                                    if (origIdx in it.indices) {
+                                        it[origIdx] = it[origIdx].copy(snapshot = savedOrigSnapshot)
+                                    }
+                                }
+                            }
                             // 触发自动进入编辑模式
                             isWindowCutoutActive = true
                             pendingEnterCutout = true
@@ -1697,6 +1754,34 @@ fun CourseScheduleApp() {
                     isApplying = isApplyingCustomize,
                     isApplyingCustomize = isApplyingCustomize,
                     onRevertWallpaper = {
+                        // 如果本次会话创建了新搭配，取消时需删除它并回退到原始搭配
+                        if (isNewCombinationCreated) {
+                            val newComb = combinations.getOrNull(currentCombinationIndex)
+                            if (newComb != null) {
+                                // 删除新搭配的持久化数据
+                                coroutineScope.launch(Dispatchers.IO) {
+                                    wallpaperRepository.deleteCombination(newComb.id)
+                                }
+                                // 从列表移除新搭配
+                                combinations = combinations.toMutableList().also {
+                                    it.removeAt(currentCombinationIndex)
+                                }
+                                // 回退到原始搭配（新搭配插入在头部，原始搭配 index +1）
+                                currentCombinationIndex = (originalCombinationIndex - 1).coerceAtLeast(0)
+                                originalCombinationIndex = currentCombinationIndex
+                                // 恢复原始搭配的快照
+                                if (originalSnapshot != null) {
+                                    combinations = combinations.toMutableList().also {
+                                        val idx = currentCombinationIndex
+                                        if (idx in it.indices) {
+                                            it[idx] = it[idx].copy(snapshot = originalSnapshot)
+                                        }
+                                    }
+                                    customizeSnapshot = originalSnapshot
+                                }
+                            }
+                            isNewCombinationCreated = false
+                        }
                         wallpaperBitmap = savedWallpaperBitmap
                         wallpaperOffset = savedWallpaperOffset
                         wallpaperScale = savedWallpaperScale
@@ -1705,6 +1790,7 @@ fun CourseScheduleApp() {
                         courseCardHeight = savedCourseCardHeight
                         courseCardCornerRadius = savedCourseCardCornerRadius
                         wallpaperBrightness = savedWallpaperBrightness
+                        showBreakDividers = savedShowBreakDividers
                         // 同步恢复 combinations[idx] 的编辑字段，避免 onCustomizeValueChange 污染列表后
                         // 被 onCombinationPageChange 重新读取覆盖已恢复的变量
                         val idx = currentCombinationIndex
@@ -2223,6 +2309,7 @@ fun CourseScheduleApp() {
                             contentDescription = null,
                             modifier = Modifier
                                 .align(Alignment.TopStart)
+                                .clip(RoundedRectangle(20.dp))
                                 .graphicsLayer { alpha = (1f - p * 2f).coerceIn(0f, 1f) },
                             contentScale = ContentScale.None
                         )

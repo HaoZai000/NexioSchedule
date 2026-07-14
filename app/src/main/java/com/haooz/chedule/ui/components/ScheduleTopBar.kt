@@ -2,9 +2,9 @@ package com.haooz.chedule.ui.components
 
 import android.content.Context
 import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.animateDpAsState
 import androidx.compose.animation.core.tween
-import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.foundation.layout.Box
@@ -19,53 +19,48 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBars
 import androidx.compose.foundation.layout.width
-import androidx.compose.ui.zIndex
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
-import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.RectangleShape
-import androidx.compose.ui.graphics.Color as ComposeColor
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.layout.onGloballyPositioned
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.haooz.chedule.ui.utils.isAppDarkTheme
+import androidx.compose.ui.zIndex
+import com.haooz.chedule.ui.components.liquidglass.LiquidTopBarButton
+import com.haooz.chedule.ui.components.liquidglass.LiquidTopBarCapsuleButton
+import com.kyant.backdrop.drawPlainBackdrop
+import com.kyant.backdrop.effects.blur
+import com.kyant.backdrop.effects.runtimeShaderEffect
 import top.yukonga.miuix.kmp.basic.DropdownImpl
 import top.yukonga.miuix.kmp.basic.Icon
 import top.yukonga.miuix.kmp.basic.IconButton
 import top.yukonga.miuix.kmp.basic.ListPopupColumn
-import top.yukonga.miuix.kmp.overlay.OverlayListPopup
+import top.yukonga.miuix.kmp.basic.NavigationRailDefaults
+import top.yukonga.miuix.kmp.basic.NavigationRailState
 import top.yukonga.miuix.kmp.basic.PopupPositionProvider
 import top.yukonga.miuix.kmp.basic.SmallTopAppBar
 import top.yukonga.miuix.kmp.basic.Text
-import top.yukonga.miuix.kmp.basic.NavigationRailDefaults
-import top.yukonga.miuix.kmp.basic.NavigationRailState
 import top.yukonga.miuix.kmp.blur.BlurColors
 import top.yukonga.miuix.kmp.blur.LayerBackdrop
 import top.yukonga.miuix.kmp.blur.textureBlur
-import com.kyant.backdrop.drawPlainBackdrop
-import com.kyant.backdrop.effects.blur
-import com.kyant.backdrop.effects.runtimeShaderEffect
-import com.haooz.chedule.ui.components.liquidglass.LiquidGlassDropdownMenu
-import com.haooz.chedule.ui.components.liquidglass.LiquidGlassDropdownMenuItem
-import com.haooz.chedule.ui.components.liquidglass.LiquidTopBarButton
-import com.haooz.chedule.ui.components.liquidglass.LiquidTopBarCapsuleButton
 import top.yukonga.miuix.kmp.icon.MiuixIcons
 import top.yukonga.miuix.kmp.icon.extended.ConvertFile
 import top.yukonga.miuix.kmp.icon.extended.More
 import top.yukonga.miuix.kmp.icon.extended.Reset
+import top.yukonga.miuix.kmp.overlay.OverlayListPopup
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 import java.time.LocalDate
 import java.time.format.DateTimeFormatter
+import androidx.compose.ui.graphics.Color as ComposeColor
 
 /**
  * 主界面顶栏：包含周数标题、返回本周按钮、课表切换按钮、更多菜单（跳转周数 / 课表外观），
@@ -77,6 +72,7 @@ import java.time.format.DateTimeFormatter
  * @param pagerCurrentPage 当前 pager 页码（用于显示"第N周"）
  * @param currentWeek 当前实际周次（可能超出 totalWeeks）
  * @param totalWeeks 本学期总周数
+ * @param isHoliday 当前是否处于假期（无课程的周）
  * @param isViewingCurrentWeek 是否正在查看本周（控制返回本周按钮显隐）
  * @param titleBarHeight 上次测量的标题栏高度
  * @param topAppBarColors 顶栏模糊颜色配置
@@ -99,6 +95,7 @@ internal fun ScheduleTopBar(
     pagerCurrentPage: Int,
     currentWeek: Int,
     totalWeeks: Int,
+    isHoliday: Boolean,
     isViewingCurrentWeek: Boolean,
     titleBarHeight: Dp,
     topAppBarColors: BlurColors,
@@ -191,7 +188,7 @@ internal fun ScheduleTopBar(
         Column {
             SmallTopAppBar(
                 title = if (navBarStyle == "rail" && appStyle == "liquidglass" && liquidGlassBackdrop != null) "" else when {
-                    currentWeek > totalWeeks -> "放假中"
+                    isHoliday -> "放假中"
                     currentWeek < 1 -> "学期未开始"
                     else -> "第${pagerCurrentPage + 1}周"
                 },
@@ -205,7 +202,7 @@ internal fun ScheduleTopBar(
                     if (navBarStyle == "rail" && appStyle == "liquidglass" && liquidGlassBackdrop != null) {
                         Text(
                             text = when {
-                                currentWeek > totalWeeks -> "放假中"
+                                isHoliday -> "放假中"
                                 currentWeek < 1 -> "学期未开始"
                                 else -> "第${pagerCurrentPage + 1}周"
                             },

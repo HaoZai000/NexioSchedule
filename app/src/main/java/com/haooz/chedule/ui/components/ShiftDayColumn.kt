@@ -142,18 +142,33 @@ fun ShiftDayColumn(
         }
 
         for (group in groups) {
-            val span = group.endSection - group.startSection + 1
-            val cardHeight = span * cardHeightPerSection
-            val y = sectionToY(group.startSection)
-            ShiftCell(
-                courses = group.items,
-                scheduleColors = scheduleColors,
-                onClick = { onSlotClick(dayOfWeek, group.startSection, group.items) },
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(cardHeight.dp)
-                    .offset(y = y.dp)
-            )
+            // 跨分界线的课程拆分为多段，避免午休/晚休栏穿过卡片中间
+            val lunchBreak = morningSections
+            val dinnerBreak = morningSections + afternoonSections
+            val segments = mutableListOf<Pair<Int, Int>>()
+            var segStart = group.startSection
+            while (segStart <= group.endSection) {
+                var segEnd = group.endSection
+                if (segStart <= lunchBreak && segEnd > lunchBreak) segEnd = lunchBreak
+                if (segStart <= dinnerBreak && segEnd > dinnerBreak) segEnd = dinnerBreak
+                segments.add(segStart to segEnd)
+                segStart = segEnd + 1
+            }
+
+            segments.forEach { (segStartSection, segEndSection) ->
+                val span = segEndSection - segStartSection + 1
+                val cardHeight = span * cardHeightPerSection
+                val y = sectionToY(segStartSection)
+                ShiftCell(
+                    courses = group.items,
+                    scheduleColors = scheduleColors,
+                    onClick = { onSlotClick(dayOfWeek, group.startSection, group.items) },
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(cardHeight.dp)
+                        .offset(y = y.dp)
+                )
+            }
         }
     }
 }

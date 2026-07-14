@@ -75,7 +75,7 @@ class ScheduleViewModel(application: Application) : AndroidViewModel(application
      */
     fun deleteSchedule(name: String): List<String> {
         val names = repository.deleteSchedule(name)
-        if (_currentScheduleName.value == name && names.isNotEmpty()) {
+        if (_currentScheduleName.value == name) {
             _currentScheduleName.value = names.first()
         }
         refreshScheduleList()

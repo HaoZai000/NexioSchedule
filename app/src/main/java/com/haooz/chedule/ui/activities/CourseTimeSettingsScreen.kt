@@ -15,10 +15,7 @@ import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.WindowInsets
-import androidx.compose.foundation.layout.asPaddingValues
 import androidx.compose.foundation.layout.offset
-import androidx.compose.foundation.layout.statusBars
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
@@ -34,7 +31,6 @@ import androidx.compose.runtime.setValue
 import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.RectangleShape
 import androidx.compose.ui.graphics.lerp
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
@@ -66,7 +62,6 @@ import top.yukonga.miuix.kmp.blur.rememberLayerBackdrop
 import top.yukonga.miuix.kmp.blur.textureBlur
 import top.yukonga.miuix.kmp.icon.MiuixIcons
 import top.yukonga.miuix.kmp.icon.extended.Back
-import top.yukonga.miuix.kmp.icon.extended.ChevronBackward
 import top.yukonga.miuix.kmp.overlay.OverlayDialog
 import top.yukonga.miuix.kmp.preference.ArrowPreference
 import top.yukonga.miuix.kmp.squircle.squircleSurface
@@ -217,7 +212,7 @@ fun CourseTimeSettingsScreen(onBack: () -> Unit, liquidGlassBackdrop: com.kyant.
                     ),
                 contentPadding = PaddingValues(
                     start = 16.dp,
-                    top = if (isLiquidGlass) paddingValues.calculateTopPadding() + 64.dp else paddingValues.calculateTopPadding(),
+                    top = if (isLiquidGlass) paddingValues.calculateTopPadding() + 64.dp else paddingValues.calculateTopPadding() + 8.dp,
                     end = 16.dp,
                     bottom = 60.dp
                 ),
@@ -416,7 +411,7 @@ fun CourseTimeSettingsScreen(onBack: () -> Unit, liquidGlassBackdrop: com.kyant.
                     else -> ""
                 },
                 show = showQuickItemDialog,
-                outsideMargin = DpSize(17.dp, 12.dp),
+
                 onDismissRequest = { showQuickItemDialog = false }
             ) {
                 Column(modifier = Modifier.fillMaxWidth(), horizontalAlignment = Alignment.CenterHorizontally) {
@@ -454,7 +449,7 @@ fun CourseTimeSettingsScreen(onBack: () -> Unit, liquidGlassBackdrop: com.kyant.
                                 label = { "第${it}节后" }, wrapAround = false,
                                 textStyle = MiuixTheme.textStyles.title2, modifier = Modifier.weight(1f)
                             )
-                            val breakOptions = listOf(10, 15, 20, 25, 30)
+                            val breakOptions = listOf(5, 10, 15, 20, 25, 30)
                             val breakIndex = breakOptions.indexOf(quickTempValue).coerceAtLeast(0)
                             NumberPicker(
                                 value = breakIndex,
@@ -469,7 +464,7 @@ fun CourseTimeSettingsScreen(onBack: () -> Unit, liquidGlassBackdrop: com.kyant.
                         val options = when (quickEditType) {
                             "duration" -> listOf(40, 45, 50, 55, 60)
                             "short_break" -> listOf(5, 10, 15, 20, 25)
-                            else -> listOf(10, 15, 20, 25, 30)
+                            else -> listOf(5, 10, 15, 20, 25, 30)
                         }
                         val currentIndex = options.indexOf(quickTempValue).coerceAtLeast(0)
                         NumberPicker(
@@ -519,7 +514,7 @@ fun CourseTimeSettingsScreen(onBack: () -> Unit, liquidGlassBackdrop: com.kyant.
                     else -> "时间设置"
                 },
                 show = showTimeDialog,
-                outsideMargin = DpSize(17.dp, 12.dp),
+
                 onDismissRequest = { showTimeDialog = false }
             ) {
                 Column(modifier = Modifier.fillMaxWidth(), horizontalAlignment = Alignment.CenterHorizontally) {

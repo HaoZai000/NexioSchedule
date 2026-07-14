@@ -72,6 +72,21 @@ import top.yukonga.miuix.kmp.icon.extended.Back
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 import top.yukonga.miuix.kmp.utils.overScrollVertical
 import top.yukonga.miuix.kmp.utils.scrollEndHaptic
+import com.haooz.chedule.ui.components.liquidglass.ProgressiveBlurTopBar
+import com.haooz.chedule.ui.components.liquidglass.LiquidTopBarButton
+import androidx.compose.ui.zIndex
+import androidx.compose.ui.unit.DpOffset
+import androidx.compose.ui.graphics.Color
+import com.kyant.backdrop.backdrops.LayerBackdrop
+import com.kyant.backdrop.backdrops.layerBackdrop as liquidGlassLayerBackdrop
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.statusBars
+import androidx.compose.foundation.layout.asPaddingValues
+import top.yukonga.miuix.kmp.basic.CardColors
+import top.yukonga.miuix.kmp.basic.CardDefaults
+import top.yukonga.miuix.kmp.basic.SmallTopAppBar
+import top.yukonga.miuix.kmp.icon.extended.ChevronBackward
+import androidx.compose.ui.graphics.graphicsLayer as graphicsLayerAlias
 import androidx.compose.ui.graphics.Color as ComposeColor
 
 private data class AnimState(
@@ -120,11 +135,21 @@ fun CourseDetailScreen(
     sectionTimes: Map<Int, String>,
     classStartTime: String,
     onBackStart: () -> Unit,
-    onBack: () -> Unit
+    onBack: () -> Unit,
+    wallpaperBitmap: android.graphics.Bitmap? = null,
+    wallpaperOffset: androidx.compose.ui.geometry.Offset = androidx.compose.ui.geometry.Offset.Zero,
+    wallpaperScale: Float = 1f,
+    wallpaperBrightness: Float = 0f
 ) {
     val courseName = courses.firstOrNull()?.name ?: ""
     // 按周数排序，最大排在最上
     val sortedCourses = courses.sortedByDescending { it.endWeek }
+
+    val appStyle = com.haooz.chedule.ui.utils.rememberAppStyle()
+    val liquidGlassBackdrop = if (appStyle == "liquidglass") {
+        com.kyant.backdrop.backdrops.rememberLayerBackdrop()
+    } else null
+    val isLiquidGlass = liquidGlassBackdrop != null
 
     // 计算开学日期的周一
     val startMonday = remember(classStartTime) {
@@ -258,7 +283,46 @@ fun CourseDetailScreen(
                 ) {
                     Scaffold(
                         topBar = {
-                            TopAppBar(
+                            if (isLiquidGlass) {
+                                val statusBarPadding = WindowInsets.statusBars.asPaddingValues().calculateTopPadding()
+                                ProgressiveBlurTopBar(
+                                    backdrop = liquidGlassBackdrop!!,
+                                ) {
+                                    SmallTopAppBar(
+                                        color = Color.Transparent,
+                                        title = courseName,
+                                        modifier = Modifier.zIndex(1f),
+                                        scrollBehavior = scrollBehavior,
+                                        navigationIcon = {}
+                                    )
+                                    LiquidTopBarButton(
+                                        onClick = {
+                                            hapticFeedback.performHapticFeedback(HapticFeedbackType.Confirm)
+                                            onBackStart()
+                                            scope.launch {
+                                                animProgress.animateTo(
+                                                    targetValue = 0f,
+                                                    animationSpec = tween(
+                                                        durationMillis = 400,
+                                                        easing = morphExitEase
+                                                    )
+                                                )
+                                                onBack()
+                                            }
+                                        },
+                                        backdrop = liquidGlassBackdrop,
+                                        icon = MiuixIcons.Medium.ChevronBackward,
+                                        contentDescription = "返回",
+                                        modifier = Modifier
+                                            .zIndex(2f)
+                                            .offset(x = 20.dp, y = if (statusBarPadding > 0.dp) statusBarPadding + 5.dp else 42.dp),
+                                        iconSize = 22.dp,
+                                        iconOffset = DpOffset(x = (-2).dp, y = 0.dp),
+                                        useBackdropShadow = true
+                                    )
+                                }
+                            } else {
+                                TopAppBar(
                                 modifier = if (blurAlpha > 0f) {
                                     Modifier.textureBlur(
                                         backdrop = backdrop,
@@ -296,12 +360,17 @@ fun CourseDetailScreen(
                                     }
                                 }
                             )
+                            }
                         }
                     ) { paddingValues ->
                         Box(
                             modifier = Modifier
                                 .fillMaxSize()
                                 .layerBackdrop(backdrop)
+                                .then(
+                                    if (isLiquidGlass) Modifier.liquidGlassLayerBackdrop(liquidGlassBackdrop!!)
+                                    else Modifier
+                                )
                         ) {
                             val listState = rememberLazyListState()
                             LaunchedEffect(listState) {
@@ -310,110 +379,118 @@ fun CourseDetailScreen(
                                         listScrollY = offset
                                     }
                             }
-                            LazyColumn(
-                                state = listState,
-                                modifier = Modifier
-                                    .fillMaxSize()
-                                    .overScrollVertical()
-                                    .scrollEndHaptic(
-                                        hapticFeedbackType = HapticFeedbackType.TextHandleMove
-                                    )
-                                    .nestedScroll(scrollBehavior.nestedScrollConnection),
-                                contentPadding = PaddingValues(
-                                    start = 16.dp,
-                                    top = paddingValues.calculateTopPadding(),
-                                    end = 16.dp,
-                                    bottom = 120.dp
-                                ),
-                                verticalArrangement = Arrangement.spacedBy(12.dp)
+                            Card(
+                                modifier = Modifier.fillMaxSize().background(MiuixTheme.colorScheme.surface),
+                                insideMargin = PaddingValues(0.dp),
+                                colors = CardDefaults.defaultColors(
+                                    color = MiuixTheme.colorScheme.surface,
+                                    contentColor = MiuixTheme.colorScheme.onSurface)
                             ) {
-                                // 按周分，每周单独显示，保持课程排序顺序
-                                val weekEntries = sortedCourses.flatMap { course ->
-                                    val weeks = course.selectedWeeks.ifEmpty {
-                                        (course.startWeek..course.endWeek).filter { week ->
-                                            when (course.weekType) {
-                                                Course.WEEK_TYPE_ODD -> week % 2 == 1
-                                                Course.WEEK_TYPE_EVEN -> week % 2 == 0
-                                                else -> true
+                                LazyColumn(
+                                    state = listState,
+                                    modifier = Modifier
+                                        .fillMaxSize()
+                                        .overScrollVertical()
+                                        .scrollEndHaptic(
+                                            hapticFeedbackType = HapticFeedbackType.TextHandleMove
+                                        )
+                                        .nestedScroll(scrollBehavior.nestedScrollConnection),
+                                    contentPadding = PaddingValues(
+                                        start = 16.dp,
+                                        top = if (isLiquidGlass) paddingValues.calculateTopPadding() + (-16).dp else paddingValues.calculateTopPadding(),
+                                        end = 16.dp,
+                                        bottom = 120.dp
+                                    ),
+                                    verticalArrangement = Arrangement.spacedBy(12.dp)
+                                ) {
+                                    // 按周分，每周单独显示，保持课程排序顺序
+                                    val weekEntries = sortedCourses.flatMap { course ->
+                                        val weeks = course.selectedWeeks.ifEmpty {
+                                            (course.startWeek..course.endWeek).filter { week ->
+                                                when (course.weekType) {
+                                                    Course.WEEK_TYPE_ODD -> week % 2 == 1
+                                                    Course.WEEK_TYPE_EVEN -> week % 2 == 0
+                                                    else -> true
+                                                }
                                             }
                                         }
-                                    }
-                                    weeks.map { week -> week to course }
-                                }.sortedByDescending { it.first }
+                                        weeks.map { week -> week to course }
+                                    }.sortedByDescending { it.first }
 
-                                // 按周分组显示
-                                val groupedByWeek = weekEntries.groupBy { it.first }
+                                    // 按周分组显示
+                                    val groupedByWeek = weekEntries.groupBy { it.first }
 
-                                groupedByWeek.forEach { (week, weekCourses) ->
-                                    item {
-                                        Column {
-                                            SmallTitle(
-                                                text = "第${week}周",
-                                                modifier = Modifier.offset(x = (-15).dp)
-                                            )
-                                            Card(
-                                                cornerRadius = 20.dp,
-                                                modifier = Modifier.fillMaxWidth(),
-                                                insideMargin = PaddingValues(0.dp)
-                                            ) {
-                                                Column(
-                                                    modifier = Modifier
-                                                        .fillMaxWidth()
-                                                        .padding(horizontal = 16.dp, vertical = 14.dp)
+                                    groupedByWeek.forEach { (week, weekCourses) ->
+                                        item {
+                                            Column {
+                                                SmallTitle(
+                                                    text = "第${week}周",
+                                                    modifier = Modifier.offset(x = (-15).dp)
+                                                )
+                                                Card(
+                                                    cornerRadius = 20.dp,
+                                                    modifier = Modifier.fillMaxWidth(),
+                                                    insideMargin = PaddingValues(0.dp)
                                                 ) {
-                                                    weekCourses.forEachIndexed { index, (_, course) ->
-                                                        val dayName = when (course.dayOfWeek) {
-                                                            1 -> "周一"
-                                                            2 -> "周二"
-                                                            3 -> "周三"
-                                                            4 -> "周四"
-                                                            5 -> "周五"
-                                                            6 -> "周六"
-                                                            7 -> "周日"
-                                                            else -> "未知"
-                                                        }
-                                                        val courseDate = startMonday.plusDays((week - 1).toLong() * 7 + (course.dayOfWeek - 1).toLong())
-                                                        val dateFormat = java.time.format.DateTimeFormatter.ofPattern("M/d")
-                                                        val dateStr = courseDate.format(dateFormat)
-                                                        val sectionText = "第${course.startSection}-${course.endSection}节"
-                                                        val timeStart = sectionTimes[course.startSection]?.split("-")?.firstOrNull() ?: ""
-                                                        val timeEnd = sectionTimes[course.endSection]?.split("-")?.lastOrNull() ?: ""
-                                                        val timeText = if (timeStart.isNotEmpty() && timeEnd.isNotEmpty()) "$timeStart - $timeEnd" else ""
-
-                                                        if (index > 0) {
-                                                            Spacer(modifier = Modifier.height(28.dp))
-                                                        }
-
-                                                        Row(
-                                                            modifier = Modifier.fillMaxWidth(),
-                                                            horizontalArrangement = Arrangement.SpaceBetween
-                                                        ) {
-                                                            Column(modifier = Modifier.weight(1f)) {
-                                                                Text(
-                                                                    text = "$dateStr $dayName $sectionText",
-                                                                    style = MiuixTheme.textStyles.body1.copy(fontSize = 17.sp),
-                                                                    fontWeight = FontWeight.Medium,
-                                                                    color = MiuixTheme.colorScheme.onSurface
-                                                                )
-                                                                Spacer(modifier = Modifier.height(4.dp))
-                                                                val detailParts = mutableListOf<String>()
-                                                                if (course.classroom.isNotEmpty()) detailParts.add(course.classroom)
-                                                                if (course.teacher.isNotEmpty()) detailParts.add(course.teacher)
-                                                                if (detailParts.isNotEmpty()) {
-                                                                    Text(
-                                                                        text = detailParts.joinToString(" | "),
-                                                                        style = MiuixTheme.textStyles.footnote1,
-                                                                        color = MiuixTheme.colorScheme.onBackgroundVariant
-                                                                    )
-                                                                }
+                                                    Column(
+                                                        modifier = Modifier
+                                                            .fillMaxWidth()
+                                                            .padding(horizontal = 16.dp, vertical = 14.dp)
+                                                    ) {
+                                                        weekCourses.forEachIndexed { index, (_, course) ->
+                                                            val dayName = when (course.dayOfWeek) {
+                                                                1 -> "周一"
+                                                                2 -> "周二"
+                                                                3 -> "周三"
+                                                                4 -> "周四"
+                                                                5 -> "周五"
+                                                                6 -> "周六"
+                                                                7 -> "周日"
+                                                                else -> "未知"
                                                             }
-                                                            if (timeText.isNotEmpty()) {
-                                                                Column(horizontalAlignment = Alignment.End) {
+                                                            val courseDate = startMonday.plusDays((week - 1).toLong() * 7 + (course.dayOfWeek - 1).toLong())
+                                                            val dateFormat = java.time.format.DateTimeFormatter.ofPattern("M/d")
+                                                            val dateStr = courseDate.format(dateFormat)
+                                                            val sectionText = "第${course.startSection}-${course.endSection}节"
+                                                            val timeStart = sectionTimes[course.startSection]?.split("-")?.firstOrNull() ?: ""
+                                                            val timeEnd = sectionTimes[course.endSection]?.split("-")?.lastOrNull() ?: ""
+                                                            val timeText = if (timeStart.isNotEmpty() && timeEnd.isNotEmpty()) "$timeStart - $timeEnd" else ""
+
+                                                            if (index > 0) {
+                                                                Spacer(modifier = Modifier.height(28.dp))
+                                                            }
+
+                                                            Row(
+                                                                modifier = Modifier.fillMaxWidth(),
+                                                                horizontalArrangement = Arrangement.SpaceBetween
+                                                            ) {
+                                                                Column(modifier = Modifier.weight(1f)) {
                                                                     Text(
-                                                                        text = timeText,
-                                                                        style = MiuixTheme.textStyles.footnote1.copy(fontSize = 15.sp),
-                                                                        color = MiuixTheme.colorScheme.primary
+                                                                        text = "$dateStr $dayName $sectionText",
+                                                                        style = MiuixTheme.textStyles.body1.copy(fontSize = 17.sp),
+                                                                        fontWeight = FontWeight.Medium,
+                                                                        color = MiuixTheme.colorScheme.onSurface
                                                                     )
+                                                                    Spacer(modifier = Modifier.height(4.dp))
+                                                                    val detailParts = mutableListOf<String>()
+                                                                    if (course.classroom.isNotEmpty()) detailParts.add(course.classroom)
+                                                                    if (course.teacher.isNotEmpty()) detailParts.add(course.teacher)
+                                                                    if (detailParts.isNotEmpty()) {
+                                                                        Text(
+                                                                            text = detailParts.joinToString(" | "),
+                                                                            style = MiuixTheme.textStyles.footnote1,
+                                                                            color = MiuixTheme.colorScheme.onBackgroundVariant
+                                                                        )
+                                                                    }
+                                                                }
+                                                                if (timeText.isNotEmpty()) {
+                                                                    Column(horizontalAlignment = Alignment.End) {
+                                                                        Text(
+                                                                            text = timeText,
+                                                                            style = MiuixTheme.textStyles.footnote1.copy(fontSize = 15.sp),
+                                                                            color = MiuixTheme.colorScheme.primary
+                                                                        )
+                                                                    }
                                                                 }
                                                             }
                                                         }

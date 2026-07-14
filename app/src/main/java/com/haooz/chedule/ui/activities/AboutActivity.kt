@@ -1,9 +1,7 @@
 /** 关于页面 */
 package com.haooz.chedule.ui.activities
-import android.annotation.SuppressLint
-import com.haooz.chedule.ui.utils.isAppDarkTheme
-import com.haooz.chedule.ui.utils.applyThemeAwareSystemBars
 
+import android.annotation.SuppressLint
 import android.content.Intent
 import android.graphics.Canvas
 import android.os.Bundle
@@ -17,8 +15,7 @@ import androidx.compose.animation.core.tween
 import androidx.compose.animation.expandVertically
 import androidx.compose.animation.shrinkVertically
 import androidx.compose.foundation.Image
-import androidx.compose.ui.res.painterResource
-import com.haooz.chedule.R
+import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -40,7 +37,6 @@ import androidx.compose.foundation.layout.statusBars
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.rememberLazyListState
-
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.derivedStateOf
@@ -60,6 +56,7 @@ import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.platform.LocalUriHandler
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.DpOffset
@@ -69,12 +66,16 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.zIndex
 import androidx.core.graphics.createBitmap
+import com.haooz.chedule.R
 import com.haooz.chedule.effect.BgEffectBackground
 import com.haooz.chedule.ui.components.BlurredBar
 import com.haooz.chedule.ui.components.liquidglass.LiquidTopBarButton
 import com.haooz.chedule.ui.components.liquidglass.ProgressiveBlurTopBar
 import com.haooz.chedule.ui.components.rememberBlurBackdrop
+import com.haooz.chedule.ui.data.changelogData
 import com.haooz.chedule.ui.theme.CourseScheduleTheme
+import com.haooz.chedule.ui.utils.applyThemeAwareSystemBars
+import com.haooz.chedule.ui.utils.isAppDarkTheme
 import com.haooz.chedule.ui.utils.rememberAppStyle
 import com.kyant.shapes.RoundedRectangle
 import top.yukonga.miuix.kmp.basic.Card
@@ -91,6 +92,7 @@ import top.yukonga.miuix.kmp.blur.BlurDefaults
 import top.yukonga.miuix.kmp.blur.layerBackdrop
 import top.yukonga.miuix.kmp.blur.textureBlur
 import top.yukonga.miuix.kmp.icon.MiuixIcons
+import top.yukonga.miuix.kmp.icon.basic.ArrowRight
 import top.yukonga.miuix.kmp.icon.extended.Back
 import top.yukonga.miuix.kmp.icon.extended.ChevronBackward
 import top.yukonga.miuix.kmp.icon.extended.ChevronForward
@@ -282,137 +284,143 @@ private fun AboutScreen(onBack: () -> Unit) {
                 bgModifier = if (backdrop != null) Modifier.layerBackdrop(backdrop) else Modifier,
                 alpha = { 1f - scrollProgress },
             ) {
-            Column(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(
-                        top = innerPadding.calculateTopPadding() + 72.dp,
-                        start = WindowInsets.displayCutout.asPaddingValues().calculateLeftPadding(LayoutDirection.Ltr),
-                        end = WindowInsets.displayCutout.asPaddingValues().calculateRightPadding(LayoutDirection.Ltr),
-                    ),
-                horizontalAlignment = Alignment.CenterHorizontally,
-            ) {
-                val appIcon = remember {
-                    val drawable = context.applicationInfo.icon.let { resId ->
-                        context.getDrawable(resId)
-                    }
-                    if (drawable != null) {
-                        val bitmap = createBitmap(
-                            drawable.intrinsicWidth.coerceAtLeast(1),
-                            drawable.intrinsicHeight.coerceAtLeast(1)
-                        )
-                        val canvas = Canvas(bitmap)
-                        drawable.setBounds(0, 0, canvas.width, canvas.height)
-                        drawable.draw(canvas)
-                        bitmap.asImageBitmap()
-                    } else null
-                }
-                Box(
-                    contentAlignment = Alignment.Center,
-                    modifier = Modifier
-                        .size(100.dp)
-                        .graphicsLayer {
-                            val iconProgress = ((scrollProgress - 0.35f) / 0.15f).coerceIn(0f, 1f)
-                            clip = true
-                            shape = RoundedRectangle(24.dp)
-                            alpha = 1 - iconProgress
-                            scaleX = 1 - (iconProgress * 0.05f)
-                            scaleY = 1 - (iconProgress * 0.05f)
-                        }
-                ) {
-                    if (appIcon != null) {
-                        Image(
-                            bitmap = appIcon,
-                            contentDescription = null,
-                            modifier = Modifier.size(88.dp),
-                        )
-                    } else {
-                        Text(
-                            text = appName.take(1),
-                            color = MiuixTheme.colorScheme.onPrimary,
-                            fontWeight = FontWeight.Bold,
-                            fontSize = 42.sp,
-                        )
-                    }
-                }
-                Text(
-                    modifier = Modifier
-                        .padding(top = 12.dp, bottom = 5.dp)
-                        .graphicsLayer {
-                            val nameProgress = ((scrollProgress - 0.20f) / 0.15f).coerceIn(0f, 1f)
-                            alpha = 1 - nameProgress
-                            scaleX = 1 - (nameProgress * 0.05f)
-                            scaleY = 1 - (nameProgress * 0.05f)
-                        }
-                        .then(
-                            if (backdrop != null) {
-                                Modifier.textureBlur(
-                                    backdrop = backdrop,
-                                    shape = RoundedRectangle(16.dp),
-                                    blurRadius = 150f,
-                                    colors = BlurDefaults.blurColors(
-                                        blendColors = logoBlend,
-                                    ),
-                                    contentBlendMode = ComposeBlendMode.DstIn,
-                                )
-                            } else {
-                                Modifier
-                            },
-                        ),
-                    text = appName,
-                    color = MiuixTheme.colorScheme.onBackground,
-                    fontWeight = FontWeight.Bold,
-                    fontSize = 35.sp,
-                )
-                Text(
+                Column(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .graphicsLayer {
-                            val verProgress = ((scrollProgress - 0.05f) / 0.15f).coerceIn(0f, 1f)
-                            alpha = 1 - verProgress
-                            scaleX = 1 - (verProgress * 0.05f)
-                            scaleY = 1 - (verProgress * 0.05f)
-                        },
-                    color = MiuixTheme.colorScheme.onSurfaceVariantSummary,
-                    text = "v$appVersion",
-                    fontSize = 14.sp,
-                    textAlign = TextAlign.Center,
-                )
-            }
-
-            LazyColumn(
-                state = lazyListState,
-                modifier = Modifier
-                    .fillMaxSize()
-                    .overScrollVertical()
-                    .scrollEndHaptic(
-                        hapticFeedbackType = HapticFeedbackType.TextHandleMove
+                        .padding(
+                            top = innerPadding.calculateTopPadding() + 72.dp,
+                            start = WindowInsets.displayCutout.asPaddingValues()
+                                .calculateLeftPadding(LayoutDirection.Ltr),
+                            end = WindowInsets.displayCutout.asPaddingValues()
+                                .calculateRightPadding(LayoutDirection.Ltr),
+                        ),
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                ) {
+                    val appIcon = remember {
+                        val drawable = context.applicationInfo.icon.let { resId ->
+                            context.getDrawable(resId)
+                        }
+                        if (drawable != null) {
+                            val bitmap = createBitmap(
+                                drawable.intrinsicWidth.coerceAtLeast(1),
+                                drawable.intrinsicHeight.coerceAtLeast(1)
+                            )
+                            val canvas = Canvas(bitmap)
+                            drawable.setBounds(0, 0, canvas.width, canvas.height)
+                            drawable.draw(canvas)
+                            bitmap.asImageBitmap()
+                        } else null
+                    }
+                    Box(
+                        contentAlignment = Alignment.Center,
+                        modifier = Modifier
+                            .size(100.dp)
+                            .graphicsLayer {
+                                val iconProgress =
+                                    ((scrollProgress - 0.35f) / 0.15f).coerceIn(0f, 1f)
+                                clip = true
+                                shape = RoundedRectangle(24.dp)
+                                alpha = 1 - iconProgress
+                                scaleX = 1 - (iconProgress * 0.05f)
+                                scaleY = 1 - (iconProgress * 0.05f)
+                            }
+                    ) {
+                        if (appIcon != null) {
+                            Image(
+                                bitmap = appIcon,
+                                contentDescription = null,
+                                modifier = Modifier.size(88.dp),
+                            )
+                        } else {
+                            Text(
+                                text = appName.take(1),
+                                color = MiuixTheme.colorScheme.onPrimary,
+                                fontWeight = FontWeight.Bold,
+                                fontSize = 42.sp,
+                            )
+                        }
+                    }
+                    Text(
+                        modifier = Modifier
+                            .padding(top = 12.dp, bottom = 5.dp)
+                            .graphicsLayer {
+                                val nameProgress =
+                                    ((scrollProgress - 0.20f) / 0.15f).coerceIn(0f, 1f)
+                                alpha = 1 - nameProgress
+                                scaleX = 1 - (nameProgress * 0.05f)
+                                scaleY = 1 - (nameProgress * 0.05f)
+                            }
+                            .then(
+                                if (backdrop != null) {
+                                    Modifier.textureBlur(
+                                        backdrop = backdrop,
+                                        shape = RoundedRectangle(16.dp),
+                                        blurRadius = 150f,
+                                        colors = BlurDefaults.blurColors(
+                                            blendColors = logoBlend,
+                                        ),
+                                        contentBlendMode = ComposeBlendMode.DstIn,
+                                    )
+                                } else {
+                                    Modifier
+                                },
+                            ),
+                        text = appName,
+                        color = MiuixTheme.colorScheme.onBackground,
+                        fontWeight = FontWeight.Bold,
+                        fontSize = 35.sp,
                     )
-                    .then(
-                        if (!isLiquidGlass) Modifier.nestedScroll(scrollBehavior.nestedScrollConnection)
-                        else Modifier
-                    ),
-                contentPadding = PaddingValues(
-                    top = innerPadding.calculateTopPadding() +
-                            if (isLiquidGlass) { if (WindowInsets.statusBars.asPaddingValues().calculateTopPadding() > 0.dp) -20.dp else (-32).dp } else 0.dp,
-                    start = WindowInsets.displayCutout.asPaddingValues().calculateLeftPadding(LayoutDirection.Ltr),
-                    end = WindowInsets.displayCutout.asPaddingValues().calculateRightPadding(LayoutDirection.Ltr),
-                ),
-            ) {
-                item(key = "logoSpacer") {
-                    Spacer(
+                    Text(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .height(340.dp),
+                            .graphicsLayer {
+                                val verProgress =
+                                    ((scrollProgress - 0.05f) / 0.15f).coerceIn(0f, 1f)
+                                alpha = 1 - verProgress
+                                scaleX = 1 - (verProgress * 0.05f)
+                                scaleY = 1 - (verProgress * 0.05f)
+                            },
+                        color = MiuixTheme.colorScheme.onSurfaceVariantSummary,
+                        text = "v$appVersion",
+                        fontSize = 14.sp,
+                        textAlign = TextAlign.Center,
                     )
                 }
 
-                item(key = "about") {
-                    Column(
-                        modifier = Modifier
-                            .fillParentMaxHeight()
-                            .padding(bottom = WindowInsets.navigationBars.asPaddingValues().calculateBottomPadding()),
-                    ) {
+                LazyColumn(
+                    state = lazyListState,
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .overScrollVertical()
+                        .scrollEndHaptic(
+                            hapticFeedbackType = HapticFeedbackType.TextHandleMove
+                        )
+                        .then(
+                            if (!isLiquidGlass) Modifier.nestedScroll(scrollBehavior.nestedScrollConnection)
+                            else Modifier
+                        ),
+                    contentPadding = PaddingValues(
+                        top = innerPadding.calculateTopPadding() +
+                                if (isLiquidGlass) {
+                                    if (WindowInsets.statusBars.asPaddingValues()
+                                            .calculateTopPadding() > 0.dp
+                                    ) -8.dp else (-20).dp
+                                } else 12.dp,
+                        start = WindowInsets.displayCutout.asPaddingValues()
+                            .calculateLeftPadding(LayoutDirection.Ltr),
+                        end = WindowInsets.displayCutout.asPaddingValues()
+                            .calculateRightPadding(LayoutDirection.Ltr),
+                    ),
+                ) {
+                    item(key = "logoSpacer") {
+                        Spacer(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .height(340.dp),
+                        )
+                    }
+                    item(key = "about") {
+
                         Card(
                             modifier = Modifier
                                 .padding(horizontal = 16.dp)
@@ -442,7 +450,8 @@ private fun AboutScreen(onBack: () -> Unit) {
                                 ArrowPreference(
                                     title = "更新设置",
                                     onClick = {
-                                        val intent = Intent(context, UpdateSettingsActivity::class.java)
+                                        val intent =
+                                            Intent(context, UpdateSettingsActivity::class.java)
                                         context.startActivity(intent)
                                     }
                                 )
@@ -452,304 +461,451 @@ private fun AboutScreen(onBack: () -> Unit) {
                                         showRepoDialog = true
                                     }
                                 )
-                                AboutItem(title = "应用框架", value = "Jetpack Compose + Miuix UI")
+                                ArrowPreference(
+                                    title = "捐赠支持",
+                                    endActions = {
+                                        Text(
+                                            text = "请作者喝杯咖啡",
+                                            fontSize = 14.sp,
+                                            color = MiuixTheme.colorScheme.onSurfaceVariantActions
+                                        )
+                                    },
+                                    onClick = {
+                                        val intent =
+                                            Intent(context, AppreciateAuthorActivity::class.java)
+                                        context.startActivity(intent)
+                                    }
+                                )
                             }
                         }
-                        Spacer(modifier = Modifier.height(12.dp))
-                        Card(
+                    }
+
+                    item(key = "changelog") {
+                        Column(
                             modifier = Modifier
-                                .padding(horizontal = 16.dp)
-                                .then(
-                                    if (backdrop != null) {
-                                        Modifier.textureBlur(
-                                            backdrop = backdrop,
-                                            shape = RoundedRectangle(20.dp),
-                                            blurRadius = 60f,
-                                            colors = BlurDefaults.blurColors(
-                                                blendColors = cardBlend,
-                                            ),
-                                        )
-                                    } else {
-                                        Modifier
-                                    },
-                                ),
-                            colors = CardDefaults.defaultColors(
-                                if (backdrop != null) Color.Transparent else MiuixTheme.colorScheme.background,
-                                Color.Transparent,
-                            ),
+                                .padding(
+                                    bottom = WindowInsets.navigationBars.asPaddingValues()
+                                        .calculateBottomPadding()
+                                )
+                                .fillParentMaxHeight(),
                         ) {
-                            Column(
-                                modifier = Modifier.fillMaxWidth()
-                            ) {
-                                AboutItem(title = "开源许可", value = "Apache 2.0")
-                            }
-                        }
-                        Spacer(modifier = Modifier.height(12.dp))
-                        var expanded by remember { mutableStateOf(true) }
-                        val rotation by animateFloatAsState(
-                            targetValue = if (expanded) 90f else 0f,
-                            animationSpec = tween(durationMillis = 200),
-                            label = "arrowRotation"
-                        )
-                        Card(
-                            modifier = Modifier
-                                .padding(horizontal = 16.dp)
-                                .clip(RoundedRectangle(20.dp))
-                                .clickable { expanded = !expanded }
-                                .then(
-                                    if (backdrop != null) {
-                                        Modifier.textureBlur(
-                                            backdrop = backdrop,
-                                            shape = RoundedRectangle(20.dp),
-                                            blurRadius = 60f,
-                                            colors = BlurDefaults.blurColors(
-                                                blendColors = cardBlend,
-                                            ),
-                                        )
-                                    } else {
-                                        Modifier
-                                    },
-                                ),
-                            colors = CardDefaults.defaultColors(
-                                if (backdrop != null) Color.Transparent else MiuixTheme.colorScheme.background,
-                                Color.Transparent,
-                            ),
-                        ) {
-                            Column(
+                            Spacer(modifier = Modifier.height(12.dp))
+                            Card(
                                 modifier = Modifier
-                                    .fillMaxWidth()
-                                    .padding(start = 16.dp, end = 16.dp, top = 20.dp, bottom = 17.dp)
+                                    .padding(horizontal = 16.dp)
+                                    .then(
+                                        if (backdrop != null) {
+                                            Modifier.textureBlur(
+                                                backdrop = backdrop,
+                                                shape = RoundedRectangle(20.dp),
+                                                blurRadius = 60f,
+                                                colors = BlurDefaults.blurColors(
+                                                    blendColors = cardBlend,
+                                                ),
+                                            )
+                                        } else {
+                                            Modifier
+                                        },
+                                    ),
+                                colors = CardDefaults.defaultColors(
+                                    if (backdrop != null) Color.Transparent else MiuixTheme.colorScheme.background,
+                                    Color.Transparent,
+                                ),
                             ) {
-                                Row(
-                                    modifier = Modifier.fillMaxWidth(),
-                                    horizontalArrangement = Arrangement.SpaceBetween,
-                                    verticalAlignment = Alignment.CenterVertically
+                                Column(
+                                    modifier = Modifier.fillMaxWidth()
                                 ) {
-                                    Text(
-                                        text = "特别致谢",
-                                        fontSize = 17.sp,
-                                        fontWeight = FontWeight.Medium,
-                                        color = MiuixTheme.colorScheme.onSurface
-                                    )
-                                    Icon(
-                                        imageVector = MiuixIcons.ChevronForward,
-                                        contentDescription = null,
+                                    Row(
                                         modifier = Modifier
-                                            .size(20.dp)
-                                            .graphicsLayer {
-                                                rotationZ = rotation
-                                            },
-                                        tint = MiuixTheme.colorScheme.onSurfaceVariantActions
-                                    )
-                                }
-                                Spacer(modifier = Modifier.height(4.dp))
-                                AnimatedVisibility(
-                                    visible = expanded,
-                                    enter = expandVertically(),
-                                    exit = shrinkVertically()
-                                ) {
-                                    Column {
-                                        Spacer(modifier = Modifier.height(16.dp))
-                                        Row(
+                                            .fillMaxWidth()
+                                            .clickable {
+                                                context.startActivity(
+                                                    android.content.Intent(
+                                                        context,
+                                                        ChangelogActivity::class.java
+                                                    )
+                                                )
+                                            }
+                                            .padding(
+                                                start = 16.dp,
+                                                end = 13.dp,
+                                                top = 17.dp,
+                                                bottom = 12.dp
+                                            ),
+                                        horizontalArrangement = Arrangement.SpaceBetween,
+                                        verticalAlignment = Alignment.CenterVertically
+                                    ) {
+                                        Text(
+                                            text = "更新日志",
+                                            fontSize = 17.sp,
+                                            fontWeight = FontWeight.Medium,
+                                            color = MiuixTheme.colorScheme.onSurface
+                                        )
+                                        Icon(
+                                            imageVector = MiuixIcons.Basic.ArrowRight,
+                                            contentDescription = null,
+                                            modifier = Modifier.size(16.dp),
+                                            tint = MiuixTheme.colorScheme.onSurfaceVariantActions
+                                        )
+                                    }
+                                    val recentChangelog = changelogData.take(3)
+                                    val expandedStates = recentChangelog.mapIndexed { index, _ ->
+                                        val expandedState = remember { mutableStateOf(index == 0) }
+                                        expandedState
+                                    }
+                                    val rotations = recentChangelog.mapIndexed { index, _ ->
+                                        val rotation by animateFloatAsState(
+                                            targetValue = if (expandedStates[index].value) 90f else -90f,
+                                            animationSpec = tween(durationMillis = 200),
+                                            label = "changelogRotation$index"
+                                        )
+                                        rotation
+                                    }
+
+                                    recentChangelog.forEachIndexed { index, entry ->
+                                        Column(
                                             modifier = Modifier
                                                 .fillMaxWidth()
-                                                .padding(horizontal = 4.dp),
-                                            horizontalArrangement = Arrangement.SpaceBetween,
-                                            verticalAlignment = Alignment.CenterVertically
-                                        ) {
-                                            Text(
-                                                text = "Miuix",
-                                                fontSize = 15.sp,
-                                                fontWeight = FontWeight.Medium,
-                                                color = MiuixTheme.colorScheme.primary,
-                                                modifier = Modifier.clickable {
-                                                    uriHandler.openUri("https://github.com/compose-miuix-ui/miuix")
+                                                .clickable {
+                                                    expandedStates[index].value =
+                                                        !expandedStates[index].value
                                                 }
-                                            )
-                                            Text(
-                                                text = "Yukonga",
-                                                fontSize = 15.sp,
-                                                fontWeight = FontWeight.Medium,
-                                                color = MiuixTheme.colorScheme.onSurfaceVariantActions
-                                            )
+                                        ) {
+                                            Row(
+                                                modifier = Modifier
+                                                    .fillMaxWidth()
+                                                    .padding(
+                                                        start = 20.dp,
+                                                        end = 18.dp,
+                                                        top = if (index == 0) 12.dp else 17.dp,
+                                                        bottom = 17.dp
+                                                    ),
+                                                horizontalArrangement = Arrangement.SpaceBetween,
+                                                verticalAlignment = Alignment.CenterVertically
+                                            ) {
+                                                Text(
+                                                    text = entry.version,
+                                                    fontSize = 17.sp,
+                                                    fontWeight = FontWeight.Medium,
+                                                    color = MiuixTheme.colorScheme.onSurface,
+                                                    modifier = Modifier.weight(1f)
+                                                )
+                                                Text(
+                                                    text = entry.date,
+                                                    fontSize = 14.sp,
+                                                    color = MiuixTheme.colorScheme.onSurfaceVariantActions
+                                                )
+                                                Spacer(modifier = Modifier.width(8.dp))
+                                                Icon(
+                                                    imageVector = MiuixIcons.ChevronForward,
+                                                    contentDescription = null,
+                                                    modifier = Modifier
+                                                        .size(16.dp)
+                                                        .graphicsLayer {
+                                                            rotationZ = rotations[index]
+                                                        },
+                                                    tint = MiuixTheme.colorScheme.onSurfaceVariantActions
+                                                )
+                                            }
+                                            AnimatedVisibility(
+                                                visible = expandedStates[index].value,
+                                                enter = expandVertically(),
+                                                exit = shrinkVertically()
+                                            ) {
+                                                Column(
+                                                    modifier = Modifier.padding(
+                                                        start = 18.dp,
+                                                        end = 18.dp,
+                                                        bottom = 14.dp
+                                                    )
+                                                ) {
+                                                    Text(
+                                                        text = entry.changes.joinToString("\n") { "• $it" },
+                                                        fontSize = 14.sp,
+                                                        lineHeight = 22.sp,
+                                                        color = MiuixTheme.colorScheme.onSurfaceVariantActions
+                                                    )
+                                                }
+                                            }
                                         }
-                                        Spacer(modifier = Modifier.height(12.dp))
-                                        Row(
-                                            modifier = Modifier
-                                                .fillMaxWidth()
-                                                .padding(horizontal = 4.dp),
-                                            horizontalArrangement = Arrangement.SpaceBetween,
-                                            verticalAlignment = Alignment.CenterVertically
-                                        ) {
-                                            Text(
-                                                text = "Capsule",
-                                                fontSize = 15.sp,
-                                                fontWeight = FontWeight.Medium,
-                                                color = MiuixTheme.colorScheme.primary,
-                                                modifier = Modifier.clickable {
-                                                    uriHandler.openUri("https://github.com/Kyant0/Capsule")
-                                                }
-                                            )
-                                            Text(
-                                                text = "Kyant0",
-                                                fontSize = 15.sp,
-                                                fontWeight = FontWeight.Medium,
-                                                color = MiuixTheme.colorScheme.onSurfaceVariantActions
-                                            )
-                                        }
-                                        Spacer(modifier = Modifier.height(12.dp))
-                                        Row(
-                                            modifier = Modifier
-                                                .fillMaxWidth()
-                                                .padding(horizontal = 4.dp),
-                                            horizontalArrangement = Arrangement.SpaceBetween,
-                                            verticalAlignment = Alignment.CenterVertically
-                                        ) {
-                                            Text(
-                                                text = "OkHttp",
-                                                fontSize = 15.sp,
-                                                fontWeight = FontWeight.Medium,
-                                                color = MiuixTheme.colorScheme.primary,
-                                                modifier = Modifier.clickable {
-                                                    uriHandler.openUri("https://github.com/square/okhttp")
-                                                }
-                                            )
-                                            Text(
-                                                text = "Square",
-                                                fontSize = 15.sp,
-                                                fontWeight = FontWeight.Medium,
-                                                color = MiuixTheme.colorScheme.onSurfaceVariantActions
-                                            )
-                                        }
-                                        Spacer(modifier = Modifier.height(12.dp))
-                                        Row(
-                                            modifier = Modifier
-                                                .fillMaxWidth()
-                                                .padding(horizontal = 4.dp),
-                                            horizontalArrangement = Arrangement.SpaceBetween,
-                                            verticalAlignment = Alignment.CenterVertically
-                                        ) {
-                                            Text(
-                                                text = "warehouse",
-                                                fontSize = 15.sp,
-                                                fontWeight = FontWeight.Medium,
-                                                color = MiuixTheme.colorScheme.primary,
-                                                modifier = Modifier.clickable {
-                                                    uriHandler.openUri("https://github.com/XingHeYuZhuan/shiguang_warehouse")
-                                                }
-                                            )
-                                            Text(
-                                                text = "XingHeYuZhuan",
-                                                fontSize = 15.sp,
-                                                fontWeight = FontWeight.Medium,
-                                                color = MiuixTheme.colorScheme.onSurfaceVariantActions
-                                            )
-                                        }
-                                        Spacer(modifier = Modifier.height(12.dp))
-                                        Row(
-                                            modifier = Modifier
-                                                .fillMaxWidth()
-                                                .padding(horizontal = 4.dp),
-                                            horizontalArrangement = Arrangement.SpaceBetween,
-                                            verticalAlignment = Alignment.CenterVertically
-                                        ) {
-                                            Text(
-                                                text = "Shizuku",
-                                                fontSize = 15.sp,
-                                                fontWeight = FontWeight.Medium,
-                                                color = MiuixTheme.colorScheme.primary,
-                                                modifier = Modifier.clickable {
-                                                    uriHandler.openUri("https://github.com/RikkaApps/Shizuku")
-                                                }
-                                            )
-                                            Text(
-                                                text = "RikkaApps",
-                                                fontSize = 15.sp,
-                                                fontWeight = FontWeight.Medium,
-                                                color = MiuixTheme.colorScheme.onSurfaceVariantActions
-                                            )
-                                        }
-                                        Spacer(modifier = Modifier.height(12.dp))
-                                        Row(
-                                            modifier = Modifier
-                                                .fillMaxWidth()
-                                                .padding(horizontal = 4.dp),
-                                            horizontalArrangement = Arrangement.SpaceBetween,
-                                            verticalAlignment = Alignment.CenterVertically
-                                        ) {
-                                            Text(
-                                                text = "Backdrop",
-                                                fontSize = 15.sp,
-                                                fontWeight = FontWeight.Medium,
-                                                color = MiuixTheme.colorScheme.primary,
-                                                modifier = Modifier.clickable {
-                                                    uriHandler.openUri("https://github.com/Kyant0/AndroidLiquidGlass")
-                                                }
-                                            )
-                                            Text(
-                                                text = "Kyant0",
-                                                fontSize = 15.sp,
-                                                fontWeight = FontWeight.Medium,
-                                                color = MiuixTheme.colorScheme.onSurfaceVariantActions
+
+                                        if (index < recentChangelog.lastIndex) {
+                                            Spacer(
+                                                modifier = Modifier
+                                                    .fillMaxWidth()
+                                                    .padding(horizontal = 18.dp)
+                                                    .height(0.5.dp)
+                                                    .background(
+                                                        MiuixTheme.colorScheme.onSurfaceVariantActions.copy(
+                                                            alpha = 0.07f
+                                                        )
+                                                    )
                                             )
                                         }
                                     }
                                 }
                             }
-                        }
-                        Spacer(modifier = Modifier.height(8.dp))
-                        Card(
-                            modifier = Modifier.fillMaxWidth(),
-                            colors = CardDefaults.defaultColors(
-                                color = Color.Transparent,
+                            var expanded by remember { mutableStateOf(false) }
+                            val rotation by animateFloatAsState(
+                                targetValue = if (expanded) 90f else -90f,
+                                animationSpec = tween(durationMillis = 200),
+                                label = "thanksRotation"
                             )
-                        ) {
-                            Column(
-                                modifier = Modifier.fillMaxWidth().padding(16.dp),
-                                horizontalAlignment = Alignment.CenterHorizontally
+                            Spacer(modifier = Modifier.height(12.dp))
+                            Card(
+                                modifier = Modifier
+                                    .padding(horizontal = 16.dp)
+                                    .clip(RoundedRectangle(20.dp))
+                                    .clickable { expanded = !expanded }
+                                    .then(
+                                        if (backdrop != null) {
+                                            Modifier.textureBlur(
+                                                backdrop = backdrop,
+                                                shape = RoundedRectangle(20.dp),
+                                                blurRadius = 60f,
+                                                colors = BlurDefaults.blurColors(
+                                                    blendColors = cardBlend,
+                                                ),
+                                            )
+                                        } else {
+                                            Modifier
+                                        },
+                                    ),
+                                colors = CardDefaults.defaultColors(
+                                    if (backdrop != null) Color.Transparent else MiuixTheme.colorScheme.background,
+                                    Color.Transparent,
+                                ),
                             ) {
-                                Row(
-                                    verticalAlignment = Alignment.CenterVertically
-                                ) {
-                                    Text(
-                                        text = "© 2026 Nexio课程表 · 作者:",
-                                        fontSize = 13.sp,
-                                        color = MiuixTheme.colorScheme.onSurfaceVariantActions
-                                    )
-                                    Text(
-                                        text = "Haooz",
-                                        fontSize = 13.sp,
-                                        color = MiuixTheme.colorScheme.primary,
-                                        modifier = Modifier
-                                            .clickable {
-                                                uriHandler.openUri("https://www.coolapk.com/u/29693763")
-                                            }
-                                            .padding(start = 4.dp)
-                                    )
-                                }
-                                Spacer(modifier = Modifier.height(4.dp))
-                                Text(
-                                    text = "赞赏作者",
-                                    fontSize = 13.sp,
-                                    color = MiuixTheme.colorScheme.primary,
+                                Column(
                                     modifier = Modifier
-                                        .clickable {
-                                            val intent = Intent(context, AppreciateAuthorActivity::class.java)
-                                            context.startActivity(intent)
+                                        .fillMaxWidth()
+                                        .padding(
+                                            start = 18.dp,
+                                            end = 18.dp,
+                                            top = 20.dp,
+                                            bottom = 17.dp
+                                        )
+                                ) {
+                                    Row(
+                                        modifier = Modifier.fillMaxWidth(),
+                                        horizontalArrangement = Arrangement.SpaceBetween,
+                                        verticalAlignment = Alignment.CenterVertically
+                                    ) {
+                                        Text(
+                                            text = "特别致谢",
+                                            fontSize = 17.sp,
+                                            fontWeight = FontWeight.Medium,
+                                            color = MiuixTheme.colorScheme.onSurface
+                                        )
+                                        Icon(
+                                            imageVector = MiuixIcons.ChevronForward,
+                                            contentDescription = null,
+                                            modifier = Modifier
+                                                .size(16.dp)
+                                                .graphicsLayer {
+                                                    rotationZ = rotation
+                                                },
+                                            tint = MiuixTheme.colorScheme.onSurfaceVariantActions
+                                        )
+                                    }
+                                    Spacer(modifier = Modifier.height(4.dp))
+                                    AnimatedVisibility(
+                                        visible = expanded,
+                                        enter = expandVertically(),
+                                        exit = shrinkVertically()
+                                    ) {
+                                        Column {
+                                            Spacer(modifier = Modifier.height(16.dp))
+                                            Row(
+                                                modifier = Modifier
+                                                    .fillMaxWidth()
+                                                    .padding(horizontal = 2.dp),
+                                                horizontalArrangement = Arrangement.SpaceBetween,
+                                                verticalAlignment = Alignment.CenterVertically
+                                            ) {
+                                                Text(
+                                                    text = "Miuix",
+                                                    fontSize = 15.sp,
+                                                    fontWeight = FontWeight.Medium,
+                                                    color = MiuixTheme.colorScheme.primary,
+                                                    modifier = Modifier.clickable {
+                                                        uriHandler.openUri("https://github.com/compose-miuix-ui/miuix")
+                                                    }
+                                                )
+                                                Text(
+                                                    text = "Yukonga",
+                                                    fontSize = 15.sp,
+                                                    fontWeight = FontWeight.Medium,
+                                                    color = MiuixTheme.colorScheme.onSurfaceVariantActions
+                                                )
+                                            }
+                                            Spacer(modifier = Modifier.height(12.dp))
+                                            Row(
+                                                modifier = Modifier
+                                                    .fillMaxWidth()
+                                                    .padding(horizontal = 2.dp),
+                                                horizontalArrangement = Arrangement.SpaceBetween,
+                                                verticalAlignment = Alignment.CenterVertically
+                                            ) {
+                                                Text(
+                                                    text = "Capsule",
+                                                    fontSize = 15.sp,
+                                                    fontWeight = FontWeight.Medium,
+                                                    color = MiuixTheme.colorScheme.primary,
+                                                    modifier = Modifier.clickable {
+                                                        uriHandler.openUri("https://github.com/Kyant0/Capsule")
+                                                    }
+                                                )
+                                                Text(
+                                                    text = "Kyant0",
+                                                    fontSize = 15.sp,
+                                                    fontWeight = FontWeight.Medium,
+                                                    color = MiuixTheme.colorScheme.onSurfaceVariantActions
+                                                )
+                                            }
+                                            Spacer(modifier = Modifier.height(12.dp))
+                                            Row(
+                                                modifier = Modifier
+                                                    .fillMaxWidth()
+                                                    .padding(horizontal = 2.dp),
+                                                horizontalArrangement = Arrangement.SpaceBetween,
+                                                verticalAlignment = Alignment.CenterVertically
+                                            ) {
+                                                Text(
+                                                    text = "OkHttp",
+                                                    fontSize = 15.sp,
+                                                    fontWeight = FontWeight.Medium,
+                                                    color = MiuixTheme.colorScheme.primary,
+                                                    modifier = Modifier.clickable {
+                                                        uriHandler.openUri("https://github.com/square/okhttp")
+                                                    }
+                                                )
+                                                Text(
+                                                    text = "Square",
+                                                    fontSize = 15.sp,
+                                                    fontWeight = FontWeight.Medium,
+                                                    color = MiuixTheme.colorScheme.onSurfaceVariantActions
+                                                )
+                                            }
+                                            Spacer(modifier = Modifier.height(12.dp))
+                                            Row(
+                                                modifier = Modifier
+                                                    .fillMaxWidth()
+                                                    .padding(horizontal = 2.dp),
+                                                horizontalArrangement = Arrangement.SpaceBetween,
+                                                verticalAlignment = Alignment.CenterVertically
+                                            ) {
+                                                Text(
+                                                    text = "warehouse",
+                                                    fontSize = 15.sp,
+                                                    fontWeight = FontWeight.Medium,
+                                                    color = MiuixTheme.colorScheme.primary,
+                                                    modifier = Modifier.clickable {
+                                                        uriHandler.openUri("https://github.com/XingHeYuZhuan/shiguang_warehouse")
+                                                    }
+                                                )
+                                                Text(
+                                                    text = "XingHeYuZhuan",
+                                                    fontSize = 15.sp,
+                                                    fontWeight = FontWeight.Medium,
+                                                    color = MiuixTheme.colorScheme.onSurfaceVariantActions
+                                                )
+                                            }
+                                            Spacer(modifier = Modifier.height(12.dp))
+                                            Row(
+                                                modifier = Modifier
+                                                    .fillMaxWidth()
+                                                    .padding(horizontal = 2.dp),
+                                                horizontalArrangement = Arrangement.SpaceBetween,
+                                                verticalAlignment = Alignment.CenterVertically
+                                            ) {
+                                                Text(
+                                                    text = "Shizuku",
+                                                    fontSize = 15.sp,
+                                                    fontWeight = FontWeight.Medium,
+                                                    color = MiuixTheme.colorScheme.primary,
+                                                    modifier = Modifier.clickable {
+                                                        uriHandler.openUri("https://github.com/RikkaApps/Shizuku")
+                                                    }
+                                                )
+                                                Text(
+                                                    text = "RikkaApps",
+                                                    fontSize = 15.sp,
+                                                    fontWeight = FontWeight.Medium,
+                                                    color = MiuixTheme.colorScheme.onSurfaceVariantActions
+                                                )
+                                            }
+                                            Spacer(modifier = Modifier.height(12.dp))
+                                            Row(
+                                                modifier = Modifier
+                                                    .fillMaxWidth()
+                                                    .padding(horizontal = 2.dp),
+                                                horizontalArrangement = Arrangement.SpaceBetween,
+                                                verticalAlignment = Alignment.CenterVertically
+                                            ) {
+                                                Text(
+                                                    text = "Backdrop",
+                                                    fontSize = 15.sp,
+                                                    fontWeight = FontWeight.Medium,
+                                                    color = MiuixTheme.colorScheme.primary,
+                                                    modifier = Modifier.clickable {
+                                                        uriHandler.openUri("https://github.com/Kyant0/AndroidLiquidGlass")
+                                                    }
+                                                )
+                                                Text(
+                                                    text = "Kyant0",
+                                                    fontSize = 15.sp,
+                                                    fontWeight = FontWeight.Medium,
+                                                    color = MiuixTheme.colorScheme.onSurfaceVariantActions
+                                                )
+                                            }
                                         }
+                                    }
+                                }
+                            }
+
+                            Card(
+                                modifier = Modifier.fillMaxWidth(),
+                                colors = CardDefaults.defaultColors(
+                                    color = Color.Transparent,
                                 )
+                            ) {
+                                Column(
+                                    modifier = Modifier.fillMaxWidth().padding(16.dp),
+                                    horizontalAlignment = Alignment.CenterHorizontally
+                                ) {
+                                    Row(
+                                        verticalAlignment = Alignment.CenterVertically
+                                    ) {
+                                        Text(
+                                            text = "© 2026 Nexio课程表 · 作者:",
+                                            fontSize = 13.sp,
+                                            color = MiuixTheme.colorScheme.onSurfaceVariantActions
+                                        )
+                                        Text(
+                                            text = "Haooz",
+                                            fontSize = 13.sp,
+                                            color = MiuixTheme.colorScheme.primary,
+                                            modifier = Modifier
+                                                .clickable {
+                                                    uriHandler.openUri("https://www.coolapk.com/u/29693763")
+                                                }
+                                                .padding(start = 4.dp)
+                                        )
+                                    }
+                                }
                             }
                         }
                     }
                 }
             }
-            }
         }
+
 
         OverlayDialog(
             title = "项目仓库",
             show = showRepoDialog,
-            outsideMargin = DpSize(17.dp, 12.dp),
+
             onDismissRequest = { showRepoDialog = false }
         ) {
             Column(
@@ -820,27 +976,5 @@ private fun AboutScreen(onBack: () -> Unit) {
                 )
             }
         }
-    }
-}
-
-@Composable
-private fun AboutItem(title: String, value: String) {
-    Column(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(horizontal = 16.dp, vertical = 14.dp)
-    ) {
-        Text(
-            text = title,
-            fontSize = 17.sp,
-            fontWeight = FontWeight.Medium,
-            color = MiuixTheme.colorScheme.onSurface
-        )
-        Spacer(modifier = Modifier.height(4.dp))
-        Text(
-            text = value,
-            fontSize = 14.sp,
-            color = MiuixTheme.colorScheme.onSurfaceVariantActions
-        )
     }
 }
