@@ -1,0 +1,78 @@
+name: Update Stats Badges
+
+on:
+  schedule:
+    - cron: '0 */6 * * *'  # 每6小时更新一次
+  workflow_dispatch:  # 允许手动触发
+
+jobs:
+  update-badges:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Fetch GitHub Stats
+        id: github
+        run: |
+          # 获取 GitHub Stars
+          STARS=$(curl -s https://api.github.com/repos/${{ github.repository }} | jq '.stargazers_count')
+          echo "stars=$STARS" >> $GITHUB_OUTPUT
+
+          # 获取 GitHub Downloads (所有 release 的总下载量)
+          DOWNLOADS=$(curl -s "https://api.github.com/repos/${{ github.repository }}/releases" | jq '[.[].assets[]?.download_count] | add // 0')
+          echo "downloads=$DOWNLOADS" >> $GITHUB_OUTPUT
+
+          # 获取最新版本号
+          LATEST=$(curl -s "https://api.github.com/repos/${{ github.repository }}/releases/latest" | jq -r '.tag_name')
+          echo "latest=$LATEST" >> $GITHUB_OUTPUT
+
+      - name: Fetch Gitee Stats
+        id: gitee
+        run: |
+          # 获取 Gitee Stars
+          STARS=$(curl -s "https://gitee.com/api/v5/repos/com_haooz_account/hyper_schedule" | jq '.stargazers_count')
+          echo "stars=$STARS" >> $GITHUB_OUTPUT
+
+          # 获取 Gitee Downloads (所有 release 的总下载量)
+          DOWNLOADS=$(curl -s "https://gitee.com/api/v5/repos/com_haooz_account/hyper_schedule/releases" | jq '[.[].assets[]?.download_count] | add // 0')
+          echo "downloads=$DOWNLOADS" >> $GITHUB_OUTPUT
+
+      - name: Calculate Totals
+        id: total
+        run: |
+          TOTAL_STARS=$(( ${{ steps.github.outputs.stars }} + ${{ steps.gitee.outputs.stars }} ))
+          TOTAL_DOWNLOADS=$(( ${{ steps.github.outputs.downloads }} + ${{ steps.gitee.outputs.downloads }} ))
+          echo "stars=$TOTAL_STARS" >> $GITHUB_OUTPUT
+          echo "downloads=$TOTAL_DOWNLOADS" >> $GITHUB_OUTPUT
+          echo "### Badge Stats" >> $GITHUB_STEP_SUMMARY
+          echo "- Total Stars: $TOTAL_STARS" >> $GITHUB_STEP_SUMMARY
+          echo "- Total Downloads: $TOTAL_DOWNLOADS" >> $GITHUB_STEP_SUMMARY
+
+      - name: Update Badge JSON
+        run: |
+          cat > badges.json << EOF
+          {
+            "schemaVersion": 1,
+            "label": "Total Stars",
+            "message": "${{ steps.total.outputs.stars }}",
+            "color": "yellow"
+          }
+          EOF
+
+          cat > downloads-badge.json << EOF
+          {
+            "schemaVersion": 1,
+            "label": "Total Downloads",
+            "message": "${{ steps.total.outputs.downloads }}",
+            "color": "orange"
+          }
+          EOF
+
+      - name: Commit Badge Files
+        run: |
+          git config --local user.name "github-actions[bot]"
+          git config --local user.email "github-actions[bot]@users.noreply.github.com"
+          git add badges.json downloads-badge.json
+          git diff --staged --quiet || git commit -m "chore: update stats badges [skip ci]"
+          git push
