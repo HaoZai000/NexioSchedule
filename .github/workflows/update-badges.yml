@@ -54,7 +54,7 @@ jobs:
 
       - name: Update Badge JSON
         run: |
-          cat > badges.json << EOF
+          cat > .github/badges/badges.json << EOF
           {
             "schemaVersion": 1,
             "label": "Total Stars",
@@ -63,7 +63,7 @@ jobs:
           }
           EOF
 
-          cat > downloads-badge.json << EOF
+          cat > .github/badges/downloads-badge.json << EOF
           {
             "schemaVersion": 1,
             "label": "Total Downloads",
@@ -76,6 +76,6 @@ jobs:
         run: |
           git config --local user.name "github-actions[bot]"
           git config --local user.email "github-actions[bot]@users.noreply.github.com"
-          git add badges.json downloads-badge.json
+          git add .github/badges/badges.json .github/badges/downloads-badge.json
           git diff --staged --quiet || git commit -m "chore: update stats badges [skip ci]"
           git push "https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/${{ github.repository }}.git" HEAD:master
