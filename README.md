@@ -4,9 +4,9 @@
 
 一款基于 Jetpack Compose 的 Android 课程表应用，支持教务系统导入、多格式课表导入、WebDAV 同步、桌面小组件等功能。
 
-[![Release](https://img.shields.io/badge/Release-v1.2.0-blue?style=flat-square)](https://gitee.com/com_haooz_account/hyper_schedule/releases)
-[![Stars](https://img.shields.io/badge/Stars-1-yellow?style=flat-square)](https://gitee.com/com_haooz_account/hyper_schedule/stargazers)
-[![Releases](https://img.shields.io/badge/Releases-7-orange?style=flat-square)](https://gitee.com/com_haooz_account/hyper_schedule/releases)
+[![Total Stars](https://img.shields.io/endpoint?url=https%3A%2F%2Fraw.githubusercontent.com%2FHyper-schedule%2Fhyper_schedule%2Fmain%2Fbadges.json&style=flat-square)](https://github.com/Hyper-schedule/hyper_schedule/stargazers)
+[![Total Downloads](https://img.shields.io/endpoint?url=https%3A%2F%2Fraw.githubusercontent.com%2FHyper-schedule%2Fhyper_schedule%2Fmain%2Fdownloads-badge.json&style=flat-square)](https://github.com/Hyper-schedule/hyper_schedule/releases)
+[![Latest Release](https://img.shields.io/github/v/release/Hyper-schedule/hyper_schedule?style=flat-square&color=blue)](https://github.com/Hyper-schedule/hyper_schedule/releases/latest)
 
 #### 一起交流与讨论 [QQ频道](https://pd.qq.com/s/cfwkl5q9q?b=9)
 
