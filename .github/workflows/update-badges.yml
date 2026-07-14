@@ -2,8 +2,11 @@ name: Update Stats Badges
 
 on:
   schedule:
-    - cron: '0 */6 * * *'  # 每6小时更新一次
-  workflow_dispatch:  # 允许手动触发
+    - cron: '0 */6 * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: write
 
 jobs:
   update-badges:
@@ -75,4 +78,4 @@ jobs:
           git config --local user.email "github-actions[bot]@users.noreply.github.com"
           git add badges.json downloads-badge.json
           git diff --staged --quiet || git commit -m "chore: update stats badges [skip ci]"
-          git push
+          git push "https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/${{ github.repository }}.git" HEAD:master
