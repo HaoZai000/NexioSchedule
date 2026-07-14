@@ -640,7 +640,7 @@ fun SchoolSelectionScreen(
             title = "输入网址",
             summary = "请输入要访问的教务系统网址",
             show = showUrlDialog,
-            outsideMargin = DpSize(17.dp, 12.dp),
+
             onDismissRequest = { showUrlDialog = false }
         ) {
             Column(

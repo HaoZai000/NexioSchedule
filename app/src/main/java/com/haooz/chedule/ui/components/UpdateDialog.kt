@@ -122,7 +122,7 @@ internal fun UpdateDialog() {
         title = "发现新版本",
         summary = "最新版本: $updateTagName",
         show = showUpdateDialog,
-        outsideMargin = DpSize(17.dp, 12.dp),
+
         onDismissRequest = { showUpdateDialog = false }
     ) {
         Column(

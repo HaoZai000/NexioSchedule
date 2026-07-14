@@ -1,8 +1,6 @@
 /** 设置页面 - 应用全局设置 */
 package com.haooz.chedule.ui.screens
 
-import android.content.ClipData
-import android.content.ClipboardManager
 import android.content.Context
 import android.content.Intent
 import android.os.Environment
@@ -19,13 +17,10 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.rememberLazyListState
-import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -39,8 +34,6 @@ import androidx.compose.runtime.setValue
 import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.focus.FocusRequester
-import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.RectangleShape
 import androidx.compose.ui.graphics.lerp
@@ -48,7 +41,6 @@ import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.unit.DpSize
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.core.content.FileProvider
@@ -140,6 +132,7 @@ fun SettingsScreen(
 ) {
     val totalWeeks by viewModel.totalWeeks.collectAsState()
     val currentWeek by viewModel.currentWeek.collectAsState()
+    val isHoliday by viewModel.isHoliday.collectAsState()
     val isSemesterStarted by viewModel.isSemesterStarted.collectAsState()
     val classStartTime by viewModel.classStartTime.collectAsState()
     val showWeekendDays by settingsViewModel.showWeekendDays.collectAsState()
@@ -149,14 +142,12 @@ fun SettingsScreen(
     val eveningSections by settingsViewModel.eveningSections.collectAsState()
     val scheduleNames by scheduleViewModel.scheduleNames.collectAsState()
     val shiftSelectedSchedules by shiftViewModel.shiftSelectedSchedules.collectAsState()
-    val defaultHomepage by settingsViewModel.defaultHomepage.collectAsState()
     val context = androidx.compose.ui.platform.LocalContext.current
     val hapticFeedback = LocalHapticFeedback.current
     var listScrollY by remember { mutableIntStateOf(0) }
     var showShiftModeConfirmDialog by remember { mutableStateOf(false) }
     var showNewSemesterDialog by remember { mutableStateOf(false) }
     var newSemesterName by remember { mutableStateOf("") }
-    var showDonateDialog by remember { mutableStateOf(false) }
 
     val courseTimeSettingsLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.StartActivityForResult()
@@ -179,9 +170,6 @@ fun SettingsScreen(
     var showTotalWeeksDialog by remember { mutableStateOf(false) }
     var showStartDateDialog by remember { mutableStateOf(false) }
     var showSectionDialog by remember { mutableStateOf(false) }
-    var showImportPromptDialog by remember { mutableStateOf(false) }
-    var showImportInputDialog by remember { mutableStateOf(false) }
-    var importInputText by remember { mutableStateOf("") }
 
     // 完整课表导入相关状态
     var showImportConfirmDialog by remember { mutableStateOf(false) }
@@ -251,7 +239,6 @@ fun SettingsScreen(
 
     val appStyle = rememberAppStyle()
     val isLiquidGlass = appStyle == "liquidglass" && liquidGlassBackdrop != null
-    val isTabletLiquidGlass = navBarStyle == "rail" && isLiquidGlass
 
     // HyperOS 模式需要的变量
     val scrollBehavior = if (!isLiquidGlass) settingsScrollBehavior else null
@@ -364,7 +351,7 @@ fun SettingsScreen(
                                     Text(
                                         text = when {
                                             !isSemesterStarted -> "未开始"
-                                            currentWeek > totalWeeks -> "放假中"
+                                            isHoliday -> "放假中"
                                             else -> "第${currentWeek}周"
                                         },
                                         fontSize = 14.5.sp,
@@ -618,14 +605,14 @@ fun SettingsScreen(
                                 ArrowPreference(
                                     title = "AI文本导入",
                                     onClick = {
-                                        importInputText = ""
-                                        showImportPromptDialog = true
+                                        val intent = Intent(context, com.haooz.chedule.ui.activities.AiImportActivity::class.java)
+                                        context.startActivity(intent)
                                     }
                                 )
                                 ArrowPreference(
                                     title = "教务系统导入",
                                     onClick = {
-                                        val intent = android.content.Intent(context, com.haooz.chedule.ui.activities.EducationalImportActivity::class.java)
+                                        val intent = Intent(context, com.haooz.chedule.ui.activities.EducationalImportActivity::class.java)
                                         context.startActivity(intent)
                                     }
                                 )
@@ -729,7 +716,7 @@ fun SettingsScreen(
             summary = "将切换到排班课表模式，可同时对比多个课表的排班情况。确定进入？",
             show = showShiftModeConfirmDialog,
             onDismissRequest = { showShiftModeConfirmDialog = false },
-            outsideMargin = DpSize(17.dp, 12.dp),
+
         ) {
             Column(
                 modifier = Modifier.fillMaxWidth(),
@@ -755,7 +742,7 @@ fun SettingsScreen(
                             hapticFeedback.performHapticFeedback(HapticFeedbackType.Confirm)
                             showShiftModeConfirmDialog = false
                             coroutineScope.launch {
-                                kotlinx.coroutines.delay(100)
+                                kotlinx.coroutines.delay(100.milliseconds)
                                 onEnterShiftMode()
                             }
                         },
@@ -771,7 +758,7 @@ fun SettingsScreen(
             title = "开启新学期",
             summary = "将复用当前课表的所有设置数据，创建一个清空课程的新课表",
             show = showNewSemesterDialog,
-            outsideMargin = DpSize(17.dp, 12.dp),
+
             onDismissRequest = {
                 showNewSemesterDialog = false
                 newSemesterName = ""
@@ -808,10 +795,14 @@ fun SettingsScreen(
                             hapticFeedback.performHapticFeedback(HapticFeedbackType.Confirm)
                             if (newSemesterName.isNotBlank()) {
                                 val name = newSemesterName
-                                scheduleViewModel.createNewSemesterSchedule(name)
-                                showNewSemesterDialog = false
-                                newSemesterName = ""
-                                Toast.makeText(context, "「${name}」创建成功", Toast.LENGTH_SHORT).show()
+                                if (name in scheduleViewModel.scheduleNames.value) {
+                                    Toast.makeText(context, "该课表名称已存在", Toast.LENGTH_SHORT).show()
+                                } else {
+                                    scheduleViewModel.createNewSemesterSchedule(name)
+                                    showNewSemesterDialog = false
+                                    newSemesterName = ""
+                                    Toast.makeText(context, "「${name}」创建成功", Toast.LENGTH_SHORT).show()
+                                }
                             }
                         },
                         colors = ButtonDefaults.textButtonColorsPrimary(),
@@ -825,7 +816,7 @@ fun SettingsScreen(
         OverlayDialog(
             title = "开始上课日期",
             show = showStartDateDialog,
-            outsideMargin = DpSize(17.dp, 12.dp),
+
             onDismissRequest = { showStartDateDialog = false }
         ) {
             Column(
@@ -912,7 +903,7 @@ fun SettingsScreen(
         OverlayDialog(
             title = "选择当前周次",
             show = showCurrentWeekDialog,
-            outsideMargin = DpSize(17.dp, 12.dp),
+
             onDismissRequest = { showCurrentWeekDialog = false }
         ) {
             Column(
@@ -959,7 +950,7 @@ fun SettingsScreen(
         OverlayDialog(
             title = "选择学期总周数",
             show = showTotalWeeksDialog,
-            outsideMargin = DpSize(17.dp, 12.dp),
+
             onDismissRequest = { showTotalWeeksDialog = false }
         ) {
             Column(
@@ -1006,7 +997,7 @@ fun SettingsScreen(
         OverlayDialog(
             title = "课表节数设置",
             show = showSectionDialog,
-            outsideMargin = DpSize(17.dp, 12.dp),
+
             onDismissRequest = { showSectionDialog = false }
         ) {
             Column(
@@ -1108,178 +1099,7 @@ fun SettingsScreen(
             }
         }
 
-        // 文本导入提示词弹窗
-        val importPromptText = remember {
-            """请根据我提供的课表信息，按照以下格式返回每门课程的数据：
-
-每门课程一行，用"|"分隔各字段：
-课程名称|教室|教师|星期几|开始节次|结束节次|周次
-
-字段说明：
-- 课程名称：课程名称（必填）
-- 教室：上课地点（无法识别则留空）
-- 教师：授课教师（无法识别则留空）
-- 星期几：1=周一, 2=周二, 3=周三, 4=周四, 5=周五, 6=周六, 7=周日（必填）
-- 开始节次：该课程在这天的起始节次（必填）
-- 结束节次：该课程在这天的结束节次（必填）
-- 周次：上课的周次，用英文逗号分隔每个周次
-  例：第1至6周和第10至12周，应写为 1,2,3,4,5,6,10,11,12
-  例：第1、3、5、7、9周，应写为 1,3,5,7,9
-  例：第1至12周，应写为 1,2,3,4,5,6,7,8,9,10,11,12
-
-无法识别的字段请留空（两个竖线之间不写内容），但必填字段必须填写，教室不同需分开输出。
-示例：
-高等数学|A101|张三|1|1|2|1,2,3,4,5,6,7,8,9,10
-大学英语|||3|3|4|1,2,3,4,5,6,7,8
-
-请严格按照此格式返回，每行一门课程，不要添加其他说明文字。"""
-        }
-
-        OverlayDialog(
-            title = "文本导入",
-            summary = "请将以下提示词发送给AI\n将AI返回的文本粘贴到下一弹窗",
-            show = showImportPromptDialog,
-            outsideMargin = DpSize(17.dp, 12.dp),
-            onDismissRequest = { showImportPromptDialog = false }
-        ) {
-            Column(
-                modifier = Modifier.fillMaxWidth()
-            ) {
-                Column(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .heightIn(max = 200.dp)
-                        .verticalScroll(rememberScrollState())
-                ) {
-                    Text(
-                        text = importPromptText,
-                        style = MiuixTheme.textStyles.body2,
-                        color = MiuixTheme.colorScheme.onSurfaceVariantActions
-                    )
-                }
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(top = 16.dp),
-                    horizontalArrangement = Arrangement.spacedBy(12.dp)
-                ) {
-                    TextButton(
-                        text = "取消",
-                        onClick = {
-                            hapticFeedback.performHapticFeedback(HapticFeedbackType.Confirm)
-                            showImportPromptDialog = false
-                        },
-                        modifier = Modifier.weight(1f)
-                    )
-                    TextButton(
-                        text = "复制并继续",
-                        onClick = {
-                            hapticFeedback.performHapticFeedback(HapticFeedbackType.Confirm)
-                            val clipboard =
-                                context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
-                            val clip = ClipData.newPlainText("课表导入提示词", importPromptText)
-                            clipboard.setPrimaryClip(clip)
-                            Toast.makeText(context, "提示词已复制到剪切板", Toast.LENGTH_SHORT)
-                                .show()
-                            showImportPromptDialog = false
-                            coroutineScope.launch {
-                                kotlinx.coroutines.delay(150.milliseconds)
-                                showImportInputDialog = true
-                            }
-                        },
-                        colors = ButtonDefaults.textButtonColorsPrimary(),
-                        modifier = Modifier.weight(1f)
-                    )
-                }
-            }
-        }
-        val importInputRequester = remember { FocusRequester() }
-        LaunchedEffect(showImportInputDialog) {
-            if (showImportInputDialog) {
-                kotlinx.coroutines.delay(180.milliseconds)
-                importInputRequester.requestFocus()
-            }
-        }
-
-        // 文本导入输入弹窗
-        OverlayDialog(
-            title = "导入课程数据",
-            summary = "请粘贴AI返回的课表数据",
-            outsideMargin = DpSize(17.dp, 12.dp),
-            show = showImportInputDialog,
-            onDismissRequest = {
-                showImportInputDialog = false
-                importInputText = ""
-            }
-        ) {
-            Column(
-                modifier = Modifier.fillMaxWidth()
-            ) {
-                if (showImportInputDialog) {
-                    LaunchedEffect(Unit) {
-                        kotlinx.coroutines.delay(150)
-                        importInputRequester.requestFocus()
-                    }
-                }
-                TextField(
-                    value = importInputText,
-                    onValueChange = { importInputText = it },
-                    label = "粘贴课表数据",
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .heightIn(max = 200.dp)
-                        .verticalScroll(rememberScrollState())
-                        .focusRequester(importInputRequester)
-                )
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(top = 12.dp),
-                    horizontalArrangement = Arrangement.spacedBy(12.dp)
-                ) {
-                    TextButton(
-                        text = "取消",
-                        onClick = {
-                            hapticFeedback.performHapticFeedback(HapticFeedbackType.Confirm)
-                            showImportInputDialog = false
-                            importInputText = ""
-                        },
-                        modifier = Modifier.weight(1f)
-                    )
-                    TextButton(
-                        text = "确定",
-                        onClick = {
-                            hapticFeedback.performHapticFeedback(HapticFeedbackType.Confirm)
-                            if (importInputText.isNotBlank()) {
-                                val (courses, warnings) = parseImportedCourses(importInputText)
-                                if (courses.isNotEmpty()) {
-                                    viewModel.replaceCourses(courses)
-                                    val message = buildString {
-                                        append("成功导入${courses.size}门课程")
-                                        if (warnings.isNotEmpty()) {
-                                            append("\n${warnings.size}条提示:")
-                                            warnings.take(3).forEach { append("\n$it") }
-                                            if (warnings.size > 3) append("\n...")
-                                        }
-                                    }
-                                    Toast.makeText(context, message, Toast.LENGTH_LONG).show()
-                                } else {
-                                    Toast.makeText(
-                                        context,
-                                        "未识别到有效课程数据",
-                                        Toast.LENGTH_SHORT
-                                    ).show()
-                                }
-                            }
-                            showImportInputDialog = false
-                            importInputText = ""
-                        },
-                        colors = ButtonDefaults.textButtonColorsPrimary(),
-                        modifier = Modifier.weight(1f)
-                    )
-                }
-            }
-        }
+        // AI 文本导入已迁移至独立页面 AiImportActivity
     }
 
     // 完整课表导入确认弹窗
@@ -1288,7 +1108,7 @@ fun SettingsScreen(
             title = "导入课表",
             summary = "是否导入课表「$pendingImportScheduleName」？\n确定导入将创建一个新的课表",
             show = true,
-            outsideMargin = DpSize(17.dp, 12.dp),
+
             onDismissRequest = {
                 showImportConfirmDialog = false
                 pendingImportData = null
@@ -1349,147 +1169,6 @@ fun SettingsScreen(
     }
 
     }
-}
-
-/**
- * 解析导入的课程文本数据
- * 格式: 课程名称|教室|教师|星期几|开始节次|结束节次|周次
- * 周次格式: 1-6,10-12 或 1,3,5 或 1-16
- * 部分字段可留空，使用默认值
- * 同名同教室同节次的课程自动合并周次
- */
-private fun parseImportedCourses(text: String): Pair<List<Course>, List<String>> {
-    val warnings = mutableListOf<String>()
-    val lines = text.trim().lines().filter { it.isNotBlank() }
-
-    // 临时数据：key = 课程名|教室|教师|星期|开始节|结束节, value = 所有周次
-    val mergedData = linkedMapOf<String, MutableSet<Int>>()
-    // 保留每组的元数据
-    val metaData = mutableMapOf<String, CourseMetaData>()
-
-    for ((index, line) in lines.withIndex()) {
-        try {
-            val parts = line.split("|").map { it.trim() }
-            if (parts.size < 7) {
-                warnings.add("第${index + 1}行: 字段数量不足，已跳过")
-                continue
-            }
-
-            val name = parts[0].ifBlank { "未命名课程" }
-            val classroom = parts[1].ifBlank { "未指定教室" }
-            val teacher = parts[2].ifBlank { "未指定教师" }
-            val dayOfWeek = parts[3].toIntOrNull()
-            val startSection = parts[4].toIntOrNull()
-            val endSection = parts[5].toIntOrNull()
-            val weekStr = parts[6].trim()
-
-            if (dayOfWeek == null || dayOfWeek !in 1..7) {
-                warnings.add("第${index + 1}行「${name}」: 星期几无效，已跳过")
-                continue
-            }
-            if (startSection == null || startSection !in 1..12) {
-                warnings.add("第${index + 1}行「${name}」: 开始节次无效，已跳过")
-                continue
-            }
-            if (endSection == null || endSection !in 1..12 || endSection < startSection) {
-                warnings.add("第${index + 1}行「${name}」: 结束节次无效，已跳过")
-                continue
-            }
-
-            val selectedWeeks = parseWeekString(weekStr)
-            if (selectedWeeks.isEmpty()) {
-                warnings.add("第${index + 1}行「${name}」: 周次无效，已跳过")
-                continue
-            }
-
-            // 检查可选字段是否缺失
-            val missingFields = mutableListOf<String>()
-            if (parts[1].isBlank()) missingFields.add("教室")
-            if (parts[2].isBlank()) missingFields.add("教师")
-            if (missingFields.isNotEmpty()) {
-                warnings.add("第${index + 1}行「${name}」: 缺少${missingFields.joinToString("、")}")
-            }
-
-            // 合并键：课程名+教室+教师+星期+节次
-            val key = "$name|$classroom|$teacher|$dayOfWeek|$startSection|$endSection"
-            mergedData.getOrPut(key) { mutableSetOf() }.addAll(selectedWeeks)
-
-            // 保存元数据（后续会覆盖，取最后一条即可）
-            metaData[key] = CourseMetaData(name, classroom, teacher, dayOfWeek, startSection, endSection)
-
-        } catch (_: Exception) {
-            warnings.add("第${index + 1}行: 格式解析异常，已跳过")
-            continue
-        }
-    }
-
-    // 生成最终课程列表
-    val courses = mutableListOf<Course>()
-    val nameColorMap = mutableMapOf<String, Long>()
-    var colorIndex = 0
-
-    for ((key, weeks) in mergedData) {
-        val meta = metaData[key] ?: continue
-        val sortedWeeks = weeks.sorted()
-        val minWeek = sortedWeeks.first()
-        val maxWeek = sortedWeeks.last()
-
-        val color = nameColorMap.getOrPut(meta.name) {
-            val c = Course.courseColors[colorIndex % Course.courseColors.size]
-            colorIndex++
-            c
-        }
-
-        courses.add(
-            Course(
-                id = UUID.randomUUID().toString(),
-                name = meta.name,
-                classroom = meta.classroom,
-                teacher = meta.teacher,
-                dayOfWeek = meta.dayOfWeek,
-                startSection = meta.startSection,
-                endSection = meta.endSection,
-                startWeek = minWeek,
-                endWeek = maxWeek,
-                weekType = Course.WEEK_TYPE_ALL,
-                selectedWeeks = sortedWeeks,
-                colorRes = color
-            )
-        )
-    }
-
-    return Pair(courses, warnings)
-}
-
-private data class CourseMetaData(
-    val name: String,
-    val classroom: String,
-    val teacher: String,
-    val dayOfWeek: Int,
-    val startSection: Int,
-    val endSection: Int
-)
-
-/**
- * 解析周次字符串，支持格式:
- * "1,2,3,4,5,6,10,11,12" → [1,2,3,4,5,6,10,11,12]
- * "1-6,10-12" → [1,2,3,4,5,6,10,11,12] (兼容范围格式)
- */
-private fun parseWeekString(weekStr: String): List<Int> {
-    val weeks = mutableListOf<Int>()
-    val parts = weekStr.split(",").map { it.trim() }
-
-    for (part in parts) {
-        if (part.contains("-")) {
-            val range = part.split("-").mapNotNull { it.trim().toIntOrNull() }
-            if (range.size == 2 && range[0] <= range[1]) {
-                weeks.addAll(range[0]..range[1])
-            }
-        } else {
-            part.toIntOrNull()?.let { weeks.add(it) }
-        }
-    }
-    return weeks.distinct().sorted()
 }
 
 /**
@@ -1841,6 +1520,10 @@ internal fun applyScheduleData(
     data: Map<String, Any>
 ): Pair<Boolean, String> {
     try {
+        // 重名校验
+        if (scheduleName in scheduleViewModel.scheduleNames.value) {
+            return Pair(false, "课表「$scheduleName」已存在")
+        }
         // 创建新课表
         scheduleViewModel.addSchedule(scheduleName)
 
@@ -2022,6 +1705,11 @@ internal fun applyScheduleData(
                 if (eveningTimes.isNotEmpty()) settingsViewModel.saveEveningTimes(eveningTimes)
             }
         }
+
+        // 重新加载课程和刷新设置，确保 UI 立即更新
+        viewModel.reloadCourses()
+        settingsViewModel.refreshSettings()
+        scheduleViewModel.refreshScheduleList()
 
         return Pair(true, "成功导入课表「$scheduleName」\n共${courses.size}门课程")
     } catch (e: Exception) {

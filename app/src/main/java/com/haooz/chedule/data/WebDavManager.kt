@@ -16,6 +16,7 @@ import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
 import java.util.concurrent.TimeUnit
+import androidx.core.content.edit
 
 class WebDavManager(private val context: Context) {
 
@@ -42,19 +43,19 @@ class WebDavManager(private val context: Context) {
 
     var serverUrl: String
         get() = configPrefs.getString(KEY_SERVER_URL, "") ?: ""
-        set(value) = configPrefs.edit().putString(KEY_SERVER_URL, value.trimEnd('/')).apply()
+        set(value) = configPrefs.edit { putString(KEY_SERVER_URL, value.trimEnd('/')) }
 
     var username: String
         get() = configPrefs.getString(KEY_USERNAME, "") ?: ""
-        set(value) = configPrefs.edit().putString(KEY_USERNAME, value).apply()
+        set(value) = configPrefs.edit { putString(KEY_USERNAME, value) }
 
     var password: String
         get() = configPrefs.getString(KEY_PASSWORD, "") ?: ""
-        set(value) = configPrefs.edit().putString(KEY_PASSWORD, value).apply()
+        set(value) = configPrefs.edit { putString(KEY_PASSWORD, value) }
 
     var lastSyncTime: Long
         get() = configPrefs.getLong(KEY_LAST_SYNC_TIME, 0L)
-        set(value) = configPrefs.edit().putLong(KEY_LAST_SYNC_TIME, value).apply()
+        set(value) = configPrefs.edit { putLong(KEY_LAST_SYNC_TIME, value) }
 
     fun isConfigured(): Boolean = serverUrl.isNotBlank() && username.isNotBlank() && password.isNotBlank()
 

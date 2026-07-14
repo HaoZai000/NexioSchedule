@@ -462,38 +462,55 @@ fun DayColumn(
             }
 
             displayedCourses.forEach { course ->
-                var courseOffset = 0
-                val dividerGap = if (showBreakDividers) 24 else 0
-                if (course.startSection <= morningSections) {
-                    courseOffset = ((course.startSection - 1) * cardHeightPerSection).toInt()
-                } else if (course.startSection <= morningSections + afternoonSections) {
-                    courseOffset = (morningSections * cardHeightPerSection + dividerGap + (course.startSection - morningSections - 1) * cardHeightPerSection).toInt()
-                } else {
-                    courseOffset = (morningSections * cardHeightPerSection + dividerGap + afternoonSections * cardHeightPerSection + dividerGap + (course.startSection - morningSections - afternoonSections - 1) * cardHeightPerSection).toInt()
-                }
-
                 val isCurrentWeekCourse = course.isActiveInWeek(currentWeek)
                 val hasHiddenCourses = hiddenCoursesMap.containsKey(course.startSection)
 
-                Box(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .offset(y = courseOffset.dp)
-                ) {
-                    CourseCard(
-                        course = course,
-                        isCurrentWeek = isCurrentWeekCourse,
-                        hasMultipleCourses = hasHiddenCourses,
-                        wallpaperBackdrop = wallpaperBackdrop,
-                        cardBlurRadius = cardBlurRadius,
-                        cardAlpha = cardAlpha,
-                        cardHeightPerSection = cardHeightPerSection,
-                        cardCornerRadius = cardCornerRadius,
-                        onClick = {
-                            onPendingChange(-1, -1)
-                            onCourseClick(course)
-                        }
-                    )
+                // 跨分界线的课程拆分为多段，避免午休/晚休栏穿过卡片中间
+                val lunchBreak = morningSections
+                val dinnerBreak = morningSections + afternoonSections
+                val segments = mutableListOf<Pair<Int, Int>>()
+                if (showBreakDividers) {
+                    var segStart = course.startSection
+                    while (segStart <= course.endSection) {
+                        var segEnd = course.endSection
+                        if (segStart <= lunchBreak && segEnd > lunchBreak) segEnd = lunchBreak
+                        if (segStart <= dinnerBreak && segEnd > dinnerBreak) segEnd = dinnerBreak
+                        segments.add(segStart to segEnd)
+                        segStart = segEnd + 1
+                    }
+                } else {
+                    segments.add(course.startSection to course.endSection)
+                }
+
+                segments.forEachIndexed { idx, (segStartSection, segEndSection) ->
+                    val displayCourse = course.copy(startSection = segStartSection, endSection = segEndSection)
+                    val dividerGap = if (showBreakDividers) 24 else 0
+                    val segOffset = when {
+                        segStartSection <= morningSections -> ((segStartSection - 1) * cardHeightPerSection).toInt()
+                        segStartSection <= morningSections + afternoonSections -> (morningSections * cardHeightPerSection + dividerGap + (segStartSection - morningSections - 1) * cardHeightPerSection).toInt()
+                        else -> (morningSections * cardHeightPerSection + dividerGap + afternoonSections * cardHeightPerSection + dividerGap + (segStartSection - morningSections - afternoonSections - 1) * cardHeightPerSection).toInt()
+                    }
+
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .offset(y = segOffset.dp)
+                    ) {
+                        CourseCard(
+                            course = displayCourse,
+                            isCurrentWeek = isCurrentWeekCourse,
+                            hasMultipleCourses = idx == 0 && hasHiddenCourses,
+                            wallpaperBackdrop = wallpaperBackdrop,
+                            cardBlurRadius = cardBlurRadius,
+                            cardAlpha = cardAlpha,
+                            cardHeightPerSection = cardHeightPerSection,
+                            cardCornerRadius = cardCornerRadius,
+                            onClick = {
+                                onPendingChange(-1, -1)
+                                onCourseClick(course)
+                            }
+                        )
+                    }
                 }
             }
         }

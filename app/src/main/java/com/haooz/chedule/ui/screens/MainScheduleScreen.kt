@@ -568,7 +568,7 @@ fun MainScheduleScreen(
         OverlayDialog(
             title = "跳转周数",
             show = showJumpWeekDialog,
-            outsideMargin = DpSize(17.dp, 12.dp),
+
             onDismissRequest = { viewModel.hideJumpWeekDialog() }
         ) {
             Column(

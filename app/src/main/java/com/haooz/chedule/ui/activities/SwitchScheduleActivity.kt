@@ -1,7 +1,6 @@
 /** 切换课程表页面 */
 package com.haooz.chedule.ui.activities
 
-import android.annotation.SuppressLint
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.SystemBarStyle
@@ -15,13 +14,12 @@ import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.slideInVertically
 import androidx.compose.animation.slideOutVertically
-import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.asPaddingValues
 import androidx.compose.foundation.layout.fillMaxSize
@@ -79,6 +77,7 @@ import kotlinx.coroutines.launch
 import top.yukonga.miuix.kmp.basic.Button
 import top.yukonga.miuix.kmp.basic.ButtonDefaults
 import top.yukonga.miuix.kmp.basic.Card
+import top.yukonga.miuix.kmp.basic.CardDefaults
 import top.yukonga.miuix.kmp.basic.FloatingActionButton
 import top.yukonga.miuix.kmp.utils.PressFeedbackType
 import top.yukonga.miuix.kmp.basic.Icon
@@ -281,15 +280,11 @@ fun SwitchScheduleScreen(
                 var displayTitle by remember { mutableStateOf("全部课表") }
                 LaunchedEffect(isEditMode) {
                     if (isEditMode) {
-                        allTitleAlpha.animateTo(0f, animationSpec = tween(80))
-                        kotlinx.coroutines.delay(16.milliseconds)
                         displayTitle = "编辑课表"
-                        editTitleAlpha.animateTo(1f, animationSpec = tween(170))
+                        editTitleAlpha.snapTo(1f)
                     } else {
-                        editTitleAlpha.animateTo(0f, animationSpec = tween(80))
-                        kotlinx.coroutines.delay(16.milliseconds)
                         displayTitle = "全部课表"
-                        allTitleAlpha.animateTo(1f, animationSpec = tween(170))
+                        allTitleAlpha.snapTo(1f)
                     }
                 }
                 ProgressiveBlurTopBar(
@@ -373,60 +368,60 @@ fun SwitchScheduleScreen(
                     scrollBehavior = scrollBehavior,
                     navigationIconPadding = 20.dp,
                     navigationIcon = {
-                    val backAlpha = remember { Animatable(1f) }
-                    val closeAlpha = remember { Animatable(0f) }
-                    LaunchedEffect(isEditMode) {
-                        if (isEditMode) {
-                            backAlpha.animateTo(0f, animationSpec = tween(100))
-                            closeAlpha.animateTo(1f, animationSpec = tween(300))
-                        } else {
-                            closeAlpha.animateTo(0f, animationSpec = tween(100))
-                            backAlpha.animateTo(1f, animationSpec = tween(300))
+                        val backAlpha = remember { Animatable(1f) }
+                        val closeAlpha = remember { Animatable(0f) }
+                        LaunchedEffect(isEditMode) {
+                            if (isEditMode) {
+                                backAlpha.animateTo(0f, animationSpec = tween(100))
+                                closeAlpha.animateTo(1f, animationSpec = tween(300))
+                            } else {
+                                closeAlpha.animateTo(0f, animationSpec = tween(100))
+                                backAlpha.animateTo(1f, animationSpec = tween(300))
+                            }
+                        }
+                        IconButton(onClick = {
+                            if (isEditMode) {
+                                isEditMode = false
+                                editMode = ""
+                                checkboxStates.clear()
+                            } else { switchToCurrentSchedule() }
+                        }) {
+                            Icon(
+                                imageVector = MiuixIcons.Back,
+                                contentDescription = "返回",
+                                modifier = Modifier
+                                    .size(28.dp)
+                                    .graphicsLayer { alpha = backAlpha.value }
+                            )
+                            Icon(
+                                imageVector = MiuixIcons.Close,
+                                contentDescription = "关闭",
+                                modifier = Modifier
+                                    .size(22.dp)
+                                    .graphicsLayer { alpha = closeAlpha.value }
+                            )
+                        }
+                    },
+                    actions = {
+                        val editAlpha by animateFloatAsState(
+                            targetValue = if (isEditMode) 0f else 1f,
+                            animationSpec = tween(150),
+                            label = "editAlpha"
+                        )
+                        IconButton(
+                            onClick = { if (!isEditMode) isEditMode = true },
+                            modifier = Modifier
+                                .padding(end = 4.dp)
+                                .graphicsLayer { alpha = editAlpha }
+                        ) {
+                            Icon(
+                                imageVector = MiuixIcons.Edit,
+                                contentDescription = "编辑",
+                                modifier = Modifier.size(26.dp)
+                            )
                         }
                     }
-                    IconButton(onClick = {
-                        if (isEditMode) {
-                            isEditMode = false
-                            editMode = ""
-                            checkboxStates.clear()
-                        } else { switchToCurrentSchedule() }
-                    }) {
-                        Icon(
-                            imageVector = MiuixIcons.Back,
-                            contentDescription = "返回",
-                            modifier = Modifier
-                                .size(28.dp)
-                                .graphicsLayer { alpha = backAlpha.value }
-                        )
-                        Icon(
-                            imageVector = MiuixIcons.Close,
-                            contentDescription = "关闭",
-                            modifier = Modifier
-                                .size(22.dp)
-                                .graphicsLayer { alpha = closeAlpha.value }
-                        )
-                    }
-                },
-                actions = {
-                    val editAlpha by animateFloatAsState(
-                        targetValue = if (isEditMode) 0f else 1f,
-                        animationSpec = tween(150),
-                        label = "editAlpha"
-                    )
-                    IconButton(
-                        onClick = { if (!isEditMode) isEditMode = true },
-                        modifier = Modifier
-                            .padding(end = 4.dp)
-                            .graphicsLayer { alpha = editAlpha }
-                    ) {
-                        Icon(
-                            imageVector = MiuixIcons.Edit,
-                            contentDescription = "编辑",
-                            modifier = Modifier.size(26.dp)
-                        )
-                    }
-                }
-            )
+                )
             }
         },
         bottomBar = {
@@ -580,6 +575,13 @@ fun SwitchScheduleScreen(
                         listScrollY = offset
                     }
             }
+            Card(
+                modifier = Modifier.fillMaxSize().background(MiuixTheme.colorScheme.surface),
+                insideMargin = PaddingValues(0.dp),
+                colors = CardDefaults.defaultColors(
+                    color = MiuixTheme.colorScheme.surface,
+                    contentColor = MiuixTheme.colorScheme.onSurface)
+            ) {
             LazyColumn(
                 state = listState,
                 modifier = Modifier
@@ -594,10 +596,7 @@ fun SwitchScheduleScreen(
                 contentPadding = PaddingValues(
                     start = 16.dp,
                     end = 16.dp,
-                    top = paddingValues.calculateTopPadding() +
-                            if (isLiquidGlass) {
-                                if (WindowInsets.statusBars.asPaddingValues().calculateTopPadding() > 0.dp) (-16).dp else (-28).dp
-                            } else 0.dp,
+                    top = if (isLiquidGlass) paddingValues.calculateTopPadding() + (-16).dp else paddingValues.calculateTopPadding(),
                     bottom = 60.dp
                 ),
                 verticalArrangement = Arrangement.spacedBy(12.dp)
@@ -770,12 +769,13 @@ fun SwitchScheduleScreen(
                     }
                 }
             }
+            }
         }
 
         OverlayDialog(
             title = "新建课表",
             show = showAddDialog,
-            outsideMargin = DpSize(17.dp, 12.dp),
+
             onDismissRequest = {
                 showAddDialog = false
                 newScheduleName = ""
@@ -831,7 +831,7 @@ fun SwitchScheduleScreen(
         OverlayDialog(
             title = "编辑课表",
             show = showEditDialog,
-            outsideMargin = DpSize(17.dp, 12.dp),
+
             onDismissRequest = {
                 showEditDialog = false
                 editScheduleName = ""
@@ -889,7 +889,7 @@ fun SwitchScheduleScreen(
         OverlayDialog(
             title = "删除课表",
             show = showDeleteDialog,
-            outsideMargin = DpSize(17.dp, 12.dp),
+
             onDismissRequest = { showDeleteDialog = false }
         ) {
             Column(
@@ -941,160 +941,5 @@ fun SwitchScheduleScreen(
             }
         }
 
-    }
-}
-
-private data class SwitchAnimState(
-    val bgAlpha: Float,
-    val snapshotAlpha: Float,
-    val contentAlpha: Float,
-    val left: Float,
-    val top: Float,
-    val width: Float,
-    val height: Float,
-    val cornerRadius: androidx.compose.ui.unit.Dp
-)
-
-@Composable
-fun SwitchScheduleScreenWithAnimation(
-    onBack: () -> Unit,
-    onScheduleChanged: () -> Unit = {},
-    onCardClick: (androidx.compose.ui.geometry.Rect) -> Unit = { _ -> },
-    onCardSnapshot: (screenBitmap: android.graphics.Bitmap, cardBitmap: android.graphics.Bitmap, bounds: androidx.compose.ui.geometry.Rect) -> Unit = { _, _, _ -> },
-    onCurrentCardBounds: (androidx.compose.ui.geometry.Rect) -> Unit = {},
-    onScreenReady: (screenBitmap: android.graphics.Bitmap, cardBounds: androidx.compose.ui.geometry.Rect) -> Unit = { _, _ -> },
-    onContentOffset: (x: Float, y: Float) -> Unit = { _, _ -> },
-    pageScale: Float = 1f
-) {
-    val animProgress = remember { Animatable(0f) }
-    val scope = rememberCoroutineScope()
-    val density = androidx.compose.ui.platform.LocalDensity.current
-    val windowInfo = androidx.compose.ui.platform.LocalWindowInfo.current
-    val screenWidth = windowInfo.containerSize.width.toFloat()
-    val screenHeight = windowInfo.containerSize.height.toFloat()
-    val morphOpenEase = CubicBezierEasing(0.3f, 0.72f, 0.2f, 1.0f)
-    val morphExitEase = CubicBezierEasing(0.3f, 0.65f, 0.35f, 1.0f)
-
-    val startCornerRadiusDp = 20f
-    val context = androidx.compose.ui.platform.LocalContext.current
-    val screenCornerRadius = remember {
-        try {
-            val windowManager = context.getSystemService(android.content.Context.WINDOW_SERVICE) as android.view.WindowManager
-            val windowMetrics = windowManager.currentWindowMetrics
-            val insets = windowMetrics.windowInsets
-            @SuppressLint("WrongConstant")
-            insets.getRoundedCorner(0)?.radius?.toFloat() ?: 0f
-        } catch (_: Exception) { 0f }
-    }
-    val endCornerRadiusDp = with(density) { screenCornerRadius.toDp().value }
-
-    var clickedCardBounds by remember { mutableStateOf<androidx.compose.ui.geometry.Rect?>(null) }
-
-    val animState = remember {
-        derivedStateOf {
-            val p = animProgress.value
-            val bgAlpha = (p * 0.5f).coerceIn(0f, 0.5f)
-            val contAlpha = ((p - 0.1f) / 0.5f).coerceIn(0f, 1f)
-            val bounds = clickedCardBounds
-            val cLeft: Float
-            val cTop: Float
-            val cWidth: Float
-            val cHeight: Float
-            if (bounds != null) {
-                cLeft = bounds.left * (1f - p)
-                cTop = bounds.top * (1f - p)
-                cWidth = bounds.width + (screenWidth - bounds.width) * p
-                cHeight = bounds.height + (screenHeight - bounds.height) * p
-            } else {
-                cLeft = screenWidth * 0.05f * (1f - p)
-                cTop = screenHeight * 0.15f * (1f - p)
-                cWidth = screenWidth * 0.9f + screenWidth * 0.1f * p
-                cHeight = screenHeight * 0.7f + screenHeight * 0.3f * p
-            }
-            val cRadius = if (p >= 1f) 0f.dp
-            else (startCornerRadiusDp + (endCornerRadiusDp - startCornerRadiusDp) * p).dp
-            SwitchAnimState(bgAlpha, 0f, contAlpha, cLeft, cTop, cWidth, cHeight, cRadius)
-        }
-    }
-
-    BackHandler {
-        scope.launch {
-            animProgress.animateTo(
-                targetValue = 0f,
-                animationSpec = tween(
-                    durationMillis = 370,
-                    easing = morphExitEase
-                )
-            )
-            onBack()
-        }
-    }
-
-    Box(
-        modifier = Modifier
-            .fillMaxSize()
-            .background(
-                if (isAppDarkTheme()) ComposeColor(0xFF2C2C2C).copy(alpha = animState.value.bgAlpha)
-                else ComposeColor.Black.copy(alpha = animState.value.bgAlpha)
-            )
-    ) {
-        val s = animState.value
-        Box(
-            modifier = Modifier
-                .fillMaxSize()
-                .graphicsLayer {
-                    translationX = s.left
-                    translationY = s.top
-                    scaleX = s.width / screenWidth
-                    scaleY = s.height / screenHeight
-                    shape = androidx.compose.foundation.shape.RoundedCornerShape(s.cornerRadius)
-                    clip = true
-                }
-                .background(MiuixTheme.colorScheme.background)
-        ) {
-            if (s.contentAlpha > 0f) {
-                Box(
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .graphicsLayer { alpha = s.contentAlpha }
-                ) {
-                    SwitchScheduleScreen(
-                        onBack = {
-                            scope.launch {
-                                animProgress.animateTo(
-                                    targetValue = 0f,
-                                    animationSpec = tween(
-                                        durationMillis = 370,
-                                        easing = morphExitEase
-                                    )
-                                )
-                                onBack()
-                            }
-                        },
-                        onScheduleChanged = onScheduleChanged,
-                        onCardClick = { bounds ->
-                            clickedCardBounds = bounds
-                            onCardClick(bounds)
-                        },
-                        onCardSnapshot = onCardSnapshot,
-                        onCurrentCardBounds = onCurrentCardBounds,
-                        onScreenReady = onScreenReady,
-                        onContentOffset = onContentOffset,
-                        pageScale = pageScale
-                    )
-                }
-            }
-        }
-    }
-
-    LaunchedEffect(Unit) {
-        animProgress.snapTo(0f)
-        animProgress.animateTo(
-            targetValue = 1f,
-            animationSpec = tween(
-                durationMillis = 520,
-                easing = morphOpenEase
-            )
-        )
     }
 }

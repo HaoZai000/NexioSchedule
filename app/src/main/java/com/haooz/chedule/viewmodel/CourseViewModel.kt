@@ -7,6 +7,9 @@ import com.haooz.chedule.data.Course
 import com.haooz.chedule.data.CourseRepository
 import com.haooz.chedule.reminder.CourseReminderHelper
 import com.haooz.chedule.widget.CourseWidgetProvider
+import com.haooz.chedule.widget.CourseWidgetProvider4x7
+import com.haooz.chedule.widget.TodayCourseWidgetProvider
+import com.haooz.chedule.widget.TodayCourseWidgetProvider4x7
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -75,6 +78,10 @@ class CourseViewModel(application: Application) : AndroidViewModel(application) 
     private val _showSettings = MutableStateFlow(false)
     val showSettings: StateFlow<Boolean> = _showSettings.asStateFlow()
 
+    // 当前是否处于假期（无课程的周）
+    private val _isHoliday = MutableStateFlow(false)
+    val isHoliday: StateFlow<Boolean> = _isHoliday.asStateFlow()
+
     init {
         repository.onCourseChanged = { action, _ ->
             viewModelScope.launch(Dispatchers.IO) {
@@ -99,12 +106,19 @@ class CourseViewModel(application: Application) : AndroidViewModel(application) 
         val calculatedWeek = calculateCurrentWeekFromDate(_classStartTime.value)
         _currentWeek.value = calculatedWeek
         repository.setCurrentWeek(calculatedWeek)
+        _isHoliday.value = isWeekHoliday(calculatedWeek)
         _dataVersion.value++
     }
 
     private fun loadCourses() {
         _courses.value = repository.getAllCourses()
-        viewModelScope.launch { CourseWidgetProvider.updateAllWidgets(getApplication()) }
+        _isHoliday.value = isWeekHoliday(_currentWeek.value)
+        viewModelScope.launch {
+            CourseWidgetProvider.updateAllWidgets(getApplication())
+            CourseWidgetProvider4x7.updateAllWidgets(getApplication())
+            TodayCourseWidgetProvider.updateAllWidgets(getApplication())
+            TodayCourseWidgetProvider4x7.updateAllWidgets(getApplication())
+        }
     }
 
     private fun loadData() {
@@ -129,6 +143,7 @@ class CourseViewModel(application: Application) : AndroidViewModel(application) 
         _classStartTime.value = repository.getClassStartTime()
         val calculatedWeek = calculateCurrentWeekFromDate(_classStartTime.value)
         _currentWeek.value = calculatedWeek
+        _isHoliday.value = isWeekHoliday(calculatedWeek)
     }
 
     /**
@@ -139,6 +154,7 @@ class CourseViewModel(application: Application) : AndroidViewModel(application) 
         val oldWeek = _currentWeek.value
         _currentWeek.value = week
         repository.setCurrentWeek(week)
+        _isHoliday.value = isWeekHoliday(week)
 
         if (week != oldWeek) {
             val oldStartDate = LocalDate.parse(_classStartTime.value.replace("/", "-"))
@@ -159,6 +175,7 @@ class CourseViewModel(application: Application) : AndroidViewModel(application) 
         val newWeek = calculateCurrentWeekFromDate(time)
         _currentWeek.value = newWeek
         repository.setCurrentWeek(newWeek)
+        _isHoliday.value = isWeekHoliday(newWeek)
     }
 
     /**
@@ -167,6 +184,7 @@ class CourseViewModel(application: Application) : AndroidViewModel(application) 
     fun setTotalWeeks(weeks: Int) {
         _totalWeeks.value = weeks
         repository.setTotalWeeks(weeks)
+        _isHoliday.value = isWeekHoliday(_currentWeek.value)
     }
 
     /**
@@ -190,6 +208,18 @@ class CourseViewModel(application: Application) : AndroidViewModel(application) 
             _isSemesterStarted.value = true
             1
         }
+    }
+
+    /**
+     * 判断指定周次是否处于假期（该周及之后均无课程）
+     * 假期条件：week > totalWeeks，或当前周无课程且之后所有周也无课程
+     */
+    fun isWeekHoliday(week: Int): Boolean {
+        val total = _totalWeeks.value
+        if (week > total) return true
+        if (week < 1) return false
+        val lastWeekWithCourses = repository.getLastWeekWithCourses()
+        return week > lastWeekWithCourses
     }
 
     /**

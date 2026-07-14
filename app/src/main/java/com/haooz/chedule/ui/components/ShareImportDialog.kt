@@ -97,7 +97,7 @@ internal fun ShareImportDialog(
         title = "导入课表",
         summary = "是否导入课表「$shareImportScheduleName」？\n确定导入将创建一个新的课表",
         show = showShareImportDialog,
-        outsideMargin = DpSize(17.dp, 12.dp),
+
         onDismissRequest = {
             showShareImportDialog = false
             shareImportData = null

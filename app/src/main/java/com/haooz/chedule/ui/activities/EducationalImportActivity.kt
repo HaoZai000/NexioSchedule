@@ -16,9 +16,10 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
-import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import com.haooz.chedule.data.CourseRepository
+import androidx.lifecycle.viewmodel.compose.viewModel
+import com.google.gson.Gson
+import com.google.gson.reflect.TypeToken
 import com.haooz.chedule.data.school.AdapterData
 import com.haooz.chedule.data.school.SchoolData
 import com.haooz.chedule.data.school.ScriptRepository
@@ -27,6 +28,9 @@ import com.haooz.chedule.ui.screens.SchoolSelectionScreen
 import com.haooz.chedule.ui.utils.applyThemeAwareSystemBars
 import com.haooz.chedule.ui.utils.rememberAppStyle
 import com.haooz.chedule.ui.theme.CourseScheduleTheme
+import com.haooz.chedule.viewmodel.CourseViewModel
+import com.haooz.chedule.viewmodel.ScheduleViewModel
+import com.haooz.chedule.viewmodel.SettingsViewModel
 import com.kyant.backdrop.backdrops.LayerBackdrop
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -169,6 +173,10 @@ class EducationalImportActivity : ComponentActivity() {
         val updateProgress by _updateProgress.collectAsState()
         val dataVersion by _dataVersion.collectAsState()
 
+        val courseViewModel: CourseViewModel = viewModel()
+        val scheduleViewModel: ScheduleViewModel = viewModel()
+        val settingsViewModel: SettingsViewModel = viewModel()
+
         val currentAppStyle = rememberAppStyle()
         val liquidGlassBackdrop: LayerBackdrop? = if (currentAppStyle == "liquidglass") {
             com.kyant.backdrop.backdrops.rememberLayerBackdrop()
@@ -217,7 +225,11 @@ class EducationalImportActivity : ComponentActivity() {
                             liquidGlassBackdrop = liquidGlassBackdrop,
                             onBack = { currentScreen = "selection" },
                             onImportComplete = { courses ->
-                                CourseRepository(this@EducationalImportActivity).saveCourses(courses)
+                                // 使用 CourseViewModel 保存课程，确保内存和 UI 同步更新
+                                courseViewModel.replaceCourses(courses)
+                                scheduleViewModel.refreshScheduleList()
+                                // 应用脚本中的预设时间段
+                                applyPresetTimeSlots(settingsViewModel)
                                 Toast.makeText(this@EducationalImportActivity, "课程已保存，共 ${courses.size} 门课程", Toast.LENGTH_SHORT).show()
                             },
                             onDesktopModeChanged = { isDesktopMode = it },
@@ -228,6 +240,53 @@ class EducationalImportActivity : ComponentActivity() {
                     }
                 }
             }
+        }
+    }
+
+    /**
+     * 读取并应用脚本中的预设时间段到 SettingsViewModel
+     * 将绝对节次编号按上午/下午/晚上拆分为相对编号后保存
+     */
+    private fun applyPresetTimeSlots(settingsViewModel: SettingsViewModel) {
+        val prefs = getSharedPreferences("edu_import_prefs", MODE_PRIVATE)
+        val timeSlotsJson = prefs.getString("preset_time_slots", null) ?: return
+        try {
+            val timeSlots = Gson().fromJson<List<Map<String, Any>>>(
+                timeSlotsJson,
+                object : TypeToken<List<Map<String, Any>>>() {}.type
+            ) ?: return
+            if (timeSlots.isEmpty()) return
+
+            val morningSections = settingsViewModel.morningSections.value
+            val afternoonSections = settingsViewModel.afternoonSections.value
+
+            val morningTimes = mutableMapOf<Int, String>()
+            val afternoonTimes = mutableMapOf<Int, String>()
+            val eveningTimes = mutableMapOf<Int, String>()
+
+            for (slot in timeSlots) {
+                val number = (slot["number"] as? Number)?.toInt() ?: continue
+                val startTime = slot["startTime"] as? String ?: ""
+                val endTime = slot["endTime"] as? String ?: ""
+                if (startTime.isEmpty() || endTime.isEmpty()) continue
+                val timeStr = "$startTime-$endTime"
+
+                when {
+                    number <= morningSections -> morningTimes[number] = timeStr
+                    number <= morningSections + afternoonSections -> afternoonTimes[number - morningSections] = timeStr
+                    else -> eveningTimes[number - morningSections - afternoonSections] = timeStr
+                }
+            }
+
+            if (morningTimes.isNotEmpty()) settingsViewModel.saveMorningTimes(morningTimes)
+            if (afternoonTimes.isNotEmpty()) settingsViewModel.saveAfternoonTimes(afternoonTimes)
+            if (eveningTimes.isNotEmpty()) settingsViewModel.saveEveningTimes(eveningTimes)
+
+            // 清除已应用的预设时间段
+            prefs.edit().remove("preset_time_slots").apply()
+            Log.d("EduImport", "预设时间段应用成功: 上午${morningTimes.size}节, 下午${afternoonTimes.size}节, 晚上${eveningTimes.size}节")
+        } catch (e: Exception) {
+            Log.e("EduImport", "应用预设时间段失败: ${e.message}")
         }
     }
 }

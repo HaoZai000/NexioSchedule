@@ -155,9 +155,6 @@ data class Course(
      */
     fun getWeekText(): String {
         if (selectedWeeks.isNotEmpty()) {
-            if (selectedWeeks.size < 3) {
-                return selectedWeeks.sorted().joinToString("、") { "${it}周" }
-            }
             return formatWeeks(selectedWeeks.sorted())
         }
         val weekTypeStr = getWeekTypeText()
@@ -170,43 +167,47 @@ data class Course(
 
     /**
      * 将周次列表格式化为紧凑显示字符串
-     * 算法：检测全单周/全双周模式，然后按连续性分组压缩
-     * 例：[1,3,5,7,9] → "1-9周 (单周)"，[1,2,3,5,6] → "1-3、5-6周"
+     * 算法：优先检测单双周序列（步长2），其次检测连续序列（步长1），
+     * 只有同类型序列长度≥3时才合并，否则单独显示。
+     * 例：[1,3,5,7,9,11,13,15,16,17] → "1-15 (单周)、16周、17周"
+     *     [1,3,5] → "1-5 (单周)"，[1,3] → "1周、3周"
      */
     private fun formatWeeks(sorted: List<Int>): String {
-        val allOdd = sorted.all { it % 2 == 1 }
-        val allEven = sorted.all { it % 2 == 0 }
-
-        if (allOdd) {
-            return groupConsecutive(sorted, 2, " (单周)")
-        } else if (allEven) {
-            return groupConsecutive(sorted, 2, " (双周)")
-        } else {
-            return groupConsecutive(sorted, 1, "周")
+        val groups = mutableListOf<String>()
+        var i = 0
+        while (i < sorted.size) {
+            // 优先检测单双周序列（步长2）
+            val step2Run = extractRun(sorted, i, step = 2)
+            if (step2Run.size >= 3) {
+                val parity = if (step2Run.first() % 2 == 1) "单周" else "双周"
+                groups.add("${step2Run.first()}-${step2Run.last()} ($parity)")
+                i += step2Run.size
+                continue
+            }
+            // 检测连续序列（步长1）
+            val step1Run = extractRun(sorted, i, step = 1)
+            if (step1Run.size >= 3) {
+                groups.add("${step1Run.first()}-${step1Run.last()}周")
+                i += step1Run.size
+                continue
+            }
+            // 不满足合并条件，单独显示
+            groups.add("${sorted[i]}周")
+            i++
         }
+        return groups.joinToString("、")
     }
 
     /**
-     * 将连续的数字序列分组压缩
-     * @param step 步长，全周为1，单双周为2
-     * @param suffix 后缀字符串，如"周"、" (单周)"、" (双周)"
+     * 从指定位置开始提取步长为 step 的最长连续等差子序列
      */
-    private fun groupConsecutive(sorted: List<Int>, step: Int, suffix: String): String {
-        val groups = mutableListOf<Pair<Int, Int>>()
-        var start = sorted[0]
-        var end = sorted[0]
-        for (i in 1 until sorted.size) {
-            if (sorted[i] - end == step) {
-                end = sorted[i]
-            } else {
-                groups.add(Pair(start, end))
-                start = sorted[i]
-                end = sorted[i]
-            }
+    private fun extractRun(sorted: List<Int>, start: Int, step: Int): List<Int> {
+        val run = mutableListOf(sorted[start])
+        var j = start + 1
+        while (j < sorted.size && sorted[j] - sorted[j - 1] == step) {
+            run.add(sorted[j])
+            j++
         }
-        groups.add(Pair(start, end))
-        return groups.joinToString("、") { (s, e) ->
-            if (s == e) "${s}${suffix}" else "${s}-${e}${suffix}"
-        }
+        return run
     }
 }

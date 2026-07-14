@@ -1,4 +1,4 @@
-/** 应用更新设置页面 */
+/** AI 文本导入页面 */
 package com.haooz.chedule.ui.activities
 
 import android.os.Bundle
@@ -14,6 +14,7 @@ import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.statusBars
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.unit.DpOffset
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.zIndex
 import com.haooz.chedule.ui.components.liquidglass.LiquidTopBarButton
@@ -28,10 +29,9 @@ import top.yukonga.miuix.kmp.blur.rememberLayerBackdrop
 import top.yukonga.miuix.kmp.icon.MiuixIcons
 import top.yukonga.miuix.kmp.icon.extended.ChevronBackward
 import top.yukonga.miuix.kmp.theme.MiuixTheme
-import androidx.compose.ui.unit.DpOffset
 import com.kyant.backdrop.backdrops.layerBackdrop as liquidGlassLayerBackdrop
 
-class UpdateSettingsActivity : ComponentActivity() {
+class AiImportActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge(
@@ -64,7 +64,7 @@ class UpdateSettingsActivity : ComponentActivity() {
                             ) {
                                 SmallTopAppBar(
                                     color = Color.Transparent,
-                                    title = "更新设置",
+                                    title = "AI 文本导入",
                                     modifier = Modifier.zIndex(1f),
                                     navigationIcon = {}
                                 )
@@ -95,7 +95,10 @@ class UpdateSettingsActivity : ComponentActivity() {
                                 else Modifier
                             )
                         ) {
-                            UpdateSettingsScreen(onBack = { finish() })
+                            AiImportScreen(
+                                onBack = { finish() },
+                                liquidGlassBackdrop = liquidGlassBackdrop
+                            )
                         }
                     }
                 }

@@ -2,6 +2,7 @@ package com.haooz.chedule.data
 
 import android.content.Context
 import android.content.SharedPreferences
+import androidx.core.content.edit
 import com.google.gson.Gson
 import com.google.gson.reflect.TypeToken
 
@@ -35,7 +36,7 @@ class CourseRepository private constructor(context: Context) {
         if (action == "settings") {
             // 设置变更时更新时间戳，确保本地修改不会被远程覆盖
             val prefix = getScheduleKeyPrefix()
-            prefs.edit().putLong("${prefix}_settings_last_modified", System.currentTimeMillis()).apply()
+            prefs.edit { putLong("${prefix}_settings_last_modified", System.currentTimeMillis()) }
         }
         onCourseChanged?.invoke(action, courseId)
     }
@@ -82,10 +83,10 @@ class CourseRepository private constructor(context: Context) {
         private const val KEY_SHIFT_SELECTED_SCHEDULES = "shift_selected_schedules"
         private const val KEY_DEFAULT_HOMEPAGE = "default_homepage"
         private const val KEY_NAV_BAR_STYLE = "nav_bar_style"
-        private const val KEY_WALLPAPER_OFFSET_X = "wallpaper_offset_x"
-        private const val KEY_WALLPAPER_OFFSET_Y = "wallpaper_offset_y"
-        private const val KEY_WALLPAPER_SCALE = "wallpaper_scale"
-        private const val WALLPAPER_FILE_NAME = "schedule_wallpaper.png"
+        @Suppress("UNUSED") private const val KEY_WALLPAPER_OFFSET_X = "wallpaper_offset_x"
+        @Suppress("UNUSED") private const val KEY_WALLPAPER_OFFSET_Y = "wallpaper_offset_y"
+        @Suppress("UNUSED") private const val KEY_WALLPAPER_SCALE = "wallpaper_scale"
+        @Suppress("UNUSED") private const val WALLPAPER_FILE_NAME = "schedule_wallpaper.png"
         private const val SCHEDULE_KEY_PREFIX = "schedule_"
         // 多搭配支持
         private const val KEY_COMBINATION_IDS = "combination_ids"
@@ -113,22 +114,8 @@ class CourseRepository private constructor(context: Context) {
             val floatVal = prefs.getFloat(key, defValue.toFloat())
             val intVal = floatVal.toInt()
             // 修正存储类型为 Int
-            prefs.edit().putInt(key, intVal).apply()
+            prefs.edit { putInt(key, intVal) }
             return intVal
-        }
-    }
-
-    /**
-     * 兼容性读取 Boolean 值（云备份恢复时可能存为其他类型）
-     */
-    private fun safeGetBoolean(key: String, defValue: Boolean): Boolean {
-        try {
-            return prefs.getBoolean(key, defValue)
-        } catch (_: ClassCastException) {
-            val intVal = prefs.getInt(key, if (defValue) 1 else 0)
-            val boolVal = intVal != 0
-            prefs.edit().putBoolean(key, boolVal).apply()
-            return boolVal
         }
     }
 
@@ -140,33 +127,20 @@ class CourseRepository private constructor(context: Context) {
         val json = prefs.getString(key, null) ?: return emptyList()
         val type = object : TypeToken<List<Course>>() {}.type
         return try {
-            gson.fromJson(json, type) ?: emptyList()
-        } catch (e: Exception) {
+            sanitizeCourses(gson.fromJson(json, type) ?: emptyList())
+        } catch (_: Exception) {
             emptyList()
         }
-    }
-
-    /**
-     * 保存指定课表的课程列表
-     */
-    fun saveCoursesForSchedule(scheduleId: String, courses: List<Course>, notify: Boolean = true) {
-        val key = "$SCHEDULE_KEY_PREFIX${scheduleId}_$KEY_COURSES"
-        val json = gson.toJson(courses)
-        prefs.edit().putString(key, json).apply()
-        if (notify) onCourseChanged?.invoke("bulk", "")
     }
 
     /**
      * 获取课表摘要（课程数和周数范围）
      */
     fun getScheduleSummary(scheduleId: String): String {
-        val courses = getCoursesForSchedule(scheduleId)
-        if (courses.isEmpty()) return "空课表"
+        val courses = getCoursesForSchedule(scheduleId).ifEmpty { return "空课表" }
         val courseCount = courses.size
         val weeks = courses.flatMap { course ->
-            if (course.selectedWeeks.isNotEmpty()) {
-                course.selectedWeeks
-            } else {
+            course.selectedWeeks.ifEmpty {
                 course.startWeek..course.endWeek
             }
         }.toSortedSet()
@@ -182,6 +156,37 @@ class CourseRepository private constructor(context: Context) {
     }
 
     /**
+     * 修复旧数据中 scheduleId/selectedWeeks 可能为 null 的问题
+     * Gson 反序列化绕过 Kotlin non-null 检查，后加的字段在旧 JSON 中缺失时会被设为 null
+     * 直接调用 copy() 会因将 null 传给 non-null 参数而 NPE
+     */
+    @Suppress("SENSELESS_COMPARISON", "ELVIS_ALWAYS_NULL", "NULLABILITY_MISMATCH_BASED_ON_JAVA_ANNOTATIONS")
+    private fun sanitizeCourses(courses: List<Course>): List<Course> {
+        return courses.map { course ->
+            if (course.scheduleId == null || course.selectedWeeks == null) {
+                Course(
+                    id = course.id ?: "",
+                    name = course.name ?: "",
+                    classroom = course.classroom ?: "",
+                    teacher = course.teacher ?: "",
+                    dayOfWeek = course.dayOfWeek,
+                    startSection = course.startSection,
+                    endSection = course.endSection,
+                    startWeek = course.startWeek,
+                    endWeek = course.endWeek,
+                    weekType = course.weekType,
+                    colorRes = course.colorRes,
+                    selectedWeeks = course.selectedWeeks ?: emptyList(),
+                    scheduleId = course.scheduleId ?: "",
+                    lastModified = course.lastModified
+                )
+            } else {
+                course
+            }
+        }
+    }
+
+    /**
      * 获取所有课程
      */
     fun getAllCourses(): List<Course> {
@@ -189,8 +194,8 @@ class CourseRepository private constructor(context: Context) {
         val json = prefs.getString(key, null) ?: return emptyList()
         val type = object : TypeToken<List<Course>>() {}.type
         return try {
-            gson.fromJson(json, type) ?: emptyList()
-        } catch (e: Exception) {
+            sanitizeCourses(gson.fromJson(json, type) ?: emptyList())
+        } catch (_: Exception) {
             emptyList()
         }
     }
@@ -201,7 +206,7 @@ class CourseRepository private constructor(context: Context) {
     fun saveCourses(courses: List<Course>, notify: Boolean = true) {
         val key = "${getScheduleKeyPrefix()}$KEY_COURSES"
         val json = gson.toJson(courses)
-        prefs.edit().putString(key, json).apply()
+        prefs.edit { putString(key, json) }
         if (notify) onCourseChanged?.invoke("bulk", "")
     }
 
@@ -248,19 +253,17 @@ class CourseRepository private constructor(context: Context) {
     }
 
     /**
-     * 获取指定周次、星期的课程
+     * 获取有课程的最晚周次，若没有任何课程则返回 0
      */
-    fun getCoursesForDay(week: Int, dayOfWeek: Int): List<Course> {
-        return getAllCourses().filter {
-            it.dayOfWeek == dayOfWeek && it.isActiveInWeek(week)
-        }.sortedBy { it.startSection }
-    }
-
-    /**
-     * 获取指定周次的所有课程
-     */
-    fun getCoursesForWeek(week: Int): List<Course> {
-        return getAllCourses().filter { it.isActiveInWeek(week) }
+    fun getLastWeekWithCourses(): Int {
+        val courses = getAllCourses()
+        if (courses.isEmpty()) return 0
+        var maxWeek = 0
+        for (c in courses) {
+            val end = if (c.selectedWeeks.isNotEmpty()) c.selectedWeeks.max() else c.endWeek
+            if (end > maxWeek) maxWeek = end
+        }
+        return maxWeek
     }
 
     /**
@@ -276,7 +279,7 @@ class CourseRepository private constructor(context: Context) {
      */
     fun setCurrentWeek(week: Int) {
         val key = "${getScheduleKeyPrefix()}$KEY_CURRENT_WEEK"
-        prefs.edit().putInt(key, week).apply()
+        prefs.edit { putInt(key, week) }
         notifyCourseChanged("settings")
     }
 
@@ -293,7 +296,7 @@ class CourseRepository private constructor(context: Context) {
      */
     fun setTotalWeeks(weeks: Int) {
         val key = "${getScheduleKeyPrefix()}$KEY_TOTAL_WEEKS"
-        prefs.edit().putInt(key, weeks).apply()
+        prefs.edit { putInt(key, weeks) }
         notifyCourseChanged("settings")
     }
 
@@ -304,7 +307,7 @@ class CourseRepository private constructor(context: Context) {
     fun getClassStartTime(): String {
         val key = "${getScheduleKeyPrefix()}$KEY_CLASS_START_TIME"
         val cal = java.util.Calendar.getInstance()
-        val default = String.format("%04d/%02d/%02d",
+        val default = String.format(java.util.Locale.ROOT, "%04d/%02d/%02d",
             cal.get(java.util.Calendar.YEAR),
             cal.get(java.util.Calendar.MONTH) + 1,
             cal.get(java.util.Calendar.DAY_OF_MONTH)
@@ -315,7 +318,7 @@ class CourseRepository private constructor(context: Context) {
             return stored
         }
         // 不符合则写入默认值并返回
-        prefs.edit().putString(key, default).apply()
+        prefs.edit { putString(key, default) }
         return default
     }
 
@@ -324,7 +327,7 @@ class CourseRepository private constructor(context: Context) {
      */
     fun setClassStartTime(time: String) {
         val key = "${getScheduleKeyPrefix()}$KEY_CLASS_START_TIME"
-        prefs.edit().putString(key, time).apply()
+        prefs.edit { putString(key, time) }
         notifyCourseChanged("settings")
     }
 
@@ -337,7 +340,7 @@ class CourseRepository private constructor(context: Context) {
         return try {
             if (json.isNullOrBlank()) emptySet()
             else json.split(",").map { it.trim().toInt() }.toSet()
-        } catch (e: Exception) {
+        } catch (_: Exception) {
             emptySet()
         }
     }
@@ -347,7 +350,7 @@ class CourseRepository private constructor(context: Context) {
      */
     fun setShowWeekendDays(days: Set<Int>) {
         val key = "${getScheduleKeyPrefix()}$KEY_SHOW_WEEKEND"
-        prefs.edit().putString(key, days.joinToString(",")).apply()
+        prefs.edit { putString(key, days.joinToString(",")) }
         notifyCourseChanged("settings")
     }
 
@@ -364,7 +367,7 @@ class CourseRepository private constructor(context: Context) {
      */
     fun setShowNonCurrentWeek(show: Boolean) {
         val key = "${getScheduleKeyPrefix()}$KEY_SHOW_NON_CURRENT_WEEK"
-        prefs.edit().putBoolean(key, show).apply()
+        prefs.edit { putBoolean(key, show) }
         notifyCourseChanged("settings")
     }
 
@@ -381,7 +384,7 @@ class CourseRepository private constructor(context: Context) {
      */
     fun setMorningSections(count: Int) {
         val key = "${getScheduleKeyPrefix()}$KEY_MORNING_SECTIONS"
-        prefs.edit().putInt(key, count).apply()
+        prefs.edit { putInt(key, count) }
         notifyCourseChanged("settings")
     }
 
@@ -398,7 +401,7 @@ class CourseRepository private constructor(context: Context) {
      */
     fun setAfternoonSections(count: Int) {
         val key = "${getScheduleKeyPrefix()}$KEY_AFTERNOON_SECTIONS"
-        prefs.edit().putInt(key, count).apply()
+        prefs.edit {putInt(key, count) }
         notifyCourseChanged("settings")
     }
 
@@ -415,7 +418,7 @@ class CourseRepository private constructor(context: Context) {
      */
     fun setEveningSections(count: Int) {
         val key = "${getScheduleKeyPrefix()}$KEY_EVENING_SECTIONS"
-        prefs.edit().putInt(key, count).apply()
+        prefs.edit {putInt(key, count) }
         notifyCourseChanged("settings")
     }
 
@@ -438,10 +441,8 @@ class CourseRepository private constructor(context: Context) {
                     if (idx != null) result[idx] = v as String
                 }
             }
-            if (result.isEmpty()) {
-                migrateOldSectionTimes(raw, period)
-            } else result
-        } catch (e: Exception) {
+            result.ifEmpty { migrateOldSectionTimes(raw, period) }
+        } catch (_: Exception) {
             getDefaultTimesForPeriod(period)
         }
     }
@@ -462,7 +463,7 @@ class CourseRepository private constructor(context: Context) {
         for ((idx, v) in times) {
             existing["${period}_$idx"] = v
         }
-        prefs.edit().putString(sharedKey, gson.toJson(existing)).apply()
+        prefs.edit { putString(sharedKey, gson.toJson(existing)) }
         notifyCourseChanged("settings")
     }
 
@@ -506,7 +507,7 @@ class CourseRepository private constructor(context: Context) {
 
     fun setQuickTimeEnabled(enabled: Boolean) {
         val key = "${getScheduleKeyPrefix()}$KEY_QUICK_TIME_ENABLED"
-        prefs.edit().putBoolean(key, enabled).apply()
+        prefs.edit { putBoolean(key, enabled) }
         notifyCourseChanged("settings")
     }
 
@@ -517,7 +518,7 @@ class CourseRepository private constructor(context: Context) {
 
     fun setClassDuration(minutes: Int) {
         val key = "${getScheduleKeyPrefix()}$KEY_CLASS_DURATION"
-        prefs.edit().putInt(key, minutes).apply()
+        prefs.edit {putInt(key, minutes) }
         notifyCourseChanged("settings")
     }
 
@@ -528,7 +529,7 @@ class CourseRepository private constructor(context: Context) {
 
     fun setShortBreak(minutes: Int) {
         val key = "${getScheduleKeyPrefix()}$KEY_SHORT_BREAK"
-        prefs.edit().putInt(key, minutes).apply()
+        prefs.edit {putInt(key, minutes) }
         notifyCourseChanged("settings")
     }
 
@@ -539,7 +540,7 @@ class CourseRepository private constructor(context: Context) {
 
     fun setLongBreakEnabled(enabled: Boolean) {
         val key = "${getScheduleKeyPrefix()}${KEY_LONG_BREAK}_enabled"
-        prefs.edit().putBoolean(key, enabled).apply()
+        prefs.edit {putBoolean(key, enabled) }
         notifyCourseChanged("settings")
     }
 
@@ -550,7 +551,7 @@ class CourseRepository private constructor(context: Context) {
 
     fun setLongBreakMorning(minutes: Int) {
         val key = "${getScheduleKeyPrefix()}${KEY_LONG_BREAK}_morning"
-        prefs.edit().putInt(key, minutes).apply()
+        prefs.edit {putInt(key, minutes)}
         notifyCourseChanged("settings")
     }
 
@@ -561,7 +562,7 @@ class CourseRepository private constructor(context: Context) {
 
     fun setLongBreakAfternoon(minutes: Int) {
         val key = "${getScheduleKeyPrefix()}${KEY_LONG_BREAK}_afternoon"
-        prefs.edit().putInt(key, minutes).apply()
+        prefs.edit {putInt(key, minutes)}
         notifyCourseChanged("settings")
     }
 
@@ -572,7 +573,7 @@ class CourseRepository private constructor(context: Context) {
 
     fun setLongBreakEvening(minutes: Int) {
         val key = "${getScheduleKeyPrefix()}${KEY_LONG_BREAK}_evening"
-        prefs.edit().putInt(key, minutes).apply()
+        prefs.edit {putInt(key, minutes)}
         notifyCourseChanged("settings")
     }
 
@@ -583,7 +584,7 @@ class CourseRepository private constructor(context: Context) {
 
     fun setLongBreakMorningSection(section: Int) {
         val key = "${getScheduleKeyPrefix()}${KEY_LONG_BREAK}_morning_section"
-        prefs.edit().putInt(key, section).apply()
+        prefs.edit {putInt(key, section)}
         notifyCourseChanged("settings")
     }
 
@@ -594,7 +595,7 @@ class CourseRepository private constructor(context: Context) {
 
     fun setLongBreakAfternoonSection(section: Int) {
         val key = "${getScheduleKeyPrefix()}${KEY_LONG_BREAK}_afternoon_section"
-        prefs.edit().putInt(key, section).apply()
+        prefs.edit {putInt(key, section)}
         notifyCourseChanged("settings")
     }
 
@@ -605,7 +606,7 @@ class CourseRepository private constructor(context: Context) {
 
     fun setLongBreakEveningSection(section: Int) {
         val key = "${getScheduleKeyPrefix()}${KEY_LONG_BREAK}_evening_section"
-        prefs.edit().putInt(key, section).apply()
+        prefs.edit { putInt(key, section) }
         notifyCourseChanged("settings")
     }
 
@@ -616,7 +617,7 @@ class CourseRepository private constructor(context: Context) {
 
     fun setMorningStartHour(hour: Int) {
         val key = "${getScheduleKeyPrefix()}$KEY_MORNING_START"
-        prefs.edit().putInt(key, hour).apply()
+        prefs.edit { putInt(key, hour) }
         notifyCourseChanged("settings")
     }
 
@@ -627,7 +628,7 @@ class CourseRepository private constructor(context: Context) {
 
     fun setMorningStartMinute(minute: Int) {
         val key = "${getScheduleKeyPrefix()}${KEY_MORNING_START}_min"
-        prefs.edit().putInt(key, minute).apply()
+        prefs.edit { putInt(key, minute) }
         notifyCourseChanged("settings")
     }
 
@@ -638,7 +639,7 @@ class CourseRepository private constructor(context: Context) {
 
     fun setAfternoonStartHour(hour: Int) {
         val key = "${getScheduleKeyPrefix()}$KEY_AFTERNOON_START"
-        prefs.edit().putInt(key, hour).apply()
+        prefs.edit { putInt(key, hour) }
         notifyCourseChanged("settings")
     }
 
@@ -649,7 +650,7 @@ class CourseRepository private constructor(context: Context) {
 
     fun setAfternoonStartMinute(minute: Int) {
         val key = "${getScheduleKeyPrefix()}${KEY_AFTERNOON_START}_min"
-        prefs.edit().putInt(key, minute).apply()
+        prefs.edit {putInt(key, minute) }
         notifyCourseChanged("settings")
     }
 
@@ -660,7 +661,7 @@ class CourseRepository private constructor(context: Context) {
 
     fun setEveningStartHour(hour: Int) {
         val key = "${getScheduleKeyPrefix()}$KEY_EVENING_START"
-        prefs.edit().putInt(key, hour).apply()
+        prefs.edit { putInt(key, hour) }
         notifyCourseChanged("settings")
     }
 
@@ -671,7 +672,7 @@ class CourseRepository private constructor(context: Context) {
 
     fun setEveningStartMinute(minute: Int) {
         val key = "${getScheduleKeyPrefix()}${KEY_EVENING_START}_min"
-        prefs.edit().putInt(key, minute).apply()
+        prefs.edit {putInt(key, minute) }
         notifyCourseChanged("settings")
     }
 
@@ -680,7 +681,7 @@ class CourseRepository private constructor(context: Context) {
     }
 
     fun setPreClassReminder(enabled: Boolean) {
-        prefs.edit().putBoolean(KEY_PRE_CLASS_REMINDER, enabled).apply()
+        prefs.edit {putBoolean(KEY_PRE_CLASS_REMINDER, enabled) }
     }
 
     fun getPreClassReminderMinutes(): Int {
@@ -688,7 +689,7 @@ class CourseRepository private constructor(context: Context) {
     }
 
     fun setPreClassReminderMinutes(minutes: Int) {
-        prefs.edit().putInt(KEY_PRE_CLASS_REMINDER_MINUTES, minutes).apply()
+        prefs.edit {putInt(KEY_PRE_CLASS_REMINDER_MINUTES, minutes) }
     }
 
     fun getNextDayReminder(): Boolean {
@@ -696,7 +697,7 @@ class CourseRepository private constructor(context: Context) {
     }
 
     fun setNextDayReminder(enabled: Boolean) {
-        prefs.edit().putBoolean(KEY_NEXT_DAY_REMINDER, enabled).apply()
+        prefs.edit {putBoolean(KEY_NEXT_DAY_REMINDER, enabled) }
     }
 
     fun getNextDayReminderHour(): Int {
@@ -704,7 +705,7 @@ class CourseRepository private constructor(context: Context) {
     }
 
     fun setNextDayReminderHour(hour: Int) {
-        prefs.edit().putInt(KEY_NEXT_DAY_REMINDER_HOUR, hour).apply()
+        prefs.edit { putInt(KEY_NEXT_DAY_REMINDER_HOUR, hour) }
     }
 
     fun getNextDayReminderMinute(): Int {
@@ -712,7 +713,7 @@ class CourseRepository private constructor(context: Context) {
     }
 
     fun setNextDayReminderMinute(minute: Int) {
-        prefs.edit().putInt(KEY_NEXT_DAY_REMINDER_MINUTE, minute).apply()
+        prefs.edit { putInt(KEY_NEXT_DAY_REMINDER_MINUTE, minute) }
     }
 
     fun getIslandNotification(): Boolean {
@@ -720,7 +721,7 @@ class CourseRepository private constructor(context: Context) {
     }
 
     fun setIslandNotification(enabled: Boolean) {
-        prefs.edit().putBoolean(KEY_ISLAND_NOTIFICATION, enabled).apply()
+        prefs.edit {putBoolean(KEY_ISLAND_NOTIFICATION, enabled) }
     }
 
     /**
@@ -769,7 +770,8 @@ class CourseRepository private constructor(context: Context) {
         return getAllCourses().filter { course ->
             course.dayOfWeek == dayOfWeek &&
             course.startSection <= endSection &&
-            course.endSection >= startSection
+            course.endSection >= startSection &&
+            course.isActiveInWeek(week)
         }.sortedBy { it.startSection }
     }
 
@@ -780,8 +782,11 @@ class CourseRepository private constructor(context: Context) {
         val json = prefs.getString(KEY_SCHEDULE_NAMES, null)
         return try {
             if (json.isNullOrBlank()) listOf("默认课表")
-            else gson.fromJson(json, object : TypeToken<List<String>>() {}.type) ?: listOf("默认课表")
-        } catch (e: Exception) {
+            else {
+                val parsed: List<String>? = gson.fromJson(json, object : TypeToken<List<String>>() {}.type)
+                parsed?.takeIf { it.isNotEmpty() } ?: listOf("默认课表")
+            }
+        } catch (_: Exception) {
             listOf("默认课表")
         }
     }
@@ -791,21 +796,24 @@ class CourseRepository private constructor(context: Context) {
      */
    internal fun saveScheduleNames(names: List<String>) {
         val json = gson.toJson(names)
-        prefs.edit().putString(KEY_SCHEDULE_NAMES, json).commit()
+        prefs.edit(commit = true) { putString(KEY_SCHEDULE_NAMES, json) }
     }
 
     /**
      * 获取当前选中的课表ID
      */
     fun getCurrentScheduleId(): String {
-        return prefs.getString(KEY_CURRENT_SCHEDULE_ID, "默认课表") ?: "默认课表"
+        val saved = prefs.getString(KEY_CURRENT_SCHEDULE_ID, "默认课表") ?: "默认课表"
+        // 如果当前课表不在课表列表中，回退到第一个课表
+        val names = getScheduleNames()
+        return if (saved in names) saved else names.first()
     }
 
     /**
      * 设置当前选中的课表ID
      */
     fun setCurrentScheduleId(scheduleId: String) {
-        prefs.edit().putString(KEY_CURRENT_SCHEDULE_ID, scheduleId).apply()
+        prefs.edit { putString(KEY_CURRENT_SCHEDULE_ID, scheduleId) }
         notifyCourseChanged("settings")
     }
 
@@ -834,32 +842,33 @@ class CourseRepository private constructor(context: Context) {
         }
         val currentPrefix = "$SCHEDULE_KEY_PREFIX${currentId}_"
         val newPrefix = "$SCHEDULE_KEY_PREFIX${name}_"
-        val editor = prefs.edit()
-        for ((key, value) in prefs.all) {
-            if (key.startsWith(currentPrefix)) {
-                val settingName = key.removePrefix(currentPrefix)
-                // 跳过课程数据，只复制设置
-                if (settingName == KEY_COURSES) continue
-                val newKey = "$newPrefix$settingName"
-                when (value) {
-                    is Int -> editor.putInt(newKey, value)
-                    is Boolean -> editor.putBoolean(newKey, value)
-                    is String -> editor.putString(newKey, value)
-                    is Float -> editor.putFloat(newKey, value)
-                    is Long -> editor.putLong(newKey, value)
-                    is Set<*> -> {
-                        @Suppress("UNCHECKED_CAST")
-                        editor.putStringSet(newKey, value as Set<String>)
+        prefs.edit(commit = true) {
+            for ((key, value) in prefs.all) {
+                if (key.startsWith(currentPrefix)) {
+                    val settingName = key.removePrefix(currentPrefix)
+                    // 跳过课程数据，只复制设置
+                    if (settingName == KEY_COURSES) continue
+                    val newKey = "$newPrefix$settingName"
+                    when (value) {
+                        is Int -> putInt(newKey, value)
+                        is Boolean -> putBoolean(newKey, value)
+                        is String -> putString(newKey, value)
+                        is Float -> putFloat(newKey, value)
+                        is Long -> putLong(newKey, value)
+                        is Set<*> -> {
+                            @Suppress("UNCHECKED_CAST")
+                            putStringSet(newKey, value as Set<String>)
+                        }
                     }
                 }
             }
+            // 将开始上课日期设为今天，当前周数设为第1周
+            val today = java.time.LocalDate.now()
+            val todayStr =
+                String.format(java.util.Locale.ROOT, "%04d/%02d/%02d", today.year, today.monthValue, today.dayOfMonth)
+            putString("$newPrefix$KEY_CLASS_START_TIME", todayStr)
+            putInt("$newPrefix$KEY_CURRENT_WEEK", 1)
         }
-        // 将开始上课日期设为今天，当前周数设为第1周
-        val today = java.time.LocalDate.now()
-        val todayStr = String.format("%04d/%02d/%02d", today.year, today.monthValue, today.dayOfMonth)
-        editor.putString("$newPrefix$KEY_CLASS_START_TIME", todayStr)
-        editor.putInt("$newPrefix$KEY_CURRENT_WEEK", 1)
-        editor.commit()
         return names
     }
 
@@ -869,18 +878,22 @@ class CourseRepository private constructor(context: Context) {
     fun deleteSchedule(name: String): List<String> {
         val names = getScheduleNames().toMutableList()
         names.remove(name)
+        // 如果删除后没有课表了，自动创建"默认课表"避免应用无法启动
+        if (names.isEmpty()) {
+            names.add("默认课表")
+        }
         saveScheduleNames(names)
         // 删除该课表的所有数据
         val prefix = "$SCHEDULE_KEY_PREFIX${name}_"
-        val editor = prefs.edit()
-        for (key in prefs.all.keys) {
-            if (key.startsWith(prefix)) {
-                editor.remove(key)
+        prefs.edit {
+            for (key in prefs.all.keys) {
+                if (key.startsWith(prefix)) {
+                    remove(key)
+                }
             }
         }
-        editor.apply()
         // 如果删除的是当前课表，切换到第一个课表
-        if (getCurrentScheduleId() == name && names.isNotEmpty()) {
+        if (getCurrentScheduleId() == name) {
             setCurrentScheduleId(names.first())
         }
         notifyCourseChanged("settings")
@@ -917,7 +930,7 @@ class CourseRepository private constructor(context: Context) {
     }
 
     fun setShiftModeEnabled(enabled: Boolean) {
-        prefs.edit().putBoolean(KEY_SHIFT_MODE, enabled).apply()
+        prefs.edit { putBoolean(KEY_SHIFT_MODE, enabled) }
     }
 
     fun getShiftSelectedSchedules(): List<String> {
@@ -925,14 +938,14 @@ class CourseRepository private constructor(context: Context) {
         return try {
             if (json.isNullOrBlank()) emptyList()
             else gson.fromJson(json, object : TypeToken<List<String>>() {}.type) ?: emptyList()
-        } catch (e: Exception) {
+        } catch (_: Exception) {
             emptyList()
         }
     }
 
     fun setShiftSelectedSchedules(names: List<String>) {
         val json = gson.toJson(names)
-        prefs.edit().putString(KEY_SHIFT_SELECTED_SCHEDULES, json).apply()
+        prefs.edit {putString(KEY_SHIFT_SELECTED_SCHEDULES, json) }
     }
 
     fun getDefaultHomepage(): String {
@@ -940,55 +953,7 @@ class CourseRepository private constructor(context: Context) {
     }
 
     fun setDefaultHomepage(homepage: String) {
-        prefs.edit().putString(KEY_DEFAULT_HOMEPAGE, homepage).apply()
-    }
-
-    // --- 壁纸设置 ---
-
-    fun saveWallpaperState(offsetX: Float, offsetY: Float, scale: Float) {
-        prefs.edit()
-            .putFloat(KEY_WALLPAPER_OFFSET_X, offsetX)
-            .putFloat(KEY_WALLPAPER_OFFSET_Y, offsetY)
-            .putFloat(KEY_WALLPAPER_SCALE, scale)
-            .apply()
-    }
-
-    fun getWallpaperOffsetX(): Float = prefs.getFloat(KEY_WALLPAPER_OFFSET_X, 0f)
-
-    fun getWallpaperOffsetY(): Float = prefs.getFloat(KEY_WALLPAPER_OFFSET_Y, 0f)
-
-    fun getWallpaperScale(): Float = prefs.getFloat(KEY_WALLPAPER_SCALE, 1f)
-
-    fun saveWallpaperBitmap(bitmap: android.graphics.Bitmap): Boolean {
-        return try {
-            val file = java.io.File(appContext.filesDir, WALLPAPER_FILE_NAME)
-            java.io.FileOutputStream(file).use { out ->
-                bitmap.compress(android.graphics.Bitmap.CompressFormat.PNG, 100, out)
-            }
-            true
-        } catch (_: Exception) {
-            false
-        }
-    }
-
-    fun loadWallpaperBitmap(): android.graphics.Bitmap? {
-        val file = java.io.File(appContext.filesDir, WALLPAPER_FILE_NAME)
-        if (!file.exists()) return null
-        return try {
-            android.graphics.BitmapFactory.decodeFile(file.absolutePath)
-        } catch (_: Exception) {
-            null
-        }
-    }
-
-    fun clearWallpaper() {
-        val file = java.io.File(appContext.filesDir, WALLPAPER_FILE_NAME)
-        if (file.exists()) file.delete()
-        prefs.edit()
-            .remove(KEY_WALLPAPER_OFFSET_X)
-            .remove(KEY_WALLPAPER_OFFSET_Y)
-            .remove(KEY_WALLPAPER_SCALE)
-            .apply()
+        prefs.edit {putString(KEY_DEFAULT_HOMEPAGE, homepage) }
     }
 
     // --- 多搭配支持 ---
@@ -1006,7 +971,7 @@ class CourseRepository private constructor(context: Context) {
 
     /** 设置当前选中的搭配 ID */
     fun setCurrentCombinationId(id: Long) {
-        prefs.edit().putLong(KEY_CURRENT_COMBINATION_ID, id).apply()
+        prefs.edit { putLong(KEY_CURRENT_COMBINATION_ID, id) }
     }
 
     /** 添加新搭配，返回新 ID */
@@ -1014,12 +979,12 @@ class CourseRepository private constructor(context: Context) {
         val ids = getCombinationIds().toMutableList()
         val newId = (ids.maxOrNull() ?: -1L) + 1L
         ids.add(newId)
-        prefs.edit()
-            .putString(KEY_COMBINATION_IDS, ids.joinToString(","))
-            .putFloat("${KEY_COMBINATION_OFFSET_X_PREFIX}$newId", 0f)
-            .putFloat("${KEY_COMBINATION_OFFSET_Y_PREFIX}$newId", 0f)
-            .putFloat("${KEY_COMBINATION_SCALE_PREFIX}$newId", 1f)
-            .apply()
+        prefs.edit {
+            putString(KEY_COMBINATION_IDS, ids.joinToString(","))
+                .putFloat("${KEY_COMBINATION_OFFSET_X_PREFIX}$newId", 0f)
+                .putFloat("${KEY_COMBINATION_OFFSET_Y_PREFIX}$newId", 0f)
+                .putFloat("${KEY_COMBINATION_SCALE_PREFIX}$newId", 1f)
+        }
         return newId
     }
 
@@ -1027,16 +992,16 @@ class CourseRepository private constructor(context: Context) {
     fun deleteCombination(id: Long) {
         val ids = getCombinationIds().toMutableList()
         if (!ids.remove(id)) return
-        prefs.edit()
-            .putString(KEY_COMBINATION_IDS, ids.joinToString(","))
-            .remove("${KEY_COMBINATION_OFFSET_X_PREFIX}$id")
-            .remove("${KEY_COMBINATION_OFFSET_Y_PREFIX}$id")
-            .remove("${KEY_COMBINATION_SCALE_PREFIX}$id")
-            .remove("${KEY_COMBINATION_CARD_BLUR_PREFIX}$id")
-            .remove("${KEY_COMBINATION_CARD_ALPHA_PREFIX}$id")
-            .remove("${KEY_COMBINATION_WALLPAPER_BRIGHTNESS_PREFIX}$id")
-            .remove("${KEY_COMBINATION_SHOW_BREAK_DIVIDERS_PREFIX}$id")
-            .apply()
+        prefs.edit {
+            putString(KEY_COMBINATION_IDS, ids.joinToString(","))
+                .remove("${KEY_COMBINATION_OFFSET_X_PREFIX}$id")
+                .remove("${KEY_COMBINATION_OFFSET_Y_PREFIX}$id")
+                .remove("${KEY_COMBINATION_SCALE_PREFIX}$id")
+                .remove("${KEY_COMBINATION_CARD_BLUR_PREFIX}$id")
+                .remove("${KEY_COMBINATION_CARD_ALPHA_PREFIX}$id")
+                .remove("${KEY_COMBINATION_WALLPAPER_BRIGHTNESS_PREFIX}$id")
+                .remove("${KEY_COMBINATION_SHOW_BREAK_DIVIDERS_PREFIX}$id")
+        }
         // 删除壁纸与快照文件
         java.io.File(appContext.filesDir, "${COMBINATION_WALLPAPER_PREFIX}$id.png").delete()
         java.io.File(appContext.filesDir, "${COMBINATION_SNAPSHOT_PREFIX}$id.png").delete()
@@ -1047,7 +1012,7 @@ class CourseRepository private constructor(context: Context) {
             setCurrentCombinationId(ids.first())
         } else if (ids.isEmpty()) {
             // 删光后重新创建一个默认搭配 id=0
-            prefs.edit().putString(KEY_COMBINATION_IDS, "0").apply()
+            prefs.edit {putString(KEY_COMBINATION_IDS, "0") }
             setCurrentCombinationId(0L)
         }
     }
@@ -1085,11 +1050,11 @@ class CourseRepository private constructor(context: Context) {
 
     /** 保存指定搭配的偏移和缩放 */
     fun saveCombinationState(id: Long, offsetX: Float, offsetY: Float, scale: Float) {
-        prefs.edit()
-            .putFloat("${KEY_COMBINATION_OFFSET_X_PREFIX}$id", offsetX)
-            .putFloat("${KEY_COMBINATION_OFFSET_Y_PREFIX}$id", offsetY)
-            .putFloat("${KEY_COMBINATION_SCALE_PREFIX}$id", scale)
-            .apply()
+        prefs.edit {
+            putFloat("${KEY_COMBINATION_OFFSET_X_PREFIX}$id", offsetX)
+                .putFloat("${KEY_COMBINATION_OFFSET_Y_PREFIX}$id", offsetY)
+                .putFloat("${KEY_COMBINATION_SCALE_PREFIX}$id", scale)
+        }
     }
 
     fun getCombinationOffsetX(id: Long): Float = prefs.getFloat("${KEY_COMBINATION_OFFSET_X_PREFIX}$id", 0f)
@@ -1097,88 +1062,64 @@ class CourseRepository private constructor(context: Context) {
     fun getCombinationScale(id: Long): Float = prefs.getFloat("${KEY_COMBINATION_SCALE_PREFIX}$id", 1f)
 
     fun saveCombinationCardBlur(id: Long, blurRadius: Float) {
-        prefs.edit()
-            .putFloat("${KEY_COMBINATION_CARD_BLUR_PREFIX}$id", blurRadius)
-            .apply()
+        prefs.edit {
+            putFloat("${KEY_COMBINATION_CARD_BLUR_PREFIX}$id", blurRadius)
+        }
     }
 
     fun getCombinationCardBlur(id: Long): Float = prefs.getFloat("${KEY_COMBINATION_CARD_BLUR_PREFIX}$id", 0f)
 
     fun saveCombinationCardAlpha(id: Long, alpha: Float) {
-        prefs.edit()
-            .putFloat("${KEY_COMBINATION_CARD_ALPHA_PREFIX}$id", alpha)
-            .apply()
+        prefs.edit {
+            putFloat("${KEY_COMBINATION_CARD_ALPHA_PREFIX}$id", alpha)
+        }
     }
 
     fun getCombinationCardAlpha(id: Long): Float = prefs.getFloat("${KEY_COMBINATION_CARD_ALPHA_PREFIX}$id", 0.15f)
 
     fun saveCombinationCardHeight(id: Long, height: Float) {
-        prefs.edit()
-            .putFloat("${KEY_COMBINATION_CARD_HEIGHT_PREFIX}$id", height)
-            .apply()
+        prefs.edit {
+                putFloat("${KEY_COMBINATION_CARD_HEIGHT_PREFIX}$id", height)
+        }
     }
 
     fun getCombinationCardHeight(id: Long): Float = prefs.getFloat("${KEY_COMBINATION_CARD_HEIGHT_PREFIX}$id", 54f)
 
     fun saveCombinationCardCornerRadius(id: Long, cornerRadius: Float) {
-        prefs.edit()
-            .putFloat("${KEY_COMBINATION_CARD_CORNER_PREFIX}$id", cornerRadius)
-            .apply()
+        prefs.edit {
+            putFloat("${KEY_COMBINATION_CARD_CORNER_PREFIX}$id", cornerRadius)
+        }
     }
 
     fun getCombinationCardCornerRadius(id: Long): Float = prefs.getFloat("${KEY_COMBINATION_CARD_CORNER_PREFIX}$id", 8f)
 
     fun saveCombinationWallpaperBrightness(id: Long, brightness: Float) {
-        prefs.edit()
-            .putFloat("${KEY_COMBINATION_WALLPAPER_BRIGHTNESS_PREFIX}$id", brightness)
-            .apply()
+        prefs.edit {
+            putFloat("${KEY_COMBINATION_WALLPAPER_BRIGHTNESS_PREFIX}$id", brightness)
+        }
     }
 
     fun getCombinationWallpaperBrightness(id: Long): Float = prefs.getFloat("${KEY_COMBINATION_WALLPAPER_BRIGHTNESS_PREFIX}$id", 0f)
 
     fun saveCombinationShowBreakDividers(id: Long, show: Boolean) {
-        prefs.edit()
-            .putBoolean("${KEY_COMBINATION_SHOW_BREAK_DIVIDERS_PREFIX}$id", show)
-            .apply()
+        prefs.edit {
+                putBoolean("${KEY_COMBINATION_SHOW_BREAK_DIVIDERS_PREFIX}$id", show)
+        }
     }
 
     fun getCombinationShowBreakDividers(id: Long): Boolean = prefs.getBoolean("${KEY_COMBINATION_SHOW_BREAK_DIVIDERS_PREFIX}$id", true)
-
-    /** 保存指定搭配的完整快照（课表+壁纸预览） */
-    fun saveCombinationSnapshot(id: Long, bitmap: android.graphics.Bitmap): Boolean {
-        return try {
-            val file = java.io.File(appContext.filesDir, "${COMBINATION_SNAPSHOT_PREFIX}$id.png")
-            java.io.FileOutputStream(file).use { out ->
-                bitmap.compress(android.graphics.Bitmap.CompressFormat.PNG, 100, out)
-            }
-            true
-        } catch (_: Exception) {
-            false
-        }
-    }
-
-    /** 加载指定搭配的完整快照 */
-    fun loadCombinationSnapshot(id: Long): android.graphics.Bitmap? {
-        val file = java.io.File(appContext.filesDir, "${COMBINATION_SNAPSHOT_PREFIX}$id.png")
-        if (!file.exists()) return null
-        return try {
-            android.graphics.BitmapFactory.decodeFile(file.absolutePath)
-        } catch (_: Exception) {
-            null
-        }
-    }
 
     /** 迁移：如果只有旧的单搭配数据（无 combination_ids），将其作为 id=0 的搭配 */
     fun migrateToCombinationsIfNeeded() {
         if (prefs.contains(KEY_COMBINATION_IDS)) return
         // 首次迁移：将现有单搭配数据作为 id=0
-        prefs.edit()
-            .putString(KEY_COMBINATION_IDS, "0")
-            .putLong(KEY_CURRENT_COMBINATION_ID, 0L)
-            .putFloat("${KEY_COMBINATION_OFFSET_X_PREFIX}0", getWallpaperOffsetX())
-            .putFloat("${KEY_COMBINATION_OFFSET_Y_PREFIX}0", getWallpaperOffsetY())
-            .putFloat("${KEY_COMBINATION_SCALE_PREFIX}0", getWallpaperScale())
-            .apply()
+        prefs.edit {
+                putString(KEY_COMBINATION_IDS, "0")
+                    .putLong(KEY_CURRENT_COMBINATION_ID, 0L)
+                    .putFloat("${KEY_COMBINATION_OFFSET_X_PREFIX}0", prefs.getFloat(KEY_WALLPAPER_OFFSET_X, 0f))
+                    .putFloat("${KEY_COMBINATION_OFFSET_Y_PREFIX}0", prefs.getFloat(KEY_WALLPAPER_OFFSET_Y, 0f))
+                    .putFloat("${KEY_COMBINATION_SCALE_PREFIX}0", prefs.getFloat(KEY_WALLPAPER_SCALE, 1f))
+        }
         // 复制壁纸文件
         val oldFile = java.io.File(appContext.filesDir, WALLPAPER_FILE_NAME)
         if (oldFile.exists()) {
@@ -1223,42 +1164,43 @@ class CourseRepository private constructor(context: Context) {
      * 从备份数据恢复所有课表配置
      */
     fun importAllPreferences(data: Map<String, Any>) {
-        val editor = prefs.edit()
-        // 先清除所有旧的课表数据
-        for ((key) in prefs.all) {
-            if (key.startsWith(SCHEDULE_KEY_PREFIX)) {
-                editor.remove(key)
+        prefs.edit {
+            // 先清除所有旧的课表数据
+            for ((key) in prefs.all) {
+                if (key.startsWith(SCHEDULE_KEY_PREFIX)) {
+                    remove(key)
+                }
             }
-        }
-        // 清除全局课表配置
-        editor.remove(KEY_SCHEDULE_NAMES)
-        editor.remove(KEY_CURRENT_SCHEDULE_ID)
-        editor.remove(KEY_SHIFT_MODE)
-        editor.remove(KEY_SHIFT_SELECTED_SCHEDULES)
+            // 清除全局课表配置
+            remove(KEY_SCHEDULE_NAMES)
+            remove(KEY_CURRENT_SCHEDULE_ID)
+            remove(KEY_SHIFT_MODE)
+            remove(KEY_SHIFT_SELECTED_SCHEDULES)
 
-        // 写入备份数据
-        for ((key, value) in data) {
-            when (value) {
-                is String -> editor.putString(key, value)
-                is Boolean -> editor.putBoolean(key, value)
-                is Number -> {
-                    val numVal = value.toDouble()
-                    val intVal = numVal.toInt()
-                    if (numVal == intVal.toDouble()) {
-                        editor.putInt(key, intVal)
-                    } else {
-                        editor.putFloat(key, numVal.toFloat())
+            // 写入备份数据
+            for ((key, value) in data) {
+                when (value) {
+                    is String -> putString(key, value)
+                    is Boolean -> putBoolean(key, value)
+                    is Number -> {
+                        val numVal = value.toDouble()
+                        val intVal = numVal.toInt()
+                        if (numVal == intVal.toDouble()) {
+                            putInt(key, intVal)
+                        } else {
+                            putFloat(key, numVal.toFloat())
+                        }
+                    }
+
+                    is List<*> -> {
+                        // Set<String> 被导出为 List，需要还原
+                        @Suppress("UNCHECKED_CAST")
+                        val list = value.filterIsInstance<String>()
+                        putString(key, gson.toJson(list))
                     }
                 }
-                is List<*> -> {
-                    // Set<String> 被导出为 List，需要还原
-                    @Suppress("UNCHECKED_CAST")
-                    val list = value.filterIsInstance<String>()
-                    editor.putString(key, gson.toJson(list))
-                }
             }
         }
-        editor.apply()
         onCourseChanged?.invoke("restore", "")
     }
 
@@ -1268,81 +1210,5 @@ class CourseRepository private constructor(context: Context) {
         val afternoon = safeGetInt("${prefix}$KEY_AFTERNOON_SECTIONS", 4)
         val evening = safeGetInt("${prefix}$KEY_EVENING_SECTIONS", 4)
         return Triple(morning, afternoon, evening)
-    }
-
-    // ============ 课表设置导出/导入（用于云同步） ============
-
-    private fun getSettingsLastModified(scheduleId: String): Long {
-        val prefix = "$SCHEDULE_KEY_PREFIX${scheduleId}_"
-        return prefs.getLong("${prefix}_settings_last_modified", 0L)
-    }
-
-    private fun setSettingsLastModified(scheduleId: String, time: Long) {
-        val prefix = "$SCHEDULE_KEY_PREFIX${scheduleId}_"
-        prefs.edit().putLong("${prefix}_settings_last_modified", time).apply()
-    }
-
-    /**
-     * 导出单个课表的设置（不含课程数据）
-     * 上传时使用当前时间作为时间戳
-     */
-    fun exportScheduleSettings(scheduleId: String, useCurrentTime: Boolean = false): Map<String, Any> {
-        val prefix = "$SCHEDULE_KEY_PREFIX${scheduleId}_"
-        val settings = mutableMapOf<String, Any>()
-
-        // 用显式 getter 读取，确保默认值也能导出
-        settings[KEY_TOTAL_WEEKS] = safeGetInt("${prefix}$KEY_TOTAL_WEEKS", 20)
-        settings[KEY_CLASS_START_TIME] = prefs.getString("${prefix}$KEY_CLASS_START_TIME", "") ?: ""
-        settings[KEY_CURRENT_WEEK] = safeGetInt("${prefix}$KEY_CURRENT_WEEK", 1)
-        settings[KEY_SHOW_WEEKEND] = prefs.getString("${prefix}$KEY_SHOW_WEEKEND", "") ?: ""
-        settings[KEY_SHOW_NON_CURRENT_WEEK] = prefs.getBoolean("${prefix}$KEY_SHOW_NON_CURRENT_WEEK", true)
-        settings[KEY_MORNING_SECTIONS] = safeGetInt("${prefix}$KEY_MORNING_SECTIONS", 4)
-        settings[KEY_AFTERNOON_SECTIONS] = safeGetInt("${prefix}$KEY_AFTERNOON_SECTIONS", 4)
-        settings[KEY_EVENING_SECTIONS] = safeGetInt("${prefix}$KEY_EVENING_SECTIONS", 4)
-        settings[KEY_SECTION_TIMES] = prefs.getString("${prefix}$KEY_SECTION_TIMES", "") ?: ""
-        settings[KEY_QUICK_TIME_ENABLED] = prefs.getBoolean("${prefix}$KEY_QUICK_TIME_ENABLED", false)
-        settings[KEY_CLASS_DURATION] = safeGetInt("${prefix}$KEY_CLASS_DURATION", 45)
-        settings[KEY_SHORT_BREAK] = safeGetInt("${prefix}$KEY_SHORT_BREAK", 10)
-
-        settings["lastModified"] = if (useCurrentTime) System.currentTimeMillis() else getSettingsLastModified(scheduleId)
-        return settings
-    }
-
-    /**
-     * 获取本地设置的最后修改时间
-     */
-    fun getLocalSettingsLastModified(scheduleId: String): Long {
-        return getSettingsLastModified(scheduleId)
-    }
-
-    /**
-     * 导入单个课表的设置
-     */
-    fun importScheduleSettings(scheduleId: String, settings: Map<String, Any>) {
-        val prefix = "$SCHEDULE_KEY_PREFIX${scheduleId}_"
-        val editor = prefs.edit()
-        for ((key, value) in settings) {
-            if (key == "lastModified") continue // 跳过时间戳，单独处理
-            val fullKey = "$prefix$key"
-            when (value) {
-                is String -> editor.putString(fullKey, value)
-                is Double -> editor.putInt(fullKey, value.toInt())
-                is Number -> {
-                    val numVal = value.toDouble()
-                    val intVal = numVal.toInt()
-                    if (numVal == intVal.toDouble()) {
-                        editor.putInt(fullKey, intVal)
-                    } else {
-                        editor.putFloat(fullKey, numVal.toFloat())
-                    }
-                }
-                is Boolean -> editor.putBoolean(fullKey, value)
-            }
-        }
-        // 保存导入的时间戳
-        val remoteTime = (settings["lastModified"] as? Number)?.toLong() ?: System.currentTimeMillis()
-        editor.putLong("${prefix}_settings_last_modified", remoteTime)
-        editor.apply()
-        onCourseChanged?.invoke("settings", "")
     }
 }

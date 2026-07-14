@@ -1149,13 +1149,17 @@ fun AddCourseDialog(
         ) {
             Button(
                 modifier = Modifier.weight(1f),
-                onClick = { showDeleteDialog = false },
+                onClick = {
+                    hapticFeedback.performHapticFeedback(HapticFeedbackType.Confirm)
+                    showDeleteDialog = false
+                },
             ) {
                 Text("取消",fontSize = 17.sp, fontWeight = FontWeight.Medium, color = MiuixTheme.colorScheme.onSurface)
             }
             Button(
                 modifier = Modifier.weight(1f),
                 onClick = {
+                    hapticFeedback.performHapticFeedback(HapticFeedbackType.Confirm)
                     course?.id?.let { onDelete(it) }
                     showDeleteDialog = false
                     showBottomSheet = false

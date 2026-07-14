@@ -1,4 +1,4 @@
-/** 应用更新设置页面 */
+/** 更新日志页 - Activity */
 package com.haooz.chedule.ui.activities
 
 import android.os.Bundle
@@ -31,7 +31,7 @@ import top.yukonga.miuix.kmp.theme.MiuixTheme
 import androidx.compose.ui.unit.DpOffset
 import com.kyant.backdrop.backdrops.layerBackdrop as liquidGlassLayerBackdrop
 
-class UpdateSettingsActivity : ComponentActivity() {
+class ChangelogActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge(
@@ -64,7 +64,7 @@ class UpdateSettingsActivity : ComponentActivity() {
                             ) {
                                 SmallTopAppBar(
                                     color = Color.Transparent,
-                                    title = "更新设置",
+                                    title = "更新日志",
                                     modifier = Modifier.zIndex(1f),
                                     navigationIcon = {}
                                 )
@@ -95,7 +95,7 @@ class UpdateSettingsActivity : ComponentActivity() {
                                 else Modifier
                             )
                         ) {
-                            UpdateSettingsScreen(onBack = { finish() })
+                            ChangelogScreen(onBack = { finish() })
                         }
                     }
                 }

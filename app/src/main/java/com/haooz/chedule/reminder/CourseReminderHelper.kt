@@ -202,12 +202,13 @@ object CourseReminderHelper {
         val minutesBefore = repository.getPreClassReminderMinutes()
         val currentWeek = repository.getCurrentWeek()
         val totalWeeks = repository.getTotalWeeks()
+        val lastWeekWithCourses = repository.getLastWeekWithCourses()
         val today = getTodayOfWeek()
         val allCourses = repository.getAllCourses()
         val morningSections = repository.getMorningSections()
         val afternoonSections = repository.getAfternoonSections()
 
-        if (currentWeek > totalWeeks) return
+        if (currentWeek > totalWeeks || currentWeek > lastWeekWithCourses) return
 
         // 清除旧的倒计时状态，重新调度所有闹钟
         context.getSharedPreferences("countdown_state", Context.MODE_PRIVATE)
@@ -387,7 +388,8 @@ object CourseReminderHelper {
         // 学期已结束，不再调度明日课程提醒
         val currentWeek = repository.getCurrentWeek()
         val totalWeeks = repository.getTotalWeeks()
-        if (currentWeek > totalWeeks) return
+        val lastWeekWithCourses = repository.getLastWeekWithCourses()
+        if (currentWeek > totalWeeks || currentWeek > lastWeekWithCourses) return
 
         val hour = repository.getNextDayReminderHour()
         val minute = repository.getNextDayReminderMinute()
@@ -610,12 +612,13 @@ object CourseReminderHelper {
         val repository = CourseRepository(context)
         val currentWeek = repository.getCurrentWeek()
         val totalWeeks = repository.getTotalWeeks()
+        val lastWeekWithCourses = repository.getLastWeekWithCourses()
         val courses = repository.getAllCourses()
         val today = getTodayOfWeek()
         val tomorrowDayOfWeek = if (today == 7) 1 else today + 1
         val tomorrowWeek = if (tomorrowDayOfWeek == 1) currentWeek + 1 else currentWeek
 
-        if (tomorrowWeek > totalWeeks) return emptyList()
+        if (tomorrowWeek > totalWeeks || tomorrowWeek > lastWeekWithCourses) return emptyList()
 
         return courses.filter { course ->
             course.dayOfWeek == tomorrowDayOfWeek && course.isActiveInWeek(tomorrowWeek)
@@ -626,7 +629,9 @@ object CourseReminderHelper {
         val repository = CourseRepository(context)
         val currentWeek = repository.getCurrentWeek()
         val today = getTodayOfWeek()
-        if (currentWeek > repository.getTotalWeeks()) return emptyList()
+        val totalWeeks = repository.getTotalWeeks()
+        val lastWeekWithCourses = repository.getLastWeekWithCourses()
+        if (currentWeek > totalWeeks || currentWeek > lastWeekWithCourses) return emptyList()
         return repository.getAllCourses()
             .filter { it.dayOfWeek == today && it.isActiveInWeek(currentWeek) }
             .sortedBy { it.startSection }
@@ -664,30 +669,28 @@ object CourseReminderHelper {
     }
 
     private fun ensureNotificationChannels(context: Context) {
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-            val manager = context.getSystemService(NotificationManager::class.java)
-            val alertChannel = NotificationChannel(
-                CHANNEL_REMINDER_ID,
-                CHANNEL_REMINDER_NAME,
-                NotificationManager.IMPORTANCE_HIGH
-            ).apply {
-                description = "课程提醒通知"
-                setShowBadge(true)
-            }
-            val liveChannel = NotificationChannel(
-                CHANNEL_LIVE_ID,
-                CHANNEL_LIVE_NAME,
-                NotificationManager.IMPORTANCE_DEFAULT
-            ).apply {
-                description = "课程提醒实时进度"
-                setShowBadge(true)
-                enableLights(false)
-                enableVibration(false)
-                lockscreenVisibility = Notification.VISIBILITY_PUBLIC
-            }
-            manager.createNotificationChannel(alertChannel)
-            manager.createNotificationChannel(liveChannel)
+        val manager = context.getSystemService(NotificationManager::class.java)
+        val alertChannel = NotificationChannel(
+            CHANNEL_REMINDER_ID,
+            CHANNEL_REMINDER_NAME,
+            NotificationManager.IMPORTANCE_HIGH
+        ).apply {
+            description = "课程提醒通知"
+            setShowBadge(true)
         }
+        val liveChannel = NotificationChannel(
+            CHANNEL_LIVE_ID,
+            CHANNEL_LIVE_NAME,
+            NotificationManager.IMPORTANCE_DEFAULT
+        ).apply {
+            description = "课程提醒实时进度"
+            setShowBadge(true)
+            enableLights(false)
+            enableVibration(false)
+            lockscreenVisibility = Notification.VISIBILITY_PUBLIC
+        }
+        manager.createNotificationChannel(alertChannel)
+        manager.createNotificationChannel(liveChannel)
     }
 
     fun showReminderNotification(context: Context, id: Int, title: String, message: String) {
