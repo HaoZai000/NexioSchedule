@@ -4,8 +4,8 @@
 
 一款基于 Jetpack Compose 的 Android 课程表应用，支持教务系统导入、多格式课表导入、WebDAV 同步、桌面小组件等功能。
 
-[![Total Stars](https://img.shields.io/endpoint?url=https%3A%2F%2Fraw.githubusercontent.com%2FHaoZai000%2FNexioSchedule%2Fmain%2Fbadges.json&style=flat-square)](https://github.com/HaoZai000/NexioSchedule/stargazers)
-[![Total Downloads](https://img.shields.io/endpoint?url=https%3A%2F%2Fraw.githubusercontent.com%2FHaoZai000%2FNexioSchedule%2Fmain%2Fdownloads-badge.json&style=flat-square)](https://github.com/HaoZai000/NexioSchedule/releases)
+[![Total Stars](https://img.shields.io/endpoint?url=https%3A%2F%2Fraw.githubusercontent.com%2FHaoZai000%2FNexioSchedule%2Fmaster%2Fbadges.json&style=flat-square)](https://github.com/HaoZai000/NexioSchedule/stargazers)
+[![Total Downloads](https://img.shields.io/endpoint?url=https%3A%2F%2Fraw.githubusercontent.com%2FHaoZai000%2FNexioSchedule%2Fmaster%2Fdownloads-badge.json&style=flat-square)](https://github.com/HaoZai000/NexioSchedule/releases)
 [![Latest Release](https://img.shields.io/github/v/release/HaoZai000/NexioSchedule?style=flat-square&color=blue)](https://github.com/HaoZai000/NexioSchedule/releases/latest)
 
 #### 一起交流与讨论 [QQ频道](https://pd.qq.com/s/cfwkl5q9q?b=9)
