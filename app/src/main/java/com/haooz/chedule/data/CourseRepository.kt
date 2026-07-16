@@ -907,11 +907,49 @@ class CourseRepository private constructor(context: Context) {
         val names = getScheduleNames().toMutableList()
         val index = names.indexOf(oldName)
         if (index != -1) {
+            // 先检查并更新当前课表ID，再修改课表名称列表
+            val savedCurrentId = prefs.getString(KEY_CURRENT_SCHEDULE_ID, "默认课表") ?: "默认课表"
+            if (savedCurrentId == oldName) {
+                setCurrentScheduleId(newName)
+            }
             names[index] = newName
             saveScheduleNames(names)
-            // 如果重命名的是当前课表，更新当前课表ID
-            if (getCurrentScheduleId() == oldName) {
-                setCurrentScheduleId(newName)
+            // 迁移 SharedPreferences 中所有 schedule_{oldName}_* 键到 schedule_{newName}_*
+            val oldPrefix = "$SCHEDULE_KEY_PREFIX${oldName}_"
+            val newPrefix = "$SCHEDULE_KEY_PREFIX${newName}_"
+            prefs.edit(commit = true) {
+                for ((key, value) in prefs.all) {
+                    if (key.startsWith(oldPrefix)) {
+                        val suffix = key.removePrefix(oldPrefix)
+                        val newKey = "$newPrefix$suffix"
+                        when (value) {
+                            is Int -> putInt(newKey, value)
+                            is Boolean -> putBoolean(newKey, value)
+                            is String -> {
+                                // 如果是课程数据，更新其中的 scheduleId 字段
+                                if (suffix == KEY_COURSES) {
+                                    val type = object : TypeToken<List<Course>>() {}.type
+                                    try {
+                                        val courses: List<Course> = gson.fromJson(value, type) ?: emptyList()
+                                        val updated = courses.map { it.copy(scheduleId = newName) }
+                                        putString(newKey, gson.toJson(updated))
+                                    } catch (_: Exception) {
+                                        putString(newKey, value)
+                                    }
+                                } else {
+                                    putString(newKey, value)
+                                }
+                            }
+                            is Float -> putFloat(newKey, value)
+                            is Long -> putLong(newKey, value)
+                            is Set<*> -> {
+                                @Suppress("UNCHECKED_CAST")
+                                putStringSet(newKey, value as Set<String>)
+                            }
+                        }
+                        remove(key)
+                    }
+                }
             }
         }
         notifyCourseChanged("settings")

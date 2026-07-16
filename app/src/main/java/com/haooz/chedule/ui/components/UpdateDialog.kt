@@ -58,7 +58,7 @@ internal fun UpdateDialog() {
         val autoCheck = updatePrefs.getBoolean("auto_check_update", true)
         val updateReminder = updatePrefs.getBoolean("update_reminder", true)
 
-        if (!autoCheck || !updateReminder) return@LaunchedEffect
+        if (!autoCheck) return@LaunchedEffect
 
         val today = SimpleDateFormat("yyyy-MM-dd", Locale.getDefault()).format(Date())
         val lastCheckDate = updatePrefs.getString("last_check_date", "") ?: ""
@@ -96,23 +96,15 @@ internal fun UpdateDialog() {
         val tag = updatePrefs.getString("latest_tag", "") ?: ""
         val body = updatePrefs.getString("latest_body", "") ?: ""
 
-        if (hasUpdate && tag.isNotBlank()) {
-            val currentVersion = try {
-                context.packageManager.getPackageInfo(context.packageName, 0).versionName ?: ""
-            } catch (_: Exception) { "" }
-            val latestVer = tag.removePrefix("v").substringBefore("-")
-            val localVer = currentVersion.removePrefix("v").substringBefore("-")
-
-            if (UpdateChecker.isNewerVersion(latestVer, localVer)) {
-                updateTagName = tag
-                updateBody = body
-                val apkFile = File(context.filesDir, "update-$tag.apk")
-                hasDownloadedApk = apkFile.exists() && apkFile.length() > 0
-                delay(800)
-                showUpdateDialog = true
-            } else {
-                updatePrefs.edit().putBoolean("has_update", false).apply()
-            }
+        if (hasUpdate && tag.isNotBlank() && updateReminder) {
+            updateTagName = tag
+            updateBody = body
+            val apkFile = File(context.filesDir, "update-$tag.apk")
+            hasDownloadedApk = apkFile.exists() && apkFile.length() > 0
+            delay(800)
+            showUpdateDialog = true
+        } else if (hasUpdate && !updateReminder) {
+            updatePrefs.edit().putBoolean("has_update", false).apply()
         }
     }
 

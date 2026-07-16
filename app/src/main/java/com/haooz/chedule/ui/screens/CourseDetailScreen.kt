@@ -4,23 +4,24 @@ package com.haooz.chedule.ui.screens
 import android.graphics.Bitmap
 import androidx.activity.compose.BackHandler
 import androidx.compose.animation.core.Animatable
-import androidx.compose.animation.core.CubicBezierEasing
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
-import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.asPaddingValues
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.statusBars
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.material3.Text
@@ -36,6 +37,7 @@ import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.RectangleShape
 import androidx.compose.ui.graphics.TransformOrigin
 import androidx.compose.ui.graphics.asImageBitmap
@@ -48,18 +50,26 @@ import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.DpOffset
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.zIndex
 import com.haooz.chedule.data.Course
+import com.haooz.chedule.ui.components.liquidglass.LiquidTopBarButton
+import com.haooz.chedule.ui.components.liquidglass.ProgressiveBlurTopBar
+import com.haooz.chedule.ui.oobe.OobeCubicOutEasing
+import com.haooz.chedule.ui.oobe.OobeQuartOutEasing
 import com.haooz.chedule.ui.utils.isAppDarkTheme
 import com.kyant.shapes.RoundedRectangle
 import kotlinx.coroutines.launch
 import top.yukonga.miuix.kmp.basic.Card
+import top.yukonga.miuix.kmp.basic.CardDefaults
 import top.yukonga.miuix.kmp.basic.Icon
 import top.yukonga.miuix.kmp.basic.IconButton
 import top.yukonga.miuix.kmp.basic.MiuixScrollBehavior
 import top.yukonga.miuix.kmp.basic.Scaffold
 import top.yukonga.miuix.kmp.basic.SmallTitle
+import top.yukonga.miuix.kmp.basic.SmallTopAppBar
 import top.yukonga.miuix.kmp.basic.TopAppBar
 import top.yukonga.miuix.kmp.blur.BlendColorEntry
 import top.yukonga.miuix.kmp.blur.BlurBlendMode
@@ -69,25 +79,12 @@ import top.yukonga.miuix.kmp.blur.rememberLayerBackdrop
 import top.yukonga.miuix.kmp.blur.textureBlur
 import top.yukonga.miuix.kmp.icon.MiuixIcons
 import top.yukonga.miuix.kmp.icon.extended.Back
+import top.yukonga.miuix.kmp.icon.extended.ChevronBackward
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 import top.yukonga.miuix.kmp.utils.overScrollVertical
 import top.yukonga.miuix.kmp.utils.scrollEndHaptic
-import com.haooz.chedule.ui.components.liquidglass.ProgressiveBlurTopBar
-import com.haooz.chedule.ui.components.liquidglass.LiquidTopBarButton
-import androidx.compose.ui.zIndex
-import androidx.compose.ui.unit.DpOffset
-import androidx.compose.ui.graphics.Color
-import com.kyant.backdrop.backdrops.LayerBackdrop
-import com.kyant.backdrop.backdrops.layerBackdrop as liquidGlassLayerBackdrop
-import androidx.compose.foundation.layout.WindowInsets
-import androidx.compose.foundation.layout.statusBars
-import androidx.compose.foundation.layout.asPaddingValues
-import top.yukonga.miuix.kmp.basic.CardColors
-import top.yukonga.miuix.kmp.basic.CardDefaults
-import top.yukonga.miuix.kmp.basic.SmallTopAppBar
-import top.yukonga.miuix.kmp.icon.extended.ChevronBackward
-import androidx.compose.ui.graphics.graphicsLayer as graphicsLayerAlias
 import androidx.compose.ui.graphics.Color as ComposeColor
+import com.kyant.backdrop.backdrops.layerBackdrop as liquidGlassLayerBackdrop
 
 private data class AnimState(
     val bgAlpha: Float,
@@ -136,10 +133,6 @@ fun CourseDetailScreen(
     classStartTime: String,
     onBackStart: () -> Unit,
     onBack: () -> Unit,
-    wallpaperBitmap: android.graphics.Bitmap? = null,
-    wallpaperOffset: androidx.compose.ui.geometry.Offset = androidx.compose.ui.geometry.Offset.Zero,
-    wallpaperScale: Float = 1f,
-    wallpaperBrightness: Float = 0f
 ) {
     val courseName = courses.firstOrNull()?.name ?: ""
     // 按周数排序，最大排在最上
@@ -166,8 +159,8 @@ fun CourseDetailScreen(
     val scope = rememberCoroutineScope()
     val hapticFeedback = LocalHapticFeedback.current
     val startCornerRadiusPx = 20f * density.density
-    val morphOpenEase = CubicBezierEasing(0.3f, 0.72f, 0.2f, 1.0f)
-    val morphExitEase = CubicBezierEasing(0.3f, 0.65f, 0.35f, 1.0f)
+    val morphOpenEase = OobeQuartOutEasing
+    val morphExitEase = OobeCubicOutEasing
 
     BackHandler {
         onBackStart()
@@ -286,7 +279,7 @@ fun CourseDetailScreen(
                             if (isLiquidGlass) {
                                 val statusBarPadding = WindowInsets.statusBars.asPaddingValues().calculateTopPadding()
                                 ProgressiveBlurTopBar(
-                                    backdrop = liquidGlassBackdrop!!,
+                                    backdrop = liquidGlassBackdrop,
                                 ) {
                                     SmallTopAppBar(
                                         color = Color.Transparent,
@@ -368,7 +361,9 @@ fun CourseDetailScreen(
                                 .fillMaxSize()
                                 .layerBackdrop(backdrop)
                                 .then(
-                                    if (isLiquidGlass) Modifier.liquidGlassLayerBackdrop(liquidGlassBackdrop!!)
+                                    if (isLiquidGlass) Modifier.liquidGlassLayerBackdrop(
+                                        liquidGlassBackdrop
+                                    )
                                     else Modifier
                                 )
                         ) {

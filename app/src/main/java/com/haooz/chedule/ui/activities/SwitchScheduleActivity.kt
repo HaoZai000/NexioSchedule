@@ -172,6 +172,9 @@ fun SwitchScheduleScreen(
         scheduleNames = repository.getScheduleNames()
     }
     var currentScheduleId by remember { mutableStateOf(initialCurrentScheduleId ?: repository.getCurrentScheduleId()) }
+    LaunchedEffect(Unit) {
+        currentScheduleId = repository.getCurrentScheduleId()
+    }
     var scheduleSummaries by remember { mutableStateOf(initialScheduleSummaries?.toMutableMap() ?: mutableMapOf()) }
     LaunchedEffect(initialScheduleSummaries) {
         scheduleSummaries = initialScheduleSummaries?.toMutableMap() ?: mutableMapOf()
@@ -869,7 +872,12 @@ fun SwitchScheduleScreen(
                         onClick = {
                             hapticFeedback.performHapticFeedback(HapticFeedbackType.Confirm)
                             if (editScheduleName.isNotBlank() && editScheduleName != editingScheduleName) {
+                                val wasChecked = checkboxStates[editingScheduleName] == true
                                 scheduleNames = repository.renameSchedule(editingScheduleName, editScheduleName)
+                                checkboxStates.remove(editingScheduleName)
+                                if (wasChecked) {
+                                    checkboxStates[editScheduleName] = true
+                                }
                                 if (currentScheduleId == editingScheduleName) {
                                     currentScheduleId = editScheduleName
                                     repository.switchToSchedule(editScheduleName)
