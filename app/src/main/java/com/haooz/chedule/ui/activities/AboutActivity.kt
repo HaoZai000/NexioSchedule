@@ -420,7 +420,6 @@ private fun AboutScreen(onBack: () -> Unit) {
                         )
                     }
                     item(key = "about") {
-
                         Card(
                             modifier = Modifier
                                 .padding(horizontal = 16.dp)
@@ -481,6 +480,163 @@ private fun AboutScreen(onBack: () -> Unit) {
                     }
 
                     item(key = "changelog") {
+                            Spacer(modifier = Modifier.height(12.dp))
+                        Card(
+                            modifier = Modifier
+                                .padding(horizontal = 16.dp)
+                                .then(
+                                    if (backdrop != null) {
+                                        Modifier.textureBlur(
+                                            backdrop = backdrop,
+                                            shape = RoundedRectangle(20.dp),
+                                            blurRadius = 60f,
+                                            colors = BlurDefaults.blurColors(
+                                                blendColors = cardBlend,
+                                            ),
+                                        )
+                                    } else {
+                                        Modifier
+                                    },
+                                ),
+                            colors = CardDefaults.defaultColors(
+                                if (backdrop != null) Color.Transparent else MiuixTheme.colorScheme.background,
+                                Color.Transparent,
+                            ),
+                        ) {
+                            Column(
+                                modifier = Modifier.fillMaxWidth()
+                            ) {
+                                Row(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .clickable {
+                                            context.startActivity(
+                                                android.content.Intent(
+                                                    context,
+                                                    ChangelogActivity::class.java
+                                                )
+                                            )
+                                        }
+                                        .padding(
+                                            start = 16.dp,
+                                            end = 13.dp,
+                                            top = 17.dp,
+                                            bottom = 12.dp
+                                        ),
+                                    horizontalArrangement = Arrangement.SpaceBetween,
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Text(
+                                        text = "更新日志",
+                                        fontSize = 17.sp,
+                                        fontWeight = FontWeight.Medium,
+                                        color = MiuixTheme.colorScheme.onSurface
+                                    )
+                                    Icon(
+                                        imageVector = MiuixIcons.Basic.ArrowRight,
+                                        contentDescription = null,
+                                        modifier = Modifier.size(16.dp),
+                                        tint = MiuixTheme.colorScheme.onSurfaceVariantActions
+                                    )
+                                }
+                                val recentChangelog = changelogData.take(3)
+                                val expandedStates = recentChangelog.mapIndexed { index, _ ->
+                                    val expandedState = remember { mutableStateOf(index == 0) }
+                                    expandedState
+                                }
+                                val rotations = recentChangelog.mapIndexed { index, _ ->
+                                    val rotation by animateFloatAsState(
+                                        targetValue = if (expandedStates[index].value) 90f else -90f,
+                                        animationSpec = tween(durationMillis = 200),
+                                        label = "changelogRotation$index"
+                                    )
+                                    rotation
+                                }
+                                recentChangelog.forEachIndexed { index, entry ->
+                                    Column(
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .clickable {
+                                                expandedStates[index].value =
+                                                    !expandedStates[index].value
+                                            }
+                                    ) {
+                                        Row(
+                                            modifier = Modifier
+                                                .fillMaxWidth()
+                                                .padding(
+                                                    start = 20.dp,
+                                                    end = 18.dp,
+                                                    top = if (index == 0) 12.dp else 17.dp,
+                                                    bottom = 17.dp
+                                                ),
+                                            horizontalArrangement = Arrangement.SpaceBetween,
+                                            verticalAlignment = Alignment.CenterVertically
+                                        ) {
+                                            Text(
+                                                text = entry.version,
+                                                fontSize = 17.sp,
+                                                fontWeight = FontWeight.Medium,
+                                                color = MiuixTheme.colorScheme.onSurface,
+                                                modifier = Modifier.weight(1f)
+                                            )
+                                            Text(
+                                                text = entry.date,
+                                                fontSize = 14.sp,
+                                                color = MiuixTheme.colorScheme.onSurfaceVariantActions
+                                            )
+                                            Spacer(modifier = Modifier.width(8.dp))
+                                            Icon(
+                                                imageVector = MiuixIcons.ChevronForward,
+                                                contentDescription = null,
+                                                modifier = Modifier
+                                                    .size(16.dp)
+                                                    .graphicsLayer {
+                                                        rotationZ = rotations[index]
+                                                    },
+                                                tint = MiuixTheme.colorScheme.onSurfaceVariantActions
+                                            )
+                                        }
+                                        AnimatedVisibility(
+                                            visible = expandedStates[index].value,
+                                            enter = expandVertically(),
+                                            exit = shrinkVertically()
+                                        ) {
+                                            Column(
+                                                modifier = Modifier.padding(
+                                                    start = 18.dp,
+                                                    end = 18.dp,
+                                                    bottom = 14.dp
+                                                )
+                                            ) {
+                                                Text(
+                                                    text = entry.changes.joinToString("\n") { "• $it" },
+                                                    fontSize = 14.sp,
+                                                    lineHeight = 22.sp,
+                                                    color = MiuixTheme.colorScheme.onSurfaceVariantActions
+                                                )
+                                            }
+                                        }
+                                    }
+
+                                    if (index < recentChangelog.lastIndex) {
+                                        Spacer(
+                                            modifier = Modifier
+                                                .fillMaxWidth()
+                                                .padding(horizontal = 18.dp)
+                                                .height(0.5.dp)
+                                                .background(
+                                                    MiuixTheme.colorScheme.onSurfaceVariantActions.copy(
+                                                        alpha = 0.07f
+                                                    )
+                                                )
+                                        )
+                                    }
+                                }
+                            }
+                        }
+                    }
+                    item(key = "thanks") {
                         Column(
                             modifier = Modifier
                                 .padding(
@@ -489,163 +645,7 @@ private fun AboutScreen(onBack: () -> Unit) {
                                 )
                                 .fillParentMaxHeight(),
                         ) {
-                            Spacer(modifier = Modifier.height(12.dp))
-                            Card(
-                                modifier = Modifier
-                                    .padding(horizontal = 16.dp)
-                                    .then(
-                                        if (backdrop != null) {
-                                            Modifier.textureBlur(
-                                                backdrop = backdrop,
-                                                shape = RoundedRectangle(20.dp),
-                                                blurRadius = 60f,
-                                                colors = BlurDefaults.blurColors(
-                                                    blendColors = cardBlend,
-                                                ),
-                                            )
-                                        } else {
-                                            Modifier
-                                        },
-                                    ),
-                                colors = CardDefaults.defaultColors(
-                                    if (backdrop != null) Color.Transparent else MiuixTheme.colorScheme.background,
-                                    Color.Transparent,
-                                ),
-                            ) {
-                                Column(
-                                    modifier = Modifier.fillMaxWidth()
-                                ) {
-                                    Row(
-                                        modifier = Modifier
-                                            .fillMaxWidth()
-                                            .clickable {
-                                                context.startActivity(
-                                                    android.content.Intent(
-                                                        context,
-                                                        ChangelogActivity::class.java
-                                                    )
-                                                )
-                                            }
-                                            .padding(
-                                                start = 16.dp,
-                                                end = 13.dp,
-                                                top = 17.dp,
-                                                bottom = 12.dp
-                                            ),
-                                        horizontalArrangement = Arrangement.SpaceBetween,
-                                        verticalAlignment = Alignment.CenterVertically
-                                    ) {
-                                        Text(
-                                            text = "更新日志",
-                                            fontSize = 17.sp,
-                                            fontWeight = FontWeight.Medium,
-                                            color = MiuixTheme.colorScheme.onSurface
-                                        )
-                                        Icon(
-                                            imageVector = MiuixIcons.Basic.ArrowRight,
-                                            contentDescription = null,
-                                            modifier = Modifier.size(16.dp),
-                                            tint = MiuixTheme.colorScheme.onSurfaceVariantActions
-                                        )
-                                    }
-                                    val recentChangelog = changelogData.take(3)
-                                    val expandedStates = recentChangelog.mapIndexed { index, _ ->
-                                        val expandedState = remember { mutableStateOf(index == 0) }
-                                        expandedState
-                                    }
-                                    val rotations = recentChangelog.mapIndexed { index, _ ->
-                                        val rotation by animateFloatAsState(
-                                            targetValue = if (expandedStates[index].value) 90f else -90f,
-                                            animationSpec = tween(durationMillis = 200),
-                                            label = "changelogRotation$index"
-                                        )
-                                        rotation
-                                    }
-
-                                    recentChangelog.forEachIndexed { index, entry ->
-                                        Column(
-                                            modifier = Modifier
-                                                .fillMaxWidth()
-                                                .clickable {
-                                                    expandedStates[index].value =
-                                                        !expandedStates[index].value
-                                                }
-                                        ) {
-                                            Row(
-                                                modifier = Modifier
-                                                    .fillMaxWidth()
-                                                    .padding(
-                                                        start = 20.dp,
-                                                        end = 18.dp,
-                                                        top = if (index == 0) 12.dp else 17.dp,
-                                                        bottom = 17.dp
-                                                    ),
-                                                horizontalArrangement = Arrangement.SpaceBetween,
-                                                verticalAlignment = Alignment.CenterVertically
-                                            ) {
-                                                Text(
-                                                    text = entry.version,
-                                                    fontSize = 17.sp,
-                                                    fontWeight = FontWeight.Medium,
-                                                    color = MiuixTheme.colorScheme.onSurface,
-                                                    modifier = Modifier.weight(1f)
-                                                )
-                                                Text(
-                                                    text = entry.date,
-                                                    fontSize = 14.sp,
-                                                    color = MiuixTheme.colorScheme.onSurfaceVariantActions
-                                                )
-                                                Spacer(modifier = Modifier.width(8.dp))
-                                                Icon(
-                                                    imageVector = MiuixIcons.ChevronForward,
-                                                    contentDescription = null,
-                                                    modifier = Modifier
-                                                        .size(16.dp)
-                                                        .graphicsLayer {
-                                                            rotationZ = rotations[index]
-                                                        },
-                                                    tint = MiuixTheme.colorScheme.onSurfaceVariantActions
-                                                )
-                                            }
-                                            AnimatedVisibility(
-                                                visible = expandedStates[index].value,
-                                                enter = expandVertically(),
-                                                exit = shrinkVertically()
-                                            ) {
-                                                Column(
-                                                    modifier = Modifier.padding(
-                                                        start = 18.dp,
-                                                        end = 18.dp,
-                                                        bottom = 14.dp
-                                                    )
-                                                ) {
-                                                    Text(
-                                                        text = entry.changes.joinToString("\n") { "• $it" },
-                                                        fontSize = 14.sp,
-                                                        lineHeight = 22.sp,
-                                                        color = MiuixTheme.colorScheme.onSurfaceVariantActions
-                                                    )
-                                                }
-                                            }
-                                        }
-
-                                        if (index < recentChangelog.lastIndex) {
-                                            Spacer(
-                                                modifier = Modifier
-                                                    .fillMaxWidth()
-                                                    .padding(horizontal = 18.dp)
-                                                    .height(0.5.dp)
-                                                    .background(
-                                                        MiuixTheme.colorScheme.onSurfaceVariantActions.copy(
-                                                            alpha = 0.07f
-                                                        )
-                                                    )
-                                            )
-                                        }
-                                    }
-                                }
-                            }
-                            var expanded by remember { mutableStateOf(false) }
+                            var expanded by remember { mutableStateOf(true) }
                             val rotation by animateFloatAsState(
                                 targetValue = if (expanded) 90f else -90f,
                                 animationSpec = tween(durationMillis = 200),

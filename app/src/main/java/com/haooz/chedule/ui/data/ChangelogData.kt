@@ -5,8 +5,17 @@ data class ChangelogEntry(
     val date: String,
     val changes: List<String>
 )
-
 val changelogData = listOf(
+    ChangelogEntry(
+        version = "v1.2.6-0716",
+        date = "2026-07-16",
+        changes = listOf(
+            "优化部分动画曲线",
+            "修复重命名课表导致课表丢失的问题",
+            "修复关于应用页面无法全部展示的问题",
+            "修复更新设置开关与实际不符的问题"
+        )
+    ),
     ChangelogEntry(
         version = "v1.2.5-0715",
         date = "2026-07-15",
@@ -67,7 +76,7 @@ val changelogData = listOf(
     ),
     ChangelogEntry(
         version = "v1.1.0-0704",
-        date = "2026-07-03",
+        date = "2026-07-04",
         changes = listOf(
             "应用更名为 Nexio 课程表",
             "彻底重构课程提醒功能",

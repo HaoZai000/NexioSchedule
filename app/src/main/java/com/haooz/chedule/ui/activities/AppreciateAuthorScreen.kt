@@ -53,10 +53,8 @@ import top.yukonga.miuix.kmp.utils.scrollEndHaptic
 import top.yukonga.miuix.kmp.blur.layerBackdrop
 import top.yukonga.miuix.kmp.blur.rememberLayerBackdrop
 import androidx.compose.ui.input.nestedscroll.nestedScroll
-
-private val sampleAppreciations = listOf(
-    AppreciationItem("mendacious", "¥0.88", "2026-07-03"),
-)
+import com.haooz.chedule.ui.data.sampleAppreciations
+import com.haooz.chedule.ui.data.AppreciationItem
 
 @Composable
 fun AppreciateAuthorScreen(onBack: () -> Unit) {
@@ -146,30 +144,29 @@ fun AppreciateAuthorScreen(onBack: () -> Unit) {
                     }
                 }
 
-                item {
-                    SmallTitle(
-                        text = "赞赏明细",
-                        modifier = Modifier.offset(x = (-16).dp)
-                    )
-                }
-
-                item {
-                    Card(
-                        cornerRadius = 20.dp,
-                        modifier = Modifier.fillMaxWidth(),
-                        insideMargin = PaddingValues(0.dp)
-                    ) {
-                        Column(modifier = Modifier.fillMaxWidth()) {
-                            sampleAppreciations.forEachIndexed { index, item ->
-                                AppreciationListItem(item = item)
-                                if (index < sampleAppreciations.lastIndex) {
-                                    Spacer(
-                                        modifier = Modifier
-                                            .fillMaxWidth()
-                                            .padding(horizontal = 16.dp)
-                                            .height(0.5.dp)
-                                            .background(MiuixTheme.colorScheme.surfaceVariant)
-                                    )
+                if (sampleAppreciations.isNotEmpty()) {
+                    item {
+                        SmallTitle(
+                            text = "赞赏明细",
+                            modifier = Modifier.offset(x = (-16).dp)
+                        )
+                        Card(
+                            cornerRadius = 20.dp,
+                            modifier = Modifier.fillMaxWidth(),
+                            insideMargin = PaddingValues(0.dp)
+                        ) {
+                            Column(modifier = Modifier.fillMaxWidth()) {
+                                sampleAppreciations.forEachIndexed { index, item ->
+                                    AppreciationListItem(item = item)
+                                    if (index < sampleAppreciations.lastIndex) {
+                                        Spacer(
+                                            modifier = Modifier
+                                                .fillMaxWidth()
+                                                .padding(horizontal = 16.dp)
+                                                .height(0.5.dp)
+                                                .background(MiuixTheme.colorScheme.surfaceVariant)
+                                        )
+                                    }
                                 }
                             }
                         }
@@ -179,12 +176,6 @@ fun AppreciateAuthorScreen(onBack: () -> Unit) {
         }
     }
 }
-
-private data class AppreciationItem(
-    val nickname: String,
-    val amount: String,
-    val time: String,
-)
 
 @Composable
 private fun AppreciationListItem(item: AppreciationItem) {
