@@ -336,16 +336,6 @@ internal fun ScheduleTopBar(
                                         }
                                     )
                                     DropdownImpl(
-                                        text = "课表外观",
-                                        optionSize = 3,
-                                        isSelected = false,
-                                        index = 1,
-                                        onSelectedIndexChange = {
-                                            onShowMorePopupChange(false)
-                                            onOpenCustomize()
-                                        }
-                                    )
-                                    DropdownImpl(
                                         text = "课程管理",
                                         optionSize = 3,
                                         isSelected = false,
@@ -353,6 +343,16 @@ internal fun ScheduleTopBar(
                                         onSelectedIndexChange = {
                                             onShowMorePopupChange(false)
                                             onCourseManage()
+                                        }
+                                    )
+                                    DropdownImpl(
+                                        text = "课表外观",
+                                        optionSize = 3,
+                                        isSelected = false,
+                                        index = 1,
+                                        onSelectedIndexChange = {
+                                            onShowMorePopupChange(false)
+                                            onOpenCustomize()
                                         }
                                     )
                                 }

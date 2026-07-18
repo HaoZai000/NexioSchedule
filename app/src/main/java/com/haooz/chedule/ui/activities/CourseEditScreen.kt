@@ -165,6 +165,7 @@ fun CourseEditScreen(
     screenCornerRadius: Float,
     cardSnapshot: Bitmap?,
     cardColor: Color = Color(0xFF4CAF50),
+    cardAlpha: Float = 0.15f,
     sectionTimes: Map<Int, String>,
     onBackStart: () -> Unit,
     onBack: () -> Unit,
@@ -285,7 +286,7 @@ fun CourseEditScreen(
                 }
                 .clip(clipShape)
                 .background(MiuixTheme.colorScheme.surface)
-                .background(cardColor.copy(alpha = 0.15f))
+                .background(cardColor.copy(alpha = cardAlpha))
         ) {
             // Card snapshot during morph (identical to CourseDetailScreen)
             if (cardSnapshot != null && s.snapshotAlpha > 0f) {

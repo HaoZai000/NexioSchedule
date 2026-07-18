@@ -23,6 +23,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.blur
 import androidx.compose.ui.draw.drawWithContent
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.asAndroidBitmap
@@ -74,6 +75,9 @@ class CourseManageActivity : ComponentActivity() {
                 val liquidGlassBackdrop = if (appStyle == "liquidglass") {
                     com.kyant.backdrop.backdrops.rememberLayerBackdrop()
                 } else null
+                val editLiquidGlassBackdrop = if (appStyle == "liquidglass") {
+                    com.kyant.backdrop.backdrops.rememberLayerBackdrop()
+                } else null
                 val isLiquidGlass = liquidGlassBackdrop != null
 
                 // Edit screen state
@@ -85,12 +89,14 @@ class CourseManageActivity : ComponentActivity() {
                 var cardHeight by remember { mutableStateOf(0f) }
                 var cardSnapshot by remember { mutableStateOf<android.graphics.Bitmap?>(null) }
                 var cardColor by remember { mutableStateOf(Color(0xFF4CAF50)) }
+                var cardAlpha by remember { mutableStateOf(0.15f) }
 
                 // Graphics layer for capturing screen content
                 val screenGraphicsLayer = rememberGraphicsLayer()
 
                 // Background scale animation (same as MainActivity)
                 val backgroundScale = remember { Animatable(1f) }
+                val managePageBlurRadius = remember { Animatable(0f) }
                 val windowInfo = LocalWindowInfo.current
                 val coroutineScope = rememberCoroutineScope()
                 val density = LocalDensity.current
@@ -109,103 +115,117 @@ class CourseManageActivity : ComponentActivity() {
                     }
                 }
 
-                Box(modifier = Modifier.fillMaxSize().background(MiuixTheme.colorScheme.surface)) {
-                    // Main content with scale animation and screen capture
-                    Box(
-                        modifier = Modifier
-                            .fillMaxSize()
-                            .graphicsLayer {
-                                val scale = backgroundScale.value
-                                scaleX = scale
-                                scaleY = scale
-                            }
-                            .drawWithContent {
-                                screenGraphicsLayer.record {
-                                    this@drawWithContent.drawContent()
+                Box(modifier = Modifier.fillMaxSize()) {
+                    // Main content with blur and scale animation
+                    Box(modifier = Modifier
+                        .fillMaxSize()
+                        .blur(managePageBlurRadius.value.dp)
+                        .background(MiuixTheme.colorScheme.surface)) {
+                        Box(
+                            modifier = Modifier
+                                .fillMaxSize()
+                                .graphicsLayer {
+                                    val scale = backgroundScale.value
+                                    scaleX = scale
+                                    scaleY = scale
                                 }
-                                drawContent()
-                            }
-                    ) {
-                        Scaffold(
-                            topBar = {
-                                if (isLiquidGlass) {
-                                    val statusBarPadding = WindowInsets.statusBars.asPaddingValues().calculateTopPadding()
-                                    ProgressiveBlurTopBar(
-                                        backdrop = liquidGlassBackdrop!!,
-                                    ) {
-                                        SmallTopAppBar(
-                                            color = Color.Transparent,
-                                            title = "课程管理",
-                                            modifier = Modifier.zIndex(1f),
-                                            navigationIcon = {}
-                                        )
-                                        LiquidTopBarButton(
-                                            onClick = { finish() },
-                                            backdrop = liquidGlassBackdrop,
-                                            icon = MiuixIcons.Medium.ChevronBackward,
-                                            contentDescription = "返回",
-                                            modifier = Modifier
-                                                .zIndex(2f)
-                                                .offset(x = 20.dp, y = if (statusBarPadding > 0.dp) statusBarPadding + 5.dp else 42.dp),
-                                            iconSize = 22.dp,
-                                            iconOffset = DpOffset(x = (-2).dp, y = 0.dp),
-                                            useBackdropShadow = true
-                                        )
+                                .drawWithContent {
+                                    screenGraphicsLayer.record {
+                                        this@drawWithContent.drawContent()
+                                    }
+                                    drawContent()
+                                }
+                        ) {
+                            Scaffold(
+                                topBar = {
+                                    if (isLiquidGlass) {
+                                        val statusBarPadding = WindowInsets.statusBars.asPaddingValues().calculateTopPadding()
+                                        ProgressiveBlurTopBar(
+                                            backdrop = liquidGlassBackdrop!!,
+                                        ) {
+                                            SmallTopAppBar(
+                                                color = Color.Transparent,
+                                                title = "课程管理",
+                                                modifier = Modifier.zIndex(1f),
+                                                navigationIcon = {}
+                                            )
+                                            LiquidTopBarButton(
+                                                onClick = { finish() },
+                                                backdrop = liquidGlassBackdrop,
+                                                icon = MiuixIcons.Medium.ChevronBackward,
+                                                contentDescription = "返回",
+                                                modifier = Modifier
+                                                    .zIndex(2f)
+                                                    .offset(x = 20.dp, y = if (statusBarPadding > 0.dp) statusBarPadding + 5.dp else 42.dp),
+                                                iconSize = 22.dp,
+                                                iconOffset = DpOffset(x = (-2).dp, y = 0.dp),
+                                                useBackdropShadow = true
+                                            )
+                                        }
                                     }
                                 }
-                            }
-                        ) { _ ->
-                            Box(
-                                modifier = Modifier
-                                    .fillMaxSize()
-                                    .layerBackdrop(backdrop)
-                            ) {
+                            ) { _ ->
                                 Box(
-                                    modifier = Modifier.fillMaxSize().then(
-                                        if (liquidGlassBackdrop != null) Modifier.liquidGlassLayerBackdrop(liquidGlassBackdrop)
-                                        else Modifier
-                                    )
+                                    modifier = Modifier
+                                        .fillMaxSize()
+                                        .layerBackdrop(backdrop)
                                 ) {
-                                    CourseManageScreen(
-                                        onBack = { finish() },
-                                        liquidGlassBackdrop = liquidGlassBackdrop,
-                                        onCourseClick = { courses, left, top, width, height, _, color ->
-                                            coroutineScope.launch {
-                                                selectedCourses = courses
-                                                cardLeft = left
-                                                cardTop = top
-                                                cardWidth = width
-                                                cardHeight = height
-                                                cardColor = color
+                                    Box(
+                                        modifier = Modifier.fillMaxSize().then(
+                                            if (liquidGlassBackdrop != null) Modifier.liquidGlassLayerBackdrop(liquidGlassBackdrop)
+                                            else Modifier
+                                        )
+                                    ) {
+                                        CourseManageScreen(
+                                            onBack = { finish() },
+                                            liquidGlassBackdrop = liquidGlassBackdrop,
+                                            onCourseClick = { courses, left, top, width, height, _, color, alpha ->
+                                                coroutineScope.launch {
+                                                    selectedCourses = courses
+                                                    cardLeft = left
+                                                    cardTop = top
+                                                    cardWidth = width
+                                                    cardHeight = height
+                                                    cardColor = color
+                                                    cardAlpha = alpha
 
-                                                // Capture full screen snapshot
-                                                val fullSnapshot = screenGraphicsLayer.toImageBitmap().asAndroidBitmap()
+                                                    // Capture full screen snapshot
+                                                    val fullSnapshot = screenGraphicsLayer.toImageBitmap().asAndroidBitmap()
 
-                                                // Crop card area from full snapshot
-                                                cardSnapshot = try {
-                                                    val x = left.toInt().coerceIn(0, fullSnapshot.width - 1)
-                                                    val y = top.toInt().coerceIn(0, fullSnapshot.height - 1)
-                                                    val w = width.toInt().coerceIn(1, fullSnapshot.width - x)
-                                                    val h = height.toInt().coerceIn(1, fullSnapshot.height - y)
-                                                    android.graphics.Bitmap.createBitmap(fullSnapshot, x, y, w, h)
-                                                } catch (_: Exception) {
-                                                    null
+                                                    // Crop card area from full snapshot
+                                                    cardSnapshot = try {
+                                                        val x = left.toInt().coerceIn(0, fullSnapshot.width - 1)
+                                                        val y = top.toInt().coerceIn(0, fullSnapshot.height - 1)
+                                                        val w = width.toInt().coerceIn(1, fullSnapshot.width - x)
+                                                        val h = height.toInt().coerceIn(1, fullSnapshot.height - y)
+                                                        android.graphics.Bitmap.createBitmap(fullSnapshot, x, y, w, h)
+                                                    } catch (_: Exception) {
+                                                        null
+                                                    }
+
+                                                    showEditScreen = true
+                                                    launch {
+                                                        backgroundScale.animateTo(
+                                                            targetValue = 0.92f,
+                                                            animationSpec = tween(620, easing = OobeQuartOutEasing)
+                                                        )
+                                                    }
+                                                    launch {
+                                                        managePageBlurRadius.animateTo(
+                                                            targetValue = 5f,
+                                                            animationSpec = tween(620, easing = OobeQuartOutEasing)
+                                                        )
+                                                    }
                                                 }
-
-                                                showEditScreen = true
-                                                backgroundScale.animateTo(
-                                                    targetValue = 0.92f,
-                                                    animationSpec = tween(620, easing = OobeQuartOutEasing)
-                                                )
                                             }
-                                        }
-                                    )
+                                        )
+                                    }
                                 }
                             }
                         }
                     }
 
-                    // Edit screen (on top, rendered after main content)
+                    // Edit screen (above blur layer)
                     if (showEditScreen) {
                         CourseEditScreen(
                             courses = selectedCourses,
@@ -218,13 +238,22 @@ class CourseManageActivity : ComponentActivity() {
                             screenCornerRadius = screenCornerRadius,
                             cardSnapshot = cardSnapshot,
                             cardColor = cardColor,
+                            cardAlpha = cardAlpha,
                             sectionTimes = Course.defaultSectionTimes,
                             onBackStart = {
                                 coroutineScope.launch {
-                                    backgroundScale.animateTo(
-                                        targetValue = 1f,
-                                        animationSpec = tween(380, easing = OobeCubicOutEasing)
-                                    )
+                                    launch {
+                                        backgroundScale.animateTo(
+                                            targetValue = 1f,
+                                            animationSpec = tween(380, easing = OobeCubicOutEasing)
+                                        )
+                                    }
+                                    launch {
+                                        managePageBlurRadius.animateTo(
+                                            targetValue = 0f,
+                                            animationSpec = tween(380, easing = OobeCubicOutEasing)
+                                        )
+                                    }
                                 }
                             },
                             onBack = {
@@ -232,7 +261,7 @@ class CourseManageActivity : ComponentActivity() {
                                 cardSnapshot = null
                             },
                             onCourseUpdated = { },
-                            liquidGlassBackdrop = liquidGlassBackdrop
+                            liquidGlassBackdrop = editLiquidGlassBackdrop
                         )
                     }
                 }
