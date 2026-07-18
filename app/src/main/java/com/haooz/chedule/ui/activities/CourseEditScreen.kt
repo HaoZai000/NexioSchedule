@@ -164,7 +164,6 @@ fun CourseEditScreen(
     screenHeight: Float,
     screenCornerRadius: Float,
     cardSnapshot: Bitmap?,
-    cardColor: Color = Color(0xFF4CAF50),
     sectionTimes: Map<Int, String>,
     onBackStart: () -> Unit,
     onBack: () -> Unit,
@@ -257,12 +256,13 @@ fun CourseEditScreen(
         saturation = 1.2f
     )
 
-    // ---- Morphing container ----
+    // ---- Morphing container (identical to CourseDetailScreen) ----
     Box(
         modifier = Modifier
             .fillMaxSize()
             .background(
-                cardColor.copy(alpha = animState.value.bgAlpha)
+                if (isDark) ComposeColor(0xFF2C2C2C).copy(alpha = animState.value.bgAlpha)
+                else ComposeColor.Black.copy(alpha = animState.value.bgAlpha)
             )
             .pointerInput(Unit) {
                 // Block touch events during animation
