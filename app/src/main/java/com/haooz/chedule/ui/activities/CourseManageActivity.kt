@@ -129,29 +129,7 @@ class CourseManageActivity : ComponentActivity() {
                         Scaffold(
                             topBar = {
                                 if (isLiquidGlass) {
-                                    val statusBarPadding = WindowInsets.statusBars.asPaddingValues().calculateTopPadding()
-                                    ProgressiveBlurTopBar(
-                                        backdrop = liquidGlassBackdrop!!,
-                                    ) {
-                                        SmallTopAppBar(
-                                            color = Color.Transparent,
-                                            title = "课程管理",
-                                            modifier = Modifier.zIndex(1f),
-                                            navigationIcon = {}
-                                        )
-                                        LiquidTopBarButton(
-                                            onClick = { finish() },
-                                            backdrop = liquidGlassBackdrop,
-                                            icon = MiuixIcons.Medium.ChevronBackward,
-                                            contentDescription = "返回",
-                                            modifier = Modifier
-                                                .zIndex(2f)
-                                                .offset(x = 20.dp, y = if (statusBarPadding > 0.dp) statusBarPadding + 5.dp else 42.dp),
-                                            iconSize = 22.dp,
-                                            iconOffset = DpOffset(x = (-2).dp, y = 0.dp),
-                                            useBackdropShadow = true
-                                        )
-                                    }
+                                    // ProgressiveBlurTopBar 在 graphicsLayer 外面渲染
                                 }
                             }
                         ) { _ ->
@@ -202,6 +180,34 @@ class CourseManageActivity : ComponentActivity() {
                                     )
                                 }
                             }
+                        }
+                    }
+
+                    // ProgressiveBlurTopBar 在 graphicsLayer 外面（与 CourseDetailScreen 同级）
+                    if (isLiquidGlass) {
+                        val statusBarPadding = WindowInsets.statusBars.asPaddingValues().calculateTopPadding()
+                        ProgressiveBlurTopBar(
+                            backdrop = liquidGlassBackdrop!!,
+                            modifier = Modifier.zIndex(10f)
+                        ) {
+                            SmallTopAppBar(
+                                color = Color.Transparent,
+                                title = "课程管理",
+                                modifier = Modifier.zIndex(1f),
+                                navigationIcon = {}
+                            )
+                            LiquidTopBarButton(
+                                onClick = { finish() },
+                                backdrop = liquidGlassBackdrop,
+                                icon = MiuixIcons.Medium.ChevronBackward,
+                                contentDescription = "返回",
+                                modifier = Modifier
+                                    .zIndex(2f)
+                                    .offset(x = 20.dp, y = if (statusBarPadding > 0.dp) statusBarPadding + 5.dp else 42.dp),
+                                iconSize = 22.dp,
+                                iconOffset = DpOffset(x = (-2).dp, y = 0.dp),
+                                useBackdropShadow = true
+                            )
                         }
                     }
 
