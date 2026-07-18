@@ -443,7 +443,7 @@ fun CourseEditScreen(
                                         .nestedScroll(scrollBehavior.nestedScrollConnection),
                                     contentPadding = PaddingValues(
                                         start = 16.dp,
-                                        top = if (isLiquidGlass) paddingValues.calculateTopPadding() + (-8).dp else paddingValues.calculateTopPadding() + 8.dp,
+                                        top = if (isLiquidGlass) paddingValues.calculateTopPadding() + (-16).dp else paddingValues.calculateTopPadding(),
                                         end = 16.dp,
                                         bottom = 120.dp
                                     ),
