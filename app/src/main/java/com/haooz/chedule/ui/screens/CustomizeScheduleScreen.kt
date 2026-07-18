@@ -29,8 +29,6 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
-import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
@@ -38,7 +36,9 @@ import androidx.compose.foundation.layout.statusBars
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.pager.HorizontalPager
 import androidx.compose.foundation.pager.rememberPagerState
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -75,10 +75,10 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.unit.DpSize
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.zIndex
+import com.haooz.chedule.ui.components.BlurBottomSheet
 import com.haooz.chedule.ui.components.liquidglass.InteractiveHighlight
 import com.haooz.chedule.ui.utils.isAppDarkTheme
 import com.haooz.chedule.ui.utils.rememberAppStyle
@@ -102,6 +102,8 @@ import top.yukonga.miuix.kmp.basic.Slider
 import top.yukonga.miuix.kmp.basic.SliderDefaults
 import top.yukonga.miuix.kmp.basic.Switch
 import top.yukonga.miuix.kmp.basic.VerticalDivider
+import top.yukonga.miuix.kmp.blur.layerBackdrop
+import top.yukonga.miuix.kmp.blur.rememberLayerBackdrop
 import top.yukonga.miuix.kmp.icon.MiuixIcons
 import top.yukonga.miuix.kmp.icon.extended.Add
 import top.yukonga.miuix.kmp.icon.extended.Background
@@ -109,7 +111,6 @@ import top.yukonga.miuix.kmp.icon.extended.Close
 import top.yukonga.miuix.kmp.icon.extended.Delete
 import top.yukonga.miuix.kmp.icon.extended.GridView
 import top.yukonga.miuix.kmp.icon.extended.Image
-import top.yukonga.miuix.kmp.overlay.OverlayBottomSheet
 import top.yukonga.miuix.kmp.shader.isRuntimeShaderSupported
 import top.yukonga.miuix.kmp.squircle.addSquircleRect
 import top.yukonga.miuix.kmp.theme.MiuixTheme
@@ -155,7 +156,7 @@ fun CustomizeScheduleScreen(
     initialCardHeight: Float = 54f,
     initialCardCornerRadius: Float = 8f,
     onShowBreakDividersChange: (Boolean) -> Unit = {},
-    initialShowBreakDividers: Boolean = true
+    initialShowBreakDividers: Boolean = true,
 ) {
     // ================================================================
     // 一、基础环境与尺寸计算
@@ -182,6 +183,14 @@ fun CustomizeScheduleScreen(
         com.kyant.backdrop.backdrops.rememberLayerBackdrop()
     } else null
     val isLiquidGlass = appStyle == "liquidglass"
+
+    // 弹窗模糊 backdrop
+    val sheetBackdropColor = MiuixTheme.colorScheme.surface
+    val sheetBackdrop = rememberLayerBackdrop {
+        drawRect(sheetBackdropColor)
+        drawContent()
+    }
+
     val primaryColor = MiuixTheme.colorScheme.primary
     val exitContainerColor = Color.White.copy(0.08f)
     val exitIconColor = Color.White
@@ -477,6 +486,7 @@ fun CustomizeScheduleScreen(
     BoxWithConstraints(
         modifier = Modifier
             .fillMaxSize()
+            .layerBackdrop(sheetBackdrop)
             .clickable(
                 interactionSource = cancelDeleteInteractionSource,
                 indication = null,
@@ -1211,10 +1221,12 @@ fun CustomizeScheduleScreen(
         }
 
         // -------- 8.11 效果弹窗 --------
-        OverlayBottomSheet(
+        BlurBottomSheet(
             show = showEffectSheet,
             title = "效果",
-            startAction = {
+            backdrop = sheetBackdrop,
+            onDismissRequest = { showEffectSheet = false },
+            endAction = {
                 IconButton(onClick = { showEffectSheet = false },
                     modifier = Modifier.padding(horizontal = 20.dp)) {
                     Icon(
@@ -1224,20 +1236,16 @@ fun CustomizeScheduleScreen(
                         modifier = Modifier.size(22.dp)
                     )
                 }
-            },
-            enableWindowDim = false,
-            insideMargin = DpSize(0.dp, 0.dp),
-            onDismissRequest = { showEffectSheet = false },
-            backgroundColor = if (isAppDarkTheme()) Color(0xFF1E1E1E) else Color(0xFFF7F7F7),
-            cornerRadius = 36.dp
+            }
         ) {
             Column(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .heightIn(max = 240.dp)
+                    .heightIn(max = 540.dp)
                     .verticalScroll(rememberScrollState()),
                 verticalArrangement = Arrangement.spacedBy(16.dp)
             ) {
+                Spacer(Modifier.height(60.dp))
                 Card(
                     modifier = Modifier
                         .fillMaxWidth()
@@ -1328,15 +1336,17 @@ fun CustomizeScheduleScreen(
                         )
                     }
                 }
-                Spacer(Modifier.height(40.dp))
+                Spacer(Modifier.height(240.dp))
             }
         }
 
         // -------- 8.12 自定义弹窗 --------
-        OverlayBottomSheet(
+        BlurBottomSheet(
             show = showCustomizeSheet,
             title = "自定义",
-            startAction = {
+            backdrop = sheetBackdrop,
+            onDismissRequest = { showCustomizeSheet = false },
+            endAction = {
                 IconButton(onClick = { showCustomizeSheet = false },
                     modifier = Modifier.padding(horizontal = 20.dp)) {
                     Icon(
@@ -1346,20 +1356,16 @@ fun CustomizeScheduleScreen(
                         modifier = Modifier.size(22.dp)
                     )
                 }
-            },
-            enableWindowDim = false,
-            insideMargin = DpSize(0.dp, 0.dp),
-            onDismissRequest = { showCustomizeSheet = false },
-            backgroundColor = if (isAppDarkTheme()) Color(0xFF1E1E1E) else Color(0xFFF7F7F7),
-            cornerRadius = 36.dp
+            }
         ) {
             Column(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .heightIn(max = 240.dp)
+                    .heightIn(max = 540.dp)
                     .verticalScroll(rememberScrollState()),
                 verticalArrangement = Arrangement.spacedBy(16.dp)
             ) {
+                Spacer(Modifier.height(60.dp))
                 Card(
                     modifier = Modifier
                         .fillMaxWidth()
@@ -1440,7 +1446,7 @@ fun CustomizeScheduleScreen(
                         Text(
                             text = "午休晚休分界线",
                             fontWeight = FontWeight.Medium,
-                            fontSize = 15.sp,
+                            fontSize = 17.sp,
                             color = MiuixTheme.colorScheme.onSurface
                         )
                         Switch(
@@ -1449,7 +1455,7 @@ fun CustomizeScheduleScreen(
                         )
                     }
                 }
-                Spacer(Modifier.height(40.dp))
+                Spacer(Modifier.height(240.dp))
             }
         }
     }

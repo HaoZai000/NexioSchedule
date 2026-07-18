@@ -1,4 +1,4 @@
-/** 偏好设置页面 */
+/** 本地备份页面 */
 package com.haooz.chedule.ui.activities
 
 import android.os.Bundle
@@ -14,6 +14,7 @@ import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.statusBars
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.unit.DpOffset
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.zIndex
 import com.haooz.chedule.ui.components.liquidglass.LiquidTopBarButton
@@ -28,10 +29,9 @@ import top.yukonga.miuix.kmp.blur.rememberLayerBackdrop
 import top.yukonga.miuix.kmp.icon.MiuixIcons
 import top.yukonga.miuix.kmp.icon.extended.ChevronBackward
 import top.yukonga.miuix.kmp.theme.MiuixTheme
-import androidx.compose.ui.unit.DpOffset
 import com.kyant.backdrop.backdrops.layerBackdrop as liquidGlassLayerBackdrop
 
-class PreferenceSettingsActivity : ComponentActivity() {
+class LocalBackupActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge(
@@ -64,7 +64,7 @@ class PreferenceSettingsActivity : ComponentActivity() {
                             ) {
                                 SmallTopAppBar(
                                     color = Color.Transparent,
-                                    title = "应用偏好设置",
+                                    title = "本地备份",
                                     modifier = Modifier.zIndex(1f),
                                     navigationIcon = {}
                                 )
@@ -95,9 +95,7 @@ class PreferenceSettingsActivity : ComponentActivity() {
                                 else Modifier
                             )
                         ) {
-                            PreferenceSettingsScreen(
-                                onBack = { finish() }
-                            )
+                            LocalBackupScreen(onBack = { finish() })
                         }
                     }
                 }

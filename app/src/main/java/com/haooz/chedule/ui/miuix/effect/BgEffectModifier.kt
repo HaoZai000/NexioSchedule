@@ -82,7 +82,7 @@ private class BgEffectNode(
     private var playing: Boolean,
     private var colorStage: () -> Float,
     private var alpha: () -> Float,
-) : androidx.compose.ui.Modifier.Node(),
+) : Modifier.Node(),
     DrawModifierNode {
 
     private var animationJob: Job? = null

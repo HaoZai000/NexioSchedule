@@ -7,11 +7,27 @@ import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.asPaddingValues
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.offset
+import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.statusBars
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.derivedStateOf
@@ -20,6 +36,7 @@ import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -34,7 +51,10 @@ import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalHapticFeedback
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.DpOffset
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import androidx.compose.ui.zIndex
 import com.haooz.chedule.data.Course
 import com.haooz.chedule.ui.components.liquidglass.LiquidTopBarButton
@@ -45,24 +65,20 @@ import com.haooz.chedule.ui.utils.isAppDarkTheme
 import com.haooz.chedule.ui.utils.rememberAppStyle
 import com.kyant.shapes.RoundedRectangle
 import kotlinx.coroutines.launch
+import top.yukonga.miuix.kmp.basic.MiuixScrollBehavior
+import top.yukonga.miuix.kmp.basic.Card
 import top.yukonga.miuix.kmp.basic.Scaffold
 import top.yukonga.miuix.kmp.basic.SmallTopAppBar
 import top.yukonga.miuix.kmp.blur.BlendColorEntry
 import top.yukonga.miuix.kmp.blur.BlurBlendMode
 import top.yukonga.miuix.kmp.blur.BlurDefaults
+import top.yukonga.miuix.kmp.blur.layerBackdrop
+import top.yukonga.miuix.kmp.blur.rememberLayerBackdrop
+import top.yukonga.miuix.kmp.blur.textureBlur
 import top.yukonga.miuix.kmp.icon.MiuixIcons
 import top.yukonga.miuix.kmp.icon.extended.Back
 import top.yukonga.miuix.kmp.icon.extended.ChevronBackward
 import top.yukonga.miuix.kmp.theme.MiuixTheme
-import androidx.compose.foundation.layout.WindowInsets
-import androidx.compose.foundation.layout.asPaddingValues
-import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.statusBars
-import top.yukonga.miuix.kmp.basic.MiuixScrollBehavior
-import top.yukonga.miuix.kmp.blur.layerBackdrop
-import top.yukonga.miuix.kmp.blur.rememberLayerBackdrop
-import top.yukonga.miuix.kmp.blur.textureBlur
-import androidx.compose.ui.unit.DpOffset
 import androidx.compose.ui.graphics.Color as ComposeColor
 import com.kyant.backdrop.backdrops.layerBackdrop as liquidGlassLayerBackdrop
 
@@ -362,11 +378,155 @@ fun CourseEditScreen(
                                     else Modifier
                                 )
                         ) {
-                            // TODO: Course segment cards will be added in subsequent tasks
-                            // LazyColumn with edit cards goes here
+                            val listState = rememberLazyListState()
+
+                            // Track scroll state for top bar blur effect
+                            LaunchedEffect(listState) {
+                                snapshotFlow { listState.firstVisibleItemIndex to listState.firstVisibleItemScrollOffset }
+                                    .collect { (index, offset) ->
+                                        listScrollY = index * 100 + offset
+                                    }
+                            }
+
+                            // Group courses by day/section/week configuration
+                            val courseGroups = remember(courses) {
+                                courses.groupBy { course ->
+                                    CourseGroupKey(
+                                        dayOfWeek = course.dayOfWeek,
+                                        startSection = course.startSection,
+                                        endSection = course.endSection,
+                                        weekType = course.weekType,
+                                        startWeek = course.startWeek,
+                                        endWeek = course.endWeek,
+                                        selectedWeeks = course.selectedWeeks
+                                    )
+                                }.map { (key, groupCourses) ->
+                                    CourseGroup(key = key, courses = groupCourses)
+                                }
+                            }
+
+                            LazyColumn(
+                                state = listState,
+                                modifier = Modifier.fillMaxSize()
+                            ) {
+                                items(
+                                    items = courseGroups,
+                                    key = { "${it.key.dayOfWeek}_${it.key.startSection}_${it.key.startWeek}" }
+                                ) { group ->
+                                    CourseGroupCard(
+                                        group = group,
+                                        sectionTimes = sectionTimes,
+                                        onCourseUpdated = onCourseUpdated,
+                                        modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)
+                                    )
+                                }
+
+                                // Bottom spacing for navigation bar
+                                item {
+                                    Spacer(
+                                        modifier = Modifier.padding(bottom = 80.dp)
+                                    )
+                                }
+                            }
                         }
                     }
                 }
+            }
+        }
+    }
+}
+
+// ===================== CourseGroupCard =====================
+
+@Composable
+private fun CourseGroupCard(
+    group: CourseGroup,
+    sectionTimes: Map<Int, String>,
+    onCourseUpdated: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    val key = group.key
+    val dayNames = listOf("", "周一", "周二", "周三", "周四", "周五", "周六", "周日")
+    val dayName = dayNames.getOrElse(key.dayOfWeek) { "未知" }
+
+    val sectionRange = if (key.startSection == key.endSection) {
+        "第${key.startSection}节"
+    } else {
+        "第${key.startSection}-${key.endSection}节"
+    }
+
+    val weekRange = when (key.weekType) {
+        1 -> "第${key.startWeek}-${key.endWeek}周"
+        2 -> {
+            val weeksStr = key.selectedWeeks.sorted().joinToString(", ")
+            if (weeksStr.isNotEmpty()) "第${weeksStr}周" else "自定义周次"
+        }
+        else -> "第${key.startWeek}-${key.endWeek}周"
+    }
+
+    val timeRange = buildString {
+        val startTime = sectionTimes[key.startSection]
+        val endTime = sectionTimes[key.endSection]?.let {
+            // Get end time (end section + 1 or just the end section time)
+            sectionTimes[key.endSection]
+        }
+        if (startTime != null && endTime != null) {
+            append("$startTime - $endTime")
+        }
+    }
+
+    Card(
+        modifier = modifier.fillMaxWidth(),
+        cornerRadius = 16.dp,
+        insideMargin = PaddingValues(0.dp),
+        colors = top.yukonga.miuix.kmp.basic.CardDefaults.defaultColors(
+            color = MiuixTheme.colorScheme.surface,
+            contentColor = MiuixTheme.colorScheme.onSurface
+        ),
+        showIndication = false
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(16.dp),
+            verticalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            // Header: Day + Section
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(
+                    text = "$dayName $sectionRange",
+                    fontSize = 16.sp,
+                    fontWeight = FontWeight.SemiBold,
+                    color = MiuixTheme.colorScheme.onSurface
+                )
+                if (timeRange.isNotEmpty()) {
+                    Text(
+                        text = timeRange,
+                        fontSize = 13.sp,
+                        color = MiuixTheme.colorScheme.onSurface.copy(alpha = 0.6f)
+                    )
+                }
+            }
+
+            // Week info
+            Text(
+                text = weekRange,
+                fontSize = 13.sp,
+                color = MiuixTheme.colorScheme.onSurface.copy(alpha = 0.6f)
+            )
+
+            // Course names in this group
+            if (group.courses.size > 1) {
+                Spacer(modifier = Modifier.height(4.dp))
+                Text(
+                    text = "包含 ${group.courses.size} 个相同配置的课程",
+                    fontSize = 12.sp,
+                    color = MiuixTheme.colorScheme.onSurface.copy(alpha = 0.5f)
+                )
             }
         }
     }

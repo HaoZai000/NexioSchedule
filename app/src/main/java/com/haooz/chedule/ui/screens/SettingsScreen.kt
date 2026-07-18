@@ -3,7 +3,6 @@ package com.haooz.chedule.ui.screens
 
 import android.content.Context
 import android.content.Intent
-import android.os.Environment
 import android.widget.Toast
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
@@ -43,9 +42,7 @@ import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import androidx.core.content.FileProvider
 import com.haooz.chedule.data.Course
-import com.haooz.chedule.data.WebDavManager
 import com.haooz.chedule.ui.activities.AboutActivity
 import com.haooz.chedule.ui.activities.CourseReminderActivity
 import com.haooz.chedule.ui.activities.CourseTimeSettingsActivity
@@ -171,54 +168,8 @@ fun SettingsScreen(
     var showStartDateDialog by remember { mutableStateOf(false) }
     var showSectionDialog by remember { mutableStateOf(false) }
 
-    // 完整课表导入相关状态
-    var showImportConfirmDialog by remember { mutableStateOf(false) }
-    var pendingImportData by remember { mutableStateOf<Map<String, Any>?>(null) }
-    var pendingImportScheduleName by remember { mutableStateOf("") }
-
-    // WebDAV 云备份
-    val webDavManager = remember { WebDavManager(context) }
-    val lastSyncTimeMs = webDavManager.lastSyncTime
-    val lastSyncSummary = remember(lastSyncTimeMs) {
-        if (lastSyncTimeMs > 0L) {
-            val sdf = java.text.SimpleDateFormat("yyyy-MM-dd HH:mm", java.util.Locale.getDefault())
-            "上次操作: ${sdf.format(java.util.Date(lastSyncTimeMs))}"
-        } else "未操作"
-    }
-
     // 教务导入仓库源设置
     val coroutineScope = rememberCoroutineScope()
-
-    val filePickerLauncher = rememberLauncherForActivityResult(
-        contract = ActivityResultContracts.OpenDocument()
-    ) { uri ->
-        uri?.let {
-            try {
-                val inputStream = context.contentResolver.openInputStream(it)
-                val text = inputStream?.bufferedReader()?.use { reader -> reader.readText() } ?: ""
-                inputStream?.close()
-
-                if (text.isNotBlank()) {
-                    val fileName = uri.lastPathSegment?.lowercase() ?: ""
-                    val isIcs = fileName.endsWith(".ics")
-
-                    val (success, message, data) = if (isIcs) parseIcsFile(text) else parseFullScheduleJson(text)
-                    if (success && data != null) {
-                        val scheduleName = if (isIcs) "ICS导入课表" else (data["schedule_name"] as? String) ?: "导入的课表"
-                        pendingImportData = data
-                        pendingImportScheduleName = scheduleName
-                        showImportConfirmDialog = true
-                    } else {
-                        Toast.makeText(context, message, Toast.LENGTH_SHORT).show()
-                    }
-                } else {
-                    Toast.makeText(context, "文件读取失败", Toast.LENGTH_SHORT).show()
-                }
-            } catch (e: Exception) {
-                Toast.makeText(context, "导入失败: ${e.message}", Toast.LENGTH_SHORT).show()
-            }
-        }
-    }
 
     // 临时选择状态
     var tempCurrentWeek by remember { mutableIntStateOf(currentWeek) }
@@ -591,7 +542,7 @@ fun SettingsScreen(
                 if (!isShiftMode) {
                     item {
                         SmallTitle(
-                            text = "导入导出",
+                            text = "数据管理",
                             modifier = Modifier.offset(x = (-15).dp)
                         )
                         Card(
@@ -628,17 +579,11 @@ fun SettingsScreen(
                                 modifier = Modifier.fillMaxWidth()
                             ) {
                                 ArrowPreference(
-                                    title = "课表导入",
-                                    summary = "导入JSON或ICS格式的课表文件",
+                                    title = "备份与迁移",
+                                    summary = "课表导入导出与备份",
                                     onClick = {
-                                        filePickerLauncher.launch(arrayOf("application/json", "text/calendar", "*/*"))
-                                    }
-                                )
-                                ArrowPreference(
-                                    title = "课表导出",
-                                    summary = "以JSON格式导出完整课表数据",
-                                    onClick = {
-                                        exportSchedule(context, viewModel, scheduleViewModel, settingsViewModel)
+                                        val intent = Intent(context, com.haooz.chedule.ui.activities.CourseDataManageActivity::class.java)
+                                        context.startActivity(intent)
                                     }
                                 )
                             }
@@ -685,14 +630,6 @@ fun SettingsScreen(
                                     title = "应用偏好设置",
                                     onClick = {
                                         val intent = Intent(context, PreferenceSettingsActivity::class.java)
-                                        context.startActivity(intent)
-                                    }
-                                )
-                                ArrowPreference(
-                                    title = "WebDav云备份",
-                                    summary = if (webDavManager.isConfigured()) lastSyncSummary else "配置服务器后可手动备份/恢复",
-                                    onClick = {
-                                        val intent = Intent(context, com.haooz.chedule.ui.activities.WebDavSettingsActivity::class.java)
                                         context.startActivity(intent)
                                     }
                                 )
@@ -1102,140 +1039,6 @@ fun SettingsScreen(
         // AI 文本导入已迁移至独立页面 AiImportActivity
     }
 
-    // 完整课表导入确认弹窗
-    if (showImportConfirmDialog && pendingImportData != null) {
-        OverlayDialog(
-            title = "导入课表",
-            summary = "是否导入课表「$pendingImportScheduleName」？\n确定导入将创建一个新的课表",
-            show = true,
-
-            onDismissRequest = {
-                showImportConfirmDialog = false
-                pendingImportData = null
-                pendingImportScheduleName = ""
-            }
-        ) {
-            Column(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalAlignment = Alignment.CenterHorizontally
-            ) {
-                TextField(
-                    value = pendingImportScheduleName,
-                    onValueChange = { pendingImportScheduleName = it },
-                    label = "课表名称",
-                    modifier = Modifier.fillMaxWidth()
-                )
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(top = 16.dp),
-                    horizontalArrangement = Arrangement.spacedBy(12.dp)
-                ) {
-                    TextButton(
-                        text = "取消",
-                        onClick = {
-                            hapticFeedback.performHapticFeedback(HapticFeedbackType.Confirm)
-                            showImportConfirmDialog = false
-                            pendingImportData = null
-                            pendingImportScheduleName = ""
-                        },
-                        modifier = Modifier.weight(1f)
-                    )
-                    TextButton(
-                        text = "确定导入",
-                        onClick = {
-                            hapticFeedback.performHapticFeedback(HapticFeedbackType.Confirm)
-                            if (pendingImportScheduleName.isNotBlank() && pendingImportData != null) {
-                                val (_, message) = applyScheduleData(
-                                    context,
-                                    viewModel,
-                                    scheduleViewModel,
-                                    settingsViewModel,
-                                    pendingImportScheduleName,
-                                    pendingImportData!!
-                                )
-                                Toast.makeText(context, message, Toast.LENGTH_LONG).show()
-                            }
-                            showImportConfirmDialog = false
-                            pendingImportData = null
-                            pendingImportScheduleName = ""
-                        },
-                        colors = ButtonDefaults.textButtonColorsPrimary(),
-                        modifier = Modifier.weight(1f)
-                    )
-                }
-            }
-        }
-    }
-
-    }
-}
-
-/**
- * 导出课表为JSON文件并调用系统分享
- */
-private fun exportSchedule(context: Context, viewModel: CourseViewModel, scheduleViewModel: ScheduleViewModel, settingsViewModel: SettingsViewModel) {
-    val courses = viewModel.courses.value
-    if (courses.isEmpty()) {
-        Toast.makeText(context, "当前课表为空，无法导出", Toast.LENGTH_SHORT).show()
-        return
-    }
-
-    val data = mapOf(
-        "schedule_name" to scheduleViewModel.currentScheduleName.value,
-        "settings" to mapOf(
-            "class_start_time" to viewModel.classStartTime.value,
-            "current_week" to viewModel.currentWeek.value,
-            "total_weeks" to viewModel.totalWeeks.value,
-            "show_weekend_days" to settingsViewModel.showWeekendDays.value.toList(),
-            "show_non_current_week" to settingsViewModel.showNonCurrentWeek.value,
-            "morning_sections" to settingsViewModel.morningSections.value,
-            "afternoon_sections" to settingsViewModel.afternoonSections.value,
-            "evening_sections" to settingsViewModel.eveningSections.value
-        ),
-        "times" to mapOf(
-            "morning" to settingsViewModel.getMorningTimes().mapKeys { it.key.toString() },
-            "afternoon" to settingsViewModel.getAfternoonTimes().mapKeys { it.key.toString() },
-            "evening" to settingsViewModel.getEveningTimes().mapKeys { it.key.toString() }
-        ),
-        "courses" to courses.map { course ->
-            mapOf(
-                "name" to course.name,
-                "classroom" to course.classroom,
-                "teacher" to course.teacher,
-                "dayOfWeek" to course.dayOfWeek,
-                "startSection" to course.startSection,
-                "endSection" to course.endSection,
-                "selectedWeeks" to (course.selectedWeeks.ifEmpty {
-                    (course.startWeek..course.endWeek).toList()
-                }).sorted()
-            )
-        }
-    )
-
-    val json = com.google.gson.GsonBuilder().setPrettyPrinting().create().toJson(data)
-
-    try {
-        val dir = context.getExternalFilesDir(Environment.DIRECTORY_DOCUMENTS)
-        val fileName = "${scheduleViewModel.currentScheduleName.value}.json"
-        val file = java.io.File(dir, fileName)
-        file.writeText(json, Charsets.UTF_8)
-
-        val uri = FileProvider.getUriForFile(
-            context,
-            "${context.packageName}.fileprovider",
-            file
-        )
-
-        val shareIntent = Intent(Intent.ACTION_SEND).apply {
-            type = "application/json"
-            putExtra(Intent.EXTRA_STREAM, uri)
-            putExtra(Intent.EXTRA_SUBJECT, "课表数据")
-            addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
-        }
-        context.startActivity(Intent.createChooser(shareIntent, "分享课表"))
-    } catch (e: Exception) {
-        Toast.makeText(context, "导出失败: ${e.message}", Toast.LENGTH_SHORT).show()
     }
 }
 
@@ -1624,15 +1427,9 @@ internal fun applyScheduleData(
 
             if (selectedWeeks.isNotEmpty()) {
                 val colorRes = courseNameColorMap.getOrPut(name) {
-                    // 拾光课程表格式：使用预设颜色索引
-                    val shiguangColor = (courseMap["shiguangColor"] as? Number)?.toInt()
-                    if (shiguangColor != null && shiguangColor >= 0) {
-                        Course.courseColors[shiguangColor % Course.courseColors.size]
-                    } else {
-                        val color = Course.courseColors[colorIndex % Course.courseColors.size]
-                        colorIndex++
-                        color
-                    }
+                    val color = Course.courseColors[colorIndex % Course.courseColors.size]
+                    colorIndex++
+                    color
                 }
                 courses.add(
                     Course(

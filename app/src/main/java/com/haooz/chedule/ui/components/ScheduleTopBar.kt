@@ -108,6 +108,7 @@ internal fun ScheduleTopBar(
     onOpenSwitchSchedule: () -> Unit,
     onJumpWeek: () -> Unit,
     onOpenCustomize: () -> Unit,
+    onCourseManage: () -> Unit,
     onTitleBarMeasured: (Dp) -> Unit,
     liquidGlassBackdrop: com.kyant.backdrop.Backdrop? = null,
     showMorePopup: Boolean = false,
@@ -230,7 +231,7 @@ internal fun ScheduleTopBar(
                         }
                     } else {
                         AnimatedVisibility(
-                            visible = !isViewingCurrentWeek && navBarStyle != "rail",
+                            visible = !isViewingCurrentWeek,
                             enter = fadeIn(animationSpec = tween(180)),
                             exit = fadeOut(animationSpec = tween(120))
                         ) {
@@ -246,7 +247,7 @@ internal fun ScheduleTopBar(
                             } else {
                                 IconButton(
                                     onClick = onBackToCurrentWeek,
-                                    modifier = Modifier.padding(start = 4.dp)
+                                    modifier = Modifier.padding(start = 4.dp, bottom = 2.dp)
                                 ) {
                                     Icon(
                                         imageVector = MiuixIcons.Medium.Reset,
@@ -307,7 +308,7 @@ internal fun ScheduleTopBar(
                     if (appStyle == "liquidglass" && liquidGlassBackdrop != null) {
                         // 液态玻璃模式：菜单在 MainActivity 主内容区渲染，这里不渲染
                     } else {
-                        Box(modifier = Modifier.padding(end = 4.dp)) {
+                        Box(modifier = Modifier.padding(end = 4.dp, top = 2.dp)) {
                             IconButton(onClick = {
                                 hapticFeedback.performHapticFeedback(HapticFeedbackType.VirtualKey)
                                 onShowMorePopupChange(true)
@@ -326,7 +327,7 @@ internal fun ScheduleTopBar(
                                 ListPopupColumn {
                                     DropdownImpl(
                                         text = "跳转周数",
-                                        optionSize = 2,
+                                        optionSize = 3,
                                         isSelected = false,
                                         index = 0,
                                         onSelectedIndexChange = {
@@ -336,12 +337,22 @@ internal fun ScheduleTopBar(
                                     )
                                     DropdownImpl(
                                         text = "课表外观",
-                                        optionSize = 2,
+                                        optionSize = 3,
                                         isSelected = false,
                                         index = 1,
                                         onSelectedIndexChange = {
                                             onShowMorePopupChange(false)
                                             onOpenCustomize()
+                                        }
+                                    )
+                                    DropdownImpl(
+                                        text = "课程管理",
+                                        optionSize = 3,
+                                        isSelected = false,
+                                        index = 2,
+                                        onSelectedIndexChange = {
+                                            onShowMorePopupChange(false)
+                                            onCourseManage()
                                         }
                                     )
                                 }

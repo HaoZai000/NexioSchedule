@@ -105,7 +105,7 @@ fun AddCourseDialog(
     val appStyle = rememberAppStyle()
     val isLiquidGlass = appStyle == "liquidglass" && liquidGlassBackdrop != null
     val isDark = isAppDarkTheme()
-    val closeContainerColor = if (isDark) Color(0xFF121212).copy(1f) else Color(0xFFFAFAFA).copy(1f)
+    val closeContainerColor = if (isDark) Color(0xFF242424).copy(1f) else Color(0xFFFAFAFA).copy(1f)
     val closeIconColor = if (isDark) Color.White.copy(alpha = 0.8f) else Color.Black.copy(alpha = 0.8f)
 
     var name by remember { mutableStateOf(course?.name ?: "") }
@@ -172,12 +172,12 @@ fun AddCourseDialog(
         show = showBottomSheet,
         title = if (isEdit) "编辑课程" else "添加课程",
         startAction = {
-            if (isLiquidGlass && liquidGlassBackdrop != null) {
+            if (isLiquidGlass) {
                 val animationScope = rememberCoroutineScope()
                 val closeHighlight = remember(animationScope) { InteractiveHighlight(animationScope) }
                 Box(
                     modifier = Modifier
-                        .padding(horizontal = 24.dp)
+                        .padding(horizontal = 20.dp)
                         .size(40.dp)
                         .drawBackdrop(
                             backdrop = liquidGlassBackdrop,
@@ -216,30 +216,30 @@ fun AddCourseDialog(
                     contentAlignment = Alignment.Center
                 ) {
                     Icon(
-                        imageVector = MiuixIcons.Close,
+                        imageVector = MiuixIcons.Normal.Close,
                         contentDescription = "取消",
-                        modifier = Modifier.size(22.dp),
+                        modifier = Modifier.size(23.dp),
                         tint = closeIconColor
                     )
                 }
             } else {
                 IconButton(onClick = { showBottomSheet = false }, modifier = Modifier.padding(horizontal = 20.dp)) {
                     Icon(
-                        imageVector = MiuixIcons.Close,
+                        imageVector = MiuixIcons.Normal.Close ,
                         contentDescription = "取消",
-                        modifier = Modifier.size(22.dp)
+                        modifier = Modifier.size(24.dp)
                     )
                 }
             }
         },
         endAction = {
-            if (isLiquidGlass && liquidGlassBackdrop != null) {
+            if (isLiquidGlass) {
                 val animationScope = rememberCoroutineScope()
                 val okHighlight = remember(animationScope) { InteractiveHighlight(animationScope) }
                 val primaryColor = MiuixTheme.colorScheme.primary
                 Box(
                     modifier = Modifier
-                        .padding(horizontal = 24.dp)
+                        .padding(horizontal = 20.dp)
                         .size(40.dp)
                         .drawBackdrop(
                             backdrop = liquidGlassBackdrop,

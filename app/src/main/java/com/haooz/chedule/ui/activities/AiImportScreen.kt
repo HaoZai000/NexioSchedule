@@ -45,7 +45,6 @@ import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.unit.DpSize
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.viewmodel.compose.viewModel
@@ -177,10 +176,10 @@ fun AiImportScreen(
                     title = "AI 文本导入",
                     scrollBehavior = scrollBehavior,
                     navigationIcon = {
-                        IconButton(onClick = {
-                            hapticFeedback.performHapticFeedback(HapticFeedbackType.VirtualKey)
-                            onBack()
-                        }) {
+                        IconButton(
+                            onClick = { onBack() },
+                            modifier = Modifier.padding(start = 4.dp)
+                        ) {
                             Icon(
                                 imageVector = MiuixIcons.Back,
                                 contentDescription = "返回",
@@ -193,7 +192,7 @@ fun AiImportScreen(
         }
     ) { paddingValues ->
         val listState = rememberLazyListState()
-        var listScrollY by remember { androidx.compose.runtime.mutableIntStateOf(0) }
+        var listScrollY by remember { mutableIntStateOf(0) }
         LaunchedEffect(listState) {
             snapshotFlow { listState.firstVisibleItemScrollOffset }
                 .collect { offset -> listScrollY = offset }

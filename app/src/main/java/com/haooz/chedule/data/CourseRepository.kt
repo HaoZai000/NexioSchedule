@@ -770,8 +770,7 @@ class CourseRepository private constructor(context: Context) {
         return getAllCourses().filter { course ->
             course.dayOfWeek == dayOfWeek &&
             course.startSection <= endSection &&
-            course.endSection >= startSection &&
-            course.isActiveInWeek(week)
+            course.endSection >= startSection
         }.sortedBy { it.startSection }
     }
 
@@ -1248,5 +1247,54 @@ class CourseRepository private constructor(context: Context) {
         val afternoon = safeGetInt("${prefix}$KEY_AFTERNOON_SECTIONS", 4)
         val evening = safeGetInt("${prefix}$KEY_EVENING_SECTIONS", 4)
         return Triple(morning, afternoon, evening)
+    }
+
+    /**
+     * 导入单个课表的备份数据
+     * @param scheduleName 课表名称
+     * @param coursesData 课程数据列表
+     */
+    fun importSingleSchedule(scheduleName: String, coursesData: List<Map<String, Any>>) {
+        val names = getScheduleNames().toMutableList()
+        if (scheduleName !in names) {
+            names.add(scheduleName)
+            saveScheduleNames(names)
+        }
+
+        val prefix = "$SCHEDULE_KEY_PREFIX${scheduleName}_"
+        var colorIndex = 0
+        val courses = coursesData.mapNotNull { courseMap ->
+            val name = courseMap["name"] as? String ?: return@mapNotNull null
+            val classroom = courseMap["classroom"] as? String ?: ""
+            val teacher = courseMap["teacher"] as? String ?: ""
+            val dayOfWeek = (courseMap["dayOfWeek"] as? Number)?.toInt() ?: return@mapNotNull null
+            val startSection = (courseMap["startSection"] as? Number)?.toInt() ?: return@mapNotNull null
+            val endSection = (courseMap["endSection"] as? Number)?.toInt() ?: return@mapNotNull null
+            @Suppress("UNCHECKED_CAST")
+            val selectedWeeks = (courseMap["selectedWeeks"] as? List<Number>)?.map { it.toInt() } ?: emptyList()
+
+            val color = Course.courseColors[colorIndex % Course.courseColors.size]
+            colorIndex++
+            Course(
+                id = "${scheduleName}_${name}_${dayOfWeek}_$startSection",
+                scheduleId = scheduleName,
+                name = name,
+                classroom = classroom,
+                teacher = teacher,
+                dayOfWeek = dayOfWeek,
+                startSection = startSection,
+                endSection = endSection,
+                startWeek = selectedWeeks.minOrNull() ?: 1,
+                endWeek = selectedWeeks.maxOrNull() ?: 20,
+                weekType = 0,
+                colorRes = color,
+                selectedWeeks = selectedWeeks
+            )
+        }
+
+        val key = "${prefix}$KEY_COURSES"
+        val json = gson.toJson(courses)
+        prefs.edit { putString(key, json) }
+        onCourseChanged?.invoke("restore", "")
     }
 }

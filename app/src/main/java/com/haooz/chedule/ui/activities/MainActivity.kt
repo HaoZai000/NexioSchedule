@@ -93,6 +93,7 @@ import com.haooz.chedule.ui.screens.SettingsScreen
 import com.haooz.chedule.ui.screens.ShiftScheduleScreen
 import com.haooz.chedule.ui.screens.TodayScreen
 import com.haooz.chedule.ui.theme.CourseScheduleTheme
+import com.haooz.chedule.ui.components.liquidglass.LiquidTopBarButton
 
 import com.haooz.chedule.ui.utils.applyThemeAwareSystemBars
 import com.haooz.chedule.ui.utils.isAppDarkTheme
@@ -115,6 +116,9 @@ import top.yukonga.miuix.kmp.blur.BlurBlendMode
 import top.yukonga.miuix.kmp.blur.BlurDefaults
 import top.yukonga.miuix.kmp.blur.layerBackdrop
 import top.yukonga.miuix.kmp.blur.rememberLayerBackdrop
+import top.yukonga.miuix.kmp.icon.MiuixIcons
+import top.yukonga.miuix.kmp.icon.extended.More
+import top.yukonga.miuix.kmp.icon.extended.Reset
 import top.yukonga.miuix.kmp.squircle.addSquircleRect
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 import java.time.LocalDate
@@ -623,6 +627,12 @@ fun CourseScheduleApp() {
         pageCount = { totalWeeks }
     )
 
+    val todayMaxDateOffset = 1000
+    val todayPagerState = rememberPagerState(
+        initialPage = todayMaxDateOffset,
+        pageCount = { todayMaxDateOffset * 2 }
+    )
+
     LaunchedEffect(isShiftMode) {
         if (shiftModeInitialized) {
             selectedTab = if (isShiftMode) 0 else if (defaultHomepage == "今日") 0 else 1
@@ -653,6 +663,9 @@ fun CourseScheduleApp() {
 
     val calendar = Calendar.getInstance()
     val currentDayOfWeek = (calendar.get(Calendar.DAY_OF_WEEK) + 5) % 7 + 1
+    var todaySelectedDayOfWeek by remember { mutableIntStateOf(currentDayOfWeek) }
+    var todayIsToday by remember { mutableStateOf(true) }
+    var scrollToTodayTrigger by remember { mutableIntStateOf(0) }
     val dayRange = if (showWeekendDays.isNotEmpty()) {
         (1..5) + showWeekendDays.filter { it in 6..7 }
     } else {
@@ -722,7 +735,7 @@ fun CourseScheduleApp() {
                 null
             }
             showDetail = true
-            backgroundScale.animateTo(0.92f, animationSpec = tween(520, easing = morphOpenEase))
+            backgroundScale.animateTo(0.92f, animationSpec = tween(620, easing = OobeQuartOutEasing))
         }
     }
 
@@ -925,6 +938,8 @@ fun CourseScheduleApp() {
     var switchCapturingSnapshot by remember { mutableStateOf(false) }
     var scheduleChanged by remember { mutableStateOf(false) }
     var showMorePopup by remember { mutableStateOf(false) }
+    var showTodayMorePopup by remember { mutableStateOf(false) }
+    var todayJumpToDateTrigger by remember { mutableIntStateOf(0) }
 
     val isViewingCurrentWeek = currentViewingWeek == currentWeek
 
@@ -948,7 +963,7 @@ fun CourseScheduleApp() {
             Triple(blurR, clipR, progress)
         }
     }
-    Box(modifier = Modifier.fillMaxSize().background(MiuixTheme.colorScheme.surface)) {
+    Box(modifier = Modifier.fillMaxSize().background(if (showCustomizePage) Color.Black else MiuixTheme.colorScheme.surface)) {
         val isDetailActive = showDetail && screenSnapshot != null && !showCourseDetailPopup
         val shouldRecordGL = !isDetailActive
         val isEntryAnimating = showSwitchSchedule && switchAnimForward && switchAnimRunning
@@ -1118,6 +1133,10 @@ fun CourseScheduleApp() {
                                 enterCustomizePage()
                             }
                         },
+                        onCourseManage = {
+                            val intent = android.content.Intent(context, com.haooz.chedule.ui.activities.CourseManageActivity::class.java)
+                            context.startActivity(intent)
+                        },
                         onTitleBarMeasured = { activity?.titleBarHeight = it },
                         liquidGlassBackdrop = liquidGlassBackdrop,
                         showMorePopup = showMorePopup,
@@ -1135,7 +1154,10 @@ fun CourseScheduleApp() {
                         TodayTopBar(
                             liquidGlassBackdrop = liquidGlassBackdrop,
                             navBarStyle = navBarStyle,
-                            currentDayOfWeek = currentDayOfWeek,
+                            currentDayOfWeek = todaySelectedDayOfWeek,
+                            isToday = todayIsToday,
+                            onBackToToday = { scrollToTodayTrigger++ },
+                            onMoreClick = { showTodayMorePopup = true }
                         )
                     }
                 }
@@ -1164,10 +1186,21 @@ fun CourseScheduleApp() {
                                 onCourseClick = { courses, left, top, width, height, _ ->
                                     openCourseDetail(courses, left, top, width, height, fromToday = true)
                                 },
+                                pagerState = todayPagerState,
                                 navBarStyle = navBarStyle,
                                 liquidGlassBackdrop = liquidGlassBackdrop,
                                 onScrollYChanged = { todayScrollY = it },
-                                settingsScrollBehavior = todayScrollBehavior
+                                settingsScrollBehavior = todayScrollBehavior,
+                                onSelectedDayChanged = { todaySelectedDayOfWeek = it },
+                                onSelectedDateChanged = { todayIsToday = it },
+                                scrollToTodayTrigger = scrollToTodayTrigger,
+                                showMorePopup = showTodayMorePopup,
+                                onShowMorePopupChange = { showTodayMorePopup = it },
+                                jumpToDateTrigger = todayJumpToDateTrigger,
+                                onCourseManage = {
+                                    val intent = android.content.Intent(context, com.haooz.chedule.ui.activities.CourseManageActivity::class.java)
+                                    context.startActivity(intent)
+                                }
                             )
 
                             1 -> MainScheduleScreen(
@@ -1348,6 +1381,16 @@ fun CourseScheduleApp() {
                         ) { showMorePopup = false }
                 )
             }
+            if (showTodayMorePopup) {
+                Box(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .clickable(
+                            interactionSource = remember { MutableInteractionSource() },
+                            indication = null
+                        ) { showTodayMorePopup = false }
+                )
+            }
             val statusBarHeight = WindowInsets.statusBars.asPaddingValues().calculateTopPadding()
             Box(
                 modifier = Modifier
@@ -1359,13 +1402,22 @@ fun CourseScheduleApp() {
                     LiquidGlassDropdownMenu(
                         show = showMorePopup,
                         onDismissRequest = { showMorePopup = false },
-                        backdrop = liquidGlassBackdrop
+                        backdrop = liquidGlassBackdrop,
+                        menuHeight = 144.dp
                     ) {
                         LiquidGlassDropdownMenuItem(
                             text = "跳转周数",
                             onClick = {
                                 showMorePopup = false
                                 viewModel.showJumpWeekDialog()
+                            }
+                        )
+                        LiquidGlassDropdownMenuItem(
+                            text = "课程管理",
+                            onClick = {
+                                showMorePopup = false
+                                val intent = android.content.Intent(context, com.haooz.chedule.ui.activities.CourseManageActivity::class.java)
+                                context.startActivity(intent)
                             }
                         )
                         LiquidGlassDropdownMenuItem(
@@ -1376,6 +1428,27 @@ fun CourseScheduleApp() {
                                     kotlinx.coroutines.delay(200.milliseconds)
                                     enterCustomizePage()
                                 }
+                            }
+                        )
+                    }
+                    LiquidGlassDropdownMenu(
+                        show = showTodayMorePopup,
+                        onDismissRequest = { showTodayMorePopup = false },
+                        backdrop = liquidGlassBackdrop
+                    ) {
+                        LiquidGlassDropdownMenuItem(
+                            text = "跳转日期",
+                            onClick = {
+                                showTodayMorePopup = false
+                                todayJumpToDateTrigger++
+                            }
+                        )
+                        LiquidGlassDropdownMenuItem(
+                            text = "课程管理",
+                            onClick = {
+                                showTodayMorePopup = false
+                                val intent = android.content.Intent(context, com.haooz.chedule.ui.activities.CourseManageActivity::class.java)
+                                context.startActivity(intent)
                             }
                         )
                     }
@@ -2005,7 +2078,7 @@ fun CourseScheduleApp() {
                 classStartTime = classStartTime,
                 onBackStart = {
                     coroutineScope.launch {
-                        backgroundScale.animateTo(1f, animationSpec = tween(370, easing = morphExitEase))
+                        backgroundScale.animateTo(1f, animationSpec = tween(380, easing = OobeCubicOutEasing))
                     }
                 },
                 onBack = {
@@ -2083,13 +2156,13 @@ fun CourseScheduleApp() {
                                 }
                                 val currentProgress = switchAnimProgress.value
                                 val remainingDuration =
-                                    ((1f - currentProgress) * 520).toInt().coerceAtLeast(1)
+                                    ((1f - currentProgress) * 620).toInt().coerceAtLeast(1)
                                 launch {
                                     switchPageScale.animateTo(
                                         1.08f,
                                         animationSpec = tween(
                                             remainingDuration,
-                                            easing = morphOpenEase
+                                            easing = OobeQuartOutEasing
                                         )
                                     )
                                 }
@@ -2098,7 +2171,7 @@ fun CourseScheduleApp() {
                                         5f,
                                         animationSpec = tween(
                                             remainingDuration,
-                                            easing = morphOpenEase
+                                            easing = OobeQuartOutEasing
                                         )
                                     )
                                 }
@@ -2106,7 +2179,7 @@ fun CourseScheduleApp() {
                                     targetValue = 1f,
                                     animationSpec = tween(
                                         durationMillis = remainingDuration,
-                                        easing = morphOpenEase
+                                        easing = OobeQuartOutEasing
                                     )
                                 )
                             }
@@ -2146,24 +2219,24 @@ fun CourseScheduleApp() {
                             switchCardBounds = bounds
                             val currentProgress = switchAnimProgress.value
                             val remainingDuration =
-                                ((1f - currentProgress) * 520).toInt().coerceAtLeast(1)
+                                ((1f - currentProgress) * 620).toInt().coerceAtLeast(1)
                             launch {
                                 switchPageScale.animateTo(
                                     1.08f,
-                                    animationSpec = tween(remainingDuration, easing = morphOpenEase)
+                                    animationSpec = tween(remainingDuration, easing = OobeQuartOutEasing)
                                 )
                             }
                             launch {
                                 switchPageBlur.animateTo(
                                     5f,
-                                    animationSpec = tween(remainingDuration, easing = morphOpenEase)
+                                    animationSpec = tween(remainingDuration, easing = OobeQuartOutEasing)
                                 )
                             }
                             switchAnimProgress.animateTo(
                                 targetValue = 1f,
                                 animationSpec = tween(
                                     durationMillis = remainingDuration,
-                                    easing = morphOpenEase
+                                    easing = OobeQuartOutEasing
                                 )
                             )
                             switchAnimRunning = false
@@ -2207,14 +2280,14 @@ fun CourseScheduleApp() {
                                 switchScreenSnapshot = screenBitmap
                                 switchCardBounds = cardBoundsInScreen
                                 switchCardSnapshot = cardSnap
-                                val remainingDuration = 370
+                                val remainingDuration = 380
                                 val morphExitEase = CubicBezierEasing(0.3f, 0.65f, 0.35f, 1.0f)
                                 launch {
                                     switchPageScale.animateTo(
                                         1f,
                                         animationSpec = tween(
                                             remainingDuration,
-                                            easing = morphOpenEase
+                                            easing = OobeCubicOutEasing
                                         )
                                     )
                                 }
@@ -2223,7 +2296,7 @@ fun CourseScheduleApp() {
                                         0f,
                                         animationSpec = tween(
                                             remainingDuration,
-                                            easing = morphOpenEase
+                                            easing = OobeCubicOutEasing
                                         )
                                     )
                                 }
@@ -2240,7 +2313,7 @@ fun CourseScheduleApp() {
                                     targetValue = 0f,
                                     animationSpec = tween(
                                         durationMillis = remainingDuration,
-                                        easing = CubicBezierEasing(0.3f, 0.65f, 0.35f, 1.0f)
+                                        easing = OobeCubicOutEasing
                                     )
                                 )
                                 switchScreenSnapshot = null
@@ -2417,6 +2490,9 @@ private fun TodayTopBar(
     liquidGlassBackdrop: com.kyant.backdrop.Backdrop?,
     navBarStyle: String,
     currentDayOfWeek: Int,
+    isToday: Boolean = true,
+    onBackToToday: () -> Unit = {},
+    onMoreClick: () -> Unit = {},
 ) {
     if (liquidGlassBackdrop == null) return
     val appStyle = rememberAppStyle()
@@ -2424,27 +2500,51 @@ private fun TodayTopBar(
     val isTabletLiquidGlass = navBarStyle == "rail"
     val dayOfWeekNames = listOf("周一", "周二", "周三", "周四", "周五", "周六", "周日")
     val dayOfWeekName = if (currentDayOfWeek in 1..7) dayOfWeekNames[currentDayOfWeek - 1] else ""
+    val titleText = if (isToday) "今天是$dayOfWeekName" else dayOfWeekName
 
     ProgressiveBlurTopBar(
         backdrop = liquidGlassBackdrop,
     ) {
         SmallTopAppBar(
             color = Color.Transparent,
-            title = if (isTabletLiquidGlass) "" else "今天是$dayOfWeekName",
+            title = if (isTabletLiquidGlass) "" else titleText,
             modifier = Modifier.zIndex(1f),
-            navigationIcon = if (isTabletLiquidGlass) {
-                {
+            navigationIcon = {
+                if (isTabletLiquidGlass) {
                     Text(
-                        text = "今天是$dayOfWeekName",
+                        text = titleText,
                         fontSize = 21.sp,
                         fontWeight = FontWeight.Medium,
                         color = MiuixTheme.colorScheme.onSurface,
                         modifier = Modifier.padding(start = 12.dp)
                     )
+                } else {
+                    AnimatedVisibility(
+                        visible = !isToday,
+                        enter = fadeIn(animationSpec = tween(180)),
+                        exit = fadeOut(animationSpec = tween(120))
+                    ) {
+                        LiquidTopBarButton(
+                            onClick = onBackToToday,
+                            backdrop = liquidGlassBackdrop,
+                            icon = MiuixIcons.Medium.Reset,
+                            contentDescription = "返回今天",
+                            iconSize = 22.dp,
+                            modifier = Modifier.padding(start = 4.dp)
+                        )
+                    }
                 }
-            } else {
-                {}
             },
+            actions = {
+                LiquidTopBarButton(
+                    onClick = onMoreClick,
+                    backdrop = liquidGlassBackdrop,
+                    icon = MiuixIcons.More,
+                    contentDescription = "更多",
+                    iconSize = 20.dp,
+                    modifier = Modifier.padding(end = 4.dp)
+                )
+            }
         )
     }
 }

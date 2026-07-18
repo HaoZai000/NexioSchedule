@@ -168,7 +168,7 @@ fun CourseDetailScreen(
             animProgress.animateTo(
                 targetValue = 0f,
                 animationSpec = tween(
-                    durationMillis = 370,
+                    durationMillis = 380,
                     easing = morphExitEase
                 )
             )
@@ -180,7 +180,7 @@ fun CourseDetailScreen(
         animProgress.animateTo(
             targetValue = 1f,
             animationSpec = tween(
-                durationMillis = 520,
+                durationMillis = 620,
                 easing = morphOpenEase
             )
         )
@@ -296,7 +296,7 @@ fun CourseDetailScreen(
                                                 animProgress.animateTo(
                                                     targetValue = 0f,
                                                     animationSpec = tween(
-                                                        durationMillis = 400,
+                                                        durationMillis = 380,
                                                         easing = morphExitEase
                                                     )
                                                 )
@@ -336,7 +336,7 @@ fun CourseDetailScreen(
                                             animProgress.animateTo(
                                                 targetValue = 0f,
                                                 animationSpec = tween(
-                                                    durationMillis = 400,
+                                                    durationMillis = 380,
                                                     easing = morphExitEase
                                                 )
                                             )

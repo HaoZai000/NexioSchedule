@@ -56,6 +56,10 @@
 -dontwarn rikka.shizuku.**
 -dontwarn rikka.sui.**
 
+# --- Focus API 库 (超级岛焦点通知) ---
+-keep class com.xzakota.hyper.notification.** { *; }
+-dontwarn com.xzakota.hyper.notification.**
+
 # --- 教务导入 Gson 数据类 ---
 # 这些类通过 Gson 反射解析，字段名不可被混淆
 -keep class com.haooz.chedule.ui.web.AndroidBridge { *; }

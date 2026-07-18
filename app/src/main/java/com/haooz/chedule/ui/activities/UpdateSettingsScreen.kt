@@ -38,18 +38,18 @@ import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.unit.DpSize
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.core.content.FileProvider
 import androidx.core.content.edit
-import com.haooz.chedule.ui.utils.isAppDarkTheme
 import com.haooz.chedule.ui.utils.rememberAppStyle
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import top.yukonga.miuix.kmp.basic.Button
 import top.yukonga.miuix.kmp.basic.Card
+import top.yukonga.miuix.kmp.basic.DropdownEntry
+import top.yukonga.miuix.kmp.basic.DropdownItem
 import top.yukonga.miuix.kmp.basic.Icon
 import top.yukonga.miuix.kmp.basic.IconButton
 import top.yukonga.miuix.kmp.basic.LinearProgressIndicator
@@ -59,15 +59,16 @@ import top.yukonga.miuix.kmp.basic.SmallTitle
 import top.yukonga.miuix.kmp.basic.Switch
 import top.yukonga.miuix.kmp.basic.TextButton
 import top.yukonga.miuix.kmp.basic.TopAppBar
+import top.yukonga.miuix.kmp.blur.layerBackdrop
+import top.yukonga.miuix.kmp.blur.rememberLayerBackdrop
 import top.yukonga.miuix.kmp.icon.MiuixIcons
 import top.yukonga.miuix.kmp.icon.extended.Back
 import top.yukonga.miuix.kmp.overlay.OverlayDialog
 import top.yukonga.miuix.kmp.preference.ArrowPreference
+import top.yukonga.miuix.kmp.preference.OverlayDropdownPreference
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 import top.yukonga.miuix.kmp.utils.overScrollVertical
 import top.yukonga.miuix.kmp.utils.scrollEndHaptic
-import top.yukonga.miuix.kmp.blur.layerBackdrop
-import top.yukonga.miuix.kmp.blur.rememberLayerBackdrop
 import java.io.File
 import java.io.FileOutputStream
 import java.net.HttpURLConnection
@@ -96,15 +97,24 @@ private fun isNewerVersion(remote: String, local: String): Boolean {
     return false
 }
 
-private fun checkForUpdate(context: Context): Pair<Boolean, GiteeRelease?> {
+private fun checkForUpdate(context: Context, source: String = "gitee"): Pair<Boolean, GiteeRelease?> {
     return try {
         val client = okhttp3.OkHttpClient.Builder()
             .connectTimeout(10, java.util.concurrent.TimeUnit.SECONDS)
             .readTimeout(10, java.util.concurrent.TimeUnit.SECONDS)
             .build()
 
-        val url = "https://gitee.com/api/v5/repos/com_haooz_account/hyper_schedule/releases/latest?t=${System.currentTimeMillis()}"
-        val request = okhttp3.Request.Builder().url(url).build()
+        val baseUrl = if (source == "github") {
+            "https://api.github.com/repos/HaoZai000/NexioSchedule/releases/latest"
+        } else {
+            "https://gitee.com/api/v5/repos/com_haooz_account/hyper_schedule/releases/latest"
+        }
+        val url = "$baseUrl?t=${System.currentTimeMillis()}"
+        val request = okhttp3.Request.Builder().url(url).apply {
+            if (source == "github") {
+                header("Accept", "application/vnd.github.v3+json")
+            }
+        }.build()
         val response = client.newCall(request).execute()
 
         if (!response.isSuccessful) {
@@ -159,6 +169,7 @@ fun UpdateSettingsScreen(onBack: () -> Unit) {
 
     var autoCheckUpdate by remember { mutableStateOf(prefs.getBoolean("auto_check_update", true)) }
     var updateReminder by remember { mutableStateOf(prefs.getBoolean("update_reminder", true)) }
+    var downloadSource by remember { mutableStateOf(prefs.getString("download_source", "gitee") ?: "gitee") }
 
     val currentVersion = remember {
         try {
@@ -195,7 +206,7 @@ fun UpdateSettingsScreen(onBack: () -> Unit) {
             if (lastCheckDate != today) {
                 isChecking = true
                 val (update, release) = withContext(Dispatchers.IO) {
-                    checkForUpdate(context)
+                    checkForUpdate(context, downloadSource)
                 }
                 hasUpdate = update
                 latestRelease = release
@@ -233,7 +244,10 @@ fun UpdateSettingsScreen(onBack: () -> Unit) {
                     title = "更新设置",
                     scrollBehavior = scrollBehavior,
                     navigationIcon = {
-                        IconButton(onClick = { onBack() }) {
+                        IconButton(
+                            onClick = { onBack() },
+                            modifier = Modifier.padding(start = 4.dp)
+                        ) {
                             Icon(
                                 imageVector = MiuixIcons.Back,
                                 contentDescription = "返回",
@@ -353,7 +367,7 @@ fun UpdateSettingsScreen(onBack: () -> Unit) {
                                         isChecking = true
                                         coroutineScope.launch {
                                             val (update, release) = withContext(Dispatchers.IO) {
-                                                checkForUpdate(context)
+                                                checkForUpdate(context, downloadSource)
                                             }
                                             hasUpdate = update
                                             latestRelease = release
@@ -408,6 +422,43 @@ fun UpdateSettingsScreen(onBack: () -> Unit) {
                         text = "更多设置",
                         modifier = Modifier.offset(x = (-15).dp)
                     )
+                    Card(
+                        cornerRadius = 20.dp,
+                        modifier = Modifier.fillMaxWidth(),
+                        insideMargin = PaddingValues(0.dp)
+                    ) {
+                        Column(modifier = Modifier.fillMaxWidth()) {
+                            val downloadSourceEntry = DropdownEntry(
+                                items = listOf(
+                                    DropdownItem(
+                                        text = "Gitee",
+                                        selected = downloadSource == "gitee",
+                                        onClick = {
+                                            downloadSource = "gitee"
+                                            prefs.edit { putString("download_source", "gitee") }
+                                        }
+                                    ),
+                                    DropdownItem(
+                                        text = "GitHub",
+                                        selected = downloadSource == "github",
+                                        onClick = {
+                                            downloadSource = "github"
+                                            prefs.edit { putString("download_source", "github") }
+                                        }
+                                    ),
+                                )
+                            )
+                            OverlayDropdownPreference(
+                                title = "下载源",
+                                summary = "选择应用更新的下载仓库",
+                                entry = downloadSourceEntry,
+                                collapseOnSelection = true
+                            )
+                        }
+                    }
+                }
+
+                item {
                     Card(
                         cornerRadius = 20.dp,
                         modifier = Modifier.fillMaxWidth(),

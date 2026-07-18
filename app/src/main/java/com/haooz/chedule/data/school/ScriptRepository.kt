@@ -55,7 +55,8 @@ class ScriptRepository(private val context: Context, private val repoUrl: String
         var indexFileContent: ByteArray? = null,
         var indexRemoteVersionId: String? = null,
         var resourceFiles: List<Pair<File, File>> = emptyList(),
-        var isFatalIndexError: Boolean = false
+        var isFatalIndexError: Boolean = false,
+        var downloadFailed: Boolean = false
     )
 
     /**
@@ -174,13 +175,15 @@ class ScriptRepository(private val context: Context, private val repoUrl: String
 
             val sourceFile = File(tempIndexDir, INDEX_FILE_NAME)
             if (!sourceFile.exists()) {
-                onLog("警告：索引文件不存在，使用本地索引（若有）")
+                onLog("警告：远程索引文件不存在")
+                result.downloadFailed = true
                 return
             }
 
             val remoteIndex = readIndex(sourceFile)
             if (remoteIndex == null) {
                 onLog("错误：无法解析远程索引，文件可能损坏")
+                result.downloadFailed = true
                 return
             }
 
@@ -219,10 +222,11 @@ class ScriptRepository(private val context: Context, private val repoUrl: String
                     e::class.java.simpleName.contains("RefNotAdvertisedException")
 
             if (isBranchNotFound) {
-                onLog("警告：索引分支不存在，使用本地索引（若有）")
+                onLog("警告：索引分支不存在")
             } else {
                 onLog("错误：索引下载失败 - ${e.message}")
             }
+            result.downloadFailed = true
         }
     }
 
@@ -306,6 +310,13 @@ class ScriptRepository(private val context: Context, private val repoUrl: String
 
         if (indexResult.isFatalIndexError) {
             onLog("\n!!! 索引校验失败，终止")
+            cleanupTempDirs()
+            return -1
+        }
+
+        // 索引下载失败（网络错误/文件不存在等）
+        if (indexResult.downloadFailed && indexResult.indexFileContent == null) {
+            onLog("\n!!! 索引下载失败，无法检查更新")
             cleanupTempDirs()
             return -1
         }

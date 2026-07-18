@@ -125,6 +125,7 @@ class EducationalImportActivity : ComponentActivity() {
                     val msg = when (result) {
                         0 -> "已是最新版本"
                         1 -> "更新完成"
+                        -1 -> "更新失败，请检查网络连接"
                         else -> "更新失败"
                     }
                     withContext(Dispatchers.Main) {

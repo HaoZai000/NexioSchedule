@@ -41,7 +41,6 @@ import androidx.compose.foundation.layout.statusBars
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
-import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
@@ -79,7 +78,7 @@ import com.haooz.chedule.ui.web.WebPostBridge
 import com.kyant.backdrop.backdrops.LayerBackdrop
 import com.kyant.shapes.Capsule
 import com.kyant.shapes.RoundedRectangle
-import top.yukonga.miuix.kmp.basic.Button
+import top.yukonga.miuix.kmp.basic.ButtonDefaults
 import top.yukonga.miuix.kmp.basic.Icon
 import top.yukonga.miuix.kmp.basic.IconButton
 import top.yukonga.miuix.kmp.basic.Scaffold
@@ -118,7 +117,7 @@ private data class SelectionData(
     val onResult: (Int?) -> Unit
 )
 
-@SuppressLint("JavascriptInterfaceRedundantCheck")
+@SuppressLint("JavascriptInterfaceRedundantCheck", "JavascriptInterface")
 @Composable
 fun WebViewScreen(
     school: SchoolData,
@@ -274,7 +273,31 @@ fun WebViewScreen(
         webView.webViewClient = compatDelegate.wrapWebViewClient(
             object : WebViewClient() {
                 @Deprecated("Deprecated in Java")
-                override fun shouldOverrideUrlLoading(view: WebView?, url: String?): Boolean = false
+                override fun shouldOverrideUrlLoading(view: WebView?, url: String?): Boolean {
+                    if (url.isNullOrBlank()) return false
+                    val scheme = android.net.Uri.parse(url).scheme?.lowercase() ?: return false
+                    if (scheme == "http" || scheme == "https") return false
+                    // 自定义 scheme（intent://, market://, tel:// 等）交给外部处理
+                    try {
+                        val intent = android.content.Intent(android.content.Intent.ACTION_VIEW, android.net.Uri.parse(url))
+                        intent.addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK)
+                        view?.context?.startActivity(intent)
+                    } catch (_: Exception) { }
+                    return true
+                }
+
+                override fun shouldOverrideUrlLoading(view: WebView?, request: WebResourceRequest): Boolean {
+                    val url = request.url.toString()
+                    val scheme = request.url.scheme?.lowercase() ?: return false
+                    if (scheme == "http" || scheme == "https") return false
+                    // 自定义 scheme（intent://, market://, tel:// 等）交给外部处理
+                    try {
+                        val intent = android.content.Intent(android.content.Intent.ACTION_VIEW, request.url)
+                        intent.addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK)
+                        view?.context?.startActivity(intent)
+                    } catch (_: Exception) { }
+                    return true
+                }
 
                 @SuppressLint("WebViewClientOnReceivedSslError")
                 override fun onReceivedSslError(view: WebView, handler: SslErrorHandler, error: SslError) {
@@ -282,9 +305,18 @@ fun WebViewScreen(
                 }
 
                 override fun onReceivedError(view: WebView, request: WebResourceRequest, error: WebResourceError) {
+                    val urlScheme = request.url.scheme?.lowercase() ?: ""
+                    val isCustomScheme = urlScheme.isNotEmpty() && urlScheme != "http" && urlScheme != "https"
                     if (request.isForMainFrame) {
-                        view.post {
-                            Toast.makeText(view.context, "加载失败: ${error.description}", Toast.LENGTH_LONG).show()
+                        if (isCustomScheme) {
+                            // 自定义 scheme 加载失败，回到之前的页面
+                            view.post {
+                                if (view.canGoBack()) view.goBack() else view.loadUrl("about:blank")
+                            }
+                        } else {
+                            view.post {
+                                Toast.makeText(view.context, "加载失败: ${error.description}", Toast.LENGTH_LONG).show()
+                            }
                         }
                     }
                 }
@@ -588,7 +620,7 @@ private fun WebAlertDialog(
                     TextButton(
                         text = confirmText,
                         onClick = onConfirm,
-                        colors = top.yukonga.miuix.kmp.basic.ButtonDefaults.textButtonColorsPrimary()
+                        colors = ButtonDefaults.textButtonColorsPrimary()
                     )
                 }
             }
@@ -656,12 +688,12 @@ private fun WebPromptDialog(
                         onClick = onDismiss,
                         modifier = Modifier.weight(1f)
                     )
-                    Button(
+                    TextButton(
+                        text = "确定",
                         onClick = { onConfirm(textFieldValue.text) },
+                        colors = ButtonDefaults.textButtonColorsPrimary(),
                         modifier = Modifier.weight(1f)
-                    ) {
-                        Text("确定")
-                    }
+                    )
                 }
             }
         }
@@ -717,7 +749,6 @@ private fun WebSelectionDialog(
                                 .clickable {
                                     selectedIndex = index
                                 }
-                                .padding(vertical = 4.dp)
                         ) {
                             Text(
                                 text = item,
@@ -727,13 +758,6 @@ private fun WebSelectionDialog(
                                 else
                                     MiuixTheme.colorScheme.onSurface,
                                 modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp)
-                            )
-                        }
-                        if (index < items.lastIndex) {
-                            HorizontalDivider(
-                                modifier = Modifier.padding(horizontal = 16.dp),
-                                color = MiuixTheme.colorScheme.outline.copy(alpha = 0.3f),
-                                thickness = 0.5.dp
                             )
                         }
                     }
@@ -748,12 +772,12 @@ private fun WebSelectionDialog(
                         onClick = onDismiss,
                         modifier = Modifier.weight(1f)
                     )
-                    Button(
+                    TextButton(
+                        text = "确定",
                         onClick = { onSelect(selectedIndex) },
+                        colors = ButtonDefaults.textButtonColorsPrimary(),
                         modifier = Modifier.weight(1f)
-                    ) {
-                        Text("确定")
-                    }
+                    )
                 }
             }
         }

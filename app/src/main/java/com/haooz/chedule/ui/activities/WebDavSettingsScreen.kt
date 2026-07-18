@@ -43,7 +43,6 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.haooz.chedule.data.SyncManager
 import com.haooz.chedule.data.WebDavManager
-import com.haooz.chedule.ui.utils.isAppDarkTheme
 import com.haooz.chedule.ui.utils.rememberAppStyle
 import kotlinx.coroutines.launch
 import top.yukonga.miuix.kmp.basic.ButtonDefaults
@@ -144,7 +143,6 @@ fun WebDavSettingsScreen(onBack: () -> Unit, onConnectedChange: (Boolean) -> Uni
         drawRect(backdropColor)
         drawContent()
     }
-    val isDark = isAppDarkTheme()
     val appStyleValue = rememberAppStyle()
     val isLiquidGlass = appStyleValue == "liquidglass"
 
@@ -182,11 +180,11 @@ fun WebDavSettingsScreen(onBack: () -> Unit, onConnectedChange: (Boolean) -> Uni
                     title = "WebDAV 云备份",
                     scrollBehavior = scrollBehavior,
                     navigationIcon = {
-                        IconButton(onClick = {
-                            hapticFeedback.performHapticFeedback(HapticFeedbackType.VirtualKey)
-                            saveConfig()
-                            onBack()
-                        }) {
+                        IconButton(
+                            onClick = { onBack()
+                                saveConfig()},
+                            modifier = Modifier.padding(start = 4.dp)
+                        ) {
                             Icon(
                                 imageVector = MiuixIcons.Back,
                                 contentDescription = "返回",

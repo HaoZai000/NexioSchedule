@@ -15,7 +15,10 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.pager.HorizontalPager
+import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -25,6 +28,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.input.nestedscroll.nestedScroll
@@ -114,9 +118,44 @@ fun WidgetIntroScreen(onBack: () -> Unit, liquidGlassBackdrop: com.kyant.backdro
                 } else 8.dp
                 Spacer(modifier = Modifier.height(topPadding))
 
-                WidgetPreview()
+                val pagerState = rememberPagerState(pageCount = { 2 })
 
-                Spacer(modifier = Modifier.height(32.dp))
+                HorizontalPager(
+                    state = pagerState,
+                    modifier = Modifier.fillMaxWidth()
+                ) { page ->
+                    when (page) {
+                        0 -> WidgetPreviewToday()
+                        1 -> WidgetPreviewSmall2x2()
+                    }
+                }
+
+                Spacer(modifier = Modifier.height(12.dp))
+
+                // 页面指示器
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.Center,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    repeat(2) { index ->
+                        val isSelected = pagerState.currentPage == index
+                        Box(
+                            modifier = Modifier
+                                .padding(horizontal = 4.dp)
+                                .size(6.dp)
+                                .clip(CircleShape)
+                                .background(
+                                    if (isSelected)
+                                        MiuixTheme.colorScheme.primary
+                                    else
+                                        MiuixTheme.colorScheme.onSurfaceVariantActions.copy(alpha = 0.12f)
+                                )
+                        )
+                    }
+                }
+
+                Spacer(modifier = Modifier.height(48.dp))
 
                 Column(
                     modifier = Modifier.fillMaxWidth().padding(horizontal = 18.dp),
@@ -195,11 +234,11 @@ fun WidgetIntroScreen(onBack: () -> Unit, liquidGlassBackdrop: com.kyant.backdro
 }
 
 @Composable
-private fun WidgetPreview() {
+private fun WidgetPreviewToday() {
     val isDark = isAppDarkTheme()
     val bgColor = if (isDark) ComposeColor(0xFF1A1A1A) else ComposeColor(0xFFF7F7F7)
     val cardBg = if (isDark) ComposeColor(0xFF262626) else ComposeColor.White
-    val borderColor = if (isDark) ComposeColor(0xFF3A3A3C) else ComposeColor(0xFFE0E0E0)
+    val borderColor = if (isDark) ComposeColor(0xFF2A2A2A) else ComposeColor(0x0D000000)
     val titleColor = if (isDark) ComposeColor(0x77FFFFFF) else ComposeColor(0x77000000)
     val nameColor = if (isDark) ComposeColor(0xFFEEEEEE) else ComposeColor(0xFF1A1A1A)
     val infoColor = if (isDark) ComposeColor(0x55FFFFFF) else ComposeColor(0x55000000)
@@ -237,6 +276,137 @@ private fun WidgetPreview() {
             Spacer(modifier = Modifier.height(8.dp))
             CourseCardPreview("14:00", "15:35", "大学英语", "第5-6节｜B205｜李老师", ComposeColor(0xFF2196F3), "25分钟结束", ComposeColor(0x1A2196F3), nameColor, infoColor, timeStartColor, timeEndColor, nowColor)
             Spacer(modifier = Modifier.height(2.dp))
+        }
+    }
+}
+
+@Composable
+private fun WidgetPreviewSmall2x2() {
+    val isDark = isAppDarkTheme()
+    val bgColor = if (isDark) ComposeColor(0xFF1A1A1A) else ComposeColor.White
+    val borderColor = if (isDark) ComposeColor(0xFF2A2A2A) else ComposeColor(0x0D000000)
+    val titleColor = if (isDark) ComposeColor(0x99FFFFFF) else ComposeColor(0x99000000)
+    val nameColor = if (isDark) ComposeColor(0xFFEEEEEE) else ComposeColor(0xFF1A1A1A)
+    val infoColor = if (isDark) ComposeColor(0x88FFFFFF) else ComposeColor(0x88000000)
+    val remainingColor = if (isDark) ComposeColor(0x55FFFFFF) else ComposeColor(0x55000000)
+
+    Box(
+        modifier = Modifier.fillMaxWidth(),
+        contentAlignment = Alignment.Center
+    ) {
+        Column(
+            modifier = Modifier
+                .width(166.dp)
+                .height(166.dp)
+                .border(1.dp, borderColor, com.kyant.shapes.RoundedRectangle(22.dp))
+                .background(bgColor, com.kyant.shapes.RoundedRectangle(22.dp))
+        ) {
+            Column(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(start = 10.dp, end = 10.dp, top = 12.dp, bottom = 14.dp)
+            ) {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(start = 4.dp, end = 4.dp, bottom = 4.dp, top = 2.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    androidx.compose.foundation.Image(
+                        painter = androidx.compose.ui.res.painterResource(R.drawable.ic_miuix_logo),
+                        contentDescription = null,
+                        modifier = Modifier
+                            .size(16.dp)
+                            .graphicsLayer(scaleY = -1f),
+                        alpha = 0.8f
+                    )
+                    Spacer(modifier = Modifier.width(6.dp))
+                    // Title: 14sp bold
+                    Text("周五", fontSize = 14.sp, fontWeight = FontWeight.Bold, color = titleColor, fontFamily = FontFamily.SansSerif)
+                    Spacer(modifier = Modifier.weight(1f))
+                    // Week: 14sp bold
+                    Text("第10周", fontSize = 14.sp, fontWeight = FontWeight.Bold, color = titleColor, fontFamily = FontFamily.SansSerif)
+                }
+
+                // Course content: gravity=bottom, weight=1
+                Column(
+                    modifier = Modifier.weight(1f),
+                    verticalArrangement = Arrangement.Bottom
+                ) {
+                    // Course name: 17sp, paddingStart=4dp, paddingTop=8dp, paddingBottom=4dp, marginBottom=4dp
+                    Text(
+                        "高等数学",
+                        fontSize = 17.sp,
+                        fontWeight = FontWeight.Medium,
+                        color = nameColor,
+                        maxLines = 1,
+                        modifier = Modifier.padding(start = 4.dp, top = 8.dp, bottom = 4.dp)
+                    )
+
+                    // Time row: marginStart=4dp, marginBottom=2dp
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(start = 4.dp, bottom = 2.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        // Icon: 12dp, marginEnd=6dp
+                        androidx.compose.foundation.Image(
+                            painter = androidx.compose.ui.res.painterResource(R.drawable.ic_widget_clock),
+                            contentDescription = null,
+                            modifier = Modifier.size(12.dp),
+                            alpha = 0.5f
+                        )
+                        Spacer(modifier = Modifier.width(6.dp))
+                        // Text: 14sp
+                        Text("08:00 - 09:35", fontSize = 14.sp, fontWeight = FontWeight.Medium, color = infoColor, fontFamily = FontFamily.SansSerif)
+                    }
+
+                    // Location row: marginStart=4dp, marginBottom=16dp
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(start = 4.dp, bottom = 16.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        // Icon: 12dp, marginEnd=6dp
+                        androidx.compose.foundation.Image(
+                            painter = androidx.compose.ui.res.painterResource(R.drawable.ic_widget_location),
+                            contentDescription = null,
+                            modifier = Modifier.size(12.dp),
+                            alpha = 0.5f
+                        )
+                        Spacer(modifier = Modifier.width(6.dp))
+                        // Text: 14sp
+                        Text("A301", fontSize = 14.sp, fontWeight = FontWeight.Medium, color = infoColor, fontFamily = FontFamily.SansSerif, maxLines = 1)
+                    }
+                }
+
+                // Remaining info: marginStart=4dp, text 12sp
+                Row(
+                    modifier = Modifier.padding(start = 4.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(
+                        "还剩 2 节课",
+                        fontSize = 12.sp,
+                        color = remainingColor,
+                        fontFamily = FontFamily.SansSerif
+                    )
+                    Spacer(modifier = Modifier.width(4.dp))
+                    Box(
+                        modifier = Modifier
+                            .size(7.dp)
+                            .background(ComposeColor(0xFF4CAF50), CircleShape)
+                    )
+                    Spacer(modifier = Modifier.width(4.dp))
+                    Box(
+                        modifier = Modifier
+                            .size(7.dp)
+                            .background(ComposeColor(0xFF2196F3), CircleShape)
+                    )
+                }
+            }
         }
     }
 }

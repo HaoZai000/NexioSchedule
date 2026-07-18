@@ -50,7 +50,7 @@ import top.yukonga.miuix.kmp.utils.overScrollVertical
 import top.yukonga.miuix.kmp.utils.scrollEndHaptic
 
 @Composable
-fun PreferenceSettingsScreen(onBack: () -> Unit, liquidGlassBackdrop: com.kyant.backdrop.backdrops.LayerBackdrop? = null) {
+fun PreferenceSettingsScreen(onBack: () -> Unit) {
     val scrollBehavior = MiuixScrollBehavior()
     var listScrollY by remember { mutableIntStateOf(0) }
     val context = LocalContext.current

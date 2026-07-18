@@ -7,6 +7,20 @@ data class ChangelogEntry(
 )
 val changelogData = listOf(
     ChangelogEntry(
+        version = "v1.3.0-0722",
+        date = "2026-07-22",
+        changes = listOf(
+            "新增「备份与迁移」页面，整合WebDAV云备份及课表导入/导出功能",
+            "导出支持ICS日历格式、单独选择课表，并可自定义保存位置",
+            "新增本地备份功能，支持将课表数据备份至设备本地存储中",
+            "新增今日课程/课程提醒标准版小部件",
+            "优化部分界面UI效果与一致性",
+            "优化连贯动画的动画效果",
+            "修复更新提示重复弹出的问题",
+            "修复拾光JSON导入课程颜色分配异常",
+        )
+    ),
+    ChangelogEntry(
         version = "v1.2.6-0716",
         date = "2026-07-16",
         changes = listOf(

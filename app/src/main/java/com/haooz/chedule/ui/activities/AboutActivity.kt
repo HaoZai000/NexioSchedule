@@ -60,7 +60,6 @@ import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.DpOffset
-import androidx.compose.ui.unit.DpSize
 import androidx.compose.ui.unit.LayoutDirection
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -252,9 +251,8 @@ private fun AboutScreen(onBack: () -> Unit) {
                         titleColor = titleColor,
                         defaultWindowInsetsPadding = false,
                         navigationIcon = {
-                            IconButton(onClick = {
-                                hapticFeedback.performHapticFeedback(HapticFeedbackType.VirtualKey)
-                                onBack() },
+                            IconButton(
+                                onClick = { onBack() },
                                 modifier = Modifier.padding(start = 4.dp)
                             ) {
                                 Icon(
@@ -511,7 +509,7 @@ private fun AboutScreen(onBack: () -> Unit) {
                                         .fillMaxWidth()
                                         .clickable {
                                             context.startActivity(
-                                                android.content.Intent(
+                                                Intent(
                                                     context,
                                                     ChangelogActivity::class.java
                                                 )
@@ -609,12 +607,23 @@ private fun AboutScreen(onBack: () -> Unit) {
                                                     bottom = 14.dp
                                                 )
                                             ) {
-                                                Text(
-                                                    text = entry.changes.joinToString("\n") { "• $it" },
-                                                    fontSize = 14.sp,
-                                                    lineHeight = 22.sp,
-                                                    color = MiuixTheme.colorScheme.onSurfaceVariantActions
-                                                )
+                                                entry.changes.forEach { change ->
+                                                    Row(modifier = Modifier.padding(bottom = 2.dp)) {
+                                                        Text(
+                                                            text = "• ",
+                                                            fontSize = 14.sp,
+                                                            lineHeight = 22.sp,
+                                                            color = MiuixTheme.colorScheme.onSurfaceVariantActions
+                                                        )
+                                                        Text(
+                                                            text = change,
+                                                            fontSize = 14.sp,
+                                                            lineHeight = 22.sp,
+                                                            color = MiuixTheme.colorScheme.onSurfaceVariantActions,
+                                                            modifier = Modifier.weight(1f)
+                                                        )
+                                                    }
+                                                }
                                             }
                                         }
                                     }

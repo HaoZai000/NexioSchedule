@@ -35,7 +35,6 @@ import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.haooz.chedule.ui.utils.isAppDarkTheme
 import com.haooz.chedule.ui.utils.rememberAppStyle
 import com.kyant.shapes.RoundedRectangle
 import top.yukonga.miuix.kmp.basic.Card
@@ -66,7 +65,6 @@ fun AppreciateAuthorScreen(onBack: () -> Unit) {
         drawRect(backdropColor)
         drawContent()
     }
-    val isDark = isAppDarkTheme()
     val appStyleValue = rememberAppStyle()
     val isLiquidGlass = appStyleValue == "liquidglass"
 
@@ -77,7 +75,10 @@ fun AppreciateAuthorScreen(onBack: () -> Unit) {
                     title = "赞赏作者",
                     scrollBehavior = scrollBehavior,
                     navigationIcon = {
-                        IconButton(onClick = { onBack() }) {
+                        IconButton(
+                            onClick = { onBack() },
+                            modifier = Modifier.padding(start = 4.dp)
+                        ) {
                             Icon(
                                 imageVector = MiuixIcons.Back,
                                 contentDescription = "返回",

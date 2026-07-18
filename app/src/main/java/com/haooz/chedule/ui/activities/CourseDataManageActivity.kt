@@ -1,4 +1,4 @@
-/** 偏好设置页面 */
+/** 课表数据管理页面 */
 package com.haooz.chedule.ui.activities
 
 import android.os.Bundle
@@ -14,13 +14,19 @@ import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.statusBars
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.unit.DpOffset
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.zIndex
+import androidx.lifecycle.viewmodel.compose.viewModel
 import com.haooz.chedule.ui.components.liquidglass.LiquidTopBarButton
 import com.haooz.chedule.ui.components.liquidglass.ProgressiveBlurTopBar
+import com.haooz.chedule.ui.screens.CourseDataManageScreen
 import com.haooz.chedule.ui.theme.CourseScheduleTheme
 import com.haooz.chedule.ui.utils.applyThemeAwareSystemBars
 import com.haooz.chedule.ui.utils.rememberAppStyle
+import com.haooz.chedule.viewmodel.CourseViewModel
+import com.haooz.chedule.viewmodel.ScheduleViewModel
+import com.haooz.chedule.viewmodel.SettingsViewModel
 import top.yukonga.miuix.kmp.basic.Scaffold
 import top.yukonga.miuix.kmp.basic.SmallTopAppBar
 import top.yukonga.miuix.kmp.blur.layerBackdrop
@@ -28,10 +34,9 @@ import top.yukonga.miuix.kmp.blur.rememberLayerBackdrop
 import top.yukonga.miuix.kmp.icon.MiuixIcons
 import top.yukonga.miuix.kmp.icon.extended.ChevronBackward
 import top.yukonga.miuix.kmp.theme.MiuixTheme
-import androidx.compose.ui.unit.DpOffset
 import com.kyant.backdrop.backdrops.layerBackdrop as liquidGlassLayerBackdrop
 
-class PreferenceSettingsActivity : ComponentActivity() {
+class CourseDataManageActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge(
@@ -55,6 +60,10 @@ class PreferenceSettingsActivity : ComponentActivity() {
                 } else null
                 val isLiquidGlass = liquidGlassBackdrop != null
 
+                val courseViewModel: CourseViewModel = viewModel()
+                val scheduleViewModel: ScheduleViewModel = viewModel()
+                val settingsViewModel: SettingsViewModel = viewModel()
+
                 Scaffold(
                     topBar = {
                         if (isLiquidGlass) {
@@ -64,7 +73,7 @@ class PreferenceSettingsActivity : ComponentActivity() {
                             ) {
                                 SmallTopAppBar(
                                     color = Color.Transparent,
-                                    title = "应用偏好设置",
+                                    title = "备份与迁移",
                                     modifier = Modifier.zIndex(1f),
                                     navigationIcon = {}
                                 )
@@ -95,8 +104,12 @@ class PreferenceSettingsActivity : ComponentActivity() {
                                 else Modifier
                             )
                         ) {
-                            PreferenceSettingsScreen(
-                                onBack = { finish() }
+                            CourseDataManageScreen(
+                                onBack = { finish() },
+                                courseViewModel = courseViewModel,
+                                scheduleViewModel = scheduleViewModel,
+                                settingsViewModel = settingsViewModel,
+                                liquidGlassBackdrop = liquidGlassBackdrop
                             )
                         }
                     }

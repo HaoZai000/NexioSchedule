@@ -79,6 +79,11 @@
             android:theme="@style/Theme.课程表"
             android:windowSoftInputMode="adjustResize" />
         <activity
+            android:name=".ui.activities.CourseManageActivity"
+            android:exported="false"
+            android:label="课程管理"
+            android:theme="@style/Theme.课程表" />
+        <activity
             android:name=".ui.activities.CourseReminderActivity"
             android:exported="false"
             android:label="课程提醒"
@@ -139,13 +144,18 @@
             android:theme="@style/Theme.课程表"
             android:windowSoftInputMode="adjustResize" />
         <activity
-            android:name=".ui.activities.OnboardingContentActivity"
+            android:name=".ui.activities.CourseDataManageActivity"
             android:exported="false"
-            android:theme="@style/Theme.课程表.Oobe" />
+            android:label="备份与迁移"
+            android:theme="@style/Theme.课程表"
+            android:windowSoftInputMode="adjustResize" />
         <activity
-            android:name=".ui.activities.OnboardingCompleteActivity"
+            android:name=".ui.activities.LocalBackupActivity"
             android:exported="false"
-            android:theme="@style/Theme.课程表.Oobe" />
+            android:label="本地备份"
+            android:theme="@style/Theme.课程表"
+            android:windowSoftInputMode="adjustResize" />
+
 
         <provider
             android:name="androidx.core.content.FileProvider"
@@ -193,6 +203,18 @@
         </receiver>
 
         <receiver
+            android:name=".widget.CourseWidgetProviderStandard"
+            android:exported="true"
+            android:label="课程提醒(标准)">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+            </intent-filter>
+            <meta-data
+                android:name="android.appwidget.provider"
+                android:resource="@xml/appwidget_course_reminder_standard" />
+        </receiver>
+
+        <receiver
             android:name=".widget.CourseWidgetProvider"
             android:exported="true"
             android:label="课程提醒(4×6)">
@@ -214,6 +236,18 @@
             <meta-data
                 android:name="android.appwidget.provider"
                 android:resource="@xml/appwidget_course_schedule_4x7" />
+        </receiver>
+
+        <receiver
+            android:name=".widget.TodayCourseWidgetProviderStandard"
+            android:exported="true"
+            android:label="今日课程(标准)">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+            </intent-filter>
+            <meta-data
+                android:name="android.appwidget.provider"
+                android:resource="@xml/appwidget_today_course_standard" />
         </receiver>
 
         <receiver

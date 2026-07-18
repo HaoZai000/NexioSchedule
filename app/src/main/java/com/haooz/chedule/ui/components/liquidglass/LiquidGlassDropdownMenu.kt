@@ -45,6 +45,7 @@ fun LiquidGlassDropdownMenu(
     onDismissRequest: () -> Unit,
     backdrop: Backdrop,
     modifier: Modifier = Modifier,
+    menuHeight: androidx.compose.ui.unit.Dp = 100.dp,
     content: @Composable ColumnScope.() -> Unit
 ) {
     val isLightTheme = !isSystemInDarkTheme()
@@ -77,7 +78,7 @@ fun LiquidGlassDropdownMenu(
     Box(
         modifier = modifier
             .width(192.dp + ShadowPadding * 2)
-            .height(100.dp + ShadowPadding * 2)
+            .height(menuHeight + ShadowPadding * 2)
             .graphicsLayer {
                 scaleX = scale.value
                 scaleY = scale.value

@@ -2,9 +2,13 @@
 package com.haooz.chedule.ui.screens
 
 import android.content.Context
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.isSystemInDarkTheme
+import androidx.compose.foundation.pager.HorizontalPager
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -16,6 +20,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.material3.Text
@@ -26,9 +31,11 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.graphics.RectangleShape
 import androidx.compose.ui.graphics.lerp
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
@@ -46,10 +53,20 @@ import com.haooz.chedule.ui.utils.rememberAppStyle
 import com.haooz.chedule.viewmodel.CourseViewModel
 import com.haooz.chedule.viewmodel.SettingsViewModel
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
 import top.yukonga.miuix.kmp.basic.Card
+import top.yukonga.miuix.kmp.basic.Icon
+import top.yukonga.miuix.kmp.basic.IconButton
 import top.yukonga.miuix.kmp.basic.Scaffold
 import top.yukonga.miuix.kmp.basic.SmallTitle
 import top.yukonga.miuix.kmp.basic.TopAppBar
+import top.yukonga.miuix.kmp.icon.MiuixIcons
+import top.yukonga.miuix.kmp.icon.extended.Reset
+import top.yukonga.miuix.kmp.icon.extended.More
+import top.yukonga.miuix.kmp.overlay.OverlayListPopup
+import top.yukonga.miuix.kmp.basic.DropdownImpl
+import top.yukonga.miuix.kmp.basic.ListPopupColumn
+import top.yukonga.miuix.kmp.basic.PopupPositionProvider
 import top.yukonga.miuix.kmp.blur.BlendColorEntry
 import top.yukonga.miuix.kmp.blur.BlurBlendMode
 import top.yukonga.miuix.kmp.blur.BlurDefaults
@@ -62,8 +79,10 @@ import top.yukonga.miuix.kmp.utils.scrollEndHaptic
 import java.time.LocalDate
 import java.time.LocalTime
 import java.time.format.DateTimeFormatter
-import java.util.Calendar
+import java.time.temporal.ChronoUnit
+import kotlin.time.Duration.Companion.milliseconds
 import androidx.compose.ui.graphics.Color as ComposeColor
+import androidx.core.content.edit
 
 
 @Composable
@@ -135,7 +154,7 @@ private fun CourseItemContent(course: Course, sectionTimes: Map<Int, String>) {
                     courseStatus = "进行中"
                 }
             }
-            delay(1000L)
+            delay(1000L.milliseconds)
         }
     }
 
@@ -170,7 +189,7 @@ private fun CourseItemContent(course: Course, sectionTimes: Map<Int, String>) {
                 color = MiuixTheme.colorScheme.onBackgroundVariant
             )
         }
-        Column(horizontalAlignment = androidx.compose.ui.Alignment.End) {
+        Column(horizontalAlignment = Alignment.End) {
             Text(
                 text = timeRange,
                 style = MiuixTheme.textStyles.footnote1.copy(fontSize = 15.sp),
@@ -189,48 +208,97 @@ private fun CourseItemContent(course: Course, sectionTimes: Map<Int, String>) {
     }
 }
 
+/**
+ * 根据开学日期和目标日期计算对应周次
+ */
+private fun calculateWeekFromDate(startDate: String, date: LocalDate): Int {
+    return try {
+        val start = LocalDate.parse(startDate.replace("/", "-"))
+        val startMonday = start.minusDays((start.dayOfWeek.value - 1).toLong())
+        val daysBetween = ChronoUnit.DAYS.between(startMonday, date)
+        (daysBetween / 7 + 1).toInt()
+    } catch (_: Exception) { 1 }
+}
+
 @Composable
 fun TodayScreen(
     viewModel: CourseViewModel,
     settingsViewModel: SettingsViewModel,
     onCourseClick: (courses: List<Course>, cardLeft: Float, cardTop: Float, cardWidth: Float, cardHeight: Float, snapshot: android.graphics.Bitmap?) -> Unit = { _, _, _, _, _, _ -> },
+    pagerState: androidx.compose.foundation.pager.PagerState,
     navBarStyle: String = "standard",
     liquidGlassBackdrop: com.kyant.backdrop.Backdrop? = null,
     onScrollYChanged: (Int) -> Unit = {},
-    settingsScrollBehavior: top.yukonga.miuix.kmp.basic.ScrollBehavior? = null
+    settingsScrollBehavior: top.yukonga.miuix.kmp.basic.ScrollBehavior? = null,
+    onSelectedDayChanged: (Int) -> Unit = {},
+    onSelectedDateChanged: (Boolean) -> Unit = {},
+    scrollToTodayTrigger: Int = 0,
+    showMorePopup: Boolean = false,
+    onShowMorePopupChange: (Boolean) -> Unit = {},
+    jumpToDateTrigger: Int = 0,
+    onCourseManage: () -> Unit = {}
 ) {
     val courses by viewModel.courses.collectAsState()
     val currentWeek by viewModel.currentWeek.collectAsState()
+    val classStartTime by viewModel.classStartTime.collectAsState()
     val sectionTimes by settingsViewModel.sectionTimes.collectAsState()
     val morningSections by settingsViewModel.morningSections.collectAsState()
     val afternoonSections by settingsViewModel.afternoonSections.collectAsState()
     val eveningSections by settingsViewModel.eveningSections.collectAsState()
     val showWeekendDays by settingsViewModel.showWeekendDays.collectAsState()
 
-    val calendar = Calendar.getInstance()
-    val currentDayOfWeek = (calendar.get(Calendar.DAY_OF_WEEK) + 5) % 7 + 1
+    val MAX_DATE_OFFSET = 1000
+    val initialDaysOffset = pagerState.currentPage - MAX_DATE_OFFSET
+    val initialDate = LocalDate.now().plusDays(initialDaysOffset.toLong())
+    var selectedDate by remember { mutableStateOf(initialDate) }
+    var isToday by remember { mutableStateOf(initialDaysOffset == 0) }
+    val scope = rememberCoroutineScope()
+    val context = LocalContext.current
 
-    val todayCourses = remember(courses, currentWeek, currentDayOfWeek, showWeekendDays) {
-        val dayRange = if (showWeekendDays.isNotEmpty()) {
-            (1..5) + showWeekendDays.filter { it in 6..7 }
-        } else {
-            (1..5).toList()
-        }
-        if (currentDayOfWeek in dayRange) {
-            courses.filter { it.dayOfWeek == currentDayOfWeek && it.isActiveInWeek(currentWeek) }
-                .sortedBy { it.startSection }
-        } else {
-            emptyList()
+    LaunchedEffect(scrollToTodayTrigger) {
+        if (scrollToTodayTrigger > 0 && pagerState.currentPage != MAX_DATE_OFFSET) {
+            pagerState.animateScrollToPage(MAX_DATE_OFFSET)
         }
     }
 
-    val morningCourses = todayCourses.filter { it.startSection <= morningSections }
-    val afternoonCourses = todayCourses.filter {
-        it.startSection > morningSections && it.startSection <= morningSections + afternoonSections
+    LaunchedEffect(jumpToDateTrigger) {
+        if (jumpToDateTrigger > 0) {
+            val now = LocalDate.now()
+            val datePickerDialog = android.app.DatePickerDialog(
+                context,
+                { _, year, month, dayOfMonth ->
+                    val target = LocalDate.of(year, month + 1, dayOfMonth)
+                    val days = ChronoUnit.DAYS.between(now, target)
+                    val targetPage = MAX_DATE_OFFSET + days.toInt()
+                    scope.launch {
+                        pagerState.animateScrollToPage(targetPage)
+                    }
+                },
+                now.year,
+                now.monthValue - 1,
+                now.dayOfMonth
+            )
+            datePickerDialog.show()
+        }
     }
-    val eveningCourses = todayCourses.filter {
-        it.startSection > morningSections + afternoonSections
+
+    LaunchedEffect(pagerState.currentPage) {
+        val daysOffset = pagerState.currentPage - MAX_DATE_OFFSET
+        val newDate = LocalDate.now().plusDays(daysOffset.toLong())
+        if (newDate != selectedDate) {
+            selectedDate = newDate
+            val nowToday = daysOffset == 0
+            isToday = nowToday
+            onSelectedDateChanged(nowToday)
+        }
+        val newDayOfWeek = newDate.dayOfWeek.value.let { if (it == 7) 7 else it }
+        onSelectedDayChanged(newDayOfWeek)
     }
+
+    val selectedDayOfWeek = selectedDate.dayOfWeek.value.let {
+        if (it == 7) 7 else it
+    }
+
 
     val hapticFeedback = LocalHapticFeedback.current
     var listScrollY by remember { mutableIntStateOf(0) }
@@ -241,10 +309,9 @@ fun TodayScreen(
         drawRect(backgroundColor)
         drawContent()
     }
-    val today = LocalDate.now()
     val dayOfWeekNames = listOf("周一", "周二", "周三", "周四", "周五", "周六", "周日")
-    val dayOfWeekName = if (currentDayOfWeek in 1..7) dayOfWeekNames[currentDayOfWeek - 1] else ""
-    val dateText = today.format(DateTimeFormatter.ofPattern("yyyy年M月d日"))
+    val dayOfWeekName = if (selectedDayOfWeek in 1..7) dayOfWeekNames[selectedDayOfWeek - 1] else ""
+
 
     val appStyle = rememberAppStyle()
     val isLiquidGlass = appStyle == "liquidglass" && liquidGlassBackdrop != null
@@ -281,9 +348,86 @@ fun TodayScreen(
                         Modifier.textureBlur(backdrop = backdrop, shape = RectangleShape, colors = topAppBarColors!!)
                     } else Modifier,
                     color = topBarColor,
-                    title = "今天是$dayOfWeekName",
-                    largeTitle = "今天是$dayOfWeekName",
+                    title = if (isToday) "今天是$dayOfWeekName" else dayOfWeekName,
+                    largeTitle = if (isToday) "今天是$dayOfWeekName" else dayOfWeekName,
                     scrollBehavior = scrollBehavior,
+                    navigationIcon = {
+                        AnimatedVisibility(
+                            visible = !isToday,
+                            enter = fadeIn(animationSpec = tween(180)),
+                            exit = fadeOut(animationSpec = tween(120))
+                        ) {
+                            IconButton(
+                                onClick = {
+                                    scope.launch { pagerState.animateScrollToPage(MAX_DATE_OFFSET) }
+                                },
+                                modifier = Modifier.padding(start = 4.dp, bottom = 4.dp)
+                            ) {
+                                Icon(
+                                    imageVector = MiuixIcons.Medium.Reset,
+                                    contentDescription = "返回今天",
+                                    modifier = Modifier.size(24.dp)
+                                )
+                            }
+                        }
+                    },
+                    actions = {
+                        Box(modifier = Modifier.padding(end = 4.dp)) {
+                            IconButton(onClick = {
+                                hapticFeedback.performHapticFeedback(HapticFeedbackType.VirtualKey)
+                                onShowMorePopupChange(true)
+                            }) {
+                                Icon(
+                                    imageVector = MiuixIcons.More,
+                                    contentDescription = "更多",
+                                    modifier = Modifier.size(22.dp)
+                                )
+                            }
+                            OverlayListPopup(
+                                show = showMorePopup,
+                                alignment = PopupPositionProvider.Align.End,
+                                onDismissRequest = { onShowMorePopupChange(false) }
+                            ) {
+                                ListPopupColumn {
+                                    DropdownImpl(
+                                        text = "跳转日期",
+                                        optionSize = 2,
+                                        isSelected = false,
+                                        index = 0,
+                                        onSelectedIndexChange = {
+                                            onShowMorePopupChange(false)
+                                            val now = LocalDate.now()
+                                            val datePickerDialog = android.app.DatePickerDialog(
+                                                context,
+                                                { _, year, month, dayOfMonth ->
+                                                    val target = LocalDate.of(year, month + 1, dayOfMonth)
+                                                    val days = ChronoUnit.DAYS.between(now, target)
+                                                    val targetPage = MAX_DATE_OFFSET + days.toInt()
+                                                    scope.launch {
+                                                        pagerState.animateScrollToPage(targetPage)
+                                                    }
+                                                },
+                                                now.year,
+                                                now.monthValue - 1,
+                                                now.dayOfMonth
+                                            )
+                                            datePickerDialog.show()
+                                        }
+                                    )
+                                    DropdownImpl(
+                                        text = "课程管理",
+                                        optionSize = 2,
+                                        isSelected = false,
+                                        index = 1,
+                                        onSelectedIndexChange = {
+                                            onShowMorePopupChange(false)
+                                            onCourseManage()
+                                        }
+                                    )
+                                }
+                            }
+                        }
+                    }
                 )
             }
         }
@@ -293,6 +437,37 @@ fun TodayScreen(
                 .fillMaxSize()
                 .layerBackdrop(backdrop)
         ) {
+            HorizontalPager(
+                state = pagerState,
+                modifier = Modifier.fillMaxSize()
+            ) { page ->
+                val pageDate = LocalDate.now().plusDays((page - MAX_DATE_OFFSET).toLong())
+                val pageDayOfWeek = pageDate.dayOfWeek.value.let { if (it == 7) 7 else it }
+                val pageWeek = remember(pageDate, classStartTime) {
+                    calculateWeekFromDate(classStartTime, pageDate)
+                }
+                val pageCourses = remember(courses, pageWeek, pageDayOfWeek, showWeekendDays) {
+                    val dayRange = if (showWeekendDays.isNotEmpty()) {
+                        (1..5) + showWeekendDays.filter { it in 6..7 }
+                    } else {
+                        (1..5).toList()
+                    }
+                    if (pageDayOfWeek in dayRange) {
+                        courses.filter { it.dayOfWeek == pageDayOfWeek && it.isActiveInWeek(pageWeek) }
+                            .sortedBy { it.startSection }
+                    } else {
+                        emptyList()
+                    }
+                }
+                val morningCourses = pageCourses.filter { it.startSection <= morningSections }
+                val afternoonCourses = pageCourses.filter {
+                    it.startSection > morningSections && it.startSection <= morningSections + afternoonSections
+                }
+                val eveningCourses = pageCourses.filter {
+                    it.startSection > morningSections + afternoonSections
+                }
+                val isPageToday = pageDate == LocalDate.now()
+                val dateText = pageDate.format(DateTimeFormatter.ofPattern("yyyy年M月d日"))
             val listState = rememberLazyListState()
             LaunchedEffect(listState) {
                 snapshotFlow { listState.firstVisibleItemScrollOffset }
@@ -662,10 +837,10 @@ fun TodayScreen(
                             mutableIntStateOf(savedIndex)
                         } else {
                             val newIndex = (System.nanoTime() % quotes.size).toInt()
-                            prefs.edit()
-                                .putInt("quote_index", newIndex)
-                                .putLong("process_id", currentProcessId)
-                                .apply()
+                            prefs.edit {
+                                putInt("quote_index", newIndex)
+                                    .putLong("process_id", currentProcessId)
+                            }
                             mutableIntStateOf(newIndex)
                         }
                     }
@@ -829,14 +1004,14 @@ fun TodayScreen(
                     }
                 }
 
-                if (todayCourses.isEmpty()) {
+                if (pageCourses.isEmpty()) {
                     item {
                         Box(
                             modifier = Modifier.fillMaxWidth().height(250.dp),
-                            contentAlignment = androidx.compose.ui.Alignment.Center
+                            contentAlignment = Alignment.Center
                         ) {
                             Text(
-                                text = "今天没有课程，好好休息吧！",
+                                text = if (isPageToday) "今天没有课程，好好休息吧！" else "这天没有课程",
                                 style = MiuixTheme.textStyles.body2,
                                 color = MiuixTheme.colorScheme.onSurfaceVariantActions,
                                 textAlign = TextAlign.Center
@@ -846,5 +1021,6 @@ fun TodayScreen(
                 }
             }
         }
+    }
     }
 }

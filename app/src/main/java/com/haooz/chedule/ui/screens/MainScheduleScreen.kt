@@ -50,10 +50,10 @@ import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.unit.DpSize
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.haooz.chedule.data.Course
+import com.haooz.chedule.ui.components.BlurBottomSheet
 import com.haooz.chedule.ui.components.DayColumn
 import com.haooz.chedule.ui.components.SectionColumn
 import com.haooz.chedule.ui.utils.isAppDarkTheme
@@ -74,7 +74,6 @@ import top.yukonga.miuix.kmp.blur.rememberLayerBackdrop
 import top.yukonga.miuix.kmp.blur.textureBlur
 import top.yukonga.miuix.kmp.icon.MiuixIcons
 import top.yukonga.miuix.kmp.icon.extended.Add
-import top.yukonga.miuix.kmp.overlay.OverlayBottomSheet
 import top.yukonga.miuix.kmp.overlay.OverlayDialog
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 import top.yukonga.miuix.kmp.utils.PressFeedbackType
@@ -187,17 +186,17 @@ fun MainScheduleScreen(
         }
     }
 
-    // 壁纸 LayerBackdrop：捕获壁纸内容供课程卡片 textureBlur 使用
+    // 整体内容 LayerBackdrop：捕获壁纸+课程表+课程卡片，供弹窗模糊使用
     val wallpaperBackdropColor = MiuixTheme.colorScheme.surface
     val wallpaperBackdrop = rememberLayerBackdrop {
         drawRect(wallpaperBackdropColor)
         drawContent()
     }
 
-    Box(modifier = Modifier.fillMaxSize()) {
+    Box(modifier = Modifier.fillMaxSize().layerBackdrop(wallpaperBackdrop)) {
         // 壁纸背景
         if (wallpaperBitmap != null) {
-            Box(modifier = Modifier.fillMaxSize().layerBackdrop(wallpaperBackdrop)) {
+            Box(modifier = Modifier.fillMaxSize()) {
                 val brightnessFilter = if (wallpaperBrightness != 0f) {
                     val b = (1f + wallpaperBrightness / 50f).coerceIn(0f, 2f)
                     androidx.compose.ui.graphics.ColorFilter.colorMatrix(
@@ -412,9 +411,15 @@ fun MainScheduleScreen(
             }
         }
 
-        OverlayBottomSheet(
+        BlurBottomSheet(
             show = showCourseDetail,
             title = "课程详情",
+            backdrop = wallpaperBackdrop,
+            dimBackground = true,
+            onDismissRequest = {
+                showCourseDetail = false
+                onPopupStateChange(false)
+            },
             endAction = {
                 IconButton(onClick = {
                     hapticFeedback.performHapticFeedback(HapticFeedbackType.Confirm)
@@ -436,13 +441,6 @@ fun MainScheduleScreen(
                         modifier = Modifier.size(26.dp)
                     )
                 }
-            },
-            backgroundColor = if (isAppDarkTheme()) Color(0xFF1E1E1E) else Color(0xFFF7F7F7),
-            cornerRadius = 36.dp,
-            insideMargin = DpSize(0.dp, 0.dp),
-            onDismissRequest = {
-                showCourseDetail = false
-                onPopupStateChange(false)
             }
         ) {
             val coursesToShow =
@@ -461,6 +459,7 @@ fun MainScheduleScreen(
                     .verticalScroll(rememberScrollState()),
                 verticalArrangement = Arrangement.spacedBy(16.dp)
             ) {
+                Spacer(modifier = Modifier.height(60.dp))
                 coursesToShow.forEach { course ->
                     val summaryText = buildString {
                         append(course.getWeekText())
@@ -561,7 +560,7 @@ fun MainScheduleScreen(
                         }
                     }
                 }
-                Spacer(modifier = Modifier.height(60.dp))
+                Spacer(modifier = Modifier.height(260.dp))
             }
         }
 

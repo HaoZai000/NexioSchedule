@@ -64,9 +64,10 @@ internal fun UpdateDialog() {
         val lastCheckDate = updatePrefs.getString("last_check_date", "") ?: ""
 
         if (lastCheckDate != today) {
+            val downloadSource = updatePrefs.getString("download_source", "gitee") ?: "gitee"
             val (hasUpdate, release) = withContext(Dispatchers.IO) {
                 try {
-                    UpdateChecker.checkForUpdate(context)
+                    UpdateChecker.checkForUpdate(context, downloadSource)
                 } catch (e: Exception) {
                     Log.e("UpdateDialog", "检查更新失败", e)
                     Pair(false, null)
@@ -96,14 +97,25 @@ internal fun UpdateDialog() {
         val tag = updatePrefs.getString("latest_tag", "") ?: ""
         val body = updatePrefs.getString("latest_body", "") ?: ""
 
-        if (hasUpdate && tag.isNotBlank() && updateReminder) {
+        val currentVersion = try {
+            context.packageManager.getPackageInfo(context.packageName, 0).versionName ?: ""
+        } catch (_: Exception) { "" }
+        val localVersion = currentVersion.removePrefix("v").substringBefore("-")
+        val remoteVersion = tag.removePrefix("v").substringBefore("-")
+
+        val actuallyHasUpdate = hasUpdate && tag.isNotBlank() && UpdateChecker.isNewerVersion(remoteVersion, localVersion)
+        if (hasUpdate && !actuallyHasUpdate) {
+            updatePrefs.edit().putBoolean("has_update", false).apply()
+        }
+
+        if (actuallyHasUpdate && updateReminder) {
             updateTagName = tag
             updateBody = body
             val apkFile = File(context.filesDir, "update-$tag.apk")
             hasDownloadedApk = apkFile.exists() && apkFile.length() > 0
             delay(800)
             showUpdateDialog = true
-        } else if (hasUpdate && !updateReminder) {
+        } else if (actuallyHasUpdate && !updateReminder) {
             updatePrefs.edit().putBoolean("has_update", false).apply()
         }
     }

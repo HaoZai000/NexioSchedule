@@ -39,6 +39,7 @@ import com.haooz.chedule.ui.data.changelogData
 import com.haooz.chedule.ui.utils.rememberAppStyle
 import top.yukonga.miuix.kmp.basic.Card
 import top.yukonga.miuix.kmp.basic.Icon
+import top.yukonga.miuix.kmp.basic.IconButton
 import top.yukonga.miuix.kmp.basic.MiuixScrollBehavior
 import top.yukonga.miuix.kmp.basic.Scaffold
 import top.yukonga.miuix.kmp.basic.TopAppBar
@@ -90,7 +91,10 @@ fun ChangelogScreen(
                     title = "更新日志",
                     scrollBehavior = scrollBehavior,
                     navigationIcon = {
-                        top.yukonga.miuix.kmp.basic.IconButton(onClick = { onBack() }) {
+                        IconButton(
+                            onClick = { onBack() },
+                            modifier = Modifier.padding(start = 4.dp)
+                        ) {
                             Icon(
                                 imageVector = MiuixIcons.Back,
                                 contentDescription = "返回",
@@ -184,12 +188,23 @@ fun ChangelogScreen(
                                         Column(
                                             modifier = Modifier.padding(start = 18.dp, end = 18.dp, bottom = 14.dp)
                                         ) {
-                                            Text(
-                                                text = entry.changes.joinToString("\n") { "• $it" },
-                                                fontSize = 14.sp,
-                                                lineHeight = 22.sp,
-                                                color = MiuixTheme.colorScheme.onSurfaceVariantActions
-                                            )
+                                            entry.changes.forEach { change ->
+                                                Row(modifier = Modifier.padding(bottom = 2.dp)) {
+                                                    Text(
+                                                        text = "• ",
+                                                        fontSize = 14.sp,
+                                                        lineHeight = 22.sp,
+                                                        color = MiuixTheme.colorScheme.onSurfaceVariantActions
+                                                    )
+                                                    Text(
+                                                        text = change,
+                                                        fontSize = 14.sp,
+                                                        lineHeight = 22.sp,
+                                                        color = MiuixTheme.colorScheme.onSurfaceVariantActions,
+                                                        modifier = Modifier.weight(1f)
+                                                    )
+                                                }
+                                            }
                                         }
                                     }
                                 }

@@ -27,17 +27,27 @@ internal object UpdateChecker {
 
     /**
      * 检查是否有新版本。需在 IO 线程调用。
+     * @param source 下载源，"gitee" 或 "github"
      * @return Pair(hasUpdate, release)，检查失败时返回 Pair(false, null)
      */
-    fun checkForUpdate(context: Context): Pair<Boolean, GiteeRelease?> {
+    fun checkForUpdate(context: Context, source: String = "gitee"): Pair<Boolean, GiteeRelease?> {
         return try {
             val client = okhttp3.OkHttpClient.Builder()
                 .connectTimeout(10, java.util.concurrent.TimeUnit.SECONDS)
                 .readTimeout(10, java.util.concurrent.TimeUnit.SECONDS)
                 .build()
 
-            val url = "https://gitee.com/api/v5/repos/com_haooz_account/hyper_schedule/releases/latest?t=${System.currentTimeMillis()}"
-            val request = okhttp3.Request.Builder().url(url).build()
+            val baseUrl = if (source == "github") {
+                "https://api.github.com/repos/HaoZai000/NexioSchedule/releases/latest"
+            } else {
+                "https://gitee.com/api/v5/repos/com_haooz_account/hyper_schedule/releases/latest"
+            }
+            val url = "$baseUrl?t=${System.currentTimeMillis()}"
+            val request = okhttp3.Request.Builder().url(url).apply {
+                if (source == "github") {
+                    header("Accept", "application/vnd.github.v3+json")
+                }
+            }.build()
             val response = client.newCall(request).execute()
 
             if (!response.isSuccessful) {
