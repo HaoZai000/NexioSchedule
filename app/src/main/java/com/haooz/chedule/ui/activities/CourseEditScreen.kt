@@ -210,20 +210,20 @@ fun CourseEditScreen(
     }
 
     // ---- Derived animation state ----
-    // 使用宽高中较大的比例作为初始缩放，确保窄卡片也能正确显示
+    // graphicsLayer.scale 同时缩放宽高，clipBottom 需要反向补偿
+    // 使得 scale * clipBottom 在 p=0 时等于 cardHeight
     val animState = remember {
         derivedStateOf {
             val p = animProgress.value
             val bgAlpha = (p * 0.5f).coerceIn(0f, 0.5f)
             val snapAlpha = (1f - p * 3f).coerceIn(0f, 1f)
             val contAlpha = ((p - 0.1f) / 0.5f).coerceIn(0f, 1f)
-            val scaleX = cardWidth / screenWidth
-            val scaleY = cardHeight / screenHeight
-            val initialScale = maxOf(scaleX, scaleY)
-            val scale = initialScale + (1f - initialScale) * p
+            val scale = cardWidth / screenWidth + (1f - cardWidth / screenWidth) * p
             val translationX = (cardLeft + cardWidth / 2f - screenWidth / 2f) * (1f - p)
-            val translationY = (cardTop + cardHeight / 2f - screenHeight / 2f) * (1f - p)
-            val clipBottom = cardHeight + 20 + (screenHeight - cardHeight - 20) * p
+            val translationY = cardTop * (1f - p)
+            // clipBottom 在 pre-transform 空间，需要除以 scale 使渲染后高度正确
+            val rawClipBottom = cardHeight + 20 + (screenHeight - cardHeight - 20) * p
+            val clipBottom = rawClipBottom / scale
             AnimState(bgAlpha, snapAlpha, contAlpha, translationX, translationY, scale, clipBottom, p)
         }
     }
