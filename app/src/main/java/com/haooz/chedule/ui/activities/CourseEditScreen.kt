@@ -7,6 +7,7 @@ import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -22,17 +23,19 @@ import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBars
-import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
@@ -53,6 +56,7 @@ import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.DpOffset
+import androidx.compose.ui.unit.DpSize
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.zIndex
@@ -65,8 +69,8 @@ import com.haooz.chedule.ui.utils.isAppDarkTheme
 import com.haooz.chedule.ui.utils.rememberAppStyle
 import com.kyant.shapes.RoundedRectangle
 import kotlinx.coroutines.launch
-import top.yukonga.miuix.kmp.basic.MiuixScrollBehavior
 import top.yukonga.miuix.kmp.basic.Card
+import top.yukonga.miuix.kmp.basic.MiuixScrollBehavior
 import top.yukonga.miuix.kmp.basic.Scaffold
 import top.yukonga.miuix.kmp.basic.SmallTopAppBar
 import top.yukonga.miuix.kmp.blur.BlendColorEntry
@@ -81,11 +85,6 @@ import top.yukonga.miuix.kmp.icon.extended.ChevronBackward
 import top.yukonga.miuix.kmp.icon.extended.Close
 import top.yukonga.miuix.kmp.icon.extended.Ok
 import top.yukonga.miuix.kmp.theme.MiuixTheme
-import androidx.compose.foundation.clickable
-import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.verticalScroll
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.ui.unit.DpSize
 import androidx.compose.ui.graphics.Color as ComposeColor
 import com.kyant.backdrop.backdrops.layerBackdrop as liquidGlassLayerBackdrop
 
@@ -114,6 +113,7 @@ private class AnimClipShape(
         density: androidx.compose.ui.unit.Density
     ): androidx.compose.ui.graphics.Outline {
         val s = animState.value
+        // 动画结束后圆角归零
         val radiusPx = if (s.progress >= 1f) 0f
         else startCornerRadiusPx + (screenCornerRadiusPx - startCornerRadiusPx) * s.progress
         val radiusDp = (radiusPx / s.scale / density.density).dp
@@ -148,7 +148,6 @@ data class CourseGroup(
 
 @Composable
 fun CourseEditScreen(
-    courseName: String,
     courses: List<Course>,
     cardLeft: Float,
     cardTop: Float,
@@ -164,6 +163,8 @@ fun CourseEditScreen(
     onCourseUpdated: () -> Unit = {},
     liquidGlassBackdrop: com.kyant.backdrop.backdrops.LayerBackdrop? = null
 ) {
+    val courseName = courses.firstOrNull()?.name ?: ""
+
     val appStyle = rememberAppStyle()
     val isLiquidGlass = appStyle == "liquidglass" && liquidGlassBackdrop != null
 
@@ -201,7 +202,7 @@ fun CourseEditScreen(
         )
     }
 
-    // ---- Derived animation state ----
+    // ---- Derived animation state (identical to CourseDetailScreen) ----
     val animState = remember {
         derivedStateOf {
             val p = animProgress.value
@@ -244,7 +245,7 @@ fun CourseEditScreen(
         saturation = 1.2f
     )
 
-    // ---- Morphing container ----
+    // ---- Morphing container (identical to CourseDetailScreen) ----
     Box(
         modifier = Modifier
             .fillMaxSize()
@@ -273,7 +274,7 @@ fun CourseEditScreen(
                 .clip(clipShape)
                 .background(MiuixTheme.colorScheme.surface)
         ) {
-            // Card snapshot during morph
+            // Card snapshot during morph (identical to CourseDetailScreen)
             if (cardSnapshot != null && s.snapshotAlpha > 0f) {
                 Image(
                     bitmap = cardSnapshot.asImageBitmap(),
@@ -287,7 +288,7 @@ fun CourseEditScreen(
                 )
             }
 
-            // Content that fades in
+            // Content that fades in (identical to CourseDetailScreen)
             if (s.contentAlpha > 0f) {
                 Box(
                     modifier = Modifier
@@ -443,7 +444,7 @@ fun CourseEditScreen(
     }
 }
 
-// ===================== CourseGroupCard =====================
+// ===================== Course Group Card =====================
 
 @Composable
 private fun CourseGroupCard(

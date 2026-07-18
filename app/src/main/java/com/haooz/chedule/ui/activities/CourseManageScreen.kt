@@ -1,6 +1,7 @@
 /** 课程管理页面 - Screen */
 package com.haooz.chedule.ui.activities
 
+import android.graphics.Bitmap
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -24,9 +25,11 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.snapshotFlow
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
@@ -34,6 +37,9 @@ import androidx.compose.ui.graphics.RectangleShape
 import androidx.compose.ui.graphics.lerp
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.input.nestedscroll.nestedScroll
+import androidx.compose.ui.layout.onGloballyPositioned
+import androidx.compose.ui.layout.positionInRoot
+import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -65,12 +71,19 @@ fun CourseManageScreen(
     onBack: () -> Unit,
     viewModel: CourseViewModel = viewModel(),
     liquidGlassBackdrop: com.kyant.backdrop.Backdrop? = null,
-    onCourseClick: (courseName: String, courses: List<com.haooz.chedule.data.Course>, position: Triple<Float, Float, Float>) -> Unit = { _, _, _ -> }
+    onCourseClick: (
+        courses: List<com.haooz.chedule.data.Course>,
+        left: Float,
+        top: Float,
+        width: Float,
+        height: Float,
+        snapshot: Bitmap?
+    ) -> Unit = { _, _, _, _, _, _ -> }
 ) {
     val courses by viewModel.courses.collectAsState()
     val scrollBehavior = MiuixScrollBehavior()
     var listScrollY by remember { mutableIntStateOf(0) }
-    val hapticFeedback = androidx.compose.ui.platform.LocalHapticFeedback.current
+    val hapticFeedback = LocalHapticFeedback.current
 
     val backgroundColor = MiuixTheme.colorScheme.surface
     val backdrop = rememberLayerBackdrop {
@@ -196,8 +209,8 @@ fun CourseManageScreen(
                             classroom = classrooms,
                             color = Color(representative.colorRes),
                             daySectionInfo = daySectionInfo,
-                            onClick = {
-                                onCourseClick(courseName, courseList, Triple(0f, 0f, 400f))
+                            onClick = { left, top, width, height, snapshot ->
+                                onCourseClick(courseList, left, top, width, height, snapshot)
                             }
                         )
                     }
@@ -215,14 +228,29 @@ private fun CourseManageCard(
     color: Color,
     cardAlpha: Float = 0.15f,
     daySectionInfo: String,
-    onClick: () -> Unit
+    onClick: (left: Float, top: Float, width: Float, height: Float, snapshot: Bitmap?) -> Unit
 ) {
+    var cardPosition by remember { mutableStateOf(androidx.compose.ui.geometry.Offset.Zero) }
+    var cardSize by remember { mutableStateOf(androidx.compose.ui.unit.IntSize.Zero) }
+
     Column(
         modifier = Modifier
             .fillMaxWidth()
             .clip(RoundedCornerShape(16.dp))
             .background(color.copy(alpha = cardAlpha))
-            .clickable(onClick = onClick)
+            .onGloballyPositioned { coordinates ->
+                cardPosition = coordinates.positionInRoot()
+                cardSize = coordinates.size
+            }
+            .clickable {
+                onClick(
+                    cardPosition.x,
+                    cardPosition.y,
+                    cardSize.width.toFloat(),
+                    cardSize.height.toFloat(),
+                    null
+                )
+            }
             .padding(14.dp)
     ) {
         Box(

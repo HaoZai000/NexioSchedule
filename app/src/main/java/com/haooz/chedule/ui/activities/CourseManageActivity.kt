@@ -15,9 +15,11 @@ import androidx.compose.foundation.layout.statusBars
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalWindowInfo
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.zIndex
 import com.haooz.chedule.data.Course
@@ -62,84 +64,95 @@ class CourseManageActivity : ComponentActivity() {
 
                 // Edit screen state
                 var showEditScreen by remember { mutableStateOf(false) }
-                var selectedCourseName by remember { mutableStateOf("") }
                 var selectedCourses by remember { mutableStateOf<List<Course>>(emptyList()) }
-                var cardPosition by remember { mutableStateOf(Triple(0f, 0f, 0f)) }
+                var cardPosition by remember { mutableStateOf(CardPosition(0f, 0f, 0f, 0f)) }
+                var cardSnapshot by remember { mutableStateOf<android.graphics.Bitmap?>(null) }
 
                 if (showEditScreen) {
+                    val windowInfo = LocalWindowInfo.current
+                    val coroutineScope = rememberCoroutineScope()
                     CourseEditScreen(
-                        courseName = selectedCourseName,
                         courses = selectedCourses,
-                        cardLeft = cardPosition.first,
-                        cardTop = cardPosition.second,
-                        cardWidth = cardPosition.third,
-                        cardHeight = 200f,
-                        screenWidth = resources.displayMetrics.widthPixels.toFloat(),
-                        screenHeight = resources.displayMetrics.heightPixels.toFloat(),
+                        cardLeft = cardPosition.left,
+                        cardTop = cardPosition.top,
+                        cardWidth = cardPosition.width,
+                        cardHeight = cardPosition.height,
+                        screenWidth = windowInfo.containerSize.width.toFloat(),
+                        screenHeight = windowInfo.containerSize.height.toFloat(),
                         screenCornerRadius = 40f,
-                        cardSnapshot = null,
+                        cardSnapshot = cardSnapshot,
                         sectionTimes = Course.defaultSectionTimes,
                         onBackStart = { },
-                        onBack = { showEditScreen = false },
+                        onBack = {
+                            showEditScreen = false
+                            cardSnapshot = null
+                        },
                         onCourseUpdated = { },
                         liquidGlassBackdrop = liquidGlassBackdrop
                     )
                 } else {
                     Scaffold(
-                    topBar = {
-                        if (isLiquidGlass) {
-                            val statusBarPadding = WindowInsets.statusBars.asPaddingValues().calculateTopPadding()
-                            ProgressiveBlurTopBar(
-                                backdrop = liquidGlassBackdrop!!,
-                            ) {
-                                SmallTopAppBar(
-                                    color = Color.Transparent,
-                                    title = "课程管理",
-                                    modifier = Modifier.zIndex(1f),
-                                    navigationIcon = {}
+                        topBar = {
+                            if (isLiquidGlass) {
+                                val statusBarPadding = WindowInsets.statusBars.asPaddingValues().calculateTopPadding()
+                                ProgressiveBlurTopBar(
+                                    backdrop = liquidGlassBackdrop!!,
+                                ) {
+                                    SmallTopAppBar(
+                                        color = Color.Transparent,
+                                        title = "课程管理",
+                                        modifier = Modifier.zIndex(1f),
+                                        navigationIcon = {}
+                                    )
+                                    LiquidTopBarButton(
+                                        onClick = { finish() },
+                                        backdrop = liquidGlassBackdrop,
+                                        icon = MiuixIcons.Medium.ChevronBackward,
+                                        contentDescription = "返回",
+                                        modifier = Modifier
+                                            .zIndex(2f)
+                                            .offset(x = 20.dp, y = if (statusBarPadding > 0.dp) statusBarPadding + 5.dp else 42.dp),
+                                        iconSize = 22.dp,
+                                        iconOffset = DpOffset(x = (-2).dp, y = 0.dp),
+                                        useBackdropShadow = true
+                                    )
+                                }
+                            }
+                        }
+                    ) { _ ->
+                        Box(
+                            modifier = Modifier
+                                .fillMaxSize()
+                                .layerBackdrop(backdrop)
+                        ) {
+                            Box(
+                                modifier = Modifier.fillMaxSize().then(
+                                    if (liquidGlassBackdrop != null) Modifier.liquidGlassLayerBackdrop(liquidGlassBackdrop)
+                                    else Modifier
                                 )
-                                LiquidTopBarButton(
-                                    onClick = { finish() },
-                                    backdrop = liquidGlassBackdrop,
-                                    icon = MiuixIcons.Medium.ChevronBackward,
-                                    contentDescription = "返回",
-                                    modifier = Modifier
-                                        .zIndex(2f)
-                                        .offset(x = 20.dp, y = if (statusBarPadding > 0.dp) statusBarPadding + 5.dp else 42.dp),
-                                    iconSize = 22.dp,
-                                    iconOffset = DpOffset(x = (-2).dp, y = 0.dp),
-                                    useBackdropShadow = true
+                            ) {
+                                CourseManageScreen(
+                                    onBack = { finish() },
+                                    liquidGlassBackdrop = liquidGlassBackdrop,
+                                    onCourseClick = { courses, left, top, width, height, snapshot ->
+                                        selectedCourses = courses
+                                        cardPosition = CardPosition(left, top, width, height)
+                                        cardSnapshot = snapshot
+                                        showEditScreen = true
+                                    }
                                 )
                             }
                         }
                     }
-                ) { _ ->
-                    Box(
-                        modifier = Modifier
-                            .fillMaxSize()
-                            .layerBackdrop(backdrop)
-                    ) {
-                        Box(
-                            modifier = Modifier.fillMaxSize().then(
-                                if (liquidGlassBackdrop != null) Modifier.liquidGlassLayerBackdrop(liquidGlassBackdrop)
-                                else Modifier
-                            )
-                        ) {
-                            CourseManageScreen(
-                                onBack = { finish() },
-                                liquidGlassBackdrop = liquidGlassBackdrop,
-                                onCourseClick = { courseName, courses, position ->
-                                    selectedCourseName = courseName
-                                    selectedCourses = courses
-                                    cardPosition = position
-                                    showEditScreen = true
-                                }
-                            )
-                        }
-                    }
                 }
-                } // end else (not showing edit screen)
             }
         }
     }
 }
+
+private data class CardPosition(
+    val left: Float,
+    val top: Float,
+    val width: Float,
+    val height: Float
+)
