@@ -40,7 +40,7 @@ internal val OobeCubicOutEasing = Easing { fraction ->
 
 internal val OobeQuartOutEasing = Easing { fraction ->
     val inverse = 1f - fraction
-    1f - inverse * inverse * inverse * inverse
+    1f - inverse * inverse * inverse * inverse * inverse
 }
 
 internal val OobeHomeSpringEasing = Easing { fraction ->

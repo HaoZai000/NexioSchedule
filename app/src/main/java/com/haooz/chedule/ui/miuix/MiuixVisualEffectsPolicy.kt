@@ -7,17 +7,9 @@ package com.haooz.chedule.ui.miuix
 
 import android.app.ActivityManager
 import android.content.Context
-import android.database.ContentObserver
 import android.os.Build
-import android.os.Handler
-import android.os.Looper
-import android.provider.Settings
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.DisposableEffect
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.platform.LocalContext
 import dalvik.system.PathClassLoader
 import java.lang.reflect.Method
@@ -48,15 +40,6 @@ object MiuixVisualEffectsPolicy {
             profile.advertisedMemoryGiB >= MIN_NON_HYPER_OS_MEMORY_GIB
         }
     }
-
-    fun allowsBlur(context: Context): Boolean {
-        val appContext = context.applicationContext
-        if (!allowsCostlyVisualEffects(appContext)) return false
-        return !isHyperOsDevice() ||
-            (systemBlurSupported() && systemBlurEnabled(appContext))
-    }
-
-    fun isHyperOsDevice(): Boolean = isHyperOsRuntime()
 
     private fun deviceProfile(context: Context): DeviceProfile =
         cachedDeviceProfile ?: synchronized(this) {
@@ -142,19 +125,6 @@ object MiuixVisualEffectsPolicy {
         }.getOrDefault(-1)
     }
 
-    private fun systemBlurSupported(): Boolean = SystemPropertyReader
-        .get("persist.sys.background_blur_supported")
-        .trim()
-        .let { value -> value == "1" || value.equals("true", ignoreCase = true) }
-
-    private fun systemBlurEnabled(context: Context): Boolean = runCatching {
-        Settings.Secure.getInt(
-            context.contentResolver,
-            "background_blur_enable",
-            0,
-        ) == 1
-    }.getOrDefault(false)
-
     private data class DeviceProfile(
         val isHyperOs: Boolean,
         val usesMiuiLiteStrategy: Boolean,
@@ -168,40 +138,6 @@ object MiuixVisualEffectsPolicy {
         "ro.miui.ui.version.name",
         "ro.miui.ui.version.code",
     )
-}
-
-@Composable
-fun rememberMiuixBlurAllowed(): Boolean {
-    val context = LocalContext.current
-    val appContext = context.applicationContext
-    var blurAllowed by remember(appContext) {
-        mutableStateOf(
-            MiuixVisualEffectsPolicy.allowsBlur(appContext),
-        )
-    }
-
-    DisposableEffect(appContext) {
-        val observer = object : ContentObserver(Handler(Looper.getMainLooper())) {
-            override fun onChange(selfChange: Boolean) {
-                blurAllowed = MiuixVisualEffectsPolicy.allowsBlur(appContext)
-            }
-        }
-        val registered = MiuixVisualEffectsPolicy.isHyperOsDevice() && runCatching {
-            appContext.contentResolver.registerContentObserver(
-                Settings.Secure.getUriFor("background_blur_enable"),
-                false,
-                observer,
-            )
-        }.isSuccess
-
-        onDispose {
-            if (registered) {
-                runCatching { appContext.contentResolver.unregisterContentObserver(observer) }
-            }
-        }
-    }
-
-    return blurAllowed
 }
 
 @Composable
