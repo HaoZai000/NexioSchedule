@@ -1,6 +1,8 @@
 /** 课程管理页面 */
 package com.haooz.chedule.ui.activities
 
+import android.annotation.SuppressLint
+import android.content.Context
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.SystemBarStyle
@@ -25,7 +27,6 @@ import androidx.compose.ui.draw.drawWithContent
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.asAndroidBitmap
 import androidx.compose.ui.graphics.graphicsLayer
-import androidx.compose.ui.graphics.layer.GraphicsLayer
 import androidx.compose.ui.graphics.layer.drawLayer
 import androidx.compose.ui.graphics.rememberGraphicsLayer
 import androidx.compose.ui.platform.LocalDensity
@@ -92,9 +93,20 @@ class CourseManageActivity : ComponentActivity() {
                 val windowInfo = LocalWindowInfo.current
                 val coroutineScope = rememberCoroutineScope()
                 val density = LocalDensity.current
+                val context = androidx.compose.ui.platform.LocalContext.current
 
-                // Screen corner radius (40dp like MainActivity)
-                val screenCornerRadius = 40f
+                // Dynamically get screen corner radius from window insets
+                val screenCornerRadius = remember {
+                    try {
+                        val windowManager = context.getSystemService(Context.WINDOW_SERVICE) as android.view.WindowManager
+                        val windowMetrics = windowManager.currentWindowMetrics
+                        val insets = windowMetrics.windowInsets
+                        @SuppressLint("WrongConstant")
+                        insets.getRoundedCorner(0)?.radius?.toFloat() ?: 0f
+                    } catch (_: Exception) {
+                        0f
+                    }
+                }
 
                 Box(modifier = Modifier.fillMaxSize().background(MiuixTheme.colorScheme.surface)) {
                     // Main content with scale animation and screen capture
