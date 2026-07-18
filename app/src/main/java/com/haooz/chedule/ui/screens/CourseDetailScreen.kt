@@ -195,7 +195,8 @@ fun CourseDetailScreen(
             val scale = cardWidth / screenWidth + (1f - cardWidth / screenWidth) * p
             val translationX = (cardLeft + cardWidth / 2f - screenWidth / 2f) * (1f - p)
             val translationY = cardTop * (1f - p)
-            val clipBottom = cardHeight + 20 + (screenHeight - cardHeight - 20) * p
+            val rawClipBottom = cardHeight + (screenHeight - cardHeight) * p
+            val clipBottom = rawClipBottom / scale
             AnimState(bgAlpha, snapAlpha, contAlpha, translationX, translationY, scale, clipBottom, p)
         }
     }
