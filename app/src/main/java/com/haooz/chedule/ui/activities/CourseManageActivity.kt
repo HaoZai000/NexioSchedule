@@ -169,7 +169,6 @@ class CourseManageActivity : ComponentActivity() {
                                     CourseManageScreen(
                                         onBack = { finish() },
                                         liquidGlassBackdrop = liquidGlassBackdrop,
-                                        backdrop = backdrop,
                                         onCourseClick = { courses, left, top, width, height, _, color ->
                                             coroutineScope.launch {
                                                 selectedCourses = courses
