@@ -122,7 +122,7 @@ class CourseManageActivity : ComponentActivity() {
                                 screenGraphicsLayer.record {
                                     this@drawWithContent.drawContent()
                                 }
-                                drawLayer(screenGraphicsLayer)
+                                drawContent()
                             }
                     ) {
                         Scaffold(
