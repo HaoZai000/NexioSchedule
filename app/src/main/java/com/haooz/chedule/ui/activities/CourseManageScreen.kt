@@ -77,8 +77,9 @@ fun CourseManageScreen(
         top: Float,
         width: Float,
         height: Float,
-        snapshot: Bitmap?
-    ) -> Unit = { _, _, _, _, _, _ -> }
+        snapshot: Bitmap?,
+        cardColor: Color
+    ) -> Unit = { _, _, _, _, _, _, _ -> }
 ) {
     val courses by viewModel.courses.collectAsState()
     val scrollBehavior = MiuixScrollBehavior()
@@ -210,7 +211,7 @@ fun CourseManageScreen(
                             color = Color(representative.colorRes),
                             daySectionInfo = daySectionInfo,
                             onClick = { left, top, width, height, snapshot ->
-                                onCourseClick(courseList, left, top, width, height, snapshot)
+                                onCourseClick(courseList, left, top, width, height, snapshot, Color(representative.colorRes))
                             }
                         )
                     }

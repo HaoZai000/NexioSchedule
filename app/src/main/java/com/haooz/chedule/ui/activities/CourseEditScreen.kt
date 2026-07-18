@@ -164,6 +164,7 @@ fun CourseEditScreen(
     screenHeight: Float,
     screenCornerRadius: Float,
     cardSnapshot: Bitmap?,
+    cardColor: Color = Color(0xFF4CAF50),
     sectionTimes: Map<Int, String>,
     onBackStart: () -> Unit,
     onBack: () -> Unit,
@@ -222,7 +223,7 @@ fun CourseEditScreen(
             val translationX = (cardLeft + cardWidth / 2f - screenWidth / 2f) * (1f - p)
             val translationY = cardTop * (1f - p)
             // clipBottom 在 pre-transform 空间，需要除以 scale 使渲染后高度正确
-            val rawClipBottom = cardHeight + 20 + (screenHeight - cardHeight - 20) * p
+            val rawClipBottom = cardHeight + (screenHeight - cardHeight) * p
             val clipBottom = rawClipBottom / scale
             AnimState(bgAlpha, snapAlpha, contAlpha, translationX, translationY, scale, clipBottom, p)
         }
@@ -256,13 +257,12 @@ fun CourseEditScreen(
         saturation = 1.2f
     )
 
-    // ---- Morphing container (identical to CourseDetailScreen) ----
+    // ---- Morphing container ----
     Box(
         modifier = Modifier
             .fillMaxSize()
             .background(
-                if (isDark) ComposeColor(0xFF2C2C2C).copy(alpha = animState.value.bgAlpha)
-                else ComposeColor.Black.copy(alpha = animState.value.bgAlpha)
+                cardColor.copy(alpha = animState.value.bgAlpha)
             )
             .pointerInput(Unit) {
                 // Block touch events during animation
