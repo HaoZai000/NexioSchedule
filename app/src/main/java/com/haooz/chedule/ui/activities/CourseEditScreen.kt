@@ -32,6 +32,7 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
@@ -50,6 +51,7 @@ import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.lerp
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
+import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalDensity
@@ -70,9 +72,13 @@ import com.haooz.chedule.ui.utils.rememberAppStyle
 import com.kyant.shapes.RoundedRectangle
 import kotlinx.coroutines.launch
 import top.yukonga.miuix.kmp.basic.Card
+import top.yukonga.miuix.kmp.basic.CardDefaults
+import top.yukonga.miuix.kmp.basic.Icon
+import top.yukonga.miuix.kmp.basic.IconButton
 import top.yukonga.miuix.kmp.basic.MiuixScrollBehavior
 import top.yukonga.miuix.kmp.basic.Scaffold
 import top.yukonga.miuix.kmp.basic.SmallTopAppBar
+import top.yukonga.miuix.kmp.basic.TopAppBar
 import top.yukonga.miuix.kmp.blur.BlendColorEntry
 import top.yukonga.miuix.kmp.blur.BlurBlendMode
 import top.yukonga.miuix.kmp.blur.BlurDefaults
@@ -85,6 +91,8 @@ import top.yukonga.miuix.kmp.icon.extended.ChevronBackward
 import top.yukonga.miuix.kmp.icon.extended.Close
 import top.yukonga.miuix.kmp.icon.extended.Ok
 import top.yukonga.miuix.kmp.theme.MiuixTheme
+import top.yukonga.miuix.kmp.utils.overScrollVertical
+import top.yukonga.miuix.kmp.utils.scrollEndHaptic
 import androidx.compose.ui.graphics.Color as ComposeColor
 import com.kyant.backdrop.backdrops.layerBackdrop as liquidGlassLayerBackdrop
 
@@ -113,7 +121,6 @@ private class AnimClipShape(
         density: androidx.compose.ui.unit.Density
     ): androidx.compose.ui.graphics.Outline {
         val s = animState.value
-        // 动画结束后圆角归零
         val radiusPx = if (s.progress >= 1f) 0f
         else startCornerRadiusPx + (screenCornerRadiusPx - startCornerRadiusPx) * s.progress
         val radiusDp = (radiusPx / s.scale / density.density).dp
@@ -127,7 +134,6 @@ private class AnimClipShape(
 
 // ===================== Course Grouping Helpers =====================
 
-/** 课程分组键：按节次/周次区分不同课程时段 */
 data class CourseGroupKey(
     val dayOfWeek: Int,
     val startSection: Int,
@@ -138,7 +144,6 @@ data class CourseGroupKey(
     val selectedWeeks: List<Int> = emptyList()
 )
 
-/** 一个课程时段（相同节次/周次配置的课程集合） */
 data class CourseGroup(
     val key: CourseGroupKey,
     val courses: List<Course>
@@ -336,7 +341,7 @@ fun CourseEditScreen(
                                     )
                                 }
                             } else {
-                                top.yukonga.miuix.kmp.basic.TopAppBar(
+                                TopAppBar(
                                     modifier = if (blurAlpha > 0f) {
                                         Modifier.textureBlur(
                                             backdrop = backdrop,
@@ -350,7 +355,7 @@ fun CourseEditScreen(
                                     title = courseName,
                                     scrollBehavior = scrollBehavior,
                                     navigationIcon = {
-                                        top.yukonga.miuix.kmp.basic.IconButton(onClick = {
+                                        IconButton(onClick = {
                                             hapticFeedback.performHapticFeedback(HapticFeedbackType.Confirm)
                                             onBackStart()
                                             scope.launch {
@@ -366,7 +371,7 @@ fun CourseEditScreen(
                                         },
                                             modifier = Modifier.padding(start = 4.dp)
                                         ) {
-                                            top.yukonga.miuix.kmp.basic.Icon(
+                                            Icon(
                                                 imageVector = MiuixIcons.Back,
                                                 contentDescription = "返回",
                                                 modifier = Modifier.size(28.dp)
@@ -387,53 +392,65 @@ fun CourseEditScreen(
                                 )
                         ) {
                             val listState = rememberLazyListState()
-
-                            // Track scroll state for top bar blur effect
                             LaunchedEffect(listState) {
-                                snapshotFlow { listState.firstVisibleItemIndex to listState.firstVisibleItemScrollOffset }
-                                    .collect { (index, offset) ->
-                                        listScrollY = index * 100 + offset
+                                snapshotFlow { listState.firstVisibleItemScrollOffset }
+                                    .collect { offset ->
+                                        listScrollY = offset
                                     }
                             }
 
-                            // Group courses by day/section/week configuration
-                            val courseGroups = remember(courses) {
-                                courses.groupBy { course ->
-                                    CourseGroupKey(
-                                        dayOfWeek = course.dayOfWeek,
-                                        startSection = course.startSection,
-                                        endSection = course.endSection,
-                                        weekType = course.weekType,
-                                        startWeek = course.startWeek,
-                                        endWeek = course.endWeek,
-                                        selectedWeeks = course.selectedWeeks
-                                    )
-                                }.map { (key, groupCourses) ->
-                                    CourseGroup(key = key, courses = groupCourses)
-                                }
-                            }
-
-                            LazyColumn(
-                                state = listState,
-                                modifier = Modifier.fillMaxSize()
+                            Card(
+                                modifier = Modifier.fillMaxSize().background(MiuixTheme.colorScheme.surface),
+                                insideMargin = PaddingValues(0.dp),
+                                colors = CardDefaults.defaultColors(
+                                    color = MiuixTheme.colorScheme.surface,
+                                    contentColor = MiuixTheme.colorScheme.onSurface
+                                )
                             ) {
-                                items(
-                                    items = courseGroups,
-                                    key = { "${it.key.dayOfWeek}_${it.key.startSection}_${it.key.startWeek}" }
-                                ) { group ->
-                                    CourseGroupCard(
-                                        group = group,
-                                        sectionTimes = sectionTimes,
-                                        onCourseUpdated = onCourseUpdated,
-                                        modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)
-                                    )
+                                // Group courses by day/section/week configuration
+                                val courseGroups = remember(courses) {
+                                    courses.groupBy { course ->
+                                        CourseGroupKey(
+                                            dayOfWeek = course.dayOfWeek,
+                                            startSection = course.startSection,
+                                            endSection = course.endSection,
+                                            weekType = course.weekType,
+                                            startWeek = course.startWeek,
+                                            endWeek = course.endWeek,
+                                            selectedWeeks = course.selectedWeeks
+                                        )
+                                    }.map { (key, groupCourses) ->
+                                        CourseGroup(key = key, courses = groupCourses)
+                                    }
                                 }
 
-                                // Bottom spacing for navigation bar
-                                item {
-                                    Spacer(
-                                        modifier = Modifier.padding(bottom = 80.dp)
-                                    )
+                                LazyColumn(
+                                    state = listState,
+                                    modifier = Modifier
+                                        .fillMaxSize()
+                                        .overScrollVertical()
+                                        .scrollEndHaptic(
+                                            hapticFeedbackType = HapticFeedbackType.TextHandleMove
+                                        )
+                                        .nestedScroll(scrollBehavior.nestedScrollConnection),
+                                    contentPadding = PaddingValues(
+                                        start = 16.dp,
+                                        top = if (isLiquidGlass) paddingValues.calculateTopPadding() + (-16).dp else paddingValues.calculateTopPadding(),
+                                        end = 16.dp,
+                                        bottom = 120.dp
+                                    ),
+                                    verticalArrangement = Arrangement.spacedBy(12.dp)
+                                ) {
+                                    items(
+                                        items = courseGroups,
+                                        key = { "${it.key.dayOfWeek}_${it.key.startSection}_${it.key.startWeek}" }
+                                    ) { group ->
+                                        CourseGroupCard(
+                                            group = group,
+                                            sectionTimes = sectionTimes,
+                                            onCourseUpdated = onCourseUpdated
+                                        )
+                                    }
                                 }
                             }
                         }
@@ -450,8 +467,7 @@ fun CourseEditScreen(
 private fun CourseGroupCard(
     group: CourseGroup,
     sectionTimes: Map<Int, String>,
-    onCourseUpdated: () -> Unit,
-    modifier: Modifier = Modifier
+    onCourseUpdated: () -> Unit
 ) {
     val key = group.key
     val course = group.courses.first()
@@ -486,19 +502,14 @@ private fun CourseGroupCard(
     var showEditDialog by remember { mutableStateOf(false) }
 
     Card(
-        modifier = modifier.fillMaxWidth(),
-        cornerRadius = 16.dp,
-        insideMargin = PaddingValues(0.dp),
-        colors = top.yukonga.miuix.kmp.basic.CardDefaults.defaultColors(
-            color = MiuixTheme.colorScheme.surface,
-            contentColor = MiuixTheme.colorScheme.onSurface
-        ),
-        showIndication = false
+        cornerRadius = 20.dp,
+        modifier = Modifier.fillMaxWidth(),
+        insideMargin = PaddingValues(0.dp)
     ) {
         Column(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(16.dp),
+                .padding(horizontal = 16.dp, vertical = 14.dp),
             verticalArrangement = Arrangement.spacedBy(8.dp)
         ) {
             // Header: Day + Section
@@ -509,15 +520,15 @@ private fun CourseGroupCard(
             ) {
                 Text(
                     text = "$dayName $sectionRange",
-                    fontSize = 16.sp,
-                    fontWeight = FontWeight.SemiBold,
+                    style = MiuixTheme.textStyles.body1.copy(fontSize = 17.sp),
+                    fontWeight = FontWeight.Medium,
                     color = MiuixTheme.colorScheme.onSurface
                 )
                 if (timeRange.isNotEmpty()) {
                     Text(
                         text = timeRange,
-                        fontSize = 13.sp,
-                        color = MiuixTheme.colorScheme.onSurface.copy(alpha = 0.6f)
+                        style = MiuixTheme.textStyles.footnote1.copy(fontSize = 15.sp),
+                        color = MiuixTheme.colorScheme.primary
                     )
                 }
             }
@@ -525,8 +536,8 @@ private fun CourseGroupCard(
             // Week info
             Text(
                 text = weekRange,
-                fontSize = 13.sp,
-                color = MiuixTheme.colorScheme.onSurface.copy(alpha = 0.6f)
+                style = MiuixTheme.textStyles.footnote1,
+                color = MiuixTheme.colorScheme.onSurfaceVariantActions
             )
 
             // Course names in this group
@@ -595,13 +606,13 @@ private fun CourseEditDialog(
         show = showSheet,
         title = "编辑课程",
         startAction = {
-            top.yukonga.miuix.kmp.basic.IconButton(
+            IconButton(
                 onClick = {
                     showSheet = false
                 },
                 modifier = Modifier.padding(horizontal = 20.dp)
             ) {
-                top.yukonga.miuix.kmp.basic.Icon(
+                Icon(
                     imageVector = MiuixIcons.Normal.Close,
                     contentDescription = "取消",
                     modifier = Modifier.size(24.dp)
@@ -609,7 +620,7 @@ private fun CourseEditDialog(
             }
         },
         endAction = {
-            top.yukonga.miuix.kmp.basic.IconButton(
+            IconButton(
                 onClick = {
                     if (name.isNotBlank() && startSection <= endSection && startWeek <= endWeek) {
                         val updatedCourse = course.copy(
@@ -629,7 +640,7 @@ private fun CourseEditDialog(
                 },
                 modifier = Modifier.padding(horizontal = 20.dp)
             ) {
-                top.yukonga.miuix.kmp.basic.Icon(
+                Icon(
                     imageVector = MiuixIcons.Ok,
                     contentDescription = "确认",
                     modifier = Modifier.size(26.dp)
@@ -650,11 +661,11 @@ private fun CourseEditDialog(
             verticalArrangement = Arrangement.spacedBy(12.dp)
         ) {
             // Basic info card
-            top.yukonga.miuix.kmp.basic.Card(
+            Card(
                 cornerRadius = 20.dp,
                 modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp),
                 insideMargin = PaddingValues(horizontal = 16.dp),
-                colors = top.yukonga.miuix.kmp.basic.CardDefaults.defaultColors(
+                colors = CardDefaults.defaultColors(
                     color = if (isDark) Color(0xFF363636) else Color(0xFFFFFFFF),
                     contentColor = MiuixTheme.colorScheme.onSurface
                 )
@@ -729,10 +740,10 @@ private fun CourseEditDialog(
             }
 
             // Day of week selection
-            top.yukonga.miuix.kmp.basic.Card(
+            Card(
                 cornerRadius = 20.dp,
                 modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp),
-                colors = top.yukonga.miuix.kmp.basic.CardDefaults.defaultColors(
+                colors = CardDefaults.defaultColors(
                     color = if (isDark) Color(0xFF363636) else Color(0xFFFFFFFF),
                     contentColor = MiuixTheme.colorScheme.onSurface
                 )
@@ -752,13 +763,13 @@ private fun CourseEditDialog(
                         val dayLabels = listOf("一", "二", "三", "四", "五", "六", "日")
                         for (day in 1..7) {
                             val isSelected = day == dayOfWeek
-                            top.yukonga.miuix.kmp.basic.Card(
+                            Card(
                                 modifier = Modifier
                                     .weight(1f)
                                     .height(32.dp),
                                 cornerRadius = 10.dp,
                                 insideMargin = PaddingValues(0.dp),
-                                colors = top.yukonga.miuix.kmp.basic.CardDefaults.defaultColors(
+                                colors = CardDefaults.defaultColors(
                                     color = if (isSelected) MiuixTheme.colorScheme.primary
                                     else if (isDark) Color(0xFF505050) else Color(0xFFF7F7F7),
                                     contentColor = if (isSelected) Color.White else MiuixTheme.colorScheme.onSurfaceVariantSummary
@@ -782,10 +793,10 @@ private fun CourseEditDialog(
             }
 
             // Section range
-            top.yukonga.miuix.kmp.basic.Card(
+            Card(
                 cornerRadius = 20.dp,
                 modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp),
-                colors = top.yukonga.miuix.kmp.basic.CardDefaults.defaultColors(
+                colors = CardDefaults.defaultColors(
                     color = if (isDark) Color(0xFF363636) else Color(0xFFFFFFFF),
                     contentColor = MiuixTheme.colorScheme.onSurface
                 )
@@ -840,10 +851,10 @@ private fun CourseEditDialog(
             }
 
             // Week range
-            top.yukonga.miuix.kmp.basic.Card(
+            Card(
                 cornerRadius = 20.dp,
                 modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp),
-                colors = top.yukonga.miuix.kmp.basic.CardDefaults.defaultColors(
+                colors = CardDefaults.defaultColors(
                     color = if (isDark) Color(0xFF363636) else Color(0xFFFFFFFF),
                     contentColor = MiuixTheme.colorScheme.onSurface
                 )
@@ -896,8 +907,6 @@ private fun CourseEditDialog(
                     }
                 }
             }
-
-            Spacer(modifier = Modifier.height(100.dp))
         }
     }
 }
