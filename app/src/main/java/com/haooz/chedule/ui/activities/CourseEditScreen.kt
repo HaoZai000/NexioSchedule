@@ -223,7 +223,7 @@ fun CourseEditScreen(
             val translationX = (cardLeft + cardWidth / 2f - screenWidth / 2f) * (1f - p)
             val translationY = cardTop * (1f - p)
             // clipBottom 在 pre-transform 空间，需要除以 scale 使渲染后高度正确
-            val rawClipBottom = cardHeight + 20 + (screenHeight - cardHeight + 20) * p
+            val rawClipBottom = cardHeight + (screenHeight - cardHeight) * p
             val clipBottom = rawClipBottom / scale
             AnimState(bgAlpha, snapAlpha, contAlpha, translationX, translationY, scale, clipBottom, p)
         }
@@ -284,6 +284,7 @@ fun CourseEditScreen(
                     translationY = s.translationY
                 }
                 .clip(clipShape)
+                .background(MiuixTheme.colorScheme.surface)
                 .background(cardColor.copy(alpha = 0.15f))
         ) {
             // Card snapshot during morph (identical to CourseDetailScreen)
