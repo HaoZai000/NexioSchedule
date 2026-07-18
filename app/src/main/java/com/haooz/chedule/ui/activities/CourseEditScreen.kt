@@ -78,7 +78,14 @@ import top.yukonga.miuix.kmp.blur.textureBlur
 import top.yukonga.miuix.kmp.icon.MiuixIcons
 import top.yukonga.miuix.kmp.icon.extended.Back
 import top.yukonga.miuix.kmp.icon.extended.ChevronBackward
+import top.yukonga.miuix.kmp.icon.extended.Close
+import top.yukonga.miuix.kmp.icon.extended.Ok
 import top.yukonga.miuix.kmp.theme.MiuixTheme
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.ui.unit.DpSize
 import androidx.compose.ui.graphics.Color as ComposeColor
 import com.kyant.backdrop.backdrops.layerBackdrop as liquidGlassLayerBackdrop
 
@@ -446,6 +453,7 @@ private fun CourseGroupCard(
     modifier: Modifier = Modifier
 ) {
     val key = group.key
+    val course = group.courses.first()
     val dayNames = listOf("", "周一", "周二", "周三", "周四", "周五", "周六", "周日")
     val dayName = dayNames.getOrElse(key.dayOfWeek) { "未知" }
 
@@ -467,13 +475,14 @@ private fun CourseGroupCard(
     val timeRange = buildString {
         val startTime = sectionTimes[key.startSection]
         val endTime = sectionTimes[key.endSection]?.let {
-            // Get end time (end section + 1 or just the end section time)
             sectionTimes[key.endSection]
         }
         if (startTime != null && endTime != null) {
             append("$startTime - $endTime")
         }
     }
+
+    var showEditDialog by remember { mutableStateOf(false) }
 
     Card(
         modifier = modifier.fillMaxWidth(),
@@ -528,6 +537,366 @@ private fun CourseGroupCard(
                     color = MiuixTheme.colorScheme.onSurface.copy(alpha = 0.5f)
                 )
             }
+
+            // Edit button
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clip(RoundedRectangle(20.dp))
+                    .background(MiuixTheme.colorScheme.primary.copy(alpha = 0.1f))
+                    .clickable { showEditDialog = true }
+                    .padding(horizontal = 20.dp, vertical = 8.dp),
+                contentAlignment = Alignment.Center
+            ) {
+                Text(
+                    text = "编辑",
+                    style = MiuixTheme.textStyles.body1.copy(fontSize = 16.sp),
+                    fontWeight = FontWeight.Medium,
+                    color = MiuixTheme.colorScheme.primary
+                )
+            }
+        }
+    }
+
+    if (showEditDialog) {
+        CourseEditDialog(
+            course = course,
+            onDismiss = { showEditDialog = false },
+            onConfirm = { updatedCourse ->
+                showEditDialog = false
+                onCourseUpdated()
+            }
+        )
+    }
+}
+
+// ===================== Course Edit Dialog =====================
+
+@Composable
+private fun CourseEditDialog(
+    course: Course,
+    onDismiss: () -> Unit,
+    onConfirm: (Course) -> Unit
+) {
+    val isDark = isAppDarkTheme()
+    var showSheet by remember { mutableStateOf(true) }
+
+    var name by remember { mutableStateOf(course.name) }
+    var classroom by remember { mutableStateOf(course.classroom) }
+    var teacher by remember { mutableStateOf(course.teacher) }
+    var dayOfWeek by remember { mutableIntStateOf(course.dayOfWeek) }
+    var startSection by remember { mutableIntStateOf(course.startSection) }
+    var endSection by remember { mutableIntStateOf(course.endSection) }
+    var startWeek by remember { mutableIntStateOf(course.startWeek) }
+    var endWeek by remember { mutableIntStateOf(course.endWeek) }
+
+    top.yukonga.miuix.kmp.overlay.OverlayBottomSheet(
+        show = showSheet,
+        title = "编辑课程",
+        startAction = {
+            top.yukonga.miuix.kmp.basic.IconButton(
+                onClick = {
+                    showSheet = false
+                },
+                modifier = Modifier.padding(horizontal = 20.dp)
+            ) {
+                top.yukonga.miuix.kmp.basic.Icon(
+                    imageVector = MiuixIcons.Normal.Close,
+                    contentDescription = "取消",
+                    modifier = Modifier.size(24.dp)
+                )
+            }
+        },
+        endAction = {
+            top.yukonga.miuix.kmp.basic.IconButton(
+                onClick = {
+                    if (name.isNotBlank() && startSection <= endSection && startWeek <= endWeek) {
+                        val updatedCourse = course.copy(
+                            name = name.trim(),
+                            classroom = classroom.trim(),
+                            teacher = teacher.trim(),
+                            dayOfWeek = dayOfWeek,
+                            startSection = startSection,
+                            endSection = endSection,
+                            startWeek = startWeek,
+                            endWeek = endWeek,
+                            lastModified = System.currentTimeMillis()
+                        )
+                        onConfirm(updatedCourse)
+                        showSheet = false
+                    }
+                },
+                modifier = Modifier.padding(horizontal = 20.dp)
+            ) {
+                top.yukonga.miuix.kmp.basic.Icon(
+                    imageVector = MiuixIcons.Ok,
+                    contentDescription = "确认",
+                    modifier = Modifier.size(26.dp)
+                )
+            }
+        },
+        onDismissRequest = { showSheet = false },
+        onDismissFinished = onDismiss,
+        backgroundColor = if (isDark) Color(0xFF1E1E1E) else Color(0xFFF7F7F7),
+        cornerRadius = 36.dp,
+        insideMargin = DpSize(0.dp, 0.dp)
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .verticalScroll(rememberScrollState())
+                .padding(bottom = 60.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp)
+        ) {
+            // Basic info card
+            top.yukonga.miuix.kmp.basic.Card(
+                cornerRadius = 20.dp,
+                modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp),
+                insideMargin = PaddingValues(horizontal = 16.dp),
+                colors = top.yukonga.miuix.kmp.basic.CardDefaults.defaultColors(
+                    color = if (isDark) Color(0xFF363636) else Color(0xFFFFFFFF),
+                    contentColor = MiuixTheme.colorScheme.onSurface
+                )
+            ) {
+                Column(modifier = Modifier.fillMaxWidth()) {
+                    // Course name
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(vertical = 14.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text(
+                            text = "课程名称",
+                            modifier = Modifier.weight(1f),
+                            fontSize = 17.sp,
+                            fontWeight = FontWeight.Medium,
+                            color = MiuixTheme.colorScheme.onSurface
+                        )
+                        top.yukonga.miuix.kmp.basic.TextField(
+                            value = name,
+                            onValueChange = { name = it },
+                            modifier = Modifier.fillMaxWidth(0.65f),
+                            singleLine = true
+                        )
+                    }
+
+                    // Classroom
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(vertical = 14.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text(
+                            text = "地点",
+                            modifier = Modifier.weight(1f),
+                            fontSize = 17.sp,
+                            fontWeight = FontWeight.Medium,
+                            color = MiuixTheme.colorScheme.onSurface
+                        )
+                        top.yukonga.miuix.kmp.basic.TextField(
+                            value = classroom,
+                            onValueChange = { classroom = it },
+                            modifier = Modifier.fillMaxWidth(0.65f),
+                            singleLine = true
+                        )
+                    }
+
+                    // Teacher
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(vertical = 14.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text(
+                            text = "教师",
+                            modifier = Modifier.weight(1f),
+                            fontSize = 17.sp,
+                            fontWeight = FontWeight.Medium,
+                            color = MiuixTheme.colorScheme.onSurface
+                        )
+                        top.yukonga.miuix.kmp.basic.TextField(
+                            value = teacher,
+                            onValueChange = { teacher = it },
+                            modifier = Modifier.fillMaxWidth(0.65f),
+                            singleLine = true
+                        )
+                    }
+                }
+            }
+
+            // Day of week selection
+            top.yukonga.miuix.kmp.basic.Card(
+                cornerRadius = 20.dp,
+                modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp),
+                colors = top.yukonga.miuix.kmp.basic.CardDefaults.defaultColors(
+                    color = if (isDark) Color(0xFF363636) else Color(0xFFFFFFFF),
+                    contentColor = MiuixTheme.colorScheme.onSurface
+                )
+            ) {
+                Column(modifier = Modifier.fillMaxWidth()) {
+                    Text(
+                        text = "上课星期",
+                        fontSize = 17.sp,
+                        fontWeight = FontWeight.Medium,
+                        color = MiuixTheme.colorScheme.onSurface,
+                        modifier = Modifier.padding(start = 16.dp, top = 14.dp, bottom = 10.dp)
+                    )
+                    Row(
+                        modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 14.dp),
+                        horizontalArrangement = Arrangement.spacedBy(6.dp)
+                    ) {
+                        val dayLabels = listOf("一", "二", "三", "四", "五", "六", "日")
+                        for (day in 1..7) {
+                            val isSelected = day == dayOfWeek
+                            top.yukonga.miuix.kmp.basic.Card(
+                                modifier = Modifier
+                                    .weight(1f)
+                                    .height(32.dp),
+                                cornerRadius = 10.dp,
+                                insideMargin = PaddingValues(0.dp),
+                                colors = top.yukonga.miuix.kmp.basic.CardDefaults.defaultColors(
+                                    color = if (isSelected) MiuixTheme.colorScheme.primary
+                                    else if (isDark) Color(0xFF505050) else Color(0xFFF7F7F7),
+                                    contentColor = if (isSelected) Color.White else MiuixTheme.colorScheme.onSurfaceVariantSummary
+                                ),
+                                onClick = { dayOfWeek = day }
+                            ) {
+                                Box(
+                                    modifier = Modifier.fillMaxSize(),
+                                    contentAlignment = Alignment.Center
+                                ) {
+                                    Text(
+                                        text = dayLabels[day - 1],
+                                        fontSize = 14.sp,
+                                        color = if (isSelected) Color.White else MiuixTheme.colorScheme.onSurfaceVariantSummary
+                                    )
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+
+            // Section range
+            top.yukonga.miuix.kmp.basic.Card(
+                cornerRadius = 20.dp,
+                modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp),
+                colors = top.yukonga.miuix.kmp.basic.CardDefaults.defaultColors(
+                    color = if (isDark) Color(0xFF363636) else Color(0xFFFFFFFF),
+                    contentColor = MiuixTheme.colorScheme.onSurface
+                )
+            ) {
+                Column(modifier = Modifier.fillMaxWidth()) {
+                    Text(
+                        text = "上课节次",
+                        fontSize = 17.sp,
+                        fontWeight = FontWeight.Medium,
+                        color = MiuixTheme.colorScheme.onSurface,
+                        modifier = Modifier.padding(start = 16.dp, top = 14.dp, bottom = 10.dp)
+                    )
+                    Row(
+                        modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 14.dp),
+                        horizontalArrangement = Arrangement.spacedBy(12.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text(
+                            text = "第${startSection}节",
+                            fontSize = 15.sp,
+                            color = MiuixTheme.colorScheme.onSurface
+                        )
+                        Text(
+                            text = "至",
+                            fontSize = 15.sp,
+                            color = MiuixTheme.colorScheme.onSurfaceVariantActions
+                        )
+                        Text(
+                            text = "第${endSection}节",
+                            fontSize = 15.sp,
+                            color = MiuixTheme.colorScheme.onSurface
+                        )
+                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                            top.yukonga.miuix.kmp.basic.TextButton(
+                                text = "-",
+                                onClick = {
+                                    if (startSection > 1) {
+                                        startSection--
+                                        if (endSection < startSection) endSection = startSection
+                                    }
+                                }
+                            )
+                            top.yukonga.miuix.kmp.basic.TextButton(
+                                text = "+",
+                                onClick = {
+                                    if (endSection < 12) endSection++
+                                }
+                            )
+                        }
+                    }
+                }
+            }
+
+            // Week range
+            top.yukonga.miuix.kmp.basic.Card(
+                cornerRadius = 20.dp,
+                modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp),
+                colors = top.yukonga.miuix.kmp.basic.CardDefaults.defaultColors(
+                    color = if (isDark) Color(0xFF363636) else Color(0xFFFFFFFF),
+                    contentColor = MiuixTheme.colorScheme.onSurface
+                )
+            ) {
+                Column(modifier = Modifier.fillMaxWidth()) {
+                    Text(
+                        text = "上课周次",
+                        fontSize = 17.sp,
+                        fontWeight = FontWeight.Medium,
+                        color = MiuixTheme.colorScheme.onSurface,
+                        modifier = Modifier.padding(start = 16.dp, top = 14.dp, bottom = 10.dp)
+                    )
+                    Row(
+                        modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 14.dp),
+                        horizontalArrangement = Arrangement.spacedBy(12.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text(
+                            text = "第${startWeek}周",
+                            fontSize = 15.sp,
+                            color = MiuixTheme.colorScheme.onSurface
+                        )
+                        Text(
+                            text = "至",
+                            fontSize = 15.sp,
+                            color = MiuixTheme.colorScheme.onSurfaceVariantActions
+                        )
+                        Text(
+                            text = "第${endWeek}周",
+                            fontSize = 15.sp,
+                            color = MiuixTheme.colorScheme.onSurface
+                        )
+                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                            top.yukonga.miuix.kmp.basic.TextButton(
+                                text = "-",
+                                onClick = {
+                                    if (startWeek > 1) {
+                                        startWeek--
+                                        if (endWeek < startWeek) endWeek = startWeek
+                                    }
+                                }
+                            )
+                            top.yukonga.miuix.kmp.basic.TextButton(
+                                text = "+",
+                                onClick = {
+                                    if (endWeek < 30) endWeek++
+                                }
+                            )
+                        }
+                    }
+                }
+            }
+
+            Spacer(modifier = Modifier.height(100.dp))
         }
     }
 }
