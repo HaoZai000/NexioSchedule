@@ -295,7 +295,7 @@ fun CourseEditScreen(
                     modifier = Modifier
                         .align(Alignment.TopStart)
                         .fillMaxWidth()
-                        .clip(RoundedRectangle((16 / s.scale).dp))
+                        .clip(RoundedRectangle((18 / s.scale).dp))
                         .graphicsLayer { alpha = s.snapshotAlpha },
                     contentScale = ContentScale.FillWidth
                 )

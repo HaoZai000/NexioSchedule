@@ -71,6 +71,7 @@ fun CourseManageScreen(
     onBack: () -> Unit,
     viewModel: CourseViewModel = viewModel(),
     liquidGlassBackdrop: com.kyant.backdrop.Backdrop? = null,
+    backdrop: top.yukonga.miuix.kmp.blur.LayerBackdrop? = null,
     onCourseClick: (
         courses: List<com.haooz.chedule.data.Course>,
         left: Float,
@@ -86,11 +87,13 @@ fun CourseManageScreen(
     var listScrollY by remember { mutableIntStateOf(0) }
     val hapticFeedback = LocalHapticFeedback.current
 
+    // 如果没有传入backdrop，创建一个临时的
     val backgroundColor = MiuixTheme.colorScheme.surface
-    val backdrop = rememberLayerBackdrop {
+    val fallbackBackdrop = rememberLayerBackdrop {
         drawRect(backgroundColor)
         drawContent()
     }
+    val activeBackdrop = backdrop ?: fallbackBackdrop
     val isDark = isAppDarkTheme()
     val appStyle = rememberAppStyle()
     val isLiquidGlass = appStyle == "liquidglass" && liquidGlassBackdrop != null
@@ -124,7 +127,7 @@ fun CourseManageScreen(
                 if (!isLiquidGlass) {
                     TopAppBar(
                         modifier = if (blurAlpha > 0f) {
-                            Modifier.textureBlur(backdrop = backdrop, shape = RectangleShape, colors = topAppBarColors!!)
+                            Modifier.textureBlur(backdrop = activeBackdrop, shape = RectangleShape, colors = topAppBarColors!!)
                         } else Modifier,
                         color = topBarColor,
                         title = "课程管理", largeTitle = "课程管理",
@@ -146,7 +149,7 @@ fun CourseManageScreen(
             Box(
                 modifier = Modifier
                     .fillMaxSize()
-                    .layerBackdrop(backdrop)
+                    .layerBackdrop(activeBackdrop)
             ) {
                 val gridState = rememberLazyStaggeredGridState()
                 LaunchedEffect(gridState) {
