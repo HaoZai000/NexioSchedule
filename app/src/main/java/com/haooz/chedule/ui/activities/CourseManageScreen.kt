@@ -230,8 +230,10 @@ private fun CourseManageCard(
     daySectionInfo: String,
     onClick: (left: Float, top: Float, width: Float, height: Float, snapshot: Bitmap?) -> Unit
 ) {
-    var cardPosition by remember { mutableStateOf(androidx.compose.ui.geometry.Offset.Zero) }
-    var cardSize by remember { mutableStateOf(androidx.compose.ui.unit.IntSize.Zero) }
+    var cardLeft by remember { mutableStateOf(0f) }
+    var cardTop by remember { mutableStateOf(0f) }
+    var cardWidth by remember { mutableStateOf(0f) }
+    var cardHeight by remember { mutableStateOf(0f) }
 
     Column(
         modifier = Modifier
@@ -239,15 +241,19 @@ private fun CourseManageCard(
             .clip(RoundedCornerShape(16.dp))
             .background(color.copy(alpha = cardAlpha))
             .onGloballyPositioned { coordinates ->
-                cardPosition = coordinates.positionInRoot()
-                cardSize = coordinates.size
+                val position = coordinates.localToRoot(androidx.compose.ui.geometry.Offset.Zero)
+                val size = coordinates.size
+                cardLeft = position.x
+                cardTop = position.y
+                cardWidth = size.width.toFloat()
+                cardHeight = size.height.toFloat()
             }
             .clickable {
                 onClick(
-                    cardPosition.x,
-                    cardPosition.y,
-                    cardSize.width.toFloat(),
-                    cardSize.height.toFloat(),
+                    cardLeft,
+                    cardTop,
+                    cardWidth,
+                    cardHeight,
                     null
                 )
             }
