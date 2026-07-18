@@ -84,6 +84,7 @@ class CourseManageActivity : ComponentActivity() {
                 var cardWidth by remember { mutableStateOf(0f) }
                 var cardHeight by remember { mutableStateOf(0f) }
                 var cardSnapshot by remember { mutableStateOf<android.graphics.Bitmap?>(null) }
+                var cardColor by remember { mutableStateOf(Color(0xFF4CAF50)) }
 
                 // Graphics layer for capturing screen content
                 val screenGraphicsLayer = rememberGraphicsLayer()
@@ -168,13 +169,14 @@ class CourseManageActivity : ComponentActivity() {
                                     CourseManageScreen(
                                         onBack = { finish() },
                                         liquidGlassBackdrop = liquidGlassBackdrop,
-                                        onCourseClick = { courses, left, top, width, height, _ ->
+                                        onCourseClick = { courses, left, top, width, height, _, color ->
                                             coroutineScope.launch {
                                                 selectedCourses = courses
                                                 cardLeft = left
                                                 cardTop = top
                                                 cardWidth = width
                                                 cardHeight = height
+                                                cardColor = color
 
                                                 // Capture full screen snapshot
                                                 val fullSnapshot = screenGraphicsLayer.toImageBitmap().asAndroidBitmap()
@@ -215,6 +217,7 @@ class CourseManageActivity : ComponentActivity() {
                             screenHeight = windowInfo.containerSize.height.toFloat(),
                             screenCornerRadius = screenCornerRadius,
                             cardSnapshot = cardSnapshot,
+                            cardColor = cardColor,
                             sectionTimes = Course.defaultSectionTimes,
                             onBackStart = {
                                 coroutineScope.launch {
