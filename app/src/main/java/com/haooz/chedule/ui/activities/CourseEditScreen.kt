@@ -209,16 +209,20 @@ fun CourseEditScreen(
         )
     }
 
-    // ---- Derived animation state (identical to CourseDetailScreen) ----
+    // ---- Derived animation state ----
+    // 使用宽高中较大的比例作为初始缩放，确保窄卡片也能正确显示
     val animState = remember {
         derivedStateOf {
             val p = animProgress.value
             val bgAlpha = (p * 0.5f).coerceIn(0f, 0.5f)
             val snapAlpha = (1f - p * 3f).coerceIn(0f, 1f)
             val contAlpha = ((p - 0.1f) / 0.5f).coerceIn(0f, 1f)
-            val scale = cardWidth / screenWidth + (1f - cardWidth / screenWidth) * p
+            val scaleX = cardWidth / screenWidth
+            val scaleY = cardHeight / screenHeight
+            val initialScale = maxOf(scaleX, scaleY)
+            val scale = initialScale + (1f - initialScale) * p
             val translationX = (cardLeft + cardWidth / 2f - screenWidth / 2f) * (1f - p)
-            val translationY = cardTop * (1f - p)
+            val translationY = (cardTop + cardHeight / 2f - screenHeight / 2f) * (1f - p)
             val clipBottom = cardHeight + 20 + (screenHeight - cardHeight - 20) * p
             AnimState(bgAlpha, snapAlpha, contAlpha, translationX, translationY, scale, clipBottom, p)
         }
