@@ -6,6 +6,9 @@ import androidx.activity.ComponentActivity
 import androidx.activity.SystemBarStyle
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
+import androidx.compose.animation.core.Animatable
+import androidx.compose.animation.core.tween
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.asPaddingValues
@@ -19,6 +22,7 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.platform.LocalWindowInfo
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.zIndex
@@ -28,6 +32,9 @@ import com.haooz.chedule.ui.components.liquidglass.ProgressiveBlurTopBar
 import com.haooz.chedule.ui.theme.CourseScheduleTheme
 import com.haooz.chedule.ui.utils.applyThemeAwareSystemBars
 import com.haooz.chedule.ui.utils.rememberAppStyle
+import com.haooz.chedule.ui.oobe.OobeCubicOutEasing
+import com.haooz.chedule.ui.oobe.OobeQuartOutEasing
+import kotlinx.coroutines.launch
 import top.yukonga.miuix.kmp.basic.Scaffold
 import top.yukonga.miuix.kmp.basic.SmallTopAppBar
 import top.yukonga.miuix.kmp.blur.layerBackdrop
@@ -65,94 +72,120 @@ class CourseManageActivity : ComponentActivity() {
                 // Edit screen state
                 var showEditScreen by remember { mutableStateOf(false) }
                 var selectedCourses by remember { mutableStateOf<List<Course>>(emptyList()) }
-                var cardPosition by remember { mutableStateOf(CardPosition(0f, 0f, 0f, 0f)) }
-                var cardSnapshot by remember { mutableStateOf<android.graphics.Bitmap?>(null) }
+                var cardLeft by remember { mutableStateOf(0f) }
+                var cardTop by remember { mutableStateOf(0f) }
+                var cardWidth by remember { mutableStateOf(0f) }
+                var cardHeight by remember { mutableStateOf(0f) }
 
-                if (showEditScreen) {
-                    val windowInfo = LocalWindowInfo.current
-                    val coroutineScope = rememberCoroutineScope()
-                    CourseEditScreen(
-                        courses = selectedCourses,
-                        cardLeft = cardPosition.left,
-                        cardTop = cardPosition.top,
-                        cardWidth = cardPosition.width,
-                        cardHeight = cardPosition.height,
-                        screenWidth = windowInfo.containerSize.width.toFloat(),
-                        screenHeight = windowInfo.containerSize.height.toFloat(),
-                        screenCornerRadius = 40f,
-                        cardSnapshot = cardSnapshot,
-                        sectionTimes = Course.defaultSectionTimes,
-                        onBackStart = { },
-                        onBack = {
-                            showEditScreen = false
-                            cardSnapshot = null
-                        },
-                        onCourseUpdated = { },
-                        liquidGlassBackdrop = liquidGlassBackdrop
-                    )
-                } else {
-                    Scaffold(
-                        topBar = {
-                            if (isLiquidGlass) {
-                                val statusBarPadding = WindowInsets.statusBars.asPaddingValues().calculateTopPadding()
-                                ProgressiveBlurTopBar(
-                                    backdrop = liquidGlassBackdrop!!,
-                                ) {
-                                    SmallTopAppBar(
-                                        color = Color.Transparent,
-                                        title = "课程管理",
-                                        modifier = Modifier.zIndex(1f),
-                                        navigationIcon = {}
+                // Background scale animation (same as MainActivity)
+                val backgroundScale = remember { Animatable(1f) }
+                val windowInfo = LocalWindowInfo.current
+                val coroutineScope = rememberCoroutineScope()
+
+                Box(modifier = Modifier.fillMaxSize().background(MiuixTheme.colorScheme.surface)) {
+                    // Main content with scale animation
+                    Box(
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .graphicsLayer {
+                                val scale = backgroundScale.value
+                                scaleX = scale
+                                scaleY = scale
+                            }
+                    ) {
+                        Scaffold(
+                            topBar = {
+                                if (isLiquidGlass) {
+                                    val statusBarPadding = WindowInsets.statusBars.asPaddingValues().calculateTopPadding()
+                                    ProgressiveBlurTopBar(
+                                        backdrop = liquidGlassBackdrop!!,
+                                    ) {
+                                        SmallTopAppBar(
+                                            color = Color.Transparent,
+                                            title = "课程管理",
+                                            modifier = Modifier.zIndex(1f),
+                                            navigationIcon = {}
+                                        )
+                                        LiquidTopBarButton(
+                                            onClick = { finish() },
+                                            backdrop = liquidGlassBackdrop,
+                                            icon = MiuixIcons.Medium.ChevronBackward,
+                                            contentDescription = "返回",
+                                            modifier = Modifier
+                                                .zIndex(2f)
+                                                .offset(x = 20.dp, y = if (statusBarPadding > 0.dp) statusBarPadding + 5.dp else 42.dp),
+                                            iconSize = 22.dp,
+                                            iconOffset = DpOffset(x = (-2).dp, y = 0.dp),
+                                            useBackdropShadow = true
+                                        )
+                                    }
+                                }
+                            }
+                        ) { _ ->
+                            Box(
+                                modifier = Modifier
+                                    .fillMaxSize()
+                                    .layerBackdrop(backdrop)
+                            ) {
+                                Box(
+                                    modifier = Modifier.fillMaxSize().then(
+                                        if (liquidGlassBackdrop != null) Modifier.liquidGlassLayerBackdrop(liquidGlassBackdrop)
+                                        else Modifier
                                     )
-                                    LiquidTopBarButton(
-                                        onClick = { finish() },
-                                        backdrop = liquidGlassBackdrop,
-                                        icon = MiuixIcons.Medium.ChevronBackward,
-                                        contentDescription = "返回",
-                                        modifier = Modifier
-                                            .zIndex(2f)
-                                            .offset(x = 20.dp, y = if (statusBarPadding > 0.dp) statusBarPadding + 5.dp else 42.dp),
-                                        iconSize = 22.dp,
-                                        iconOffset = DpOffset(x = (-2).dp, y = 0.dp),
-                                        useBackdropShadow = true
+                                ) {
+                                    CourseManageScreen(
+                                        onBack = { finish() },
+                                        liquidGlassBackdrop = liquidGlassBackdrop,
+                                        onCourseClick = { courses, left, top, width, height, _ ->
+                                            selectedCourses = courses
+                                            cardLeft = left
+                                            cardTop = top
+                                            cardWidth = width
+                                            cardHeight = height
+                                            showEditScreen = true
+                                            coroutineScope.launch {
+                                                backgroundScale.animateTo(
+                                                    targetValue = 0.92f,
+                                                    animationSpec = tween(620, easing = OobeQuartOutEasing)
+                                                )
+                                            }
+                                        }
                                     )
                                 }
                             }
                         }
-                    ) { _ ->
-                        Box(
-                            modifier = Modifier
-                                .fillMaxSize()
-                                .layerBackdrop(backdrop)
-                        ) {
-                            Box(
-                                modifier = Modifier.fillMaxSize().then(
-                                    if (liquidGlassBackdrop != null) Modifier.liquidGlassLayerBackdrop(liquidGlassBackdrop)
-                                    else Modifier
-                                )
-                            ) {
-                                CourseManageScreen(
-                                    onBack = { finish() },
-                                    liquidGlassBackdrop = liquidGlassBackdrop,
-                                    onCourseClick = { courses, left, top, width, height, snapshot ->
-                                        selectedCourses = courses
-                                        cardPosition = CardPosition(left, top, width, height)
-                                        cardSnapshot = snapshot
-                                        showEditScreen = true
-                                    }
-                                )
-                            }
-                        }
+                    }
+
+                    // Edit screen (on top, rendered after main content)
+                    if (showEditScreen) {
+                        CourseEditScreen(
+                            courses = selectedCourses,
+                            cardLeft = cardLeft,
+                            cardTop = cardTop,
+                            cardWidth = cardWidth,
+                            cardHeight = cardHeight,
+                            screenWidth = windowInfo.containerSize.width.toFloat(),
+                            screenHeight = windowInfo.containerSize.height.toFloat(),
+                            screenCornerRadius = 40f,
+                            cardSnapshot = null,
+                            sectionTimes = Course.defaultSectionTimes,
+                            onBackStart = {
+                                coroutineScope.launch {
+                                    backgroundScale.animateTo(
+                                        targetValue = 1f,
+                                        animationSpec = tween(380, easing = OobeCubicOutEasing)
+                                    )
+                                }
+                            },
+                            onBack = {
+                                showEditScreen = false
+                            },
+                            onCourseUpdated = { },
+                            liquidGlassBackdrop = liquidGlassBackdrop
+                        )
                     }
                 }
             }
         }
     }
 }
-
-private data class CardPosition(
-    val left: Float,
-    val top: Float,
-    val width: Float,
-    val height: Float
-)
