@@ -200,40 +200,40 @@ class CourseManageActivity : ComponentActivity() {
                                             }
                                         }
                                     )
+
+                                    // Edit screen (on top, but inside liquidGlassLayerBackdrop)
+                                    if (showEditScreen) {
+                                        CourseEditScreen(
+                                            courses = selectedCourses,
+                                            cardLeft = cardLeft,
+                                            cardTop = cardTop,
+                                            cardWidth = cardWidth,
+                                            cardHeight = cardHeight,
+                                            screenWidth = windowInfo.containerSize.width.toFloat(),
+                                            screenHeight = windowInfo.containerSize.height.toFloat(),
+                                            screenCornerRadius = screenCornerRadius,
+                                            cardSnapshot = cardSnapshot,
+                                            cardColor = cardColor,
+                                            sectionTimes = Course.defaultSectionTimes,
+                                            onBackStart = {
+                                                coroutineScope.launch {
+                                                    backgroundScale.animateTo(
+                                                        targetValue = 1f,
+                                                        animationSpec = tween(380, easing = OobeCubicOutEasing)
+                                                    )
+                                                }
+                                            },
+                                            onBack = {
+                                                showEditScreen = false
+                                                cardSnapshot = null
+                                            },
+                                            onCourseUpdated = { },
+                                            liquidGlassBackdrop = liquidGlassBackdrop
+                                        )
+                                    }
                                 }
                             }
                         }
-                    }
-
-                    // Edit screen (on top, rendered after main content)
-                    if (showEditScreen) {
-                        CourseEditScreen(
-                            courses = selectedCourses,
-                            cardLeft = cardLeft,
-                            cardTop = cardTop,
-                            cardWidth = cardWidth,
-                            cardHeight = cardHeight,
-                            screenWidth = windowInfo.containerSize.width.toFloat(),
-                            screenHeight = windowInfo.containerSize.height.toFloat(),
-                            screenCornerRadius = screenCornerRadius,
-                            cardSnapshot = cardSnapshot,
-                            cardColor = cardColor,
-                            sectionTimes = Course.defaultSectionTimes,
-                            onBackStart = {
-                                coroutineScope.launch {
-                                    backgroundScale.animateTo(
-                                        targetValue = 1f,
-                                        animationSpec = tween(380, easing = OobeCubicOutEasing)
-                                    )
-                                }
-                            },
-                            onBack = {
-                                showEditScreen = false
-                                cardSnapshot = null
-                            },
-                            onCourseUpdated = { },
-                            liquidGlassBackdrop = liquidGlassBackdrop
-                        )
                     }
                 }
             }
