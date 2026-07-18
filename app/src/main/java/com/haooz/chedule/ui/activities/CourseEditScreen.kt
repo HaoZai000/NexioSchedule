@@ -121,8 +121,10 @@ private class AnimClipShape(
         density: androidx.compose.ui.unit.Density
     ): androidx.compose.ui.graphics.Outline {
         val s = animState.value
-        // 圆角从卡片圆角(20dp)插值到屏幕圆角
-        val radiusPx = startCornerRadiusPx + (screenCornerRadiusPx - startCornerRadiusPx) * s.progress
+        // 动画过程中：从卡片圆角插值到屏幕圆角
+        // 动画结束瞬间：圆角归零
+        val radiusPx = if (s.progress >= 1f) 0f
+        else startCornerRadiusPx + (screenCornerRadiusPx - startCornerRadiusPx) * s.progress
         val radiusDp = (radiusPx / s.scale / density.density).dp
         return RoundedRectangle(radiusDp).createOutline(
             androidx.compose.ui.geometry.Size(screenWidth, s.clipBottom),
