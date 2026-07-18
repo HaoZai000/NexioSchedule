@@ -21,8 +21,14 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.drawWithContent
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.asAndroidBitmap
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.graphics.layer.GraphicsLayer
+import androidx.compose.ui.graphics.layer.drawLayer
+import androidx.compose.ui.graphics.rememberGraphicsLayer
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalWindowInfo
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.zIndex
@@ -76,14 +82,22 @@ class CourseManageActivity : ComponentActivity() {
                 var cardTop by remember { mutableStateOf(0f) }
                 var cardWidth by remember { mutableStateOf(0f) }
                 var cardHeight by remember { mutableStateOf(0f) }
+                var cardSnapshot by remember { mutableStateOf<android.graphics.Bitmap?>(null) }
+
+                // Graphics layer for capturing screen content
+                val screenGraphicsLayer = rememberGraphicsLayer()
 
                 // Background scale animation (same as MainActivity)
                 val backgroundScale = remember { Animatable(1f) }
                 val windowInfo = LocalWindowInfo.current
                 val coroutineScope = rememberCoroutineScope()
+                val density = LocalDensity.current
+
+                // Screen corner radius (40dp like MainActivity)
+                val screenCornerRadius = 40f
 
                 Box(modifier = Modifier.fillMaxSize().background(MiuixTheme.colorScheme.surface)) {
-                    // Main content with scale animation
+                    // Main content with scale animation and screen capture
                     Box(
                         modifier = Modifier
                             .fillMaxSize()
@@ -91,6 +105,12 @@ class CourseManageActivity : ComponentActivity() {
                                 val scale = backgroundScale.value
                                 scaleX = scale
                                 scaleY = scale
+                            }
+                            .drawWithContent {
+                                screenGraphicsLayer.record {
+                                    this@drawWithContent.drawContent()
+                                }
+                                drawLayer(screenGraphicsLayer)
                             }
                     ) {
                         Scaffold(
@@ -137,13 +157,28 @@ class CourseManageActivity : ComponentActivity() {
                                         onBack = { finish() },
                                         liquidGlassBackdrop = liquidGlassBackdrop,
                                         onCourseClick = { courses, left, top, width, height, _ ->
-                                            selectedCourses = courses
-                                            cardLeft = left
-                                            cardTop = top
-                                            cardWidth = width
-                                            cardHeight = height
-                                            showEditScreen = true
                                             coroutineScope.launch {
+                                                selectedCourses = courses
+                                                cardLeft = left
+                                                cardTop = top
+                                                cardWidth = width
+                                                cardHeight = height
+
+                                                // Capture full screen snapshot
+                                                val fullSnapshot = screenGraphicsLayer.toImageBitmap().asAndroidBitmap()
+
+                                                // Crop card area from full snapshot
+                                                cardSnapshot = try {
+                                                    val x = left.toInt().coerceIn(0, fullSnapshot.width - 1)
+                                                    val y = top.toInt().coerceIn(0, fullSnapshot.height - 1)
+                                                    val w = width.toInt().coerceIn(1, fullSnapshot.width - x)
+                                                    val h = height.toInt().coerceIn(1, fullSnapshot.height - y)
+                                                    android.graphics.Bitmap.createBitmap(fullSnapshot, x, y, w, h)
+                                                } catch (_: Exception) {
+                                                    null
+                                                }
+
+                                                showEditScreen = true
                                                 backgroundScale.animateTo(
                                                     targetValue = 0.92f,
                                                     animationSpec = tween(620, easing = OobeQuartOutEasing)
@@ -166,8 +201,8 @@ class CourseManageActivity : ComponentActivity() {
                             cardHeight = cardHeight,
                             screenWidth = windowInfo.containerSize.width.toFloat(),
                             screenHeight = windowInfo.containerSize.height.toFloat(),
-                            screenCornerRadius = 40f,
-                            cardSnapshot = null,
+                            screenCornerRadius = screenCornerRadius,
+                            cardSnapshot = cardSnapshot,
                             sectionTimes = Course.defaultSectionTimes,
                             onBackStart = {
                                 coroutineScope.launch {
@@ -179,6 +214,7 @@ class CourseManageActivity : ComponentActivity() {
                             },
                             onBack = {
                                 showEditScreen = false
+                                cardSnapshot = null
                             },
                             onCourseUpdated = { },
                             liquidGlassBackdrop = liquidGlassBackdrop
