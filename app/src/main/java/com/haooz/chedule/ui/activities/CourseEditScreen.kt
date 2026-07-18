@@ -216,7 +216,7 @@ fun CourseEditScreen(
     val animState = remember {
         derivedStateOf {
             val p = animProgress.value
-            val bgAlpha = (0.15f + p * 0.35f).coerceIn(0f, 0.5f)
+            val bgAlpha = (p * 0.5f).coerceIn(0f, 0.5f)
             val snapAlpha = (1f - p * 3f).coerceIn(0f, 1f)
             val contAlpha = ((p - 0.1f) / 0.5f).coerceIn(0f, 1f)
             val scale = cardWidth / screenWidth + (1f - cardWidth / screenWidth) * p
