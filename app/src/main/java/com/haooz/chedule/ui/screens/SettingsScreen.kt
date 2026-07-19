@@ -57,8 +57,6 @@ import com.haooz.chedule.viewmodel.ShiftViewModel
 import kotlinx.coroutines.launch
 import top.yukonga.miuix.kmp.basic.ButtonDefaults
 import top.yukonga.miuix.kmp.basic.Card
-import top.yukonga.miuix.kmp.basic.DropdownEntry
-import top.yukonga.miuix.kmp.basic.DropdownItem
 import top.yukonga.miuix.kmp.basic.NumberPicker
 import top.yukonga.miuix.kmp.basic.Scaffold
 import top.yukonga.miuix.kmp.basic.SmallTitle
@@ -76,7 +74,6 @@ import top.yukonga.miuix.kmp.overlay.OverlayDialog
 import top.yukonga.miuix.kmp.preference.ArrowPreference
 import top.yukonga.miuix.kmp.preference.CheckboxLocation
 import top.yukonga.miuix.kmp.preference.CheckboxPreference
-import top.yukonga.miuix.kmp.preference.OverlayDropdownPreference
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 import top.yukonga.miuix.kmp.utils.overScrollVertical
 import top.yukonga.miuix.kmp.utils.scrollEndHaptic
@@ -132,7 +129,7 @@ fun SettingsScreen(
     val isHoliday by viewModel.isHoliday.collectAsState()
     val isSemesterStarted by viewModel.isSemesterStarted.collectAsState()
     val classStartTime by viewModel.classStartTime.collectAsState()
-    val showWeekendDays by settingsViewModel.showWeekendDays.collectAsState()
+    val smartWeekend by settingsViewModel.smartWeekend.collectAsState()
     val showNonCurrentWeek by settingsViewModel.showNonCurrentWeek.collectAsState()
     val morningSections by settingsViewModel.morningSections.collectAsState()
     val afternoonSections by settingsViewModel.afternoonSections.collectAsState()
@@ -333,51 +330,32 @@ fun SettingsScreen(
                                 holdDownState = showTotalWeeksDialog
                             )
 
-                            // 显示周末设置
-                            val weekendEntries = listOf(
-                                DropdownEntry(
-                                    items = listOf(
-                                        DropdownItem(
-                                            text = "不显示",
-                                            selected = showWeekendDays.isEmpty(),
-                                            onClick = {
-                                                settingsViewModel.setShowWeekendDays(emptySet())
-                                            }
-                                        ),
+                            // 智能显示周末开关
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .clickable {
+                                        settingsViewModel.setSmartWeekend(!smartWeekend)
+                                    }
+                                    .padding(horizontal = 16.dp, vertical = 14.dp),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Column(modifier = Modifier.weight(1f)) {
+                                    Text(
+                                        text = "智能显示周末",
+                                        fontSize = 17.sp,
+                                        fontWeight = FontWeight.Medium,
+                                        color = MiuixTheme.colorScheme.onSurface
                                     )
-                                ),
-                                DropdownEntry(
-                                    items = listOf(
-                                        DropdownItem(
-                                            text = "仅周六",
-                                            selected = showWeekendDays == setOf(6),
-                                            onClick = {
-                                                settingsViewModel.setShowWeekendDays(setOf(6))
-                                            }
-                                        ),
-                                        DropdownItem(
-                                            text = "仅周日",
-                                            selected = showWeekendDays == setOf(7),
-                                            onClick = {
-                                                settingsViewModel.setShowWeekendDays(setOf(7))
-                                            }
-                                        ),
-                                        DropdownItem(
-                                            text = "周六与周日",
-                                            selected = showWeekendDays == setOf(6, 7),
-                                            onClick = {
-                                                settingsViewModel.setShowWeekendDays(setOf(6, 7))
-                                            }
-                                        ),
-                                    )
+                                }
+                                Switch(
+                                    checked = smartWeekend,
+                                    onCheckedChange = {
+                                        settingsViewModel.setSmartWeekend(it)
+                                    }
                                 )
-                            )
-
-                            OverlayDropdownPreference(
-                                title = "显示周末",
-                                entries = weekendEntries,
-                                collapseOnSelection = true
-                            )
+                            }
 
                             // 显示非本周课程开关
                             if (!isShiftMode) {
@@ -1465,9 +1443,13 @@ internal fun applyScheduleData(
 
             (settings["class_start_time"] as? String)?.let { viewModel.setClassStartTime(it) }
             (settings["total_weeks"] as? Number)?.toInt()?.let { viewModel.setTotalWeeks(it) }
+            (settings["smart_weekend"] as? Boolean)?.let {
+                settingsViewModel.setSmartWeekend(it)
+            }
+            // 兼容旧格式
             @Suppress("UNCHECKED_CAST")
-            (settings["show_weekend_days"] as? List<Number>)?.map { it.toInt() }?.toSet()?.let {
-                settingsViewModel.setShowWeekendDays(it)
+            (settings["show_weekend_days"] as? List<Number>)?.let {
+                if (it.isNotEmpty()) settingsViewModel.setSmartWeekend(true)
             }
             (settings["show_non_current_week"] as? Boolean)?.let {
                 settingsViewModel.setShowNonCurrentWeek(it)

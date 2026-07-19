@@ -339,7 +339,7 @@ internal fun ScheduleTopBar(
                                         text = "课程管理",
                                         optionSize = 3,
                                         isSelected = false,
-                                        index = 2,
+                                        index = 1,
                                         onSelectedIndexChange = {
                                             onShowMorePopupChange(false)
                                             onCourseManage()
@@ -349,7 +349,7 @@ internal fun ScheduleTopBar(
                                         text = "课表外观",
                                         optionSize = 3,
                                         isSelected = false,
-                                        index = 1,
+                                        index = 2,
                                         onSelectedIndexChange = {
                                             onShowMorePopupChange(false)
                                             onOpenCustomize()

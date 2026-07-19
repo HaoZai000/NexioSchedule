@@ -58,7 +58,6 @@ fun ShiftScheduleScreen(
     shiftViewModel: ShiftViewModel,
     settingsViewModel: com.haooz.chedule.viewmodel.SettingsViewModel,
     currentDayOfWeek: Int,
-    dayRange: List<Int>,
     pagerState: androidx.compose.foundation.pager.PagerState,
     cardHeightPerSection: Float = 54f,
     wallpaperBitmap: android.graphics.Bitmap? = null,
@@ -75,6 +74,7 @@ fun ShiftScheduleScreen(
     val isDark = isAppDarkTheme()
     val hapticFeedback = androidx.compose.ui.platform.LocalHapticFeedback.current
     val sectionTimes by settingsViewModel.sectionTimes.collectAsState()
+    val smartWeekend by settingsViewModel.smartWeekend.collectAsState()
 
     var showDetail by remember { mutableStateOf(false) }
     var detailCourses by remember { mutableStateOf<List<Pair<String, Course>>>(emptyList()) }
@@ -138,7 +138,11 @@ fun ShiftScheduleScreen(
                         cardHeightPerSection = cardHeightPerSection
                     )
 
-                    dayRange.forEach { dayOfWeek ->
+                    val pageDayRange = remember(week, smartWeekend) {
+                        (1..5).toList() + settingsViewModel.getWeekendDaysForWeek(week).filter { it in 6..7 }
+                    }
+
+                    pageDayRange.forEach { dayOfWeek ->
                         ShiftDayColumn(
                             dayOfWeek = dayOfWeek,
                             allScheduleCourses = shiftScheduleCourses,

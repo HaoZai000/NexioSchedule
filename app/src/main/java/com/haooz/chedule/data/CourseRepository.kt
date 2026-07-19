@@ -59,6 +59,7 @@ class CourseRepository private constructor(context: Context) {
         private const val KEY_TOTAL_WEEKS = "total_weeks"
         private const val KEY_CLASS_START_TIME = "class_start_time"
         private const val KEY_SHOW_WEEKEND = "show_weekend"
+        private const val KEY_SMART_WEEKEND = "smart_weekend"
         private const val KEY_SHOW_NON_CURRENT_WEEK = "show_non_current_week"
         private const val KEY_MORNING_SECTIONS = "morning_sections"
         private const val KEY_AFTERNOON_SECTIONS = "afternoon_sections"
@@ -332,26 +333,35 @@ class CourseRepository private constructor(context: Context) {
     }
 
     /**
-     * 获取显示周末的天数集合
+     * 获取是否开启智能显示周末
      */
-    fun getShowWeekendDays(): Set<Int> {
-        val key = "${getScheduleKeyPrefix()}$KEY_SHOW_WEEKEND"
-        val json = prefs.getString(key, "")
-        return try {
-            if (json.isNullOrBlank()) emptySet()
-            else json.split(",").map { it.trim().toInt() }.toSet()
-        } catch (_: Exception) {
-            emptySet()
+    fun getSmartWeekend(): Boolean {
+        val key = "${getScheduleKeyPrefix()}$KEY_SMART_WEEKEND"
+        // 兼容旧数据：首次读取时检查旧 key
+        if (!prefs.contains(key)) {
+            val oldKey = "${getScheduleKeyPrefix()}$KEY_SHOW_WEEKEND"
+            val oldVal = prefs.getString(oldKey, "")
+            val smart = !oldVal.isNullOrBlank()
+            prefs.edit { putBoolean(key, smart); remove(oldKey) }
+            return smart
         }
+        return prefs.getBoolean(key, false)
     }
 
     /**
-     * 设置显示周末的天数集合
+     * 设置是否开启智能显示周末
      */
-    fun setShowWeekendDays(days: Set<Int>) {
-        val key = "${getScheduleKeyPrefix()}$KEY_SHOW_WEEKEND"
-        prefs.edit { putString(key, days.joinToString(",")) }
+    fun setSmartWeekend(smart: Boolean) {
+        val key = "${getScheduleKeyPrefix()}$KEY_SMART_WEEKEND"
+        prefs.edit { putBoolean(key, smart) }
         notifyCourseChanged("settings")
+    }
+
+    /**
+     * 检查当前课表中指定周次、星期是否有课程
+     */
+    fun hasCoursesOnDayInWeek(dayOfWeek: Int, week: Int): Boolean {
+        return getAllCourses().any { it.dayOfWeek == dayOfWeek && it.isActiveInWeek(week) }
     }
 
     /**
@@ -731,11 +741,11 @@ class CourseRepository private constructor(context: Context) {
         dayOfWeek: Int,
         startSection: Int,
         endSection: Int,
-        excludeId: String? = null
+        excludeIds: Set<String> = emptySet()
     ): Set<Int> {
         val occupied = mutableSetOf<Int>()
         getAllCourses().forEach { course ->
-            if (excludeId != null && course.id == excludeId) return@forEach
+            if (course.id in excludeIds) return@forEach
             if (course.dayOfWeek == dayOfWeek &&
                 course.startSection <= endSection &&
                 course.endSection >= startSection

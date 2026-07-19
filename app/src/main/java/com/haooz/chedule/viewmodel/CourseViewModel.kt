@@ -337,9 +337,9 @@ class CourseViewModel(application: Application) : AndroidViewModel(application) 
         dayOfWeek: Int,
         startSection: Int,
         endSection: Int,
-        excludeId: String? = null
+        excludeIds: Set<String> = emptySet()
     ): Set<Int> {
-        return repository.getOccupiedWeeks(dayOfWeek, startSection, endSection, excludeId)
+        return repository.getOccupiedWeeks(dayOfWeek, startSection, endSection, excludeIds)
     }
 
     /**

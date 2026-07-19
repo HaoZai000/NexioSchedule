@@ -40,13 +40,14 @@ fun LiquidTopBarButton(
     iconOffset: DpOffset = DpOffset.Zero,
     buttonHeight: Dp = 40.dp,
     useBackdropShadow: Boolean = false,
-    iconTint: Color = Color.Unspecified
+    iconTint: Color = Color.Unspecified,
+    containerColor: Color = Color.Unspecified
 ) {
     val animationScope = rememberCoroutineScope()
     val hapticFeedback = LocalHapticFeedback.current
     val isLightTheme = !isSystemInDarkTheme()
-    val containerColor =
-        if (isLightTheme) Color(0xFFFAFAFA).copy(0.4f)
+    val resolvedContainerColor = if (containerColor != Color.Unspecified) containerColor
+        else if (isLightTheme) Color(0xFFFAFAFA).copy(0.4f)
         else Color(0xFF121212).copy(0.4f)
 
     val interactiveHighlight = remember(animationScope) {
@@ -107,7 +108,7 @@ fun LiquidTopBarButton(
                     translationY = size.minDimension * 0.05f * offset.y / size.maxDimension
                 },
                 onDrawSurface = {
-                    drawRect(containerColor)
+                    drawRect(resolvedContainerColor)
                     drawRect(Color.Black.copy(alpha = 0.03f * interactiveHighlight.pressProgress))
                 }
             )

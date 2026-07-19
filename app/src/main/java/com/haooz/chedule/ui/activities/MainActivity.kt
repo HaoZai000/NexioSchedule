@@ -104,6 +104,7 @@ import com.haooz.chedule.viewmodel.SettingsViewModel
 import com.haooz.chedule.viewmodel.ShiftViewModel
 import com.kyant.shapes.RoundedRectangle
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import top.yukonga.miuix.kmp.basic.MiuixScrollBehavior
@@ -111,6 +112,7 @@ import top.yukonga.miuix.kmp.basic.NavigationRailDefaults
 import top.yukonga.miuix.kmp.basic.Scaffold
 import top.yukonga.miuix.kmp.basic.SmallTopAppBar
 import top.yukonga.miuix.kmp.basic.rememberNavigationRailState
+import androidx.compose.ui.draw.blur
 import top.yukonga.miuix.kmp.blur.BlendColorEntry
 import top.yukonga.miuix.kmp.blur.BlurBlendMode
 import top.yukonga.miuix.kmp.blur.BlurDefaults
@@ -340,7 +342,6 @@ fun CourseScheduleApp() {
     val currentWeek by viewModel.currentWeek.collectAsState()
     val isHoliday by viewModel.isHoliday.collectAsState()
     val classStartTime by viewModel.classStartTime.collectAsState()
-    val showWeekendDays by settingsViewModel.showWeekendDays.collectAsState()
     val morningSections by settingsViewModel.morningSections.collectAsState()
     val afternoonSections by settingsViewModel.afternoonSections.collectAsState()
     val eveningSections by settingsViewModel.eveningSections.collectAsState()
@@ -360,7 +361,7 @@ fun CourseScheduleApp() {
     val navBarStyle = run {
         val shortestSidePx = minOf(windowInfo.containerSize.width, windowInfo.containerSize.height)
         val shortestSideDp = shortestSidePx / currentDensity
-        if (shortestSideDp.toFloat() > 500f) "rail" else "standard"
+        if (shortestSideDp > 500f) "rail" else "standard"
     }
     val railState = if (navBarStyle == "rail") rememberNavigationRailState() else null
     val railPaddingStart by animateDpAsState(
@@ -666,13 +667,12 @@ fun CourseScheduleApp() {
     var todaySelectedDayOfWeek by remember { mutableIntStateOf(currentDayOfWeek) }
     var todayIsToday by remember { mutableStateOf(true) }
     var scrollToTodayTrigger by remember { mutableIntStateOf(0) }
-    val dayRange = if (showWeekendDays.isNotEmpty()) {
-        (1..5) + showWeekendDays.filter { it in 6..7 }
-    } else {
-        (1..5).toList()
-    }
 
     val currentViewingWeek = pagerState.currentPage + 1
+    val smartWeekend by settingsViewModel.smartWeekend.collectAsState()
+    val dayRange = remember(currentViewingWeek, smartWeekend) {
+        (1..5).toList() + settingsViewModel.getWeekendDaysForWeek(currentViewingWeek).filter { it in 6..7 }
+    }
     val viewingIsHoliday = viewModel.isWeekHoliday(currentViewingWeek)
     val weekDates = remember(currentViewingWeek, classStartTime) {
         try {
@@ -735,6 +735,7 @@ fun CourseScheduleApp() {
                 null
             }
             showDetail = true
+            delay(16)
             backgroundScale.animateTo(0.92f, animationSpec = tween(620, easing = OobeQuartOutEasing))
         }
     }
@@ -963,8 +964,15 @@ fun CourseScheduleApp() {
             Triple(blurR, clipR, progress)
         }
     }
+    val isDetailActive = showDetail && screenSnapshot != null
+    // 课程详情页背景快照模糊半径：跟随 backgroundScale 从 0 渐变到 5f
+    val snapshotBlurRadius = if (!isDetailActive) 0.dp
+    else {
+        val progress = backgroundScale.value
+        val blurProg = ((1f - progress) / (1f - 0.92f)).coerceIn(0f, 1f)
+        (blurProg * 5f).dp
+    }
     Box(modifier = Modifier.fillMaxSize().background(if (showCustomizePage) Color.Black else MiuixTheme.colorScheme.surface)) {
-        val isDetailActive = showDetail && screenSnapshot != null && !showCourseDetailPopup
         val shouldRecordGL = !isDetailActive
         val isEntryAnimating = showSwitchSchedule && switchAnimForward && switchAnimRunning
         val mainContentAlpha = when {
@@ -1064,19 +1072,7 @@ fun CourseScheduleApp() {
                     }
                 )
                 .layerBackdrop(fullBlurBackdrop)
-                .then(
-                    if (!isDetailActive && !showSwitchSchedule) {
-                        val blurR = animationState.value.first
-                        if (blurR > 0.01f) {
-                            Modifier.graphicsLayer {
-                                val px = blurR * density.density
-                                renderEffect = android.graphics.RenderEffect.createBlurEffect(
-                                    px, px, android.graphics.Shader.TileMode.CLAMP
-                                ).asComposeRenderEffect()
-                            }
-                        } else Modifier
-                    } else Modifier
-                )
+
         ) {
             Scaffold(
                 bottomBar = {
@@ -1134,7 +1130,7 @@ fun CourseScheduleApp() {
                             }
                         },
                         onCourseManage = {
-                            val intent = android.content.Intent(context, com.haooz.chedule.ui.activities.CourseManageActivity::class.java)
+                            val intent = android.content.Intent(context, CourseManageActivity::class.java)
                             context.startActivity(intent)
                         },
                         onTitleBarMeasured = { activity?.titleBarHeight = it },
@@ -1198,7 +1194,7 @@ fun CourseScheduleApp() {
                                 onShowMorePopupChange = { showTodayMorePopup = it },
                                 jumpToDateTrigger = todayJumpToDateTrigger,
                                 onCourseManage = {
-                                    val intent = android.content.Intent(context, com.haooz.chedule.ui.activities.CourseManageActivity::class.java)
+                                    val intent = android.content.Intent(context, CourseManageActivity::class.java)
                                     context.startActivity(intent)
                                 }
                             )
@@ -1208,7 +1204,6 @@ fun CourseScheduleApp() {
                                 settingsViewModel = settingsViewModel,
                                 pagerState = pagerState,
                                 currentDayOfWeek = currentDayOfWeek,
-                                dayRange = dayRange,
                                 onCourseClick = { courses, left, top, width, height, _ ->
                                     openCourseDetail(courses, left, top, width, height, fromToday = false)
                                 },
@@ -1230,7 +1225,8 @@ fun CourseScheduleApp() {
                                 wallpaperBrightness = if (showCustomizePage && !isWindowCutoutActive) originalWallpaperBrightness else wallpaperBrightness,
                                 showBreakDividers = if (showCustomizePage && !isWindowCutoutActive) originalShowBreakDividers else showBreakDividers,
                                 wallpaperHasAppeared = activity?.wallpaperHasAppeared ?: false,
-                                onWallpaperAppeared = { activity?.wallpaperHasAppeared = true }
+                                onWallpaperAppeared = { activity?.wallpaperHasAppeared = true },
+                                liquidGlassBackdrop = liquidGlassBackdrop
                             )
 
                             2 -> SettingsScreen(
@@ -1255,7 +1251,6 @@ fun CourseScheduleApp() {
                                 shiftViewModel = shiftViewModel,
                                 settingsViewModel = settingsViewModel,
                                 currentDayOfWeek = currentDayOfWeek,
-                                dayRange = dayRange,
                                 pagerState = pagerState,
                                 cardHeightPerSection = courseCardHeight,
                                 wallpaperBitmap = wallpaperBitmap,
@@ -1350,7 +1345,7 @@ fun CourseScheduleApp() {
                                 dayOfWeek = dayOfWeek,
                                 startSection = startSection,
                                 endSection = endSection,
-                                excludeId = editingCourse?.id
+                                excludeIds = setOfNotNull(editingCourse?.id)
                             )
                         },
                         onDismiss = { viewModel.hideDialog() },
@@ -1416,7 +1411,7 @@ fun CourseScheduleApp() {
                             text = "课程管理",
                             onClick = {
                                 showMorePopup = false
-                                val intent = android.content.Intent(context, com.haooz.chedule.ui.activities.CourseManageActivity::class.java)
+                                val intent = android.content.Intent(context, CourseManageActivity::class.java)
                                 context.startActivity(intent)
                             }
                         )
@@ -1447,7 +1442,7 @@ fun CourseScheduleApp() {
                             text = "课程管理",
                             onClick = {
                                 showTodayMorePopup = false
-                                val intent = android.content.Intent(context, com.haooz.chedule.ui.activities.CourseManageActivity::class.java)
+                                val intent = android.content.Intent(context, CourseManageActivity::class.java)
                                 context.startActivity(intent)
                             }
                         )
@@ -2032,31 +2027,23 @@ fun CourseScheduleApp() {
                 windowInsetsController?.isAppearanceLightNavigationBars = true
             }
         }
-        // 课程详情页背景快照
+        // 课程详情页背景快照（仅快照模糊，不模糊上层详情页）
         if (isDetailActive) {
             val s = animationState.value
-            Image(
-                bitmap = screenSnapshot!!.asImageBitmap(),
-                contentDescription = null,
-                modifier = Modifier
-                    .fillMaxSize()
-                    .then(
-                        if (s.first > 0.01f) {
-                            Modifier.graphicsLayer {
-                                val px = s.first * density.density
-                                renderEffect = android.graphics.RenderEffect.createBlurEffect(
-                                    px, px, android.graphics.Shader.TileMode.CLAMP
-                                ).asComposeRenderEffect()
-                            }
-                        } else Modifier
-                    )
-                    .graphicsLayer {
-                        scaleX = s.third
-                        scaleY = s.third
-                    }
-                    .clip(RoundedRectangle(s.second)),
-                contentScale = ContentScale.Crop
-            )
+            Box(modifier = Modifier.fillMaxSize().blur(snapshotBlurRadius)) {
+                Image(
+                    bitmap = screenSnapshot!!.asImageBitmap(),
+                    contentDescription = null,
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .graphicsLayer {
+                            scaleX = s.third
+                            scaleY = s.third
+                        }
+                        .clip(RoundedRectangle(s.second)),
+                    contentScale = ContentScale.Crop
+                )
+            }
         }
         // 课程详情页（不受缩放影响）
         if (showDetail) {
@@ -2093,7 +2080,6 @@ fun CourseScheduleApp() {
             val screenWidth = windowInfo.containerSize.width.toFloat()
             val screenHeight = windowInfo.containerSize.height.toFloat()
             val p = switchAnimProgress.value
-            val morphOpenEase = CubicBezierEasing(0.3f, 0.72f, 0.2f, 1.0f)
             val switchPageScale = remember { Animatable(1f) }
             val switchPageBlur = remember { Animatable(5f) }
             // 切换课表页始终渲染（底层，截取快照期间隐藏）

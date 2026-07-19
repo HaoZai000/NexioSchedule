@@ -34,9 +34,9 @@ fun ProgressiveBlurTopBar(
     modifier: Modifier = Modifier,
     height: Dp = 120.dp,
     tintIntensity: Float = 0.2f,
+    tintColor: Color = MiuixTheme.colorScheme.surface,
     content: @Composable BoxScope.() -> Unit
 ) {
-    val tintColor = MiuixTheme.colorScheme.surface
 
     Box(modifier = modifier) {
         // 模糊层 - 在底层，采样 backdrop

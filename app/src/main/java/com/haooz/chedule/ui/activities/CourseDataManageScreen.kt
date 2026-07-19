@@ -446,7 +446,7 @@ private fun buildExportJson(
             "class_start_time" to viewModel.classStartTime.value,
             "current_week" to viewModel.currentWeek.value,
             "total_weeks" to viewModel.totalWeeks.value,
-            "show_weekend_days" to settingsViewModel.showWeekendDays.value.toList(),
+            "smart_weekend" to settingsViewModel.smartWeekend.value,
             "show_non_current_week" to settingsViewModel.showNonCurrentWeek.value,
             "morning_sections" to settingsViewModel.morningSections.value,
             "afternoon_sections" to settingsViewModel.afternoonSections.value,

@@ -245,7 +245,7 @@ fun TodayScreen(
     val morningSections by settingsViewModel.morningSections.collectAsState()
     val afternoonSections by settingsViewModel.afternoonSections.collectAsState()
     val eveningSections by settingsViewModel.eveningSections.collectAsState()
-    val showWeekendDays by settingsViewModel.showWeekendDays.collectAsState()
+    val smartWeekend by settingsViewModel.smartWeekend.collectAsState()
 
     val MAX_DATE_OFFSET = 1000
     val initialDaysOffset = pagerState.currentPage - MAX_DATE_OFFSET
@@ -446,12 +446,8 @@ fun TodayScreen(
                 val pageWeek = remember(pageDate, classStartTime) {
                     calculateWeekFromDate(classStartTime, pageDate)
                 }
-                val pageCourses = remember(courses, pageWeek, pageDayOfWeek, showWeekendDays) {
-                    val dayRange = if (showWeekendDays.isNotEmpty()) {
-                        (1..5) + showWeekendDays.filter { it in 6..7 }
-                    } else {
-                        (1..5).toList()
-                    }
+                val pageCourses = remember(courses, pageWeek, pageDayOfWeek, smartWeekend) {
+                    val dayRange = (1..5).toList() + settingsViewModel.getWeekendDaysForWeek(pageWeek).filter { it in 6..7 }
                     if (pageDayOfWeek in dayRange) {
                         courses.filter { it.dayOfWeek == pageDayOfWeek && it.isActiveInWeek(pageWeek) }
                             .sortedBy { it.startSection }

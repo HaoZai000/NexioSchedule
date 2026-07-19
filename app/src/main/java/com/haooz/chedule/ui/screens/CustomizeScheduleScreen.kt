@@ -210,6 +210,7 @@ fun CustomizeScheduleScreen(
     // --- 编辑模式底部弹窗：效果 / 自定义 ---
     var showEffectSheet by remember { mutableStateOf(false) }
     var showCustomizeSheet by remember { mutableStateOf(false) }
+    var sheetContentBackdrop by remember { mutableStateOf<com.kyant.backdrop.Backdrop?>(null) }
     // 重置标志：取消编辑时自增，触发弹窗内部状态回到 initial 值
     var sheetResetKey by remember { mutableIntStateOf(0) }
 
@@ -1226,15 +1227,29 @@ fun CustomizeScheduleScreen(
             title = "效果",
             backdrop = sheetBackdrop,
             onDismissRequest = { showEffectSheet = false },
-            endAction = {
-                IconButton(onClick = { showEffectSheet = false },
-                    modifier = Modifier.padding(horizontal = 20.dp)) {
-                    Icon(
-                        imageVector = MiuixIcons.Close,
+            liquidGlassBackdrop = liquidGlassBackdrop,
+            onSheetContentBackdropCreated = { sheetContentBackdrop = it },
+            startAction = {
+                if (liquidGlassBackdrop != null) {
+                    com.haooz.chedule.ui.components.liquidglass.LiquidTopBarButton(
+                        onClick = { showEffectSheet = false },
+                        backdrop = sheetContentBackdrop ?: liquidGlassBackdrop,
+                        icon = MiuixIcons.Normal.Close,
                         contentDescription = "关闭",
-                        tint = MiuixTheme.colorScheme.onSurface,
-                        modifier = Modifier.size(22.dp)
+                        modifier = Modifier.padding(start = 20.dp),
+                        iconSize = 22.dp,
+                        useBackdropShadow = true
                     )
+                } else {
+                    IconButton(onClick = { showEffectSheet = false },
+                        modifier = Modifier.padding(horizontal = 20.dp)) {
+                        Icon(
+                            imageVector = MiuixIcons.Normal.Close,
+                            contentDescription = "关闭",
+                            tint = MiuixTheme.colorScheme.onSurface,
+                            modifier = Modifier.size(24.dp)
+                        )
+                    }
                 }
             }
         ) {
@@ -1252,7 +1267,7 @@ fun CustomizeScheduleScreen(
                         .padding(horizontal = 16.dp),
                     cornerRadius = 20.dp,
                     colors = CardDefaults.defaultColors(
-                        color = if (isAppDarkTheme()) Color(0xFF363636) else Color(0xFFFFFFFF),
+                        color = if (isAppDarkTheme()) Color(0xFF363636).copy(alpha = 0.62f) else Color(0xFFFFFFFF).copy(alpha = 0.7f),
                         contentColor = MiuixTheme.colorScheme.onSurface
                     ),
                 ) {
@@ -1282,7 +1297,7 @@ fun CustomizeScheduleScreen(
                         .padding(horizontal = 16.dp),
                     cornerRadius = 20.dp,
                     colors = CardDefaults.defaultColors(
-                        color = if (isAppDarkTheme()) Color(0xFF363636) else Color(0xFFFFFFFF),
+                        color = if (isAppDarkTheme()) Color(0xFF363636).copy(alpha = 0.62f) else Color(0xFFFFFFFF).copy(alpha = 0.7f),
                         contentColor = MiuixTheme.colorScheme.onSurface
                     ),
                 ) {
@@ -1312,7 +1327,7 @@ fun CustomizeScheduleScreen(
                         .padding(horizontal = 16.dp),
                     cornerRadius = 20.dp,
                     colors = CardDefaults.defaultColors(
-                        color = if (isAppDarkTheme()) Color(0xFF363636) else Color(0xFFFFFFFF),
+                        color = if (isAppDarkTheme()) Color(0xFF363636).copy(alpha = 0.62f) else Color(0xFFFFFFFF).copy(alpha = 0.7f),
                         contentColor = MiuixTheme.colorScheme.onSurface
                     ),
                 ) {
@@ -1346,15 +1361,29 @@ fun CustomizeScheduleScreen(
             title = "自定义",
             backdrop = sheetBackdrop,
             onDismissRequest = { showCustomizeSheet = false },
-            endAction = {
-                IconButton(onClick = { showCustomizeSheet = false },
-                    modifier = Modifier.padding(horizontal = 20.dp)) {
-                    Icon(
-                        imageVector = MiuixIcons.Close,
+            liquidGlassBackdrop = liquidGlassBackdrop,
+            onSheetContentBackdropCreated = { sheetContentBackdrop = it },
+            startAction = {
+                if (liquidGlassBackdrop != null) {
+                    com.haooz.chedule.ui.components.liquidglass.LiquidTopBarButton(
+                        onClick = { showCustomizeSheet = false },
+                        backdrop = sheetContentBackdrop ?: liquidGlassBackdrop,
+                        icon = MiuixIcons.Normal.Close,
                         contentDescription = "关闭",
-                        tint = MiuixTheme.colorScheme.onSurface,
-                        modifier = Modifier.size(22.dp)
+                        modifier = Modifier.padding(start = 20.dp),
+                        iconSize = 22.dp,
+                        useBackdropShadow = true
                     )
+                } else {
+                    IconButton(onClick = { showCustomizeSheet = false },
+                        modifier = Modifier.padding(horizontal = 20.dp)) {
+                        Icon(
+                            imageVector = MiuixIcons.Normal.Close,
+                            contentDescription = "关闭",
+                            tint = MiuixTheme.colorScheme.onSurface,
+                            modifier = Modifier.size(24.dp)
+                        )
+                    }
                 }
             }
         ) {
@@ -1372,7 +1401,7 @@ fun CustomizeScheduleScreen(
                         .padding(horizontal = 16.dp),
                     cornerRadius = 20.dp,
                     colors = CardDefaults.defaultColors(
-                        color = if (isAppDarkTheme()) Color(0xFF363636) else Color(0xFFFFFFFF),
+                        color = if (isAppDarkTheme()) Color(0xFF363636).copy(alpha = 0.62f) else Color(0xFFFFFFFF).copy(alpha = 0.7f),
                         contentColor = MiuixTheme.colorScheme.onSurface
                     ),
                 ) {
@@ -1402,7 +1431,7 @@ fun CustomizeScheduleScreen(
                         .padding(horizontal = 16.dp),
                     cornerRadius = 20.dp,
                     colors = CardDefaults.defaultColors(
-                        color = if (isAppDarkTheme()) Color(0xFF363636) else Color(0xFFFFFFFF),
+                        color = if (isAppDarkTheme()) Color(0xFF363636).copy(alpha = 0.62f) else Color(0xFFFFFFFF).copy(alpha = 0.7f),
                         contentColor = MiuixTheme.colorScheme.onSurface
                     ),
                 ) {
@@ -1432,7 +1461,7 @@ fun CustomizeScheduleScreen(
                         .padding(horizontal = 16.dp),
                     cornerRadius = 20.dp,
                     colors = CardDefaults.defaultColors(
-                        color = if (isAppDarkTheme()) Color(0xFF363636) else Color(0xFFFFFFFF),
+                        color = if (isAppDarkTheme()) Color(0xFF363636).copy(alpha = 0.62f) else Color(0xFFFFFFFF).copy(alpha = 0.7f),
                         contentColor = MiuixTheme.colorScheme.onSurface
                     ),
                 ) {

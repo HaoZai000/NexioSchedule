@@ -24,12 +24,11 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableIntStateOf
-import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.snapshotFlow
-import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
@@ -38,8 +37,6 @@ import androidx.compose.ui.graphics.lerp
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.layout.onGloballyPositioned
-import androidx.compose.ui.layout.positionInRoot
-import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -48,6 +45,8 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import com.haooz.chedule.ui.utils.isAppDarkTheme
 import com.haooz.chedule.ui.utils.rememberAppStyle
 import com.haooz.chedule.viewmodel.CourseViewModel
+import top.yukonga.miuix.kmp.basic.Card
+import top.yukonga.miuix.kmp.basic.CardDefaults
 import top.yukonga.miuix.kmp.basic.Icon
 import top.yukonga.miuix.kmp.basic.IconButton
 import top.yukonga.miuix.kmp.basic.MiuixScrollBehavior
@@ -62,6 +61,7 @@ import top.yukonga.miuix.kmp.blur.textureBlur
 import top.yukonga.miuix.kmp.icon.MiuixIcons
 import top.yukonga.miuix.kmp.icon.extended.Back
 import top.yukonga.miuix.kmp.theme.MiuixTheme
+import top.yukonga.miuix.kmp.utils.PressFeedbackType
 import top.yukonga.miuix.kmp.utils.overScrollVertical
 import top.yukonga.miuix.kmp.utils.scrollEndHaptic
 import androidx.compose.ui.graphics.Color as ComposeColor
@@ -85,7 +85,6 @@ fun CourseManageScreen(
     val courses by viewModel.courses.collectAsState()
     val scrollBehavior = MiuixScrollBehavior()
     var listScrollY by remember { mutableIntStateOf(0) }
-    val hapticFeedback = LocalHapticFeedback.current
 
     val backgroundColor = MiuixTheme.colorScheme.surface
     val backdrop = rememberLayerBackdrop {
@@ -187,11 +186,10 @@ fun CourseManageScreen(
                             .values
                             .map { it.first() }
                             .sortedWith(compareBy({ it.dayOfWeek }, { it.startSection }))
-                            .map {
+                            .joinToString("、") {
                                 val day = dayNames.getOrElse(it.dayOfWeek) { "?" }
                                 "${day}${it.startSection}-${it.endSection}节"
                             }
-                            .joinToString("、")
 
                         val teachers = courseList
                             .map { it.teacher }
@@ -232,16 +230,20 @@ private fun CourseManageCard(
     daySectionInfo: String,
     onClick: (left: Float, top: Float, width: Float, height: Float, snapshot: Bitmap?) -> Unit
 ) {
-    var cardLeft by remember { mutableStateOf(0f) }
-    var cardTop by remember { mutableStateOf(0f) }
-    var cardWidth by remember { mutableStateOf(0f) }
-    var cardHeight by remember { mutableStateOf(0f) }
+    var cardLeft by remember { mutableFloatStateOf(0f) }
+    var cardTop by remember { mutableFloatStateOf(0f) }
+    var cardWidth by remember { mutableFloatStateOf(0f) }
+    var cardHeight by remember { mutableFloatStateOf(0f) }
 
-    Column(
+    Card(
+        cornerRadius = 16.dp,
+        showIndication = true,
+        insideMargin = PaddingValues(16.dp),
+        colors = CardDefaults.defaultColors(
+            color = color.copy(alpha = cardAlpha)
+        ),
         modifier = Modifier
             .fillMaxWidth()
-            .clip(RoundedCornerShape(16.dp))
-            .background(color.copy(alpha = cardAlpha))
             .onGloballyPositioned { coordinates ->
                 val position = coordinates.localToRoot(androidx.compose.ui.geometry.Offset.Zero)
                 val size = coordinates.size
@@ -249,17 +251,16 @@ private fun CourseManageCard(
                 cardTop = position.y
                 cardWidth = size.width.toFloat()
                 cardHeight = size.height.toFloat()
-            }
-            .clickable {
-                onClick(
-                    cardLeft,
-                    cardTop,
-                    cardWidth,
-                    cardHeight,
-                    null
-                )
-            }
-            .padding(14.dp)
+            },
+        onClick = {
+            onClick(
+                cardLeft,
+                cardTop,
+                cardWidth,
+                cardHeight,
+                null
+            )
+        }
     ) {
         Box(
             modifier = Modifier

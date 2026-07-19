@@ -29,7 +29,6 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -87,7 +86,6 @@ fun MainScheduleScreen(
     settingsViewModel: SettingsViewModel,
     pagerState: PagerState,
     currentDayOfWeek: Int,
-    dayRange: List<Int>,
     onCourseClick: (courses: List<Course>, cardLeft: Float, cardTop: Float, cardWidth: Float, cardHeight: Float, snapshot: android.graphics.Bitmap?) -> Unit = { _, _, _, _, _, _ -> },
     onPopupStateChange: (Boolean) -> Unit = {},
     onEmptyLongPress: () -> Unit = {},
@@ -104,7 +102,8 @@ fun MainScheduleScreen(
     wallpaperBrightness: Float = 0f,
     showBreakDividers: Boolean = true,
     wallpaperHasAppeared: Boolean = false,
-    onWallpaperAppeared: () -> Unit = {}
+    onWallpaperAppeared: () -> Unit = {},
+    liquidGlassBackdrop: com.kyant.backdrop.Backdrop? = null
 ) {
     val courses by viewModel.courses.collectAsState()
     val currentWeek by viewModel.currentWeek.collectAsState()
@@ -113,6 +112,7 @@ fun MainScheduleScreen(
     val showJumpWeekDialog by viewModel.showJumpWeekDialog.collectAsState()
     val editingCourse by viewModel.editingCourse.collectAsState()
     val showNonCurrentWeek by settingsViewModel.showNonCurrentWeek.collectAsState()
+    val smartWeekend by settingsViewModel.smartWeekend.collectAsState()
     val morningSections by settingsViewModel.morningSections.collectAsState()
     val afternoonSections by settingsViewModel.afternoonSections.collectAsState()
     val eveningSections by settingsViewModel.eveningSections.collectAsState()
@@ -122,6 +122,7 @@ fun MainScheduleScreen(
     val hapticFeedback = LocalHapticFeedback.current
 
     var showCourseDetail by remember { mutableStateOf(false) }
+    var sheetContentBackdrop by remember { mutableStateOf<com.kyant.backdrop.Backdrop?>(null) }
     var selectedCourse by remember { mutableStateOf<Course?>(null) }
     var selectedCourses by remember { mutableStateOf<List<Course>>(emptyList()) }
     var pendingDay by remember { mutableIntStateOf(-1) }
@@ -157,8 +158,9 @@ fun MainScheduleScreen(
     val isInFreeformWindow = activity?.isInFreeformWindow == true
 
     // 预计算每天的课程，避免在 HorizontalPager 内部重复过滤
-    val coursesByDay = remember(courses, dayRange) {
-        dayRange.associateWith { dayOfWeek ->
+    val allDays = (1..7).toList()
+    val coursesByDay = remember(courses) {
+        allDays.associateWith { dayOfWeek ->
             courses.filter { it.dayOfWeek == dayOfWeek }
                 .sortedBy { it.startSection }
         }
@@ -170,7 +172,7 @@ fun MainScheduleScreen(
         remember(coursesByDay, showNonCurrentWeek, pagerState.pageCount) {
             Array(pagerState.pageCount.coerceAtLeast(1)) { weekIndex ->
                 val week = weekIndex + 1
-                dayRange.associateWith { dayOfWeek ->
+                allDays.associateWith { dayOfWeek ->
                     val dayCourses = coursesByDay[dayOfWeek] ?: emptyList()
                     if (showNonCurrentWeek) dayCourses
                     else dayCourses.filter { it.isActiveInWeek(week) }
@@ -276,57 +278,60 @@ fun MainScheduleScreen(
                             showBreakDividers = showBreakDividers
                         )
 
-                        dayRange.forEach { dayOfWeek ->
+                        // 按周计算要显示的天数范围（智能周末模式下，不同周可能显示不同天数）
+                        val pageDayRange = remember(week, smartWeekend) {
+                            (1..5).toList() + settingsViewModel.getWeekendDaysForWeek(week).filter { it in 6..7 }
+                        }
+
+                        pageDayRange.forEach { dayOfWeek ->
                             val filteredDayCourses = filteredCoursesByDayAndWeek
                                 .getOrElse(page) { emptyMap() }
                                 .getOrElse(dayOfWeek) { emptyList() }
-                            key(page, dayOfWeek) {
-                                val stableOnCourseClick: (Course) -> Unit =
-                                    remember(page, dayOfWeek, week) {
-                                        { course ->
-                                            val coursesAtSlot = viewModel.getCoursesAtSlot(
-                                                week,
-                                                dayOfWeek,
-                                                course.startSection,
-                                                course.endSection
-                                            )
-                                            if (coursesAtSlot.size > 1) {
-                                                selectedCourses = coursesAtSlot
-                                                selectedCourse = coursesAtSlot.first()
-                                            } else {
-                                                selectedCourses = emptyList()
-                                                selectedCourse = course
-                                            }
-                                            showCourseDetail = true
-                                            onPopupStateChange(true)
+                            val stableOnCourseClick: (Course) -> Unit =
+                                remember(page, dayOfWeek, week) {
+                                    { course ->
+                                        val coursesAtSlot = viewModel.getCoursesAtSlot(
+                                            week,
+                                            dayOfWeek,
+                                            course.startSection,
+                                            course.endSection
+                                        )
+                                        if (coursesAtSlot.size > 1) {
+                                            selectedCourses = coursesAtSlot
+                                            selectedCourse = coursesAtSlot.first()
+                                        } else {
+                                            selectedCourses = emptyList()
+                                            selectedCourse = course
                                         }
+                                        showCourseDetail = true
+                                        onPopupStateChange(true)
                                     }
-                                val stableOnEmptyClick: (Int) -> Unit = remember(dayOfWeek) {
-                                    { section -> viewModel.showAddDialog(dayOfWeek, section) }
                                 }
-                                DayColumn(
-                                    dayOfWeek = dayOfWeek,
-                                    courses = filteredDayCourses,
-                                    currentDay = if (week == currentWeek) currentDayOfWeek else -1,
-                                    onCourseClick = stableOnCourseClick,
-                                    onEmptyClick = stableOnEmptyClick,
-                                    onEmptyLongPress = onEmptyLongPress,
-                                    morningSections = morningSections,
-                                    afternoonSections = afternoonSections,
-                                    eveningSections = eveningSections,
-                                    currentWeek = week,
-                                    pendingDay = pendingDay,
-                                    pendingSection = pendingSection,
-                                    onPendingChange = onPendingChange,
-                                    wallpaperBackdrop = wallpaperBackdrop,
-                                    cardBlurRadius = cardBlurRadius,
-                                    cardAlpha = cardAlpha,
-                                    cardHeightPerSection = cardHeightPerSection,
-                                    cardCornerRadius = cardCornerRadius,
-                                    showBreakDividers = showBreakDividers,
-                                    modifier = Modifier.weight(1f)
-                                )
+                            val stableOnEmptyClick: (Int) -> Unit = remember(dayOfWeek) {
+                                { section -> viewModel.showAddDialog(dayOfWeek, section) }
                             }
+                            DayColumn(
+                                dayOfWeek = dayOfWeek,
+                                courses = filteredDayCourses,
+                                currentDay = if (week == currentWeek) currentDayOfWeek else -1,
+                                onCourseClick = stableOnCourseClick,
+                                onEmptyClick = stableOnEmptyClick,
+                                onEmptyLongPress = onEmptyLongPress,
+                                morningSections = morningSections,
+                                afternoonSections = afternoonSections,
+                                eveningSections = eveningSections,
+                                currentWeek = week,
+                                pendingDay = pendingDay,
+                                pendingSection = pendingSection,
+                                onPendingChange = onPendingChange,
+                                wallpaperBackdrop = wallpaperBackdrop,
+                                cardBlurRadius = cardBlurRadius,
+                                cardAlpha = cardAlpha,
+                                cardHeightPerSection = cardHeightPerSection,
+                                cardCornerRadius = cardCornerRadius,
+                                showBreakDividers = showBreakDividers,
+                                modifier = Modifier.weight(1f)
+                            )
                         }
                     }
 
@@ -425,26 +430,53 @@ fun MainScheduleScreen(
                 showCourseDetail = false
                 onPopupStateChange(false)
             },
+            liquidGlassBackdrop = liquidGlassBackdrop,
+            onSheetContentBackdropCreated = { sheetContentBackdrop = it },
             endAction = {
-                IconButton(onClick = {
-                    hapticFeedback.performHapticFeedback(HapticFeedbackType.Confirm)
-                    val course = selectedCourse ?: selectedCourses.firstOrNull()
-                    showCourseDetail = false
-                    if (course != null) {
-                        viewModel.showAddDialog(
-                            course.dayOfWeek,
-                            course.startSection,
-                            course.endSection
-                        )
-                    } else {
-                        viewModel.showAddDialog()
-                    }
-                }, modifier = Modifier.padding(horizontal = 20.dp)) {
-                    Icon(
-                        imageVector = MiuixIcons.Add,
+                if (liquidGlassBackdrop != null) {
+                    com.haooz.chedule.ui.components.liquidglass.LiquidTopBarButton(
+                        onClick = {
+                            hapticFeedback.performHapticFeedback(HapticFeedbackType.Confirm)
+                            val course = selectedCourse ?: selectedCourses.firstOrNull()
+                            showCourseDetail = false
+                            if (course != null) {
+                                viewModel.showAddDialog(
+                                    course.dayOfWeek,
+                                    course.startSection,
+                                    course.endSection
+                                )
+                            } else {
+                                viewModel.showAddDialog()
+                            }
+                        },
+                        backdrop = sheetContentBackdrop ?: liquidGlassBackdrop,
+                        icon = MiuixIcons.Normal.Add,
                         contentDescription = "添加课程",
-                        modifier = Modifier.size(26.dp)
+                        modifier = Modifier.padding(end = 20.dp),
+                        iconSize = 23.dp,
+                        useBackdropShadow = true,
                     )
+                } else {
+                    IconButton(onClick = {
+                        hapticFeedback.performHapticFeedback(HapticFeedbackType.Confirm)
+                        val course = selectedCourse ?: selectedCourses.firstOrNull()
+                        showCourseDetail = false
+                        if (course != null) {
+                            viewModel.showAddDialog(
+                                course.dayOfWeek,
+                                course.startSection,
+                                course.endSection
+                            )
+                        } else {
+                            viewModel.showAddDialog()
+                        }
+                    }, modifier = Modifier.padding(horizontal = 20.dp)) {
+                        Icon(
+                            imageVector = MiuixIcons.Normal.Add,
+                            contentDescription = "添加课程",
+                            modifier = Modifier.size(25.dp)
+                        )
+                    }
                 }
             }
         ) {
@@ -505,7 +537,7 @@ fun MainScheduleScreen(
                         pressFeedbackType = PressFeedbackType.None,
                         showIndication = true,
                         colors = CardDefaults.defaultColors(
-                            color = if (isAppDarkTheme()) Color(0xFF363636) else Color(0xFFFFFFFF),
+                            color = if (isAppDarkTheme()) Color(0xFF363636).copy(alpha = 0.62f) else Color(0xFFFFFFFF).copy(alpha = 0.7f),
                             contentColor = MiuixTheme.colorScheme.onSurface
                         ),
                         onClick = {

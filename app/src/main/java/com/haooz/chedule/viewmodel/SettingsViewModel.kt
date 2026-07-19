@@ -19,9 +19,24 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
 
     private val repository = CourseRepository(application)
 
-    // 显示周末设置
-    private val _showWeekendDays = MutableStateFlow(repository.getShowWeekendDays())
-    val showWeekendDays: StateFlow<Set<Int>> = _showWeekendDays.asStateFlow()
+    // 智能显示周末设置
+    private val _smartWeekend = MutableStateFlow(repository.getSmartWeekend())
+    val smartWeekend: StateFlow<Boolean> = _smartWeekend.asStateFlow()
+
+    /**
+     * 获取指定周次要显示的周末天数
+     * 智能模式下：该周有课的周末才显示；非智能模式下：始终显示周六周日
+     */
+    fun getWeekendDaysForWeek(week: Int): Set<Int> {
+        return if (_smartWeekend.value) {
+            buildSet {
+                if (repository.hasCoursesOnDayInWeek(6, week)) add(6)
+                if (repository.hasCoursesOnDayInWeek(7, week)) add(7)
+            }
+        } else {
+            setOf(6, 7)
+        }
+    }
 
     // 显示非本周课程
     private val _showNonCurrentWeek = MutableStateFlow(repository.getShowNonCurrentWeek())
@@ -97,7 +112,7 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
      * 从 SharedPreferences 重新加载所有设置（云同步导入后调用）
      */
     fun refreshSettings() {
-        _showWeekendDays.value = repository.getShowWeekendDays()
+        _smartWeekend.value = repository.getSmartWeekend()
         _showNonCurrentWeek.value = repository.getShowNonCurrentWeek()
         _morningSections.value = repository.getMorningSections()
         _afternoonSections.value = repository.getAfternoonSections()
@@ -114,9 +129,9 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
         _defaultHomepage.value = repository.getDefaultHomepage()
     }
 
-    fun setShowWeekendDays(days: Set<Int>) {
-        _showWeekendDays.value = days
-        repository.setShowWeekendDays(days)
+    fun setSmartWeekend(smart: Boolean) {
+        _smartWeekend.value = smart
+        repository.setSmartWeekend(smart)
     }
 
     fun setShowNonCurrentWeek(show: Boolean) {

@@ -2,7 +2,6 @@
 package com.haooz.chedule.ui.activities
 
 import android.annotation.SuppressLint
-import android.content.Context
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.SystemBarStyle
@@ -18,6 +17,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.statusBars
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
@@ -26,22 +26,27 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.blur
 import androidx.compose.ui.draw.drawWithContent
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.asAndroidBitmap
+import androidx.compose.ui.graphics.drawscope.clipPath
 import androidx.compose.ui.graphics.graphicsLayer
-import androidx.compose.ui.graphics.layer.drawLayer
 import androidx.compose.ui.graphics.rememberGraphicsLayer
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalWindowInfo
+import androidx.compose.ui.unit.DpOffset
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.zIndex
+import androidx.lifecycle.viewmodel.compose.viewModel
 import com.haooz.chedule.data.Course
 import com.haooz.chedule.ui.components.liquidglass.LiquidTopBarButton
 import com.haooz.chedule.ui.components.liquidglass.ProgressiveBlurTopBar
+import com.haooz.chedule.ui.oobe.OobeCubicOutEasing
+import com.haooz.chedule.ui.oobe.OobeQuartOutEasing
 import com.haooz.chedule.ui.theme.CourseScheduleTheme
 import com.haooz.chedule.ui.utils.applyThemeAwareSystemBars
 import com.haooz.chedule.ui.utils.rememberAppStyle
-import com.haooz.chedule.ui.oobe.OobeCubicOutEasing
-import com.haooz.chedule.ui.oobe.OobeQuartOutEasing
+import com.haooz.chedule.viewmodel.CourseViewModel
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import top.yukonga.miuix.kmp.basic.Scaffold
 import top.yukonga.miuix.kmp.basic.SmallTopAppBar
@@ -49,8 +54,9 @@ import top.yukonga.miuix.kmp.blur.layerBackdrop
 import top.yukonga.miuix.kmp.blur.rememberLayerBackdrop
 import top.yukonga.miuix.kmp.icon.MiuixIcons
 import top.yukonga.miuix.kmp.icon.extended.ChevronBackward
+import top.yukonga.miuix.kmp.squircle.addSquircleRect
 import top.yukonga.miuix.kmp.theme.MiuixTheme
-import androidx.compose.ui.unit.DpOffset
+import kotlin.time.Duration.Companion.milliseconds
 import com.kyant.backdrop.backdrops.layerBackdrop as liquidGlassLayerBackdrop
 
 class CourseManageActivity : ComponentActivity() {
@@ -79,17 +85,18 @@ class CourseManageActivity : ComponentActivity() {
                     com.kyant.backdrop.backdrops.rememberLayerBackdrop()
                 } else null
                 val isLiquidGlass = liquidGlassBackdrop != null
+                val courseViewModel: CourseViewModel = viewModel()
 
                 // Edit screen state
                 var showEditScreen by remember { mutableStateOf(false) }
                 var selectedCourses by remember { mutableStateOf<List<Course>>(emptyList()) }
-                var cardLeft by remember { mutableStateOf(0f) }
-                var cardTop by remember { mutableStateOf(0f) }
-                var cardWidth by remember { mutableStateOf(0f) }
-                var cardHeight by remember { mutableStateOf(0f) }
+                var cardLeft by remember { mutableFloatStateOf(0f) }
+                var cardTop by remember { mutableFloatStateOf(0f) }
+                var cardWidth by remember { mutableFloatStateOf(0f) }
+                var cardHeight by remember { mutableFloatStateOf(0f) }
                 var cardSnapshot by remember { mutableStateOf<android.graphics.Bitmap?>(null) }
                 var cardColor by remember { mutableStateOf(Color(0xFF4CAF50)) }
-                var cardAlpha by remember { mutableStateOf(0.15f) }
+                var cardAlpha by remember { mutableFloatStateOf(0.15f) }
 
                 // Graphics layer for capturing screen content
                 val screenGraphicsLayer = rememberGraphicsLayer()
@@ -105,7 +112,7 @@ class CourseManageActivity : ComponentActivity() {
                 // Dynamically get screen corner radius from window insets
                 val screenCornerRadius = remember {
                     try {
-                        val windowManager = context.getSystemService(Context.WINDOW_SERVICE) as android.view.WindowManager
+                        val windowManager = context.getSystemService(WINDOW_SERVICE) as android.view.WindowManager
                         val windowMetrics = windowManager.currentWindowMetrics
                         val insets = windowMetrics.windowInsets
                         @SuppressLint("WrongConstant")
@@ -133,7 +140,22 @@ class CourseManageActivity : ComponentActivity() {
                                     screenGraphicsLayer.record {
                                         this@drawWithContent.drawContent()
                                     }
-                                    drawContent()
+                                    // 缩放时保持屏幕圆角不变
+                                    val scale = backgroundScale.value
+                                    if (scale < 0.999f) {
+                                        val path = Path().apply {
+                                            addSquircleRect(
+                                                width = size.width,
+                                                height = size.height,
+                                                cornerRadius = screenCornerRadius
+                                            )
+                                        }
+                                        clipPath(path) {
+                                            this@drawWithContent.drawContent()
+                                        }
+                                    } else {
+                                        drawContent()
+                                    }
                                 }
                         ) {
                             Scaffold(
@@ -205,16 +227,19 @@ class CourseManageActivity : ComponentActivity() {
 
                                                     showEditScreen = true
                                                     launch {
-                                                        backgroundScale.animateTo(
-                                                            targetValue = 0.92f,
-                                                            animationSpec = tween(620, easing = OobeQuartOutEasing)
-                                                        )
-                                                    }
-                                                    launch {
-                                                        managePageBlurRadius.animateTo(
-                                                            targetValue = 5f,
-                                                            animationSpec = tween(620, easing = OobeQuartOutEasing)
-                                                        )
+                                                        delay(16.milliseconds)
+                                                        launch {
+                                                            backgroundScale.animateTo(
+                                                                targetValue = 0.92f,
+                                                                animationSpec = tween(620, easing = OobeQuartOutEasing)
+                                                            )
+                                                        }
+                                                        launch {
+                                                            managePageBlurRadius.animateTo(
+                                                                targetValue = 5f,
+                                                                animationSpec = tween(620, easing = OobeQuartOutEasing)
+                                                            )
+                                                        }
                                                     }
                                                 }
                                             }
@@ -260,7 +285,20 @@ class CourseManageActivity : ComponentActivity() {
                                 showEditScreen = false
                                 cardSnapshot = null
                             },
-                            onCourseUpdated = { },
+                            onCourseUpdated = { course ->
+                                courseViewModel.updateCourse(course)
+                            },
+                            onColorChanged = { colorRes ->
+                                cardColor = Color(colorRes)
+                            },
+                            getOccupiedWeeks = { dayOfWeek, startSection, endSection, excludeIds ->
+                                courseViewModel.getOccupiedWeeks(
+                                    dayOfWeek = dayOfWeek,
+                                    startSection = startSection,
+                                    endSection = endSection,
+                                    excludeIds = excludeIds.toSet()
+                                )
+                            },
                             liquidGlassBackdrop = editLiquidGlassBackdrop
                         )
                     }

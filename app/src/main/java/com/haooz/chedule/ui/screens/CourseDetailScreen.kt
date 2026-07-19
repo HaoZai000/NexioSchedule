@@ -61,6 +61,7 @@ import com.haooz.chedule.ui.oobe.OobeCubicOutEasing
 import com.haooz.chedule.ui.oobe.OobeQuartOutEasing
 import com.haooz.chedule.ui.utils.isAppDarkTheme
 import com.kyant.shapes.RoundedRectangle
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import top.yukonga.miuix.kmp.basic.Card
 import top.yukonga.miuix.kmp.basic.CardDefaults
@@ -83,6 +84,7 @@ import top.yukonga.miuix.kmp.icon.extended.ChevronBackward
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 import top.yukonga.miuix.kmp.utils.overScrollVertical
 import top.yukonga.miuix.kmp.utils.scrollEndHaptic
+import kotlin.time.Duration.Companion.milliseconds
 import androidx.compose.ui.graphics.Color as ComposeColor
 import com.kyant.backdrop.backdrops.layerBackdrop as liquidGlassLayerBackdrop
 
@@ -168,7 +170,7 @@ fun CourseDetailScreen(
             animProgress.animateTo(
                 targetValue = 0f,
                 animationSpec = tween(
-                    durationMillis = 380,
+                    durationMillis = 370,
                     easing = morphExitEase
                 )
             )
@@ -177,10 +179,12 @@ fun CourseDetailScreen(
     }
 
     LaunchedEffect(Unit) {
+        // 等待首帧渲染完成后再开始动画
+        delay(16.milliseconds)
         animProgress.animateTo(
             targetValue = 1f,
             animationSpec = tween(
-                durationMillis = 620,
+                durationMillis = 600,
                 easing = morphOpenEase
             )
         )
@@ -269,14 +273,13 @@ fun CourseDetailScreen(
                 )
             }
 
-            if (s.contentAlpha > 0f) {
-                Box(
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .graphicsLayer { alpha = s.contentAlpha }
-                ) {
-                    Scaffold(
-                        topBar = {
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .graphicsLayer { alpha = s.contentAlpha }
+            ) {
+                Scaffold(
+                    topBar = {
                             if (isLiquidGlass) {
                                 val statusBarPadding = WindowInsets.statusBars.asPaddingValues().calculateTopPadding()
                                 ProgressiveBlurTopBar(
@@ -503,4 +506,3 @@ fun CourseDetailScreen(
             }
         }
     }
-}

@@ -27,6 +27,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.statusBars
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
+import androidx.compose.foundation.layout.wrapContentHeight
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -44,7 +45,6 @@ import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.platform.LocalDensity
-import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.platform.LocalWindowInfo
 import androidx.compose.ui.semantics.onClick
 import androidx.compose.ui.semantics.semantics
@@ -54,7 +54,9 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.zIndex
 import com.haooz.chedule.ui.oobe.OobeCubicOutEasing
 import com.haooz.chedule.ui.oobe.OobeQuartOutEasing
-import kotlinx.coroutines.joinAll
+import com.haooz.chedule.ui.components.liquidglass.ProgressiveBlurTopBar
+import com.kyant.backdrop.Backdrop
+import com.kyant.backdrop.backdrops.layerBackdrop
 import kotlinx.coroutines.launch
 import top.yukonga.miuix.kmp.blur.BlendColorEntry
 import top.yukonga.miuix.kmp.blur.BlurBlendMode
@@ -85,16 +87,24 @@ fun BlurBottomSheet(
     blurRadius: Float = 24f,
     dimBackground: Boolean = false,
     onDismissRequest: () -> Unit,
+    startAction: @Composable (() -> Unit)? = null,
     endAction: @Composable (() -> Unit)? = null,
+    liquidGlassBackdrop: Backdrop? = null,
+    onSheetContentBackdropCreated: ((Backdrop?) -> Unit)? = null,
     content: @Composable () -> Unit,
 ) {
     val visibleState = remember { mutableStateOf(false) }
+    val sheetContentBackdropHolder = remember { mutableStateOf<Backdrop?>(null) }
 
     // 显示时立即可见，隐藏时等动画播完再隐藏
     LaunchedEffect(show) {
         if (show) {
             visibleState.value = true
         }
+    }
+
+    LaunchedEffect(sheetContentBackdropHolder.value) {
+        onSheetContentBackdropCreated?.invoke(sheetContentBackdropHolder.value)
     }
 
     DialogLayout(
@@ -113,7 +123,10 @@ fun BlurBottomSheet(
             blurRadius = blurRadius,
             dimBackground = dimBackground,
             onDismissRequest = onDismissRequest,
+            startAction = startAction,
             endAction = endAction,
+            liquidGlassBackdrop = liquidGlassBackdrop,
+            sheetContentBackdropHolder = sheetContentBackdropHolder,
             content = content,
         )
     }
@@ -128,14 +141,16 @@ private fun BlurBottomSheetContent(
     blurRadius: Float,
     dimBackground: Boolean = false,
     onDismissRequest: () -> Unit,
+    startAction: @Composable (() -> Unit)? = null,
     endAction: @Composable (() -> Unit)? = null,
+    liquidGlassBackdrop: Backdrop? = null,
+    sheetContentBackdropHolder: MutableState<Backdrop?>? = null,
     content: @Composable () -> Unit,
 ) {
     val animationProgress = remember { Animatable(0f) }
     val dragOffsetY = remember { Animatable(0f) }
     val density = LocalDensity.current
     val windowInfo = LocalWindowInfo.current
-    val hapticFeedback = LocalHapticFeedback.current
     val coroutineScope = rememberCoroutineScope()
     val sheetHeightPx = remember { mutableIntStateOf(0) }
     val imeInsets = WindowInsets.ime
@@ -161,7 +176,6 @@ private fun BlurBottomSheetContent(
 
     // 返回手势处理
     BackHandler(enabled = show) {
-        hapticFeedback.performHapticFeedback(androidx.compose.ui.hapticfeedback.HapticFeedbackType.VirtualKey)
         onDismissRequest()
     }
 
@@ -273,6 +287,37 @@ private fun BlurBottomSheetContent(
                 // 拖拽手柄（仅按下放大动画）
                 DragHandleArea()
 
+                // 捕获弹窗内容的 backdrop（先画不透明背景，再画内容，确保采样到不透明像素）
+                val sheetBackdropColor = if (isDark) Color(0xFF1E1E1E) else Color(0xFFF4F4F4)
+                val sheetContentBackdrop = com.kyant.backdrop.backdrops.rememberLayerBackdrop {
+                    drawRect(sheetBackdropColor)
+                    drawContent()
+                }
+
+                // 将 backdrop 暴露给调用方
+                LaunchedEffect(sheetContentBackdrop) {
+                    sheetContentBackdropHolder?.value = sheetContentBackdrop
+                }
+
+                // 内容区域（底层，用 layerBackdrop 捕获内容）
+                Box(
+                    modifier = Modifier.wrapContentHeight().layerBackdrop(sheetContentBackdrop)
+                ) {
+                    content()
+                }
+
+
+                // 渐变模糊遮罩（采样弹窗内容）
+                ProgressiveBlurTopBar(
+                    backdrop = sheetContentBackdrop,
+                    height = 86.dp,
+                    tintColor = sheetBgColor,
+                    tintIntensity = 0f,
+                    modifier = Modifier.zIndex(1f)
+                ) {
+                    Box(modifier = Modifier.fillMaxWidth().height(60.dp))
+                }
+
                 // 标题栏（zIndex 提升到顶层，消费触摸事件）
                 Box(
                     modifier = Modifier
@@ -295,14 +340,17 @@ private fun BlurBottomSheetContent(
                         textAlign = TextAlign.Center,
                         color = MiuixTheme.colorScheme.onSurface,
                     )
+                    if (startAction != null) {
+                        Box(modifier = Modifier.align(Alignment.CenterStart)) {
+                            startAction()
+                        }
+                    }
                     if (endAction != null) {
                         Box(modifier = Modifier.align(Alignment.CenterEnd)) {
                             endAction()
                         }
                     }
                 }
-                // 内容区域
-                content()
             },
         )
     }

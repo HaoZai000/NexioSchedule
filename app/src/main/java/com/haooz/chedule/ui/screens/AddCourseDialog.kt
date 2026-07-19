@@ -218,7 +218,7 @@ fun AddCourseDialog(
                     Icon(
                         imageVector = MiuixIcons.Normal.Close,
                         contentDescription = "取消",
-                        modifier = Modifier.size(23.dp),
+                        modifier = Modifier.size(22.dp),
                         tint = closeIconColor
                     )
                 }
@@ -315,7 +315,7 @@ fun AddCourseDialog(
                     Icon(
                         imageVector = MiuixIcons.Ok,
                         contentDescription = "确认",
-                        modifier = Modifier.size(24.dp),
+                        modifier = Modifier.size(23.dp),
                         tint = Color.White
                     )
                 }
