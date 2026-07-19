@@ -144,7 +144,7 @@
             android:theme="@style/Theme.课程表"
             android:windowSoftInputMode="adjustResize" />
         <activity
-            android:name=".ui.activities.CourseDataManageActivity"
+            android:name=".ui.activities.BackupAndMigrationActivity"
             android:exported="false"
             android:label="备份与迁移"
             android:theme="@style/Theme.课程表"

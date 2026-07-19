@@ -1,5 +1,5 @@
 /** 备份与迁移页面 - Screen */
-package com.haooz.chedule.ui.screens
+package com.haooz.chedule.ui.activities
 
 import android.content.Intent
 import android.widget.Toast
@@ -20,6 +20,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
@@ -32,8 +33,12 @@ import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.unit.dp
+import com.google.gson.GsonBuilder
 import com.haooz.chedule.data.CourseRepository
 import com.haooz.chedule.data.WebDavManager
+import com.haooz.chedule.ui.screens.applyScheduleData
+import com.haooz.chedule.ui.screens.parseFullScheduleJson
+import com.haooz.chedule.ui.screens.parseIcsFile
 import com.haooz.chedule.viewmodel.CourseViewModel
 import com.haooz.chedule.viewmodel.ScheduleViewModel
 import com.haooz.chedule.viewmodel.SettingsViewModel
@@ -57,9 +62,13 @@ import top.yukonga.miuix.kmp.preference.ArrowPreference
 import top.yukonga.miuix.kmp.preference.OverlayDropdownPreference
 import top.yukonga.miuix.kmp.utils.overScrollVertical
 import top.yukonga.miuix.kmp.utils.scrollEndHaptic
+import java.text.SimpleDateFormat
+import java.util.Calendar
+import java.util.Date
+import java.util.Locale
 
 @Composable
-fun CourseDataManageScreen(
+fun BackupAndMigrationScreen(
     onBack: () -> Unit,
     courseViewModel: CourseViewModel,
     scheduleViewModel: ScheduleViewModel,
@@ -77,8 +86,8 @@ fun CourseDataManageScreen(
     val lastSyncTimeMs = webDavManager.lastSyncTime
     val lastSyncSummary = remember(lastSyncTimeMs) {
         if (lastSyncTimeMs > 0L) {
-            val sdf = java.text.SimpleDateFormat("yyyy-MM-dd HH:mm", java.util.Locale.getDefault())
-            "上次操作: ${sdf.format(java.util.Date(lastSyncTimeMs))}"
+            val sdf = SimpleDateFormat("yyyy-MM-dd HH:mm", Locale.getDefault())
+            "上次操作: ${sdf.format(Date(lastSyncTimeMs))}"
         } else "未操作"
     }
 
@@ -210,7 +219,7 @@ fun CourseDataManageScreen(
         }
     ) { paddingValues ->
         val listState = rememberLazyListState()
-        var listScrollY by remember { androidx.compose.runtime.mutableIntStateOf(0) }
+        var listScrollY by remember { mutableIntStateOf(0) }
         LaunchedEffect(listState) {
             snapshotFlow { listState.firstVisibleItemScrollOffset }
                 .collect { offset -> listScrollY = offset }
@@ -344,7 +353,7 @@ fun CourseDataManageScreen(
                             title = "本地备份",
                             summary = "备份课表数据到设备存储",
                             onClick = {
-                                val intent = Intent(context, com.haooz.chedule.ui.activities.LocalBackupActivity::class.java)
+                                val intent = Intent(context, LocalBackupActivity::class.java)
                                 context.startActivity(intent)
                             }
                         )
@@ -352,7 +361,7 @@ fun CourseDataManageScreen(
                             title = "WebDAV 云备份",
                             summary = if (webDavManager.isConfigured()) lastSyncSummary else "配置服务器后可云备份/恢复",
                             onClick = {
-                                val intent = Intent(context, com.haooz.chedule.ui.activities.WebDavSettingsActivity::class.java)
+                                val intent = Intent(context, WebDavSettingsActivity::class.java)
                                 context.startActivity(intent)
                             }
                         )
@@ -472,7 +481,7 @@ private fun buildExportJson(
         }
     )
 
-    return com.google.gson.GsonBuilder().setPrettyPrinting().create().toJson(data)
+    return GsonBuilder().setPrettyPrinting().create().toJson(data)
 }
 
 private fun buildExportIcs(
@@ -489,7 +498,7 @@ private fun buildExportIcs(
     }
 
     val classStartTime = viewModel.classStartTime.value
-    val dtStartSdf = java.text.SimpleDateFormat("yyyyMMdd'T'HHmmss", java.util.Locale.getDefault())
+    val dtStartSdf = SimpleDateFormat("yyyyMMdd'T'HHmmss", Locale.getDefault())
 
     return buildString {
         appendLine("BEGIN:VCALENDAR")
@@ -513,22 +522,22 @@ private fun buildExportIcs(
             val endMinute = endSectionTime.substringAfter("-").substringAfter(":").toIntOrNull() ?: 0
 
             for (week in weeks) {
-                val calendar = java.util.Calendar.getInstance()
+                val calendar = Calendar.getInstance()
                 val dateStr = classStartTime.replace("/", "-")
                 val parts = dateStr.split("-")
                 if (parts.size == 3) {
                     calendar.set(parts[0].toIntOrNull() ?: 2025, (parts[1].toIntOrNull() ?: 9) - 1, parts[2].toIntOrNull() ?: 1, 0, 0, 0)
-                    calendar.set(java.util.Calendar.MILLISECOND, 0)
+                    calendar.set(Calendar.MILLISECOND, 0)
                 }
-                calendar.add(java.util.Calendar.WEEK_OF_YEAR, week - 1)
-                calendar.set(java.util.Calendar.DAY_OF_WEEK, course.dayOfWeek + 1)
-                calendar.set(java.util.Calendar.HOUR_OF_DAY, startHour)
-                calendar.set(java.util.Calendar.MINUTE, startMinute)
-                calendar.set(java.util.Calendar.SECOND, 0)
+                calendar.add(Calendar.WEEK_OF_YEAR, week - 1)
+                calendar.set(Calendar.DAY_OF_WEEK, course.dayOfWeek + 1)
+                calendar.set(Calendar.HOUR_OF_DAY, startHour)
+                calendar.set(Calendar.MINUTE, startMinute)
+                calendar.set(Calendar.SECOND, 0)
                 val eventStart = calendar.time
 
-                calendar.set(java.util.Calendar.HOUR_OF_DAY, endHour)
-                calendar.set(java.util.Calendar.MINUTE, endMinute)
+                calendar.set(Calendar.HOUR_OF_DAY, endHour)
+                calendar.set(Calendar.MINUTE, endMinute)
                 val eventEnd = calendar.time
 
                 val uid = "${course.id}-${week}@nexio-schedule"

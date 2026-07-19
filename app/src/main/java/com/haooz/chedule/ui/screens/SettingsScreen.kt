@@ -560,7 +560,7 @@ fun SettingsScreen(
                                     title = "备份与迁移",
                                     summary = "课表导入导出与备份",
                                     onClick = {
-                                        val intent = Intent(context, com.haooz.chedule.ui.activities.CourseDataManageActivity::class.java)
+                                        val intent = Intent(context, com.haooz.chedule.ui.activities.BackupAndMigrationActivity::class.java)
                                         context.startActivity(intent)
                                     }
                                 )

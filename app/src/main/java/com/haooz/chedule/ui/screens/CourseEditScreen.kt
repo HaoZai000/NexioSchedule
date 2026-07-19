@@ -1,5 +1,5 @@
 /** 课程编辑页面 - 修改课程时段/周次 */
-package com.haooz.chedule.ui.activities
+package com.haooz.chedule.ui.screens
 
 import android.graphics.Bitmap
 import androidx.activity.compose.BackHandler
@@ -114,7 +114,7 @@ import com.kyant.backdrop.backdrops.layerBackdrop as liquidGlassLayerBackdrop
 
 // ===================== Animation Foundation =====================
 
-private data class AnimState(
+private data class EditAnimState(
     val bgAlpha: Float,
     val snapshotAlpha: Float,
     val contentAlpha: Float,
@@ -125,11 +125,11 @@ private data class AnimState(
     val progress: Float
 )
 
-private class AnimClipShape(
+private class EditAnimClipShape(
     private val screenWidth: Float,
     private val screenCornerRadiusPx: Float,
     private val startCornerRadiusPx: Float,
-    private val animState: androidx.compose.runtime.State<AnimState>
+    private val animState: androidx.compose.runtime.State<EditAnimState>
 ) : androidx.compose.ui.graphics.Shape {
     override fun createOutline(
         size: androidx.compose.ui.geometry.Size,
@@ -250,7 +250,16 @@ fun CourseEditScreen(
             // clipBottom 在 pre-transform 空间，需要除以 scale 使渲染后高度正确
             val rawClipBottom = cardHeight + (screenHeight - cardHeight) * p
             val clipBottom = rawClipBottom / scale
-            AnimState(bgAlpha, snapAlpha, contAlpha, translationX, translationY, scale, clipBottom, p)
+            EditAnimState(
+                bgAlpha,
+                snapAlpha,
+                contAlpha,
+                translationX,
+                translationY,
+                scale,
+                clipBottom,
+                p
+            )
         }
     }
 
@@ -308,7 +317,7 @@ fun CourseEditScreen(
             }
     ) {
         val s = animState.value
-        val clipShape = remember { AnimClipShape(screenWidth, screenCornerRadius, startCornerRadiusPx, animState) }
+        val clipShape = remember { EditAnimClipShape(screenWidth, screenCornerRadius, startCornerRadiusPx, animState) }
 
         Box(
             modifier = Modifier
@@ -911,10 +920,10 @@ private fun CourseGroupCard(
             val oddWeeksInRange = allWeeksInRange.filter { it % 2 == 1 }.toSet()
             val evenWeeksInRange = allWeeksInRange.filter { it % 2 == 0 }.toSet()
 
-            val weekType = when {
-                selectedWeeks == allWeeksInRange -> Course.WEEK_TYPE_ALL
-                selectedWeeks == oddWeeksInRange -> Course.WEEK_TYPE_ODD
-                selectedWeeks == evenWeeksInRange -> Course.WEEK_TYPE_EVEN
+            val weekType = when (selectedWeeks) {
+                allWeeksInRange -> Course.WEEK_TYPE_ALL
+                oddWeeksInRange -> Course.WEEK_TYPE_ODD
+                evenWeeksInRange -> Course.WEEK_TYPE_EVEN
                 else -> Course.WEEK_TYPE_ALL
             }
 

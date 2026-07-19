@@ -1,4 +1,4 @@
-/** 课表数据管理页面 */
+/** 备份与迁移页面 */
 package com.haooz.chedule.ui.activities
 
 import android.os.Bundle
@@ -20,7 +20,6 @@ import androidx.compose.ui.zIndex
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.haooz.chedule.ui.components.liquidglass.LiquidTopBarButton
 import com.haooz.chedule.ui.components.liquidglass.ProgressiveBlurTopBar
-import com.haooz.chedule.ui.screens.CourseDataManageScreen
 import com.haooz.chedule.ui.theme.CourseScheduleTheme
 import com.haooz.chedule.ui.utils.applyThemeAwareSystemBars
 import com.haooz.chedule.ui.utils.rememberAppStyle
@@ -36,7 +35,7 @@ import top.yukonga.miuix.kmp.icon.extended.ChevronBackward
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 import com.kyant.backdrop.backdrops.layerBackdrop as liquidGlassLayerBackdrop
 
-class CourseDataManageActivity : ComponentActivity() {
+class BackupAndMigrationActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge(
@@ -104,7 +103,7 @@ class CourseDataManageActivity : ComponentActivity() {
                                 else Modifier
                             )
                         ) {
-                            CourseDataManageScreen(
+                            BackupAndMigrationScreen(
                                 onBack = { finish() },
                                 courseViewModel = courseViewModel,
                                 scheduleViewModel = scheduleViewModel,
