@@ -186,17 +186,22 @@ fun MainScheduleScreen(
         }
     }
 
-    // 整体内容 LayerBackdrop：捕获壁纸+课程表+课程卡片，供弹窗模糊使用
+    // 壁纸 LayerBackdrop：捕获壁纸内容供课程卡片 textureBlur 使用
     val wallpaperBackdropColor = MiuixTheme.colorScheme.surface
     val wallpaperBackdrop = rememberLayerBackdrop {
         drawRect(wallpaperBackdropColor)
         drawContent()
     }
+    // 全屏 LayerBackdrop：捕获全部内容供弹窗模糊使用
+    val screenBackdrop = rememberLayerBackdrop {
+        drawRect(wallpaperBackdropColor)
+        drawContent()
+    }
 
-    Box(modifier = Modifier.fillMaxSize().layerBackdrop(wallpaperBackdrop)) {
+    Box(modifier = Modifier.fillMaxSize().layerBackdrop(screenBackdrop)) {
         // 壁纸背景
         if (wallpaperBitmap != null) {
-            Box(modifier = Modifier.fillMaxSize()) {
+            Box(modifier = Modifier.fillMaxSize().layerBackdrop(wallpaperBackdrop)) {
                 val brightnessFilter = if (wallpaperBrightness != 0f) {
                     val b = (1f + wallpaperBrightness / 50f).coerceIn(0f, 2f)
                     androidx.compose.ui.graphics.ColorFilter.colorMatrix(
@@ -226,7 +231,7 @@ fun MainScheduleScreen(
                 )
             }
         } else {
-            Box(modifier = Modifier.fillMaxSize().background(wallpaperBackdropColor))
+            Box(modifier = Modifier.fillMaxSize().layerBackdrop(wallpaperBackdrop).background(wallpaperBackdropColor))
         }
 
         // 用于手势回调中读取最新值，避免 pointerInput(Unit) 捕获陈旧状态
@@ -414,7 +419,7 @@ fun MainScheduleScreen(
         BlurBottomSheet(
             show = showCourseDetail,
             title = "课程详情",
-            backdrop = wallpaperBackdrop,
+            backdrop = screenBackdrop,
             dimBackground = true,
             onDismissRequest = {
                 showCourseDetail = false
