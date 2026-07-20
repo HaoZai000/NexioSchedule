@@ -30,6 +30,12 @@ internal val OobeAccelerateDecelerateEasing = Easing { fraction ->
     (cos((fraction + 1f) * PI).toFloat() / 2f) + 0.5f
 }
 
+
+// 余弦加速 先慢后快 Cosine In
+internal val OobeCosAccelerateEasing = Easing { fraction ->
+    1f - cos(fraction * PI.toFloat() / 2f)
+}
+
 internal val OobeSinOutEasing = Easing { fraction ->
     sin(fraction * PI.toFloat() / 2f)
 }
@@ -40,7 +46,7 @@ internal val OobeCubicOutEasing = Easing { fraction ->
 
 internal val OobeQuartOutEasing = Easing { fraction ->
     val inverse = 1f - fraction
-    1f - inverse * inverse * inverse * inverse * inverse
+    1f - inverse * inverse * inverse * inverse
 }
 
 internal val OobeHomeSpringEasing = Easing { fraction ->

@@ -75,6 +75,7 @@ import com.haooz.chedule.ui.oobe.OobeQuartOutEasing
 import com.haooz.chedule.ui.utils.isAppDarkTheme
 import com.haooz.chedule.ui.utils.rememberAppStyle
 import com.kyant.shapes.RoundedRectangle
+import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import top.yukonga.miuix.kmp.basic.ButtonDefaults
@@ -201,23 +202,43 @@ fun CourseEditScreen(
 
     val density = LocalDensity.current
     val animProgress = remember { Animatable(0f) }
+    val animTransY = remember { Animatable(0f) }
     val scope = rememberCoroutineScope()
     val hapticFeedback = LocalHapticFeedback.current
     val startCornerRadiusPx = 16f * density.density
     val morphOpenEase = OobeQuartOutEasing
     val morphExitEase = OobeCubicOutEasing
+    // translationY 独立曲线，时长根据起始卡片位置决定
+    val isUpperHalf = cardTop < screenHeight / 2f
+    val transOpenEase = OobeQuartOutEasing
+    val transExitEase = OobeCubicOutEasing
+    val transOpenMillis = if (isUpperHalf) 620 else 540
+    val transExitMillis = if (isUpperHalf) 290 else 400
 
     // ---- Back navigation with exit animation ----
     BackHandler {
         onBackStart()
         scope.launch {
-            animProgress.animateTo(
-                targetValue = 0f,
-                animationSpec = tween(
-                    durationMillis = 370,
-                    easing = morphExitEase
-                )
-            )
+            coroutineScope {
+                launch {
+                    animProgress.animateTo(
+                        targetValue = 0f,
+                        animationSpec = tween(
+                            durationMillis = 370,
+                            easing = morphExitEase
+                        )
+                    )
+                }
+                launch {
+                    animTransY.animateTo(
+                        targetValue = 0f,
+                        animationSpec = tween(
+                            durationMillis = transExitMillis,
+                            easing = transExitEase
+                        )
+                    )
+                }
+            }
             onBack()
         }
     }
@@ -226,13 +247,24 @@ fun CourseEditScreen(
     LaunchedEffect(Unit) {
         // 等待首帧渲染完成后再开始动画
         delay(16.milliseconds)
-        animProgress.animateTo(
-            targetValue = 1f,
-            animationSpec = tween(
-                durationMillis = 600,
-                easing = morphOpenEase
+        launch {
+            animProgress.animateTo(
+                targetValue = 1f,
+                animationSpec = tween(
+                    durationMillis = 580,
+                    easing = morphOpenEase
+                )
             )
-        )
+        }
+        launch {
+            animTransY.animateTo(
+                targetValue = 1f,
+                animationSpec = tween(
+                    durationMillis = transOpenMillis,
+                    easing = transOpenEase
+                )
+            )
+        }
     }
 
     // ---- Derived animation state ----
@@ -241,12 +273,13 @@ fun CourseEditScreen(
     val animState = remember {
         derivedStateOf {
             val p = animProgress.value
+            val ty = animTransY.value
             val bgAlpha = (p * 0.5f).coerceIn(0f, 0.5f)
             val snapAlpha = (1f - p * 3f).coerceIn(0f, 1f)
             val contAlpha = ((p - 0.1f) / 0.5f).coerceIn(0f, 1f)
             val scale = cardWidth / screenWidth + (1f - cardWidth / screenWidth) * p
             val translationX = (cardLeft + cardWidth / 2f - screenWidth / 2f) * (1f - p)
-            val translationY = cardTop * (1f - p)
+            val translationY = cardTop * (1f - ty)
             // clipBottom 在 pre-transform 空间，需要除以 scale 使渲染后高度正确
             val rawClipBottom = cardHeight + (screenHeight - cardHeight) * p
             val clipBottom = rawClipBottom / scale
@@ -374,13 +407,26 @@ fun CourseEditScreen(
                                             hapticFeedback.performHapticFeedback(HapticFeedbackType.Confirm)
                                             onBackStart()
                                             scope.launch {
-                                                animProgress.animateTo(
-                                                    targetValue = 0f,
-                                                    animationSpec = tween(
-                                                        durationMillis = 380,
-                                                        easing = morphExitEase
-                                                    )
-                                                )
+                                                coroutineScope {
+                                                    launch {
+                                                        animProgress.animateTo(
+                                                            targetValue = 0f,
+                                                            animationSpec = tween(
+                                                                durationMillis = 360,
+                                                                easing = morphExitEase
+                                                            )
+                                                        )
+                                                    }
+                                                    launch {
+                                                        animTransY.animateTo(
+                                                            targetValue = 0f,
+                                                            animationSpec = tween(
+                                                                durationMillis = transExitMillis,
+                                                                easing = transExitEase
+                                                            )
+                                                        )
+                                                    }
+                                                }
                                                 onBack()
                                             }
                                         },
@@ -399,13 +445,26 @@ fun CourseEditScreen(
                                             saveTrigger++
                                             onBackStart()
                                             scope.launch {
-                                                animProgress.animateTo(
-                                                    targetValue = 0f,
-                                                    animationSpec = tween(
-                                                        durationMillis = 380,
-                                                        easing = morphExitEase
-                                                    )
-                                                )
+                                                coroutineScope {
+                                                    launch {
+                                                        animProgress.animateTo(
+                                                            targetValue = 0f,
+                                                            animationSpec = tween(
+                                                                durationMillis = 360,
+                                                                easing = morphExitEase
+                                                            )
+                                                        )
+                                                    }
+                                                    launch {
+                                                        animTransY.animateTo(
+                                                            targetValue = 0f,
+                                                            animationSpec = tween(
+                                                                durationMillis = transExitMillis,
+                                                                easing = transExitEase
+                                                            )
+                                                        )
+                                                    }
+                                                }
                                                 onBack()
                                             }
                                         },
@@ -442,13 +501,26 @@ fun CourseEditScreen(
                                             hapticFeedback.performHapticFeedback(HapticFeedbackType.Confirm)
                                             onBackStart()
                                             scope.launch {
-                                                animProgress.animateTo(
-                                                    targetValue = 0f,
-                                                    animationSpec = tween(
-                                                        durationMillis = 380,
-                                                        easing = morphExitEase
-                                                    )
-                                                )
+                                                coroutineScope {
+                                                    launch {
+                                                        animProgress.animateTo(
+                                                            targetValue = 0f,
+                                                            animationSpec = tween(
+                                                                durationMillis = 360,
+                                                                easing = morphExitEase
+                                                            )
+                                                        )
+                                                    }
+                                                    launch {
+                                                        animTransY.animateTo(
+                                                            targetValue = 0f,
+                                                            animationSpec = tween(
+                                                                durationMillis = transExitMillis,
+                                                                easing = transExitEase
+                                                            )
+                                                        )
+                                                    }
+                                                }
                                                 onBack()
                                             }
                                         },
@@ -468,13 +540,26 @@ fun CourseEditScreen(
                                                 saveTrigger++
                                                 onBackStart()
                                                 scope.launch {
-                                                    animProgress.animateTo(
-                                                        targetValue = 0f,
-                                                        animationSpec = tween(
-                                                            durationMillis = 380,
-                                                            easing = morphExitEase
-                                                        )
-                                                    )
+                                                    coroutineScope {
+                                                        launch {
+                                                            animProgress.animateTo(
+                                                                targetValue = 0f,
+                                                                animationSpec = tween(
+                                                                    durationMillis = 360,
+                                                                    easing = morphExitEase
+                                                                )
+                                                            )
+                                                        }
+                                                        launch {
+                                                            animTransY.animateTo(
+                                                                targetValue = 0f,
+                                                                animationSpec = tween(
+                                                                    durationMillis = transExitMillis,
+                                                                    easing = transExitEase
+                                                                )
+                                                            )
+                                                        }
+                                                    }
                                                     onBack()
                                                 }
                                             },

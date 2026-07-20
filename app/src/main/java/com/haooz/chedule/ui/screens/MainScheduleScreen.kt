@@ -86,7 +86,8 @@ fun MainScheduleScreen(
     settingsViewModel: SettingsViewModel,
     pagerState: PagerState,
     currentDayOfWeek: Int,
-    onCourseClick: (courses: List<Course>, cardLeft: Float, cardTop: Float, cardWidth: Float, cardHeight: Float, snapshot: android.graphics.Bitmap?) -> Unit = { _, _, _, _, _, _ -> },
+    hiddenCourseIds: Set<String> = emptySet(),
+    onCourseClick: (courses: List<Course>, cardLeft: Float, cardTop: Float, cardWidth: Float, cardHeight: Float, snapshot: android.graphics.Bitmap?, courseIdToHide: String) -> Unit = { _, _, _, _, _, _, _ -> },
     onPopupStateChange: (Boolean) -> Unit = {},
     onEmptyLongPress: () -> Unit = {},
     wallpaperBitmap: android.graphics.Bitmap? = null,
@@ -512,11 +513,17 @@ fun MainScheduleScreen(
                         }
                     }
                     val isCurrentWeekCourse = course.isActiveInWeek(viewingWeek)
+                    val isHidden = course.id in hiddenCourseIds
                     var cardBounds by remember {
                         mutableStateOf<androidx.compose.ui.geometry.Rect?>(
                             null
                         )
                     }
+                    Column(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .graphicsLayer { alpha = if (isHidden) 0f else 1f }
+                    ) {
                     Card(
                         cornerRadius = 20.dp,
                         modifier = Modifier
@@ -551,7 +558,8 @@ fun MainScheduleScreen(
                                     bounds.top,
                                     bounds.width,
                                     bounds.height,
-                                    null
+                                    null,
+                                    course.id
                                 )
                             }
                         }
@@ -596,6 +604,7 @@ fun MainScheduleScreen(
                             }
                         }
                     }
+                    } // Column (isHidden)
                 }
                 Spacer(modifier = Modifier.height(260.dp))
             }

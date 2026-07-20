@@ -98,6 +98,7 @@ class CourseManageActivity : ComponentActivity() {
                 var cardSnapshot by remember { mutableStateOf<android.graphics.Bitmap?>(null) }
                 var cardColor by remember { mutableStateOf(Color(0xFF4CAF50)) }
                 var cardAlpha by remember { mutableFloatStateOf(0.15f) }
+                var hiddenCourseIds by remember { mutableStateOf(setOf<String>()) }
 
                 // Graphics layer for capturing screen content
                 val screenGraphicsLayer = rememberGraphicsLayer()
@@ -202,6 +203,7 @@ class CourseManageActivity : ComponentActivity() {
                                         CourseManageScreen(
                                             onBack = { finish() },
                                             liquidGlassBackdrop = liquidGlassBackdrop,
+                                            hiddenCourseIds = hiddenCourseIds,
                                             onCourseClick = { courses, left, top, width, height, _, color, alpha ->
                                                 coroutineScope.launch {
                                                     selectedCourses = courses
@@ -211,6 +213,7 @@ class CourseManageActivity : ComponentActivity() {
                                                     cardHeight = height
                                                     cardColor = color
                                                     cardAlpha = alpha
+                                                    hiddenCourseIds = courses.map { it.id }.toSet()
 
                                                     // Capture full screen snapshot
                                                     val fullSnapshot = screenGraphicsLayer.toImageBitmap().asAndroidBitmap()
@@ -285,6 +288,7 @@ class CourseManageActivity : ComponentActivity() {
                             onBack = {
                                 showEditScreen = false
                                 cardSnapshot = null
+                                hiddenCourseIds = emptySet()
                             },
                             onCourseUpdated = { course ->
                                 courseViewModel.updateCourse(course)

@@ -3,7 +3,6 @@ package com.haooz.chedule.ui.activities
 
 import android.graphics.Bitmap
 import androidx.compose.foundation.background
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -12,7 +11,6 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.staggeredgrid.LazyVerticalStaggeredGrid
 import androidx.compose.foundation.lazy.staggeredgrid.StaggeredGridCells
@@ -33,6 +31,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.RectangleShape
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.lerp
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.input.nestedscroll.nestedScroll
@@ -61,7 +60,6 @@ import top.yukonga.miuix.kmp.blur.textureBlur
 import top.yukonga.miuix.kmp.icon.MiuixIcons
 import top.yukonga.miuix.kmp.icon.extended.Back
 import top.yukonga.miuix.kmp.theme.MiuixTheme
-import top.yukonga.miuix.kmp.utils.PressFeedbackType
 import top.yukonga.miuix.kmp.utils.overScrollVertical
 import top.yukonga.miuix.kmp.utils.scrollEndHaptic
 import androidx.compose.ui.graphics.Color as ComposeColor
@@ -71,6 +69,7 @@ fun CourseManageScreen(
     onBack: () -> Unit,
     viewModel: CourseViewModel = viewModel(),
     liquidGlassBackdrop: com.kyant.backdrop.Backdrop? = null,
+    hiddenCourseIds: Set<String> = emptySet(),
     onCourseClick: (
         courses: List<com.haooz.chedule.data.Course>,
         left: Float,
@@ -209,6 +208,7 @@ fun CourseManageScreen(
                             classroom = classrooms,
                             color = Color(representative.colorRes),
                             daySectionInfo = daySectionInfo,
+                            isHidden = courseList.any { it.id in hiddenCourseIds },
                             onClick = { left, top, width, height, snapshot ->
                                 onCourseClick(courseList, left, top, width, height, snapshot, Color(representative.colorRes), 0.15f)
                             }
@@ -228,6 +228,7 @@ private fun CourseManageCard(
     color: Color,
     cardAlpha: Float = 0.15f,
     daySectionInfo: String,
+    isHidden: Boolean = false,
     onClick: (left: Float, top: Float, width: Float, height: Float, snapshot: Bitmap?) -> Unit
 ) {
     var cardLeft by remember { mutableFloatStateOf(0f) }
@@ -240,7 +241,7 @@ private fun CourseManageCard(
         showIndication = true,
         insideMargin = PaddingValues(16.dp),
         colors = CardDefaults.defaultColors(
-            color = color.copy(alpha = cardAlpha)
+            color = if (isHidden) ComposeColor.Transparent else color.copy(alpha = cardAlpha)
         ),
         modifier = Modifier
             .fillMaxWidth()
@@ -262,42 +263,44 @@ private fun CourseManageCard(
             )
         }
     ) {
-        Box(
-            modifier = Modifier
-                .size(8.dp)
-                .clip(RoundedCornerShape(4.dp))
-                .background(color)
-        )
-        Spacer(modifier = Modifier.height(8.dp))
-        Text(
-            text = courseName,
-            fontSize = 15.sp,
-            fontWeight = FontWeight.Bold,
-            maxLines = 2,
-            overflow = TextOverflow.Ellipsis,
-            color = MiuixTheme.colorScheme.onBackground
-        )
-        Spacer(modifier = Modifier.height(4.dp))
-        if (teacher.isNotBlank()) {
-            Text(
-                text = teacher,
-                fontSize = 12.sp,
-                color = MiuixTheme.colorScheme.onBackground.copy(alpha = 0.7f)
+        Column(modifier = Modifier.graphicsLayer { alpha = if (isHidden) 0f else 1f }) {
+            Box(
+                modifier = Modifier
+                    .size(8.dp)
+                    .clip(RoundedCornerShape(4.dp))
+                    .background(color)
             )
-        }
-        Spacer(modifier = Modifier.height(2.dp))
-        if (classroom.isNotBlank()) {
+            Spacer(modifier = Modifier.height(8.dp))
             Text(
-                text = classroom,
+                text = courseName,
+                fontSize = 15.sp,
+                fontWeight = FontWeight.Bold,
+                maxLines = 2,
+                overflow = TextOverflow.Ellipsis,
+                color = MiuixTheme.colorScheme.onBackground
+            )
+            Spacer(modifier = Modifier.height(4.dp))
+            if (teacher.isNotBlank()) {
+                Text(
+                    text = teacher,
+                    fontSize = 12.sp,
+                    color = MiuixTheme.colorScheme.onBackground.copy(alpha = 0.7f)
+                )
+            }
+            Spacer(modifier = Modifier.height(2.dp))
+            if (classroom.isNotBlank()) {
+                Text(
+                    text = classroom,
+                    fontSize = 11.sp,
+                    color = MiuixTheme.colorScheme.onBackground.copy(alpha = 0.5f)
+                )
+            }
+            Spacer(modifier = Modifier.height(4.dp))
+            Text(
+                text = daySectionInfo,
                 fontSize = 11.sp,
                 color = MiuixTheme.colorScheme.onBackground.copy(alpha = 0.5f)
             )
         }
-        Spacer(modifier = Modifier.height(4.dp))
-        Text(
-            text = daySectionInfo,
-            fontSize = 11.sp,
-            color = MiuixTheme.colorScheme.onBackground.copy(alpha = 0.5f)
-        )
     }
 }

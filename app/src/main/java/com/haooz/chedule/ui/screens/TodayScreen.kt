@@ -37,6 +37,7 @@ import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.graphics.RectangleShape
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.lerp
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.input.nestedscroll.nestedScroll
@@ -224,7 +225,8 @@ private fun calculateWeekFromDate(startDate: String, date: LocalDate): Int {
 fun TodayScreen(
     viewModel: CourseViewModel,
     settingsViewModel: SettingsViewModel,
-    onCourseClick: (courses: List<Course>, cardLeft: Float, cardTop: Float, cardWidth: Float, cardHeight: Float, snapshot: android.graphics.Bitmap?) -> Unit = { _, _, _, _, _, _ -> },
+    hiddenCourseIds: Set<String> = emptySet(),
+    onCourseClick: (courses: List<Course>, cardLeft: Float, cardTop: Float, cardWidth: Float, cardHeight: Float, snapshot: android.graphics.Bitmap?, courseIdToHide: String) -> Unit = { _, _, _, _, _, _, _ -> },
     pagerState: androidx.compose.foundation.pager.PagerState,
     navBarStyle: String = "standard",
     liquidGlassBackdrop: com.kyant.backdrop.Backdrop? = null,
@@ -877,6 +879,12 @@ fun TodayScreen(
                                 Column {
                                     morningCourses.forEach { course ->
                                         var itemBounds by remember { mutableStateOf<androidx.compose.ui.geometry.Rect?>(null) }
+                                        val isHidden = course.id in hiddenCourseIds
+                                        Column(
+                                            modifier = Modifier
+                                                .fillMaxWidth()
+                                                .graphicsLayer { alpha = if (isHidden) 0f else 1f }
+                                        ) {
                                         Box(
                                             modifier = Modifier
                                                 .fillMaxWidth()
@@ -895,11 +903,12 @@ fun TodayScreen(
                                                     val bounds = itemBounds
                                                     if (bounds != null) {
                                                         val sameNameCourses = courses.filter { it.name == course.name }
-                                                        onCourseClick(sameNameCourses, bounds.left, bounds.top, bounds.width, bounds.height, null)
+                                                        onCourseClick(sameNameCourses, bounds.left, bounds.top, bounds.width, bounds.height, null, course.id)
                                                     }
                                                 }
                                         ) {
                                             CourseItemContent(course, sectionTimes)
+                                        }
                                         }
                                     }
                                 }
@@ -923,6 +932,12 @@ fun TodayScreen(
                                 Column {
                                     afternoonCourses.forEach { course ->
                                         var itemBounds by remember { mutableStateOf<androidx.compose.ui.geometry.Rect?>(null) }
+                                        val isHidden = course.id in hiddenCourseIds
+                                        Column(
+                                            modifier = Modifier
+                                                .fillMaxWidth()
+                                                .graphicsLayer { alpha = if (isHidden) 0f else 1f }
+                                        ) {
                                         Box(
                                             modifier = Modifier
                                                 .fillMaxWidth()
@@ -941,11 +956,12 @@ fun TodayScreen(
                                                     val bounds = itemBounds
                                                     if (bounds != null) {
                                                         val sameNameCourses = courses.filter { it.name == course.name }
-                                                        onCourseClick(sameNameCourses, bounds.left, bounds.top, bounds.width, bounds.height, null)
+                                                        onCourseClick(sameNameCourses, bounds.left, bounds.top, bounds.width, bounds.height, null, course.id)
                                                     }
                                                 }
                                         ) {
                                             CourseItemContent(course, sectionTimes)
+                                        }
                                         }
                                     }
                                 }
@@ -969,6 +985,12 @@ fun TodayScreen(
                                 Column {
                                     eveningCourses.forEach { course ->
                                         var itemBounds by remember { mutableStateOf<androidx.compose.ui.geometry.Rect?>(null) }
+                                        val isHidden = course.id in hiddenCourseIds
+                                        Column(
+                                            modifier = Modifier
+                                                .fillMaxWidth()
+                                                .graphicsLayer { alpha = if (isHidden) 0f else 1f }
+                                        ) {
                                         Box(
                                             modifier = Modifier
                                                 .fillMaxWidth()
@@ -987,11 +1009,12 @@ fun TodayScreen(
                                                     val bounds = itemBounds
                                                     if (bounds != null) {
                                                         val sameNameCourses = courses.filter { it.name == course.name }
-                                                        onCourseClick(sameNameCourses, bounds.left, bounds.top, bounds.width, bounds.height, null)
+                                                        onCourseClick(sameNameCourses, bounds.left, bounds.top, bounds.width, bounds.height, null, course.id)
                                                     }
                                                 }
                                         ) {
                                             CourseItemContent(course, sectionTimes)
+                                        }
                                         }
                                     }
                                 }

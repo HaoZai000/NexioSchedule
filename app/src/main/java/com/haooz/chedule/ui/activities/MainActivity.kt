@@ -283,7 +283,6 @@ class MainActivity : ComponentActivity() {
 @Composable
 fun CourseScheduleApp() {
     val context = LocalContext.current
-    val prefs = remember { context.getSharedPreferences("settings", Context.MODE_PRIVATE) }
 
 
     val viewModel: CourseViewModel = viewModel()
@@ -320,7 +319,6 @@ fun CourseScheduleApp() {
         drawContent()
     }
     val isDark = isAppDarkTheme()
-    val themePrefs = remember { context.getSharedPreferences("app_theme_prefs", Context.MODE_PRIVATE) }
     val appStyle = rememberAppStyle()
     val liquidGlassBackdrop = if (appStyle == "liquidglass") {
         com.kyant.backdrop.backdrops.rememberLayerBackdrop()
@@ -340,7 +338,6 @@ fun CourseScheduleApp() {
 
     val totalWeeks by viewModel.totalWeeks.collectAsState()
     val currentWeek by viewModel.currentWeek.collectAsState()
-    val isHoliday by viewModel.isHoliday.collectAsState()
     val classStartTime by viewModel.classStartTime.collectAsState()
     val morningSections by settingsViewModel.morningSections.collectAsState()
     val afternoonSections by settingsViewModel.afternoonSections.collectAsState()
@@ -390,8 +387,13 @@ fun CourseScheduleApp() {
     var showDetail by remember { mutableStateOf(false) }
 
     var detailFromToday by remember { mutableStateOf(false) }
-    val morphOpenEase = CubicBezierEasing(0.3f, 0.72f, 0.2f, 1.0f)
-    val morphExitEase = CubicBezierEasing(0.3f, 0.65f, 0.35f, 1.0f)
+    var hiddenCourseIds by remember { mutableStateOf(setOf<String>()) }
+    var showCardOverlay by remember { mutableStateOf(false) }
+    var overlayBitmap by remember { mutableStateOf<android.graphics.Bitmap?>(null) }
+    var overlayLeft by remember { mutableFloatStateOf(0f) }
+    var overlayTop by remember { mutableFloatStateOf(0f) }
+    var overlayWidth by remember { mutableFloatStateOf(0f) }
+    var overlayHeight by remember { mutableFloatStateOf(0f) }
 
     // 长按空白区域"自定义课表"按钮状态
     var showLongPressButton by remember { mutableStateOf(false) }
@@ -456,7 +458,7 @@ fun CourseScheduleApp() {
         val ids: List<Long>
         val currentIndex: Int
 
-        if (cached != null && cachedIds != null && cachedIds.isNotEmpty()) {
+        if (cached != null && cachedIds.isNotEmpty()) {
             // 有缓存：直接构建 combinations 列表，bitmap 用缓存
             ids = cachedIds
             currentIndex = cachedIdx
@@ -714,7 +716,8 @@ fun CourseScheduleApp() {
         cardTop: Float,
         cardWidth: Float,
         cardHeight: Float,
-        fromToday: Boolean
+        fromToday: Boolean,
+        courseIdToHide: String = courses.firstOrNull()?.id ?: ""
     ) {
         detailCourses = courses
         detailCardLeft = cardLeft
@@ -723,20 +726,43 @@ fun CourseScheduleApp() {
         detailCardHeight = cardHeight
         detailFromToday = fromToday
         coroutineScope.launch {
+            // 1. 截取卡片快照
+            val fullForCard = screenGraphicsLayer.toImageBitmap().asAndroidBitmap()
+            val cardBmp = try {
+                val x = cardLeft.toInt().coerceIn(0, fullForCard.width - 1)
+                val y = cardTop.toInt().coerceIn(0, fullForCard.height - 1)
+                val w = cardWidth.toInt().coerceIn(1, fullForCard.width - x)
+                val h = cardHeight.toInt().coerceIn(1, fullForCard.height - y)
+                android.graphics.Bitmap.createBitmap(fullForCard, x, y, w, h)
+            } catch (_: Exception) { null }
+            detailSnapshot = cardBmp
+
+            // 2. 显示覆盖层（遮住原卡片）
+            overlayBitmap = cardBmp
+            overlayLeft = cardLeft
+            overlayTop = cardTop
+            overlayWidth = cardWidth
+            overlayHeight = cardHeight
+            showCardOverlay = true
+
+            // 3. 隐藏原卡片
+            hiddenCourseIds = setOf(courseIdToHide)
+
+            // 4. 等待一帧，让卡片隐藏生效
+            delay(50.milliseconds)
+
+            // 5. 截取屏幕快照（覆盖层不参与 record，快照里没有覆盖层）
             val fullSnapshot = screenGraphicsLayer.toImageBitmap().asAndroidBitmap()
             screenSnapshot = fullSnapshot
-            detailSnapshot = try {
-                val x = cardLeft.toInt().coerceIn(0, fullSnapshot.width - 1)
-                val y = cardTop.toInt().coerceIn(0, fullSnapshot.height - 1)
-                val w = cardWidth.toInt().coerceIn(1, fullSnapshot.width - x)
-                val h = cardHeight.toInt().coerceIn(1, fullSnapshot.height - y)
-                android.graphics.Bitmap.createBitmap(fullSnapshot, x, y, w, h)
-            } catch (_: Exception) {
-                null
-            }
+
+            // 6. 隐藏覆盖层
+            showCardOverlay = false
+            overlayBitmap = null
+
+            // 7. 开始动画
             showDetail = true
-            delay(16)
-            backgroundScale.animateTo(0.92f, animationSpec = tween(620, easing = OobeQuartOutEasing))
+            delay(16.milliseconds)
+            backgroundScale.animateTo(0.92f, animationSpec = tween(580, easing = OobeQuartOutEasing))
         }
     }
 
@@ -761,7 +787,7 @@ fun CourseScheduleApp() {
             courseCardAlpha = combinations.getOrNull(currentCombinationIndex)?.cardAlpha ?: 0.15f
             wallpaperBrightness = combinations.getOrNull(currentCombinationIndex)?.wallpaperBrightness ?: 0f
             showBreakDividers = combinations.getOrNull(currentCombinationIndex)?.showBreakDividers ?: true
-            kotlinx.coroutines.delay(50.milliseconds)
+            delay(50.milliseconds)
             // 截取当前搭配快照
             val currentSnapshot = screenGraphicsLayer.toImageBitmap().asAndroidBitmap()
             customizeSnapshot = currentSnapshot
@@ -810,7 +836,7 @@ fun CourseScheduleApp() {
                 originalCourseCardCornerRadius = nextComb.cardCornerRadius
                 originalWallpaperBrightness = nextComb.wallpaperBrightness
                 originalShowBreakDividers = nextComb.showBreakDividers
-                kotlinx.coroutines.delay(120.milliseconds)
+                delay(120.milliseconds)
                 val nextSnap = screenGraphicsLayer.toImageBitmap().asAndroidBitmap()
                 combinations = combinations.toMutableList().also {
                     it[1] = it[1].copy(snapshot = nextSnap)
@@ -852,7 +878,7 @@ fun CourseScheduleApp() {
             originalShowBreakDividers = showBreakDividers
             originalSnapshot = combinations.getOrNull(currentCombinationIndex)?.snapshot
             // 后台逐个捕获其他搭配快照（等打开动画结束后再开始，避免动画期间主界面壁纸跳变）
-            kotlinx.coroutines.delay(500.milliseconds)
+            delay(500.milliseconds)
             val savedWp = wallpaperBitmap
             val savedOf = wallpaperOffset
             val savedSc = wallpaperScale
@@ -882,7 +908,7 @@ fun CourseScheduleApp() {
                 originalCourseCardCornerRadius = comb.cardCornerRadius
                 originalWallpaperBrightness = comb.wallpaperBrightness
                 originalShowBreakDividers = comb.showBreakDividers
-                kotlinx.coroutines.delay(120.milliseconds)
+                delay(120.milliseconds)
                 val snap = screenGraphicsLayer.toImageBitmap().asAndroidBitmap()
                 combinations = combinations.toMutableList().also {
                     it[i] = it[i].copy(snapshot = snap)
@@ -945,7 +971,6 @@ fun CourseScheduleApp() {
     val isViewingCurrentWeek = currentViewingWeek == currentWeek
 
     // 退出缩放中心：与搭配界面卡片中心对齐
-    val statusBarPaddingPx = WindowInsets.statusBars.asPaddingValues().calculateTopPadding()
 
     val animationState = remember(isInFreeformWindow) {
         derivedStateOf {
@@ -1125,7 +1150,7 @@ fun CourseScheduleApp() {
                         onOpenCustomize = {
                             coroutineScope.launch {
                                 // 等待弹窗菜单收回后再截屏
-                                kotlinx.coroutines.delay(200.milliseconds)
+                                delay(200.milliseconds)
                                 enterCustomizePage()
                             }
                         },
@@ -1179,8 +1204,9 @@ fun CourseScheduleApp() {
                             0 -> TodayScreen(
                                 viewModel = viewModel,
                                 settingsViewModel = settingsViewModel,
-                                onCourseClick = { courses, left, top, width, height, _ ->
-                                    openCourseDetail(courses, left, top, width, height, fromToday = true)
+                                hiddenCourseIds = hiddenCourseIds,
+                                onCourseClick = { courses, left, top, width, height, _, courseIdToHide ->
+                                    openCourseDetail(courses, left, top, width, height, fromToday = true, courseIdToHide = courseIdToHide)
                                 },
                                 pagerState = todayPagerState,
                                 navBarStyle = navBarStyle,
@@ -1204,8 +1230,9 @@ fun CourseScheduleApp() {
                                 settingsViewModel = settingsViewModel,
                                 pagerState = pagerState,
                                 currentDayOfWeek = currentDayOfWeek,
-                                onCourseClick = { courses, left, top, width, height, _ ->
-                                    openCourseDetail(courses, left, top, width, height, fromToday = false)
+                                hiddenCourseIds = hiddenCourseIds,
+                                onCourseClick = { courses, left, top, width, height, _, courseIdToHide ->
+                                    openCourseDetail(courses, left, top, width, height, fromToday = false, courseIdToHide = courseIdToHide)
                                 },
                                 onPopupStateChange = { showCourseDetailPopup = it },
                                 onEmptyLongPress = {
@@ -1289,7 +1316,7 @@ fun CourseScheduleApp() {
                     onClick = {
                         showLongPressButton = false
                         coroutineScope.launch {
-                            kotlinx.coroutines.delay(120.milliseconds)
+                            delay(120.milliseconds)
                             showLongPressOverlay = false
                             enterCustomizePage()
                         }
@@ -1420,7 +1447,7 @@ fun CourseScheduleApp() {
                             onClick = {
                                 showMorePopup = false
                                 coroutineScope.launch {
-                                    kotlinx.coroutines.delay(200.milliseconds)
+                                    delay(200.milliseconds)
                                     enterCustomizePage()
                                 }
                             }
@@ -1466,7 +1493,7 @@ fun CourseScheduleApp() {
             androidx.core.view.WindowCompat.getInsetsController(it, it.decorView)
         }
         if (showCustomizePage && customizeSnapshot != null) {
-            LaunchedEffect(showCustomizePage) {
+            LaunchedEffect(true) {
                 if (showCustomizePage) {
                     // 黑色背景，状态栏/导航栏图标反色为白色
                     windowInsetsController?.isAppearanceLightStatusBars = false
@@ -1626,7 +1653,7 @@ fun CourseScheduleApp() {
                         currentCombinationIndex = 0
                         newCombinationIndex = 0
                         // 原始搭配被推到 index 1，更新原始索引
-                        originalCombinationIndex = originalCombinationIndex + 1
+                        originalCombinationIndex += 1
                         // 保存原搭配状态，快照捕获后恢复
                         val savedOrigWp = originalWallpaperBitmap
                         val savedOrigOf = originalWallpaperOffset
@@ -1657,7 +1684,7 @@ fun CourseScheduleApp() {
                         originalCourseCardCornerRadius = 8f
                         originalWallpaperBrightness = 0f
                         coroutineScope.launch {
-                            kotlinx.coroutines.delay(150.milliseconds)
+                            delay(150.milliseconds)
                             val newSnapshot = screenGraphicsLayer.toImageBitmap().asAndroidBitmap()
                             customizeSnapshot = newSnapshot
                             combinations = combinations.toMutableList().also {
@@ -1732,7 +1759,7 @@ fun CourseScheduleApp() {
                             }
                             // 后台捕获新当前搭配的快照及下一个相邻搭配的快照
                             coroutineScope.launch {
-                                kotlinx.coroutines.delay(150.milliseconds)
+                                delay(150.milliseconds)
                                 // 捕获当前搭配快照（如尚未有）
                                 if (combinations.getOrNull(combIdx)?.snapshot == null) {
                                     val snap = screenGraphicsLayer.toImageBitmap().asAndroidBitmap()
@@ -1814,7 +1841,7 @@ fun CourseScheduleApp() {
                                     // 同步当前搭配到磁盘
                                     wallpaperRepository.setCurrentCombinationId(c.id)
                                     // 更新实时快照
-                                    kotlinx.coroutines.delay(150.milliseconds)
+                                    delay(150.milliseconds)
                                     customizeSnapshot =
                                         screenGraphicsLayer.toImageBitmap().asAndroidBitmap()
                                 }
@@ -2027,6 +2054,24 @@ fun CourseScheduleApp() {
                 windowInsetsController?.isAppearanceLightNavigationBars = true
             }
         }
+        // 卡片覆盖层（点击时短暂显示，遮住原卡片消失的过程）
+        if (showCardOverlay && overlayBitmap != null) {
+            Image(
+                bitmap = overlayBitmap!!.asImageBitmap(),
+                contentDescription = null,
+                modifier = Modifier
+                    .offset(
+                        x = with(LocalDensity.current) { overlayLeft.toDp() },
+                        y = with(LocalDensity.current) { overlayTop.toDp() }
+                    )
+                    .size(
+                        width = with(LocalDensity.current) { overlayWidth.toDp() },
+                        height = with(LocalDensity.current) { overlayHeight.toDp() }
+                    )
+                    .clip(RoundedRectangle(16.dp)),
+                contentScale = ContentScale.FillBounds
+            )
+        }
         // 课程详情页背景快照（仅快照模糊，不模糊上层详情页）
         if (isDetailActive) {
             val s = animationState.value
@@ -2065,12 +2110,13 @@ fun CourseScheduleApp() {
                 classStartTime = classStartTime,
                 onBackStart = {
                     coroutineScope.launch {
-                        backgroundScale.animateTo(1f, animationSpec = tween(380, easing = OobeCubicOutEasing))
+                        backgroundScale.animateTo(1f, animationSpec = tween(360, easing = OobeCubicOutEasing))
                     }
                 },
                 onBack = {
                     showDetail = false
                     screenSnapshot = null
+                    hiddenCourseIds = emptySet()
                 }
             )
         }
@@ -2142,7 +2188,7 @@ fun CourseScheduleApp() {
                                 }
                                 val currentProgress = switchAnimProgress.value
                                 val remainingDuration =
-                                    ((1f - currentProgress) * 620).toInt().coerceAtLeast(1)
+                                    ((1f - currentProgress) * 580).toInt().coerceAtLeast(1)
                                 launch {
                                     switchPageScale.animateTo(
                                         1.08f,
@@ -2205,7 +2251,7 @@ fun CourseScheduleApp() {
                             switchCardBounds = bounds
                             val currentProgress = switchAnimProgress.value
                             val remainingDuration =
-                                ((1f - currentProgress) * 620).toInt().coerceAtLeast(1)
+                                ((1f - currentProgress) * 580).toInt().coerceAtLeast(1)
                             launch {
                                 switchPageScale.animateTo(
                                     1.08f,
@@ -2266,7 +2312,7 @@ fun CourseScheduleApp() {
                                 switchScreenSnapshot = screenBitmap
                                 switchCardBounds = cardBoundsInScreen
                                 switchCardSnapshot = cardSnap
-                                val remainingDuration = 380
+                                val remainingDuration = 360
                                 val morphExitEase = CubicBezierEasing(0.3f, 0.65f, 0.35f, 1.0f)
                                 launch {
                                     switchPageScale.animateTo(
@@ -2335,8 +2381,7 @@ fun CourseScheduleApp() {
                     cLeft = 0f; cTop = 0f; cWidth = screenWidth; cHeight = screenHeight
                 }
                 val startRadius = with(density) { 20.dp.toPx() }
-                val endRadius = screenCornerRadius
-                val cRadius = with(density) { (startRadius + (endRadius - startRadius) * p).toDp() }
+                val cRadius = with(density) { (startRadius + (screenCornerRadius - startRadius) * p).toDp() }
                 // 压暗遮罩
                 Box(
                     modifier = Modifier
@@ -2400,14 +2445,14 @@ fun CourseScheduleApp() {
             exit = fadeOut(animationSpec = tween(100))
         ) {
             LaunchedEffect(Unit) {
-                kotlinx.coroutines.delay(100.milliseconds)
+                delay(100.milliseconds)
                 if (isExitingShift) {
                     shiftViewModel.exitShiftMode()
                     selectedTab = 0
                 } else {
                     shiftViewModel.enterShiftMode()
                 }
-                kotlinx.coroutines.delay(500.milliseconds)
+                delay(500.milliseconds)
                 showShiftLoading = false
             }
             Box(
