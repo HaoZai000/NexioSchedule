@@ -140,8 +140,11 @@ private class EditAnimClipShape(
         val s = animState.value
         // 动画过程中：从卡片圆角插值到屏幕圆角
         // 动画结束瞬间：圆角归零
-        val radiusPx = if (s.progress >= 1f) 0f
-        else startCornerRadiusPx + (screenCornerRadiusPx - startCornerRadiusPx) * s.progress
+        val radiusPx = when {
+            s.progress >= 1f -> 0f
+            s.progress <= 0.7f -> startCornerRadiusPx + (screenCornerRadiusPx - startCornerRadiusPx) * (s.progress / 0.7f)
+            else -> screenCornerRadiusPx
+        }
         val radiusDp = (radiusPx / s.scale / density.density).dp
         return RoundedRectangle(radiusDp).createOutline(
             androidx.compose.ui.geometry.Size(screenWidth, s.clipBottom),

@@ -2110,7 +2110,7 @@ fun CourseScheduleApp() {
                 classStartTime = classStartTime,
                 onBackStart = {
                     coroutineScope.launch {
-                        backgroundScale.animateTo(1f, animationSpec = tween(360, easing = OobeCubicOutEasing))
+                        backgroundScale.animateTo(1f, animationSpec = tween(370, easing = OobeCubicOutEasing))
                     }
                 },
                 onBack = {

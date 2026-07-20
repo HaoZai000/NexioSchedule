@@ -3,10 +3,14 @@ package com.haooz.chedule.ui.activities
 
 import android.annotation.SuppressLint
 import android.widget.Toast
+import androidx.activity.compose.BackHandler
 import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.animateDpAsState
+import androidx.compose.animation.core.tween
 import androidx.compose.animation.expandVertically
 import androidx.compose.animation.shrinkVertically
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -27,20 +31,33 @@ import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalFocusManager
+import androidx.compose.ui.platform.LocalSoftwareKeyboardController
+import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.graphics.RectangleShape
+import androidx.compose.ui.graphics.TransformOrigin
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.lerp
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.input.nestedscroll.nestedScroll
+import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -50,9 +67,15 @@ import com.haooz.chedule.data.Course
 import com.haooz.chedule.data.TimeConfig
 import com.haooz.chedule.ui.components.liquidglass.LiquidTopBarButton
 import com.haooz.chedule.ui.components.liquidglass.ProgressiveBlurTopBar
+import com.haooz.chedule.ui.oobe.OobeCubicOutEasing
+import com.haooz.chedule.ui.oobe.OobeQuartOutEasing
 import com.haooz.chedule.ui.utils.isAppDarkTheme
 import com.haooz.chedule.ui.utils.rememberAppStyle
 import com.kyant.backdrop.backdrops.LayerBackdrop
+import com.kyant.shapes.RoundedRectangle
+import kotlinx.coroutines.coroutineScope
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
 import top.yukonga.miuix.kmp.basic.ButtonDefaults
 import top.yukonga.miuix.kmp.basic.Card
 import top.yukonga.miuix.kmp.basic.CardDefaults
@@ -82,8 +105,48 @@ import top.yukonga.miuix.kmp.squircle.squircleSurface
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 import top.yukonga.miuix.kmp.utils.overScrollVertical
 import top.yukonga.miuix.kmp.utils.scrollEndHaptic
+import kotlin.time.Duration.Companion.milliseconds
 import androidx.compose.ui.graphics.Color as ComposeColor
 import com.kyant.backdrop.backdrops.layerBackdrop as liquidGlassLayerBackdrop
+
+// ===================== Morph Animation Foundation =====================
+
+private data class ConfigAnimState(
+    val bgAlpha: Float,
+    val snapshotAlpha: Float,
+    val contentAlpha: Float,
+    val translationX: Float,
+    val translationY: Float,
+    val scale: Float,
+    val clipBottom: Float,
+    val progress: Float
+)
+
+private class ConfigAnimClipShape(
+    private val screenWidth: Float,
+    private val screenCornerRadiusPx: Float,
+    private val startCornerRadiusPx: Float,
+    private val animState: androidx.compose.runtime.State<ConfigAnimState>
+) : androidx.compose.ui.graphics.Shape {
+    override fun createOutline(
+        size: androidx.compose.ui.geometry.Size,
+        layoutDirection: androidx.compose.ui.unit.LayoutDirection,
+        density: androidx.compose.ui.unit.Density
+    ): androidx.compose.ui.graphics.Outline {
+        val s = animState.value
+        val radiusPx = when {
+            s.progress >= 1f -> 0f
+            s.progress <= 0.7f -> startCornerRadiusPx + (screenCornerRadiusPx - startCornerRadiusPx) * (s.progress / 0.7f)
+            else -> screenCornerRadiusPx
+        }
+        val radiusDp = (radiusPx / s.scale / density.density).dp
+        return RoundedRectangle(radiusDp).createOutline(
+            androidx.compose.ui.geometry.Size(screenWidth, s.clipBottom),
+            layoutDirection,
+            density
+        )
+    }
+}
 
 private fun parseTimeRange(timeStr: String): Pair<Pair<Int, Int>, Pair<Int, Int>> {
     return try {
@@ -103,17 +166,38 @@ private fun parseTimeRange(timeStr: String): Pair<Pair<Int, Int>, Pair<Int, Int>
 @Composable
 fun TimeConfigEditScreen(
     timeConfig: TimeConfig,
+    onBackStart: () -> Unit = {},
     onBack: () -> Unit,
     onSave: (TimeConfig) -> Unit,
+    cardLeft: Float = 0f,
+    cardTop: Float = 0f,
+    cardWidth: Float = 0f,
+    cardHeight: Float = 0f,
+    screenWidth: Float = 0f,
+    screenHeight: Float = 0f,
+    screenCornerRadius: Float = 0f,
+    cardStartCornerRadius: Float = 0f,
+    cardSnapshot: android.graphics.Bitmap? = null,
+    isFabCreation: Boolean = false,
     liquidGlassBackdrop: LayerBackdrop? = null
 ) {
     val context = LocalContext.current
     val hapticFeedback = LocalHapticFeedback.current
+    val focusManager = LocalFocusManager.current
+    val keyboardController = LocalSoftwareKeyboardController.current
     val scrollBehavior = MiuixScrollBehavior()
     var listScrollY by remember { mutableIntStateOf(0) }
 
     // 配置名称
     var configName by remember { mutableStateOf(timeConfig.name) }
+    val nameFocusRequester = remember { FocusRequester() }
+
+    LaunchedEffect(isFabCreation) {
+        if (isFabCreation) {
+            kotlinx.coroutines.delay(580)
+            nameFocusRequester.requestFocus()
+        }
+    }
 
     // 节数配置
     var morningSections by remember { mutableIntStateOf(timeConfig.morningSections) }
@@ -160,6 +244,125 @@ fun TimeConfigEditScreen(
     // 节数设置弹窗状态
     var showSectionCountDialog by remember { mutableStateOf(false) }
 
+    // ===================== Morph Animation =====================
+    val density = LocalDensity.current
+    val animProgress = remember { Animatable(0f) }
+    val animTransY = remember { Animatable(0f) }
+    val scope = rememberCoroutineScope()
+    val startCornerRadiusPx = cardStartCornerRadius * density.density
+    val morphOpenEase = OobeQuartOutEasing
+    val morphExitEase = OobeCubicOutEasing
+    val isUpperHalf = cardTop < screenHeight / 2f
+    val transOpenEase = OobeQuartOutEasing
+    val transExitEase = OobeCubicOutEasing
+    val transOpenMillis = if (isUpperHalf) 580 else 540
+    val transExitMillis = if (isUpperHalf) 290 else 390
+    val hasCardBounds = cardWidth > 0f && cardHeight > 0f && screenWidth > 0f
+
+    // 动画过程中阻止返回
+    var animating by remember { mutableStateOf(false) }
+
+    BackHandler {
+        if (animating) return@BackHandler
+        if (showSectionCountDialog || showTimeDialog || showQuickItemDialog) return@BackHandler
+        keyboardController?.hide()
+        focusManager.clearFocus()
+        if (!hasCardBounds) {
+            onBackStart()
+            onBack()
+            return@BackHandler
+        }
+        animating = true
+        onBackStart()
+        scope.launch {
+            coroutineScope {
+                launch {
+                    animProgress.animateTo(
+                        targetValue = 0f,
+                        animationSpec = tween(durationMillis = 370, easing = morphExitEase)
+                    )
+                }
+                launch {
+                    animTransY.animateTo(
+                        targetValue = 0f,
+                        animationSpec = tween(durationMillis = transExitMillis, easing = transExitEase)
+                    )
+                }
+            }
+            onBack()
+        }
+    }
+
+    LaunchedEffect(Unit) {
+        if (hasCardBounds) {
+            delay(16.milliseconds)
+            launch {
+                animProgress.animateTo(
+                    targetValue = 1f,
+                    animationSpec = tween(durationMillis = 580, easing = morphOpenEase)
+                )
+            }
+            launch {
+                animTransY.animateTo(
+                    targetValue = 1f,
+                    animationSpec = tween(durationMillis = transOpenMillis, easing = transOpenEase)
+                )
+            }
+        }
+    }
+
+    val animState = remember {
+        derivedStateOf {
+            if (!hasCardBounds) {
+                ConfigAnimState(0f, 0f, 1f, 0f, 0f, 1f, screenHeight, 1f)
+            } else {
+                val p = animProgress.value
+                val ty = animTransY.value
+                val bgAlpha = (p * 0.5f).coerceIn(0f, 0.5f)
+                val snapAlpha = (1f - p * 3f).coerceIn(0f, 1f)
+                val contAlpha = ((p - 0.1f) / 0.5f).coerceIn(0f, 1f)
+                val scale = cardWidth / screenWidth + (1f - cardWidth / screenWidth) * p
+                val translationX = (cardLeft + cardWidth / 2f - screenWidth / 2f) * (1f - p)
+                val translationY = cardTop * (1f - ty)
+                val rawClipBottom = cardHeight + (screenHeight - cardHeight) * p
+                val clipBottom = rawClipBottom / scale
+                ConfigAnimState(bgAlpha, snapAlpha, contAlpha, translationX, translationY, scale, clipBottom, p)
+            }
+        }
+    }
+
+    fun triggerExitAndBack(onSavePending: (() -> Unit)? = null) {
+        keyboardController?.hide()
+        focusManager.clearFocus()
+        if (!hasCardBounds) {
+            onSavePending?.invoke()
+            onBackStart()
+            onBack()
+            return
+        }
+        if (animating) return
+        animating = true
+        onBackStart()
+        scope.launch {
+            coroutineScope {
+                launch {
+                    animProgress.animateTo(
+                        targetValue = 0f,
+                        animationSpec = tween(durationMillis = 370, easing = morphExitEase)
+                    )
+                }
+                launch {
+                    animTransY.animateTo(
+                        targetValue = 0f,
+                        animationSpec = tween(durationMillis = transExitMillis, easing = transExitEase)
+                    )
+                }
+            }
+            onSavePending?.invoke()
+            onBack()
+        }
+    }
+
     val minuteValues = listOf(0, 5, 10, 15, 20, 25, 30, 35, 40, 45, 50, 55)
 
     // 节次时间（从已保存的配置读取，只有点击"应用"按钮时才重新计算）
@@ -192,7 +395,56 @@ fun TimeConfigEditScreen(
         brightness = 0f, contrast = 1f, saturation = 1.2f
     )
 
-    Box(modifier = Modifier.fillMaxSize()) {
+    // Morph动画背景遮罩 + 裁剪容器
+    val s = animState.value
+    val clipShape = remember { ConfigAnimClipShape(screenWidth, screenCornerRadius, startCornerRadiusPx, animState) }
+
+    Box(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(
+                if (isDark) ComposeColor(0xFF2C2C2C).copy(alpha = s.bgAlpha)
+                else ComposeColor.Black.copy(alpha = s.bgAlpha)
+            )
+            .pointerInput(Unit) { }
+    ) {
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .graphicsLayer {
+                    clip = false
+                    transformOrigin = TransformOrigin(0.5f, 0f)
+                    scaleX = s.scale
+                    scaleY = s.scale
+                    translationX = s.translationX
+                    translationY = s.translationY
+                }
+                .clip(clipShape)
+                .background(
+                    if (isFabCreation) MiuixTheme.colorScheme.primary
+                    else MiuixTheme.colorScheme.background
+                )
+        ) {
+            // 卡片快照 (morph动画期间显示)
+            if (cardSnapshot != null && s.snapshotAlpha > 0f) {
+                val imageBitmap = remember(cardSnapshot) { cardSnapshot.asImageBitmap() }
+                Image(
+                    bitmap = imageBitmap,
+                    contentDescription = null,
+                    modifier = Modifier
+                        .align(Alignment.TopStart)
+                        .fillMaxWidth()
+                        .clip(RoundedRectangle((cardStartCornerRadius / s.scale).dp))
+                        .graphicsLayer { alpha = s.snapshotAlpha },
+                    contentScale = ContentScale.FillWidth
+                )
+            }
+
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .graphicsLayer { alpha = s.contentAlpha }
+            ) {
         Scaffold(
             topBar = {
                 if (isLiquidGlass) {
@@ -207,7 +459,10 @@ fun TimeConfigEditScreen(
                             navigationIcon = {}
                         )
                         LiquidTopBarButton(
-                            onClick = { onBack() },
+                            onClick = {
+                                hapticFeedback.performHapticFeedback(HapticFeedbackType.Confirm)
+                                triggerExitAndBack()
+                            },
                             backdrop = liquidGlassBackdrop,
                             icon = MiuixIcons.Normal.Close,
                             contentDescription = "返回",
@@ -248,8 +503,7 @@ fun TimeConfigEditScreen(
                                     eveningStartMinute = eveningStartMinute,
                                     sectionTimes = finalSectionTimes
                                 )
-                                onSave(newConfig)
-                                onBack()
+                                triggerExitAndBack(onSavePending = { onSave(newConfig) })
                             },
                             backdrop = liquidGlassBackdrop,
                             icon = MiuixIcons.Ok,
@@ -274,7 +528,10 @@ fun TimeConfigEditScreen(
                         scrollBehavior = scrollBehavior,
                         navigationIconPadding = 20.dp,
                         navigationIcon = {
-                            IconButton(onClick = { onBack() }) {
+                            IconButton(onClick = {
+                                hapticFeedback.performHapticFeedback(HapticFeedbackType.Confirm)
+                                triggerExitAndBack()
+                            }) {
                                 Icon(MiuixIcons.Normal.Close,
                                     contentDescription = "返回",
                                     modifier = Modifier.size(24.dp))
@@ -311,8 +568,7 @@ fun TimeConfigEditScreen(
                                     eveningStartMinute = eveningStartMinute,
                                     sectionTimes = finalSectionTimes
                                 )
-                                onSave(newConfig)
-                                onBack()
+                                triggerExitAndBack(onSavePending = { onSave(newConfig) })
                             },
                                 modifier = Modifier.padding(end = 4.dp)
                             ) {
@@ -379,6 +635,7 @@ fun TimeConfigEditScreen(
                             TextField(
                                 value = configName,
                                 onValueChange = { configName = it },
+                                modifier = Modifier.focusRequester(nameFocusRequester),
                                 cornerRadius = 20.dp,
                                 label = "请输入配置名称",
                                 useLabelAsPlaceholder = true
@@ -1060,4 +1317,4 @@ fun TimeConfigEditScreen(
             }
         }
     }
-}
+}}}

@@ -30,12 +30,15 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.RectangleShape
 import androidx.compose.ui.graphics.lerp
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.input.nestedscroll.nestedScroll
+import androidx.compose.ui.layout.onGloballyPositioned
+import androidx.compose.ui.layout.positionInWindow
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -70,14 +73,23 @@ import top.yukonga.miuix.kmp.utils.overScrollVertical
 import top.yukonga.miuix.kmp.utils.scrollEndHaptic
 import androidx.compose.ui.graphics.Color as ComposeColor
 
+data class TimeConfigCardBounds(
+    val left: Float,
+    val top: Float,
+    val width: Float,
+    val height: Float
+)
+
 @SuppressLint("DefaultLocale")
 @Composable
 fun CourseTimeSettingsScreen(
     onBack: () -> Unit,
-    onEditConfig: (TimeConfig) -> Unit,
-    onCreateConfig: () -> Unit,
+    onEditConfig: (TimeConfig, TimeConfigCardBounds) -> Unit,
+    onCreateConfig: (TimeConfigCardBounds) -> Unit,
     liquidGlassBackdrop: com.kyant.backdrop.Backdrop? = null,
-    refreshTrigger: Int = 0
+    refreshTrigger: Int = 0,
+    hideConfigId: Long? = null,
+    hideFab: Boolean = false
 ) {
     val context = androidx.compose.ui.platform.LocalContext.current
     val hapticFeedback = androidx.compose.ui.platform.LocalHapticFeedback.current
@@ -189,9 +201,21 @@ fun CourseTimeSettingsScreen(
                     // 配置列表
                     items(configs, key = { it.id }) { config ->
                         val isSelected = config.id == currentConfigId.toLong()
+                        val isHidden = config.id == hideConfigId
+                        var cardBounds by remember { mutableStateOf(TimeConfigCardBounds(0f, 0f, 0f, 0f)) }
                         Card(
                             cornerRadius = 20.dp,
-                            modifier = Modifier.fillMaxWidth(),
+                            modifier = Modifier.fillMaxWidth()
+                                .alpha(if (isHidden) 0f else 1f)
+                                .onGloballyPositioned { coordinates ->
+                                    val position = coordinates.positionInWindow()
+                                    cardBounds = TimeConfigCardBounds(
+                                        left = position.x,
+                                        top = position.y,
+                                        width = coordinates.size.width.toFloat(),
+                                        height = coordinates.size.height.toFloat()
+                                    )
+                                },
                             insideMargin = PaddingValues(0.dp)
                         ) {
                             Row(
@@ -257,7 +281,7 @@ fun CourseTimeSettingsScreen(
                                             .background(MiuixTheme.colorScheme.primary)
                                             .clickable {
                                                 hapticFeedback.performHapticFeedback(HapticFeedbackType.Confirm)
-                                                onEditConfig(config)
+                                                onEditConfig(config, cardBounds)
                                             }
                                             .padding(horizontal = 16.dp, vertical = 8.dp),
                                         contentAlignment = Alignment.Center
@@ -303,6 +327,7 @@ fun CourseTimeSettingsScreen(
         }
 
         // 新建悬浮按钮
+        var fabBounds by remember { mutableStateOf(TimeConfigCardBounds(0f, 0f, 0f, 0f)) }
         Box(
             modifier = Modifier
                 .fillMaxSize()
@@ -312,7 +337,18 @@ fun CourseTimeSettingsScreen(
             FloatingActionButton(
                 onClick = {
                     hapticFeedback.performHapticFeedback(HapticFeedbackType.Confirm)
-                    onCreateConfig()
+                    onCreateConfig(fabBounds)
+                },
+                modifier = Modifier
+                    .alpha(if (hideFab) 0f else 1f)
+                    .onGloballyPositioned { coordinates ->
+                    val position = coordinates.positionInWindow()
+                    fabBounds = TimeConfigCardBounds(
+                        left = position.x,
+                        top = position.y,
+                        width = coordinates.size.width.toFloat(),
+                        height = coordinates.size.height.toFloat()
+                    )
                 },
                 shadowElevation = 0.dp
             ) {
