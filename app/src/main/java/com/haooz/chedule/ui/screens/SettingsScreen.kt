@@ -74,6 +74,7 @@ import top.yukonga.miuix.kmp.overlay.OverlayDialog
 import top.yukonga.miuix.kmp.preference.ArrowPreference
 import top.yukonga.miuix.kmp.preference.CheckboxLocation
 import top.yukonga.miuix.kmp.preference.CheckboxPreference
+import top.yukonga.miuix.kmp.preference.SwitchPreference
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 import top.yukonga.miuix.kmp.utils.overScrollVertical
 import top.yukonga.miuix.kmp.utils.scrollEndHaptic
@@ -163,7 +164,6 @@ fun SettingsScreen(
     var showCurrentWeekDialog by remember { mutableStateOf(false) }
     var showTotalWeeksDialog by remember { mutableStateOf(false) }
     var showStartDateDialog by remember { mutableStateOf(false) }
-    var showSectionDialog by remember { mutableStateOf(false) }
 
     // 教务导入仓库源设置
     val coroutineScope = rememberCoroutineScope()
@@ -174,9 +174,6 @@ fun SettingsScreen(
     var tempYear by remember { mutableIntStateOf(tempYearInit) }
     var tempMonth by remember { mutableIntStateOf(tempMonthInit) }
     var tempDay by remember { mutableIntStateOf(tempDayInit) }
-    var tempMorningSections by remember { mutableIntStateOf(morningSections) }
-    var tempAfternoonSections by remember { mutableIntStateOf(afternoonSections) }
-    var tempEveningSections by remember { mutableIntStateOf(eveningSections) }
 
     val backgroundColor = MiuixTheme.colorScheme.surface
     val backdrop = rememberLayerBackdrop {
@@ -262,7 +259,7 @@ fun SettingsScreen(
                 item {
                     SmallTitle(
                         text = "基本设置",
-                        modifier = Modifier.offset(x = (-15).dp)
+                        modifier = Modifier.offset(x = (-16).dp)
                     )
                     // 基本设置卡片
                     Card(
@@ -331,81 +328,26 @@ fun SettingsScreen(
                             )
 
                             // 智能显示周末开关
-                            Row(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .clickable {
-                                        settingsViewModel.setSmartWeekend(!smartWeekend)
-                                    }
-                                    .padding(horizontal = 16.dp, vertical = 14.dp),
-                                horizontalArrangement = Arrangement.SpaceBetween,
-                                verticalAlignment = Alignment.CenterVertically
-                            ) {
-                                Column(modifier = Modifier.weight(1f)) {
-                                    Text(
-                                        text = "智能显示周末",
-                                        fontSize = 17.sp,
-                                        fontWeight = FontWeight.Medium,
-                                        color = MiuixTheme.colorScheme.onSurface
-                                    )
-                                }
-                                Switch(
-                                    checked = smartWeekend,
-                                    onCheckedChange = {
-                                        settingsViewModel.setSmartWeekend(it)
-                                    }
-                                )
-                            }
+                            SwitchPreference(
+                                title = "智能显示周末",
+                                summary = "开启后隐藏无课的周六日",
+                                checked = smartWeekend,
+                                onCheckedChange = { settingsViewModel.setSmartWeekend(it) }
+                            )
 
                             // 显示非本周课程开关
                             if (!isShiftMode) {
-                                Row(
-                                    modifier = Modifier
-                                        .fillMaxWidth()
-                                        .clickable {
-                                            settingsViewModel.setShowNonCurrentWeek(!showNonCurrentWeek)
-                                        }
-                                        .padding(horizontal = 16.dp, vertical = 14.dp),
-                                    horizontalArrangement = Arrangement.SpaceBetween,
-                                    verticalAlignment = Alignment.CenterVertically
-                                ) {
-                                    Text(
-                                        text = "显示非本周课程",
-                                        fontSize = 17.sp,
-                                        fontWeight = FontWeight.Medium,
-                                        color = MiuixTheme.colorScheme.onSurface
-                                    )
-                                    Switch(
-                                        checked = showNonCurrentWeek,
-                                        onCheckedChange = {
-                                            settingsViewModel.setShowNonCurrentWeek(it)
-                                        }
-                                    )
-                                }
+                                SwitchPreference(
+                                    title = "显示非本周课程",
+                                    checked = showNonCurrentWeek,
+                                    onCheckedChange = { settingsViewModel.setShowNonCurrentWeek(it) }
+                                )
                             }
 
-                            // 课程表节数设置
+                            // 课表时间设置（包含节数设置）
                             ArrowPreference(
-                                title = "课表节数设置",
-                                endActions = {
-                                    Text(
-                                        text = "$morningSections·$afternoonSections·$eveningSections",
-                                        fontSize = 14.5.sp,
-                                        color = MiuixTheme.colorScheme.onSurfaceVariantActions
-                                    )
-                                },
-                                onClick = {
-                                    tempMorningSections = morningSections
-                                    tempAfternoonSections = afternoonSections
-                                    tempEveningSections = eveningSections
-                                    showSectionDialog = true
-                                },
-                                holdDownState = showSectionDialog
-                            )
-
-                            // 课表时间设置
-                            ArrowPreference(
-                                title = "课程时间设置",
+                                title = "节数与时间",
+                                summary = "管理课表节数与课程时间",
                                 onClick = {
                                     val intent =
                                         Intent(context, CourseTimeSettingsActivity::class.java)
@@ -421,7 +363,7 @@ fun SettingsScreen(
                     item {
                         SmallTitle(
                             text = "特色功能",
-                            modifier = Modifier.offset(x = (-15).dp)
+                            modifier = Modifier.offset(x = (-16).dp)
                         )
                         Card(
                             cornerRadius = 20.dp,
@@ -463,7 +405,7 @@ fun SettingsScreen(
                     item {
                         SmallTitle(
                             text = "选择对比课表",
-                            modifier = Modifier.offset(x = (-15).dp)
+                            modifier = Modifier.offset(x = (-16).dp)
                         )
                         Card(
                             cornerRadius = 20.dp,
@@ -521,7 +463,7 @@ fun SettingsScreen(
                     item {
                         SmallTitle(
                             text = "数据管理",
-                            modifier = Modifier.offset(x = (-15).dp)
+                            modifier = Modifier.offset(x = (-16).dp)
                         )
                         Card(
                             cornerRadius = 20.dp,
@@ -574,7 +516,7 @@ fun SettingsScreen(
                     item {
                         SmallTitle(
                             text = "其他",
-                            modifier = Modifier.offset(x = (-15).dp)
+                            modifier = Modifier.offset(x = (-16).dp)
                         )
                         Card(
                             cornerRadius = 20.dp,
@@ -900,112 +842,6 @@ fun SettingsScreen(
                             hapticFeedback.performHapticFeedback(HapticFeedbackType.Confirm)
                             viewModel.setTotalWeeks(tempTotalWeeks)
                             showTotalWeeksDialog = false
-                        },
-                        colors = ButtonDefaults.textButtonColorsPrimary(),
-                        modifier = Modifier.weight(1f)
-                    )
-                }
-            }
-        }
-
-        // 节数设置弹窗 — 三个选择器并排显示
-        OverlayDialog(
-            title = "课表节数设置",
-            show = showSectionDialog,
-
-            onDismissRequest = { showSectionDialog = false }
-        ) {
-            Column(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalAlignment = Alignment.CenterHorizontally
-            ) {
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceEvenly
-                ) {
-                    // 上午节数
-                    Column(
-                        horizontalAlignment = Alignment.CenterHorizontally,
-                        modifier = Modifier.weight(1f)
-                    ) {
-                        Text(
-                            text = "上午",
-                            style = MiuixTheme.textStyles.footnote1,
-                            color = MiuixTheme.colorScheme.onSurfaceVariantActions,
-                            modifier = Modifier.padding(top = 4.dp, bottom = 12.dp)
-                        )
-                        NumberPicker(
-                            value = tempMorningSections,
-                            onValueChange = { tempMorningSections = it },
-                            range = 0..6,
-                            visibleItemCount = 3,
-                            itemHeight = 50.dp
-                        )
-                    }
-
-                    // 下午节数
-                    Column(
-                        horizontalAlignment = Alignment.CenterHorizontally,
-                        modifier = Modifier.weight(1f)
-                    ) {
-                        Text(
-                            text = "下午",
-                            style = MiuixTheme.textStyles.footnote1,
-                            color = MiuixTheme.colorScheme.onSurfaceVariantActions,
-                            modifier = Modifier.padding(top = 4.dp, bottom = 12.dp)
-                        )
-                        NumberPicker(
-                            value = tempAfternoonSections,
-                            onValueChange = { tempAfternoonSections = it },
-                            range = 0..6,
-                            visibleItemCount = 3,
-                            itemHeight = 50.dp
-                        )
-                    }
-
-                    // 晚上节数
-                    Column(
-                        horizontalAlignment = Alignment.CenterHorizontally,
-                        modifier = Modifier.weight(1f)
-                    ) {
-                        Text(
-                            text = "晚上",
-                            style = MiuixTheme.textStyles.footnote1,
-                            color = MiuixTheme.colorScheme.onSurfaceVariantActions,
-                            modifier = Modifier.padding(top = 4.dp, bottom = 12.dp)
-                        )
-                        NumberPicker(
-                            value = tempEveningSections,
-                            onValueChange = { tempEveningSections = it },
-                            range = 0..6,
-                            visibleItemCount = 3,
-                            itemHeight = 50.dp
-                        )
-                    }
-                }
-
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(top = 16.dp),
-                    horizontalArrangement = Arrangement.spacedBy(12.dp)
-                ) {
-                    TextButton(
-                        text = "取消",
-                        onClick = {
-                            hapticFeedback.performHapticFeedback(HapticFeedbackType.Confirm)
-                            showSectionDialog = false
-                        },
-                        modifier = Modifier.weight(1f)
-                    )
-                    TextButton(
-                        text = "确定",
-                        onClick = {
-                            hapticFeedback.performHapticFeedback(HapticFeedbackType.Confirm)
-                            settingsViewModel.setMorningSections(tempMorningSections)
-                            settingsViewModel.setAfternoonSections(tempAfternoonSections)
-                            settingsViewModel.setEveningSections(tempEveningSections)
-                            showSectionDialog = false
                         },
                         colors = ButtonDefaults.textButtonColorsPrimary(),
                         modifier = Modifier.weight(1f)

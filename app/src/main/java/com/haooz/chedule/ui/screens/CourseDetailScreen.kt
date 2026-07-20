@@ -168,8 +168,8 @@ fun CourseDetailScreen(
     val isUpperHalf = cardTop < screenHeight / 2f
     val transOpenEase = OobeQuartOutEasing
     val transExitEase = OobeCubicOutEasing
-    val transOpenMillis = if (isUpperHalf) 620 else 540
-    val transExitMillis = if (isUpperHalf) 290 else 400
+    val transOpenMillis = if (isUpperHalf) 580 else 540
+    val transExitMillis = if (isUpperHalf) 290 else 390
 
     BackHandler {
         onBackStart()

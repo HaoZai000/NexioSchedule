@@ -29,6 +29,10 @@ class CourseRepository private constructor(context: Context) {
             }
         }
 
+    init {
+        migrateToTimeConfigsIfNeeded()
+    }
+
     // 变更回调
     var onCourseChanged: ((action: String, courseId: String) -> Unit)? = null
 
@@ -103,6 +107,12 @@ class CourseRepository private constructor(context: Context) {
         private const val KEY_COMBINATION_CARD_CORNER_PREFIX = "comb_card_corner_"
         private const val KEY_COMBINATION_WALLPAPER_BRIGHTNESS_PREFIX = "comb_wp_brightness_"
         private const val KEY_COMBINATION_SHOW_BREAK_DIVIDERS_PREFIX = "comb_break_div_"
+        // 多时间配置支持
+        private const val KEY_TIME_CONFIG_IDS = "time_config_ids"
+        private const val KEY_CURRENT_TIME_CONFIG_ID = "current_time_config_id"
+        private const val TIME_CONFIG_PREFIX = "time_config_"
+        // 课表绑定时间配置
+        private const val SCHEDULE_TIME_CONFIG_PREFIX = "schedule_time_config_"
     }
 
     /**
@@ -871,6 +881,11 @@ class CourseRepository private constructor(context: Context) {
                     }
                 }
             }
+            // 复制时间配置绑定关系
+            val currentTimeConfigId = prefs.getLong("$SCHEDULE_TIME_CONFIG_PREFIX$currentId", 0L)
+            if (currentTimeConfigId != 0L) {
+                putLong("$SCHEDULE_TIME_CONFIG_PREFIX$name", currentTimeConfigId)
+            }
             // 将开始上课日期设为今天，当前周数设为第1周
             val today = java.time.LocalDate.now()
             val todayStr =
@@ -966,10 +981,47 @@ class CourseRepository private constructor(context: Context) {
     }
 
     /**
+     * 获取指定课表绑定的时间配置 ID
+     */
+    fun getScheduleTimeConfigId(scheduleId: String): Long {
+        val id = prefs.getLong("$SCHEDULE_TIME_CONFIG_PREFIX$scheduleId", 0L)
+        // 如果 ID 不在有效列表中，返回第一个有效配置的 ID
+        if (id != 0L && id in getTimeConfigIds()) {
+            return id
+        }
+        // 返回第一个可用配置的 ID
+        val firstId = getTimeConfigIds().firstOrNull()
+        return firstId ?: 0L
+    }
+
+    /**
+     * 设置指定课表绑定的时间配置 ID
+     */
+    fun setScheduleTimeConfigId(scheduleId: String, timeConfigId: Long) {
+        prefs.edit { putLong("$SCHEDULE_TIME_CONFIG_PREFIX$scheduleId", timeConfigId) }
+    }
+
+    /**
      * 切换到指定课表
      */
     fun switchToSchedule(scheduleId: String) {
         setCurrentScheduleId(scheduleId)
+        // 切换到该课表绑定的时间配置
+        val timeConfigId = getScheduleTimeConfigId(scheduleId)
+        if (timeConfigId != 0L) {
+            // 有绑定的时间配置，直接应用
+            val config = getTimeConfig(timeConfigId)
+            setCurrentTimeConfigId(timeConfigId)
+            applyTimeConfigToSchedule(config)
+        } else if (getTimeConfigIds().isNotEmpty()) {
+            // 没有绑定的时间配置，使用第一个时间配置并绑定
+            val firstConfigId = getTimeConfigIds().first()
+            val config = getTimeConfig(firstConfigId)
+            setCurrentTimeConfigId(firstConfigId)
+            setScheduleTimeConfigId(scheduleId, firstConfigId)
+            applyTimeConfigToSchedule(config)
+        }
+        notifyCourseChanged("settings")
     }
 
     fun isShiftModeEnabled(): Boolean {
@@ -1175,6 +1227,188 @@ class CourseRepository private constructor(context: Context) {
         }
     }
 
+    // --- 多时间配置支持 ---
+
+    /** 获取所有时间配置 ID 列表（按创建顺序） */
+    fun getTimeConfigIds(): List<Long> {
+        val idsStr = prefs.getString(KEY_TIME_CONFIG_IDS, null) ?: return listOf(0L)
+        // 兼容两种格式：逗号分隔 "1,2,3" 和 JSON 数组 "[1,2,3]"
+        val cleaned = idsStr.trim()
+        return if (cleaned.startsWith("[")) {
+            // JSON 数组格式
+            try {
+                val type = object : com.google.gson.reflect.TypeToken<List<Long>>() {}.type
+                val list: List<Long> = gson.fromJson(cleaned, type) ?: emptyList()
+                list
+            } catch (_: Exception) {
+                emptyList()
+            }
+        } else {
+            // 逗号分隔格式
+            cleaned.split(",").mapNotNull { it.toLongOrNull() }
+        }
+    }
+
+    /** 获取当前选中的时间配置 ID */
+    fun getCurrentTimeConfigId(): Long {
+        return prefs.getLong(KEY_CURRENT_TIME_CONFIG_ID, 0L)
+    }
+
+    /** 设置当前选中的时间配置 ID */
+    fun setCurrentTimeConfigId(id: Long) {
+        prefs.edit { putLong(KEY_CURRENT_TIME_CONFIG_ID, id) }
+    }
+
+    /** 获取指定 ID 的时间配置 */
+    fun getTimeConfig(id: Long): TimeConfig {
+        val key = "$TIME_CONFIG_PREFIX$id"
+        val json = prefs.getString(key, null)
+        if (json.isNullOrEmpty()) {
+            // 没有找到配置，返回默认配置
+            return TimeConfig(id = id, name = "默认配置")
+        }
+        return try {
+            val config = gson.fromJson(json, TimeConfig::class.java)
+            // 验证解析结果
+            config?.copy(id = id) ?: TimeConfig(id = id, name = "默认配置")
+        } catch (_: Exception) {
+            TimeConfig(id = id, name = "默认配置")
+        }
+    }
+
+    /** 保存时间配置 */
+    fun saveTimeConfig(config: TimeConfig) {
+        val key = "${TIME_CONFIG_PREFIX}${config.id}"
+        val json = gson.toJson(config)
+        prefs.edit { putString(key, json) }
+    }
+
+    /** 添加新时间配置，返回新 ID */
+    fun addTimeConfig(config: TimeConfig): Long {
+        val ids = getTimeConfigIds().toMutableList()
+        val newId = (ids.maxOrNull() ?: -1L) + 1L
+        val newConfig = config.copy(id = newId)
+        ids.add(newId)
+        prefs.edit {
+            putString(KEY_TIME_CONFIG_IDS, ids.joinToString(","))
+        }
+        saveTimeConfig(newConfig)
+        return newId
+    }
+
+    /** 删除指定时间配置 */
+    fun deleteTimeConfig(id: Long) {
+        val ids = getTimeConfigIds().toMutableList()
+        if (!ids.remove(id)) return
+        prefs.edit {
+            putString(KEY_TIME_CONFIG_IDS, ids.joinToString(","))
+                .remove("${TIME_CONFIG_PREFIX}$id")
+        }
+        // 若删除的是当前配置，且仍有其他配置，则切换到第一个
+        if (ids.isNotEmpty() && getCurrentTimeConfigId() == id) {
+            setCurrentTimeConfigId(ids.first())
+        } else if (ids.isEmpty()) {
+            // 删光后重新创建一个默认配置 id=0
+            prefs.edit { putString(KEY_TIME_CONFIG_IDS, "0") }
+            setCurrentTimeConfigId(0L)
+        }
+    }
+
+    /** 重命名时间配置 */
+    fun renameTimeConfig(id: Long, newName: String) {
+        val config = getTimeConfig(id)
+        saveTimeConfig(config.copy(name = newName))
+    }
+
+    /** 获取当前时间配置 */
+    fun getCurrentTimeConfig(): TimeConfig {
+        return getTimeConfig(getCurrentTimeConfigId())
+    }
+
+    /** 切换到指定时间配置 */
+    fun switchToTimeConfig(id: Long) {
+        val config = getTimeConfig(id)
+        setCurrentTimeConfigId(id)
+        // 更新当前课表绑定的时间配置
+        setScheduleTimeConfigId(getCurrentScheduleId(), id)
+        // 将配置中的值应用到当前课表的设置
+        applyTimeConfigToSchedule(config)
+        notifyCourseChanged("settings")
+    }
+
+    /** 基于当前配置创建新时间配置 */
+    fun createTimeConfigFromCurrent(name: String): Long {
+        val current = getCurrentTimeConfig()
+        val newConfig = current.copy(id = 0L, name = name)
+        return addTimeConfig(newConfig)
+    }
+
+    /** 将时间配置应用到当前课表的设置 */
+    private fun applyTimeConfigToSchedule(config: TimeConfig) {
+        setMorningSections(config.morningSections)
+        setAfternoonSections(config.afternoonSections)
+        setEveningSections(config.eveningSections)
+        setQuickTimeEnabled(config.quickTimeEnabled)
+        setClassDuration(config.classDuration)
+        setShortBreak(config.shortBreak)
+        setLongBreakEnabled(config.longBreakEnabled)
+        setLongBreakMorning(config.longBreakMorning)
+        setLongBreakAfternoon(config.longBreakAfternoon)
+        setLongBreakEvening(config.longBreakEvening)
+        setLongBreakMorningSection(config.longBreakMorningSection)
+        setLongBreakAfternoonSection(config.longBreakAfternoonSection)
+        setLongBreakEveningSection(config.longBreakEveningSection)
+        setMorningStartHour(config.morningStartHour)
+        setMorningStartMinute(config.morningStartMinute)
+        setAfternoonStartHour(config.afternoonStartHour)
+        setAfternoonStartMinute(config.afternoonStartMinute)
+        setEveningStartHour(config.eveningStartHour)
+        setEveningStartMinute(config.eveningStartMinute)
+        // 保存节次时间
+        if (config.sectionTimes.isNotEmpty()) {
+            // 按时段分组保存
+            val morningTimes = mutableMapOf<Int, String>()
+            val afternoonTimes = mutableMapOf<Int, String>()
+            val eveningTimes = mutableMapOf<Int, String>()
+            for ((k, v) in config.sectionTimes) {
+                when {
+                    k.startsWith("morning_") -> {
+                        val idx = k.removePrefix("morning_").toIntOrNull()
+                        if (idx != null) morningTimes[idx] = v
+                    }
+                    k.startsWith("afternoon_") -> {
+                        val idx = k.removePrefix("afternoon_").toIntOrNull()
+                        if (idx != null) afternoonTimes[idx] = v
+                    }
+                    k.startsWith("evening_") -> {
+                        val idx = k.removePrefix("evening_").toIntOrNull()
+                        if (idx != null) eveningTimes[idx] = v
+                    }
+                }
+            }
+            if (morningTimes.isNotEmpty()) savePeriodTimes("morning", morningTimes)
+            if (afternoonTimes.isNotEmpty()) savePeriodTimes("afternoon", afternoonTimes)
+            if (eveningTimes.isNotEmpty()) savePeriodTimes("evening", eveningTimes)
+        } else {
+            // sectionTimes 为空时，使用默认时间
+            savePeriodTimes("morning", Course.defaultMorningTimes)
+            savePeriodTimes("afternoon", Course.defaultAfternoonTimes)
+            savePeriodTimes("evening", Course.defaultEveningTimes)
+        }
+    }
+
+    /** 迁移：如果只有旧的单时间配置数据（无 time_config_ids），将其作为 id=0 的配置 */
+    fun migrateToTimeConfigsIfNeeded() {
+        if (prefs.contains(KEY_TIME_CONFIG_IDS)) return
+        // 首次迁移：将现有时间设置作为 id=0 的配置
+        val currentConfig = TimeConfig.fromRepository(this).copy(id = 0L, name = "默认配置")
+        prefs.edit {
+            putString(KEY_TIME_CONFIG_IDS, "0")
+            putLong(KEY_CURRENT_TIME_CONFIG_ID, 0L)
+        }
+        saveTimeConfig(currentConfig)
+    }
+
     /**
      * 导出所有课表相关的 SharedPreferences 数据（用于云备份）
      * 返回所有 schedule_* 前缀和全局课表配置的键值对
@@ -1187,10 +1421,13 @@ class CourseRepository private constructor(context: Context) {
             KEY_SHIFT_MODE,
             KEY_SHIFT_SELECTED_SCHEDULES,
             KEY_DEFAULT_HOMEPAGE,
-            KEY_NAV_BAR_STYLE
+            KEY_NAV_BAR_STYLE,
+            KEY_TIME_CONFIG_IDS,
+            KEY_CURRENT_TIME_CONFIG_ID
         )
         for ((key, value) in prefs.all) {
-            if (key.startsWith(SCHEDULE_KEY_PREFIX) || key in relevantKeys) {
+            if (key.startsWith(SCHEDULE_KEY_PREFIX) || key.startsWith(TIME_CONFIG_PREFIX) ||
+                key.startsWith(SCHEDULE_TIME_CONFIG_PREFIX) || key in relevantKeys) {
                 when (value) {
                     is String -> result[key] = value
                     is Int -> result[key] = value
@@ -1214,7 +1451,8 @@ class CourseRepository private constructor(context: Context) {
         prefs.edit {
             // 先清除所有旧的课表数据
             for ((key) in prefs.all) {
-                if (key.startsWith(SCHEDULE_KEY_PREFIX)) {
+                if (key.startsWith(SCHEDULE_KEY_PREFIX) || key.startsWith(TIME_CONFIG_PREFIX) ||
+                    key.startsWith(SCHEDULE_TIME_CONFIG_PREFIX)) {
                     remove(key)
                 }
             }
@@ -1223,6 +1461,8 @@ class CourseRepository private constructor(context: Context) {
             remove(KEY_CURRENT_SCHEDULE_ID)
             remove(KEY_SHIFT_MODE)
             remove(KEY_SHIFT_SELECTED_SCHEDULES)
+            remove(KEY_TIME_CONFIG_IDS)
+            remove(KEY_CURRENT_TIME_CONFIG_ID)
 
             // 写入备份数据
             for ((key, value) in data) {
@@ -1231,8 +1471,13 @@ class CourseRepository private constructor(context: Context) {
                     is Boolean -> putBoolean(key, value)
                     is Number -> {
                         val numVal = value.toDouble()
+                        val longVal = numVal.toLong()
                         val intVal = numVal.toInt()
-                        if (numVal == intVal.toDouble()) {
+                        // Long 类型的键：时间配置 ID、课表绑定的时间配置 ID、课表组合 ID、时间戳
+                        if (key == KEY_CURRENT_TIME_CONFIG_ID || key.startsWith(SCHEDULE_TIME_CONFIG_PREFIX) ||
+                            key == "current_combination_id" || key.endsWith("_last_modified")) {
+                            putLong(key, longVal)
+                        } else if (numVal == intVal.toDouble()) {
                             putInt(key, intVal)
                         } else {
                             putFloat(key, numVal.toFloat())

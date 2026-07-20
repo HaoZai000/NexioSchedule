@@ -208,36 +208,25 @@ fun AiImportScreen(
             contentPadding = PaddingValues(
                 start = 16.dp,
                 end = 16.dp,
-                top = if (isLiquidGlass) paddingValues.calculateTopPadding() + 64.dp else paddingValues.calculateTopPadding() + 8.dp,
+                top = if (isLiquidGlass) paddingValues.calculateTopPadding() + 56.dp else paddingValues.calculateTopPadding(),
                 bottom = 120.dp
             ),
             verticalArrangement = Arrangement.spacedBy(12.dp)
         ) {
             item {
-                Card(
+                SmallTitle(
+                    text = "课表数据",
+                    modifier = Modifier.offset(x = (-16).dp)
+                )
+                TextField(
+                    value = inputText,
+                    onValueChange = { inputText = it },
                     cornerRadius = 20.dp,
-                    modifier = Modifier.fillMaxWidth(),
-                    insideMargin = PaddingValues(16.dp)
-                ) {
-                    Column(modifier = Modifier.fillMaxWidth()) {
-                        Text(
-                            text = "请粘贴AI返回的课表数据：",
-                            modifier = Modifier.padding(start = 4.dp),
-                            fontWeight = FontWeight.Medium,
-                            fontSize = 15.sp,
-                            color = MiuixTheme.colorScheme.onSurface
-                        )
-                        Spacer(modifier = Modifier.height(8.dp))
-                        TextField(
-                            value = inputText,
-                            onValueChange = { inputText = it },
-                            label = "课表数据",
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .heightIn(max = 280.dp)
-                        )
-                    }
-                }
+                    minLines = 1,
+                    maxLines = 12,
+                    label = "请粘贴AI返回的课表数据",
+                    useLabelAsPlaceholder = true
+                )
             }
 
             // 解析预览：单卡片汇总，点击进入编辑弹窗

@@ -16,12 +16,14 @@ import androidx.compose.foundation.layout.asPaddingValues
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.statusBars
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.blur
 import androidx.compose.ui.draw.drawWithContent
@@ -61,6 +63,15 @@ import kotlin.time.Duration.Companion.milliseconds
 import com.kyant.backdrop.backdrops.layerBackdrop as liquidGlassLayerBackdrop
 
 class CourseManageActivity : ComponentActivity() {
+    // 小窗状态
+    private var _isInFreeformWindow = mutableStateOf(false)
+    val isInFreeformWindow: Boolean get() = _isInFreeformWindow.value
+
+    override fun onMultiWindowModeChanged(isInMultiWindowMode: Boolean, newConfig: android.content.res.Configuration) {
+        super.onMultiWindowModeChanged(isInMultiWindowMode)
+        _isInFreeformWindow.value = isInMultiWindowMode
+    }
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge(
@@ -71,6 +82,7 @@ class CourseManageActivity : ComponentActivity() {
             navigationBarStyle = SystemBarStyle.dark(android.graphics.Color.TRANSPARENT)
         )
         applyThemeAwareSystemBars()
+        _isInFreeformWindow.value = isInMultiWindowMode
         setContent {
             CourseScheduleTheme {
                 val backgroundColor = MiuixTheme.colorScheme.surface
@@ -110,17 +122,31 @@ class CourseManageActivity : ComponentActivity() {
                 val coroutineScope = rememberCoroutineScope()
                 val density = LocalDensity.current
                 val context = androidx.compose.ui.platform.LocalContext.current
+                val activity = context as? CourseManageActivity
+
+                // 小窗状态
+                var isInFreeformWindow by remember { mutableStateOf(activity?.isInFreeformWindow ?: false) }
+                LaunchedEffect(Unit) {
+                    snapshotFlow { activity?.isInFreeformWindow }
+                        .collect { value ->
+                            isInFreeformWindow = value ?: false
+                        }
+                }
 
                 // Dynamically get screen corner radius from window insets
-                val screenCornerRadius = remember {
-                    try {
-                        val windowManager = context.getSystemService(WINDOW_SERVICE) as android.view.WindowManager
-                        val windowMetrics = windowManager.currentWindowMetrics
-                        val insets = windowMetrics.windowInsets
-                        @SuppressLint("WrongConstant")
-                        insets.getRoundedCorner(0)?.radius?.toFloat() ?: 0f
-                    } catch (_: Exception) {
-                        0f
+                val screenCornerRadius = remember(isInFreeformWindow) {
+                    if (isInFreeformWindow) {
+                        20f * density.density  // 小窗默认圆角 20dp
+                    } else {
+                        try {
+                            val windowManager = context.getSystemService(WINDOW_SERVICE) as android.view.WindowManager
+                            val windowMetrics = windowManager.currentWindowMetrics
+                            val insets = windowMetrics.windowInsets
+                            @SuppressLint("WrongConstant")
+                            insets.getRoundedCorner(0)?.radius?.toFloat() ?: 0f
+                        } catch (_: Exception) {
+                            0f
+                        }
                     }
                 }
 

@@ -1,8 +1,11 @@
 /** 本地备份页面 - Screen */
 package com.haooz.chedule.ui.activities
 
+import android.net.Uri
 import android.os.Environment
 import android.widget.Toast
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -177,6 +180,17 @@ fun LocalBackupScreen(onBack: () -> Unit) {
     var showDeleteDialog by remember { mutableStateOf(false) }
     var pendingDeleteFile by remember { mutableStateOf<File?>(null) }
     var isBackingUp by remember { mutableStateOf(false) }
+    var pendingExternalUri by remember { mutableStateOf<Uri?>(null) }
+    var showExternalRestoreDialog by remember { mutableStateOf(false) }
+
+    val safLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.OpenDocument()
+    ) { uri: Uri? ->
+        uri?.let {
+            pendingExternalUri = it
+            showExternalRestoreDialog = true
+        }
+    }
 
     LaunchedEffect(Unit) {
         backupHistory = scanBackupFiles()
@@ -461,6 +475,29 @@ fun LocalBackupScreen(onBack: () -> Unit) {
                     }
                 }
             }
+
+            item {
+                SmallTitle(
+                    text = "其他操作",
+                    modifier = Modifier.offset(x = (-15).dp)
+                )
+                Card(
+                    cornerRadius = 20.dp,
+                    modifier = Modifier.fillMaxWidth(),
+                    insideMargin = PaddingValues(0.dp)
+                ) {
+                    Column(modifier = Modifier.fillMaxWidth()) {
+                        ArrowPreference(
+                            title = "手动选择文件",
+                            summary = "从其他位置选择备份文件进行恢复",
+                            onClick = {
+                                hapticFeedback.performHapticFeedback(HapticFeedbackType.VirtualKey)
+                                safLauncher.launch(arrayOf("application/json"))
+                            }
+                        )
+                    }
+                }
+            }
         }
     }
 
@@ -586,6 +623,85 @@ fun LocalBackupScreen(onBack: () -> Unit) {
                 ) {
                     Text("删除",fontSize = 17.sp, fontWeight = FontWeight.Medium,color = Color(0xFFF44336))
                 }
+            }
+        }
+    }
+
+    val externalRestoreUri = pendingExternalUri
+    OverlayDialog(
+        title = "恢复外部备份",
+        summary = if (externalRestoreUri != null) "确定要恢复从外部选择的备份文件吗？\n当前数据将被覆盖，请确保已备份当前数据" else "",
+        show = showExternalRestoreDialog,
+        onDismissRequest = {
+            showExternalRestoreDialog = false
+            pendingExternalUri = null
+        }
+    ) {
+        Column(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalAlignment = Alignment.CenterHorizontally
+        ) {
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(top = 16.dp),
+                horizontalArrangement = Arrangement.spacedBy(12.dp)
+            ) {
+                TextButton(
+                    text = "取消",
+                    onClick = {
+                        hapticFeedback.performHapticFeedback(HapticFeedbackType.Confirm)
+                        showExternalRestoreDialog = false
+                        pendingExternalUri = null
+                    },
+                    modifier = Modifier.weight(1f)
+                )
+                TextButton(
+                    text = "确定恢复",
+                    onClick = {
+                        hapticFeedback.performHapticFeedback(HapticFeedbackType.Confirm)
+                        showExternalRestoreDialog = false
+                        coroutineScope.launch {
+                            val uri = pendingExternalUri ?: return@launch
+                            pendingExternalUri = null
+                            val result = withContext(Dispatchers.IO) {
+                                try {
+                                    val inputStream = context.contentResolver.openInputStream(uri)
+                                    val json = inputStream?.bufferedReader(Charsets.UTF_8)?.use { it.readText() }
+                                        ?: throw Exception("无法读取文件")
+                                    inputStream.close()
+
+                                    val type = object : com.google.gson.reflect.TypeToken<Map<String, Any>>() {}.type
+                                    val data: Map<String, Any> = com.google.gson.Gson().fromJson(json, type)
+
+                                    val repository = CourseRepository(context.applicationContext as android.app.Application)
+
+                                    if (data.containsKey("courses") && data.containsKey("schedule_name")) {
+                                        val scheduleName = data["schedule_name"] as String
+                                        @Suppress("UNCHECKED_CAST")
+                                        val courses = data["courses"] as List<Map<String, Any>>
+                                        repository.importSingleSchedule(scheduleName, courses)
+                                    } else {
+                                        repository.importAllPreferences(data)
+                                    }
+                                    Result.success(Unit)
+                                } catch (e: Exception) {
+                                    Result.failure(e)
+                                }
+                            }
+                            result.fold(
+                                onSuccess = {
+                                    Toast.makeText(context, "恢复成功", Toast.LENGTH_SHORT).show()
+                                },
+                                onFailure = { e ->
+                                    Toast.makeText(context, "恢复失败: ${e.message}", Toast.LENGTH_SHORT).show()
+                                }
+                            )
+                        }
+                    },
+                    colors = ButtonDefaults.textButtonColorsPrimary(),
+                    modifier = Modifier.weight(1f)
+                )
             }
         }
     }

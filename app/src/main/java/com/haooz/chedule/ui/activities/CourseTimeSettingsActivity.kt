@@ -12,16 +12,23 @@ import androidx.compose.foundation.layout.asPaddingValues
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.statusBars
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.zIndex
+import com.haooz.chedule.data.CourseRepository
+import com.haooz.chedule.data.TimeConfig
 import com.haooz.chedule.ui.components.liquidglass.LiquidTopBarButton
 import com.haooz.chedule.ui.components.liquidglass.ProgressiveBlurTopBar
 import com.haooz.chedule.ui.theme.CourseScheduleTheme
 import com.haooz.chedule.ui.utils.applyThemeAwareSystemBars
 import com.haooz.chedule.ui.utils.rememberAppStyle
+import com.haooz.chedule.viewmodel.SettingsViewModel
 import top.yukonga.miuix.kmp.basic.Scaffold
 import top.yukonga.miuix.kmp.basic.SmallTopAppBar
 import top.yukonga.miuix.kmp.blur.layerBackdrop
@@ -54,18 +61,28 @@ class CourseTimeSettingsActivity : ComponentActivity() {
                 val liquidGlassBackdrop = if (appStyle == "liquidglass") {
                     com.kyant.backdrop.backdrops.rememberLayerBackdrop()
                 } else null
+                val editLiquidGlassBackdrop = if (appStyle == "liquidglass") {
+                    com.kyant.backdrop.backdrops.rememberLayerBackdrop()
+                } else null
                 val isLiquidGlass = liquidGlassBackdrop != null
+                val repository = remember { CourseRepository(this@CourseTimeSettingsActivity) }
 
+                // 页面状态管理
+                var currentPage by remember { mutableStateOf("select") }
+                var editingConfig by remember { mutableStateOf<TimeConfig?>(null) }
+                var listRefreshTrigger by remember { mutableIntStateOf(0) }
+
+                // Scaffold 只用于选择页面
                 Scaffold(
                     topBar = {
                         if (isLiquidGlass) {
                             val statusBarPadding = WindowInsets.statusBars.asPaddingValues().calculateTopPadding()
                             ProgressiveBlurTopBar(
-                                backdrop = liquidGlassBackdrop!!,
+                                backdrop = liquidGlassBackdrop,
                             ) {
                                 SmallTopAppBar(
                                     color = Color.Transparent,
-                                    title = "课程时间",
+                                    title = "节数与时间",
                                     modifier = Modifier.zIndex(1f),
                                     navigationIcon = {}
                                 )
@@ -98,9 +115,47 @@ class CourseTimeSettingsActivity : ComponentActivity() {
                         ) {
                             CourseTimeSettingsScreen(
                                 onBack = { finish() },
-                                liquidGlassBackdrop = liquidGlassBackdrop
+                                onEditConfig = { config ->
+                                    editingConfig = config
+                                    currentPage = "edit"
+                                },
+                                onCreateConfig = {
+                                    editingConfig = TimeConfig()
+                                    currentPage = "edit"
+                                },
+                                liquidGlassBackdrop = liquidGlassBackdrop,
+                                refreshTrigger = listRefreshTrigger
                             )
                         }
+                    }
+                }
+
+                // 编辑页面渲染在 Scaffold 外面（与 CourseManageActivity 结构一致）
+                if (currentPage == "edit") {
+                    editingConfig?.let { config ->
+                        val isNewConfig = config.id == 0L
+                        TimeConfigEditScreen(
+                            timeConfig = config,
+                            onBack = {
+                                currentPage = "select"
+                                editingConfig = null
+                            },
+                            onSave = { savedConfig ->
+                                if (isNewConfig) {
+                                    val newId = repository.addTimeConfig(savedConfig)
+                                    repository.switchToTimeConfig(newId)
+                                } else {
+                                    repository.saveTimeConfig(savedConfig)
+                                    if (savedConfig.id == repository.getCurrentTimeConfigId()) {
+                                        repository.switchToTimeConfig(savedConfig.id)
+                                    }
+                                }
+                                listRefreshTrigger++
+                                currentPage = "select"
+                                editingConfig = null
+                            },
+                            liquidGlassBackdrop = editLiquidGlassBackdrop
+                        )
                     }
                 }
             }

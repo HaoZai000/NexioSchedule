@@ -91,6 +91,16 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
     private val _defaultHomepage = MutableStateFlow(repository.getDefaultHomepage())
     val defaultHomepage: StateFlow<String> = _defaultHomepage.asStateFlow()
 
+    init {
+        repository.onCourseChanged = { action, _ ->
+            if (action == "settings") {
+                viewModelScope.launch {
+                    refreshSettings()
+                }
+            }
+        }
+    }
+
     // 兼容：将各时段的相对节次时间合并为全局绝对编号的扁平映射
     // 上午节次保持原编号，下午节次偏移上午节数，晚上节次偏移上午+下午节数
     val sectionTimes: StateFlow<Map<Int, String>> = run {

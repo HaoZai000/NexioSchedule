@@ -2225,6 +2225,7 @@ fun CourseScheduleApp() {
                     },
                     onScheduleChanged = {
                         viewModel.reloadCourses()
+                        settingsViewModel.refreshSettings()
                         scheduleChanged = true
                     },
                     onCardClick = { bounds ->
