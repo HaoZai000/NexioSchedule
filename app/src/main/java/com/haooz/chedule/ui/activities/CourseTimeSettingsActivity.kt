@@ -118,6 +118,7 @@ class CourseTimeSettingsActivity : ComponentActivity() {
                 var hideConfigId by remember { mutableStateOf<Long?>(null) }
                 var hideFab by remember { mutableStateOf(false) }
                 var newlyAddedConfigId by remember { mutableStateOf<Long?>(null) }
+                var isNewConfigCreation by remember { mutableStateOf(false) }
 
                 // 屏幕尺寸与圆角
                 val density = LocalDensity.current
@@ -228,6 +229,7 @@ class CourseTimeSettingsActivity : ComponentActivity() {
                                                 editingCardBounds = bounds
                                                 hideConfigId = config.id
                                                 currentPage = "edit"
+                                                isNewConfigCreation = false
                                                 coroutineScope.launch {
                                                     val lx = bounds.left.toInt().coerceIn(0, screenWidth.toInt() - 1)
                                                     val ly = bounds.top.toInt().coerceIn(0, screenHeight.toInt() - 1)
@@ -258,6 +260,7 @@ class CourseTimeSettingsActivity : ComponentActivity() {
                                                 editingConfig = TimeConfig(name = "")
                                                 editingCardBounds = bounds
                                                 hideFab = true
+                                                isNewConfigCreation = true
                                                 coroutineScope.launch {
                                                     val lx = bounds.left.toInt().coerceIn(0, screenWidth.toInt() - 1)
                                                     val ly = bounds.top.toInt().coerceIn(0, screenHeight.toInt() - 1)
@@ -302,7 +305,7 @@ class CourseTimeSettingsActivity : ComponentActivity() {
                 // 编辑页面渲染在 Scaffold 外面（与 CourseManageActivity 结构一致）
                 if (currentPage == "edit") {
                     editingConfig?.let { config ->
-                        val isNewConfig = config.id == 0L
+                        val isNewConfig = isNewConfigCreation
                         val bounds = editingCardBounds
                         TimeConfigEditScreen(
                             timeConfig = config,
