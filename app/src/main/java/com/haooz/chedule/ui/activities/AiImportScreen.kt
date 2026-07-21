@@ -26,6 +26,13 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Text
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.core.Animatable
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.expandVertically
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.shrinkVertically
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
@@ -40,6 +47,7 @@ import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.platform.LocalContext
@@ -69,6 +77,7 @@ import top.yukonga.miuix.kmp.overlay.OverlayDialog
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 import top.yukonga.miuix.kmp.utils.overScrollVertical
 import top.yukonga.miuix.kmp.utils.scrollEndHaptic
+import kotlinx.coroutines.launch
 import java.util.UUID
 
 @Composable
@@ -229,78 +238,36 @@ fun AiImportScreen(
                 )
             }
 
-            // 解析预览：单卡片汇总，点击进入编辑弹窗
-            if (parsedCourses.isNotEmpty() || parsedWarnings.isNotEmpty() || parsedSectionConfig != null) {
-                item {
-                    SmallTitle(
-                        text = "解析预览",
-                        modifier = Modifier.offset(x = (-15).dp)
-                    )
-                    Card(
-                        cornerRadius = 20.dp,
-                        modifier = Modifier.fillMaxWidth(),
-                        insideMargin = PaddingValues(0.dp)
-                    ) {
-                        Column(modifier = Modifier.fillMaxWidth()) {
-                            Text(
-                                text = "已识别 ${parsedCourses.size} 门课程",
-                                style = MiuixTheme.textStyles.title2,
-                                color = MiuixTheme.colorScheme.primary,
-                                modifier = Modifier.padding(start = 16.dp, end = 16.dp, top = 17.dp, bottom = 12.dp)
-                            )
-                            // 节次配置说明（自动应用，无需编辑）
-                            parsedSectionConfig?.let { config ->
-                                Text(
-                                    text = "已识别节次配置：上午${config.morningCount}节 · 下午${config.afternoonCount}节 · 晚上${config.eveningCount}节" +
-                                        if (config.morningTimes.isNotEmpty() || config.afternoonTimes.isNotEmpty() || config.eveningTimes.isNotEmpty())
-                                            "（含上课时间，导入时自动应用）" else "（导入时自动应用）",
-                                    style = MiuixTheme.textStyles.body2,
-                                    color = MiuixTheme.colorScheme.onSurfaceVariantActions,
-                                    modifier = Modifier.padding(start = 16.dp, end = 16.dp, bottom = 12.dp)
-                                )
-                            }
-                            if (parsedWarnings.isNotEmpty()) {
-                                Text(
-                                    text = "提示 ${parsedWarnings.size} 条",
-                                    style = MiuixTheme.textStyles.body2,
-                                    color = MiuixTheme.colorScheme.onSurfaceVariantActions,
-                                    modifier = Modifier.padding(start = 16.dp, end = 16.dp, bottom = 12.dp)
-                                )
-                            }
-
-                            // 课程列表：每行一门课程，点击进入编辑弹窗
-                            parsedCourses.forEachIndexed { index, course ->
-                                CoursePreviewRow(
-                                    course = course,
-                                    onClick = {
-                                        editingCourseIndex = index
-                                    }
-                                )
-                                if (index < parsedCourses.lastIndex) {
-                                    Spacer(modifier = Modifier.height(4.dp))
-                                }
-                            }
-
-                            if (parsedCourses.isNotEmpty()) {
-                                TextButton(
-                                    text = "确定导入",
-                                    onClick = {
-                                        hapticFeedback.performHapticFeedback(HapticFeedbackType.Confirm)
-                                        showConfirmDialog = true
-                                    },
-                                    colors = ButtonDefaults.textButtonColorsPrimary(),
-                                    modifier = Modifier
-                                        .fillMaxWidth()
-                                        .padding(16.dp)
-                                )
-                            }
-                        }
+            // 解析预览：标题 + 预览卡片 + 警告详情，整体动画
+            item {
+                val previewVisible = parsedCourses.isNotEmpty() || parsedWarnings.isNotEmpty() || parsedSectionConfig != null
+                val previewScale = remember { Animatable(0.8f) }
+                val previewAlpha = remember { Animatable(0f) }
+                LaunchedEffect(previewVisible) {
+                    if (previewVisible) {
+                        launch { previewScale.animateTo(1f, animationSpec = tween(400)) }
+                        launch { previewAlpha.animateTo(1f, animationSpec = tween(400)) }
+                    } else {
+                        launch { previewScale.animateTo(0.8f, animationSpec = tween(300)) }
+                        launch { previewAlpha.animateTo(0f, animationSpec = tween(300)) }
                     }
                 }
-
-                // 警告详情
-                if (parsedWarnings.isNotEmpty()) {
-                    item {
+                AnimatedVisibility(
+                    visible = previewVisible,
+                    enter = expandVertically(animationSpec = tween(300)) + fadeIn(animationSpec = tween(250)),
+                    exit = shrinkVertically(animationSpec = tween(250)) + fadeOut(animationSpec = tween(200))
+                ) {
+                    Column(
+                        modifier = Modifier.graphicsLayer {
+                            scaleX = previewScale.value
+                            scaleY = previewScale.value
+                            alpha = previewAlpha.value
+                        }
+                    ) {
+                        SmallTitle(
+                            text = "解析预览",
+                            modifier = Modifier.offset(x = (-15).dp)
+                        )
                         Card(
                             cornerRadius = 20.dp,
                             modifier = Modifier.fillMaxWidth(),
@@ -308,30 +275,98 @@ fun AiImportScreen(
                         ) {
                             Column(modifier = Modifier.fillMaxWidth()) {
                                 Text(
-                                    text = "提示详情",
+                                    text = "已识别 ${parsedCourses.size} 门课程",
                                     style = MiuixTheme.textStyles.title2,
-                                    fontSize = 17.sp,
-                                    color = MiuixTheme.colorScheme.onSurface,
-                                    modifier = Modifier.padding(start = 16.dp, end = 16.dp, top = 17.dp)
+                                    color = MiuixTheme.colorScheme.primary,
+                                    modifier = Modifier.padding(start = 16.dp, end = 16.dp, top = 17.dp, bottom = 12.dp)
                                 )
-                                parsedWarnings.forEachIndexed { idx, w ->
+                                parsedSectionConfig?.let { config ->
                                     Text(
-                                        text = w,
+                                        text = "已识别节次配置：上午${config.morningCount}节 · 下午${config.afternoonCount}节 · 晚上${config.eveningCount}节" +
+                                            if (config.morningTimes.isNotEmpty() || config.afternoonTimes.isNotEmpty() || config.eveningTimes.isNotEmpty())
+                                                "（含上课时间，导入时自动应用）" else "（导入时自动应用）",
                                         style = MiuixTheme.textStyles.body2,
                                         color = MiuixTheme.colorScheme.onSurfaceVariantActions,
-                                        modifier = Modifier
-                                            .fillMaxWidth()
-                                            .padding(start = 16.dp, end = 16.dp, top = 6.dp, bottom = 6.dp)
+                                        modifier = Modifier.padding(start = 16.dp, end = 16.dp, bottom = 12.dp)
                                     )
-                                    if (idx < parsedWarnings.lastIndex) {
-                                        androidx.compose.material3.HorizontalDivider(
-                                            modifier = Modifier.padding(start = 16.dp, end = 16.dp),
-                                            thickness = 0.5.dp,
-                                            color = MiuixTheme.colorScheme.onSurfaceVariantActions.copy(alpha = 0.1f)
-                                        )
+                                }
+                                AnimatedVisibility(
+                                    visible = parsedWarnings.isNotEmpty(),
+                                    enter = expandVertically(animationSpec = tween(200)) + fadeIn(animationSpec = tween(150)),
+                                    exit = shrinkVertically(animationSpec = tween(150)) + fadeOut(animationSpec = tween(100))
+                                ) {
+                                    Text(
+                                        text = "提示 ${parsedWarnings.size} 条",
+                                        style = MiuixTheme.textStyles.body2,
+                                        color = MiuixTheme.colorScheme.onSurfaceVariantActions,
+                                        modifier = Modifier.padding(start = 16.dp, end = 16.dp, bottom = 12.dp)
+                                    )
+                                }
+                                parsedCourses.forEachIndexed { index, course ->
+                                    CoursePreviewRow(
+                                        course = course,
+                                        onClick = { editingCourseIndex = index }
+                                    )
+                                    if (index < parsedCourses.lastIndex) {
+                                        Spacer(modifier = Modifier.height(4.dp))
                                     }
                                 }
+                                if (parsedCourses.isNotEmpty()) {
+                                    TextButton(
+                                        text = "确定导入",
+                                        onClick = {
+                                            hapticFeedback.performHapticFeedback(HapticFeedbackType.Confirm)
+                                            showConfirmDialog = true
+                                        },
+                                        colors = ButtonDefaults.textButtonColorsPrimary(),
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .padding(16.dp)
+                                    )
+                                }
+                            }
+                        }
+                        // 警告详情卡片
+                        AnimatedVisibility(
+                            visible = parsedWarnings.isNotEmpty(),
+                            enter = expandVertically(animationSpec = tween(250)) + fadeIn(animationSpec = tween(200)),
+                            exit = shrinkVertically(animationSpec = tween(200)) + fadeOut(animationSpec = tween(150))
+                        ) {
+                            Column {
                                 Spacer(modifier = Modifier.height(12.dp))
+                                Card(
+                                    cornerRadius = 20.dp,
+                                    modifier = Modifier.fillMaxWidth(),
+                                    insideMargin = PaddingValues(0.dp)
+                                ) {
+                                    Column(modifier = Modifier.fillMaxWidth()) {
+                                        Text(
+                                            text = "提示详情",
+                                            style = MiuixTheme.textStyles.title2,
+                                            fontSize = 17.sp,
+                                            color = MiuixTheme.colorScheme.onSurface,
+                                            modifier = Modifier.padding(start = 16.dp, end = 16.dp, top = 17.dp)
+                                        )
+                                        parsedWarnings.forEachIndexed { idx, w ->
+                                            Text(
+                                                text = w,
+                                                style = MiuixTheme.textStyles.body2,
+                                                color = MiuixTheme.colorScheme.onSurfaceVariantActions,
+                                                modifier = Modifier
+                                                    .fillMaxWidth()
+                                                    .padding(start = 16.dp, end = 16.dp, top = 6.dp, bottom = 6.dp)
+                                            )
+                                            if (idx < parsedWarnings.lastIndex) {
+                                                androidx.compose.material3.HorizontalDivider(
+                                                    modifier = Modifier.padding(start = 16.dp, end = 16.dp),
+                                                    thickness = 0.5.dp,
+                                                    color = MiuixTheme.colorScheme.onSurfaceVariantActions.copy(alpha = 0.1f)
+                                                )
+                                            }
+                                        }
+                                        Spacer(modifier = Modifier.height(12.dp))
+                                    }
+                                }
                             }
                         }
                     }

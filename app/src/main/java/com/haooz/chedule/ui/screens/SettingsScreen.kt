@@ -6,7 +6,6 @@ import android.content.Intent
 import android.widget.Toast
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -60,7 +59,6 @@ import top.yukonga.miuix.kmp.basic.Card
 import top.yukonga.miuix.kmp.basic.NumberPicker
 import top.yukonga.miuix.kmp.basic.Scaffold
 import top.yukonga.miuix.kmp.basic.SmallTitle
-import top.yukonga.miuix.kmp.basic.Switch
 import top.yukonga.miuix.kmp.basic.TextButton
 import top.yukonga.miuix.kmp.basic.TextField
 import top.yukonga.miuix.kmp.basic.TopAppBar
@@ -346,8 +344,8 @@ fun SettingsScreen(
 
                             // 课表时间设置（包含节数设置）
                             ArrowPreference(
-                                title = "节数与时间",
-                                summary = "管理课表节数与课程时间",
+                                title = "课程节数与时间",
+                                summary = "管理不同课表的节数与课程时间",
                                 onClick = {
                                     val intent =
                                         Intent(context, CourseTimeSettingsActivity::class.java)

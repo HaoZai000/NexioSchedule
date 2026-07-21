@@ -6,6 +6,8 @@ import android.os.Environment
 import android.widget.Toast
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.animation.core.Animatable
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -38,6 +40,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.platform.LocalContext
@@ -182,6 +185,7 @@ fun LocalBackupScreen(onBack: () -> Unit) {
     var isBackingUp by remember { mutableStateOf(false) }
     var pendingExternalUri by remember { mutableStateOf<Uri?>(null) }
     var showExternalRestoreDialog by remember { mutableStateOf(false) }
+    var deletingFileName by remember { mutableStateOf<String?>(null) }
 
     val safLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.OpenDocument()
@@ -240,12 +244,11 @@ fun LocalBackupScreen(onBack: () -> Unit) {
                 top = if (isLiquidGlass) paddingValues.calculateTopPadding() + 64.dp else paddingValues.calculateTopPadding() + 8.dp,
                 bottom = 120.dp
             ),
-            verticalArrangement = Arrangement.spacedBy(12.dp)
         ) {
             item {
                 Card(
                     cornerRadius = 20.dp,
-                    modifier = Modifier.fillMaxWidth(),
+                    modifier = Modifier.fillMaxWidth().padding(bottom = 12.dp),
                     insideMargin = PaddingValues(0.dp)
                 ) {
                     Column(modifier = Modifier.fillMaxWidth()) {
@@ -303,7 +306,7 @@ fun LocalBackupScreen(onBack: () -> Unit) {
             item {
                 Card(
                     cornerRadius = 20.dp,
-                    modifier = Modifier.fillMaxWidth(),
+                    modifier = Modifier.fillMaxWidth().padding(bottom = 12.dp),
                     insideMargin = PaddingValues(0.dp)
                 ) {
                     Column(modifier = Modifier.fillMaxWidth()) {
@@ -374,15 +377,18 @@ fun LocalBackupScreen(onBack: () -> Unit) {
                 }
             }
 
+            // 备份历史
+            item(key = "history_title") {
+                SmallTitle(
+                    text = "备份历史",
+                    modifier = Modifier.offset(x = (-16).dp).animateItem()
+                )
+            }
             if (backupHistory.isEmpty()) {
-                item {
-                    SmallTitle(
-                        text = "备份历史",
-                        modifier = Modifier.offset(x = (-15).dp)
-                    )
+                item(key = "history_empty") {
                     Card(
                         cornerRadius = 20.dp,
-                        modifier = Modifier.fillMaxWidth(),
+                        modifier = Modifier.fillMaxWidth().animateItem(),
                         insideMargin = PaddingValues(horizontal = 16.dp, vertical = 14.dp)
                     ) {
                         Text(
@@ -392,19 +398,33 @@ fun LocalBackupScreen(onBack: () -> Unit) {
                         )
                     }
                 }
-            } else {
-                itemsIndexed(backupHistory, key = { _, item -> item.fileName }) { index, info ->
-                    if (index == 0) {
-                        SmallTitle(
-                            text = "备份历史",
-                            modifier = Modifier.offset(x = (-15).dp)
-                        )
+            }
+            itemsIndexed(backupHistory, key = { _, item -> item.fileName }) { index, info ->
+                val isDeleting = deletingFileName == info.fileName
+                val cardScale = remember { Animatable(0.8f) }
+                val cardAlpha = remember { Animatable(0f) }
+                LaunchedEffect(Unit) {
+                    launch { cardScale.animateTo(1f, animationSpec = tween(400)) }
+                    launch { cardAlpha.animateTo(1f, animationSpec = tween(400)) }
+                }
+                LaunchedEffect(isDeleting) {
+                    if (isDeleting) {
+                        launch { cardScale.animateTo(0.8f, animationSpec = tween(300)) }
+                        launch { cardAlpha.animateTo(0f, animationSpec = tween(300)) }
                     }
-                    Card(
-                        cornerRadius = 20.dp,
-                        modifier = Modifier.fillMaxWidth(),
-                        insideMargin = PaddingValues(0.dp)
-                    ) {
+                }
+                Card(
+                    cornerRadius = 20.dp,
+                    modifier = Modifier.fillMaxWidth()
+                        .padding(bottom = 12.dp)
+                        .animateItem()
+                        .graphicsLayer {
+                            scaleX = cardScale.value
+                            scaleY = cardScale.value
+                            alpha = cardAlpha.value
+                        },
+                    insideMargin = PaddingValues(0.dp)
+                ) {
                         Column(
                             modifier = Modifier
                                 .fillMaxWidth()
@@ -434,7 +454,9 @@ fun LocalBackupScreen(onBack: () -> Unit) {
                                             .clip(com.kyant.shapes.RoundedRectangle(20.dp))
                                             .background(MiuixTheme.colorScheme.primary)
                                             .clickable {
-                                                hapticFeedback.performHapticFeedback(HapticFeedbackType.VirtualKey)
+                                                hapticFeedback.performHapticFeedback(
+                                                    HapticFeedbackType.VirtualKey
+                                                )
                                                 pendingRestoreFile = info.file
                                                 showRestoreDialog = true
                                             }
@@ -452,10 +474,14 @@ fun LocalBackupScreen(onBack: () -> Unit) {
                                     Box(
                                         modifier = Modifier
                                             .clip(com.kyant.shapes.RoundedRectangle(20.dp))
-                                            .background(if (isAppDarkTheme()) Color(0xFF363636)
-                                                else Color(0xFFF0F0F0))
+                                            .background(
+                                                if (isAppDarkTheme()) Color(0xFF363636)
+                                                else Color(0xFFF0F0F0)
+                                            )
                                             .clickable {
-                                                hapticFeedback.performHapticFeedback(HapticFeedbackType.VirtualKey)
+                                                hapticFeedback.performHapticFeedback(
+                                                    HapticFeedbackType.VirtualKey
+                                                )
                                                 pendingDeleteFile = info.file
                                                 showDeleteDialog = true
                                             }
@@ -474,16 +500,15 @@ fun LocalBackupScreen(onBack: () -> Unit) {
                         }
                     }
                 }
-            }
 
-            item {
+            item(key = "other_operations") {
                 SmallTitle(
                     text = "其他操作",
-                    modifier = Modifier.offset(x = (-15).dp)
+                    modifier = Modifier.offset(x = (-16).dp).animateItem()
                 )
                 Card(
                     cornerRadius = 20.dp,
-                    modifier = Modifier.fillMaxWidth(),
+                    modifier = Modifier.fillMaxWidth().animateItem(),
                     insideMargin = PaddingValues(0.dp)
                 ) {
                     Column(modifier = Modifier.fillMaxWidth()) {
@@ -610,15 +635,20 @@ fun LocalBackupScreen(onBack: () -> Unit) {
                     modifier = Modifier.weight(1f),
                     onClick = {
                         hapticFeedback.performHapticFeedback(HapticFeedbackType.Confirm)
-                        try {
-                            pendingDeleteFile?.delete()
-                            Toast.makeText(context, "删除成功", Toast.LENGTH_SHORT).show()
-                            backupHistory = scanBackupFiles()
-                        } catch (e: Exception) {
-                            Toast.makeText(context, "删除失败: ${e.message}", Toast.LENGTH_SHORT).show()
-                        }
+                        deletingFileName = pendingDeleteFile?.name
                         showDeleteDialog = false
-                        pendingDeleteFile = null
+                        coroutineScope.launch {
+                            kotlinx.coroutines.delay(300)
+                            try {
+                                pendingDeleteFile?.delete()
+                                Toast.makeText(context, "删除成功", Toast.LENGTH_SHORT).show()
+                                backupHistory = scanBackupFiles()
+                            } catch (e: Exception) {
+                                Toast.makeText(context, "删除失败: ${e.message}", Toast.LENGTH_SHORT).show()
+                            }
+                            deletingFileName = null
+                            pendingDeleteFile = null
+                        }
                     },
                 ) {
                     Text("删除",fontSize = 17.sp, fontWeight = FontWeight.Medium,color = Color(0xFFF44336))

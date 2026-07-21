@@ -40,7 +40,6 @@ import com.haooz.chedule.data.Course
 import com.haooz.chedule.ui.components.SectionColumn
 import com.haooz.chedule.ui.components.ShiftDayColumn
 import com.haooz.chedule.ui.utils.isAppDarkTheme
-import com.haooz.chedule.viewmodel.CourseViewModel
 import com.haooz.chedule.viewmodel.ShiftViewModel
 import top.yukonga.miuix.kmp.basic.Card
 import top.yukonga.miuix.kmp.basic.CardDefaults
@@ -50,24 +49,16 @@ import top.yukonga.miuix.kmp.utils.PressFeedbackType
 import top.yukonga.miuix.kmp.utils.overScrollVertical
 import top.yukonga.miuix.kmp.utils.scrollEndHaptic
 
-private val ShiftBlue = Color(0xFF2196F3)
-
 @Composable
 fun ShiftScheduleScreen(
-    viewModel: CourseViewModel,
     shiftViewModel: ShiftViewModel,
     settingsViewModel: com.haooz.chedule.viewmodel.SettingsViewModel,
-    currentDayOfWeek: Int,
     pagerState: androidx.compose.foundation.pager.PagerState,
     cardHeightPerSection: Float = 54f,
-    wallpaperBitmap: android.graphics.Bitmap? = null,
-    wallpaperOffset: androidx.compose.ui.geometry.Offset = androidx.compose.ui.geometry.Offset.Zero,
-    wallpaperScale: Float = 1f
 ) {
     val shiftScheduleCourses by shiftViewModel.shiftScheduleCourses.collectAsState()
     val shiftScheduleSections by shiftViewModel.shiftScheduleSections.collectAsState()
     val shiftSelectedSchedules by shiftViewModel.shiftSelectedSchedules.collectAsState()
-    val currentWeek by viewModel.currentWeek.collectAsState()
     val context = LocalContext.current
     val activity = context as? ComponentActivity as? com.haooz.chedule.ui.activities.MainActivity
     val isInFreeformWindow = activity?.isInFreeformWindow == true
@@ -152,7 +143,7 @@ fun ShiftScheduleScreen(
                             eveningSections = maxEvening,
                             currentWeek = week,
                             onSlotClick = { _, _, courses ->
-                                hapticFeedback.performHapticFeedback(androidx.compose.ui.hapticfeedback.HapticFeedbackType.Confirm)
+                                hapticFeedback.performHapticFeedback(HapticFeedbackType.Confirm)
                                 detailCourses = courses
                                 showDetail = true
                             },
@@ -211,7 +202,6 @@ fun ShiftScheduleScreen(
             verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
             detailCourses.forEach { (scheduleName, course) ->
-                val textColor = ShiftBlue.copy(alpha = if (isDark) 0.9f else 0.85f)
 
                 Card(
                     cornerRadius = 20.dp,

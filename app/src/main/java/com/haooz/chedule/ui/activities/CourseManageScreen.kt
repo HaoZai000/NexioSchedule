@@ -11,6 +11,7 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.staggeredgrid.LazyVerticalStaggeredGrid
 import androidx.compose.foundation.lazy.staggeredgrid.StaggeredGridCells
@@ -154,31 +155,55 @@ fun CourseManageScreen(
                             listScrollY = offset
                         }
                 }
-                LazyVerticalStaggeredGrid(
-                    columns = StaggeredGridCells.Fixed(2),
-                    state = gridState,
-                    modifier = Modifier.fillMaxSize()
-                        .overScrollVertical()
-                        .scrollEndHaptic(
-                            hapticFeedbackType = HapticFeedbackType.TextHandleMove
-                        )
-                        .then(
-                            if (!isLiquidGlass) Modifier.nestedScroll(scrollBehavior.nestedScrollConnection) else Modifier
-                        ),
-                    contentPadding = PaddingValues(
-                        start = 16.dp,
-                        top = if (isLiquidGlass) paddingValues.calculateTopPadding() + 64.dp else paddingValues.calculateTopPadding() + 8.dp,
-                        end = 16.dp,
-                        bottom = 60.dp
-                    ),
-                    horizontalArrangement = Arrangement.spacedBy(12.dp),
-                    verticalItemSpacing = 12.dp
-                ) {
-                    val groupedCourses = courses
-                        .groupBy { it.name }
-                        .toSortedMap(compareBy { it })
 
-                    items(groupedCourses.entries.toList()) { (courseName, courseList) ->
+                val groupedCourses = courses
+                    .groupBy { it.name }
+                    .toSortedMap(compareBy { it })
+
+                if (groupedCourses.isEmpty()) {
+                    // 空状态
+                    Column(
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .padding(top = paddingValues.calculateTopPadding()),
+                        horizontalAlignment = androidx.compose.ui.Alignment.CenterHorizontally,
+                        verticalArrangement = Arrangement.Center
+                    ) {
+                        Text(
+                            text = "暂无课程",
+                            fontSize = 18.sp,
+                            fontWeight = FontWeight.Medium,
+                            color = MiuixTheme.colorScheme.onSurface.copy(alpha = 0.6f)
+                        )
+                        Spacer(modifier = Modifier.height(8.dp))
+                        Text(
+                            text = "还没有添加任何课程",
+                            fontSize = 14.sp,
+                            color = MiuixTheme.colorScheme.onSurface.copy(alpha = 0.4f)
+                        )
+                    }
+                } else {
+                    LazyVerticalStaggeredGrid(
+                        columns = StaggeredGridCells.Fixed(2),
+                        state = gridState,
+                        modifier = Modifier.fillMaxSize()
+                            .overScrollVertical()
+                            .scrollEndHaptic(
+                                hapticFeedbackType = HapticFeedbackType.TextHandleMove
+                            )
+                            .then(
+                                if (!isLiquidGlass) Modifier.nestedScroll(scrollBehavior.nestedScrollConnection) else Modifier
+                            ),
+                        contentPadding = PaddingValues(
+                            start = 16.dp,
+                            top = if (isLiquidGlass) paddingValues.calculateTopPadding() + 64.dp else paddingValues.calculateTopPadding() + 8.dp,
+                            end = 16.dp,
+                            bottom = 60.dp
+                        ),
+                        horizontalArrangement = Arrangement.spacedBy(12.dp),
+                        verticalItemSpacing = 12.dp
+                    ) {
+                        items(groupedCourses.entries.toList()) { (courseName, courseList) ->
                         val representative = courseList.first()
                         val daySectionInfo = courseList
                             .groupBy { "${it.dayOfWeek}_${it.startSection}_${it.endSection}" }
@@ -218,6 +243,8 @@ fun CourseManageScreen(
             }
         }
     }
+}
+
 }
 
 @Composable

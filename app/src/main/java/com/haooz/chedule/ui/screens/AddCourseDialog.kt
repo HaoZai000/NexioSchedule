@@ -37,6 +37,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
@@ -102,6 +103,7 @@ fun AddCourseDialog(
 ) {
     val isEdit = course != null
     val hapticFeedback = androidx.compose.ui.platform.LocalHapticFeedback.current
+    val context = LocalContext.current
     val appStyle = rememberAppStyle()
     val isLiquidGlass = appStyle == "liquidglass" && liquidGlassBackdrop != null
     val isDark = isAppDarkTheme()
@@ -270,6 +272,14 @@ fun AddCourseDialog(
                             role = Role.Button,
                             onClick = {
                                 hapticFeedback.performHapticFeedback(HapticFeedbackType.VirtualKey)
+                                if (name.isBlank()) {
+                                    android.widget.Toast.makeText(context, "请输入课程名称", android.widget.Toast.LENGTH_SHORT).show()
+                                    return@clickable
+                                }
+                                if (selectedWeeks.isEmpty()) {
+                                    android.widget.Toast.makeText(context, "请选择上课周次", android.widget.Toast.LENGTH_SHORT).show()
+                                    return@clickable
+                                }
                                 if (name.isNotBlank() && startSection <= endSection && selectedWeeks.isNotEmpty()) {
                                     val sortedWeeks = selectedWeeks.sorted()
                                     val minWeek = sortedWeeks.first()
@@ -322,6 +332,14 @@ fun AddCourseDialog(
             } else {
                 IconButton(
                     onClick = {
+                        if (name.isBlank()) {
+                            android.widget.Toast.makeText(context, "请输入课程名称", android.widget.Toast.LENGTH_SHORT).show()
+                            return@IconButton
+                        }
+                        if (selectedWeeks.isEmpty()) {
+                            android.widget.Toast.makeText(context, "请选择上课周次", android.widget.Toast.LENGTH_SHORT).show()
+                            return@IconButton
+                        }
                         if (name.isNotBlank() && startSection <= endSection && selectedWeeks.isNotEmpty()) {
                             val sortedWeeks = selectedWeeks.sorted()
                             val minWeek = sortedWeeks.first()

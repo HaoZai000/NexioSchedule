@@ -59,6 +59,7 @@ import com.haooz.chedule.ui.utils.isAppDarkTheme
 import com.haooz.chedule.viewmodel.CourseViewModel
 import com.haooz.chedule.viewmodel.SettingsViewModel
 import kotlinx.coroutines.launch
+import java.util.Calendar
 import top.yukonga.miuix.kmp.basic.Card
 import top.yukonga.miuix.kmp.basic.CardDefaults
 import top.yukonga.miuix.kmp.basic.Icon
@@ -141,6 +142,29 @@ fun MainScheduleScreen(
     }
 
     val totalSections = morningSections + afternoonSections + eveningSections
+
+    // 计算当前节次：根据当前时间和节次时间配置，判断当前处于第几节课
+    val currentSection = remember(sectionTimes, totalSections) {
+        val calendar = Calendar.getInstance()
+        val currentMinutes = calendar.get(Calendar.HOUR_OF_DAY) * 60 + calendar.get(Calendar.MINUTE)
+        var result = -1
+        for (section in 1..totalSections) {
+            val timeStr = sectionTimes[section] ?: ""
+            if (timeStr.isEmpty()) continue
+            val parts = timeStr.split("-")
+            if (parts.size != 2) continue
+            val startParts = parts[0].split(":")
+            val endParts = parts[1].split(":")
+            if (startParts.size != 2 || endParts.size != 2) continue
+            val startMinutes = (startParts[0].toIntOrNull() ?: 0) * 60 + (startParts[1].toIntOrNull() ?: 0)
+            val endMinutes = (endParts[0].toIntOrNull() ?: 0) * 60 + (endParts[1].toIntOrNull() ?: 0)
+            if (currentMinutes in startMinutes until endMinutes) {
+                result = section
+                break
+            }
+        }
+        result
+    }
 
     LaunchedEffect(pagerState.currentPage) {
         viewingWeek = pagerState.currentPage + 1
@@ -276,7 +300,8 @@ fun MainScheduleScreen(
                             sectionTimes = sectionTimes,
                             cardHeightPerSection = cardHeightPerSection,
                             cardBlurRadius = cardBlurRadius,
-                            showBreakDividers = showBreakDividers
+                            showBreakDividers = showBreakDividers,
+                            currentSection = if (week == currentWeek) currentSection else -1
                         )
 
                         // 按周计算要显示的天数范围（智能周末模式下，不同周可能显示不同天数）
@@ -455,6 +480,8 @@ fun MainScheduleScreen(
                         contentDescription = "添加课程",
                         modifier = Modifier.padding(end = 20.dp),
                         iconSize = 23.dp,
+                        containerColor =if (isAppDarkTheme()) Color(0xFF363636).copy(0.4f)
+                        else Color(0xFFFAFAFA).copy(0.32f),
                         useBackdropShadow = true,
                     )
                 } else {

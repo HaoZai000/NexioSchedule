@@ -7,6 +7,15 @@ import android.content.pm.PackageManager
 import android.os.PowerManager
 import android.provider.Settings
 import android.widget.Toast
+import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.core.Animatable
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.animateContentSize
+import androidx.compose.animation.expandVertically
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.shrinkVertically
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -36,12 +45,12 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.RectangleShape
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.lerp
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.unit.DpSize
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.core.net.toUri
@@ -53,6 +62,7 @@ import com.haooz.chedule.ui.utils.isAppDarkTheme
 import com.haooz.chedule.ui.utils.rememberAppStyle
 import com.haooz.chedule.viewmodel.CourseViewModel
 import com.haooz.chedule.viewmodel.SettingsViewModel
+import kotlinx.coroutines.launch
 import top.yukonga.miuix.kmp.basic.Card
 import top.yukonga.miuix.kmp.basic.Icon
 import top.yukonga.miuix.kmp.basic.IconButton
@@ -76,7 +86,6 @@ import top.yukonga.miuix.kmp.theme.MiuixTheme
 import top.yukonga.miuix.kmp.utils.overScrollVertical
 import top.yukonga.miuix.kmp.utils.scrollEndHaptic
 import androidx.compose.ui.graphics.Color as ComposeColor
-import androidx.activity.result.contract.ActivityResultContracts
 
 @Composable
 fun CourseReminderScreen(
@@ -342,7 +351,11 @@ fun CourseReminderScreen(
                                     CourseReminderHelper.startReminderService(context)
                                 }
                             )
-                            if (preClassReminder && masterEnabled) {
+                            AnimatedVisibility(
+                                visible = preClassReminder && masterEnabled,
+                                enter = expandVertically(animationSpec = tween(250)) + fadeIn(animationSpec = tween(200)),
+                                exit = shrinkVertically(animationSpec = tween(200)) + fadeOut(animationSpec = tween(150))
+                            ) {
                                 ArrowPreference(
                                     title = "提前提醒时间",
                                     endActions = {
@@ -376,7 +389,11 @@ fun CourseReminderScreen(
                                     CourseReminderHelper.startReminderService(context)
                                 }
                             )
-                            if (nextDayReminder && masterEnabled) {
+                            AnimatedVisibility(
+                                visible = nextDayReminder && masterEnabled,
+                                enter = expandVertically(animationSpec = tween(250)) + fadeIn(animationSpec = tween(200)),
+                                exit = shrinkVertically(animationSpec = tween(200)) + fadeOut(animationSpec = tween(150))
+                            ) {
                                 ArrowPreference(
                                     title = "提醒时间",
                                     endActions = {
@@ -397,83 +414,109 @@ fun CourseReminderScreen(
                     }
 
                     // 超级岛设置
-                    if (masterEnabled && isIslandSupported) {
-                        item {
-                            Card(
-                                cornerRadius = 20.dp,
-                                modifier = Modifier.fillMaxWidth(),
-                                insideMargin = PaddingValues(0.dp)
+                    item {
+                        val islandVisible = masterEnabled && isIslandSupported
+                        val islandScale = remember { Animatable(if (islandVisible) 1f else 0.8f) }
+                        val islandAlpha = remember { Animatable(if (islandVisible) 1f else 0f) }
+                        LaunchedEffect(islandVisible) {
+                            if (islandVisible) {
+                                launch { islandScale.animateTo(1f, animationSpec = tween(400)) }
+                                launch { islandAlpha.animateTo(1f, animationSpec = tween(400)) }
+                            } else {
+                                launch { islandScale.animateTo(0.8f, animationSpec = tween(300)) }
+                                launch { islandAlpha.animateTo(0f, animationSpec = tween(300)) }
+                            }
+                        }
+                        Card(
+                            cornerRadius = 20.dp,
+                            modifier = Modifier.fillMaxWidth().graphicsLayer {
+                                scaleX = islandScale.value
+                                scaleY = islandScale.value
+                                alpha = islandAlpha.value
+                            },
+                            insideMargin = PaddingValues(0.dp)
+                        ) {
+                            Column(
+                                modifier = Modifier.fillMaxWidth()
                             ) {
-                                Column(
-                                    modifier = Modifier.fillMaxWidth()
+                                SwitchPreference(
+                                    title = "小米超级岛",
+                                    summary = if (islandNotification) "已开启，课程提醒将以超级岛样式显示" else "关闭后使用实时动态通知",
+                                    checked = islandNotification,
+                                    onCheckedChange = {
+                                        settingsViewModel.setIslandNotification(it)
+                                    }
+                                )
+                                AnimatedVisibility(
+                                    visible = islandNotification,
+                                    enter = expandVertically(animationSpec = tween(250)) + fadeIn(animationSpec = tween(200)),
+                                    exit = shrinkVertically(animationSpec = tween(200)) + fadeOut(animationSpec = tween(150))
                                 ) {
-                                    SwitchPreference(
-                                        title = "小米超级岛",
-                                        summary = if (islandNotification) "已开启，课程提醒将以超级岛样式显示" else "关闭后使用实时动态通知",
-                                        checked = islandNotification,
-                                        onCheckedChange = {
-                                            settingsViewModel.setIslandNotification(it)
-                                        }
-                                    )
-                                    if (islandNotification) {
-                                        Column(
-                                            modifier = Modifier
-                                                .fillMaxWidth()
-                                                .padding(horizontal = 16.dp)
-                                                .padding(bottom = 16.dp)
+                                    Column(
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .padding(horizontal = 16.dp)
+                                            .padding(bottom = 16.dp)
+                                    ) {
+                                        Row(
+                                            modifier = Modifier.fillMaxWidth(),
+                                            verticalAlignment = Alignment.CenterVertically
                                         ) {
-                                            Row(
-                                                modifier = Modifier.fillMaxWidth(),
-                                                verticalAlignment = Alignment.CenterVertically
-                                            ) {
-                                                Text(
-                                                    text = "Shizuku 状态",
-                                                    fontSize = 14.sp,
-                                                    color = MiuixTheme.colorScheme.onSurfaceVariantSummary
-                                                )
-                                                Spacer(modifier = Modifier.weight(1f))
-                                                Text(
-                                                    text = when {
-                                                        !shizukuRunning -> "未运行"
-                                                        !shizukuAuthorized -> "未授权"
-                                                        else -> "已就绪"
-                                                    },
-                                                    fontSize = 14.sp,
-                                                    color = when {
-                                                        !shizukuRunning -> ComposeColor(0xFFFF6B6B)
-                                                        !shizukuAuthorized -> ComposeColor(0xFFFFB347)
-                                                        else -> ComposeColor(0xFF4CAF50)
-                                                    }
-                                                )
-                                            }
-                                            if (!shizukuRunning) {
-                                                Spacer(modifier = Modifier.height(8.dp))
-                                                Text(
-                                                    text = "请安装并启动 Shizuku 应用",
-                                                    style = MiuixTheme.textStyles.body2,
-                                                    color = MiuixTheme.colorScheme.onSurfaceVariantSummary
-                                                )
-                                            } else if (!shizukuAuthorized) {
-                                                Spacer(modifier = Modifier.height(12.dp))
-                                                TextButton(
-                                                    text = "授权 Shizuku",
-                                                    onClick = {
-                                                        IslandNotificationHelper.requestShizukuPermission { granted ->
-                                                            shizukuAuthorized = granted
-                                                            if (!granted) {
-                                                                Toast.makeText(context, "Shizuku 授权失败", Toast.LENGTH_SHORT).show()
-                                                            }
+                                            Text(
+                                                text = "Shizuku 状态",
+                                                fontSize = 14.sp,
+                                                color = MiuixTheme.colorScheme.onSurfaceVariantSummary
+                                            )
+                                            Spacer(modifier = Modifier.weight(1f))
+                                            Text(
+                                                text = when {
+                                                    !shizukuRunning -> "未运行"
+                                                    !shizukuAuthorized -> "未授权"
+                                                    else -> "已就绪"
+                                                },
+                                                fontSize = 14.sp,
+                                                color = when {
+                                                    !shizukuRunning -> ComposeColor(0xFFFF6B6B)
+                                                    !shizukuAuthorized -> ComposeColor(
+                                                        0xFFFFB347
+                                                    )
+
+                                                    else -> ComposeColor(0xFF4CAF50)
+                                                }
+                                            )
+                                        }
+                                        if (!shizukuRunning) {
+                                            Spacer(modifier = Modifier.height(8.dp))
+                                            Text(
+                                                text = "请安装并启动 Shizuku 应用",
+                                                style = MiuixTheme.textStyles.body2,
+                                                color = MiuixTheme.colorScheme.onSurfaceVariantSummary
+                                            )
+                                        } else if (!shizukuAuthorized) {
+                                            Spacer(modifier = Modifier.height(12.dp))
+                                            TextButton(
+                                                text = "授权 Shizuku",
+                                                onClick = {
+                                                    IslandNotificationHelper.requestShizukuPermission { granted ->
+                                                        shizukuAuthorized = granted
+                                                        if (!granted) {
+                                                            Toast.makeText(
+                                                                context,
+                                                                "Shizuku 授权失败",
+                                                                Toast.LENGTH_SHORT
+                                                            ).show()
                                                         }
-                                                    },
-                                                    modifier = Modifier.fillMaxWidth()
-                                                )
-                                            }
+                                                    }
+                                                },
+                                                modifier = Modifier.fillMaxWidth()
+                                            )
                                         }
                                     }
                                 }
                             }
                         }
                     }
+
 
                     // 电池优化提示
                     if (masterEnabled && !isIgnoringBattery) {
@@ -520,52 +563,66 @@ fun CourseReminderScreen(
                     }
 
                     // 自启动权限提示
-                    if (masterEnabled && !autoStartDismissed) {
-                        item {
-                            Card(
-                                cornerRadius = 20.dp,
-                                modifier = Modifier.fillMaxWidth(),
-                                insideMargin = PaddingValues(0.dp)
+                    item {
+                        val autoStartVisible = masterEnabled && !autoStartDismissed
+                        val autoStartScale = remember { Animatable(if (autoStartVisible) 1f else 0.8f) }
+                        val autoStartAlpha = remember { Animatable(if (autoStartVisible) 1f else 0f) }
+                        LaunchedEffect(autoStartVisible) {
+                            if (autoStartVisible) {
+                                launch { autoStartScale.animateTo(1f, animationSpec = tween(400)) }
+                                launch { autoStartAlpha.animateTo(1f, animationSpec = tween(400)) }
+                            } else {
+                                launch { autoStartScale.animateTo(0.8f, animationSpec = tween(300)) }
+                                launch { autoStartAlpha.animateTo(0f, animationSpec = tween(300)) }
+                            }
+                        }
+                        Card(
+                            modifier = Modifier.graphicsLayer {
+                                scaleX = autoStartScale.value
+                                scaleY = autoStartScale.value
+                                alpha = autoStartAlpha.value
+                            },
+                            cornerRadius = 20.dp,
+                            insideMargin = PaddingValues(0.dp)
+                        ) {
+                            Column(
+                                modifier = Modifier.fillMaxWidth().padding(16.dp)
                             ) {
-                                Column(
-                                    modifier = Modifier.fillMaxWidth().padding(16.dp)
+                                Text(
+                                    text = "开启自启动权限",
+                                    fontWeight = FontWeight.Medium,
+                                    fontSize = 17.sp,
+                                    color = MiuixTheme.colorScheme.onSurface
+                                )
+                                Spacer(modifier = Modifier.height(4.dp))
+                                Text(
+                                    text = "不同厂商路径不同，通常在「设置」→「应用管理」→「自启动」中开启，确保课程提醒不会被系统杀死",
+                                    style = MiuixTheme.textStyles.body2,
+                                    color = MiuixTheme.colorScheme.onSurfaceVariantSummary
+                                )
+                                Spacer(modifier = Modifier.height(12.dp))
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    horizontalArrangement = Arrangement.spacedBy(8.dp)
                                 ) {
-                                    Text(
-                                        text = "开启自启动权限",
-                                        fontWeight = FontWeight.Medium,
-                                        fontSize = 17.sp,
-                                        color = MiuixTheme.colorScheme.onSurface
+                                    TextButton(
+                                        text = "前往开启",
+                                        onClick = {
+                                            val intent = Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS).apply {
+                                                data = "package:${context.packageName}".toUri()
+                                            }
+                                            autoStartLauncher.launch(intent)
+                                        },
+                                        modifier = Modifier.weight(1f)
                                     )
-                                    Spacer(modifier = Modifier.height(4.dp))
-                                    Text(
-                                        text = "不同厂商路径不同，通常在「设置」→「应用管理」→「自启动」中开启，确保课程提醒不会被系统杀死",
-                                        style = MiuixTheme.textStyles.body2,
-                                        color = MiuixTheme.colorScheme.onSurfaceVariantSummary
+                                    TextButton(
+                                        text = "已开启",
+                                        onClick = {
+                                            reminderPrefs.edit().putBoolean("auto_start_dismissed", true).apply()
+                                            autoStartDismissed = true
+                                        },
+                                        modifier = Modifier.weight(1f)
                                     )
-                                    Spacer(modifier = Modifier.height(12.dp))
-                                    Row(
-                                        modifier = Modifier.fillMaxWidth(),
-                                        horizontalArrangement = Arrangement.spacedBy(8.dp)
-                                    ) {
-                                        TextButton(
-                                            text = "前往开启",
-                                            onClick = {
-                                                val intent = Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS).apply {
-                                                    data = "package:${context.packageName}".toUri()
-                                                }
-                                                autoStartLauncher.launch(intent)
-                                            },
-                                            modifier = Modifier.weight(1f)
-                                        )
-                                        TextButton(
-                                            text = "已开启",
-                                            onClick = {
-                                                reminderPrefs.edit().putBoolean("auto_start_dismissed", true).apply()
-                                                autoStartDismissed = true
-                                            },
-                                            modifier = Modifier.weight(1f)
-                                        )
-                                    }
                                 }
                             }
                         }

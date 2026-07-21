@@ -46,6 +46,7 @@ import com.haooz.chedule.ui.components.liquidglass.LiquidTopBarButton
 import com.haooz.chedule.ui.components.liquidglass.ProgressiveBlurTopBar
 import com.haooz.chedule.ui.oobe.OobeCubicOutEasing
 import com.haooz.chedule.ui.oobe.OobeQuartOutEasing
+import com.haooz.chedule.ui.screens.TimeConfigEditScreen
 import com.haooz.chedule.ui.theme.CourseScheduleTheme
 import com.haooz.chedule.ui.utils.applyThemeAwareSystemBars
 import com.haooz.chedule.ui.utils.rememberAppStyle
@@ -57,6 +58,7 @@ import top.yukonga.miuix.kmp.icon.MiuixIcons
 import top.yukonga.miuix.kmp.icon.extended.ChevronBackward
 import top.yukonga.miuix.kmp.squircle.addSquircleRect
 import top.yukonga.miuix.kmp.theme.MiuixTheme
+import kotlin.math.abs
 import com.kyant.backdrop.backdrops.layerBackdrop as liquidGlassLayerBackdrop
 
 class CourseTimeSettingsActivity : ComponentActivity() {
@@ -115,6 +117,7 @@ class CourseTimeSettingsActivity : ComponentActivity() {
                 var listRefreshTrigger by remember { mutableIntStateOf(0) }
                 var hideConfigId by remember { mutableStateOf<Long?>(null) }
                 var hideFab by remember { mutableStateOf(false) }
+                var newlyAddedConfigId by remember { mutableStateOf<Long?>(null) }
 
                 // 屏幕尺寸与圆角
                 val density = LocalDensity.current
@@ -187,7 +190,7 @@ class CourseTimeSettingsActivity : ComponentActivity() {
                                         ) {
                                             SmallTopAppBar(
                                                 color = Color.Transparent,
-                                                title = "节数与时间",
+                                                title = "课程节数与时间",
                                                 modifier = Modifier.zIndex(1f),
                                                 navigationIcon = {}
                                             )
@@ -284,8 +287,10 @@ class CourseTimeSettingsActivity : ComponentActivity() {
                                             },
                                             liquidGlassBackdrop = liquidGlassBackdrop,
                                             refreshTrigger = listRefreshTrigger,
-                                            hideConfigId = hideConfigId,
-                                            hideFab = hideFab
+                                hideConfigId = hideConfigId,
+                                hideFab = hideFab,
+                                newlyAddedConfigId = newlyAddedConfigId,
+                                onNewConfigAnimDone = { newlyAddedConfigId = null }
                                         )
                                     }
                                 }
@@ -329,6 +334,7 @@ class CourseTimeSettingsActivity : ComponentActivity() {
                                 if (isNewConfig) {
                                     val newId = repository.addTimeConfig(savedConfig)
                                     repository.switchToTimeConfig(newId)
+                                    newlyAddedConfigId = newId
                                 } else {
                                     repository.saveTimeConfig(savedConfig)
                                     if (savedConfig.id == repository.getCurrentTimeConfigId()) {
@@ -347,7 +353,7 @@ class CourseTimeSettingsActivity : ComponentActivity() {
                             cardStartCornerRadius = if (isNewConfig) 92f else 20f,
                             cardSnapshot = cardSnapshot,
                             isFabCreation = isNewConfig && bounds != null && bounds.width > 0f && bounds.height > 0f
-                                && kotlin.math.abs(bounds.width - bounds.height) / bounds.width < 0.2f,
+                                    && abs(bounds.width - bounds.height) / bounds.width < 0.2f,
                             liquidGlassBackdrop = editLiquidGlassBackdrop
                         )
                     }

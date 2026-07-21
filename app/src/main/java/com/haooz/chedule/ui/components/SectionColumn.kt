@@ -8,6 +8,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.text.font.FontWeight
 import com.haooz.chedule.ui.utils.isAppDarkTheme
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -27,6 +28,7 @@ fun SectionColumn(
     cardHeightPerSection: Float = 54f,
     cardBlurRadius: Float = 0f,
     showBreakDividers: Boolean = true,
+    currentSection: Int = -1,
     modifier: Modifier = Modifier
 ) {
     // 缓存时间字符串拆分结果，避免每次重组重复 split
@@ -50,7 +52,7 @@ fun SectionColumn(
         // 上午节次
         (1..morningSections).forEach { section ->
             val (startTime, endTime) = timePairs[section - 1]
-            SectionItem(section, startTime, endTime, currentOffset, cardHeightPerSection)
+            SectionItem(section, startTime, endTime, currentOffset, cardHeightPerSection, section == currentSection)
             currentOffset += cardHeightPerSection.toInt()
         }
 
@@ -79,7 +81,7 @@ fun SectionColumn(
         val afternoonEnd = morningSections + afternoonSections
         (afternoonStart..afternoonEnd).forEach { section ->
             val (startTime, endTime) = timePairs[section - 1]
-            SectionItem(section, startTime, endTime, currentOffset, cardHeightPerSection)
+            SectionItem(section, startTime, endTime, currentOffset, cardHeightPerSection, section == currentSection)
             currentOffset += cardHeightPerSection.toInt()
         }
 
@@ -107,14 +109,18 @@ fun SectionColumn(
         val eveningEnd = morningSections + afternoonSections + eveningSections
         (eveningStart..eveningEnd).forEach { section ->
             val (startTime, endTime) = timePairs[section - 1]
-            SectionItem(section, startTime, endTime, currentOffset, cardHeightPerSection)
+            SectionItem(section, startTime, endTime, currentOffset, cardHeightPerSection, section == currentSection)
             currentOffset += cardHeightPerSection.toInt()
         }
     }
 }
 
 @Composable
-private fun SectionItem(section: Int, startTime: String, endTime: String, yOffset: Int, cardHeightPerSection: Float = 54f) {
+private fun SectionItem(section: Int, startTime: String, endTime: String, yOffset: Int, cardHeightPerSection: Float = 54f, isCurrentSection: Boolean = false) {
+    val primaryColor = MiuixTheme.colorScheme.primary
+    val onSurfaceColor = MiuixTheme.colorScheme.onSurface
+    val onSurfaceVariantColor = MiuixTheme.colorScheme.onSurfaceVariantActions
+
     Box(
         modifier = Modifier
             .fillMaxWidth()
@@ -127,18 +133,20 @@ private fun SectionItem(section: Int, startTime: String, endTime: String, yOffse
         ) {
             Text(
                 text = "$section",
-                style = MiuixTheme.textStyles.body2,
-                color = MiuixTheme.colorScheme.onSurface
+                style = MiuixTheme.textStyles.body2.copy(
+                    fontWeight = if (isCurrentSection) FontWeight.Medium else FontWeight.Normal
+                ),
+                color = if (isCurrentSection) primaryColor else onSurfaceColor
             )
             Text(
                 text = startTime,
                 style = MiuixTheme.textStyles.footnote2.copy(fontSize = 10.sp),
-                color = MiuixTheme.colorScheme.onSurfaceVariantActions
+                color = if (isCurrentSection) primaryColor else onSurfaceVariantColor
             )
             Text(
                 text = endTime,
                 style = MiuixTheme.textStyles.footnote2.copy(fontSize = 10.sp),
-                color = MiuixTheme.colorScheme.onSurfaceVariantActions
+                color = if (isCurrentSection) primaryColor else onSurfaceVariantColor
             )
         }
     }

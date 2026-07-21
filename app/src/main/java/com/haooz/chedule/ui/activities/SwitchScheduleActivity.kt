@@ -187,6 +187,7 @@ fun SwitchScheduleScreen(
     var editingScheduleName by remember { mutableStateOf("") }
     var editScheduleName by remember { mutableStateOf("") }
     var showDeleteDialog by remember { mutableStateOf(false) }
+    var deletingScheduleName by remember { mutableStateOf<String?>(null) }
     var firstCardBounds by remember { mutableStateOf<androidx.compose.ui.geometry.Rect?>(null) }
 
     val switchToCurrentSchedule = {
@@ -682,7 +683,7 @@ fun SwitchScheduleScreen(
                     }
                 }
                 if (scheduleNames.size > 1) {
-                    items(scheduleNames.size - 1) { index ->
+                    items(scheduleNames.size - 1, key = { scheduleNames[it + 1] }) { index ->
                         if (index == 0) {
                             SmallTitle(
                                 text = "其他课表",
@@ -692,10 +693,29 @@ fun SwitchScheduleScreen(
                         val scheduleName = scheduleNames[index + 1]
                         val summary = remember(scheduleName, scheduleSummaries) { scheduleSummaries[scheduleName] ?: repository.getScheduleSummary(scheduleName) }
                         var cardBounds by remember { mutableStateOf<androidx.compose.ui.geometry.Rect?>(null) }
+                        val isDeleting = deletingScheduleName == scheduleName
+                        val cardScale = remember { Animatable(0.8f) }
+                        val cardAlpha = remember { Animatable(0f) }
+                        LaunchedEffect(Unit) {
+                            launch { cardScale.animateTo(1f, animationSpec = tween(400)) }
+                            launch { cardAlpha.animateTo(1f, animationSpec = tween(400)) }
+                        }
+                        LaunchedEffect(isDeleting) {
+                            if (isDeleting) {
+                                launch { cardScale.animateTo(0.8f, animationSpec = tween(300)) }
+                                launch { cardAlpha.animateTo(0f, animationSpec = tween(300)) }
+                            }
+                        }
                         Card(
                             cornerRadius = 20.dp,
                             modifier = Modifier
                                 .fillMaxWidth()
+                                .animateItem()
+                                .graphicsLayer {
+                                    scaleX = cardScale.value
+                                    scaleY = cardScale.value
+                                    alpha = cardAlpha.value
+                                }
                                 .onGloballyPositioned { coordinates ->
                                     val position = coordinates.localToRoot(androidx.compose.ui.geometry.Offset.Zero)
                                     val size = coordinates.size
@@ -815,14 +835,20 @@ fun SwitchScheduleScreen(
                         text = "确定",
                         onClick = {
                             hapticFeedback.performHapticFeedback(HapticFeedbackType.Confirm)
-                            if (newScheduleName.isNotBlank()) {
-                                scheduleNames = repository.addSchedule(newScheduleName)
-                                currentScheduleId = newScheduleName
-                                repository.switchToSchedule(newScheduleName)
-                                onScheduleChanged()
-                                showAddDialog = false
-                                newScheduleName = ""
+                            if (newScheduleName.isBlank()) {
+                                android.widget.Toast.makeText(context, "请输入课表名称", android.widget.Toast.LENGTH_SHORT).show()
+                                return@TextButton
                             }
+                            if (scheduleNames.contains(newScheduleName)) {
+                                android.widget.Toast.makeText(context, "已存在同名课表", android.widget.Toast.LENGTH_SHORT).show()
+                                return@TextButton
+                            }
+                            scheduleNames = repository.addSchedule(newScheduleName)
+                            currentScheduleId = newScheduleName
+                            repository.switchToSchedule(newScheduleName)
+                            onScheduleChanged()
+                            showAddDialog = false
+                            newScheduleName = ""
                         },
                         colors = ButtonDefaults.textButtonColorsPrimary(),
                         modifier = Modifier.weight(1f)
@@ -871,21 +897,32 @@ fun SwitchScheduleScreen(
                         text = "确定",
                         onClick = {
                             hapticFeedback.performHapticFeedback(HapticFeedbackType.Confirm)
-                            if (editScheduleName.isNotBlank() && editScheduleName != editingScheduleName) {
-                                val wasChecked = checkboxStates[editingScheduleName] == true
-                                scheduleNames = repository.renameSchedule(editingScheduleName, editScheduleName)
-                                checkboxStates.remove(editingScheduleName)
-                                if (wasChecked) {
-                                    checkboxStates[editScheduleName] = true
-                                }
-                                if (currentScheduleId == editingScheduleName) {
-                                    currentScheduleId = editScheduleName
-                                    repository.switchToSchedule(editScheduleName)
-                                }
-                                onScheduleChanged()
+                            if (editScheduleName.isBlank()) {
+                                android.widget.Toast.makeText(context, "请输入课表名称", android.widget.Toast.LENGTH_SHORT).show()
+                                return@TextButton
+                            }
+                            if (editScheduleName == editingScheduleName) {
                                 showEditDialog = false
                                 editScheduleName = ""
+                                return@TextButton
                             }
+                            if (scheduleNames.contains(editScheduleName)) {
+                                android.widget.Toast.makeText(context, "已存在同名课表", android.widget.Toast.LENGTH_SHORT).show()
+                                return@TextButton
+                            }
+                            val wasChecked = checkboxStates[editingScheduleName] == true
+                            scheduleNames = repository.renameSchedule(editingScheduleName, editScheduleName)
+                            checkboxStates.remove(editingScheduleName)
+                            if (wasChecked) {
+                                checkboxStates[editScheduleName] = true
+                            }
+                            if (currentScheduleId == editingScheduleName) {
+                                currentScheduleId = editScheduleName
+                                repository.switchToSchedule(editScheduleName)
+                            }
+                            onScheduleChanged()
+                            showEditDialog = false
+                            editScheduleName = ""
                         },
                         colors = ButtonDefaults.textButtonColorsPrimary(),
                         modifier = Modifier.weight(1f)
@@ -929,18 +966,23 @@ fun SwitchScheduleScreen(
                         onClick = {
                             hapticFeedback.performHapticFeedback(HapticFeedbackType.Confirm)
                             val selectedNames = checkboxStates.filter { it.value }.keys.toList()
-                            selectedNames.forEach { name ->
-                                scheduleNames = repository.deleteSchedule(name)
-                                if (currentScheduleId == name && scheduleNames.isNotEmpty()) {
-                                    currentScheduleId = scheduleNames.first()
-                                    repository.switchToSchedule(currentScheduleId)
-                                }
-                            }
-                            checkboxStates.clear()
+                            showDeleteDialog = false
                             isEditMode = false
                             editMode = ""
-                            onScheduleChanged()
-                            showDeleteDialog = false
+                            scope.launch {
+                                selectedNames.forEach { name ->
+                                    deletingScheduleName = name
+                                    kotlinx.coroutines.delay(300)
+                                    scheduleNames = repository.deleteSchedule(name)
+                                    if (currentScheduleId == name && scheduleNames.isNotEmpty()) {
+                                        currentScheduleId = scheduleNames.first()
+                                        repository.switchToSchedule(currentScheduleId)
+                                    }
+                                }
+                                deletingScheduleName = null
+                                checkboxStates.clear()
+                                onScheduleChanged()
+                            }
                         },
                     ) {
                         Text("删除",fontSize = 17.sp, fontWeight = FontWeight.Medium,color = ComposeColor(0xFFF44336))

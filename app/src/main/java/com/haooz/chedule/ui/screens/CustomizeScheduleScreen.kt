@@ -1238,6 +1238,8 @@ fun CustomizeScheduleScreen(
                         contentDescription = "关闭",
                         modifier = Modifier.padding(start = 20.dp),
                         iconSize = 22.dp,
+                        containerColor =if (isAppDarkTheme()) Color(0xFF363636).copy(0.4f)
+                        else Color(0xFFFAFAFA).copy(0.32f),
                         useBackdropShadow = true
                     )
                 } else {
@@ -1371,6 +1373,8 @@ fun CustomizeScheduleScreen(
                         icon = MiuixIcons.Normal.Close,
                         contentDescription = "关闭",
                         modifier = Modifier.padding(start = 20.dp),
+                        containerColor =if (isAppDarkTheme()) Color(0xFF363636).copy(0.4f)
+                        else Color(0xFFFAFAFA).copy(0.32f),
                         iconSize = 22.dp,
                         useBackdropShadow = true
                     )

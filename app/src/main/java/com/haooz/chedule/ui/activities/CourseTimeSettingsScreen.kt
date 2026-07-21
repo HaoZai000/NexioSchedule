@@ -3,6 +3,10 @@ package com.haooz.chedule.ui.activities
 
 import android.annotation.SuppressLint
 import android.widget.Toast
+import androidx.compose.animation.core.Animatable
+import androidx.compose.animation.core.animateDpAsState
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -14,6 +18,7 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -34,6 +39,7 @@ import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.RectangleShape
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.lerp
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.input.nestedscroll.nestedScroll
@@ -47,6 +53,7 @@ import com.haooz.chedule.data.CourseRepository
 import com.haooz.chedule.data.TimeConfig
 import com.haooz.chedule.ui.utils.isAppDarkTheme
 import com.haooz.chedule.ui.utils.rememberAppStyle
+import kotlinx.coroutines.launch
 import top.yukonga.miuix.kmp.basic.ButtonDefaults
 import top.yukonga.miuix.kmp.basic.Card
 import top.yukonga.miuix.kmp.basic.FloatingActionButton
@@ -71,6 +78,7 @@ import top.yukonga.miuix.kmp.overlay.OverlayDialog
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 import top.yukonga.miuix.kmp.utils.overScrollVertical
 import top.yukonga.miuix.kmp.utils.scrollEndHaptic
+import kotlin.time.Duration.Companion.milliseconds
 import androidx.compose.ui.graphics.Color as ComposeColor
 
 data class TimeConfigCardBounds(
@@ -80,7 +88,7 @@ data class TimeConfigCardBounds(
     val height: Float
 )
 
-@SuppressLint("DefaultLocale")
+@SuppressLint("DefaultLocale", "UseOfNonLambdaOffsetOverload")
 @Composable
 fun CourseTimeSettingsScreen(
     onBack: () -> Unit,
@@ -89,7 +97,9 @@ fun CourseTimeSettingsScreen(
     liquidGlassBackdrop: com.kyant.backdrop.Backdrop? = null,
     refreshTrigger: Int = 0,
     hideConfigId: Long? = null,
-    hideFab: Boolean = false
+    hideFab: Boolean = false,
+    newlyAddedConfigId: Long? = null,
+    onNewConfigAnimDone: () -> Unit = {}
 ) {
     val context = androidx.compose.ui.platform.LocalContext.current
     val hapticFeedback = androidx.compose.ui.platform.LocalHapticFeedback.current
@@ -111,6 +121,7 @@ fun CourseTimeSettingsScreen(
 
     var showDeleteDialog by remember { mutableStateOf(false) }
     var deletingConfig by remember { mutableStateOf<TimeConfig?>(null) }
+    var deletingConfigId by remember { mutableStateOf<Long?>(null) }
 
     val scrollBehavior = MiuixScrollBehavior()
     var listScrollY by remember { mutableIntStateOf(0) }
@@ -160,7 +171,7 @@ fun CourseTimeSettingsScreen(
                             Modifier.textureBlur(backdrop = backdrop, shape = RectangleShape, colors = topAppBarColors!!)
                         } else Modifier,
                         color = topBarColor,
-                        title = "节数与时间",
+                        title = "课程节数与时间",
                         scrollBehavior = scrollBehavior,
                         navigationIconPadding = 20.dp,
                         navigationIcon = {
@@ -202,10 +213,46 @@ fun CourseTimeSettingsScreen(
                     items(configs, key = { it.id }) { config ->
                         val isSelected = config.id == currentConfigId.toLong()
                         val isHidden = config.id == hideConfigId
+                        val isNewCard = config.id == newlyAddedConfigId
+                        val isDeleting = config.id == deletingConfigId
+                        val newCardScale = remember { Animatable(if (isNewCard) 0.8f else 1f) }
+                        val newCardAlpha = remember { Animatable(if (isNewCard) 0f else 1f) }
+                        LaunchedEffect(isNewCard) {
+                            if (isNewCard) {
+                                kotlinx.coroutines.delay(100.milliseconds)
+                                kotlinx.coroutines.coroutineScope {
+                                    launch { newCardScale.animateTo(1f, animationSpec = tween(400)) }
+                                    launch { newCardAlpha.animateTo(1f, animationSpec = tween(400)) }
+                                }
+                                onNewConfigAnimDone()
+                            }
+                        }
+                        LaunchedEffect(isDeleting) {
+                            if (isDeleting) {
+                                kotlinx.coroutines.coroutineScope {
+                                    launch { newCardScale.animateTo(0.8f, animationSpec = tween(300)) }
+                                    launch { newCardAlpha.animateTo(0f, animationSpec = tween(300)) }
+                                }
+                                deletingConfig?.let { config ->
+                                    repository.deleteTimeConfig(config.id)
+                                    Toast.makeText(context, "已删除「${config.name}」", Toast.LENGTH_SHORT).show()
+                                }
+                                deletingConfigId = null
+                                deletingConfig = null
+                                refreshList()
+                            }
+                        }
                         var cardBounds by remember { mutableStateOf(TimeConfigCardBounds(0f, 0f, 0f, 0f)) }
                         Card(
                             cornerRadius = 20.dp,
                             modifier = Modifier.fillMaxWidth()
+                                .then(
+                                    if (isNewCard || isDeleting) Modifier.graphicsLayer {
+                                        scaleX = newCardScale.value
+                                        scaleY = newCardScale.value
+                                        alpha = newCardAlpha.value
+                                    } else Modifier
+                                )
                                 .alpha(if (isHidden) 0f else 1f)
                                 .onGloballyPositioned { coordinates ->
                                     val position = coordinates.positionInWindow()
@@ -272,10 +319,17 @@ fun CourseTimeSettingsScreen(
                                         color = MiuixTheme.colorScheme.onSurfaceVariantActions
                                     )
                                 }
-                                Row {
-                                    // 编辑按钮
+                                // 按钮区域：编辑按钮 + 删除按钮，用 Box 绝对定位 + 同步动画
+                                Box(modifier = Modifier.height(38.dp)) {
+                                    // 编辑按钮（删除按钮出现时向左偏移）
+                                    val editOffsetX by animateDpAsState(
+                                        targetValue = if (!isSelected) (-62).dp else 0.dp,
+                                        animationSpec = tween(durationMillis = 250)
+                                    )
                                     Box(
                                         modifier = Modifier
+                                            .align(Alignment.CenterEnd)
+                                            .offset(x = editOffsetX)
                                             .height(38.dp)
                                             .clip(com.kyant.shapes.RoundedRectangle(20.dp))
                                             .background(MiuixTheme.colorScheme.primary)
@@ -288,34 +342,42 @@ fun CourseTimeSettingsScreen(
                                     ) {
                                         Icon(
                                             imageVector = MiuixIcons.Edit,
-                                            contentDescription = "删除",
+                                            contentDescription = "编辑",
                                             modifier = Modifier.size(22.dp),
                                             tint = Color.White
                                         )
                                     }
-                                    // 删除按钮（仅非当前配置可删除）
-                                    if (!isSelected) {
-                                        Spacer(modifier = Modifier.width(8.dp))
-                                        Box(
-                                            modifier = Modifier
-                                                .height(38.dp)
-                                                .clip(com.kyant.shapes.RoundedRectangle(20.dp))
-                                                .background(if (isAppDarkTheme()) Color(0xFF363636) else Color(0xFFF0F0F0))
-                                                .clickable {
-                                                    hapticFeedback.performHapticFeedback(HapticFeedbackType.Confirm)
-                                                    deletingConfig = config
-                                                    showDeleteDialog = true
-                                                }
-                                                .padding(horizontal = 16.dp, vertical = 8.dp),
-                                            contentAlignment = Alignment.Center
-                                        ) {
-                                            Icon(
-                                                imageVector = MiuixIcons.Delete,
-                                                contentDescription = "删除",
-                                                modifier = Modifier.size(22.dp),
-                                                tint = Color(0xFFF44336)
-                                            )
-                                        }
+                                    // 删除按钮（仅非当前配置可删除，带滑入+淡入动画）
+                                    val deleteOffsetX by animateDpAsState(
+                                        targetValue = if (!isSelected) 0.dp else 62.dp,
+                                        animationSpec = tween(durationMillis = 250)
+                                    )
+                                    val deleteAlpha by animateFloatAsState(
+                                        targetValue = if (!isSelected) 1f else 0f,
+                                        animationSpec = tween(durationMillis = 200)
+                                    )
+                                    Box(
+                                        modifier = Modifier
+                                            .align(Alignment.CenterEnd)
+                                            .offset(x = deleteOffsetX)
+                                            .graphicsLayer { alpha = deleteAlpha }
+                                            .height(38.dp)
+                                            .clip(com.kyant.shapes.RoundedRectangle(20.dp))
+                                            .background(if (isAppDarkTheme()) Color(0xFF363636) else Color(0xFFF0F0F0))
+                                            .clickable(enabled = !isSelected) {
+                                                hapticFeedback.performHapticFeedback(HapticFeedbackType.Confirm)
+                                                deletingConfig = config
+                                                showDeleteDialog = true
+                                            }
+                                            .padding(horizontal = 16.dp, vertical = 8.dp),
+                                        contentAlignment = Alignment.Center
+                                    ) {
+                                        Icon(
+                                            imageVector = MiuixIcons.Delete,
+                                            contentDescription = "删除",
+                                            modifier = Modifier.size(22.dp),
+                                            tint = Color(0xFFF44336)
+                                        )
                                     }
                                 }
                             }
@@ -398,12 +460,9 @@ fun CourseTimeSettingsScreen(
                     onClick = {
                         hapticFeedback.performHapticFeedback(HapticFeedbackType.Confirm)
                         deletingConfig?.let { config ->
-                            repository.deleteTimeConfig(config.id)
-                            refreshList()
-                            Toast.makeText(context, "已删除「${config.name}」", Toast.LENGTH_SHORT).show()
+                            deletingConfigId = config.id
+                            showDeleteDialog = false
                         }
-                        showDeleteDialog = false
-                        deletingConfig = null
                     },
                     colors = ButtonDefaults.textButtonColorsPrimary(),
                     modifier = Modifier.weight(1f)

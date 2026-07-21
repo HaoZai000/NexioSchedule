@@ -21,6 +21,7 @@ import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.unit.dp
 import androidx.compose.runtime.key
+import androidx.compose.runtime.remember
 import com.haooz.chedule.data.Course
 import com.haooz.chedule.ui.utils.isAppDarkTheme
 import com.kyant.shapes.RoundedRectangle
@@ -75,6 +76,16 @@ fun DayColumn(
     val isPendingDay = pendingDay == dayOfWeek
     val hapticFeedback = LocalHapticFeedback.current
 
+    val occupiedSections = remember(courses) {
+        buildSet {
+            courses.forEach { course ->
+                for (s in course.startSection..course.endSection) {
+                    add(s)
+                }
+            }
+        }
+    }
+
     Box(
         modifier = modifier
             .height(totalHeight.dp)
@@ -88,15 +99,18 @@ fun DayColumn(
 
             // 上午节次
             for (section in 1..morningSections) {
-                val isSectionPending = isPendingDay && pendingSection == section
+                val isOccupied = section in occupiedSections
+                val isSectionPending = isPendingDay && pendingSection == section && !isOccupied
                 Box(
                     modifier = Modifier
                         .fillMaxWidth()
                         .height(cardHeightPerSection.dp)
                         .offset(y = currentOffset.dp)
                         .then(
-                            if (!isSectionPending) {
+                            if (!isSectionPending && !isOccupied) {
                                 Modifier.combinedClickable(
+                                    indication = null,
+                                    interactionSource = remember { androidx.compose.foundation.interaction.MutableInteractionSource() },
                                     onClick = {
                                         onPendingChange(dayOfWeek, section)
                                     },
@@ -119,7 +133,7 @@ fun DayColumn(
                                         .fillMaxSize()
                                         .padding(horizontal = 2.dp, vertical = 2.dp)
                                         .textureBlur(
-                                            backdrop = wallpaperBackdrop!!,
+                                            backdrop = wallpaperBackdrop,
                                             shape = RoundedRectangle(cardCornerRadius.dp),
                                             blurRadius = cardBlurRadius,
                                             colors = emptyCardBlurColors!!
@@ -208,15 +222,18 @@ fun DayColumn(
             val afternoonStart = morningSections + 1
             val afternoonEnd = morningSections + afternoonSections
             for (section in afternoonStart..afternoonEnd) {
-                val isSectionPending = isPendingDay && pendingSection == section
+                val isOccupied = section in occupiedSections
+                val isSectionPending = isPendingDay && pendingSection == section && !isOccupied
                 Box(
                     modifier = Modifier
                         .fillMaxWidth()
                         .height(cardHeightPerSection.dp)
                         .offset(y = currentOffset.dp)
                         .then(
-                            if (!isSectionPending) {
+                            if (!isSectionPending && !isOccupied) {
                                 Modifier.combinedClickable(
+                                    indication = null,
+                                    interactionSource = remember { androidx.compose.foundation.interaction.MutableInteractionSource() },
                                     onClick = {
                                         onPendingChange(dayOfWeek, section)
                                     },
@@ -239,7 +256,7 @@ fun DayColumn(
                                         .fillMaxSize()
                                         .padding(horizontal = 2.dp, vertical = 2.dp)
                                         .textureBlur(
-                                            backdrop = wallpaperBackdrop!!,
+                                            backdrop = wallpaperBackdrop,
                                             shape = RoundedRectangle(cardCornerRadius.dp),
                                             blurRadius = cardBlurRadius,
                                             colors = emptyCardBlurColors!!
@@ -327,15 +344,18 @@ fun DayColumn(
             val eveningStart = morningSections + afternoonSections + 1
             val eveningEnd = morningSections + afternoonSections + eveningSections
             for (section in eveningStart..eveningEnd) {
-                val isSectionPending = isPendingDay && pendingSection == section
+                val isOccupied = section in occupiedSections
+                val isSectionPending = isPendingDay && pendingSection == section && !isOccupied
                 Box(
                     modifier = Modifier
                         .fillMaxWidth()
                         .height(cardHeightPerSection.dp)
                         .offset(y = currentOffset.dp)
                         .then(
-                            if (!isSectionPending) {
+                            if (!isSectionPending && !isOccupied) {
                                 Modifier.combinedClickable(
+                                    indication = null,
+                                    interactionSource = remember { androidx.compose.foundation.interaction.MutableInteractionSource() },
                                     onClick = {
                                         onPendingChange(dayOfWeek, section)
                                     },
@@ -358,7 +378,7 @@ fun DayColumn(
                                         .fillMaxSize()
                                         .padding(horizontal = 2.dp, vertical = 2.dp)
                                         .textureBlur(
-                                            backdrop = wallpaperBackdrop!!,
+                                            backdrop = wallpaperBackdrop,
                                             shape = RoundedRectangle(cardCornerRadius.dp),
                                             blurRadius = cardBlurRadius,
                                             colors = emptyCardBlurColors!!
@@ -473,8 +493,8 @@ fun DayColumn(
                     var segStart = course.startSection
                     while (segStart <= course.endSection) {
                         var segEnd = course.endSection
-                        if (segStart <= lunchBreak && segEnd > lunchBreak) segEnd = lunchBreak
-                        if (segStart <= dinnerBreak && segEnd > dinnerBreak) segEnd = dinnerBreak
+                        if (lunchBreak in segStart..<segEnd) segEnd = lunchBreak
+                        if (dinnerBreak in segStart..<segEnd) segEnd = dinnerBreak
                         segments.add(segStart to segEnd)
                         segStart = segEnd + 1
                     }

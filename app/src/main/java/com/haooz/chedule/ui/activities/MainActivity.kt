@@ -1274,15 +1274,10 @@ fun CourseScheduleApp() {
                     } else {
                         when (selectedTab) {
                             0 -> ShiftScheduleScreen(
-                                viewModel = viewModel,
                                 shiftViewModel = shiftViewModel,
                                 settingsViewModel = settingsViewModel,
-                                currentDayOfWeek = currentDayOfWeek,
                                 pagerState = pagerState,
                                 cardHeightPerSection = courseCardHeight,
-                                wallpaperBitmap = wallpaperBitmap,
-                                wallpaperOffset = wallpaperOffset,
-                                wallpaperScale = wallpaperScale
                             )
 
                             1 -> SettingsScreen(
@@ -1340,7 +1335,8 @@ fun CourseScheduleApp() {
                     Box(
                         modifier = Modifier
                             .fillMaxSize()
-                            .padding(end = 20.dp, bottom = 28.dp),
+                            .padding(end = 20.dp, bottom = 28.dp)
+                            .zIndex(1f),
                         contentAlignment = Alignment.BottomEnd
                     ) {
                         LiquidAddButton(
