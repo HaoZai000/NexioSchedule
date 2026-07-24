@@ -1,6 +1,7 @@
 /** 课程管理页面 - Screen */
 package com.haooz.chedule.ui.activities
 
+import android.content.res.Configuration
 import android.graphics.Bitmap
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
@@ -37,6 +38,7 @@ import androidx.compose.ui.graphics.lerp
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.layout.onGloballyPositioned
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -94,6 +96,12 @@ fun CourseManageScreen(
     val isDark = isAppDarkTheme()
     val appStyle = rememberAppStyle()
     val isLiquidGlass = appStyle == "liquidglass" && liquidGlassBackdrop != null
+    val isTablet = (LocalConfiguration.current.screenLayout and Configuration.SCREENLAYOUT_SIZE_MASK) in
+            listOf(Configuration.SCREENLAYOUT_SIZE_LARGE, Configuration.SCREENLAYOUT_SIZE_XLARGE)
+    val tabletHorizontalPadding = if (isTablet) {
+        val screenWidthDp = LocalConfiguration.current.screenWidthDp
+        ((screenWidthDp - 600).coerceIn(0, 600) / 600f * 112 + 16).dp
+    } else 16.dp
     val blurAlpha = if (!isLiquidGlass) {
         if (listScrollY < 50) 0f else ((listScrollY - 50) / 30f).coerceIn(0f, 0.7f)
     } else 0f
@@ -195,9 +203,9 @@ fun CourseManageScreen(
                                 if (!isLiquidGlass) Modifier.nestedScroll(scrollBehavior.nestedScrollConnection) else Modifier
                             ),
                         contentPadding = PaddingValues(
-                            start = 16.dp,
+                            start = tabletHorizontalPadding,
                             top = if (isLiquidGlass) paddingValues.calculateTopPadding() + 64.dp else paddingValues.calculateTopPadding() + 8.dp,
-                            end = 16.dp,
+                            end = tabletHorizontalPadding,
                             bottom = 60.dp
                         ),
                         horizontalArrangement = Arrangement.spacedBy(12.dp),

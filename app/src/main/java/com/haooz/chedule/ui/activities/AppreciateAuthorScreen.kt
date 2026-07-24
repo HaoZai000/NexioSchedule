@@ -1,6 +1,7 @@
 /** 赞赏作者页面 - Screen */
 package com.haooz.chedule.ui.activities
 
+import android.content.res.Configuration
 import com.haooz.chedule.R
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
@@ -33,6 +34,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.haooz.chedule.ui.utils.rememberAppStyle
@@ -67,12 +69,18 @@ fun AppreciateAuthorScreen(onBack: () -> Unit) {
     }
     val appStyleValue = rememberAppStyle()
     val isLiquidGlass = appStyleValue == "liquidglass"
+    val isTablet = (LocalConfiguration.current.screenLayout and Configuration.SCREENLAYOUT_SIZE_MASK) in
+            listOf(Configuration.SCREENLAYOUT_SIZE_LARGE, Configuration.SCREENLAYOUT_SIZE_XLARGE)
+    val tabletHorizontalPadding = if (isTablet) {
+        val screenWidthDp = LocalConfiguration.current.screenWidthDp
+        ((screenWidthDp - 600).coerceIn(0, 600) / 600f * 112 + 16).dp
+    } else 16.dp
 
     Scaffold(
         topBar = {
             if (!isLiquidGlass) {
                 TopAppBar(
-                    title = "赞赏作者",
+                    title = "捐赠支持",
                     scrollBehavior = scrollBehavior,
                     navigationIcon = {
                         IconButton(
@@ -114,8 +122,8 @@ fun AppreciateAuthorScreen(onBack: () -> Unit) {
                         if (!isLiquidGlass) Modifier.nestedScroll(scrollBehavior.nestedScrollConnection) else Modifier
                     ),
                 contentPadding = PaddingValues(
-                    start = 16.dp,
-                    end = 16.dp,
+                    start = tabletHorizontalPadding,
+                    end = tabletHorizontalPadding,
                     top = if (isLiquidGlass) paddingValues.calculateTopPadding() + 64.dp else paddingValues.calculateTopPadding() + 8.dp,
                     bottom = 60.dp
                 ),
@@ -148,7 +156,7 @@ fun AppreciateAuthorScreen(onBack: () -> Unit) {
                 if (sampleAppreciations.isNotEmpty()) {
                     item {
                         SmallTitle(
-                            text = "赞赏明细",
+                            text = "捐赠明细",
                             modifier = Modifier.offset(x = (-16).dp)
                         )
                         Card(
@@ -211,12 +219,21 @@ private fun AppreciationListItem(item: AppreciationItem) {
                 fontSize = 15.sp,
                 color = MiuixTheme.colorScheme.onSurface
             )
+            if (item.remark.isNotEmpty()) {
+                Spacer(modifier = Modifier.height(2.dp))
+                Text(
+                    text = item.remark,
+                    fontSize = 12.sp,
+                    color = MiuixTheme.colorScheme.onSurfaceVariantActions
+                )
+            }
             Spacer(modifier = Modifier.height(2.dp))
             Text(
                 text = item.time,
                 fontSize = 12.sp,
                 color = MiuixTheme.colorScheme.onSurfaceVariantActions
             )
+
         }
 
         Text(

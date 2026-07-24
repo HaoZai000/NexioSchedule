@@ -1,6 +1,7 @@
 /** WebDAV 备份/恢复设置页面 - Screen */
 package com.haooz.chedule.ui.activities
 
+import android.content.res.Configuration
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -34,6 +35,7 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.input.nestedscroll.nestedScroll
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.text.TextStyle
@@ -145,6 +147,12 @@ fun WebDavSettingsScreen(onBack: () -> Unit, onConnectedChange: (Boolean) -> Uni
     }
     val appStyleValue = rememberAppStyle()
     val isLiquidGlass = appStyleValue == "liquidglass"
+    val isTablet = (LocalConfiguration.current.screenLayout and Configuration.SCREENLAYOUT_SIZE_MASK) in
+            listOf(Configuration.SCREENLAYOUT_SIZE_LARGE, Configuration.SCREENLAYOUT_SIZE_XLARGE)
+    val tabletHorizontalPadding = if (isTablet) {
+        val screenWidthDp = LocalConfiguration.current.screenWidthDp
+        ((screenWidthDp - 600).coerceIn(0, 600) / 600f * 112 + 16).dp
+    } else 16.dp
 
     val doTestConnection = {
         if (!testing) {
@@ -255,8 +263,8 @@ fun WebDavSettingsScreen(onBack: () -> Unit, onConnectedChange: (Boolean) -> Uni
                         if (!isLiquidGlass) Modifier.nestedScroll(scrollBehavior.nestedScrollConnection) else Modifier
                     ),
                 contentPadding = PaddingValues(
-                    start = 16.dp,
-                    end = 16.dp,
+                    start = tabletHorizontalPadding,
+                    end = tabletHorizontalPadding,
                     top = if (isLiquidGlass) paddingValues.calculateTopPadding() + 64.dp else paddingValues.calculateTopPadding(),
                     bottom = 120.dp
                 ),
@@ -501,7 +509,7 @@ fun WebDavSettingsScreen(onBack: () -> Unit, onConnectedChange: (Boolean) -> Uni
                 modifier = Modifier
                     .align(Alignment.BottomCenter)
                     .fillMaxWidth()
-                    .padding(start = 24.dp, end = 24.dp, bottom = 48.dp),
+                    .padding(start = tabletHorizontalPadding + 8.dp, end = tabletHorizontalPadding + 8.dp, bottom = 48.dp),
                 horizontalArrangement = Arrangement.spacedBy(12.dp)
             ) {
                 // 备份按钮

@@ -1,6 +1,7 @@
 /** 备份与迁移页面 - Screen */
 package com.haooz.chedule.ui.activities
 
+import android.content.res.Configuration
 import android.content.Intent
 import android.widget.Toast
 import androidx.activity.compose.rememberLauncherForActivityResult
@@ -30,6 +31,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.input.nestedscroll.nestedScroll
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.unit.dp
@@ -80,6 +82,12 @@ fun BackupAndMigrationScreen(
     val coroutineScope = rememberCoroutineScope()
 
     val isLiquidGlass = liquidGlassBackdrop != null
+    val isTablet = (LocalConfiguration.current.screenLayout and Configuration.SCREENLAYOUT_SIZE_MASK) in
+            listOf(Configuration.SCREENLAYOUT_SIZE_LARGE, Configuration.SCREENLAYOUT_SIZE_XLARGE)
+    val tabletHorizontalPadding = if (isTablet) {
+        val screenWidthDp = LocalConfiguration.current.screenWidthDp
+        ((screenWidthDp - 600).coerceIn(0, 600) / 600f * 112 + 16).dp
+    } else 16.dp
     val scrollBehavior = MiuixScrollBehavior()
 
     val webDavManager = remember { WebDavManager(context) }
@@ -233,8 +241,8 @@ fun BackupAndMigrationScreen(
                     if (!isLiquidGlass) Modifier.nestedScroll(scrollBehavior.nestedScrollConnection) else Modifier
                 ),
             contentPadding = PaddingValues(
-                start = 16.dp,
-                end = 16.dp,
+                start = tabletHorizontalPadding,
+                end = tabletHorizontalPadding,
                 top = if (isLiquidGlass) paddingValues.calculateTopPadding() + 56.dp else paddingValues.calculateTopPadding(),
                 bottom = 60.dp
             ),
@@ -511,6 +519,7 @@ private fun buildExportIcs(
             val weeks = course.selectedWeeks.ifEmpty {
                 (course.startWeek..course.endWeek).toList()
             }
+            if (weeks.isEmpty()) continue
 
             val sectionTimes = settingsViewModel.sectionTimes.value
             val startSectionTime = sectionTimes[course.startSection] ?: continue
@@ -521,24 +530,39 @@ private fun buildExportIcs(
             val endHour = endSectionTime.substringAfter("-").substringBefore(":").toIntOrNull() ?: 9
             val endMinute = endSectionTime.substringAfter("-").substringAfter(":").toIntOrNull() ?: 0
 
-            for (week in weeks) {
-                val calendar = Calendar.getInstance()
-                val dateStr = classStartTime.replace("/", "-")
-                val parts = dateStr.split("-")
-                if (parts.size == 3) {
-                    calendar.set(parts[0].toIntOrNull() ?: 2025, (parts[1].toIntOrNull() ?: 9) - 1, parts[2].toIntOrNull() ?: 1, 0, 0, 0)
-                    calendar.set(Calendar.MILLISECOND, 0)
-                }
-                calendar.add(Calendar.WEEK_OF_YEAR, week - 1)
-                calendar.set(Calendar.DAY_OF_WEEK, course.dayOfWeek + 1)
-                calendar.set(Calendar.HOUR_OF_DAY, startHour)
-                calendar.set(Calendar.MINUTE, startMinute)
-                calendar.set(Calendar.SECOND, 0)
-                val eventStart = calendar.time
+            // 解析开学日期
+            val dateStr = classStartTime.replace("/", "-")
+            val parts = dateStr.split("-")
+            if (parts.size < 3) continue
+            val semYear = parts[0].toIntOrNull() ?: 2025
+            val semMonth = (parts[1].toIntOrNull() ?: 9) - 1
+            val semDay = parts[2].toIntOrNull() ?: 1
 
-                calendar.set(Calendar.HOUR_OF_DAY, endHour)
-                calendar.set(Calendar.MINUTE, endMinute)
-                val eventEnd = calendar.time
+            // 找到开学日期所在周的周一（第1周的起始日）
+            val semCal = Calendar.getInstance()
+            semCal.set(semYear, semMonth, semDay, 0, 0, 0)
+            semCal.set(Calendar.MILLISECOND, 0)
+            val semDayOfWeek = semCal.get(Calendar.DAY_OF_WEEK) // Sunday=1, Monday=2, ...
+            val daysToMonday = (semDayOfWeek - Calendar.MONDAY + 7) % 7
+            val week1Monday = semCal.clone() as Calendar
+            week1Monday.add(Calendar.DAY_OF_MONTH, -daysToMonday)
+
+            // 为每个周次生成独立的 VEVENT（避免非连续周的 RRULE 问题）
+            for (week in weeks) {
+                // 目标日期 = 第1周周一 + (week-1)周 + 课程星期偏移
+                val targetDate = week1Monday.clone() as Calendar
+                targetDate.add(Calendar.WEEK_OF_YEAR, week - 1)
+                // course.dayOfWeek: 1=周一, 7=周日 → Calendar: Monday=2, Sunday=1
+                targetDate.set(Calendar.DAY_OF_WEEK, course.dayOfWeek + 1)
+
+                targetDate.set(Calendar.HOUR_OF_DAY, startHour)
+                targetDate.set(Calendar.MINUTE, startMinute)
+                targetDate.set(Calendar.SECOND, 0)
+                val eventStart = targetDate.time
+
+                targetDate.set(Calendar.HOUR_OF_DAY, endHour)
+                targetDate.set(Calendar.MINUTE, endMinute)
+                val eventEnd = targetDate.time
 
                 val uid = "${course.id}-${week}@nexio-schedule"
 

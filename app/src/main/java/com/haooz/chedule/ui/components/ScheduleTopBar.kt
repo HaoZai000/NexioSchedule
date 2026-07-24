@@ -287,8 +287,8 @@ internal fun ScheduleTopBar(
                                 onShowMorePopupChange(true)
                             },
                             backdrop = liquidGlassBackdrop,
-                            buttonHeight = if (navBarStyle == "rail") 38.dp else 40.dp,
-                            modifier = if (navBarStyle == "rail") Modifier.padding(top = 4.dp) else Modifier
+                            buttonHeight = 40.dp,
+                            modifier = Modifier
                         )
                     } else {
                         IconButton(

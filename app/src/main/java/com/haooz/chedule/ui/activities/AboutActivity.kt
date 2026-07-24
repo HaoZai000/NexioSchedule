@@ -3,6 +3,7 @@ package com.haooz.chedule.ui.activities
 
 import android.annotation.SuppressLint
 import android.content.Intent
+import android.content.res.Configuration
 import android.graphics.Canvas
 import android.os.Bundle
 import androidx.activity.ComponentActivity
@@ -53,6 +54,7 @@ import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.input.nestedscroll.nestedScroll
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.platform.LocalUriHandler
@@ -132,6 +134,12 @@ private fun AboutScreen(onBack: () -> Unit) {
     val isInDark = isAppDarkTheme()
     val appStyle = rememberAppStyle()
     val isLiquidGlass = appStyle == "liquidglass"
+    val isTablet = (LocalConfiguration.current.screenLayout and Configuration.SCREENLAYOUT_SIZE_MASK) in
+            listOf(Configuration.SCREENLAYOUT_SIZE_LARGE, Configuration.SCREENLAYOUT_SIZE_XLARGE)
+    val tabletHorizontalPadding = if (isTablet) {
+        val screenWidthDp = LocalConfiguration.current.screenWidthDp
+        ((screenWidthDp - 600).coerceIn(0, 600) / 600f * 128).dp
+    } else 0.dp
     val liquidGlassBackdrop = if (isLiquidGlass) {
         com.kyant.backdrop.backdrops.rememberLayerBackdrop()
     } else null
@@ -405,9 +413,9 @@ private fun AboutScreen(onBack: () -> Unit) {
                                     ) -8.dp else (-20).dp
                                 } else 12.dp,
                         start = WindowInsets.displayCutout.asPaddingValues()
-                            .calculateLeftPadding(LayoutDirection.Ltr),
+                            .calculateLeftPadding(LayoutDirection.Ltr) + tabletHorizontalPadding,
                         end = WindowInsets.displayCutout.asPaddingValues()
-                            .calculateRightPadding(LayoutDirection.Ltr),
+                            .calculateRightPadding(LayoutDirection.Ltr) + tabletHorizontalPadding,
                     ),
                 ) {
                     item(key = "logoSpacer") {

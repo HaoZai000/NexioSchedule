@@ -64,7 +64,7 @@ class AppreciateAuthorActivity : ComponentActivity() {
                             ) {
                                 SmallTopAppBar(
                                     color = Color.Transparent,
-                                    title = "赞赏作者",
+                                    title = "捐赠支持",
                                     modifier = Modifier.zIndex(1f),
                                     navigationIcon = {}
                                 )

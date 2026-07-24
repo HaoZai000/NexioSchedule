@@ -319,6 +319,10 @@ class CourseManageActivity : ComponentActivity() {
                             onCourseUpdated = { course ->
                                 courseViewModel.updateCourse(course)
                             },
+                            onDeleteCourse = { courseId ->
+                                courseViewModel.deleteCourse(courseId)
+                                selectedCourses = selectedCourses.filter { it.id != courseId }
+                            },
                             onColorChanged = { colorRes ->
                                 cardColor = Color(colorRes)
                             },

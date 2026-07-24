@@ -9,6 +9,7 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -39,28 +40,56 @@ import kotlin.time.Duration.Companion.milliseconds
 
 // ===================== 天气工具 =====================
 
-private fun getWeatherEmoji(code: Int): String = when (code) {
-    0 -> "\u2600\uFE0F"           // 晴
-    1, 2, 3 -> "\u26C5\uFE0F"    // 多云
-    45, 48 -> "\uD83C\uDF2B\uFE0F"  // 雾
-    51, 53, 55 -> "\uD83C\uDF26\uFE0F"  // 毛毛雨
-    61, 63, 65 -> "\uD83C\uDF27\uFE0F"  // 小到大雨
-    71, 73, 75 -> "\uD83C\uDF28\uFE0F"  // 雪
-    80, 81, 82 -> "\uD83C\uDF29\uFE0F"  // 阵雨
-    95, 96, 99 -> "\u26C8\uFE0F"  // 雷暴
-    else -> "\uD83C\uDF21\uFE0F"
+import com.haooz.chedule.R
+
+private fun getWeatherIconRes(code: Int, isNight: Boolean = false): Int = when (code) {
+    0 -> if (isNight) R.drawable.icon_sunny_night else R.drawable.icon_sunny
+    1 -> if (isNight) R.drawable.icon_sunny_night else R.drawable.icon_sunny
+    2 -> if (isNight) R.drawable.icon_cloudy_night else R.drawable.icon_cloudy
+    3 -> R.drawable.icon_overcast
+    45, 48 -> R.drawable.icon_float_dirt
+    51, 53, 55 -> R.drawable.icon_light_rain
+    56, 57 -> R.drawable.icon_ice_rain
+    61 -> R.drawable.icon_light_rain
+    63 -> R.drawable.icon_moderate_rain
+    65 -> R.drawable.icon_heavy_rain
+    66, 67 -> R.drawable.icon_ice_rain
+    71 -> R.drawable.icon_light_snow
+    73 -> R.drawable.icon_moderate_snow
+    75 -> R.drawable.icon_heavy_snow
+    77 -> R.drawable.icon_light_snow
+    80 -> R.drawable.icon_light_rain
+    81 -> R.drawable.icon_moderate_rain
+    82 -> R.drawable.icon_heavy_rain
+    85 -> R.drawable.icon_light_snow
+    86 -> R.drawable.icon_heavy_snow
+    95, 96, 99 -> R.drawable.icon_t_storm
+    else -> if (isNight) R.drawable.icon_sunny_night else R.drawable.icon_sunny
 }
 
 private fun isRainy(code: Int): Boolean = code in 51..67 || code in 80..82
 
 private fun getWeatherCondition(code: Int): String = when (code) {
     0 -> "晴天"
-    1, 2, 3 -> "多云"
+    1 -> "大部晴朗"
+    2 -> "局部多云"
+    3 -> "阴天"
     45, 48 -> "雾"
-    51, 53, 55 -> "小雨"
-    61, 63, 65 -> "中到大雨"
-    71, 73, 75 -> "雪"
-    80, 81, 82 -> "阵雨"
+    51, 53, 55 -> "毛毛雨"
+    56, 57 -> "冻雨"
+    61 -> "小雨"
+    63 -> "中雨"
+    65 -> "大雨"
+    66, 67 -> "冻雨"
+    71 -> "小雪"
+    73 -> "中雪"
+    75 -> "大雪"
+    77 -> "雪粒"
+    80 -> "小阵雨"
+    81 -> "中阵雨"
+    82 -> "暴阵雨"
+    85 -> "小阵雪"
+    86 -> "大阵雪"
     95, 96, 99 -> "雷暴"
     else -> "未知"
 }
@@ -91,21 +120,44 @@ private val httpClient = OkHttpClient.Builder()
 
 // ===================== 天气数据 =====================
 
+private var lastWeatherFetchTime = 0L
+private var cachedWeather: WeatherData? = null
+private const val WEATHER_REFRESH_INTERVAL = 2 * 60 * 1000L // 2分钟
+
 private data class WeatherData(
     val temperature: Float = Float.NaN,
     val weatherCode: Int = -1,
+    val sunset: String = "",
+    val sunrise: String = "",
     val loaded: Boolean = false
-)
+) {
+    fun isNight(): Boolean {
+        if (sunset.isBlank() || sunrise.isBlank()) return false
+        val now = LocalTime.now()
+        val sunsetTime = parseTime(sunset.substringAfter("T")) ?: return false
+        val sunriseTime = parseTime(sunrise.substringAfter("T")) ?: return false
+        return now.isAfter(sunsetTime) || now.isBefore(sunriseTime)
+    }
+}
 
 @Composable
 private fun rememberWeather(): WeatherData {
-    var weather by remember { mutableStateOf(WeatherData()) }
+    var weather by remember { mutableStateOf(cachedWeather ?: WeatherData()) }
     LaunchedEffect(Unit) {
+        val now = System.currentTimeMillis()
+        if (now - lastWeatherFetchTime < WEATHER_REFRESH_INTERVAL && cachedWeather != null) {
+            weather = cachedWeather!!
+            return@LaunchedEffect
+        }
+        lastWeatherFetchTime = now
         withContext(Dispatchers.IO) {
             try {
                 val url = "https://api.open-meteo.com/v1/forecast" +
                     "?latitude=23.585&longitude=116.459" +
-                    "&current=temperature_2m,weathercode"
+                    "&current=temperature_2m,weathercode" +
+                    "&daily=sunset,sunrise" +
+                    "&timezone=Asia/Shanghai" +
+                    "&forecast_days=1"
                 val request = Request.Builder().url(url).build()
                 val response = httpClient.newCall(request).execute()
                 response.use { resp ->
@@ -116,10 +168,22 @@ private fun rememberWeather(): WeatherData {
                     val current = json["current"] as? Map<String, Any> ?: return@use
                     val temp = (current["temperature_2m"] as? Number)?.toFloat() ?: Float.NaN
                     val code = (current["weathercode"] as? Number)?.toInt() ?: -1
-                    weather = WeatherData(temp, code, true)
+                    @Suppress("UNCHECKED_CAST")
+                    val daily = json["daily"] as? Map<String, Any> ?: return@use
+                    @Suppress("UNCHECKED_CAST")
+                    val sunsetList = daily["sunset"] as? List<String> ?: emptyList()
+                    @Suppress("UNCHECKED_CAST")
+                    val sunriseList = daily["sunrise"] as? List<String> ?: emptyList()
+                    val sunset = sunsetList.firstOrNull() ?: ""
+                    val sunrise = sunriseList.firstOrNull() ?: ""
+                    val newData = WeatherData(temp, code, sunset, sunrise, true)
+                    cachedWeather = newData
+                    weather = newData
                 }
             } catch (_: Exception) {
-                weather = WeatherData(loaded = true)
+                val errorData = WeatherData(loaded = true)
+                cachedWeather = errorData
+                weather = errorData
             }
         }
     }
@@ -380,17 +444,7 @@ fun TodayAssistantCard(
             )
             Spacer(modifier = Modifier.height(2.dp))
             // 智能提示 + 天气
-            val weatherLine = if (weather.loaded && !weather.temperature.isNaN()) {
-                val condition = getWeatherCondition(weather.weatherCode)
-                val advice = getWeatherAdvice(weather.temperature, weather.weatherCode)
-                "${getWeatherEmoji(weather.weatherCode)} ${weather.temperature.toInt()}°C $condition · $advice"
-            } else if (weather.loaded) {
-                "加载中..."
-            } else {
-                "⏳ __℃ · 加载中..."
-            }
-
-            if (smartTip.isNotBlank() || weatherLine.isNotBlank()) {
+            if (smartTip.isNotBlank() || true) {
                 Column(
                     modifier = Modifier
                         .fillMaxWidth()
@@ -404,12 +458,38 @@ fun TodayAssistantCard(
                             color = MiuixTheme.colorScheme.onSurface
                         )
                     }
-                    if (weatherLine.isNotBlank()) {
-                        Text(
-                            text = weatherLine,
-                            style = MiuixTheme.textStyles.body2,
-                            color = MiuixTheme.colorScheme.onSurfaceVariantActions
-                        )
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        if (weather.loaded && !weather.temperature.isNaN()) {
+                            androidx.compose.foundation.Image(
+                                painter = androidx.compose.ui.res.painterResource(
+                                    id = getWeatherIconRes(weather.weatherCode, weather.isNight())
+                                ),
+                                contentDescription = null,
+                                modifier = Modifier.size(20.dp)
+                            )
+                            Spacer(modifier = Modifier.width(6.dp))
+                            val condition = getWeatherCondition(weather.weatherCode)
+                            val advice = getWeatherAdvice(weather.temperature, weather.weatherCode)
+                            Text(
+                                text = "${weather.temperature.toInt()}°C $condition · $advice",
+                                style = MiuixTheme.textStyles.body2,
+                                color = MiuixTheme.colorScheme.onSurfaceVariantActions
+                            )
+                        } else {
+                            androidx.compose.foundation.Image(
+                                painter = androidx.compose.ui.res.painterResource(
+                                    id = R.drawable.icon_overcast
+                                ),
+                                contentDescription = null,
+                                modifier = Modifier.size(20.dp)
+                            )
+                            Spacer(modifier = Modifier.width(6.dp))
+                            Text(
+                                text = "加载中...",
+                                style = MiuixTheme.textStyles.body2,
+                                color = MiuixTheme.colorScheme.onSurfaceVariantActions
+                            )
+                        }
                     }
                 }
             }

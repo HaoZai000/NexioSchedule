@@ -42,6 +42,7 @@ import androidx.compose.ui.graphics.lerp
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.layout.onGloballyPositioned
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.text.font.FontWeight
@@ -314,6 +315,10 @@ fun TodayScreen(
 
     val appStyle = rememberAppStyle()
     val isLiquidGlass = appStyle == "liquidglass" && liquidGlassBackdrop != null
+    val tabletHorizontalPadding = if (navBarStyle == "rail") {
+        val screenWidthDp = LocalConfiguration.current.screenWidthDp
+        ((screenWidthDp - 600).coerceIn(0, 600) / 600f * 112 + 16).dp
+    } else 16.dp
 
     // HyperOS 模式需要的变量
     val scrollBehavior = if (!isLiquidGlass) settingsScrollBehavior else null
@@ -487,9 +492,9 @@ fun TodayScreen(
                             if (scrollBehavior != null) Modifier.nestedScroll(scrollBehavior.nestedScrollConnection) else Modifier
                         ),
                     contentPadding = PaddingValues(
-                        start = 16.dp,
+                        start = tabletHorizontalPadding,
                         top = if (isLiquidGlass) paddingValues.calculateTopPadding() + 56.dp else paddingValues.calculateTopPadding(),
-                        end = 16.dp,
+                        end = tabletHorizontalPadding,
                         bottom = 120.dp
                     ),
                     verticalArrangement = Arrangement.spacedBy(12.dp)

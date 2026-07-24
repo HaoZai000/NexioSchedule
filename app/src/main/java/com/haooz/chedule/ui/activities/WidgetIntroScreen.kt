@@ -1,6 +1,7 @@
 /** 小组件使用引导页面 - Screen */
 package com.haooz.chedule.ui.activities
 
+import android.content.res.Configuration
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
@@ -32,6 +33,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.input.nestedscroll.nestedScroll
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
@@ -64,6 +66,12 @@ fun WidgetIntroScreen(onBack: () -> Unit, liquidGlassBackdrop: com.kyant.backdro
     var showGuideDialog by remember { mutableStateOf(false) }
     val appStyle = rememberAppStyle()
     val isLiquidGlass = appStyle == "liquidglass"
+    val isTablet = (LocalConfiguration.current.screenLayout and Configuration.SCREENLAYOUT_SIZE_MASK) in
+            listOf(Configuration.SCREENLAYOUT_SIZE_LARGE, Configuration.SCREENLAYOUT_SIZE_XLARGE)
+    val tabletHorizontalPadding = if (isTablet) {
+        val screenWidthDp = LocalConfiguration.current.screenWidthDp
+        ((screenWidthDp - 600).coerceIn(0, 600) / 600f * 112 + 16).dp
+    } else 16.dp
     val scrollBehavior = MiuixScrollBehavior()
     val backdropColor = MiuixTheme.colorScheme.surface
     val backdrop = rememberLayerBackdrop {
@@ -105,7 +113,7 @@ fun WidgetIntroScreen(onBack: () -> Unit, liquidGlassBackdrop: com.kyant.backdro
                         if (isLiquidGlass) Modifier
                         else Modifier.padding(top = paddingValues.calculateTopPadding())
                     )
-                    .padding(horizontal = 16.dp)
+                    .padding(horizontal = tabletHorizontalPadding)
                     .overScrollVertical()
                     .then(
                         if (!isLiquidGlass) Modifier.nestedScroll(scrollBehavior.nestedScrollConnection) else Modifier
@@ -199,7 +207,7 @@ fun WidgetIntroScreen(onBack: () -> Unit, liquidGlassBackdrop: com.kyant.backdro
                 modifier = Modifier
                     .align(Alignment.BottomCenter)
                     .fillMaxWidth()
-                    .padding(start = 32.dp, end = 32.dp, bottom = 48.dp)
+                    .padding(start = tabletHorizontalPadding + 16.dp, end = tabletHorizontalPadding + 16.dp, bottom = 48.dp)
             )
 
             OverlayDialog(

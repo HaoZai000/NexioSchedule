@@ -3,9 +3,13 @@ package com.haooz.chedule.ui.screens
 
 import android.graphics.Bitmap
 import androidx.activity.compose.BackHandler
+import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.CubicBezierEasing
 import androidx.compose.animation.core.tween
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.shrinkVertically
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -78,6 +82,7 @@ import com.kyant.shapes.RoundedRectangle
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
+import top.yukonga.miuix.kmp.basic.Button
 import top.yukonga.miuix.kmp.basic.ButtonDefaults
 import top.yukonga.miuix.kmp.basic.Card
 import top.yukonga.miuix.kmp.basic.CardDefaults
@@ -102,6 +107,7 @@ import top.yukonga.miuix.kmp.blur.textureBlur
 import top.yukonga.miuix.kmp.icon.MiuixIcons
 import top.yukonga.miuix.kmp.icon.extended.Add
 import top.yukonga.miuix.kmp.icon.extended.Close
+import top.yukonga.miuix.kmp.icon.extended.Delete
 import top.yukonga.miuix.kmp.icon.extended.Ok
 import top.yukonga.miuix.kmp.overlay.OverlayDialog
 import top.yukonga.miuix.kmp.preference.ArrowPreference
@@ -190,6 +196,7 @@ fun CourseEditScreen(
     onBackStart: () -> Unit,
     onBack: () -> Unit,
     onCourseUpdated: (Course) -> Unit = { _ -> },
+    onDeleteCourse: (String) -> Unit = { _ -> },
     onColorChanged: (Long) -> Unit = { _ -> },
     getOccupiedWeeks: (dayOfWeek: Int, startSection: Int, endSection: Int, excludeIds: List<String>) -> Set<Int> = { _, _, _, _ -> emptySet() },
     liquidGlassBackdrop: com.kyant.backdrop.backdrops.LayerBackdrop? = null
@@ -249,7 +256,7 @@ fun CourseEditScreen(
     // ---- Enter animation ----
     LaunchedEffect(Unit) {
         // 等待首帧渲染完成后再开始动画
-        delay(16.milliseconds)
+        delay(12.milliseconds)
         launch {
             animProgress.animateTo(
                 targetValue = 1f,
@@ -309,6 +316,23 @@ fun CourseEditScreen(
     var listScrollY by remember { mutableIntStateOf(0) }
     val scrollBehavior = MiuixScrollBehavior()
     var saveTrigger by remember { mutableIntStateOf(0) }
+
+    // 删除动画状态
+    var deletingGroupId by remember { mutableStateOf<String?>(null) }
+    var showDeleteDialog by remember { mutableStateOf(false) }
+    var pendingDeleteGroup by remember { mutableStateOf<CourseGroup?>(null) }
+    var pendingDeleteCourseIds by remember { mutableStateOf<List<String>>(emptyList()) }
+
+    // 动画结束后执行删除
+    LaunchedEffect(deletingGroupId) {
+        val courseIds = pendingDeleteCourseIds
+        if (deletingGroupId != null && courseIds.isNotEmpty()) {
+            delay(300) // 等 shrinkVertically + fadeOut 动画完成
+            courseIds.forEach { onDeleteCourse(it) }
+            pendingDeleteCourseIds = emptyList()
+            deletingGroupId = null
+        }
+    }
 
     // 保存时同步颜色到所有同名课程
     LaunchedEffect(saveTrigger) {
@@ -862,15 +886,48 @@ fun CourseEditScreen(
                                         key = { "${it.key.dayOfWeek}_${it.key.startSection}_${it.key.startWeek}" },
                                         contentType = { "CourseGroupCard" }
                                     ) { group ->
-                                        CourseGroupCard(
-                                            group = group,
-                                            sectionTimes = sectionTimes,
-                                            onCourseUpdated = onCourseUpdated,
-                                            saveTrigger = saveTrigger,
-                                            getOccupiedWeeks = { dow, ss, es ->
-                                                getOccupiedWeeks(dow, ss, es, group.courses.map { it.id })
+                                        val groupKey = "${group.key.dayOfWeek}_${group.key.startSection}_${group.key.startWeek}"
+                                        val isDeleting = deletingGroupId == groupKey
+
+                                        AnimatedVisibility(
+                                            visible = !isDeleting,
+                                            exit = shrinkVertically(tween(300)) + fadeOut(tween(300))
+                                        ) {
+                                            Column(modifier = Modifier.fillMaxWidth()) {
+                                                CourseGroupCard(
+                                                    group = group,
+                                                    sectionTimes = sectionTimes,
+                                                    onCourseUpdated = onCourseUpdated,
+                                                    saveTrigger = saveTrigger,
+                                                    getOccupiedWeeks = { dow, ss, es ->
+                                                        getOccupiedWeeks(dow, ss, es, group.courses.map { it.id })
+                                                    }
+                                                )
+                                                // 删除按钮
+                                                Button(
+                                                    modifier = Modifier
+                                                        .fillMaxWidth()
+                                                        .padding(top = 12.dp)
+                                                        .height(50.dp),
+                                                    onClick = {
+                                                        hapticFeedback.performHapticFeedback(HapticFeedbackType.Confirm)
+                                                        pendingDeleteGroup = group
+                                                        showDeleteDialog = true
+                                                    },
+                                                    colors = if (isDark) ButtonDefaults.buttonColors(color = Color(0xFF2A2A2A))
+                                                    else ButtonDefaults.buttonColors(),
+                                                ) {
+                                                    Icon(
+                                                        imageVector = MiuixIcons.Delete,
+                                                        contentDescription = null,
+                                                        modifier = Modifier.size(20.dp),
+                                                        tint = Color(0xFFF44336)
+                                                    )
+                                                    Spacer(modifier = Modifier.width(4.dp))
+                                                    Text("删除", fontSize = 17.sp, fontWeight = FontWeight.Medium, color = Color(0xFFF44336))
+                                                }
                                             }
-                                        )
+                                        }
                                     }
                                 }
                             }
@@ -919,6 +976,44 @@ fun CourseEditScreen(
                                         colors = ButtonDefaults.textButtonColorsPrimary(),
                                         modifier = Modifier.weight(1f)
                                     )
+                                }
+                            }
+                        }
+
+                        // 删除确认弹窗
+                        OverlayDialog(
+                            title = "删除课程",
+                            summary = "确定要删除课程「${pendingDeleteGroup?.courses?.firstOrNull()?.name ?: ""}」吗？\n此操作不可撤销。",
+                            show = showDeleteDialog,
+                            onDismissRequest = { showDeleteDialog = false }
+                        ) {
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(top = 16.dp),
+                                horizontalArrangement = Arrangement.spacedBy(12.dp)
+                            ) {
+                                Button(
+                                    modifier = Modifier.weight(1f),
+                                    onClick = {
+                                        hapticFeedback.performHapticFeedback(HapticFeedbackType.Confirm)
+                                        showDeleteDialog = false
+                                    },
+                                ) {
+                                    Text("取消", fontSize = 17.sp, fontWeight = FontWeight.Medium, color = MiuixTheme.colorScheme.onSurface)
+                                }
+                                Button(
+                                    modifier = Modifier.weight(1f),
+                                    onClick = {
+                                        hapticFeedback.performHapticFeedback(HapticFeedbackType.Confirm)
+                                        showDeleteDialog = false
+                                        pendingDeleteGroup?.let { group ->
+                                            pendingDeleteCourseIds = group.courses.map { it.id }
+                                            deletingGroupId = "${group.key.dayOfWeek}_${group.key.startSection}_${group.key.startWeek}"
+                                        }
+                                    },
+                                ) {
+                                    Text("删除", fontSize = 17.sp, fontWeight = FontWeight.Medium, color = Color(0xFFF44336))
                                 }
                             }
                         }

@@ -9,10 +9,11 @@ import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ColumnScope
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.wrapContentHeight
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -78,7 +79,7 @@ fun LiquidGlassDropdownMenu(
     Box(
         modifier = modifier
             .width(192.dp + ShadowPadding * 2)
-            .height(menuHeight + ShadowPadding * 2)
+            .wrapContentHeight()
             .graphicsLayer {
                 scaleX = scale.value
                 scaleY = scale.value
@@ -86,35 +87,30 @@ fun LiquidGlassDropdownMenu(
                 transformOrigin = TransformOrigin(1f, 0f)
                 clip = false
             }
-    ) {
-        // 阴影层
-        Box(
-            modifier = Modifier
-                .matchParentSize()
-                .padding(ShadowPadding)
-                .drawBehind {
-                    val blurRadius = 18f * density
-                    val cornerRadiusPx = 26f * density
-                    val paint = android.graphics.Paint().apply {
-                        color = android.graphics.Color.parseColor("#0A000000")
-                        maskFilter = android.graphics.BlurMaskFilter(
-                            blurRadius,
-                            android.graphics.BlurMaskFilter.Blur.NORMAL
-                        )
-                    }
-                    drawIntoCanvas { canvas ->
-                        canvas.nativeCanvas.drawRoundRect(
-                            0f, 0f, size.width, size.height,
-                            cornerRadiusPx, cornerRadiusPx,
-                            paint
-                        )
-                    }
+            .drawBehind {
+                val blurRadius = 18f * density
+                val cornerRadiusPx = 26f * density
+                val paint = android.graphics.Paint().apply {
+                    color = android.graphics.Color.parseColor("#0A000000")
+                    maskFilter = android.graphics.BlurMaskFilter(
+                        blurRadius,
+                        android.graphics.BlurMaskFilter.Blur.NORMAL
+                    )
                 }
-        )
+                drawIntoCanvas { canvas ->
+                    canvas.nativeCanvas.drawRoundRect(
+                        ShadowPadding.toPx(), ShadowPadding.toPx(),
+                        size.width - ShadowPadding.toPx(), size.height - ShadowPadding.toPx(),
+                        cornerRadiusPx, cornerRadiusPx,
+                        paint
+                    )
+                }
+            }
+    ) {
         // 菜单内容
         Box(
             modifier = Modifier
-                .matchParentSize()
+                .fillMaxWidth()
                 .padding(ShadowPadding)
                 .drawBackdrop(
                     backdrop = backdrop,

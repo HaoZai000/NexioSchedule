@@ -51,6 +51,7 @@ import androidx.compose.runtime.withFrameNanos
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.draw.drawWithContent
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
@@ -353,13 +354,11 @@ fun CourseScheduleApp() {
             scheduleViewModel.refreshScheduleList()
         }
     }
+    val config = LocalConfiguration.current
+    val isTablet = (config.screenLayout and Configuration.SCREENLAYOUT_SIZE_MASK) in
+            listOf(Configuration.SCREENLAYOUT_SIZE_LARGE, Configuration.SCREENLAYOUT_SIZE_XLARGE)
+    val navBarStyle = if (isTablet) "rail" else "standard"
     val windowInfo = androidx.compose.ui.platform.LocalWindowInfo.current
-    val currentDensity = LocalDensity.current.density
-    val navBarStyle = run {
-        val shortestSidePx = minOf(windowInfo.containerSize.width, windowInfo.containerSize.height)
-        val shortestSideDp = shortestSidePx / currentDensity
-        if (shortestSideDp > 500f) "rail" else "standard"
-    }
     val railState = if (navBarStyle == "rail") rememberNavigationRailState() else null
     val railPaddingStart by animateDpAsState(
         targetValue = if (appStyle == "liquidglass" && liquidGlassBackdrop != null && navBarStyle == "rail") {
@@ -672,7 +671,8 @@ fun CourseScheduleApp() {
 
     val currentViewingWeek = pagerState.currentPage + 1
     val smartWeekend by settingsViewModel.smartWeekend.collectAsState()
-    val dayRange = remember(currentViewingWeek, smartWeekend) {
+    val courses by viewModel.courses.collectAsState()
+    val dayRange = remember(currentViewingWeek, smartWeekend, courses.size) {
         (1..5).toList() + settingsViewModel.getWeekendDaysForWeek(currentViewingWeek).filter { it in 6..7 }
     }
     val viewingIsHoliday = viewModel.isWeekHoliday(currentViewingWeek)
@@ -761,7 +761,7 @@ fun CourseScheduleApp() {
 
             // 7. 开始动画
             showDetail = true
-            delay(16.milliseconds)
+            delay(12.milliseconds)
             backgroundScale.animateTo(0.92f, animationSpec = tween(580, easing = OobeQuartOutEasing))
         }
     }
@@ -1421,7 +1421,6 @@ fun CourseScheduleApp() {
                         show = showMorePopup,
                         onDismissRequest = { showMorePopup = false },
                         backdrop = liquidGlassBackdrop,
-                        menuHeight = 144.dp
                     ) {
                         LiquidGlassDropdownMenuItem(
                             text = "跳转周数",

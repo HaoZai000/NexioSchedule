@@ -1,6 +1,7 @@
 /** 时间配置编辑页面 - Screen */
 package com.haooz.chedule.ui.screens
 
+import android.content.res.Configuration
 import android.annotation.SuppressLint
 import android.graphics.Bitmap
 import android.widget.Toast
@@ -64,6 +65,7 @@ import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.text.font.FontWeight
@@ -401,12 +403,13 @@ fun TimeConfigEditScreen(
     var afternoonTimes by remember { mutableStateOf(timeConfig.getPeriodTimes("afternoon")) }
     var eveningTimes by remember { mutableStateOf(timeConfig.getPeriodTimes("evening")) }
 
-    // 检查时间重叠
+    // 检查时间重叠（仅检查当前节数范围内的节次）
     fun checkTimeOverlap(): String? {
         data class TimeRange(val start: Int, val end: Int, val label: String)
 
         val allTimes = mutableListOf<TimeRange>()
         for ((section, timeStr) in morningTimes) {
+            if (section > morningSections) continue
             val parts = timeStr.split("-")
             if (parts.size == 2) {
                 val startParts = parts[0].split(":")
@@ -422,6 +425,7 @@ fun TimeConfigEditScreen(
             }
         }
         for ((section, timeStr) in afternoonTimes) {
+            if (section > afternoonSections) continue
             val parts = timeStr.split("-")
             if (parts.size == 2) {
                 val startParts = parts[0].split(":")
@@ -437,6 +441,7 @@ fun TimeConfigEditScreen(
             }
         }
         for ((section, timeStr) in eveningTimes) {
+            if (section > eveningSections) continue
             val parts = timeStr.split("-")
             if (parts.size == 2) {
                 val startParts = parts[0].split(":")
@@ -471,6 +476,12 @@ fun TimeConfigEditScreen(
     val isDark = isAppDarkTheme()
     val appStyle = rememberAppStyle()
     val isLiquidGlass = appStyle == "liquidglass" && liquidGlassBackdrop != null
+    val isTablet = (LocalConfiguration.current.screenLayout and Configuration.SCREENLAYOUT_SIZE_MASK) in
+            listOf(Configuration.SCREENLAYOUT_SIZE_LARGE, Configuration.SCREENLAYOUT_SIZE_XLARGE)
+    val tabletHorizontalPadding = if (isTablet) {
+        val screenWidthDp = LocalConfiguration.current.screenWidthDp
+        ((screenWidthDp - 600).coerceIn(0, 600) / 600f * 112 + 16).dp
+    } else 16.dp
     val blurAlpha = if (listScrollY < 50) 0f else ((listScrollY - 50) / 50f).coerceIn(0f, 0.7f)
     val surface = MiuixTheme.colorScheme.surface
     val topBarColor = if (listScrollY < 50) {
@@ -609,11 +620,11 @@ fun TimeConfigEditScreen(
                                             return@LiquidTopBarButton
                                         }
                                         val finalSectionTimes = mutableMapOf<String, String>()
-                                        for ((k, v) in morningTimes) finalSectionTimes["morning_$k"] =
+                                        for ((k, v) in morningTimes) if (k <= morningSections) finalSectionTimes["morning_$k"] =
                                             v
-                                        for ((k, v) in afternoonTimes) finalSectionTimes["afternoon_$k"] =
+                                        for ((k, v) in afternoonTimes) if (k <= afternoonSections) finalSectionTimes["afternoon_$k"] =
                                             v
-                                        for ((k, v) in eveningTimes) finalSectionTimes["evening_$k"] =
+                                        for ((k, v) in eveningTimes) if (k <= eveningSections) finalSectionTimes["evening_$k"] =
                                             v
 
                                         val newConfig = timeConfig.copy(
@@ -714,11 +725,11 @@ fun TimeConfigEditScreen(
                                                 return@IconButton
                                             }
                                             val finalSectionTimes = mutableMapOf<String, String>()
-                                            for ((k, v) in morningTimes) finalSectionTimes["morning_$k"] =
+                                            for ((k, v) in morningTimes) if (k <= morningSections) finalSectionTimes["morning_$k"] =
                                                 v
-                                            for ((k, v) in afternoonTimes) finalSectionTimes["afternoon_$k"] =
+                                            for ((k, v) in afternoonTimes) if (k <= afternoonSections) finalSectionTimes["afternoon_$k"] =
                                                 v
-                                            for ((k, v) in eveningTimes) finalSectionTimes["evening_$k"] =
+                                            for ((k, v) in eveningTimes) if (k <= eveningSections) finalSectionTimes["evening_$k"] =
                                                 v
 
                                             val newConfig = timeConfig.copy(
@@ -798,9 +809,9 @@ fun TimeConfigEditScreen(
                                         if (!isLiquidGlass) Modifier.nestedScroll(scrollBehavior.nestedScrollConnection) else Modifier
                                     ),
                                 contentPadding = PaddingValues(
-                                    start = 16.dp,
+                                    start = tabletHorizontalPadding,
                                     top = if (isLiquidGlass) paddingValues.calculateTopPadding() + (-16).dp else paddingValues.calculateTopPadding(),
-                                    end = 16.dp,
+                                    end = tabletHorizontalPadding,
                                     bottom = 120.dp
                                 ),
                                 verticalArrangement = Arrangement.spacedBy(12.dp)
@@ -851,11 +862,6 @@ fun TimeConfigEditScreen(
 
                                 // 快捷设置
                                 item {
-                                    val topStartRadius by animateDpAsState(
-                                        20.dp,
-                                        label = "topStart"
-                                    )
-                                    val topEndRadius by animateDpAsState(20.dp, label = "topEnd")
                                     val bottomEndRadius by animateDpAsState(
                                         if (quickTimeEnabled) 32.dp else 20.dp,
                                         label = "bottomEnd"
@@ -866,8 +872,8 @@ fun TimeConfigEditScreen(
                                     )
                                     val cardModifier = Modifier.fillMaxWidth().squircleSurface(
                                         color = MiuixTheme.colorScheme.secondaryVariant,
-                                        topStart = topStartRadius,
-                                        topEnd = topEndRadius,
+                                        topStart = 20.dp,
+                                        topEnd = 20.dp,
                                         bottomEnd = bottomEndRadius,
                                         bottomStart = bottomStartRadius
                                     )

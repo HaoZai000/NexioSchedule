@@ -1,6 +1,7 @@
 /** 切换课程表页面 */
 package com.haooz.chedule.ui.activities
 
+import android.content.res.Configuration
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.SystemBarStyle
@@ -62,6 +63,7 @@ import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.DpOffset
 import androidx.compose.ui.unit.DpSize
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.zIndex
@@ -216,6 +218,12 @@ fun SwitchScheduleScreen(
         com.kyant.backdrop.backdrops.rememberLayerBackdrop()
     } else null
     val isLiquidGlass = appStyle == "liquidglass"
+    val isTablet = (LocalConfiguration.current.screenLayout and Configuration.SCREENLAYOUT_SIZE_MASK) in
+            listOf(Configuration.SCREENLAYOUT_SIZE_LARGE, Configuration.SCREENLAYOUT_SIZE_XLARGE)
+    val tabletHorizontalPadding = if (isTablet) {
+        val screenWidthDp = LocalConfiguration.current.screenWidthDp
+        ((screenWidthDp - 600).coerceIn(0, 600) / 600f * 112 + 16).dp
+    } else 16.dp
     val colors = BlurDefaults.blurColors(
         blendColors = listOf(
             if (isDark) BlendColorEntry(ComposeColor.Black.copy(alpha = 0.7f), BlurBlendMode.SrcOver)
@@ -598,8 +606,8 @@ fun SwitchScheduleScreen(
                         if (!isLiquidGlass) Modifier.nestedScroll(scrollBehavior.nestedScrollConnection) else Modifier
                     ),
                 contentPadding = PaddingValues(
-                    start = 16.dp,
-                    end = 16.dp,
+                    start = tabletHorizontalPadding,
+                    end = tabletHorizontalPadding,
                     top = if (isLiquidGlass) paddingValues.calculateTopPadding() + (-16).dp else paddingValues.calculateTopPadding(),
                     bottom = 60.dp
                 ),

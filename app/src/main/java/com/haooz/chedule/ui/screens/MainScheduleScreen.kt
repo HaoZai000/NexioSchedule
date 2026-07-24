@@ -305,7 +305,7 @@ fun MainScheduleScreen(
                         )
 
                         // 按周计算要显示的天数范围（智能周末模式下，不同周可能显示不同天数）
-                        val pageDayRange = remember(week, smartWeekend) {
+                        val pageDayRange = remember(week, smartWeekend, courses.size) {
                             (1..5).toList() + settingsViewModel.getWeekendDaysForWeek(week).filter { it in 6..7 }
                         }
 

@@ -1,6 +1,7 @@
 /** 课程详情页面 */
 package com.haooz.chedule.ui.screens
 
+import android.content.res.Configuration
 import android.graphics.Bitmap
 import androidx.activity.compose.BackHandler
 import androidx.compose.animation.core.Animatable
@@ -47,6 +48,7 @@ import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.text.font.FontWeight
@@ -149,6 +151,12 @@ fun CourseDetailScreen(
         com.kyant.backdrop.backdrops.rememberLayerBackdrop()
     } else null
     val isLiquidGlass = liquidGlassBackdrop != null
+    val isTablet = (LocalConfiguration.current.screenLayout and Configuration.SCREENLAYOUT_SIZE_MASK) in
+            listOf(Configuration.SCREENLAYOUT_SIZE_LARGE, Configuration.SCREENLAYOUT_SIZE_XLARGE)
+    val tabletHorizontalPadding = if (isTablet) {
+        val screenWidthDp = LocalConfiguration.current.screenWidthDp
+        ((screenWidthDp - 600).coerceIn(0, 600) / 600f * 112 + 16).dp
+    } else 16.dp
 
     // 计算开学日期的周一
     val startMonday = remember(classStartTime) {
@@ -203,7 +211,7 @@ fun CourseDetailScreen(
 
     LaunchedEffect(Unit) {
         // 等待首帧渲染完成后再开始动画
-        delay(16.milliseconds)
+        delay(12.milliseconds)
         launch {
             animProgress.animateTo(
                 targetValue = 1f,
@@ -456,9 +464,9 @@ fun CourseDetailScreen(
                                         )
                                         .nestedScroll(scrollBehavior.nestedScrollConnection),
                                     contentPadding = PaddingValues(
-                                        start = 16.dp,
+                                        start = tabletHorizontalPadding,
                                         top = if (isLiquidGlass) paddingValues.calculateTopPadding() + (-16).dp else paddingValues.calculateTopPadding(),
-                                        end = 16.dp,
+                                        end = tabletHorizontalPadding,
                                         bottom = 120.dp
                                     ),
                                     verticalArrangement = Arrangement.spacedBy(12.dp)

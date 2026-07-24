@@ -17,6 +17,16 @@ class CourseRepository private constructor(context: Context) {
     )
     private val gson = Gson()
 
+    // 课程内存缓存：避免每次读取都解析 JSON
+    private val courseCache = mutableMapOf<String, List<Course>>()
+
+    // 占用周次缓存：避免每次编辑都重新计算
+    private val occupiedWeeksCache = mutableMapOf<String, Set<Int>>()
+
+    // 课程分组缓存：避免每次编辑页都重新分组
+    private var cachedCourseGroups: Map<String, List<Course>>? = null
+    private var cachedCourseGroupsScheduleId: String? = null
+
     // 壁纸内存缓存：避免每次进入搭配页都重新解码 PNG（解码耗时是主要瓶颈）
     // 按可用内存的 1/8 计算，单位为字节
     private val wallpaperCache: android.util.LruCache<Long, android.graphics.Bitmap> =
@@ -131,14 +141,17 @@ class CourseRepository private constructor(context: Context) {
     }
 
     /**
-     * 获取指定课表的课程列表
+     * 获取指定课表的课程列表（带缓存）
      */
     fun getCoursesForSchedule(scheduleId: String): List<Course> {
+        courseCache[scheduleId]?.let { return it }
         val key = "$SCHEDULE_KEY_PREFIX${scheduleId}_$KEY_COURSES"
         val json = prefs.getString(key, null) ?: return emptyList()
         val type = object : TypeToken<List<Course>>() {}.type
         return try {
-            sanitizeCourses(gson.fromJson(json, type) ?: emptyList())
+            val courses = sanitizeCourses(gson.fromJson(json, type) ?: emptyList())
+            courseCache[scheduleId] = courses
+            courses
         } catch (_: Exception) {
             emptyList()
         }
@@ -198,26 +211,98 @@ class CourseRepository private constructor(context: Context) {
     }
 
     /**
-     * 获取所有课程
+     * 获取当前课表的所有课程（带缓存）
      */
     fun getAllCourses(): List<Course> {
+        val scheduleId = getCurrentScheduleId()
+        courseCache[scheduleId]?.let { return it }
         val key = "${getScheduleKeyPrefix()}$KEY_COURSES"
         val json = prefs.getString(key, null) ?: return emptyList()
         val type = object : TypeToken<List<Course>>() {}.type
         return try {
-            sanitizeCourses(gson.fromJson(json, type) ?: emptyList())
+            val courses = sanitizeCourses(gson.fromJson(json, type) ?: emptyList())
+            courseCache[scheduleId] = courses
+            preWarmOccupiedWeeksCache(courses)
+            preWarmCourseGroupsCache(courses, scheduleId)
+            courses
         } catch (_: Exception) {
             emptyList()
         }
     }
 
     /**
+     * 获取课程分组（带缓存）
+     * 返回 Map<分组键字符串, List<Course>>
+     */
+    fun getCourseGroups(scheduleId: String? = null): Map<String, List<Course>> {
+        val sid = scheduleId ?: getCurrentScheduleId()
+        if (cachedCourseGroupsScheduleId == sid && cachedCourseGroups != null) {
+            return cachedCourseGroups!!
+        }
+        val courses = getCoursesForSchedule(sid)
+        val groups = courses.groupBy { course ->
+            "${course.dayOfWeek}_${course.startSection}_${course.endSection}_${course.weekType}_${course.startWeek}_${course.endWeek}_${course.selectedWeeks.hashCode()}"
+        }
+        cachedCourseGroups = groups
+        cachedCourseGroupsScheduleId = sid
+        return groups
+    }
+
+    /**
+     * 预热占用周次缓存：预计算所有节次组合的占用周次
+     */
+    private fun preWarmOccupiedWeeksCache(courses: List<Course>) {
+        occupiedWeeksCache.clear()
+        val totalSections = 12
+        for (day in 1..7) {
+            for (start in 1..totalSections) {
+                for (end in start..totalSections) {
+                    val occupied = mutableSetOf<Int>()
+                    courses.forEach { course ->
+                        if (course.dayOfWeek == day &&
+                            course.startSection <= end &&
+                            course.endSection >= start
+                        ) {
+                            if (course.selectedWeeks.isNotEmpty()) {
+                                occupied.addAll(course.selectedWeeks)
+                            } else {
+                                for (week in course.startWeek..course.endWeek) {
+                                    when (course.weekType) {
+                                        Course.WEEK_TYPE_ODD -> if (week % 2 == 1) occupied.add(week)
+                                        Course.WEEK_TYPE_EVEN -> if (week % 2 == 0) occupied.add(week)
+                                        else -> occupied.add(week)
+                                    }
+                                }
+                            }
+                        }
+                    }
+                    occupiedWeeksCache["${day}_${start}_${end}"] = occupied
+                }
+            }
+        }
+    }
+
+    /**
+     * 预热课程分组缓存
+     */
+    private fun preWarmCourseGroupsCache(courses: List<Course>, scheduleId: String) {
+        cachedCourseGroups = courses.groupBy { course ->
+            "${course.dayOfWeek}_${course.startSection}_${course.endSection}_${course.weekType}_${course.startWeek}_${course.endWeek}_${course.selectedWeeks.hashCode()}"
+        }
+        cachedCourseGroupsScheduleId = scheduleId
+    }
+
+    /**
      * 保存课程列表
      */
     fun saveCourses(courses: List<Course>, notify: Boolean = true) {
+        val scheduleId = getCurrentScheduleId()
         val key = "${getScheduleKeyPrefix()}$KEY_COURSES"
         val json = gson.toJson(courses)
         prefs.edit { putString(key, json) }
+        courseCache[scheduleId] = courses
+        occupiedWeeksCache.clear() // 课程变化时清空占用周次缓存
+        cachedCourseGroups = null // 清空课程分组缓存
         if (notify) onCourseChanged?.invoke("bulk", "")
     }
 
@@ -753,6 +838,12 @@ class CourseRepository private constructor(context: Context) {
         endSection: Int,
         excludeIds: Set<String> = emptySet()
     ): Set<Int> {
+        // 无排除条件时使用缓存
+        if (excludeIds.isEmpty()) {
+            val cacheKey = "${dayOfWeek}_${startSection}_${endSection}"
+            occupiedWeeksCache[cacheKey]?.let { return it }
+        }
+
         val occupied = mutableSetOf<Int>()
         getAllCourses().forEach { course ->
             if (course.id in excludeIds) return@forEach
@@ -775,6 +866,13 @@ class CourseRepository private constructor(context: Context) {
                 }
             }
         }
+
+        // 无排除条件时存入缓存
+        if (excludeIds.isEmpty()) {
+            val cacheKey = "${dayOfWeek}_${startSection}_${endSection}"
+            occupiedWeeksCache[cacheKey] = occupied
+        }
+
         return occupied
     }
 

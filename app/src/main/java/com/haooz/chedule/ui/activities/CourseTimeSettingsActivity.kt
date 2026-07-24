@@ -25,11 +25,11 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.blur
 import androidx.compose.ui.draw.drawWithContent
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.asAndroidBitmap
+import androidx.compose.ui.graphics.asComposeRenderEffect
 import androidx.compose.ui.graphics.rememberGraphicsLayer
 import androidx.compose.ui.graphics.drawscope.clipPath
 import androidx.compose.ui.platform.LocalDensity
@@ -59,6 +59,7 @@ import top.yukonga.miuix.kmp.icon.extended.ChevronBackward
 import top.yukonga.miuix.kmp.squircle.addSquircleRect
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 import kotlin.math.abs
+import kotlin.time.Duration.Companion.milliseconds
 import com.kyant.backdrop.backdrops.layerBackdrop as liquidGlassLayerBackdrop
 
 class CourseTimeSettingsActivity : ComponentActivity() {
@@ -139,7 +140,7 @@ class CourseTimeSettingsActivity : ComponentActivity() {
 
                 // 快照截取
                 val screenGraphicsLayer = rememberGraphicsLayer()
-                var cardSnapshot by remember { mutableStateOf<android.graphics.Bitmap?>(null) }
+                var cardSnapshot by remember { mutableStateOf<Bitmap?>(null) }
                 val coroutineScope = rememberCoroutineScope()
 
                 // 背景缩放与模糊动画
@@ -150,7 +151,19 @@ class CourseTimeSettingsActivity : ComponentActivity() {
                     // 主内容（缩放+模糊动画）
                     Box(modifier = Modifier
                         .fillMaxSize()
-                        .blur(managePageBlurRadius.value.dp)
+                        .graphicsLayer {
+                            // 使用 renderEffect 模糊，避免动画时重组
+                            val blurRadiusPx = managePageBlurRadius.value * this@graphicsLayer.density
+                            renderEffect = if (blurRadiusPx > 0f) {
+                                android.graphics.RenderEffect.createBlurEffect(
+                                    blurRadiusPx,
+                                    blurRadiusPx,
+                                    android.graphics.Shader.TileMode.CLAMP
+                                ).asComposeRenderEffect()
+                            } else {
+                                null
+                            }
+                        }
                         .background(MiuixTheme.colorScheme.surface)
                     ) {
                         Box(
@@ -228,8 +241,8 @@ class CourseTimeSettingsActivity : ComponentActivity() {
                                                 editingConfig = config
                                                 editingCardBounds = bounds
                                                 hideConfigId = config.id
-                                                currentPage = "edit"
                                                 isNewConfigCreation = false
+                                                // 先捕获快照（原始状态）
                                                 coroutineScope.launch {
                                                     val lx = bounds.left.toInt().coerceIn(0, screenWidth.toInt() - 1)
                                                     val ly = bounds.top.toInt().coerceIn(0, screenHeight.toInt() - 1)
@@ -240,27 +253,31 @@ class CourseTimeSettingsActivity : ComponentActivity() {
                                                         Bitmap.createBitmap(fullBitmap, lx, ly, lw, lh)
                                                     } catch (_: Exception) { null }
                                                 }
+                                                // 等待一帧后启动背景动画
                                                 coroutineScope.launch {
-                                                    delay(16)
+                                                    delay(12.milliseconds)
                                                     launch {
                                                         backgroundScale.animateTo(
                                                             targetValue = 0.92f,
-                                                            animationSpec = tween(620, easing = OobeQuartOutEasing)
+                                                            animationSpec = tween(580, easing = OobeQuartOutEasing)
                                                         )
                                                     }
                                                     launch {
                                                         managePageBlurRadius.animateTo(
                                                             targetValue = 5f,
-                                                            animationSpec = tween(620, easing = OobeQuartOutEasing)
+                                                            animationSpec = tween(580, easing = OobeQuartOutEasing)
                                                         )
                                                     }
                                                 }
+                                                // 最后触发组合（背景已在动画中）
+                                                currentPage = "edit"
                                             },
                                             onCreateConfig = { bounds ->
                                                 editingConfig = TimeConfig(name = "")
                                                 editingCardBounds = bounds
                                                 hideFab = true
                                                 isNewConfigCreation = true
+                                                // 先捕获快照（原始状态）
                                                 coroutineScope.launch {
                                                     val lx = bounds.left.toInt().coerceIn(0, screenWidth.toInt() - 1)
                                                     val ly = bounds.top.toInt().coerceIn(0, screenHeight.toInt() - 1)
@@ -271,22 +288,24 @@ class CourseTimeSettingsActivity : ComponentActivity() {
                                                         Bitmap.createBitmap(fullBitmap, lx, ly, lw, lh)
                                                     } catch (_: Exception) { null }
                                                 }
-                                                currentPage = "edit"
+                                                // 等待一帧后启动背景动画
                                                 coroutineScope.launch {
-                                                    delay(16)
+                                                    delay(12.milliseconds)
                                                     launch {
                                                         backgroundScale.animateTo(
                                                             targetValue = 0.92f,
-                                                            animationSpec = tween(620, easing = OobeQuartOutEasing)
+                                                            animationSpec = tween(580, easing = OobeQuartOutEasing)
                                                         )
                                                     }
                                                     launch {
                                                         managePageBlurRadius.animateTo(
                                                             targetValue = 5f,
-                                                            animationSpec = tween(620, easing = OobeQuartOutEasing)
+                                                            animationSpec = tween(580, easing = OobeQuartOutEasing)
                                                         )
                                                     }
                                                 }
+                                                // 最后触发组合（背景已在动画中）
+                                                currentPage = "edit"
                                             },
                                             liquidGlassBackdrop = liquidGlassBackdrop,
                                             refreshTrigger = listRefreshTrigger,

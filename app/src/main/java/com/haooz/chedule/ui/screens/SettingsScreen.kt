@@ -37,6 +37,7 @@ import androidx.compose.ui.graphics.RectangleShape
 import androidx.compose.ui.graphics.lerp
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.input.nestedscroll.nestedScroll
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -77,6 +78,7 @@ import top.yukonga.miuix.kmp.theme.MiuixTheme
 import top.yukonga.miuix.kmp.utils.overScrollVertical
 import top.yukonga.miuix.kmp.utils.scrollEndHaptic
 import java.time.LocalDate
+import java.time.temporal.ChronoUnit
 import java.util.Calendar
 import java.util.UUID
 import kotlin.time.Duration.Companion.milliseconds
@@ -179,6 +181,10 @@ fun SettingsScreen(
         drawContent()
     }
     val isDark = isAppDarkTheme()
+    val tabletHorizontalPadding = if (navBarStyle == "rail") {
+        val screenWidthDp = LocalConfiguration.current.screenWidthDp
+        ((screenWidthDp - 600).coerceIn(0, 600) / 600f * 112 + 16).dp
+    } else 16.dp
 
     val appStyle = rememberAppStyle()
     val isLiquidGlass = appStyle == "liquidglass" && liquidGlassBackdrop != null
@@ -247,9 +253,9 @@ fun SettingsScreen(
                         if (scrollBehavior != null) Modifier.nestedScroll(scrollBehavior.nestedScrollConnection) else Modifier
                     ),
                 contentPadding = PaddingValues(
-                    start = 16.dp,
+                    start = tabletHorizontalPadding,
                     top = if (isLiquidGlass) paddingValues.calculateTopPadding() + 56.dp else paddingValues.calculateTopPadding(),
-                    end = 16.dp,
+                    end = tabletHorizontalPadding,
                     bottom = 120.dp
                 ),
                 verticalArrangement = Arrangement.spacedBy(12.dp)
@@ -436,7 +442,7 @@ fun SettingsScreen(
                         top.yukonga.miuix.kmp.basic.Button(
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .padding(top = 24.dp, end= 16.dp, start = 16.dp)
+                                .padding(top = 24.dp, end = tabletHorizontalPadding, start = tabletHorizontalPadding)
                                 .height(50.dp),
                             onClick = {
                                 hapticFeedback.performHapticFeedback(HapticFeedbackType.Confirm)
@@ -973,7 +979,7 @@ private fun parseShiguangScheduleJson(data: Map<String, Any>): Triple<Boolean, S
  */
 internal fun parseIcsFile(text: String): Triple<Boolean, String, Map<String, Any>?> {
     return try {
-        // 按课程名称分组，合并同一课程的不同周次
+        // 按课程名称+星期+节次 分组，合并同一课程的不同周次
         val courseGroups = mutableMapOf<String, MutableList<Map<String, Any>>>()
         val lines = text.lines()
 
@@ -992,8 +998,9 @@ internal fun parseIcsFile(text: String): Triple<Boolean, String, Map<String, Any
                     if (currentEvent.isNotEmpty()) {
                         val parsed = parseIcsEvent(currentEvent)
                         if (parsed != null) {
-                            val name = parsed["name"] as String
-                            courseGroups.getOrPut(name) { mutableListOf() }.add(parsed)
+                            // 合并键：课程名+星期+开始时间+教室+教师，确保不同地点的同名课程不被合并
+                            val mergeKey = "${parsed["name"]}_${parsed["dayOfWeek"]}_${parsed["startTotalMinutes"]}_${parsed["classroom"]}_${parsed["teacher"]}"
+                            courseGroups.getOrPut(mergeKey) { mutableListOf() }.add(parsed)
                         }
                     }
                 }
@@ -1014,17 +1021,18 @@ internal fun parseIcsFile(text: String): Triple<Boolean, String, Map<String, Any
             return Triple(false, "未找到课程事件", null)
         }
 
-        // 合并同一课程的不同周次
+        // 合并同一课程的不同周次（使用 List<List<String>> 替代 Pair 以避免序列化问题）
         val mergedCourses = mutableListOf<Map<String, Any>>()
         for ((_, courseEvents) in courseGroups) {
             val firstEvent = courseEvents.first()
             // 收集所有事件的日期对，用于后续计算周次
-            val datePairs = mutableListOf<Pair<String, String>>()
+            // 使用 List<List<String>> 格式：[[startDate, untilDate], ...]
+            val datePairs = mutableListOf<List<String>>()
             for (event in courseEvents) {
                 val sd = event["startDate"] as? String
                 val ud = event["untilDate"] as? String
-                if (sd != null && ud != null) {
-                    datePairs.add(sd to ud)
+                if (sd != null && sd.isNotEmpty()) {
+                    datePairs.add(listOf(sd, ud ?: ""))
                 }
             }
             mergedCourses.add(firstEvent + mapOf("datePairs" to datePairs))
@@ -1048,14 +1056,17 @@ private fun parseIcsEvent(event: Map<String, String>): Map<String, Any>? {
     val dtstart = event["DTSTART"] ?: return null
     val dtend = event["DTEND"] ?: return null
 
-    // 提取日期和时间部分 (格式: YYYYMMDDTHHMMSS 或 YYYYMMDDTHHMMSSZ)
-    val startDateTime = dtstart.substringAfter(":")
-    val endDateTime = dtend.substringAfter(":")
+    // 提取日期和时间部分
+    // 支持格式: YYYYMMDDTHHMMSS, YYYYMMDDTHHMMSSZ, YYYYMMDD (全天事件)
+    val startRaw = dtstart.substringAfter(":")
+    val endRaw = dtend.substringAfter(":")
 
-    val startDateStr = startDateTime.take(8)
-    val startTimeStr = startDateTime.drop(9).take(6)
+    // 检查是否为全天事件 (VALUE=DATE 格式，只有日期没有时间)
+    val isAllDay = startRaw.length == 8 && !startRaw.contains('T')
 
-    val endTimeStr = endDateTime.drop(9).take(6)
+    val startDateStr = startRaw.take(8)
+    val startTimeStr = if (isAllDay) "080000" else startRaw.drop(9).take(6)
+    val endTimeStr = if (isAllDay) "090000" else endRaw.drop(9).take(6)
 
     // 解析日期
     val startYear = startDateStr.substring(0, 4).toIntOrNull() ?: return null
@@ -1065,17 +1076,12 @@ private fun parseIcsEvent(event: Map<String, String>): Map<String, Any>? {
     // 解析时间
     val startHour = startTimeStr.substring(0, 2).toIntOrNull() ?: 8
     val startMinute = startTimeStr.substring(2, 4).toIntOrNull() ?: 0
+    val endHour = endTimeStr.substring(0, 2).toIntOrNull() ?: (startHour + 1)
+    val endMinute = endTimeStr.substring(2, 4).toIntOrNull() ?: 0
 
-    // 根据时间计算节次 (1-2节: 8:00-9:50, 3-4节: 10:10-12:00, 5-6节: 14:00-15:50, 7-8节: 16:10-18:00, 9-10节: 19:00-20:50)
+    // 返回原始时间(分钟)，节次映射由 applyScheduleData 使用用户配置完成
     val startTotalMinutes = startHour * 60 + startMinute
-
-    val (startSection, endSection) = when {
-        startTotalMinutes < 10 * 60 -> Pair(1, 2)  // 1-2节
-        startTotalMinutes < 14 * 60 -> Pair(3, 4)  // 3-4节
-        startTotalMinutes < 16 * 60 -> Pair(5, 6)  // 5-6节
-        startTotalMinutes < 19 * 60 -> Pair(7, 8)  // 7-8节
-        else -> Pair(9, 10)  // 9-10节
-    }
+    val endTotalMinutes = endHour * 60 + endMinute
 
     // 计算星期几 (1=周一, 7=周日)
     val startDate = LocalDate.of(startYear, startMonth, startDay)
@@ -1083,13 +1089,27 @@ private fun parseIcsEvent(event: Map<String, String>): Map<String, Any>? {
 
     // 解析 RRULE 获取周次信息
     val rrule = event["RRULE"] ?: ""
-    val untilStr = rrule.substringAfter("UNTIL=").substringBefore(";").take(8)
+    var untilStr = ""
+    var countStr = ""
+    var byDayStr = ""
 
-    // 计算周次：需要知道开学日期才能计算
-    // 这里先返回原始日期，后续在 applyScheduleData 中根据实际开学日期计算
-    val selectedWeeks = mutableListOf<Int>()
-    // 临时标记：使用 -1 表示需要后续计算
-    // 实际周次会在 applyScheduleData 中根据 classStartTime 计算
+    // 解析 RRULE 的各个部分
+    for (part in rrule.split(";")) {
+        when {
+            part.startsWith("UNTIL=") -> untilStr = part.substringAfter("UNTIL=").take(8)
+            part.startsWith("COUNT=") -> countStr = part.substringAfter("COUNT=")
+            part.startsWith("BYDAY=") -> byDayStr = part.substringAfter("BYDAY=")
+        }
+    }
+
+    // 如果有 BYDAY 但与当前事件的星期不匹配，跳过该事件
+    if (byDayStr.isNotEmpty()) {
+        val dayMap = mapOf("MO" to 1, "TU" to 2, "WE" to 3, "TH" to 4, "FR" to 5, "SA" to 6, "SU" to 7)
+        val byDays = byDayStr.split(",").mapNotNull { dayMap[it.trim()] }
+        if (byDays.isNotEmpty() && dayOfWeek !in byDays) {
+            return null
+        }
+    }
 
     // 解析教室和老师 (格式: "教室 老师" 或 "教室" 或 " 老师")
     val classroom: String
@@ -1118,11 +1138,13 @@ private fun parseIcsEvent(event: Map<String, String>): Map<String, Any>? {
         "classroom" to classroom,
         "teacher" to teacher,
         "dayOfWeek" to dayOfWeek,
-        "startSection" to startSection,
-        "endSection" to endSection,
-        "selectedWeeks" to selectedWeeks,
+        "startTotalMinutes" to startTotalMinutes,
+        "endTotalMinutes" to endTotalMinutes,
+        "selectedWeeks" to emptyList<Int>(),
         "startDate" to startDateStr,
-        "untilDate" to untilStr
+        "untilDate" to untilStr,
+        "count" to countStr,
+        "isAllDay" to isAllDay
     )
 }
 
@@ -1181,23 +1203,71 @@ internal fun applyScheduleData(
         }
         val classStartDate = icsClassStartDate ?: defaultClassStartDate
 
+        // 找到开学日期所在周的周一，作为周次计算的基准日
+        val classStartMonday = classStartDate.minusDays((classStartDate.dayOfWeek.value - 1).toLong())
+
+        // 获取用户的时间配置，用于将时间映射到节次
+        val userSectionTimes = settingsViewModel.sectionTimes.value
+        // 构建时间 -> 节次的映射：遍历每个节次的时间范围，检查课程开始时间是否落在该范围内
+        fun findSectionByTime(startMinutes: Int, endMinutes: Int): Pair<Int, Int>? {
+            var foundStart: Int? = null
+            var foundEnd: Int? = null
+            for ((section, timeRange) in userSectionTimes) {
+                val parts = timeRange.split("-")
+                if (parts.size != 2) continue
+                val rangeStartParts = parts[0].split(":")
+                val rangeEndParts = parts[1].split(":")
+                if (rangeStartParts.size != 2 || rangeEndParts.size != 2) continue
+                val rangeStart = (rangeStartParts[0].toIntOrNull() ?: continue) * 60 + (rangeStartParts[1].toIntOrNull() ?: continue)
+                val rangeEnd = (rangeEndParts[0].toIntOrNull() ?: continue) * 60 + (rangeEndParts[1].toIntOrNull() ?: continue)
+                // 课程开始时间落在该节次的时间范围内
+                if (startMinutes in rangeStart until rangeEnd) {
+                    foundStart = section
+                }
+                // 课程结束时间落在该节次的时间范围内（或刚好在结束时间）
+                if (endMinutes in (rangeStart + 1)..rangeEnd) {
+                    foundEnd = section
+                }
+            }
+            if (foundStart != null && foundEnd != null) {
+                return Pair(foundStart, foundEnd)
+            }
+            // 回退：如果找不到精确匹配，使用开始时间找最近的节次
+            if (foundStart != null) {
+                return Pair(foundStart, foundStart)
+            }
+            return null
+        }
+
         coursesData?.forEach { courseMap ->
             val name = courseMap["name"] as? String ?: return@forEach
             val classroom = courseMap["classroom"] as? String ?: ""
             val teacher = courseMap["teacher"] as? String ?: ""
             val dayOfWeek = (courseMap["dayOfWeek"] as? Number)?.toInt() ?: return@forEach
-            val startSection = (courseMap["startSection"] as? Number)?.toInt() ?: return@forEach
-            val endSection = (courseMap["endSection"] as? Number)?.toInt() ?: return@forEach
             @Suppress("UNCHECKED_CAST")
             var selectedWeeks = (courseMap["selectedWeeks"] as? List<Number>)?.map { it.toInt() } ?: emptyList()
+
+            // 使用用户的时间配置将时间映射到节次
+            val startTotalMinutes = (courseMap["startTotalMinutes"] as? Number)?.toInt()
+            val endTotalMinutes = (courseMap["endTotalMinutes"] as? Number)?.toInt()
+            val sectionPair = if (startTotalMinutes != null && endTotalMinutes != null) {
+                findSectionByTime(startTotalMinutes, endTotalMinutes)
+            } else null
+
+            // 如果无法映射节次，跳过该课程
+            if (sectionPair == null) return@forEach
+            val (startSection, endSection) = sectionPair
 
             // ICS格式：根据datePairs计算所有事件的周次
             if (selectedWeeks.isEmpty()) {
                 @Suppress("UNCHECKED_CAST")
-                val datePairs = courseMap["datePairs"] as? List<Pair<String, String>>
+                val datePairs = courseMap["datePairs"] as? List<List<String>>
                 if (!datePairs.isNullOrEmpty()) {
                     val allWeeks = mutableSetOf<Int>()
-                    for ((sd, ud) in datePairs) {
+                    for (pair in datePairs) {
+                        if (pair.size < 1) continue
+                        val sd = pair[0]
+                        val ud = if (pair.size > 1) pair[1] else ""
                         if (sd.length == 8) {
                             val courseStartDate = try {
                                 LocalDate.of(
@@ -1208,7 +1278,9 @@ internal fun applyScheduleData(
                             } catch (_: Exception) { null }
 
                             if (courseStartDate != null) {
-                                val startWeek = java.time.temporal.ChronoUnit.WEEKS.between(classStartDate, courseStartDate).toInt() + 1
+                                // 从开学周的周一开始计算周次
+                                val courseMonday = courseStartDate.minusDays((courseStartDate.dayOfWeek.value - 1).toLong())
+                                val startWeek = ChronoUnit.WEEKS.between(classStartMonday, courseMonday).toInt() + 1
 
                                 val endWeek = if (ud.length == 8) {
                                     val untilDate = try {
@@ -1221,7 +1293,8 @@ internal fun applyScheduleData(
                                     if (untilDate != null) {
                                         val daysDiff = (untilDate.dayOfWeek.value - dayOfWeek + 7) % 7
                                         val lastCourseDate = untilDate.minusDays(daysDiff.toLong())
-                                        java.time.temporal.ChronoUnit.WEEKS.between(classStartDate, lastCourseDate).toInt() + 1
+                                        val lastCourseMonday = lastCourseDate.minusDays((lastCourseDate.dayOfWeek.value - 1).toLong())
+                                        ChronoUnit.WEEKS.between(classStartMonday, lastCourseMonday).toInt() + 1
                                     } else {
                                         startWeek
                                     }
@@ -1234,6 +1307,29 @@ internal fun applyScheduleData(
                         }
                     }
                     selectedWeeks = allWeeks.sorted()
+                }
+            }
+
+            // 处理 COUNT 格式的 RRULE：根据 COUNT 和 startDate 计算结束周
+            if (selectedWeeks.isEmpty()) {
+                val countStr = courseMap["count"] as? String
+                val startDateStr = courseMap["startDate"] as? String
+                if (!countStr.isNullOrEmpty() && !startDateStr.isNullOrEmpty() && startDateStr.length == 8) {
+                    val count = countStr.toIntOrNull()
+                    if (count != null && count > 0) {
+                        val courseStartDate = try {
+                            LocalDate.of(
+                                startDateStr.substring(0, 4).toInt(),
+                                startDateStr.substring(4, 6).toInt(),
+                                startDateStr.substring(6, 8).toInt()
+                            )
+                        } catch (_: Exception) { null }
+                        if (courseStartDate != null) {
+                            val courseMonday = courseStartDate.minusDays((courseStartDate.dayOfWeek.value - 1).toLong())
+                            val startWeek = ChronoUnit.WEEKS.between(classStartMonday, courseMonday).toInt() + 1
+                            selectedWeeks = (startWeek until startWeek + count).toList()
+                        }
+                    }
                 }
             }
 
