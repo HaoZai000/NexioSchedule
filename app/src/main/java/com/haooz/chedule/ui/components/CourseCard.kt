@@ -94,7 +94,7 @@ fun CourseCard(
                     .height(cardHeight)
                     .padding(horizontal = 2.dp, vertical = 2.dp)
                     .textureBlur(
-                        backdrop = wallpaperBackdrop!!,
+                        backdrop = wallpaperBackdrop,
                         shape = RoundedRectangle(cardCornerRadius.dp),
                         blurRadius = cardBlurRadius,
                         colors = blurColors!!

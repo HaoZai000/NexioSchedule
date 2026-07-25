@@ -1,12 +1,14 @@
 package com.haooz.chedule.ui.components
 
 import android.content.Context
+import android.os.Build
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.animateDpAsState
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -24,6 +26,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.RectangleShape
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.layout.onGloballyPositioned
@@ -149,14 +152,15 @@ internal fun ScheduleTopBar(
                 .height(titleBarHeight + if (appStyle == "liquidglass" && liquidGlassBackdrop != null) 70.dp else 40.dp)
                 .then(
                     if (appStyle == "liquidglass" && liquidGlassBackdrop != null) {
-                        Modifier.drawPlainBackdrop(
-                            backdrop = liquidGlassBackdrop,
-                            shape = { RectangleShape },
-                            effects = {
-                                blur(4f.dp.toPx())
-                                runtimeShaderEffect(
-                                    "AlphaMask",
-                                    """
+                        if (Build.VERSION.SDK_INT >= 33) {
+                            Modifier.drawPlainBackdrop(
+                                backdrop = liquidGlassBackdrop,
+                                shape = { RectangleShape },
+                                effects = {
+                                    blur(4f.dp.toPx())
+                                    runtimeShaderEffect(
+                                        "AlphaMask",
+                                        """
     uniform shader content;
     uniform float2 size;
     layout(color) uniform half4 tint;
@@ -167,14 +171,30 @@ internal fun ScheduleTopBar(
         float tintAlpha = smoothstep(size.y, size.y * 0.7, coord.y);
         return mix(content.eval(coord) * blurAlpha, tint * tintAlpha, tintIntensity);
     }""",
-                                    "content"
-                                ) {
-                                    setFloatUniform("size", size.width, size.height)
-                                    setColorUniform("tint", tintColor)
-                                    setFloatUniform("tintIntensity", 0.2f)
+                                        "content"
+                                    ) {
+                                        setFloatUniform("size", size.width, size.height)
+                                        setColorUniform("tint", tintColor)
+                                        setFloatUniform("tintIntensity", 0.2f)
+                                    }
                                 }
-                            }
-                        )
+                            )
+                        } else {
+                            // 渐变遮罩降级（API < 37）- 先快后慢的渐变
+                            val endY = (titleBarHeight + 70.dp).value * density.density
+                            Modifier.background(
+                                Brush.verticalGradient(
+                                    colorStops = arrayOf(
+                                        0.0f to tintColor.copy(alpha = 0.9f),
+                                        0.4f to tintColor.copy(alpha = 0.82f),
+                                        0.7f to tintColor.copy(alpha = 0.6f),
+                                        1.0f to tintColor.copy(alpha = 0.0f)
+                                    ),
+                                    startY = 0f,
+                                    endY = endY
+                                )
+                            )
+                        }
                     } else if (appStyle != "liquidglass") {
                         Modifier.textureBlur(
                             backdrop = backdrop,

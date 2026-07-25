@@ -1591,6 +1591,10 @@ class CourseRepository private constructor(context: Context) {
                 }
             }
         }
+        // 清除缓存，确保 UI 刷新
+        courseCache.clear()
+        occupiedWeeksCache.clear()
+        cachedCourseGroups = null
         onCourseChanged?.invoke("restore", "")
     }
 
@@ -1606,8 +1610,9 @@ class CourseRepository private constructor(context: Context) {
      * 导入单个课表的备份数据
      * @param scheduleName 课表名称
      * @param coursesData 课程数据列表
+     * @param timeConfigData 时间配置数据（可选）
      */
-    fun importSingleSchedule(scheduleName: String, coursesData: List<Map<String, Any>>) {
+    fun importSingleSchedule(scheduleName: String, coursesData: List<Map<String, Any>>, timeConfigData: Map<String, Any>? = null) {
         val names = getScheduleNames().toMutableList()
         if (scheduleName !in names) {
             names.add(scheduleName)
@@ -1626,8 +1631,12 @@ class CourseRepository private constructor(context: Context) {
             @Suppress("UNCHECKED_CAST")
             val selectedWeeks = (courseMap["selectedWeeks"] as? List<Number>)?.map { it.toInt() } ?: emptyList()
 
-            val color = Course.courseColors[colorIndex % Course.courseColors.size]
-            colorIndex++
+            val exportedColor = (courseMap["colorRes"] as? Number)?.toLong()
+            val color = exportedColor ?: run {
+                val c = Course.courseColors[colorIndex % Course.courseColors.size]
+                colorIndex++
+                c
+            }
             Course(
                 id = "${scheduleName}_${name}_${dayOfWeek}_$startSection",
                 scheduleId = scheduleName,
@@ -1648,6 +1657,37 @@ class CourseRepository private constructor(context: Context) {
         val key = "${prefix}$KEY_COURSES"
         val json = gson.toJson(courses)
         prefs.edit { putString(key, json) }
+        // 清除缓存，确保 UI 刷新
+        courseCache.clear()
+        occupiedWeeksCache.clear()
+        cachedCourseGroups = null
+
+        // 为新课表创建时间配置并绑定
+        val existingConfigId = getScheduleTimeConfigId(scheduleName)
+        if (existingConfigId == 0L) {
+            val newConfig = if (timeConfigData != null) {
+                // 从导入数据创建时间配置
+                val sectionTimesMap = mutableMapOf<String, String>()
+                @Suppress("UNCHECKED_CAST")
+                (timeConfigData["sectionTimes"] as? Map<String, String>)?.forEach { (k, v) ->
+                    sectionTimesMap[k] = v
+                }
+                com.haooz.chedule.data.TimeConfig(
+                    name = scheduleName,
+                    morningSections = (timeConfigData["morningSections"] as? Number)?.toInt() ?: 4,
+                    afternoonSections = (timeConfigData["afternoonSections"] as? Number)?.toInt() ?: 4,
+                    eveningSections = (timeConfigData["eveningSections"] as? Number)?.toInt() ?: 4,
+                    sectionTimes = sectionTimesMap
+                )
+            } else {
+                // 没有导入时间配置，复制当前课表的
+                val defaultConfig = getCurrentTimeConfig()
+                defaultConfig.copy(name = scheduleName, id = 0L)
+            }
+            val newConfigId = addTimeConfig(newConfig)
+            setScheduleTimeConfigId(scheduleName, newConfigId)
+        }
+
         onCourseChanged?.invoke("restore", "")
     }
 }

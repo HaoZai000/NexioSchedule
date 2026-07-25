@@ -46,6 +46,10 @@ import androidx.compose.ui.unit.sp
 import com.haooz.chedule.data.SyncManager
 import com.haooz.chedule.data.WebDavManager
 import com.haooz.chedule.ui.utils.rememberAppStyle
+import com.haooz.chedule.viewmodel.CourseViewModel
+import com.haooz.chedule.viewmodel.ScheduleViewModel
+import com.haooz.chedule.viewmodel.SettingsViewModel
+import androidx.lifecycle.viewmodel.compose.viewModel
 import kotlinx.coroutines.launch
 import top.yukonga.miuix.kmp.basic.ButtonDefaults
 import top.yukonga.miuix.kmp.basic.Card
@@ -76,6 +80,11 @@ fun WebDavSettingsScreen(onBack: () -> Unit, onConnectedChange: (Boolean) -> Uni
     val coroutineScope = rememberCoroutineScope()
     val scrollBehavior = MiuixScrollBehavior()
     var listScrollY by remember { mutableIntStateOf(0) }
+
+    // ViewModel 用于恢复后刷新 UI
+    val courseViewModel: CourseViewModel = viewModel()
+    val scheduleViewModel: ScheduleViewModel = viewModel()
+    val settingsViewModel: SettingsViewModel = viewModel()
 
     var serverUrl by remember { mutableStateOf(webDavManager.serverUrl.ifBlank { "https://dav.jianguoyun.com/dav/" }) }
     var username by remember { mutableStateOf(webDavManager.username) }
@@ -125,6 +134,10 @@ fun WebDavSettingsScreen(onBack: () -> Unit, onConnectedChange: (Boolean) -> Uni
                 statusIsError = false
                 restoring = false
                 lastSyncTimeMs = webDavManager.lastSyncTime
+                // 刷新 ViewModel，确保 UI 立即更新
+                courseViewModel.reloadCourses()
+                scheduleViewModel.refreshScheduleList()
+                settingsViewModel.refreshSettings()
             }
             is SyncManager.SyncOperationState.Error -> {
                 statusText = state.message

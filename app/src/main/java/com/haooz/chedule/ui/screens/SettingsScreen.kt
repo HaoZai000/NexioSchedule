@@ -43,6 +43,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.haooz.chedule.data.Course
+import com.haooz.chedule.data.TimeConfig
 import com.haooz.chedule.ui.activities.AboutActivity
 import com.haooz.chedule.ui.activities.CourseReminderActivity
 import com.haooz.chedule.ui.activities.CourseTimeSettingsActivity
@@ -1031,7 +1032,7 @@ internal fun parseIcsFile(text: String): Triple<Boolean, String, Map<String, Any
             for (event in courseEvents) {
                 val sd = event["startDate"] as? String
                 val ud = event["untilDate"] as? String
-                if (sd != null && sd.isNotEmpty()) {
+                if (!sd.isNullOrEmpty()) {
                     datePairs.add(listOf(sd, ud ?: ""))
                 }
             }
@@ -1247,12 +1248,18 @@ internal fun applyScheduleData(
             @Suppress("UNCHECKED_CAST")
             var selectedWeeks = (courseMap["selectedWeeks"] as? List<Number>)?.map { it.toInt() } ?: emptyList()
 
-            // 使用用户的时间配置将时间映射到节次
-            val startTotalMinutes = (courseMap["startTotalMinutes"] as? Number)?.toInt()
-            val endTotalMinutes = (courseMap["endTotalMinutes"] as? Number)?.toInt()
-            val sectionPair = if (startTotalMinutes != null && endTotalMinutes != null) {
-                findSectionByTime(startTotalMinutes, endTotalMinutes)
-            } else null
+            // 映射节次：优先用 startSection/endSection（JSON导出格式），其次用时间映射（ICS格式）
+            val directStartSection = (courseMap["startSection"] as? Number)?.toInt()
+            val directEndSection = (courseMap["endSection"] as? Number)?.toInt()
+            val sectionPair = if (directStartSection != null && directEndSection != null) {
+                Pair(directStartSection, directEndSection)
+            } else {
+                val startTotalMinutes = (courseMap["startTotalMinutes"] as? Number)?.toInt()
+                val endTotalMinutes = (courseMap["endTotalMinutes"] as? Number)?.toInt()
+                if (startTotalMinutes != null && endTotalMinutes != null) {
+                    findSectionByTime(startTotalMinutes, endTotalMinutes)
+                } else null
+            }
 
             // 如果无法映射节次，跳过该课程
             if (sectionPair == null) return@forEach
@@ -1265,7 +1272,7 @@ internal fun applyScheduleData(
                 if (!datePairs.isNullOrEmpty()) {
                     val allWeeks = mutableSetOf<Int>()
                     for (pair in datePairs) {
-                        if (pair.size < 1) continue
+                        if (pair.isEmpty()) continue
                         val sd = pair[0]
                         val ud = if (pair.size > 1) pair[1] else ""
                         if (sd.length == 8) {
@@ -1367,6 +1374,43 @@ internal fun applyScheduleData(
         // 保存设置到新课表
         @Suppress("UNCHECKED_CAST")
         val settings = data["settings"] as? Map<String, Any>
+
+        // 导入时间配置：创建新的 TimeConfig 并绑定给新课表
+        @Suppress("UNCHECKED_CAST")
+        val times = data["times"] as? Map<String, Any>
+        val importedMorningSections = (settings?.get("morning_sections") as? Number)?.toInt()
+        val importedAfternoonSections = (settings?.get("afternoon_sections") as? Number)?.toInt()
+        val importedEveningSections = (settings?.get("evening_sections") as? Number)?.toInt()
+
+        if (importedMorningSections != null || importedAfternoonSections != null || importedEveningSections != null || times != null) {
+            // 构建 sectionTimes
+            val sectionTimesMap = mutableMapOf<String, String>()
+            if (times != null) {
+                @Suppress("UNCHECKED_CAST")
+                (times["morning"] as? Map<String, String>)?.forEach { (k, v) -> sectionTimesMap["morning_$k"] = v }
+                @Suppress("UNCHECKED_CAST")
+                (times["afternoon"] as? Map<String, String>)?.forEach { (k, v) -> sectionTimesMap["afternoon_$k"] = v }
+                @Suppress("UNCHECKED_CAST")
+                (times["evening"] as? Map<String, String>)?.forEach { (k, v) -> sectionTimesMap["evening_$k"] = v }
+            }
+
+            val newConfig = TimeConfig(
+                name = scheduleName,
+                morningSections = importedMorningSections ?: 4,
+                afternoonSections = importedAfternoonSections ?: 4,
+                eveningSections = importedEveningSections ?: 4,
+                sectionTimes = sectionTimesMap
+            )
+            val newConfigId = scheduleViewModel.addTimeConfig(newConfig)
+            scheduleViewModel.setScheduleTimeConfigId(scheduleName, newConfigId)
+        } else {
+            // 没有导入时间配置，使用当前课表的时间配置
+            val currentScheduleTimeConfigId = scheduleViewModel.getCurrentScheduleTimeConfigId()
+            if (currentScheduleTimeConfigId != 0L) {
+                scheduleViewModel.setScheduleTimeConfigId(scheduleName, currentScheduleTimeConfigId)
+            }
+        }
+
         if (settings != null) {
             // 切换到新课表来保存设置
             scheduleViewModel.switchToSchedule(scheduleName)

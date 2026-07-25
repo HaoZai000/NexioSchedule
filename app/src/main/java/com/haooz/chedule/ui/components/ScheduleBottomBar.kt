@@ -1,7 +1,9 @@
 package com.haooz.chedule.ui.components
 
 import android.content.Context
+import android.os.Build
 import androidx.compose.foundation.Image
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxHeight
@@ -224,11 +226,20 @@ internal fun ScheduleBottomBar(
             }
         }
     } else {
+        val useBlur = Build.VERSION.SDK_INT >= 33
+        val fallbackColor = if (isDark) ComposeColor.Black else ComposeColor.White
+
         NavigationBar(
-            modifier = Modifier.height(74.dp).textureBlur(
-                backdrop = backdrop,
-                shape = RectangleShape,
-                colors = blurColors
+            modifier = Modifier.height(74.dp).then(
+                if (useBlur) {
+                    Modifier.textureBlur(
+                        backdrop = backdrop,
+                        shape = RectangleShape,
+                        colors = blurColors
+                    )
+                } else {
+                    Modifier.background(fallbackColor)
+                }
             ),
             mode = NavigationBarDisplayMode.IconAndText,
             color = ComposeColor.Transparent

@@ -71,6 +71,27 @@ class ScheduleViewModel(application: Application) : AndroidViewModel(application
     }
 
     /**
+     * 获取当前课表绑定的时间配置 ID
+     */
+    fun getCurrentScheduleTimeConfigId(): Long {
+        return repository.getScheduleTimeConfigId(repository.getCurrentScheduleId())
+    }
+
+    /**
+     * 设置指定课表绑定的时间配置 ID
+     */
+    fun setScheduleTimeConfigId(scheduleId: String, timeConfigId: Long) {
+        repository.setScheduleTimeConfigId(scheduleId, timeConfigId)
+    }
+
+    /**
+     * 创建新的时间配置并返回 ID
+     */
+    fun addTimeConfig(config: com.haooz.chedule.data.TimeConfig): Long {
+        return repository.addTimeConfig(config)
+    }
+
+    /**
      * 删除课表
      */
     fun deleteSchedule(name: String): List<String> {
@@ -102,5 +123,19 @@ class ScheduleViewModel(application: Application) : AndroidViewModel(application
         repository.setCurrentScheduleId(scheduleId)
         repository.saveCourses(courses)
         repository.setCurrentScheduleId(oldScheduleId)
+    }
+
+    /**
+     * 获取指定课表绑定的时间配置 ID
+     */
+    fun getScheduleTimeConfigId(scheduleId: String): Long {
+        return repository.getScheduleTimeConfigId(scheduleId)
+    }
+
+    /**
+     * 获取指定 ID 的时间配置
+     */
+    fun getTimeConfig(configId: Long): com.haooz.chedule.data.TimeConfig {
+        return repository.getTimeConfig(configId)
     }
 }

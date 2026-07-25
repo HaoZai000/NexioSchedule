@@ -92,6 +92,7 @@ import top.yukonga.miuix.kmp.icon.extended.Download
 import top.yukonga.miuix.kmp.icon.extended.Refresh
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 import java.io.File
+import androidx.core.net.toUri
 
 private const val DESKTOP_USER_AGENT =
     "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
@@ -162,21 +163,15 @@ fun WebViewScreen(
     val currentOnImportComplete by rememberUpdatedState(onImportComplete)
     val currentOnBack by rememberUpdatedState(onBack)
 
-    val showAlertCallback by rememberUpdatedState(
-        { title: String, content: String, confirmText: String, onResult: (Boolean) -> Unit ->
-            alertData = AlertData(title, content, confirmText, onResult)
-        }
-    )
-    val showPromptCallback by rememberUpdatedState(
-        { title: String, tip: String, defaultText: String, validatorJs: String, onResult: (String?) -> Unit ->
-            promptData = PromptData(title, tip, defaultText, onResult)
-        }
-    )
-    val showSelectionCallback by rememberUpdatedState(
-        { title: String, items: List<String>, defaultIndex: Int, onResult: (Int?) -> Unit ->
-            selectionData = SelectionData(title, items, defaultIndex, onResult)
-        }
-    )
+    val showAlertCallback by rememberUpdatedState { title: String, content: String, confirmText: String, onResult: (Boolean) -> Unit ->
+        alertData = AlertData(title, content, confirmText, onResult)
+    }
+    val showPromptCallback by rememberUpdatedState { title: String, tip: String, defaultText: String, validatorJs: String, onResult: (String?) -> Unit ->
+        promptData = PromptData(title, tip, defaultText, onResult)
+    }
+    val showSelectionCallback by rememberUpdatedState { title: String, items: List<String>, defaultIndex: Int, onResult: (Int?) -> Unit ->
+        selectionData = SelectionData(title, items, defaultIndex, onResult)
+    }
 
     val androidBridge = remember {
         AndroidBridge(
@@ -275,11 +270,12 @@ fun WebViewScreen(
                 @Deprecated("Deprecated in Java")
                 override fun shouldOverrideUrlLoading(view: WebView?, url: String?): Boolean {
                     if (url.isNullOrBlank()) return false
-                    val scheme = android.net.Uri.parse(url).scheme?.lowercase() ?: return false
+                    val scheme = url.toUri().scheme?.lowercase() ?: return false
                     if (scheme == "http" || scheme == "https") return false
                     // 自定义 scheme（intent://, market://, tel:// 等）交给外部处理
                     try {
-                        val intent = android.content.Intent(android.content.Intent.ACTION_VIEW, android.net.Uri.parse(url))
+                        val intent = android.content.Intent(android.content.Intent.ACTION_VIEW,
+                            url.toUri())
                         intent.addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK)
                         view?.context?.startActivity(intent)
                     } catch (_: Exception) { }

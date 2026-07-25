@@ -59,8 +59,8 @@ import androidx.compose.ui.zIndex
 import com.haooz.chedule.data.Course
 import com.haooz.chedule.ui.components.liquidglass.LiquidTopBarButton
 import com.haooz.chedule.ui.components.liquidglass.ProgressiveBlurTopBar
-import com.haooz.chedule.ui.oobe.OobeCubicOutEasing
-import com.haooz.chedule.ui.oobe.OobeQuartOutEasing
+import com.haooz.chedule.ui.miuix.OobeCubicOutEasing
+import com.haooz.chedule.ui.miuix.OobeQuartOutEasing
 import com.haooz.chedule.ui.utils.isAppDarkTheme
 import com.kyant.shapes.RoundedRectangle
 import kotlinx.coroutines.coroutineScope

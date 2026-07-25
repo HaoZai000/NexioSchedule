@@ -444,52 +444,50 @@ fun TodayAssistantCard(
             )
             Spacer(modifier = Modifier.height(2.dp))
             // 智能提示 + 天气
-            if (smartTip.isNotBlank() || true) {
-                Column(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .background(MiuixTheme.colorScheme.surfaceVariant.copy(alpha = 0.35f)),
-                    verticalArrangement = Arrangement.spacedBy(4.dp)
-                ) {
-                    if (smartTip.isNotBlank()) {
-                        Text(
-                            text = smartTip,
-                            style = MiuixTheme.textStyles.body2,
-                            color = MiuixTheme.colorScheme.onSurface
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .background(MiuixTheme.colorScheme.surfaceVariant.copy(alpha = 0.35f)),
+                verticalArrangement = Arrangement.spacedBy(4.dp)
+            ) {
+                if (smartTip.isNotBlank()) {
+                    Text(
+                        text = smartTip,
+                        style = MiuixTheme.textStyles.body2,
+                        color = MiuixTheme.colorScheme.onSurface
+                    )
+                }
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    if (weather.loaded && !weather.temperature.isNaN()) {
+                        androidx.compose.foundation.Image(
+                            painter = androidx.compose.ui.res.painterResource(
+                                id = getWeatherIconRes(weather.weatherCode, weather.isNight())
+                            ),
+                            contentDescription = null,
+                            modifier = Modifier.size(20.dp)
                         )
-                    }
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        if (weather.loaded && !weather.temperature.isNaN()) {
-                            androidx.compose.foundation.Image(
-                                painter = androidx.compose.ui.res.painterResource(
-                                    id = getWeatherIconRes(weather.weatherCode, weather.isNight())
-                                ),
-                                contentDescription = null,
-                                modifier = Modifier.size(20.dp)
-                            )
-                            Spacer(modifier = Modifier.width(6.dp))
-                            val condition = getWeatherCondition(weather.weatherCode)
-                            val advice = getWeatherAdvice(weather.temperature, weather.weatherCode)
-                            Text(
-                                text = "${weather.temperature.toInt()}°C $condition · $advice",
-                                style = MiuixTheme.textStyles.body2,
-                                color = MiuixTheme.colorScheme.onSurfaceVariantActions
-                            )
-                        } else {
-                            androidx.compose.foundation.Image(
-                                painter = androidx.compose.ui.res.painterResource(
-                                    id = R.drawable.icon_overcast
-                                ),
-                                contentDescription = null,
-                                modifier = Modifier.size(20.dp)
-                            )
-                            Spacer(modifier = Modifier.width(6.dp))
-                            Text(
-                                text = "加载中...",
-                                style = MiuixTheme.textStyles.body2,
-                                color = MiuixTheme.colorScheme.onSurfaceVariantActions
-                            )
-                        }
+                        Spacer(modifier = Modifier.width(6.dp))
+                        val condition = getWeatherCondition(weather.weatherCode)
+                        val advice = getWeatherAdvice(weather.temperature, weather.weatherCode)
+                        Text(
+                            text = "${weather.temperature.toInt()}°C $condition · $advice",
+                            style = MiuixTheme.textStyles.body2,
+                            color = MiuixTheme.colorScheme.onSurfaceVariantActions
+                        )
+                    } else {
+                        androidx.compose.foundation.Image(
+                            painter = androidx.compose.ui.res.painterResource(
+                                id = R.drawable.icon_overcast
+                            ),
+                            contentDescription = null,
+                            modifier = Modifier.size(20.dp)
+                        )
+                        Spacer(modifier = Modifier.width(6.dp))
+                        Text(
+                            text = "加载中...",
+                            style = MiuixTheme.textStyles.body2,
+                            color = MiuixTheme.colorScheme.onSurfaceVariantActions
+                        )
                     }
                 }
             }

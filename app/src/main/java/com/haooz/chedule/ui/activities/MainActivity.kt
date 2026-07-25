@@ -84,8 +84,8 @@ import com.haooz.chedule.ui.components.liquidglass.LiquidAddButton
 import com.haooz.chedule.ui.components.liquidglass.LiquidGlassDropdownMenu
 import com.haooz.chedule.ui.components.liquidglass.LiquidGlassDropdownMenuItem
 import com.haooz.chedule.ui.components.liquidglass.ProgressiveBlurTopBar
-import com.haooz.chedule.ui.oobe.OobeCubicOutEasing
-import com.haooz.chedule.ui.oobe.OobeQuartOutEasing
+import com.haooz.chedule.ui.miuix.OobeCubicOutEasing
+import com.haooz.chedule.ui.miuix.OobeQuartOutEasing
 import com.haooz.chedule.ui.screens.AddCourseDialog
 import com.haooz.chedule.ui.screens.CourseDetailScreen
 import com.haooz.chedule.ui.screens.CustomizeScheduleScreen
@@ -1219,6 +1219,7 @@ fun CourseScheduleApp() {
                                 showMorePopup = showTodayMorePopup,
                                 onShowMorePopupChange = { showTodayMorePopup = it },
                                 jumpToDateTrigger = todayJumpToDateTrigger,
+                                onJumpToDateProcessed = { todayJumpToDateTrigger = 0 },
                                 onCourseManage = {
                                     val intent = android.content.Intent(context, CourseManageActivity::class.java)
                                     context.startActivity(intent)

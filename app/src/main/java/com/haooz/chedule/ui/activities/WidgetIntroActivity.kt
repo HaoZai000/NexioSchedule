@@ -60,7 +60,7 @@ class WidgetIntroActivity : ComponentActivity() {
                         if (isLiquidGlass) {
                             val statusBarPadding = WindowInsets.statusBars.asPaddingValues().calculateTopPadding()
                             ProgressiveBlurTopBar(
-                                backdrop = liquidGlassBackdrop!!,
+                                backdrop = liquidGlassBackdrop,
                             ) {
                                 SmallTopAppBar(
                                     color = Color.Transparent,

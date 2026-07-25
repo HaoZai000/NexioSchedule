@@ -66,14 +66,14 @@ class WebDavSettingsActivity : ComponentActivity() {
                 val isLiquidGlass = liquidGlassBackdrop != null
 
                 var connected by remember { mutableStateOf(false) }
-                var onTestConnection by remember { mutableStateOf<() -> Unit>({}) }
+                var onTestConnection by remember { mutableStateOf({}) }
 
                 Scaffold(
                     topBar = {
                         if (isLiquidGlass) {
                             val statusBarPadding = WindowInsets.statusBars.asPaddingValues().calculateTopPadding()
                             ProgressiveBlurTopBar(
-                                backdrop = liquidGlassBackdrop!!,
+                                backdrop = liquidGlassBackdrop,
                             ) {
                                 SmallTopAppBar(
                                     color = Color.Transparent,

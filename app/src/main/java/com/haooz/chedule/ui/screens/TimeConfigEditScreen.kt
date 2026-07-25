@@ -79,8 +79,8 @@ import com.haooz.chedule.data.CourseRepository
 import com.haooz.chedule.data.TimeConfig
 import com.haooz.chedule.ui.components.liquidglass.LiquidTopBarButton
 import com.haooz.chedule.ui.components.liquidglass.ProgressiveBlurTopBar
-import com.haooz.chedule.ui.oobe.OobeCubicOutEasing
-import com.haooz.chedule.ui.oobe.OobeQuartOutEasing
+import com.haooz.chedule.ui.miuix.OobeCubicOutEasing
+import com.haooz.chedule.ui.miuix.OobeQuartOutEasing
 import com.haooz.chedule.ui.utils.isAppDarkTheme
 import com.haooz.chedule.ui.utils.rememberAppStyle
 import com.kyant.backdrop.backdrops.LayerBackdrop

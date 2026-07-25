@@ -83,6 +83,7 @@ import java.io.File
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
+import kotlin.time.Duration.Companion.milliseconds
 
 private data class BackupFileInfo(
     val file: File,
@@ -343,6 +344,9 @@ fun LocalBackupScreen(onBack: () -> Unit) {
                                                 repository.exportAllPreferences()
                                             } else {
                                                 val courses = repository.getCoursesForSchedule(selectedSchedule)
+                                                // 获取该课表绑定的时间配置
+                                                val configId = repository.getScheduleTimeConfigId(selectedSchedule)
+                                                val timeConfig = repository.getTimeConfig(configId)
                                                 mapOf(
                                                     "schedule_name" to selectedSchedule,
                                                     "courses" to courses.map { course ->
@@ -353,11 +357,18 @@ fun LocalBackupScreen(onBack: () -> Unit) {
                                                             "dayOfWeek" to course.dayOfWeek,
                                                             "startSection" to course.startSection,
                                                             "endSection" to course.endSection,
+                                                            "colorRes" to course.colorRes,
                                                             "selectedWeeks" to (course.selectedWeeks.ifEmpty {
                                                                 (course.startWeek..course.endWeek).toList()
                                                             }).sorted()
                                                         )
-                                                    }
+                                                    },
+                                                    "time_config" to mapOf(
+                                                        "morningSections" to timeConfig.morningSections,
+                                                        "afternoonSections" to timeConfig.afternoonSections,
+                                                        "eveningSections" to timeConfig.eveningSections,
+                                                        "sectionTimes" to timeConfig.sectionTimes
+                                                    )
                                                 )
                                             }
 
@@ -537,7 +548,7 @@ fun LocalBackupScreen(onBack: () -> Unit) {
     val restoreDialogFile = pendingRestoreFile
     OverlayDialog(
         title = "恢复备份",
-        summary = if (restoreDialogFile != null) "确定要恢复备份「${restoreDialogFile.name}」吗？\n当前数据将被覆盖，请确保已备份当前数据" else "",
+        summary = if (restoreDialogFile != null) "确定要恢复备份「${restoreDialogFile.name}」吗？\n将创建一个新的课表（重名时自动编号）" else "",
         show = showRestoreDialog,
         onDismissRequest = {
             showRestoreDialog = false
@@ -580,13 +591,30 @@ fun LocalBackupScreen(onBack: () -> Unit) {
                                     val repository = CourseRepository(context.applicationContext as android.app.Application)
 
                                     if (data.containsKey("courses") && data.containsKey("schedule_name")) {
-                                        val scheduleName = data["schedule_name"] as String
+                                        val originalName = data["schedule_name"] as String
                                         @Suppress("UNCHECKED_CAST")
                                         val courses = data["courses"] as List<Map<String, Any>>
-                                        repository.importSingleSchedule(scheduleName, courses)
+                                        @Suppress("UNCHECKED_CAST")
+                                        val timeConfig = data["time_config"] as? Map<String, Any>
+                                        // 如果同名课表已存在，自动生成新名称
+                                        val scheduleName = if (scheduleViewModel.scheduleNames.value.contains(originalName)) {
+                                            var index = 1
+                                            while (scheduleViewModel.scheduleNames.value.contains("$originalName($index)")) {
+                                                index++
+                                            }
+                                            "$originalName($index)"
+                                        } else {
+                                            originalName
+                                        }
+                                        repository.importSingleSchedule(scheduleName, courses, timeConfig)
+                                        scheduleViewModel.refreshScheduleList()
                                     } else {
                                         repository.importAllPreferences(data)
                                     }
+                                    // 刷新 ViewModel，确保 UI 立即更新
+                                    courseViewModel.reloadCourses()
+                                    scheduleViewModel.refreshScheduleList()
+                                    settingsViewModel.refreshSettings()
                                     Result.success(Unit)
                                 } catch (e: Exception) {
                                     Result.failure(e)
@@ -646,7 +674,7 @@ fun LocalBackupScreen(onBack: () -> Unit) {
                         deletingFileName = pendingDeleteFile?.name
                         showDeleteDialog = false
                         coroutineScope.launch {
-                            kotlinx.coroutines.delay(300)
+                            kotlinx.coroutines.delay(300.milliseconds)
                             try {
                                 pendingDeleteFile?.delete()
                                 Toast.makeText(context, "删除成功", Toast.LENGTH_SHORT).show()
@@ -668,7 +696,7 @@ fun LocalBackupScreen(onBack: () -> Unit) {
     val externalRestoreUri = pendingExternalUri
     OverlayDialog(
         title = "恢复外部备份",
-        summary = if (externalRestoreUri != null) "确定要恢复从外部选择的备份文件吗？\n当前数据将被覆盖，请确保已备份当前数据" else "",
+        summary = if (externalRestoreUri != null) "确定要恢复从外部选择的备份文件吗？\n将创建一个新的课表（重名时自动编号）" else "",
         show = showExternalRestoreDialog,
         onDismissRequest = {
             showExternalRestoreDialog = false
@@ -715,13 +743,30 @@ fun LocalBackupScreen(onBack: () -> Unit) {
                                     val repository = CourseRepository(context.applicationContext as android.app.Application)
 
                                     if (data.containsKey("courses") && data.containsKey("schedule_name")) {
-                                        val scheduleName = data["schedule_name"] as String
+                                        val originalName = data["schedule_name"] as String
                                         @Suppress("UNCHECKED_CAST")
                                         val courses = data["courses"] as List<Map<String, Any>>
-                                        repository.importSingleSchedule(scheduleName, courses)
+                                        @Suppress("UNCHECKED_CAST")
+                                        val timeConfig = data["time_config"] as? Map<String, Any>
+                                        // 如果同名课表已存在，自动生成新名称
+                                        val scheduleName = if (scheduleViewModel.scheduleNames.value.contains(originalName)) {
+                                            var index = 1
+                                            while (scheduleViewModel.scheduleNames.value.contains("$originalName($index)")) {
+                                                index++
+                                            }
+                                            "$originalName($index)"
+                                        } else {
+                                            originalName
+                                        }
+                                        repository.importSingleSchedule(scheduleName, courses, timeConfig)
+                                        scheduleViewModel.refreshScheduleList()
                                     } else {
                                         repository.importAllPreferences(data)
                                     }
+                                    // 刷新 ViewModel，确保 UI 立即更新
+                                    courseViewModel.reloadCourses()
+                                    scheduleViewModel.refreshScheduleList()
+                                    settingsViewModel.refreshSettings()
                                     Result.success(Unit)
                                 } catch (e: Exception) {
                                     Result.failure(e)

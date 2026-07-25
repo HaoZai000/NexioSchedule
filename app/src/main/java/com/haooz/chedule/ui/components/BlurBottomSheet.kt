@@ -52,8 +52,8 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.zIndex
-import com.haooz.chedule.ui.oobe.OobeCubicOutEasing
-import com.haooz.chedule.ui.oobe.OobeQuartOutEasing
+import com.haooz.chedule.ui.miuix.OobeCubicOutEasing
+import com.haooz.chedule.ui.miuix.OobeQuartOutEasing
 import com.haooz.chedule.ui.components.liquidglass.ProgressiveBlurTopBar
 import com.kyant.backdrop.Backdrop
 import com.kyant.backdrop.backdrops.layerBackdrop

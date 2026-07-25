@@ -4,7 +4,7 @@
  * Copyright (C) 2023-2026 HyperCeiler Contributions
  * SPDX-License-Identifier: AGPL-3.0-only
  */
-package com.haooz.chedule.ui.oobe
+package com.haooz.chedule.ui.miuix
 
 import androidx.compose.animation.ExitTransition
 import androidx.compose.animation.fadeIn

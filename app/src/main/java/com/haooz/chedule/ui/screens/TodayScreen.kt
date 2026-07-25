@@ -242,15 +242,14 @@ fun TodayScreen(
     showMorePopup: Boolean = false,
     onShowMorePopupChange: (Boolean) -> Unit = {},
     jumpToDateTrigger: Int = 0,
+    onJumpToDateProcessed: () -> Unit = {},
     onCourseManage: () -> Unit = {}
 ) {
     val courses by viewModel.courses.collectAsState()
-    val currentWeek by viewModel.currentWeek.collectAsState()
     val classStartTime by viewModel.classStartTime.collectAsState()
     val sectionTimes by settingsViewModel.sectionTimes.collectAsState()
     val morningSections by settingsViewModel.morningSections.collectAsState()
     val afternoonSections by settingsViewModel.afternoonSections.collectAsState()
-    val eveningSections by settingsViewModel.eveningSections.collectAsState()
     val smartWeekend by settingsViewModel.smartWeekend.collectAsState()
 
     val MAX_DATE_OFFSET = 1000
@@ -259,7 +258,6 @@ fun TodayScreen(
     var selectedDate by remember { mutableStateOf(initialDate) }
     var isToday by remember { mutableStateOf(initialDaysOffset == 0) }
     val scope = rememberCoroutineScope()
-    val context = LocalContext.current
 
     var showDatePicker by remember { mutableStateOf(false) }
     var datePickerYear by remember { mutableIntStateOf(LocalDate.now().year) }
@@ -279,6 +277,7 @@ fun TodayScreen(
             datePickerMonth = now.monthValue - 1
             datePickerDay = now.dayOfMonth
             showDatePicker = true
+            onJumpToDateProcessed()
         }
     }
 
@@ -514,7 +513,6 @@ fun TodayScreen(
                     item {
                         val now = LocalTime.now()
                         val hour = now.hour
-                        val minute = now.minute
                         val h6 = listOf(
                             "太阳刚打卡上班，我的灵魂还在梦里蹦迪",
                             "闹钟响了三遍，和被窝的离婚官司还没打完",
@@ -1112,7 +1110,7 @@ fun TodayScreen(
         }
 
         // 日期选择弹窗
-        if (showDatePicker) OverlayDialog(
+        OverlayDialog(
             title = "跳转日期",
             show = showDatePicker,
             onDismissRequest = { showDatePicker = false }

@@ -6,7 +6,6 @@ import androidx.activity.compose.BackHandler
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.animateFloatAsState
-import androidx.compose.animation.core.CubicBezierEasing
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.shrinkVertically
@@ -74,8 +73,8 @@ import androidx.compose.ui.zIndex
 import com.haooz.chedule.data.Course
 import com.haooz.chedule.ui.components.liquidglass.LiquidTopBarButton
 import com.haooz.chedule.ui.components.liquidglass.ProgressiveBlurTopBar
-import com.haooz.chedule.ui.oobe.OobeCubicOutEasing
-import com.haooz.chedule.ui.oobe.OobeQuartOutEasing
+import com.haooz.chedule.ui.miuix.OobeCubicOutEasing
+import com.haooz.chedule.ui.miuix.OobeQuartOutEasing
 import com.haooz.chedule.ui.utils.isAppDarkTheme
 import com.haooz.chedule.ui.utils.rememberAppStyle
 import com.kyant.shapes.RoundedRectangle
@@ -327,7 +326,7 @@ fun CourseEditScreen(
     LaunchedEffect(deletingGroupId) {
         val courseIds = pendingDeleteCourseIds
         if (deletingGroupId != null && courseIds.isNotEmpty()) {
-            delay(300) // 等 shrinkVertically + fadeOut 动画完成
+            delay(300.milliseconds) // 等 shrinkVertically + fadeOut 动画完成
             courseIds.forEach { onDeleteCourse(it) }
             pendingDeleteCourseIds = emptyList()
             deletingGroupId = null
@@ -1148,21 +1147,17 @@ private fun CourseGroupCard(
     ) {
         SmallTitle(text = weekTitle)
     }
-    Column(
-        modifier = Modifier.fillMaxWidth(),
-        verticalArrangement = Arrangement.spacedBy(12.dp)
-    ) {
-    // 基本信息卡片
+
     Card(
         cornerRadius = 20.dp,
         modifier = Modifier.fillMaxWidth(),
-        insideMargin = PaddingValues(horizontal = 16.dp),
     ) {
         Column(modifier = Modifier.fillMaxWidth()) {
+            // 地点
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(vertical = 14.dp),
+                    .padding(start = 16.dp, end = 16.dp, top = 17.dp, bottom = 14.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 Text(
@@ -1199,10 +1194,11 @@ private fun CourseGroupCard(
                     }
                 )
             }
+            // 教师
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(vertical = 14.dp),
+                    .padding(start = 16.dp, end = 16.dp, top = 14.dp, bottom = 17.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 Text(
@@ -1239,108 +1235,120 @@ private fun CourseGroupCard(
                     }
                 )
             }
-        }
-    }
 
-    // 详细设置卡片 - 上课星期
-    Column(modifier = Modifier.fillMaxWidth()) {
-        Card(
-            cornerRadius = 20.dp,
-            modifier = Modifier.fillMaxWidth(),
-        ) {
-            Column(modifier = Modifier.fillMaxWidth()) {
-                Column(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(horizontal = 16.dp, vertical = 14.dp)
-                ) {
-                    Text(
-                        text = "上课星期",
-                        fontSize = 17.sp,
-                        fontWeight = FontWeight.Medium,
-                        color = MiuixTheme.colorScheme.onSurface,
-                        modifier = Modifier.padding(bottom = 10.dp)
+            Spacer(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 16.dp)
+                    .height(0.5.dp)
+                    .background(
+                        MiuixTheme.colorScheme.onSurfaceVariantActions.copy(
+                            alpha = 0.07f
+                        )
                     )
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.spacedBy(6.dp)
-                    ) {
-                        val dayLabels = listOf("一", "二", "三", "四", "五", "六", "日")
-                        for (day in 1..7) {
-                            val isSelected = day == dayOfWeek
-                            Card(
-                                modifier = Modifier
-                                    .weight(1f)
-                                    .height(32.dp),
-                                cornerRadius = 10.dp,
-                                insideMargin = PaddingValues(0.dp),
-                                pressFeedbackType = PressFeedbackType.Sink,
-                                colors = CardDefaults.defaultColors(
-                                    color = if (isSelected) MiuixTheme.colorScheme.primary
-                                    else if (isDark) Color(0xFF505050) else Color(0xFFF7F7F7),
-                                    contentColor = if (isSelected) Color.White else MiuixTheme.colorScheme.onSurfaceVariantSummary
-                                ),
-                                onClick = { dayOfWeek = day }
+            )
+
+            // 上课星期
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(vertical = 17.dp, horizontal = 16.dp)
+            ) {
+                Text(
+                    text = "上课星期",
+                    fontSize = 17.sp,
+                    fontWeight = FontWeight.Medium,
+                    color = MiuixTheme.colorScheme.onSurface,
+                    modifier = Modifier.padding(bottom = 10.dp)
+                )
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(6.dp)
+                ) {
+                    val dayLabels = listOf("一", "二", "三", "四", "五", "六", "日")
+                    for (day in 1..7) {
+                        val isSelected = day == dayOfWeek
+                        Card(
+                            modifier = Modifier
+                                .weight(1f)
+                                .height(32.dp),
+                            cornerRadius = 10.dp,
+                            insideMargin = PaddingValues(0.dp),
+                            pressFeedbackType = PressFeedbackType.Sink,
+                            colors = CardDefaults.defaultColors(
+                                color = if (isSelected) MiuixTheme.colorScheme.primary
+                                else if (isDark) Color(0xFF505050) else Color(0xFFF7F7F7),
+                                contentColor = if (isSelected) Color.White else MiuixTheme.colorScheme.onSurfaceVariantSummary
+                            ),
+                            onClick = { dayOfWeek = day }
+                        ) {
+                            Box(
+                                modifier = Modifier.fillMaxSize(),
+                                contentAlignment = Alignment.Center
                             ) {
-                                Box(
-                                    modifier = Modifier.fillMaxSize(),
-                                    contentAlignment = Alignment.Center
-                                ) {
-                                    Text(
-                                        text = dayLabels[day - 1],
-                                        fontSize = 14.sp,
-                                        color = if (isSelected) Color.White else MiuixTheme.colorScheme.onSurfaceVariantSummary
-                                    )
-                                }
+                                Text(
+                                    text = dayLabels[day - 1],
+                                    fontSize = 14.sp,
+                                    color = if (isSelected) Color.White else MiuixTheme.colorScheme.onSurfaceVariantSummary
+                                )
                             }
                         }
                     }
                 }
             }
-        }
-    }
 
-    // 节次范围（点击弹出 NumberPicker）
-    Column(modifier = Modifier.fillMaxWidth()) {
-        Card(
-            cornerRadius = 20.dp,
-            modifier = Modifier.fillMaxWidth(),
-        ) {
-            Column(modifier = Modifier.fillMaxWidth()) {
-                ArrowPreference(
-                    title = "上课节次",
-                    endActions = {
-                        Text(
-                            text = "第${startSection} - ${endSection}节",
-                            fontSize = 14.5.sp,
-                            color = MiuixTheme.colorScheme.onSurfaceVariantActions
+            Spacer(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 16.dp)
+                    .height(0.5.dp)
+                    .background(
+                        MiuixTheme.colorScheme.onSurfaceVariantActions.copy(
+                            alpha = 0.07f
                         )
-                    },
-                    onClick = {
-                        tempStartSection = startSection
-                        tempEndSection = endSection
-                        showSectionDialog = true
-                    },
-                    holdDownState = showSectionDialog
-                )
-            }
-        }
-    }
+                    )
+            )
 
-    // 周次设置（含全部/单周/双周复选框和周次网格）
-    Column(modifier = Modifier.fillMaxWidth()) {
-        val hasMixedSelection = someSelectableOddSelected && someSelectableEvenSelected
+            // 上课节次
+            ArrowPreference(
+                title = "上课节次",
+                endActions = {
+                    Text(
+                        text = "第${startSection} - ${endSection}节",
+                        fontSize = 14.5.sp,
+                        color = MiuixTheme.colorScheme.onSurfaceVariantActions
+                    )
+                },
+                onClick = {
+                    tempStartSection = startSection
+                    tempEndSection = endSection
+                    showSectionDialog = true
+                },
+                holdDownState = showSectionDialog
+            )
 
-        Card(
-            cornerRadius = 20.dp,
-            modifier = Modifier.fillMaxWidth(),
-            insideMargin = PaddingValues(horizontal = 16.dp, vertical = 2.dp),
-        ) {
-            Column(modifier = Modifier.fillMaxWidth()) {
+            Spacer(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 16.dp)
+                    .height(0.5.dp)
+                    .background(
+                        MiuixTheme.colorScheme.onSurfaceVariantActions.copy(
+                            alpha = 0.07f
+                        )
+                    )
+            )
+
+            // 上课周次
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(16.dp)
+            ) {
+                val hasMixedSelection = someSelectableOddSelected && someSelectableEvenSelected
+
                 Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(vertical = 14.dp),
+                    modifier = Modifier.fillMaxWidth(),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     Text(
@@ -1468,13 +1476,13 @@ private fun CourseGroupCard(
                     }
                 }
 
+                Spacer(modifier = Modifier.height(10.dp))
+
                 // 周次网格
                 val columns = 6
                 val rows = (totalWeeks + columns - 1) / columns
                 Column(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(bottom = 12.dp),
+                    modifier = Modifier.fillMaxWidth(),
                     verticalArrangement = Arrangement.spacedBy(6.dp)
                 ) {
                     for (row in 0 until rows) {
@@ -1559,8 +1567,6 @@ private fun CourseGroupCard(
             modifier = Modifier.padding(start = 32.dp, top = 4.dp)
         )
     }
-
-    } // Column spacing
 
     // 节次选择弹窗
     OverlayDialog(
