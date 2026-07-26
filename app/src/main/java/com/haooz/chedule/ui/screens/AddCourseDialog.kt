@@ -22,7 +22,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.foundation.text.BasicTextField
+import com.haooz.chedule.ui.components.NativeTextField
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -41,7 +41,6 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.input.pointer.pointerInput
@@ -145,22 +144,22 @@ fun AddCourseDialog(
         }
     }
 
-    val allWeeks = (1..totalWeeks).toList()
-    val oddWeeks = allWeeks.filter { it % 2 == 1 }
-    val evenWeeks = allWeeks.filter { it % 2 == 0 }
-    val someOddSelected = oddWeeks.any { it in selectedWeeks }
-    val someEvenSelected = evenWeeks.any { it in selectedWeeks }
+    val allWeeks = remember(totalWeeks) { (1..totalWeeks).toList() }
+    val oddWeeks = remember(allWeeks) { allWeeks.filter { it % 2 == 1 } }
+    val evenWeeks = remember(allWeeks) { allWeeks.filter { it % 2 == 0 } }
+    val someOddSelected = remember(oddWeeks, selectedWeeks) { oddWeeks.any { it in selectedWeeks } }
+    val someEvenSelected = remember(evenWeeks, selectedWeeks) { evenWeeks.any { it in selectedWeeks } }
 
-    val selectableWeeks = allWeeks.filter { it !in currentOccupiedWeeks }
-    val selectableOddWeeks = selectableWeeks.filter { it % 2 == 1 }
-    val selectableEvenWeeks = selectableWeeks.filter { it % 2 == 0 }
-    val allSelectableSelected = selectableWeeks.isNotEmpty() && selectableWeeks.all { it in selectedWeeks }
-    val allSelectableOddSelected = selectableOddWeeks.all { it in selectedWeeks }
-    val allSelectableEvenSelected = selectableEvenWeeks.all { it in selectedWeeks }
-    val someSelectableOddSelected = selectableOddWeeks.any { it in selectedWeeks }
-    val someSelectableEvenSelected = selectableEvenWeeks.any { it in selectedWeeks }
-    val hasOccupiedOddWeeks = selectableOddWeeks.size != oddWeeks.size
-    val hasOccupiedEvenWeeks = selectableEvenWeeks.size != evenWeeks.size
+    val selectableWeeks = remember(allWeeks, currentOccupiedWeeks) { allWeeks.filter { it !in currentOccupiedWeeks } }
+    val selectableOddWeeks = remember(selectableWeeks) { selectableWeeks.filter { it % 2 == 1 } }
+    val selectableEvenWeeks = remember(selectableWeeks) { selectableWeeks.filter { it % 2 == 0 } }
+    val allSelectableSelected = remember(selectableWeeks, selectedWeeks) { selectableWeeks.isNotEmpty() && selectableWeeks.all { it in selectedWeeks } }
+    val allSelectableOddSelected = remember(selectableOddWeeks, selectedWeeks) { selectableOddWeeks.all { it in selectedWeeks } }
+    val allSelectableEvenSelected = remember(selectableEvenWeeks, selectedWeeks) { selectableEvenWeeks.all { it in selectedWeeks } }
+    val someSelectableOddSelected = remember(selectableOddWeeks, selectedWeeks) { selectableOddWeeks.any { it in selectedWeeks } }
+    val someSelectableEvenSelected = remember(selectableEvenWeeks, selectedWeeks) { selectableEvenWeeks.any { it in selectedWeeks } }
+    val hasOccupiedOddWeeks = remember(selectableOddWeeks, oddWeeks) { selectableOddWeeks.size != oddWeeks.size }
+    val hasOccupiedEvenWeeks = remember(selectableEvenWeeks, evenWeeks) { selectableEvenWeeks.size != evenWeeks.size }
 
     var showBottomSheet by remember { mutableStateOf(true) }
     var showSectionDialog by remember { mutableStateOf(false) }
@@ -429,31 +428,17 @@ fun AddCourseDialog(
                             fontWeight = FontWeight.Medium,
                             color = MiuixTheme.colorScheme.onSurface
                         )
-                        BasicTextField(
+                        NativeTextField(
                             value = name,
                             onValueChange = { name = it },
                             modifier = Modifier.fillMaxWidth(0.65f),
+                            hint = "必填",
                             singleLine = true,
+                            textAlign = TextAlign.End,
                             textStyle = TextStyle(
-                                textAlign = TextAlign.End,
                                 fontSize = 17.sp,
-                                fontWeight = FontWeight.Medium,
-                                color = MiuixTheme.colorScheme.onSurface
-                            ),
-                            cursorBrush = SolidColor(MiuixTheme.colorScheme.primary),
-                            decorationBox = { innerTextField ->
-                                Box(contentAlignment = Alignment.CenterEnd) {
-                                    if (name.isEmpty()) {
-                                        Text(
-                                            text = "必填",
-                                            fontSize = 17.sp,
-                                            fontWeight = FontWeight.Medium,
-                                            color = MiuixTheme.colorScheme.onSurfaceVariantActions
-                                        )
-                                    }
-                                    innerTextField()
-                                }
-                            }
+                                fontWeight = FontWeight.Medium
+                            )
                         )
                     }
 
@@ -471,31 +456,17 @@ fun AddCourseDialog(
                             fontWeight = FontWeight.Medium,
                             color = MiuixTheme.colorScheme.onSurface
                         )
-                        BasicTextField(
+                        NativeTextField(
                             value = classroom,
                             onValueChange = { classroom = it },
                             modifier = Modifier.fillMaxWidth(0.65f),
+                            hint = "非必填",
                             singleLine = true,
+                            textAlign = TextAlign.End,
                             textStyle = TextStyle(
-                                textAlign = TextAlign.End,
                                 fontSize = 17.sp,
-                                fontWeight = FontWeight.Medium,
-                                color = MiuixTheme.colorScheme.onSurface
-                            ),
-                            cursorBrush = SolidColor(MiuixTheme.colorScheme.primary),
-                            decorationBox = { innerTextField ->
-                                Box(contentAlignment = Alignment.CenterEnd) {
-                                    if (classroom.isEmpty()) {
-                                        Text(
-                                            text = "非必填",
-                                            fontSize = 17.sp,
-                                            fontWeight = FontWeight.Medium,
-                                            color = MiuixTheme.colorScheme.onSurfaceVariantActions
-                                        )
-                                    }
-                                    innerTextField()
-                                }
-                            }
+                                fontWeight = FontWeight.Medium
+                            )
                         )
                     }
 
@@ -513,31 +484,17 @@ fun AddCourseDialog(
                             fontWeight = FontWeight.Medium,
                             color = MiuixTheme.colorScheme.onSurface
                         )
-                        BasicTextField(
+                        NativeTextField(
                             value = teacher,
                             onValueChange = { teacher = it },
                             modifier = Modifier.fillMaxWidth(0.65f),
+                            hint = "非必填",
                             singleLine = true,
+                            textAlign = TextAlign.End,
                             textStyle = TextStyle(
-                                textAlign = TextAlign.End,
                                 fontSize = 17.sp,
-                                fontWeight = FontWeight.Medium,
-                                color = MiuixTheme.colorScheme.onSurface
-                            ),
-                            cursorBrush = SolidColor(MiuixTheme.colorScheme.primary),
-                            decorationBox = { innerTextField ->
-                                Box(contentAlignment = Alignment.CenterEnd) {
-                                    if (teacher.isEmpty()) {
-                                        Text(
-                                            text = "非必填",
-                                            fontSize = 17.sp,
-                                            fontWeight = FontWeight.Medium,
-                                            color = MiuixTheme.colorScheme.onSurfaceVariantActions
-                                        )
-                                    }
-                                    innerTextField()
-                                }
-                            }
+                                fontWeight = FontWeight.Medium
+                            )
                         )
                     }
                 }
@@ -571,7 +528,7 @@ fun AddCourseDialog(
                                 modifier = Modifier.fillMaxWidth(),
                                 horizontalArrangement = Arrangement.spacedBy(6.dp)
                             ) {
-                                val dayLabels = listOf("一", "二", "三", "四", "五", "六", "日")
+                                val dayLabels = remember { listOf("一", "二", "三", "四", "五", "六", "日") }
                                 for (day in 1..7) {
                                     val isSelected = day == dayOfWeek
                                     Card(
@@ -809,7 +766,18 @@ fun AddCourseDialog(
 
                         // 周次网格
                         val columns = 6
-                        val rows = (totalWeeks + columns - 1) / columns
+                        val rows = remember(totalWeeks, columns) { (totalWeeks + columns - 1) / columns }
+                        val primaryColor = MiuixTheme.colorScheme.primary
+                        val outlineColor = MiuixTheme.colorScheme.outline
+                        val onSurfaceColor = MiuixTheme.colorScheme.onSurface
+                        val onSurfaceSummaryColor = MiuixTheme.colorScheme.onSurfaceVariantSummary
+                        val occupiedColor = if (isDark) Color(0xFF4A4A4A) else Color(0xFFF0F0F0)
+                        val defaultCardColor = if (isDark) Color(0xFF505050) else Color(0xFFF7F7F7)
+                        val weekStates = remember(totalWeeks, selectedWeeks, currentOccupiedWeeks) {
+                            (1..totalWeeks).map { weekNum ->
+                                Triple(weekNum, weekNum in selectedWeeks, weekNum in currentOccupiedWeeks)
+                            }
+                        }
                         Column(
                             modifier = Modifier
                                 .fillMaxWidth()
@@ -822,10 +790,9 @@ fun AddCourseDialog(
                                     horizontalArrangement = Arrangement.spacedBy(6.dp)
                                 ) {
                                     for (col in 0 until columns) {
-                                        val weekNum = row * columns + col + 1
-                                        if (weekNum <= totalWeeks) {
-                                            val isSelected = weekNum in selectedWeeks
-                                            val isOccupied = weekNum in currentOccupiedWeeks
+                                        val idx = row * columns + col
+                                        if (idx < weekStates.size) {
+                                            val (weekNum, isSelected, isOccupied) = weekStates[idx]
                                             Card(
                                                 modifier = Modifier
                                                     .weight(1f)
@@ -836,15 +803,14 @@ fun AddCourseDialog(
                                                 showIndication = !isOccupied,
                                                 colors = CardDefaults.defaultColors(
                                                     color = when {
-                                                        isSelected -> MiuixTheme.colorScheme.primary
-                                                        isOccupied -> if (isDark) Color(0xFF4A4A4A) else Color(0xFFF0F0F0)
-                                                        isDark -> Color(0xFF505050)
-                                                        else -> Color(0xFFF7F7F7)
+                                                        isSelected -> primaryColor
+                                                        isOccupied -> occupiedColor
+                                                        else -> defaultCardColor
                                                     },
                                                     contentColor = when {
                                                         isSelected -> Color.White
-                                                        isOccupied -> MiuixTheme.colorScheme.outline
-                                                        else -> MiuixTheme.colorScheme.onSurface
+                                                        isOccupied -> outlineColor
+                                                        else -> onSurfaceColor
                                                     }
                                                 ),
                                                 onClick = {
@@ -868,8 +834,8 @@ fun AddCourseDialog(
                                                         fontSize = 13.sp,
                                                         color = when {
                                                             isSelected -> Color.White
-                                                            isOccupied -> MiuixTheme.colorScheme.outline
-                                                            else -> MiuixTheme.colorScheme.onSurfaceVariantSummary
+                                                            isOccupied -> outlineColor
+                                                            else -> onSurfaceSummaryColor
                                                         }
                                                     )
                                                 }
@@ -916,9 +882,9 @@ fun AddCourseDialog(
                             verticalArrangement = Arrangement.spacedBy(12.dp)
                         ) {
                             val colorColumns = 6
-                            val allColors = Course.courseColors
-                            val totalItems = allColors.size + 1 // +1 for custom color button
-                            val colorRows = (totalItems + colorColumns - 1) / colorColumns
+                            val allColors = remember { Course.courseColors }
+                            val totalItems = remember(allColors) { allColors.size + 1 } // +1 for custom color button
+                            val colorRows = remember(totalItems, colorColumns) { (totalItems + colorColumns - 1) / colorColumns }
                             for (row in 0 until colorRows) {
                                 Row(
                                     modifier = Modifier.fillMaxWidth(),

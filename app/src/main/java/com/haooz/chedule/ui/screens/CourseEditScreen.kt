@@ -24,6 +24,7 @@ import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.wrapContentHeight
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
@@ -32,7 +33,7 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
-import androidx.compose.foundation.text.BasicTextField
+import com.haooz.chedule.ui.components.NativeTextField
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -51,7 +52,6 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.RectangleShape
-import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.graphics.TransformOrigin
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.graphics.graphicsLayer
@@ -663,10 +663,10 @@ fun CourseEditScreen(
                                 ) {
                                     // 课程颜色选择器（与添加课程弹窗样式一致）
                                     item(key = "color_picker") {
-                                        val allColors = Course.courseColors
+                                        val allColors = remember { Course.courseColors }
                                         val colorColumns = 6
-                                        val totalItems = allColors.size + 1 // +1 for custom color button
-                                        val colorRows = (totalItems + colorColumns - 1) / colorColumns
+                                        val totalItems = remember(allColors) { allColors.size + 1 } // +1 for custom color button
+                                        val colorRows = remember(totalItems, colorColumns) { (totalItems + colorColumns - 1) / colorColumns }
                                         Card(
                                             cornerRadius = 20.dp,
                                             modifier = Modifier.fillMaxWidth(),
@@ -1167,31 +1167,17 @@ private fun CourseGroupCard(
                     fontWeight = FontWeight.Medium,
                     color = MiuixTheme.colorScheme.onSurface
                 )
-                BasicTextField(
+                NativeTextField(
                     value = classroom,
                     onValueChange = { classroom = it },
                     modifier = Modifier.fillMaxWidth(0.65f),
+                    hint = "非必填",
                     singleLine = true,
+                    textAlign = TextAlign.End,
                     textStyle = TextStyle(
-                        textAlign = TextAlign.End,
                         fontSize = 17.sp,
-                        fontWeight = FontWeight.Medium,
-                        color = MiuixTheme.colorScheme.onSurface
-                    ),
-                    cursorBrush = SolidColor(MiuixTheme.colorScheme.primary),
-                    decorationBox = { innerTextField ->
-                        Box(contentAlignment = Alignment.CenterEnd) {
-                            if (classroom.isEmpty()) {
-                                Text(
-                                    text = "非必填",
-                                    fontSize = 17.sp,
-                                    fontWeight = FontWeight.Medium,
-                                    color = MiuixTheme.colorScheme.onSurfaceVariantActions
-                                )
-                            }
-                            innerTextField()
-                        }
-                    }
+                        fontWeight = FontWeight.Medium
+                    )
                 )
             }
             // 教师
@@ -1208,31 +1194,17 @@ private fun CourseGroupCard(
                     fontWeight = FontWeight.Medium,
                     color = MiuixTheme.colorScheme.onSurface
                 )
-                BasicTextField(
+                NativeTextField(
                     value = teacher,
                     onValueChange = { teacher = it },
                     modifier = Modifier.fillMaxWidth(0.65f),
+                    hint = "非必填",
                     singleLine = true,
+                    textAlign = TextAlign.End,
                     textStyle = TextStyle(
-                        textAlign = TextAlign.End,
                         fontSize = 17.sp,
-                        fontWeight = FontWeight.Medium,
-                        color = MiuixTheme.colorScheme.onSurface
-                    ),
-                    cursorBrush = SolidColor(MiuixTheme.colorScheme.primary),
-                    decorationBox = { innerTextField ->
-                        Box(contentAlignment = Alignment.CenterEnd) {
-                            if (teacher.isEmpty()) {
-                                Text(
-                                    text = "非必填",
-                                    fontSize = 17.sp,
-                                    fontWeight = FontWeight.Medium,
-                                    color = MiuixTheme.colorScheme.onSurfaceVariantActions
-                                )
-                            }
-                            innerTextField()
-                        }
-                    }
+                        fontWeight = FontWeight.Medium
+                    )
                 )
             }
 
@@ -1265,7 +1237,7 @@ private fun CourseGroupCard(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.spacedBy(6.dp)
                 ) {
-                    val dayLabels = listOf("一", "二", "三", "四", "五", "六", "日")
+                    val dayLabels = remember { listOf("一", "二", "三", "四", "五", "六", "日") }
                     for (day in 1..7) {
                         val isSelected = day == dayOfWeek
                         Card(
@@ -1480,7 +1452,22 @@ private fun CourseGroupCard(
 
                 // 周次网格
                 val columns = 6
-                val rows = (totalWeeks + columns - 1) / columns
+                val rows = remember(totalWeeks, columns) { (totalWeeks + columns - 1) / columns }
+                // 预计算主题色，避免循环内重复读取
+                val primaryColor = MiuixTheme.colorScheme.primary
+                val outlineColor = MiuixTheme.colorScheme.outline
+                val onSurfaceColor = MiuixTheme.colorScheme.onSurface
+                val onSurfaceSummaryColor = MiuixTheme.colorScheme.onSurfaceVariantSummary
+                val occupiedColor = if (isDark) Color(0xFF4A4A4A) else Color(0xFFF0F0F0)
+                val defaultCardColor = if (isDark) Color(0xFF505050) else Color(0xFFF7F7F7)
+                // 预计算每周状态，避免循环内重复集合查找
+                val weekStates = remember(totalWeeks, selectedWeeks, currentOccupiedWeeks) {
+                    (1..totalWeeks).map { weekNum ->
+                        val isSelected = weekNum in selectedWeeks
+                        val isOccupied = weekNum in currentOccupiedWeeks
+                        Triple(weekNum, isSelected, isOccupied)
+                    }
+                }
                 Column(
                     modifier = Modifier.fillMaxWidth(),
                     verticalArrangement = Arrangement.spacedBy(6.dp)
@@ -1491,19 +1478,13 @@ private fun CourseGroupCard(
                             horizontalArrangement = Arrangement.spacedBy(6.dp)
                         ) {
                             for (col in 0 until columns) {
-                                val weekNum = row * columns + col + 1
-                                if (weekNum <= totalWeeks) {
-                                    val isSelected = weekNum in selectedWeeks
-                                    val isOccupied = weekNum in currentOccupiedWeeks
-                                    val primaryColor = MiuixTheme.colorScheme.primary
-                                    val outlineColor = MiuixTheme.colorScheme.outline
-                                    val onSurfaceColor = MiuixTheme.colorScheme.onSurface
-                                    val onSurfaceSummaryColor = MiuixTheme.colorScheme.onSurfaceVariantSummary
+                                val idx = row * columns + col
+                                if (idx < weekStates.size) {
+                                    val (weekNum, isSelected, isOccupied) = weekStates[idx]
                                     val cardColor = when {
                                         isSelected -> primaryColor
-                                        isOccupied -> if (isDark) Color(0xFF4A4A4A) else Color(0xFFF0F0F0)
-                                        isDark -> Color(0xFF505050)
-                                        else -> Color(0xFFF7F7F7)
+                                        isOccupied -> occupiedColor
+                                        else -> defaultCardColor
                                     }
                                     val cardContentColor = when {
                                         isSelected -> Color.White

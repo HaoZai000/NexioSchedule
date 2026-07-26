@@ -92,7 +92,7 @@ import top.yukonga.miuix.kmp.basic.Scaffold
 import top.yukonga.miuix.kmp.basic.SmallTitle
 import top.yukonga.miuix.kmp.basic.SmallTopAppBar
 import top.yukonga.miuix.kmp.basic.TextButton
-import top.yukonga.miuix.kmp.basic.TextField
+import com.haooz.chedule.ui.components.NativeMiuixTextField
 import top.yukonga.miuix.kmp.basic.TopAppBar
 import top.yukonga.miuix.kmp.blur.BlendColorEntry
 import top.yukonga.miuix.kmp.blur.BlurBlendMode
@@ -816,13 +816,12 @@ fun SwitchScheduleScreen(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalAlignment = Alignment.CenterHorizontally
             ) {
-                TextField(
+                NativeMiuixTextField(
                     value = newScheduleName,
                     onValueChange = { newScheduleName = it },
                     label = "课表名称",
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .focusRequester(focusRequester)
+                    modifier = Modifier.fillMaxWidth(),
+                    requestFocus = showAddDialog
                 )
                 Row(
                     modifier = Modifier
@@ -878,13 +877,12 @@ fun SwitchScheduleScreen(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalAlignment = Alignment.CenterHorizontally
             ) {
-                TextField(
+                NativeMiuixTextField(
                     value = editScheduleName,
                     onValueChange = { editScheduleName = it },
                     label = "课表名称",
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .focusRequester(editFocusRequester)
+                    modifier = Modifier.fillMaxWidth(),
+                    requestFocus = showEditDialog
                 )
                 Row(
                     modifier = Modifier

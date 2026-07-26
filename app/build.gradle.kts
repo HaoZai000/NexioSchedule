@@ -50,6 +50,10 @@ android {
     }
 }
 
+composeCompiler {
+    stabilityConfigurationFiles.set(listOf(project.layout.projectDirectory.file("compose-stability.conf")))
+}
+
 dependencies {
     // ===== AndroidX / Compose 基础 =====
     // Compose BOM：统一管理所有 Compose 库版本

@@ -169,7 +169,14 @@ private fun CourseItemContent(course: Course, sectionTimes: Map<Int, String>) {
         "进行中" -> when {
             remainingMinutes <= 0 && remainingSeconds <= 0 -> "还剩0秒"
             remainingMinutes <= 0 -> "还剩${remainingSeconds}秒"
-            else -> "还剩${remainingMinutes +1}分钟"
+            remainingMinutes >= 60 -> {
+                val hours = remainingMinutes / 60
+                val mins = remainingMinutes % 60 + 1
+                if (mins >= 60) "还剩${hours + 1}小时"
+                else if (mins > 0) "还剩${hours}小时${mins}分钟"
+                else "还剩${hours}小时"
+            }
+            else -> "还剩${remainingMinutes + 1}分钟"
         }
         else -> ""
     }
@@ -468,7 +475,21 @@ fun TodayScreen(
                 val eveningCourses = pageCourses.filter {
                     it.startSection > morningSections + afternoonSections
                 }
+
                 val isPageToday = pageDate == LocalDate.now()
+
+                // 计算明天的课程（用于今日助手提示）
+                val tomorrowCourses = remember(courses, pageWeek, pageDayOfWeek, isPageToday) {
+                    if (isPageToday) {
+                        val tomorrowDay = if (pageDayOfWeek == 7) 1 else pageDayOfWeek + 1
+                        val tomorrowWeek = if (pageDayOfWeek == 7) pageWeek + 1 else pageWeek
+                        courses.filter { it.dayOfWeek == tomorrowDay && it.isActiveInWeek(tomorrowWeek) }
+                            .sortedBy { it.startSection }
+                    } else {
+                        emptyList()
+                    }
+                }
+
                 val dateText = pageDate.format(DateTimeFormatter.ofPattern("yyyy年M月d日"))
                 val listState = rememberLazyListState()
                 LaunchedEffect(listState) {
@@ -873,6 +894,7 @@ fun TodayScreen(
                         item {
                             TodayAssistantCard(
                                 courses = pageCourses,
+                                tomorrowCourses = tomorrowCourses,
                                 sectionTimes = sectionTimes,
                                 morningSections = morningSections,
                                 afternoonSections = afternoonSections

@@ -70,7 +70,7 @@ import top.yukonga.miuix.kmp.basic.MiuixScrollBehavior
 import top.yukonga.miuix.kmp.basic.Scaffold
 import top.yukonga.miuix.kmp.basic.SmallTitle
 import top.yukonga.miuix.kmp.basic.TextButton
-import top.yukonga.miuix.kmp.basic.TextField
+import com.haooz.chedule.ui.components.NativeMiuixTextField
 import top.yukonga.miuix.kmp.basic.TopAppBar
 import top.yukonga.miuix.kmp.icon.MiuixIcons
 import top.yukonga.miuix.kmp.icon.basic.ArrowRight
@@ -235,10 +235,9 @@ fun AiImportScreen(
                     text = "课表数据",
                     modifier = Modifier.offset(x = (-16).dp)
                 )
-                TextField(
+                NativeMiuixTextField(
                     value = inputText,
                     onValueChange = { inputText = it },
-                    cornerRadius = 20.dp,
                     minLines = 1,
                     maxLines = 12,
                     label = "请粘贴AI返回的课表数据",

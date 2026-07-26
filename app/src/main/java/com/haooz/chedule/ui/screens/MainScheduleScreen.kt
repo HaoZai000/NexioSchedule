@@ -192,10 +192,11 @@ fun MainScheduleScreen(
     }
 
     // 预计算每周每天的过滤后课程列表，避免在 pager 页面内重复计算
+    // 注意：不要依赖 pagerState.pageCount，否则滑动时会触发全量重建
     @Suppress("RedundantInitializer")
     val filteredCoursesByDayAndWeek =
-        remember(coursesByDay, showNonCurrentWeek, pagerState.pageCount) {
-            Array(pagerState.pageCount.coerceAtLeast(1)) { weekIndex ->
+        remember(coursesByDay, showNonCurrentWeek, totalWeeks) {
+            Array(totalWeeks.coerceAtLeast(1)) { weekIndex ->
                 val week = weekIndex + 1
                 allDays.associateWith { dayOfWeek ->
                     val dayCourses = coursesByDay[dayOfWeek] ?: emptyList()
@@ -270,7 +271,7 @@ fun MainScheduleScreen(
         HorizontalPager(
             state = pagerState,
             modifier = Modifier.fillMaxSize(),
-            beyondViewportPageCount = 0,
+            beyondViewportPageCount = 1,
             userScrollEnabled = !isWallpaperEditing
         ) { page ->
             val week = page + 1

@@ -85,7 +85,7 @@ import top.yukonga.miuix.kmp.basic.Scaffold
 import top.yukonga.miuix.kmp.basic.SmallTopAppBar
 import top.yukonga.miuix.kmp.basic.Surface
 import top.yukonga.miuix.kmp.basic.TextButton
-import top.yukonga.miuix.kmp.basic.TextField
+import com.haooz.chedule.ui.components.NativeMiuixTextField
 import top.yukonga.miuix.kmp.icon.MiuixIcons
 import top.yukonga.miuix.kmp.icon.extended.Close
 import top.yukonga.miuix.kmp.icon.extended.Download
@@ -667,11 +667,12 @@ private fun WebPromptDialog(
                     shape = RoundedRectangle(12.dp),
                     color = MiuixTheme.colorScheme.surfaceVariant
                 ) {
-                    TextField(
+                    NativeMiuixTextField(
                         value = textFieldValue,
                         onValueChange = { textFieldValue = it },
                         modifier = Modifier.fillMaxWidth(),
-                        singleLine = true
+                        singleLine = true,
+                        requestFocus = true
                     )
                 }
                 Spacer(Modifier.height(24.dp))

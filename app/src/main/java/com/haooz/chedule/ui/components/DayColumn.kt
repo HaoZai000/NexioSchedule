@@ -4,6 +4,7 @@ package com.haooz.chedule.ui.components
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.combinedClickable
+import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.fillMaxHeight
@@ -75,6 +76,8 @@ fun DayColumn(
     ) else null
     val isPendingDay = pendingDay == dayOfWeek
     val hapticFeedback = LocalHapticFeedback.current
+    // 共享交互源，避免每个空单元格创建新的 MutableInteractionSource
+    val sharedInteractionSource = remember { MutableInteractionSource() }
 
     val occupiedSections = remember(courses) {
         buildSet {
@@ -110,7 +113,7 @@ fun DayColumn(
                             if (!isSectionPending && !isOccupied) {
                                 Modifier.combinedClickable(
                                     indication = null,
-                                    interactionSource = remember { androidx.compose.foundation.interaction.MutableInteractionSource() },
+                                    interactionSource = sharedInteractionSource,
                                     onClick = {
                                         onPendingChange(dayOfWeek, section)
                                     },
@@ -233,7 +236,7 @@ fun DayColumn(
                             if (!isSectionPending && !isOccupied) {
                                 Modifier.combinedClickable(
                                     indication = null,
-                                    interactionSource = remember { androidx.compose.foundation.interaction.MutableInteractionSource() },
+                                    interactionSource = sharedInteractionSource,
                                     onClick = {
                                         onPendingChange(dayOfWeek, section)
                                     },
@@ -355,7 +358,7 @@ fun DayColumn(
                             if (!isSectionPending && !isOccupied) {
                                 Modifier.combinedClickable(
                                     indication = null,
-                                    interactionSource = remember { androidx.compose.foundation.interaction.MutableInteractionSource() },
+                                    interactionSource = sharedInteractionSource,
                                     onClick = {
                                         onPendingChange(dayOfWeek, section)
                                     },

@@ -32,7 +32,7 @@ import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Brush
-import androidx.compose.ui.graphics.SolidColor
+import com.haooz.chedule.ui.components.NativeTextField
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.platform.LocalConfiguration
@@ -308,31 +308,17 @@ fun WebDavSettingsScreen(onBack: () -> Unit, onConnectedChange: (Boolean) -> Uni
                                     fontWeight = FontWeight.Medium,
                                     color = MiuixTheme.colorScheme.onSurface
                                 )
-                                androidx.compose.foundation.text.BasicTextField(
+                                NativeTextField(
                                     value = serverUrl,
                                     onValueChange = { serverUrl = it },
                                     modifier = Modifier.fillMaxWidth(0.65f),
+                                    hint = "https://...",
                                     singleLine = true,
+                                    textAlign = TextAlign.End,
                                     textStyle = TextStyle(
-                                        textAlign = TextAlign.End,
                                         fontSize = 17.sp,
-                                        fontWeight = FontWeight.Medium,
-                                        color = MiuixTheme.colorScheme.onSurface
-                                    ),
-                                    cursorBrush = SolidColor(MiuixTheme.colorScheme.primary),
-                                    decorationBox = { innerTextField ->
-                                        Box(contentAlignment = Alignment.CenterEnd) {
-                                            if (serverUrl.isEmpty()) {
-                                                Text(
-                                                    text = "https://...",
-                                                    fontSize = 17.sp,
-                                                    fontWeight = FontWeight.Medium,
-                                                    color = MiuixTheme.colorScheme.onSurfaceVariantActions
-                                                )
-                                            }
-                                            innerTextField()
-                                        }
-                                    }
+                                        fontWeight = FontWeight.Medium
+                                    )
                                 )
                             }
 
@@ -349,31 +335,17 @@ fun WebDavSettingsScreen(onBack: () -> Unit, onConnectedChange: (Boolean) -> Uni
                                     fontWeight = FontWeight.Medium,
                                     color = MiuixTheme.colorScheme.onSurface
                                 )
-                                androidx.compose.foundation.text.BasicTextField(
+                                NativeTextField(
                                     value = username,
                                     onValueChange = { username = it },
                                     modifier = Modifier.fillMaxWidth(0.65f),
+                                    hint = "必填",
                                     singleLine = true,
+                                    textAlign = TextAlign.End,
                                     textStyle = TextStyle(
-                                        textAlign = TextAlign.End,
                                         fontSize = 17.sp,
-                                        fontWeight = FontWeight.Medium,
-                                        color = MiuixTheme.colorScheme.onSurface
-                                    ),
-                                    cursorBrush = SolidColor(MiuixTheme.colorScheme.primary),
-                                    decorationBox = { innerTextField ->
-                                        Box(contentAlignment = Alignment.CenterEnd) {
-                                            if (username.isEmpty()) {
-                                                Text(
-                                                    text = "必填",
-                                                    fontSize = 17.sp,
-                                                    fontWeight = FontWeight.Medium,
-                                                    color = MiuixTheme.colorScheme.onSurfaceVariantActions
-                                                )
-                                            }
-                                            innerTextField()
-                                        }
-                                    }
+                                        fontWeight = FontWeight.Medium
+                                    )
                                 )
                             }
 
@@ -390,31 +362,17 @@ fun WebDavSettingsScreen(onBack: () -> Unit, onConnectedChange: (Boolean) -> Uni
                                     fontWeight = FontWeight.Medium,
                                     color = MiuixTheme.colorScheme.onSurface
                                 )
-                                androidx.compose.foundation.text.BasicTextField(
+                                NativeTextField(
                                     value = password,
                                     onValueChange = { password = it },
                                     modifier = Modifier.fillMaxWidth(0.65f),
+                                    hint = "必填",
                                     singleLine = true,
+                                    textAlign = TextAlign.End,
                                     textStyle = TextStyle(
-                                        textAlign = TextAlign.End,
                                         fontSize = 17.sp,
-                                        fontWeight = FontWeight.Medium,
-                                        color = MiuixTheme.colorScheme.onSurface
-                                    ),
-                                    cursorBrush = SolidColor(MiuixTheme.colorScheme.primary),
-                                    decorationBox = { innerTextField ->
-                                        Box(contentAlignment = Alignment.CenterEnd) {
-                                            if (password.isEmpty()) {
-                                                Text(
-                                                    text = "必填",
-                                                    fontSize = 17.sp,
-                                                    fontWeight = FontWeight.Medium,
-                                                    color = MiuixTheme.colorScheme.onSurfaceVariantActions
-                                                )
-                                            }
-                                            innerTextField()
-                                        }
-                                    }
+                                        fontWeight = FontWeight.Medium
+                                    )
                                 )
                             }
                         }

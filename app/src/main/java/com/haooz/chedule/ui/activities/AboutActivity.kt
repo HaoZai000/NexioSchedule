@@ -324,8 +324,6 @@ private fun AboutScreen(onBack: () -> Unit) {
                             .graphicsLayer {
                                 val iconProgress =
                                     ((scrollProgress - 0.35f) / 0.15f).coerceIn(0f, 1f)
-                                clip = true
-                                shape = RoundedRectangle(24.dp)
                                 alpha = 1 - iconProgress
                                 scaleX = 1 - (iconProgress * 0.05f)
                                 scaleY = 1 - (iconProgress * 0.05f)

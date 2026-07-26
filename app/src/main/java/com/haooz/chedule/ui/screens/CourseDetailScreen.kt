@@ -144,7 +144,24 @@ fun CourseDetailScreen(
 ) {
     val courseName = courses.firstOrNull()?.name ?: ""
     // 按周数排序，最大排在最上
-    val sortedCourses = courses.sortedByDescending { it.endWeek }
+    val sortedCourses = remember(courses) { courses.sortedByDescending { it.endWeek } }
+
+    // 预计算周分组数据，避免在 LazyColumn 内重复计算
+    val groupedByWeek = remember(sortedCourses) {
+        val weekEntries = sortedCourses.flatMap { course ->
+            val weeks = course.selectedWeeks.ifEmpty {
+                (course.startWeek..course.endWeek).filter { week ->
+                    when (course.weekType) {
+                        Course.WEEK_TYPE_ODD -> week % 2 == 1
+                        Course.WEEK_TYPE_EVEN -> week % 2 == 0
+                        else -> true
+                    }
+                }
+            }
+            weeks.map { week -> week to course }
+        }.sortedByDescending { it.first }
+        weekEntries.groupBy { it.first }
+    }
 
     val appStyle = com.haooz.chedule.ui.utils.rememberAppStyle()
     val liquidGlassBackdrop = if (appStyle == "liquidglass") {
@@ -471,23 +488,6 @@ fun CourseDetailScreen(
                                     ),
                                     verticalArrangement = Arrangement.spacedBy(12.dp)
                                 ) {
-                                    // 按周分，每周单独显示，保持课程排序顺序
-                                    val weekEntries = sortedCourses.flatMap { course ->
-                                        val weeks = course.selectedWeeks.ifEmpty {
-                                            (course.startWeek..course.endWeek).filter { week ->
-                                                when (course.weekType) {
-                                                    Course.WEEK_TYPE_ODD -> week % 2 == 1
-                                                    Course.WEEK_TYPE_EVEN -> week % 2 == 0
-                                                    else -> true
-                                                }
-                                            }
-                                        }
-                                        weeks.map { week -> week to course }
-                                    }.sortedByDescending { it.first }
-
-                                    // 按周分组显示
-                                    val groupedByWeek = weekEntries.groupBy { it.first }
-
                                     groupedByWeek.forEach { (week, weekCourses) ->
                                         item {
                                             Column {

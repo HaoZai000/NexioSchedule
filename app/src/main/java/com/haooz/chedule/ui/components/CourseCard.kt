@@ -15,6 +15,8 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.key
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import android.graphics.Color as AndroidColor
@@ -85,7 +87,6 @@ fun CourseCard(
         )
     ) else null
 
-    // 仅在有模糊时用 key 包裹，缩小重建范围；无模糊时直接渲染 Card
     if (hasBlur) {
         key(cardCornerRadius) {
             Card(
@@ -133,8 +134,20 @@ fun CourseCard(
     }
 }
 
+// 溢出状态缓存，避免页面切换后重建导致闪烁
+private val overflowCache = java.util.concurrent.ConcurrentHashMap<String, Boolean>()
+
 @Composable
 private fun CardContent(course: Course, sectionCount: Int, cardColor: Color, textColor: Color, hasMultipleCourses: Boolean) {
+    val footnote2Size = 10.5.sp
+    val smallSize = (footnote2Size.value - 1.7).sp
+
+    // 用全局缓存，页面切换后不会丢失状态
+    val classroomKey = "classroom_${course.id}"
+    val teacherKey = "teacher_${course.id}"
+    val classroomOverflow = remember { mutableStateOf(overflowCache[classroomKey] ?: false) }
+    val teacherOverflow = remember { mutableStateOf(overflowCache[teacherKey] ?: false) }
+
     Box(modifier = Modifier.fillMaxSize()) {
         Column(
             modifier = Modifier
@@ -145,10 +158,9 @@ private fun CardContent(course: Course, sectionCount: Int, cardColor: Color, tex
         ) {
             Text(
                 text = course.name,
-                style = MiuixTheme.textStyles.footnote1.copy(
-                    fontWeight = FontWeight.Bold,
-                    lineHeight = 14.sp
-                ),
+                fontWeight = FontWeight.Bold,
+                fontSize = 12.5.sp,
+                lineHeight = 14.2.sp,
                 color = textColor,
                 textAlign = TextAlign.Start,
                 maxLines = 3,
@@ -158,22 +170,37 @@ private fun CardContent(course: Course, sectionCount: Int, cardColor: Color, tex
                 Spacer(modifier = Modifier.height(2.dp))
                 Text(
                     text = "@${course.classroom}",
-                    style = MiuixTheme.textStyles.footnote2,
+                    fontSize = if (classroomOverflow.value) smallSize else footnote2Size,
+                    lineHeight = if (classroomOverflow.value) 11.sp else 12.sp,
                     color = textColor,
                     textAlign = TextAlign.Start,
                     maxLines = 2,
-                    overflow = TextOverflow.Ellipsis
+                    overflow = TextOverflow.Ellipsis,
+                    onTextLayout = { textLayoutResult ->
+                        // 只缩不放：检测到溢出就锁定缩小，不再恢复
+                        if (!classroomOverflow.value && textLayoutResult.lineCount >= 2 && textLayoutResult.isLineEllipsized(1)) {
+                            classroomOverflow.value = true
+                            overflowCache[classroomKey] = true
+                        }
+                    }
                 )
             }
             Spacer(modifier = Modifier.height(2.dp))
             if (sectionCount >= 2 && course.teacher.isNotEmpty()) {
                 Text(
                     text = course.teacher,
-                    style = MiuixTheme.textStyles.footnote2,
+                    fontSize = if (teacherOverflow.value) smallSize else footnote2Size,
                     color = textColor,
                     textAlign = TextAlign.Start,
                     maxLines = 1,
-                    overflow = TextOverflow.Ellipsis
+                    overflow = TextOverflow.Ellipsis,
+                    onTextLayout = { textLayoutResult ->
+                        // 只缩不放：检测到溢出就锁定缩小，不再恢复
+                        if (!teacherOverflow.value && textLayoutResult.isLineEllipsized(0)) {
+                            teacherOverflow.value = true
+                            overflowCache[teacherKey] = true
+                        }
+                    }
                 )
             }
         }

@@ -5,6 +5,9 @@ import androidx.activity.compose.BackHandler
 import androidx.compose.animation.EnterTransition
 import androidx.compose.animation.ExitTransition
 import androidx.compose.animation.core.Animatable
+import androidx.compose.animation.core.CubicBezierEasing
+import androidx.compose.animation.core.spring
+import androidx.compose.animation.core.Spring
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -75,6 +78,8 @@ import top.yukonga.miuix.kmp.utils.MiuixPopupUtils.Companion.DialogLayout
  * @param backdrop 模糊背景的 LayerBackdrop
  * @param blurRadius 模糊半径
  * @param dimBackground 是否压暗背景
+ * @param sheetBackgroundColor 弹窗背景颜色，null 则使用默认颜色
+ * @param sheetBackgroundAlpha 弹窗背景透明度，null 则使用默认值（有 backdrop 时 0.9/0.6，无 backdrop 时 1.0）
  * @param onDismissRequest 关闭回调
  * @param endAction 标题栏右侧操作按钮
  * @param content 内容区域
@@ -86,6 +91,8 @@ fun BlurBottomSheet(
     backdrop: LayerBackdrop?,
     blurRadius: Float = 24f,
     dimBackground: Boolean = false,
+    sheetBackgroundColor: Color? = null,
+    sheetBackgroundAlpha: Float? = null,
     onDismissRequest: () -> Unit,
     startAction: @Composable (() -> Unit)? = null,
     endAction: @Composable (() -> Unit)? = null,
@@ -122,6 +129,8 @@ fun BlurBottomSheet(
             backdrop = backdrop,
             blurRadius = blurRadius,
             dimBackground = dimBackground,
+            sheetBackgroundColor = sheetBackgroundColor,
+            sheetBackgroundAlpha = sheetBackgroundAlpha,
             onDismissRequest = onDismissRequest,
             startAction = startAction,
             endAction = endAction,
@@ -140,6 +149,8 @@ private fun BlurBottomSheetContent(
     backdrop: LayerBackdrop?,
     blurRadius: Float,
     dimBackground: Boolean = false,
+    sheetBackgroundColor: Color? = null,
+    sheetBackgroundAlpha: Float? = null,
     onDismissRequest: () -> Unit,
     startAction: @Composable (() -> Unit)? = null,
     endAction: @Composable (() -> Unit)? = null,
@@ -157,7 +168,7 @@ private fun BlurBottomSheetContent(
     val statusBarsPadding = WindowInsets.statusBars.asPaddingValues().calculateTopPadding()
 
     val isDark = MiuixTheme.colorScheme.background.luminance() < 0.5f
-    val sheetBgColor = if (isDark) Color(0xFF1E1E1E) else Color(0xFFF7F7F7)
+    val sheetBgColor = sheetBackgroundColor ?: if (isDark) Color(0xFF1E1E1E) else Color(0xFFF7F7F7)
     val dismissThresholdPx = with(density) { 150.dp.toPx() }
     val velocityThresholdPx = with(density) { 800.dp.toPx() }
 
@@ -165,8 +176,16 @@ private fun BlurBottomSheetContent(
     LaunchedEffect(show) {
         if (show) {
             dragOffsetY.snapTo(0f)
-            animationProgress.animateTo(1f, animationSpec = tween(450, easing = OobeQuartOutEasing))
+            // 进入动画：使用 CubicBezier 带回弹效果
+            animationProgress.animateTo(
+                targetValue = 1f,
+                animationSpec = tween(
+                    durationMillis = 480,
+                    easing = CubicBezierEasing(0.3f, 1.18f, 0.3f, 1f)
+                )
+            )
         } else {
+            // 退出动画
             animationProgress.animateTo(0f, animationSpec = tween(340, easing = OobeCubicOutEasing))
             visibleState.value = false
         }
@@ -179,16 +198,13 @@ private fun BlurBottomSheetContent(
         onDismissRequest()
     }
 
-    // 遮罩层
+    // 遮罩层 - 始终渲染，用 animationProgress 控制透明度
     Box(modifier = Modifier.fillMaxSize()) {
-        if (show) {
+        if (dimBackground && animationProgress.value > 0f) {
             Box(
                 modifier = Modifier
                     .fillMaxSize()
-                    .then(
-                        if (dimBackground && animationProgress.value > 0f) Modifier.background(Color.Black.copy(alpha = animationProgress.value * 0.14f))
-                        else Modifier
-                    )
+                    .background(Color.Black.copy(alpha = animationProgress.value * 0.14f))
                     .clickable(
                         interactionSource = null,
                         indication = null,
@@ -246,7 +262,7 @@ private fun BlurBottomSheetContent(
                         )
                     } else Modifier
                 )
-                .background(sheetBgColor.copy(alpha = if (backdrop != null)
+                .background(sheetBgColor.copy(alpha = sheetBackgroundAlpha ?: if (backdrop != null)
                     if (isDark) 0.9f else 0.6f
                     else 1f))
                 .pointerInput(Unit) {
@@ -274,11 +290,20 @@ private fun BlurBottomSheetContent(
                         }
                     },
                     onDragStopped = { velocity ->
-                        if (velocity > velocityThresholdPx || dragOffsetY.value > dismissThresholdPx) {
-                            onDismissRequest()
-                        } else {
-                            coroutineScope.launch {
-                                dragOffsetY.animateTo(0f, animationSpec = tween(200))
+                        coroutineScope.launch {
+                            val shouldDismiss = velocity > velocityThresholdPx || dragOffsetY.value > dismissThresholdPx
+                            if (shouldDismiss) {
+                                onDismissRequest()
+                            } else {
+                                // 使用 spring 动画回弹，传入初始速度让回弹更自然
+                                dragOffsetY.animateTo(
+                                    targetValue = 0f,
+                                    animationSpec = spring(
+                                        dampingRatio = 0.72f,
+                                        stiffness = Spring.StiffnessMediumLow
+                                    ),
+                                    initialVelocity = velocity
+                                )
                             }
                         }
                     },

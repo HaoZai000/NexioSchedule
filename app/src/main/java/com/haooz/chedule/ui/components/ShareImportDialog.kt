@@ -28,7 +28,7 @@ import com.haooz.chedule.viewmodel.SettingsViewModel
 import top.yukonga.miuix.kmp.basic.ButtonDefaults
 import top.yukonga.miuix.kmp.overlay.OverlayDialog
 import top.yukonga.miuix.kmp.basic.TextButton
-import top.yukonga.miuix.kmp.basic.TextField
+import com.haooz.chedule.ui.components.NativeMiuixTextField
 
 /**
  * 分享导入课表的状态与弹窗。
@@ -108,11 +108,12 @@ internal fun ShareImportDialog(
             modifier = Modifier.fillMaxWidth(),
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
-            TextField(
+            NativeMiuixTextField(
                 value = shareImportScheduleName,
                 onValueChange = { shareImportScheduleName = it },
                 label = "课表名称",
-                modifier = Modifier.fillMaxWidth()
+                modifier = Modifier.fillMaxWidth(),
+                requestFocus = showShareImportDialog
             )
             Row(
                 modifier = Modifier.fillMaxWidth().padding(top = 16.dp),

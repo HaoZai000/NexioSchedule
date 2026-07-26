@@ -100,7 +100,7 @@ import top.yukonga.miuix.kmp.basic.SmallTitle
 import top.yukonga.miuix.kmp.basic.SmallTopAppBar
 import top.yukonga.miuix.kmp.basic.Switch
 import top.yukonga.miuix.kmp.basic.TextButton
-import top.yukonga.miuix.kmp.basic.TextField
+import com.haooz.chedule.ui.components.NativeMiuixTextField
 import top.yukonga.miuix.kmp.basic.TopAppBar
 import top.yukonga.miuix.kmp.blur.BlendColorEntry
 import top.yukonga.miuix.kmp.blur.BlurBlendMode
@@ -203,6 +203,7 @@ fun TimeConfigEditScreen(
     var listScrollY by remember { mutableIntStateOf(0) }
 
     // 配置名称
+    val screenTitle = if (isFabCreation) "添加时间配置" else "编辑时间配置"
     var configName by remember { mutableStateOf(timeConfig.name) }
     val nameFocusRequester = remember { FocusRequester() }
 
@@ -570,7 +571,7 @@ fun TimeConfigEditScreen(
                             ) {
                                 SmallTopAppBar(
                                     color = Color.Transparent,
-                                    title = "编辑时间配置",
+                                    title = screenTitle,
                                     modifier = Modifier.zIndex(1f),
                                     navigationIcon = {}
                                 )
@@ -680,7 +681,7 @@ fun TimeConfigEditScreen(
                                     )
                                 } else Modifier,
                                 color = topBarColor,
-                                title = "编辑时间配置", largeTitle = "编辑时间配置",
+                                title = screenTitle, largeTitle = screenTitle,
                                 scrollBehavior = scrollBehavior,
                                 navigationIconPadding = 20.dp,
                                 navigationIcon = {
@@ -817,23 +818,22 @@ fun TimeConfigEditScreen(
                                 verticalArrangement = Arrangement.spacedBy(12.dp)
                             ) {
                                 // 配置名称
-                                item {
+                                item(key = "config_name") {
                                     SmallTitle(
                                         text = "配置名称",
                                         modifier = Modifier.offset(x = (-16).dp)
                                     )
-                                    TextField(
+                                    NativeMiuixTextField(
                                         value = configName,
                                         onValueChange = { configName = it },
                                         modifier = Modifier.focusRequester(nameFocusRequester),
-                                        cornerRadius = 20.dp,
                                         label = "请输入配置名称",
                                         useLabelAsPlaceholder = true
                                     )
                                 }
 
                                 // 课表节数设置
-                                item {
+                                item(key = "section_count") {
                                     SmallTitle(
                                         text = "节次与时间",
                                         modifier = Modifier.offset(x = (-16).dp)
@@ -861,7 +861,7 @@ fun TimeConfigEditScreen(
                                 }
 
                                 // 快捷设置
-                                item {
+                                item(key = "quick_settings") {
                                     val bottomEndRadius by animateDpAsState(
                                         if (quickTimeEnabled) 32.dp else 20.dp,
                                         label = "bottomEnd"
@@ -1166,7 +1166,7 @@ fun TimeConfigEditScreen(
                                 }
 
                                 // 上午
-                                item {
+                                item(key = "morning") {
                                     SmallTitle(
                                         text = "上午",
                                         modifier = Modifier.offset(x = (-16).dp)
@@ -1207,7 +1207,7 @@ fun TimeConfigEditScreen(
                                 }
 
                                 // 下午
-                                item {
+                                item(key = "afternoon") {
                                     SmallTitle(
                                         text = "下午",
                                         modifier = Modifier.offset(x = (-16).dp)
@@ -1248,7 +1248,7 @@ fun TimeConfigEditScreen(
                                 }
 
                                 // 晚上
-                                item {
+                                item(key = "evening") {
                                     SmallTitle(
                                         text = "晚上",
                                         modifier = Modifier.offset(x = (-16).dp)

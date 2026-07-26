@@ -69,6 +69,12 @@ private fun getWeatherIconRes(code: Int, isNight: Boolean = false): Int = when (
 
 private fun isRainy(code: Int): Boolean = code in 51..67 || code in 80..82
 
+private fun isSnowy(code: Int): Boolean = code in 71..77 || code in 85..86
+
+private fun isStormy(code: Int): Boolean = code in 95..99
+
+private fun isFoggy(code: Int): Boolean = code in 45..48
+
 private fun getWeatherCondition(code: Int): String = when (code) {
     0 -> "晴天"
     1 -> "大部晴朗"
@@ -90,16 +96,35 @@ private fun getWeatherCondition(code: Int): String = when (code) {
     82 -> "暴阵雨"
     85 -> "小阵雪"
     86 -> "大阵雪"
-    95, 96, 99 -> "雷暴"
+    95 -> "雷暴"
+    96 -> "雷暴伴冰雹"
+    99 -> "强雷暴"
     else -> "未知"
 }
 
 private fun getWeatherAdvice(temp: Float, weatherCode: Int): String = when {
-    isRainy(weatherCode) -> "记得带伞"
-    temp < 10f -> "注意保暖"
-    temp in 10f..20f -> "适当添衣"
-    temp in 28f..35f -> "注意防暑"
-    temp > 35f -> "极端高温"
+    // 恶劣天气优先
+    isStormy(weatherCode) -> "雷暴天气，避免外出"
+    isFoggy(weatherCode) -> "能见度低，注意安全"
+    // 雨天
+    weatherCode == 56 || weatherCode == 57 -> "冻雨路滑，减少出行"
+    weatherCode == 66 || weatherCode == 67 -> "冻雨天气，注意安全"
+    weatherCode == 65 -> "大雨倾盆，带好雨具"
+    weatherCode in 61..63 || isRainy(weatherCode) -> "记得带伞"
+    // 雪天
+    weatherCode == 75 -> "大雪纷飞，注意保暖"
+    weatherCode == 86 -> "大阵雪，减少出行"
+    isSnowy(weatherCode) -> "雨雪天气，注意保暖"
+    // 温度
+    temp < 0f -> "严寒天气，注意防冻"
+    temp in 0f..5f -> "天气寒冷，注意保暖"
+    temp in 5f..10f -> "气温较低，注意保暖"
+    temp in 10f..15f -> "天气偏凉，适当添衣"
+    temp in 15f..20f -> "气温舒适"
+    temp in 20f..28f -> "适合出行"
+    temp in 28f..33f -> "天气炎热，注意防暑"
+    temp in 33f..35f -> "高温天气，减少户外活动"
+    temp > 35f -> "极端高温，避免外出"
     else -> "适合出行"
 }
 
@@ -225,7 +250,15 @@ private fun rememberCourseStatus(
                     val end = parseTime(endStr)
                     if (end != null) {
                         val minutes = java.time.Duration.between(now, end).toMinutes()
-                        "还剩 ${minutes +1} 分钟"
+                        if (minutes >= 60) {
+                            val hours = minutes / 60
+                            val mins = minutes % 60 + 1
+                            if (mins >= 60) "还剩 ${hours + 1}小时"
+                            else if (mins > 0) "还剩 ${hours}小时${mins}分钟"
+                            else "还剩 ${hours}小时"
+                        } else {
+                            "还剩 ${minutes + 1} 分钟"
+                        }
                     } else ""
                 }
                 next != null -> {
@@ -233,7 +266,15 @@ private fun rememberCourseStatus(
                     val start = parseTime(startStr)
                     if (start != null) {
                         val minutes = java.time.Duration.between(now, start).toMinutes()
-                        "${minutes +1} 分钟后"
+                        if (minutes >= 60) {
+                            val hours = minutes / 60
+                            val mins = minutes % 60 + 1
+                            if (mins >= 60) "${hours + 1}小时后"
+                            else if (mins > 0) "${hours}小时${mins}分钟后"
+                            else "${hours}小时后"
+                        } else {
+                            "${minutes + 1} 分钟后"
+                        }
                     } else ""
                 }
                 courses.isEmpty() -> ""
@@ -267,15 +308,54 @@ private fun buildCourseTimeRanges(
     }.sortedBy { it.start }
 }
 
+private fun getGreeting(): String {
+    val hour = LocalTime.now().hour
+    return when {
+        hour in 5..6 -> "早安"
+        hour in 7..8 -> "早上好"
+        hour in 9..11 -> "上午好"
+        hour in 12..13 -> "中午好"
+        hour in 14..17 -> "下午好"
+        hour in 18..19 -> "傍晚好"
+        hour in 20..22 -> "晚上好"
+        else -> "夜深了"
+    }
+}
+
 private fun generateSmartTip(
     courses: List<Course>,
+    tomorrowCourses: List<Course>,
     sectionTimes: Map<Int, String>,
     morningSections: Int,
     afternoonSections: Int
 ): String? {
     val now = LocalTime.now()
     val ranges = buildCourseTimeRanges(courses, sectionTimes)
-    if (ranges.isEmpty()) return null
+    val tomorrowRanges = buildCourseTimeRanges(tomorrowCourses, sectionTimes)
+    if (ranges.isEmpty()) {
+        val greeting = getGreeting()
+        val hour = now.hour
+        val tomorrowCount = tomorrowCourses.size
+        val tomorrowInfo = if (tomorrowCount > 0) {
+            val firstCourse = tomorrowRanges.firstOrNull()?.course
+            when {
+                firstCourse != null && hour in 20..23 -> "，明天有 $tomorrowCount 节课，${firstCourse.name}是第一节课"
+                hour in 20..23 -> "，明天有 $tomorrowCount 节课"
+                else -> ""
+            }
+        } else if (hour in 20..23) {
+            "，明天也没课"
+        } else ""
+        return when {
+            hour in 6..8 -> "$greeting，今天没有课，可以睡个懒觉$tomorrowInfo"
+            hour in 9..11 -> "$greeting，今天没有课，自由安排吧$tomorrowInfo"
+            hour in 12..14 -> "$greeting，今天下午也没课，好好享受$tomorrowInfo"
+            hour in 14..17 -> "$greeting，今天没课，做点自己想做的事$tomorrowInfo"
+            hour in 18..19 -> "$greeting，今天没有课，可以放松一下$tomorrowInfo"
+            hour in 20..22 -> "$greeting，今天没课，早点休息养精蓄锐$tomorrowInfo"
+            else -> "$greeting，今天没有课$tomorrowInfo"
+        }
+    }
 
     val ongoing = ranges.find { now in it.start..it.end }
     val next = ranges.find { now.isBefore(it.start) }
@@ -283,47 +363,85 @@ private fun generateSmartTip(
 
     val eveningCount = courses.count { it.startSection > morningSections + afternoonSections }
     val totalCount = courses.size
+    val completedCount = ranges.count { now.isAfter(it.end) }
 
     return when {
         ongoing != null -> {
             val remaining = java.time.Duration.between(now, ongoing.end).toMinutes()
             val nextAfter = ranges.find { it.start > ongoing.end }
             val gap = nextAfter?.let { java.time.Duration.between(ongoing.end, it.start).toMinutes() }
+            val course = ongoing.course
             when {
-                remaining <= 5 -> "快下课了"
-                remaining <= 15 -> "还有 $remaining 分钟下课"
-                gap != null && gap in 1..15 -> "下课后只有 $gap 分钟休息"
-                else -> "正在上课中"
+                remaining <= 1 -> "马上就要下课了，再坚持一下"
+                remaining <= 3 -> "还有 $remaining 分钟，快下课了"
+                remaining <= 5 -> "还有 $remaining 分钟下课"
+                remaining <= 10 -> "${course.name} 还有 $remaining 分钟，认真听讲"
+                remaining <= 15 -> "认真听讲，${course.name} 还有 $remaining 分钟"
+                remaining <= 30 -> "正在上${course.name}，还有 $remaining 分钟"
+                gap != null && gap <= 3 -> "下课只有 $gap 分钟，抓紧休息"
+                gap != null && gap <= 10 -> "下课后休息 $gap 分钟"
+                gap != null && gap <= 15 -> "下课后有 $gap 分钟休息时间"
+                else -> "正在上${course.name}"
             }
         }
 
         prev != null && next != null -> {
             val breakMinutes = java.time.Duration.between(prev.end, next.start).toMinutes()
+            val nextCourse = next.course
+            val prevCourse = prev.course
             when {
-                breakMinutes > 60 -> "距下一节课还有 $breakMinutes 分钟"
-                breakMinutes <= 15 -> "课间休息中"
-                else -> "休息中"
+                breakMinutes <= 1 -> "马上开始${nextCourse.name}"
+                breakMinutes <= 3 -> "还有 $breakMinutes 分钟上${nextCourse.name}"
+                breakMinutes <= 5 -> "还有 $breakMinutes 分钟，准备上${nextCourse.name}"
+                breakMinutes <= 10 -> "课间休息中，下一节是${nextCourse.name}"
+                breakMinutes <= 15 -> "休息一下，$breakMinutes 分钟后上${nextCourse.name}"
+                breakMinutes <= 20 -> "还有 $breakMinutes 分钟，可以去${nextCourse.classroom}"
+                breakMinutes <= 30 -> "休息时间还剩 $breakMinutes 分钟"
+                breakMinutes <= 60 -> "休息中，$breakMinutes 分钟后${nextCourse.name}"
+                breakMinutes in 61..120 -> "距${nextCourse.name}还有 $breakMinutes 分钟"
+                else -> "距${nextCourse.name}还有 $breakMinutes 分钟，时间充裕"
             }
         }
 
         prev != null && next == null -> {
+            val greeting = getGreeting()
             val hour = now.hour
+            val tomorrowCount = tomorrowCourses.size
+            val tomorrowFirstCourse = tomorrowRanges.firstOrNull()?.course
+            val tomorrowInfo = when {
+                tomorrowCount > 0 && hour >= 21 -> "，明天有 $tomorrowCount 节课"
+                tomorrowCount > 0 && hour >= 22 && tomorrowFirstCourse != null -> "，明天 ${tomorrowFirstCourse.name}是第一节课，早点休息"
+                tomorrowCount > 0 && hour >= 22 -> "，明天有 $tomorrowCount 节课，早点休息"
+                tomorrowCount == 0 && hour >= 21 -> "，明天没课"
+                else -> ""
+            }
             when {
-                hour >= 22 -> "明天还有 $totalCount 节课，早点休息"
-                hour in 18..21 -> "今天辛苦了，好好休息"
-                eveningCount > 0 -> "晚上还有 $eveningCount 节课"
-                else -> "今天课程已结束"
+                completedCount == totalCount && hour >= 22 -> "$greeting，今天 $totalCount 节课都上完了，早点休息$tomorrowInfo"
+                completedCount == totalCount && hour in 18..21 -> "$greeting，今天 $totalCount 节课都上完了，辛苦了$tomorrowInfo"
+                completedCount == totalCount -> "$greeting，今天 $totalCount 节课都上完了$tomorrowInfo"
+                completedCount > 0 && hour >= 22 -> "$greeting，已经上了 $completedCount/$totalCount 节课，早点休息$tomorrowInfo"
+                completedCount > 0 -> "$greeting，已经上了 $completedCount/$totalCount 节课$tomorrowInfo"
+                eveningCount > 0 && hour in 12..14 -> "$greeting，下午还有 $eveningCount 节课"
+                eveningCount > 0 && hour in 14..17 -> "$greeting，晚上还有 $eveningCount 节课"
+                else -> "$greeting，今天还有 $totalCount 节课"
             }
         }
 
         next != null -> {
             val minutes = java.time.Duration.between(now, next.start).toMinutes()
+            val nextCourse = next.course
+            val greeting = getGreeting()
             when {
-                minutes > 120 -> "今天 $totalCount 节课"
-                minutes in 61..120 -> "还有 $minutes 分钟上课"
-                minutes in 2..60 -> "快准备好出发"
-                minutes in 0..1 -> "马上要上课了"
-                else -> "等待上课中"
+                minutes > 180 -> "$greeting，今天共 $totalCount 节课"
+                minutes in 121..180 -> "$greeting，还有 $minutes 分钟上${nextCourse.name}"
+                minutes in 61..120 -> "$greeting，还有 $minutes 分钟上${nextCourse.name}"
+                minutes in 30..60 -> "$greeting，还有 $minutes 分钟，可以准备出发了"
+                minutes in 15..29 -> "还有 $minutes 分钟上${nextCourse.name}，该出发了"
+                minutes in 10..14 -> "还有 $minutes 分钟，准备去${nextCourse.classroom}"
+                minutes in 5..9 -> "还有 $minutes 分钟，${nextCourse.name}要开始了"
+                minutes in 2..4 -> "快 $minutes 分钟了，抓紧时间"
+                minutes <= 1 -> "马上要上${nextCourse.name}了"
+                else -> "准备上${nextCourse.name}"
             }
         }
 
@@ -336,6 +454,7 @@ private fun generateSmartTip(
 @Composable
 fun TodayAssistantCard(
     courses: List<Course>,
+    tomorrowCourses: List<Course> = emptyList(),
     sectionTimes: Map<Int, String>,
     morningSections: Int,
     afternoonSections: Int
@@ -349,8 +468,8 @@ fun TodayAssistantCard(
             tick = System.currentTimeMillis()
         }
     }
-    val smartTip = remember(courses, weather, sectionTimes, morningSections, afternoonSections, tick) {
-        generateSmartTip(courses, sectionTimes, morningSections, afternoonSections) ?: ""
+    val smartTip = remember(courses, tomorrowCourses, weather, sectionTimes, morningSections, afternoonSections, tick) {
+        generateSmartTip(courses, tomorrowCourses, sectionTimes, morningSections, afternoonSections) ?: ""
     }
 
     Card(
