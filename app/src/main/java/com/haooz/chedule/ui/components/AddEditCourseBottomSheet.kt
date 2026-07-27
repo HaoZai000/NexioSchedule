@@ -1,0 +1,754 @@
+/** 添加课程底部弹窗 */
+package com.haooz.chedule.ui.components
+
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.asPaddingValues
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.statusBars
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.material3.Text
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.derivedStateOf
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.mutableStateSetOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.hapticfeedback.HapticFeedbackType
+import androidx.compose.ui.platform.LocalHapticFeedback
+import androidx.compose.ui.state.ToggleableState
+import androidx.compose.ui.text.TextStyle
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
+import com.haooz.chedule.data.Course
+import com.haooz.chedule.ui.utils.isAppDarkTheme
+import top.yukonga.miuix.kmp.basic.ButtonDefaults
+import top.yukonga.miuix.kmp.basic.Card
+import top.yukonga.miuix.kmp.basic.CardDefaults
+import top.yukonga.miuix.kmp.basic.Checkbox
+import top.yukonga.miuix.kmp.basic.CheckboxDefaults
+import top.yukonga.miuix.kmp.basic.Icon
+import top.yukonga.miuix.kmp.basic.IconButton
+import top.yukonga.miuix.kmp.basic.NumberPicker
+import top.yukonga.miuix.kmp.basic.TextButton
+import top.yukonga.miuix.kmp.blur.LayerBackdrop
+import top.yukonga.miuix.kmp.icon.MiuixIcons
+import top.yukonga.miuix.kmp.icon.extended.Close
+import top.yukonga.miuix.kmp.icon.extended.Ok
+import top.yukonga.miuix.kmp.overlay.OverlayDialog
+import top.yukonga.miuix.kmp.preference.ArrowPreference
+import top.yukonga.miuix.kmp.theme.MiuixTheme
+import top.yukonga.miuix.kmp.utils.PressFeedbackType
+import top.yukonga.miuix.kmp.utils.overScrollVertical
+import top.yukonga.miuix.kmp.utils.scrollEndHaptic
+import java.util.UUID
+
+/**
+ * 添加课程底部弹窗
+ *
+ * @param show 是否显示
+ * @param courses 当前课表的所有课程，用于获取默认地点和教师（取最晚周次的课程）
+ * @param backdrop 模糊背景
+ * @param onDismissRequest 关闭回调
+ * @param onConfirm 确认回调，返回新创建的课程
+ * @param getOccupiedWeeks 获取已占用周次的回调
+ */
+@Composable
+fun AddEditCourseBottomSheet(
+    show: Boolean,
+    courses: List<Course>,
+    backdrop: LayerBackdrop?,
+    liquidGlassBackdrop: com.kyant.backdrop.Backdrop? = null,
+    fullscreen: Boolean = false,
+    onDismissRequest: () -> Unit,
+    onConfirm: (Course) -> Unit,
+    okButtonContainerColor: Color? = null,
+    getOccupiedWeeks: (dayOfWeek: Int, startSection: Int, endSection: Int, excludeIds: List<String>) -> Set<Int> = { _, _, _, _ -> emptySet() },
+) {
+    val hapticFeedback = LocalHapticFeedback.current
+    val totalWeeks = 20
+    val totalSections = 12
+    var sheetContentBackdrop by remember { mutableStateOf<com.kyant.backdrop.Backdrop?>(null) }
+
+    // 取最晚周次的课程作为默认地点和教师
+    val latestCourse = remember(courses) {
+        courses.maxByOrNull { it.endWeek }
+    }
+    val defaultClassroom = latestCourse?.classroom ?: ""
+    val defaultTeacher = latestCourse?.teacher ?: ""
+
+    // 编辑状态
+    var classroom by remember { mutableStateOf(defaultClassroom) }
+    var teacher by remember { mutableStateOf(defaultTeacher) }
+    var dayOfWeek by remember { mutableIntStateOf(0) }
+    var startSection by remember { mutableIntStateOf(latestCourse?.startSection ?: 1) }
+    var endSection by remember { mutableIntStateOf(latestCourse?.endSection ?: 2) }
+
+    // 节次选择弹窗状态
+    var showSectionDialog by remember { mutableStateOf(false) }
+    var tempStartSection by remember { mutableIntStateOf(startSection) }
+    var tempEndSection by remember { mutableIntStateOf(endSection) }
+
+    // 根据当前选择的星期和节次动态计算已占用的周次（排除自身）
+    val currentOccupiedWeeks by remember(dayOfWeek, startSection, endSection) {
+        derivedStateOf {
+            getOccupiedWeeks(dayOfWeek, startSection, endSection, emptyList())
+        }
+    }
+
+    // 周次选择状态
+    val selectedWeeks = remember {
+        mutableStateSetOf<Int>()
+    }
+
+    val allWeeks = remember(totalWeeks) { (1..totalWeeks).toList() }
+    val oddWeeks = remember(allWeeks) { allWeeks.filter { it % 2 == 1 } }
+    val evenWeeks = remember(allWeeks) { allWeeks.filter { it % 2 == 0 } }
+
+    val selectableWeeks = remember(allWeeks, currentOccupiedWeeks) { allWeeks.filter { it !in currentOccupiedWeeks } }
+    val selectableOddWeeks = remember(selectableWeeks) { selectableWeeks.filter { it % 2 == 1 } }
+    val selectableEvenWeeks = remember(selectableWeeks) { selectableWeeks.filter { it % 2 == 0 } }
+
+    val allSelectableSelected by remember {
+        derivedStateOf { selectableWeeks.isNotEmpty() && selectableWeeks.all { it in selectedWeeks } }
+    }
+    val allSelectableOddSelected by remember {
+        derivedStateOf { selectableOddWeeks.all { it in selectedWeeks } }
+    }
+    val allSelectableEvenSelected by remember {
+        derivedStateOf { selectableEvenWeeks.all { it in selectedWeeks } }
+    }
+    val someSelectableOddSelected by remember {
+        derivedStateOf { selectableOddWeeks.any { it in selectedWeeks } }
+    }
+    val someSelectableEvenSelected by remember {
+        derivedStateOf { selectableEvenWeeks.any { it in selectedWeeks } }
+    }
+    val isDark = isAppDarkTheme()
+    val hasOccupiedOddWeeks = remember(selectableOddWeeks, oddWeeks) { selectableOddWeeks.size != oddWeeks.size }
+    val hasOccupiedEvenWeeks = remember(selectableEvenWeeks, evenWeeks) { selectableEvenWeeks.size != evenWeeks.size }
+
+    BlurBottomSheet(
+        show = show,
+        title = "添加课程",
+        backdrop = backdrop,
+        dimBackground = true,
+        onDismissRequest = onDismissRequest,
+        liquidGlassBackdrop = liquidGlassBackdrop,
+        fullscreen = fullscreen,
+        onSheetContentBackdropCreated = { sheetContentBackdrop = it },
+        startAction = {
+            if (liquidGlassBackdrop != null) {
+                com.haooz.chedule.ui.components.liquidglass.LiquidTopBarButton(
+                    onClick = {
+                        hapticFeedback.performHapticFeedback(HapticFeedbackType.Confirm)
+                        onDismissRequest()
+                    },
+                    backdrop = sheetContentBackdrop ?: liquidGlassBackdrop,
+                    icon = MiuixIcons.Normal.Close,
+                    contentDescription = "关闭",
+                    modifier = Modifier.padding(start = 20.dp),
+                    iconSize = 22.dp,
+                    useBackdropShadow = true
+                )
+            } else {
+                IconButton(
+                    onClick = {
+                        hapticFeedback.performHapticFeedback(HapticFeedbackType.Confirm)
+                        onDismissRequest()
+                    },
+                    modifier = Modifier.padding(horizontal = 20.dp)
+                ) {
+                    Icon(
+                        imageVector = MiuixIcons.Normal.Close,
+                        contentDescription = "关闭",
+                        modifier = Modifier.size(24.dp)
+                    )
+                }
+            }
+        },
+        endAction = {
+            val onConfirmClick: () -> Unit = {
+                hapticFeedback.performHapticFeedback(HapticFeedbackType.Confirm)
+                if (selectedWeeks.isNotEmpty()) {
+                    val sortedWeeks = selectedWeeks.sorted()
+                    val minWeek = sortedWeeks.first()
+                    val maxWeek = sortedWeeks.last()
+                    val allWeeksInRange = (minWeek..maxWeek).toSet()
+                    val oddWeeksInRange = allWeeksInRange.filter { it % 2 == 1 }.toSet()
+                    val evenWeeksInRange = allWeeksInRange.filter { it % 2 == 0 }.toSet()
+
+                    val weekType = when {
+                        selectedWeeks.toSet() == allWeeksInRange -> Course.WEEK_TYPE_ALL
+                        selectedWeeks.toSet() == oddWeeksInRange -> Course.WEEK_TYPE_ODD
+                        selectedWeeks.toSet() == evenWeeksInRange -> Course.WEEK_TYPE_EVEN
+                        else -> Course.WEEK_TYPE_ALL
+                    }
+
+                    val isContiguous = selectedWeeks.size == (maxWeek - minWeek + 1)
+                    val weeksToSave = if (isContiguous) emptyList() else sortedWeeks
+
+                    val course = Course(
+                        id = UUID.randomUUID().toString(),
+                        name = courses.firstOrNull()?.name ?: "",
+                        classroom = classroom.trim(),
+                        teacher = teacher.trim(),
+                        dayOfWeek = dayOfWeek,
+                        startSection = startSection,
+                        endSection = endSection,
+                        startWeek = minWeek,
+                        endWeek = maxWeek,
+                        weekType = weekType,
+                        colorRes = courses.firstOrNull()?.colorRes ?: Course.courseColors.first(),
+                        selectedWeeks = weeksToSave,
+                        lastModified = System.currentTimeMillis()
+                    )
+                    onConfirm(course)
+                    onDismissRequest()
+                }
+            }
+            if (liquidGlassBackdrop != null) {
+                com.haooz.chedule.ui.components.liquidglass.LiquidTopBarButton(
+                    onClick = onConfirmClick,
+                    backdrop = sheetContentBackdrop ?: liquidGlassBackdrop,
+                    icon = MiuixIcons.Ok,
+                    contentDescription = "确定",
+                    modifier = Modifier.padding(end = 20.dp),
+                    iconSize = 23.dp,
+                    useBackdropShadow = true,
+                    containerColor = if (isAppDarkTheme())MiuixTheme.colorScheme.primary.copy(alpha = 0.8f) else MiuixTheme.colorScheme.primary.copy(alpha = 0.9f)
+                )
+            } else {
+                IconButton(
+                    onClick = onConfirmClick,
+                    modifier = Modifier.padding(end = 20.dp)
+                ) {
+                    Icon(
+                        imageVector = MiuixIcons.Ok,
+                        contentDescription = "确定",
+                        modifier = Modifier.size(26.dp),
+                        tint = okButtonContainerColor ?: Color.Unspecified
+                    )
+                }
+            }
+        },
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                
+                .overScrollVertical()
+                .scrollEndHaptic(
+                    hapticFeedbackType = HapticFeedbackType.TextHandleMove // 默认值
+                )
+                .verticalScroll(rememberScrollState())
+                .padding(start = 16.dp, end = 16.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp),
+        ) {
+            Spacer(modifier = Modifier.height(68.dp))
+            // 地点教师卡片
+            Card(
+                cornerRadius = 20.dp,
+                modifier = Modifier.fillMaxWidth(),
+                colors = CardDefaults.defaultColors(
+                    color = if (isAppDarkTheme()) Color(0xFF363636).copy(alpha = 0.62f) else Color(0xFFFFFFFF).copy(alpha = 0.7f),
+                    contentColor = MiuixTheme.colorScheme.onSurface
+                ),
+            ) {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(start = 16.dp, end = 16.dp, top = 17.dp, bottom = 14.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(
+                        text = "地点",
+                        modifier = Modifier.weight(1f),
+                        fontSize = 17.sp,
+                        fontWeight = FontWeight.Medium,
+                        color = MiuixTheme.colorScheme.onSurface
+                    )
+                    NativeTextField(
+                        value = classroom,
+                        onValueChange = { classroom = it },
+                        modifier = Modifier.fillMaxWidth(0.65f),
+                        hint = defaultClassroom.ifEmpty { "非必填" },
+                        singleLine = true,
+                        textAlign = TextAlign.End,
+                        textStyle = TextStyle(
+                            fontSize = 17.sp,
+                            fontWeight = FontWeight.Medium
+                        )
+                    )
+                }
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(start = 16.dp, end = 16.dp, top = 14.dp, bottom = 17.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(
+                        text = "教师",
+                        modifier = Modifier.weight(1f),
+                        fontSize = 17.sp,
+                        fontWeight = FontWeight.Medium,
+                        color = MiuixTheme.colorScheme.onSurface
+                    )
+                    NativeTextField(
+                        value = teacher,
+                        onValueChange = { teacher = it },
+                        modifier = Modifier.fillMaxWidth(0.65f),
+                        hint = defaultTeacher.ifEmpty { "非必填" },
+                        singleLine = true,
+                        textAlign = TextAlign.End,
+                        textStyle = TextStyle(
+                            fontSize = 17.sp,
+                            fontWeight = FontWeight.Medium
+                        )
+                    )
+                }
+            }
+
+            // 上课星期卡片
+            Card(
+                cornerRadius = 20.dp,
+                modifier = Modifier.fillMaxWidth(),
+                colors = CardDefaults.defaultColors(
+                    color = if (isAppDarkTheme()) Color(0xFF363636).copy(alpha = 0.62f) else Color(0xFFFFFFFF).copy(alpha = 0.7f),
+                    contentColor = MiuixTheme.colorScheme.onSurface
+                ),
+            ) {
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(vertical = 17.dp, horizontal = 16.dp)
+                ) {
+                    Text(
+                        text = "上课星期",
+                        fontSize = 17.sp,
+                        fontWeight = FontWeight.Medium,
+                        color = MiuixTheme.colorScheme.onSurface,
+                        modifier = Modifier.padding(bottom = 10.dp)
+                    )
+                    val isDark = MiuixTheme.colorScheme.background.luminance() < 0.5f
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(6.dp)
+                    ) {
+                        val dayLabels = remember { listOf("一", "二", "三", "四", "五", "六", "日") }
+                        for (day in 1..7) {
+                            val isSelected = day == dayOfWeek
+                            Card(
+                                modifier = Modifier
+                                    .weight(1f)
+                                    .height(32.dp),
+                                cornerRadius = 10.dp,
+                                insideMargin = PaddingValues(0.dp),
+                                pressFeedbackType = PressFeedbackType.Sink,
+                                colors = CardDefaults.defaultColors(
+                                    color = if (isSelected) MiuixTheme.colorScheme.primary
+                                    else if (isDark) Color(0xFF505050) else Color(0xFFF7F7F7),
+                                    contentColor = if (isSelected) Color.White else MiuixTheme.colorScheme.onSurfaceVariantSummary
+                                ),
+                                onClick = {
+                                    dayOfWeek = day
+                                    selectedWeeks.clear()
+                                }
+                            ) {
+                                Box(
+                                    modifier = Modifier.fillMaxSize(),
+                                    contentAlignment = Alignment.Center
+                                ) {
+                                    Text(
+                                        text = dayLabels[day - 1],
+                                        fontSize = 14.sp,
+                                        color = if (isSelected) Color.White else MiuixTheme.colorScheme.onSurfaceVariantSummary
+                                    )
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+            // 上课节次卡片
+            Card(
+                cornerRadius = 20.dp,
+                modifier = Modifier.fillMaxWidth(),
+                colors = CardDefaults.defaultColors(
+                    color = if (isAppDarkTheme()) Color(0xFF363636).copy(alpha = 0.62f) else Color(0xFFFFFFFF).copy(alpha = 0.7f),
+                    contentColor = MiuixTheme.colorScheme.onSurface
+                ),
+            ) {
+                ArrowPreference(
+                    title = "上课节次",
+                    endActions = {
+                        Text(
+                            text = "第${startSection} - ${endSection}节",
+                            fontSize = 14.5.sp,
+                            color = MiuixTheme.colorScheme.onSurfaceVariantActions
+                        )
+                    },
+                    onClick = {
+                        tempStartSection = startSection
+                        tempEndSection = endSection
+                        showSectionDialog = true
+                    },
+                    holdDownState = showSectionDialog
+                )
+            }
+
+            // 上课周次卡片
+            Card(
+                cornerRadius = 20.dp,
+                modifier = Modifier.fillMaxWidth(),
+                colors = CardDefaults.defaultColors(
+                    color = if (isAppDarkTheme()) Color(0xFF363636).copy(alpha = 0.62f) else Color(0xFFFFFFFF).copy(alpha = 0.7f),
+                    contentColor = MiuixTheme.colorScheme.onSurface
+                ),
+            ) {
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(16.dp)
+                ) {
+                    val hasMixedSelection = someSelectableOddSelected && someSelectableEvenSelected
+                    val noDaySelected = dayOfWeek == 0
+
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text(
+                            text = "上课周次",
+                            modifier = Modifier.weight(1f),
+                            fontSize = 17.sp,
+                            fontWeight = FontWeight.Medium,
+                            color = MiuixTheme.colorScheme.onSurface
+                        )
+                        Row(
+                            horizontalArrangement = Arrangement.spacedBy(8.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            // 全部
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                modifier = Modifier.clickable(enabled = !noDaySelected) {
+                                    if (allSelectableSelected) {
+                                        selectedWeeks.clear()
+                                    } else {
+                                        selectedWeeks.clear()
+                                        selectedWeeks.addAll(selectableWeeks)
+                                    }
+                                }
+                            ) {
+                                Checkbox(
+                                    state = if (noDaySelected) ToggleableState.Off else if (allSelectableSelected) ToggleableState.On else ToggleableState.Off,
+                                    onClick = {
+                                        if (allSelectableSelected) {
+                                            selectedWeeks.clear()
+                                        } else {
+                                            selectedWeeks.clear()
+                                            selectedWeeks.addAll(selectableWeeks)
+                                        }
+                                    },
+                                    colors = CheckboxDefaults.checkboxColors(
+                                        uncheckedBackgroundColor = if (isDark) Color(0xFF505050) else Color(0xFFF7F7F7)
+                                    )
+                                )
+                                Spacer(modifier = Modifier.width(4.dp))
+                                Text(text = "全部", style = MiuixTheme.textStyles.body2, color = MiuixTheme.colorScheme.onSurfaceVariantSummary)
+                            }
+
+                            // 单周
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                modifier = Modifier.clickable(enabled = !noDaySelected) {
+                                    if (hasMixedSelection) {
+                                        selectedWeeks.clear()
+                                        selectedWeeks.addAll(selectableOddWeeks)
+                                    } else if (allSelectableOddSelected) {
+                                        selectedWeeks.clear()
+                                    } else {
+                                        selectedWeeks.clear()
+                                        selectedWeeks.addAll(selectableOddWeeks)
+                                    }
+                                }
+                            ) {
+                                Checkbox(
+                                    state = when {
+                                        noDaySelected -> ToggleableState.Off
+                                        hasMixedSelection -> ToggleableState.Off
+                                        allSelectableOddSelected && !hasOccupiedOddWeeks -> ToggleableState.On
+                                        someSelectableOddSelected -> ToggleableState.Indeterminate
+                                        else -> ToggleableState.Off
+                                    },
+                                    onClick = {
+                                        if (hasMixedSelection) {
+                                            selectedWeeks.clear()
+                                            selectedWeeks.addAll(selectableOddWeeks)
+                                        } else if (allSelectableOddSelected) {
+                                            selectedWeeks.clear()
+                                        } else {
+                                            selectedWeeks.clear()
+                                            selectedWeeks.addAll(selectableOddWeeks)
+                                        }
+                                    },
+                                    colors = CheckboxDefaults.checkboxColors(
+                                        uncheckedBackgroundColor = if (isDark) Color(0xFF505050) else Color(0xFFF7F7F7)
+                                    )
+                                )
+                                Spacer(modifier = Modifier.width(4.dp))
+                                Text(text = "单周", style = MiuixTheme.textStyles.body2, color = MiuixTheme.colorScheme.onSurfaceVariantSummary)
+                            }
+
+                            // 双周
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                modifier = Modifier.clickable(enabled = !noDaySelected) {
+                                    if (hasMixedSelection) {
+                                        selectedWeeks.clear()
+                                        selectedWeeks.addAll(selectableEvenWeeks)
+                                    } else if (allSelectableEvenSelected) {
+                                        selectedWeeks.clear()
+                                    } else {
+                                        selectedWeeks.clear()
+                                        selectedWeeks.addAll(selectableEvenWeeks)
+                                    }
+                                }
+                            ) {
+                                Checkbox(
+                                    state = when {
+                                        noDaySelected -> ToggleableState.Off
+                                        hasMixedSelection -> ToggleableState.Off
+                                        allSelectableEvenSelected && !hasOccupiedEvenWeeks -> ToggleableState.On
+                                        someSelectableEvenSelected -> ToggleableState.Indeterminate
+                                        else -> ToggleableState.Off
+                                    },
+                                    onClick = {
+                                        if (hasMixedSelection) {
+                                            selectedWeeks.clear()
+                                            selectedWeeks.addAll(selectableEvenWeeks)
+                                        } else if (allSelectableEvenSelected) {
+                                            selectedWeeks.clear()
+                                        } else {
+                                            selectedWeeks.clear()
+                                            selectedWeeks.addAll(selectableEvenWeeks)
+                                        }
+                                    },
+                                    colors = CheckboxDefaults.checkboxColors(
+                                        uncheckedBackgroundColor = if (isDark) Color(0xFF505050) else Color(0xFFF7F7F7)
+                                    )
+                                )
+                                Spacer(modifier = Modifier.width(4.dp))
+                                Text(text = "双周", style = MiuixTheme.textStyles.body2, color = MiuixTheme.colorScheme.onSurfaceVariantSummary)
+                            }
+                        }
+                    }
+
+                    Spacer(modifier = Modifier.height(10.dp))
+
+                    // 周次网格
+                    val columns = 6
+                    val rows = remember(totalWeeks, columns) { (totalWeeks + columns - 1) / columns }
+                    val primaryColor = MiuixTheme.colorScheme.primary
+                    val outlineColor = MiuixTheme.colorScheme.outline
+                    val onSurfaceColor = MiuixTheme.colorScheme.onSurface
+                    val onSurfaceSummaryColor = MiuixTheme.colorScheme.onSurfaceVariantSummary
+                    val occupiedColor = if (isDark) Color(0xFF4A4A4A) else Color(0xFFF0F0F0)
+                    val defaultCardColor = if (isDark) Color(0xFF505050) else Color(0xFFF7F7F7)
+
+                    val weekStates by remember {
+                        derivedStateOf {
+                            (1..totalWeeks).map { weekNum ->
+                                val isSelected = weekNum in selectedWeeks
+                                val isOccupied = weekNum in currentOccupiedWeeks
+                                Triple(weekNum, isSelected, isOccupied)
+                            }
+                        }
+                    }
+
+                    Column(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalArrangement = Arrangement.spacedBy(6.dp)
+                    ) {
+                        for (row in 0 until rows) {
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.spacedBy(6.dp)
+                            ) {
+                                for (col in 0 until columns) {
+                                    val idx = row * columns + col
+                                    if (idx < weekStates.size) {
+                                        val (weekNum, isSelected, isOccupied) = weekStates[idx]
+                                        val cardColor = when {
+                                            noDaySelected -> defaultCardColor
+                                            isSelected -> primaryColor
+                                            isOccupied -> occupiedColor
+                                            else -> defaultCardColor
+                                        }
+                                        val textColor = when {
+                                            noDaySelected -> outlineColor
+                                            isSelected -> Color.White
+                                            isOccupied -> outlineColor
+                                            else -> onSurfaceSummaryColor
+                                        }
+                                        Card(
+                                            modifier = Modifier
+                                                .weight(1f)
+                                                .height(32.dp),
+                                            cornerRadius = 10.dp,
+                                            insideMargin = PaddingValues(0.dp),
+                                            pressFeedbackType = PressFeedbackType.Sink,
+                                            showIndication = !noDaySelected && !isOccupied,
+                                            colors = CardDefaults.defaultColors(
+                                                color = cardColor,
+                                                contentColor = if (isSelected) Color.White else outlineColor
+                                            ),
+                                            onClick = {
+                                                if (!noDaySelected && !isOccupied) {
+                                                    if (isSelected) {
+                                                        selectedWeeks.remove(weekNum)
+                                                    } else {
+                                                        selectedWeeks.add(weekNum)
+                                                    }
+                                                }
+                                            }
+                                        ) {
+                                            Box(
+                                                modifier = Modifier.fillMaxSize(),
+                                                contentAlignment = Alignment.Center
+                                            ) {
+                                                Text(
+                                                    text = "$weekNum",
+                                                    fontSize = 13.sp,
+                                                    color = textColor
+                                                )
+                                            }
+                                        }
+                                    } else {
+                                        Spacer(modifier = Modifier.weight(1f))
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+            val statusBarsPadding = WindowInsets.statusBars.asPaddingValues().calculateTopPadding()
+            Spacer(modifier = Modifier.height(statusBarsPadding + 60.dp))
+        }
+    }
+
+    // 节次选择弹窗
+    OverlayDialog(
+        title = "选择上课节次",
+        show = showSectionDialog,
+        onDismissRequest = { showSectionDialog = false }
+    ) {
+        Column(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalAlignment = Alignment.CenterHorizontally
+        ) {
+            androidx.compose.runtime.LaunchedEffect(tempStartSection) {
+                if (tempEndSection < tempStartSection) {
+                    tempEndSection = tempStartSection
+                }
+            }
+
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceEvenly
+            ) {
+                Column(
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    modifier = Modifier.weight(1f)
+                ) {
+                    Text(
+                        text = "开始",
+                        style = MiuixTheme.textStyles.footnote1,
+                        color = MiuixTheme.colorScheme.onSurfaceVariantActions,
+                        modifier = Modifier.padding(top = 4.dp, bottom = 12.dp)
+                    )
+                    NumberPicker(
+                        value = tempStartSection,
+                        onValueChange = { tempStartSection = it },
+                        range = 1..totalSections,
+                        visibleItemCount = 3,
+                        itemHeight = 50.dp
+                    )
+                }
+
+                Column(
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    modifier = Modifier.weight(1f)
+                ) {
+                    Text(
+                        text = "结束",
+                        style = MiuixTheme.textStyles.footnote1,
+                        color = MiuixTheme.colorScheme.onSurfaceVariantActions,
+                        modifier = Modifier.padding(top = 4.dp, bottom = 12.dp)
+                    )
+                    NumberPicker(
+                        value = tempEndSection,
+                        onValueChange = { tempEndSection = it },
+                        range = tempStartSection..totalSections,
+                        visibleItemCount = 3,
+                        itemHeight = 50.dp
+                    )
+                }
+            }
+
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(top = 16.dp),
+                horizontalArrangement = Arrangement.spacedBy(12.dp)
+            ) {
+                TextButton(
+                    text = "取消",
+                    onClick = {
+                        hapticFeedback.performHapticFeedback(HapticFeedbackType.Confirm)
+                        showSectionDialog = false
+                    },
+                    modifier = Modifier.weight(1f)
+                )
+                TextButton(
+                    text = "确定",
+                    onClick = {
+                        hapticFeedback.performHapticFeedback(HapticFeedbackType.Confirm)
+                        if (tempStartSection <= tempEndSection) {
+                            startSection = tempStartSection
+                            endSection = tempEndSection
+                        }
+                        showSectionDialog = false
+                    },
+                    colors = ButtonDefaults.textButtonColorsPrimary(),
+                    modifier = Modifier.weight(1f)
+                )
+            }
+        }
+    }
+}
+
+private fun Color.luminance(): Float {
+    return 0.299f * red + 0.587f * green + 0.114f * blue
+}

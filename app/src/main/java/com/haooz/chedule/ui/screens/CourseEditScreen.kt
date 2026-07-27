@@ -33,6 +33,7 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
+import com.haooz.chedule.ui.components.AddEditCourseBottomSheet
 import com.haooz.chedule.ui.components.NativeTextField
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -88,6 +89,7 @@ import top.yukonga.miuix.kmp.basic.CardDefaults
 import top.yukonga.miuix.kmp.basic.Checkbox
 import top.yukonga.miuix.kmp.basic.CheckboxDefaults
 import top.yukonga.miuix.kmp.basic.ColorPalette
+import top.yukonga.miuix.kmp.basic.FloatingActionButton
 import top.yukonga.miuix.kmp.basic.Icon
 import top.yukonga.miuix.kmp.basic.IconButton
 import top.yukonga.miuix.kmp.basic.MiuixScrollBehavior
@@ -195,6 +197,7 @@ fun CourseEditScreen(
     onBackStart: () -> Unit,
     onBack: () -> Unit,
     onCourseUpdated: (Course) -> Unit = { _ -> },
+    onCourseAdded: (Course) -> Unit = { _ -> },
     onDeleteCourse: (String) -> Unit = { _ -> },
     onColorChanged: (Long) -> Unit = { _ -> },
     getOccupiedWeeks: (dayOfWeek: Int, startSection: Int, endSection: Int, excludeIds: List<String>) -> Set<Int> = { _, _, _, _ -> emptySet() },
@@ -322,6 +325,9 @@ fun CourseEditScreen(
     var pendingDeleteGroup by remember { mutableStateOf<CourseGroup?>(null) }
     var pendingDeleteCourseIds by remember { mutableStateOf<List<String>>(emptyList()) }
 
+    // 添加课程弹窗状态
+    var showAddCourseSheet by remember { mutableStateOf(false) }
+
     // 动画结束后执行删除
     LaunchedEffect(deletingGroupId) {
         val courseIds = pendingDeleteCourseIds
@@ -417,8 +423,8 @@ fun CourseEditScreen(
                 Scaffold(
                     topBar = {
                         if (isLiquidGlass) {
-                                val statusBarPadding = WindowInsets.statusBars.asPaddingValues().calculateTopPadding()
-                                ProgressiveBlurTopBar(
+                            val statusBarPadding = WindowInsets.statusBars.asPaddingValues().calculateTopPadding()
+                            ProgressiveBlurTopBar(
                                     backdrop = liquidGlassBackdrop,
                                 ) {
                                     SmallTopAppBar(
@@ -493,7 +499,7 @@ fun CourseEditScreen(
                                                 }
                                                 onBack()
                                             }
-                                        },
+                                                  },
                                         backdrop = liquidGlassBackdrop,
                                         icon = MiuixIcons.Ok,
                                         contentDescription = "保存并关闭",
@@ -507,48 +513,48 @@ fun CourseEditScreen(
                                         iconTint = Color.White,
                                         containerColor = if (isAppDarkTheme())MiuixTheme.colorScheme.primary.copy(alpha = 0.8f) else MiuixTheme.colorScheme.primary.copy(alpha = 0.9f)
                                     )
-                                }
-                            } else {
-                                TopAppBar(
-                                    modifier = if (blurAlpha > 0f) {
-                                        Modifier.textureBlur(
-                                            backdrop = backdrop,
-                                            shape = RectangleShape,
-                                            colors = topAppBarColors
-                                        )
-                                    } else {
-                                        Modifier
-                                    },
-                                    color = topBarColor,
-                                    title = courseName,
-                                    scrollBehavior = scrollBehavior,
-                                    navigationIcon = {
-                                        IconButton(onClick = {
-                                            hapticFeedback.performHapticFeedback(HapticFeedbackType.Confirm)
-                                            onBackStart()
-                                            scope.launch {
-                                                coroutineScope {
-                                                    launch {
-                                                        animProgress.animateTo(
-                                                            targetValue = 0f,
-                                                            animationSpec = tween(
-                                                                durationMillis = 360,
-                                                                easing = morphExitEase
-                                                            )
+                            }
+                        }else {
+                            TopAppBar(
+                                modifier = if (blurAlpha > 0f) {
+                                    Modifier.textureBlur(
+                                        backdrop = backdrop,
+                                        shape = RectangleShape,
+                                        colors = topAppBarColors
+                                    )
+                                } else {
+                                    Modifier
+                                       },
+                                color = topBarColor,
+                                title = courseName,
+                                scrollBehavior = scrollBehavior,
+                                navigationIcon = {
+                                    IconButton(onClick = {
+                                        hapticFeedback.performHapticFeedback(HapticFeedbackType.Confirm)
+                                        onBackStart()
+                                        scope.launch {
+                                            coroutineScope {
+                                                launch {
+                                                    animProgress.animateTo(
+                                                        targetValue = 0f,
+                                                        animationSpec = tween(
+                                                            durationMillis = 360,
+                                                            easing = morphExitEase
                                                         )
-                                                    }
-                                                    launch {
-                                                        animTransY.animateTo(
-                                                            targetValue = 0f,
-                                                            animationSpec = tween(
-                                                                durationMillis = transExitMillis,
-                                                                easing = transExitEase
-                                                            )
-                                                        )
-                                                    }
+                                                    )
                                                 }
-                                                onBack()
+                                                launch {
+                                                    animTransY.animateTo(
+                                                        targetValue = 0f,
+                                                        animationSpec = tween(
+                                                            durationMillis = transExitMillis,
+                                                            easing = transExitEase
+                                                        )
+                                                    )
+                                                }
                                             }
+                                            onBack()
+                                        }
                                         },
                                             modifier = Modifier.padding(start = 4.dp)
                                         ) {
@@ -598,9 +604,9 @@ fun CourseEditScreen(
                                             )
                                         }
                                     }
-                                )
-                            }
+                            )
                         }
+                    }
                     ) { paddingValues ->
                         Box(
                             modifier = Modifier
@@ -1016,6 +1022,45 @@ fun CourseEditScreen(
                                 }
                             }
                         }
+
+                        // FAB
+                        Box(
+                            modifier = Modifier
+                                .fillMaxSize()
+                                .padding(end = 20.dp, bottom = 20.dp),
+                            contentAlignment = Alignment.BottomEnd
+                        ) {
+                            FloatingActionButton(
+                                onClick = {
+                                    hapticFeedback.performHapticFeedback(HapticFeedbackType.Confirm)
+                                    showAddCourseSheet = true
+                                },
+                                shadowElevation = 0.dp,
+                            ) {
+                                Icon(
+                                    imageVector = MiuixIcons.Add,
+                                    contentDescription = "添加课程",
+                                    tint = ComposeColor.White,
+                                    modifier = Modifier.size(24.dp)
+                                )
+                            }
+                        }
+
+                        // 添加课程底部弹窗
+                        AddEditCourseBottomSheet(
+                            show = showAddCourseSheet,
+                            courses = courses,
+                            backdrop = backdrop,
+                            liquidGlassBackdrop = if (isLiquidGlass) liquidGlassBackdrop else null,
+                            fullscreen = true,
+                            onDismissRequest = { showAddCourseSheet = false },
+                            onConfirm = { newCourse ->
+                                onCourseAdded(newCourse)
+                            },
+                            getOccupiedWeeks = { dow, ss, es, excludeIds ->
+                                getOccupiedWeeks(dow, ss, es, excludeIds)
+                            }
+                        )
                     }
                 }
             }
@@ -1357,11 +1402,17 @@ private fun CourseGroupCard(
                                     }
                                 },
                                 colors = CheckboxDefaults.checkboxColors(
-                                    uncheckedBackgroundColor = if (isDark) Color(0xFF505050) else Color(0xFFF7F7F7)
+                                    uncheckedBackgroundColor = if (isDark) Color(0xFF505050) else Color(
+                                        0xFFF7F7F7
+                                    )
                                 )
                             )
                             Spacer(modifier = Modifier.width(4.dp))
-                            Text(text = "全部", style = MiuixTheme.textStyles.body2, color = MiuixTheme.colorScheme.onSurfaceVariantSummary)
+                            Text(
+                                text = "全部",
+                                style = MiuixTheme.textStyles.body2,
+                                color = MiuixTheme.colorScheme.onSurfaceVariantSummary
+                            )
                         }
 
                         // 单周
@@ -1398,11 +1449,17 @@ private fun CourseGroupCard(
                                     }
                                 },
                                 colors = CheckboxDefaults.checkboxColors(
-                                    uncheckedBackgroundColor = if (isDark) Color(0xFF505050) else Color(0xFFF7F7F7)
+                                    uncheckedBackgroundColor = if (isDark) Color(0xFF505050) else Color(
+                                        0xFFF7F7F7
+                                    )
                                 )
                             )
                             Spacer(modifier = Modifier.width(4.dp))
-                            Text(text = "单周", style = MiuixTheme.textStyles.body2, color = MiuixTheme.colorScheme.onSurfaceVariantSummary)
+                            Text(
+                                text = "单周",
+                                style = MiuixTheme.textStyles.body2,
+                                color = MiuixTheme.colorScheme.onSurfaceVariantSummary
+                            )
                         }
 
                         // 双周
@@ -1439,11 +1496,17 @@ private fun CourseGroupCard(
                                     }
                                 },
                                 colors = CheckboxDefaults.checkboxColors(
-                                    uncheckedBackgroundColor = if (isDark) Color(0xFF505050) else Color(0xFFF7F7F7)
+                                    uncheckedBackgroundColor = if (isDark) Color(0xFF505050) else Color(
+                                        0xFFF7F7F7
+                                    )
                                 )
                             )
                             Spacer(modifier = Modifier.width(4.dp))
-                            Text(text = "双周", style = MiuixTheme.textStyles.body2, color = MiuixTheme.colorScheme.onSurfaceVariantSummary)
+                            Text(
+                                text = "双周",
+                                style = MiuixTheme.textStyles.body2,
+                                color = MiuixTheme.colorScheme.onSurfaceVariantSummary
+                            )
                         }
                     }
                 }
@@ -1539,6 +1602,7 @@ private fun CourseGroupCard(
             }
         }
     }
+
 
     if (group.courses.size > 1) {
         Text(

@@ -11,6 +11,7 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -132,24 +133,20 @@ fun AppreciateAuthorScreen(onBack: () -> Unit) {
                 item {
                     Card(
                         cornerRadius = 20.dp,
-                        modifier = Modifier.fillMaxWidth(),
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .aspectRatio(1f),
                         insideMargin = PaddingValues(0.dp)
                     ) {
-                        Column(
+                        Image(
+                            painter = painterResource(id = R.drawable.zanshangma),
+                            contentDescription = "赞赏码",
                             modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(14.dp),
-                            horizontalAlignment = Alignment.CenterHorizontally
-                        ) {
-                            Image(
-                                painter = painterResource(id = R.drawable.zanshangma),
-                                contentDescription = "赞赏码",
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .clip(RoundedRectangle(10.dp)),
-                                contentScale = ContentScale.Fit,
-                            )
-                        }
+                                .fillMaxSize()
+                                .padding(14.dp)
+                                .clip(RoundedRectangle(10.dp)),
+                            contentScale = ContentScale.Crop,
+                        )
                     }
                 }
 

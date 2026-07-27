@@ -107,7 +107,7 @@ fun NativeMiuixTextField(
 
     val themeColor = MiuixTheme.colorScheme.primary
     val backgroundColor = MiuixTheme.colorScheme.secondaryContainer
-    val labelColor = MiuixTheme.colorScheme.onSecondaryContainer
+    val labelColor = MiuixTheme.colorScheme.onSurfaceVariantActions
 
     val borderColor by animateColorAsState(
         if (isFocused.value) themeColor else Color.Transparent
@@ -195,7 +195,7 @@ fun NativeMiuixTextField(
                     ),
                 contentAlignment = Alignment.TopStart,
             ) {
-                if (labelState != LabelAnimState.Hidden && labelState != LabelAnimState.Placeholder) {
+                if (labelState == LabelAnimState.Floating || (labelState == LabelAnimState.Normal && !useLabelAsPlaceholder)) {
                     androidx.compose.material3.Text(
                         text = label,
                         fontSize = labelFontSize.value.sp,
@@ -238,6 +238,8 @@ fun NativeMiuixTextField(
                                 textSelectHandle?.setTint(themeColor.toArgb())
                                 textSelectHandleLeft?.setTint(themeColor.toArgb())
                                 textSelectHandleRight?.setTint(themeColor.toArgb())
+
+
 
                                 setOnFocusChangeListener { _, focused ->
                                     isFocused.value = focused
@@ -339,7 +341,7 @@ fun NativeMiuixTextField(
 
     val themeColor = MiuixTheme.colorScheme.primary
     val backgroundColor = MiuixTheme.colorScheme.secondaryContainer
-    val labelColor = MiuixTheme.colorScheme.onSecondaryContainer
+    val labelColor = MiuixTheme.colorScheme.onSurfaceVariantActions
 
     val borderColor by animateColorAsState(
         if (isFocused.value) themeColor else Color.Transparent
@@ -417,7 +419,7 @@ fun NativeMiuixTextField(
                     ),
                 contentAlignment = Alignment.TopStart,
             ) {
-                if (labelState != LabelAnimState.Hidden && labelState != LabelAnimState.Placeholder) {
+                if (labelState == LabelAnimState.Floating || (labelState == LabelAnimState.Normal && !useLabelAsPlaceholder)) {
                     androidx.compose.material3.Text(
                         text = label,
                         fontSize = labelFontSize.value.sp,

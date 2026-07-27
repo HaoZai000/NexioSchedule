@@ -47,8 +47,6 @@ import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.focus.FocusRequester
-import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Outline
@@ -205,14 +203,6 @@ fun TimeConfigEditScreen(
     // 配置名称
     val screenTitle = if (isFabCreation) "添加时间配置" else "编辑时间配置"
     var configName by remember { mutableStateOf(timeConfig.name) }
-    val nameFocusRequester = remember { FocusRequester() }
-
-    LaunchedEffect(isFabCreation) {
-        if (isFabCreation) {
-            delay(580.milliseconds)
-            nameFocusRequester.requestFocus()
-        }
-    }
 
     // 节数配置
     var morningSections by remember { mutableIntStateOf(timeConfig.morningSections) }
@@ -826,9 +816,9 @@ fun TimeConfigEditScreen(
                                     NativeMiuixTextField(
                                         value = configName,
                                         onValueChange = { configName = it },
-                                        modifier = Modifier.focusRequester(nameFocusRequester),
                                         label = "请输入配置名称",
-                                        useLabelAsPlaceholder = true
+                                        useLabelAsPlaceholder = true,
+                                        requestFocus = isFabCreation
                                     )
                                 }
 

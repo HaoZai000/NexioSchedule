@@ -84,6 +84,7 @@ import top.yukonga.miuix.kmp.preference.ArrowPreference
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 import top.yukonga.miuix.kmp.utils.PressFeedbackType
 import top.yukonga.miuix.kmp.utils.overScrollVertical
+import top.yukonga.miuix.kmp.utils.scrollEndHaptic
 import java.util.UUID
 
 @Composable
@@ -397,6 +398,9 @@ fun AddCourseDialog(
                 .fillMaxWidth()
                 .fillMaxHeight()
                 .overScrollVertical()
+                .scrollEndHaptic(
+                    hapticFeedbackType = HapticFeedbackType.TextHandleMove // 默认值
+                )
                 .verticalScroll(rememberScrollState())
                 .padding(bottom = 60.dp),
             verticalArrangement = Arrangement.spacedBy(12.dp)

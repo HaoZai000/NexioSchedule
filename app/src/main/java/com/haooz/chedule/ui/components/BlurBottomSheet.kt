@@ -93,6 +93,7 @@ fun BlurBottomSheet(
     dimBackground: Boolean = false,
     sheetBackgroundColor: Color? = null,
     sheetBackgroundAlpha: Float? = null,
+    fullscreen: Boolean = false,
     onDismissRequest: () -> Unit,
     startAction: @Composable (() -> Unit)? = null,
     endAction: @Composable (() -> Unit)? = null,
@@ -136,6 +137,7 @@ fun BlurBottomSheet(
             endAction = endAction,
             liquidGlassBackdrop = liquidGlassBackdrop,
             sheetContentBackdropHolder = sheetContentBackdropHolder,
+            fullscreen = fullscreen,
             content = content,
         )
     }
@@ -151,6 +153,7 @@ private fun BlurBottomSheetContent(
     dimBackground: Boolean = false,
     sheetBackgroundColor: Color? = null,
     sheetBackgroundAlpha: Float? = null,
+    fullscreen: Boolean = false,
     onDismissRequest: () -> Unit,
     startAction: @Composable (() -> Unit)? = null,
     endAction: @Composable (() -> Unit)? = null,
@@ -227,13 +230,14 @@ private fun BlurBottomSheetContent(
                 translationY = baseOffset * (1f - progress) + dragOffsetY.value
             }
 
+        val sheetOffsetDp = if (fullscreen) statusBarsPadding + 5.dp else 200.dp
+
         Box(
             modifier = sheetModifier
-                .offset(y = 200.dp)
+                .offset(y = sheetOffsetDp)
                 .align(Alignment.BottomCenter)
-                .widthIn(max = 640.dp)
                 .fillMaxWidth()
-                .heightIn(max = windowInfo.containerDpSize.height - statusBarsPadding - 80.dp)
+                .heightIn(max = windowInfo.containerDpSize.height)
                 .onGloballyPositioned { coordinates ->
                     if (imeInsets.getBottom(density) == 0) {
                         sheetHeightPx.intValue = coordinates.size.height
