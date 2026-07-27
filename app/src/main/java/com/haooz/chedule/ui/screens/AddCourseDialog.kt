@@ -5,7 +5,6 @@ import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -23,7 +22,6 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBars
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -35,7 +33,6 @@ import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.mutableStateSetOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -46,18 +43,15 @@ import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalHapticFeedback
-import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.state.ToggleableState
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
-import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.haooz.chedule.data.Course
 import com.haooz.chedule.ui.components.BlurBottomSheet
 import com.haooz.chedule.ui.components.NativeTextField
-import com.haooz.chedule.ui.components.liquidglass.InteractiveHighlight
 import com.haooz.chedule.ui.components.liquidglass.LiquidTopBarButton
 import com.haooz.chedule.ui.utils.isAppDarkTheme
 import com.kyant.backdrop.Backdrop
@@ -72,7 +66,6 @@ import top.yukonga.miuix.kmp.basic.ColorPalette
 import top.yukonga.miuix.kmp.basic.Icon
 import top.yukonga.miuix.kmp.basic.IconButton
 import top.yukonga.miuix.kmp.basic.NumberPicker
-import top.yukonga.miuix.kmp.basic.SmallTitle
 import top.yukonga.miuix.kmp.basic.TextButton
 import top.yukonga.miuix.kmp.blur.LayerBackdrop
 import top.yukonga.miuix.kmp.icon.MiuixIcons
@@ -147,17 +140,17 @@ fun AddCourseDialog(
     val allWeeks = remember(totalWeeks) { (1..totalWeeks).toList() }
     val oddWeeks = remember(allWeeks) { allWeeks.filter { it % 2 == 1 } }
     val evenWeeks = remember(allWeeks) { allWeeks.filter { it % 2 == 0 } }
-    val someOddSelected = remember(oddWeeks, selectedWeeks) { oddWeeks.any { it in selectedWeeks } }
-    val someEvenSelected = remember(evenWeeks, selectedWeeks) { evenWeeks.any { it in selectedWeeks } }
+    val someOddSelected by remember { derivedStateOf { oddWeeks.any { it in selectedWeeks } } }
+    val someEvenSelected by remember { derivedStateOf { evenWeeks.any { it in selectedWeeks } } }
 
     val selectableWeeks = remember(allWeeks, currentOccupiedWeeks) { allWeeks.filter { it !in currentOccupiedWeeks } }
     val selectableOddWeeks = remember(selectableWeeks) { selectableWeeks.filter { it % 2 == 1 } }
     val selectableEvenWeeks = remember(selectableWeeks) { selectableWeeks.filter { it % 2 == 0 } }
-    val allSelectableSelected = remember(selectableWeeks, selectedWeeks) { selectableWeeks.isNotEmpty() && selectableWeeks.all { it in selectedWeeks } }
-    val allSelectableOddSelected = remember(selectableOddWeeks, selectedWeeks) { selectableOddWeeks.all { it in selectedWeeks } }
-    val allSelectableEvenSelected = remember(selectableEvenWeeks, selectedWeeks) { selectableEvenWeeks.all { it in selectedWeeks } }
-    val someSelectableOddSelected = remember(selectableOddWeeks, selectedWeeks) { selectableOddWeeks.any { it in selectedWeeks } }
-    val someSelectableEvenSelected = remember(selectableEvenWeeks, selectedWeeks) { selectableEvenWeeks.any { it in selectedWeeks } }
+    val allSelectableSelected by remember { derivedStateOf { selectableWeeks.isNotEmpty() && selectableWeeks.all { it in selectedWeeks } } }
+    val allSelectableOddSelected by remember { derivedStateOf { selectableOddWeeks.all { it in selectedWeeks } } }
+    val allSelectableEvenSelected by remember { derivedStateOf { selectableEvenWeeks.all { it in selectedWeeks } } }
+    val someSelectableOddSelected by remember { derivedStateOf { selectableOddWeeks.any { it in selectedWeeks } } }
+    val someSelectableEvenSelected by remember { derivedStateOf { selectableEvenWeeks.any { it in selectedWeeks } } }
     val hasOccupiedOddWeeks = remember(selectableOddWeeks, oddWeeks) { selectableOddWeeks.size != oddWeeks.size }
     val hasOccupiedEvenWeeks = remember(selectableEvenWeeks, evenWeeks) { selectableEvenWeeks.size != evenWeeks.size }
 
@@ -509,16 +502,6 @@ fun AddCourseDialog(
                             // 全部
                             Row(
                                 verticalAlignment = Alignment.CenterVertically,
-                                modifier = Modifier.clickable {
-                                    if (allSelectableSelected) {
-                                        selectedWeeks.clear()
-                                    } else {
-                                        selectedWeeks.clear()
-                                        selectedWeeks.addAll(selectableWeeks)
-                                    }
-                                    isSingleWeek = false
-                                    isDoubleWeek = false
-                                }
                             ) {
                                 Checkbox(
                                     state = if (allSelectableSelected) ToggleableState.On else ToggleableState.Off,
@@ -543,23 +526,6 @@ fun AddCourseDialog(
                             // 单周
                             Row(
                                 verticalAlignment = Alignment.CenterVertically,
-                                modifier = Modifier.clickable {
-                                    if (hasMixedSelection) {
-                                        selectedWeeks.clear()
-                                        selectedWeeks.addAll(selectableOddWeeks)
-                                        isSingleWeek = true
-                                        isDoubleWeek = false
-                                    } else if (allSelectableOddSelected) {
-                                        selectedWeeks.clear()
-                                        isSingleWeek = false
-                                        isDoubleWeek = false
-                                    } else {
-                                        selectedWeeks.clear()
-                                        selectedWeeks.addAll(selectableOddWeeks)
-                                        isSingleWeek = true
-                                        isDoubleWeek = false
-                                    }
-                                }
                             ) {
                                 Checkbox(
                                     state = when {
@@ -596,23 +562,6 @@ fun AddCourseDialog(
                             // 双周
                             Row(
                                 verticalAlignment = Alignment.CenterVertically,
-                                modifier = Modifier.clickable {
-                                    if (hasMixedSelection) {
-                                        selectedWeeks.clear()
-                                        selectedWeeks.addAll(selectableEvenWeeks)
-                                        isSingleWeek = false
-                                        isDoubleWeek = true
-                                    } else if (allSelectableEvenSelected) {
-                                        selectedWeeks.clear()
-                                        isSingleWeek = false
-                                        isDoubleWeek = false
-                                    } else {
-                                        selectedWeeks.clear()
-                                        selectedWeeks.addAll(selectableEvenWeeks)
-                                        isSingleWeek = false
-                                        isDoubleWeek = true
-                                    }
-                                }
                             ) {
                                 Checkbox(
                                     state = when {
@@ -660,11 +609,13 @@ fun AddCourseDialog(
                     val occupiedColor = if (isDark) Color(0xFF4A4A4A) else Color(0xFFF0F0F0)
                     val defaultCardColor = if (isDark) Color(0xFF505050) else Color(0xFFF7F7F7)
 
-                    val weekStates = remember(currentOccupiedWeeks, selectedWeeks) {
-                        (1..totalWeeks).map { weekNum ->
-                            val isSelected = weekNum in selectedWeeks
-                            val isOccupied = weekNum in currentOccupiedWeeks
-                            Triple(weekNum, isSelected, isOccupied)
+                    val weekStates by remember {
+                        derivedStateOf {
+                            (1..totalWeeks).map { weekNum ->
+                                val isSelected = weekNum in selectedWeeks
+                                val isOccupied = weekNum in currentOccupiedWeeks
+                                Triple(weekNum, isSelected, isOccupied)
+                            }
                         }
                     }
 

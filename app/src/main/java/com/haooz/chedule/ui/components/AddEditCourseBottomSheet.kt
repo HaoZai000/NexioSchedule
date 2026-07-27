@@ -34,7 +34,6 @@ import androidx.compose.ui.state.ToggleableState
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
-import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.haooz.chedule.data.Course
@@ -76,11 +75,8 @@ fun AddEditCourseBottomSheet(
     courses: List<Course>,
     backdrop: LayerBackdrop?,
     liquidGlassBackdrop: com.kyant.backdrop.Backdrop? = null,
-    fullscreen: Boolean = false,
-    sheetOffsetDp: Dp = Dp.Unspecified,
     onDismissRequest: () -> Unit,
     onConfirm: (Course) -> Unit,
-    okButtonContainerColor: Color? = null,
     editCourse: Course? = null,
     getOccupiedWeeks: (dayOfWeek: Int, startSection: Int, endSection: Int, excludeIds: List<String>) -> Set<Int> = { _, _, _, _ -> emptySet() },
 ) {
@@ -444,7 +440,6 @@ fun AddEditCourseBottomSheet(
                         .padding(16.dp)
                 ) {
                     val hasMixedSelection = someSelectableOddSelected && someSelectableEvenSelected
-                    val noDaySelected = dayOfWeek == 0
 
                     Row(
                         modifier = Modifier.fillMaxWidth(),
@@ -463,18 +458,10 @@ fun AddEditCourseBottomSheet(
                         ) {
                             // 全部
                             Row(
-                                verticalAlignment = Alignment.CenterVertically,
-                                modifier = Modifier.clickable(enabled = !noDaySelected) {
-                                    if (allSelectableSelected) {
-                                        selectedWeeks.clear()
-                                    } else {
-                                        selectedWeeks.clear()
-                                        selectedWeeks.addAll(selectableWeeks)
-                                    }
-                                }
+                                verticalAlignment = Alignment.CenterVertically
                             ) {
                                 Checkbox(
-                                    state = if (noDaySelected) ToggleableState.Off else if (allSelectableSelected) ToggleableState.On else ToggleableState.Off,
+                                    state = if (allSelectableSelected) ToggleableState.On else ToggleableState.Off,
                                     onClick = {
                                         if (allSelectableSelected) {
                                             selectedWeeks.clear()
@@ -493,22 +480,10 @@ fun AddEditCourseBottomSheet(
 
                             // 单周
                             Row(
-                                verticalAlignment = Alignment.CenterVertically,
-                                modifier = Modifier.clickable(enabled = !noDaySelected) {
-                                    if (hasMixedSelection) {
-                                        selectedWeeks.clear()
-                                        selectedWeeks.addAll(selectableOddWeeks)
-                                    } else if (allSelectableOddSelected) {
-                                        selectedWeeks.clear()
-                                    } else {
-                                        selectedWeeks.clear()
-                                        selectedWeeks.addAll(selectableOddWeeks)
-                                    }
-                                }
+                                verticalAlignment = Alignment.CenterVertically
                             ) {
                                 Checkbox(
                                     state = when {
-                                        noDaySelected -> ToggleableState.Off
                                         hasMixedSelection -> ToggleableState.Off
                                         allSelectableOddSelected && !hasOccupiedOddWeeks -> ToggleableState.On
                                         someSelectableOddSelected -> ToggleableState.Indeterminate
@@ -535,22 +510,10 @@ fun AddEditCourseBottomSheet(
 
                             // 双周
                             Row(
-                                verticalAlignment = Alignment.CenterVertically,
-                                modifier = Modifier.clickable(enabled = !noDaySelected) {
-                                    if (hasMixedSelection) {
-                                        selectedWeeks.clear()
-                                        selectedWeeks.addAll(selectableEvenWeeks)
-                                    } else if (allSelectableEvenSelected) {
-                                        selectedWeeks.clear()
-                                    } else {
-                                        selectedWeeks.clear()
-                                        selectedWeeks.addAll(selectableEvenWeeks)
-                                    }
-                                }
+                                verticalAlignment = Alignment.CenterVertically
                             ) {
                                 Checkbox(
                                     state = when {
-                                        noDaySelected -> ToggleableState.Off
                                         hasMixedSelection -> ToggleableState.Off
                                         allSelectableEvenSelected && !hasOccupiedEvenWeeks -> ToggleableState.On
                                         someSelectableEvenSelected -> ToggleableState.Indeterminate
@@ -584,16 +547,17 @@ fun AddEditCourseBottomSheet(
                     val rows = remember(totalWeeks, columns) { (totalWeeks + columns - 1) / columns }
                     val primaryColor = MiuixTheme.colorScheme.primary
                     val outlineColor = MiuixTheme.colorScheme.outline
-                    val onSurfaceColor = MiuixTheme.colorScheme.onSurface
                     val onSurfaceSummaryColor = MiuixTheme.colorScheme.onSurfaceVariantSummary
                     val occupiedColor = if (isDark) Color(0xFF4A4A4A) else Color(0xFFF0F0F0)
                     val defaultCardColor = if (isDark) Color(0xFF505050) else Color(0xFFF7F7F7)
 
-                    val weekStates = remember(currentOccupiedWeeks, selectedWeeks) {
-                        (1..totalWeeks).map { weekNum ->
-                            val isSelected = weekNum in selectedWeeks
-                            val isOccupied = weekNum in currentOccupiedWeeks
-                            Triple(weekNum, isSelected, isOccupied)
+                    val weekStates by remember {
+                        derivedStateOf {
+                            (1..totalWeeks).map { weekNum ->
+                                val isSelected = weekNum in selectedWeeks
+                                val isOccupied = weekNum in currentOccupiedWeeks
+                                Triple(weekNum, isSelected, isOccupied)
+                            }
                         }
                     }
 
@@ -611,13 +575,11 @@ fun AddEditCourseBottomSheet(
                                     if (idx < weekStates.size) {
                                         val (weekNum, isSelected, isOccupied) = weekStates[idx]
                                         val cardColor = when {
-                                            noDaySelected -> defaultCardColor
                                             isSelected -> primaryColor
                                             isOccupied -> occupiedColor
                                             else -> defaultCardColor
                                         }
                                         val textColor = when {
-                                            noDaySelected -> outlineColor
                                             isSelected -> Color.White
                                             isOccupied -> outlineColor
                                             else -> onSurfaceSummaryColor
@@ -629,12 +591,12 @@ fun AddEditCourseBottomSheet(
                                             cornerRadius = 10.dp,
                                             insideMargin = PaddingValues(0.dp),
                                             pressFeedbackType = PressFeedbackType.Sink,
-                                            showIndication = !noDaySelected && !isOccupied,
+                                            showIndication = !isOccupied,
                                             colors = CardDefaults.defaultColors(
                                                 color = cardColor,
                                                 contentColor = if (isSelected) Color.White else outlineColor
                                             ),
-                                            onClick = if (noDaySelected || isOccupied) null else {
+                                            onClick = if (isOccupied) null else {
                                                 {
                                                     if (isSelected) {
                                                         selectedWeeks.remove(weekNum)
