@@ -137,21 +137,11 @@ fun AddEditCourseBottomSheet(
     val selectableOddWeeks = remember(selectableWeeks) { selectableWeeks.filter { it % 2 == 1 } }
     val selectableEvenWeeks = remember(selectableWeeks) { selectableWeeks.filter { it % 2 == 0 } }
 
-    val allSelectableSelected by remember {
-        derivedStateOf { selectableWeeks.isNotEmpty() && selectableWeeks.all { it in selectedWeeks } }
-    }
-    val allSelectableOddSelected by remember {
-        derivedStateOf { selectableOddWeeks.all { it in selectedWeeks } }
-    }
-    val allSelectableEvenSelected by remember {
-        derivedStateOf { selectableEvenWeeks.all { it in selectedWeeks } }
-    }
-    val someSelectableOddSelected by remember {
-        derivedStateOf { selectableOddWeeks.any { it in selectedWeeks } }
-    }
-    val someSelectableEvenSelected by remember {
-        derivedStateOf { selectableEvenWeeks.any { it in selectedWeeks } }
-    }
+    val allSelectableSelected = selectableWeeks.isNotEmpty() && selectableWeeks.all { it in selectedWeeks }
+    val allSelectableOddSelected = selectableOddWeeks.all { it in selectedWeeks }
+    val allSelectableEvenSelected = selectableEvenWeeks.all { it in selectedWeeks }
+    val someSelectableOddSelected = selectableOddWeeks.any { it in selectedWeeks }
+    val someSelectableEvenSelected = selectableEvenWeeks.any { it in selectedWeeks }
     val isDark = isAppDarkTheme()
     val hasOccupiedOddWeeks = remember(selectableOddWeeks, oddWeeks) { selectableOddWeeks.size != oddWeeks.size }
     val hasOccupiedEvenWeeks = remember(selectableEvenWeeks, evenWeeks) { selectableEvenWeeks.size != evenWeeks.size }
@@ -551,14 +541,10 @@ fun AddEditCourseBottomSheet(
                     val occupiedColor = if (isDark) Color(0xFF4A4A4A) else Color(0xFFF0F0F0)
                     val defaultCardColor = if (isDark) Color(0xFF505050) else Color(0xFFF7F7F7)
 
-                    val weekStates by remember {
-                        derivedStateOf {
-                            (1..totalWeeks).map { weekNum ->
-                                val isSelected = weekNum in selectedWeeks
-                                val isOccupied = weekNum in currentOccupiedWeeks
-                                Triple(weekNum, isSelected, isOccupied)
-                            }
-                        }
+                    val weekStates = (1..totalWeeks).map { weekNum ->
+                        val isSelected = weekNum in selectedWeeks
+                        val isOccupied = weekNum in currentOccupiedWeeks
+                        Triple(weekNum, isSelected, isOccupied)
                     }
 
                     Column(
