@@ -6,8 +6,8 @@ import androidx.compose.animation.EnterTransition
 import androidx.compose.animation.ExitTransition
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.CubicBezierEasing
-import androidx.compose.animation.core.spring
 import androidx.compose.animation.core.Spring
+import androidx.compose.animation.core.spring
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -18,7 +18,6 @@ import androidx.compose.foundation.gestures.draggable
 import androidx.compose.foundation.gestures.rememberDraggableState
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.WindowInsets
-import androidx.compose.foundation.layout.asPaddingValues
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -27,9 +26,7 @@ import androidx.compose.foundation.layout.ime
 import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.statusBars
 import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.layout.wrapContentHeight
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Text
@@ -53,11 +50,11 @@ import androidx.compose.ui.semantics.onClick
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.zIndex
-import com.haooz.chedule.ui.miuix.OobeCubicOutEasing
-import com.haooz.chedule.ui.miuix.OobeQuartOutEasing
 import com.haooz.chedule.ui.components.liquidglass.ProgressiveBlurTopBar
+import com.haooz.chedule.ui.miuix.OobeCubicOutEasing
 import com.kyant.backdrop.Backdrop
 import com.kyant.backdrop.backdrops.layerBackdrop
 import kotlinx.coroutines.launch
@@ -93,7 +90,7 @@ fun BlurBottomSheet(
     dimBackground: Boolean = false,
     sheetBackgroundColor: Color? = null,
     sheetBackgroundAlpha: Float? = null,
-    fullscreen: Boolean = false,
+    sheetOffsetDp: Dp = Dp.Unspecified,
     onDismissRequest: () -> Unit,
     startAction: @Composable (() -> Unit)? = null,
     endAction: @Composable (() -> Unit)? = null,
@@ -137,7 +134,7 @@ fun BlurBottomSheet(
             endAction = endAction,
             liquidGlassBackdrop = liquidGlassBackdrop,
             sheetContentBackdropHolder = sheetContentBackdropHolder,
-            fullscreen = fullscreen,
+            sheetOffsetDp = sheetOffsetDp,
             content = content,
         )
     }
@@ -153,7 +150,7 @@ private fun BlurBottomSheetContent(
     dimBackground: Boolean = false,
     sheetBackgroundColor: Color? = null,
     sheetBackgroundAlpha: Float? = null,
-    fullscreen: Boolean = false,
+    sheetOffsetDp: Dp = Dp.Unspecified,
     onDismissRequest: () -> Unit,
     startAction: @Composable (() -> Unit)? = null,
     endAction: @Composable (() -> Unit)? = null,
@@ -168,7 +165,6 @@ private fun BlurBottomSheetContent(
     val coroutineScope = rememberCoroutineScope()
     val sheetHeightPx = remember { mutableIntStateOf(0) }
     val imeInsets = WindowInsets.ime
-    val statusBarsPadding = WindowInsets.statusBars.asPaddingValues().calculateTopPadding()
 
     val isDark = MiuixTheme.colorScheme.background.luminance() < 0.5f
     val sheetBgColor = sheetBackgroundColor ?: if (isDark) Color(0xFF1E1E1E) else Color(0xFFF7F7F7)
@@ -230,11 +226,11 @@ private fun BlurBottomSheetContent(
                 translationY = baseOffset * (1f - progress) + dragOffsetY.value
             }
 
-        val sheetOffsetDp = if (fullscreen) statusBarsPadding + 5.dp else 200.dp
+        val sheetOffsetDpValue = if (sheetOffsetDp != Dp.Unspecified) sheetOffsetDp else 200.dp
 
         Box(
             modifier = sheetModifier
-                .offset(y = sheetOffsetDp)
+                .offset(y = sheetOffsetDpValue)
                 .align(Alignment.BottomCenter)
                 .fillMaxWidth()
                 .heightIn(max = windowInfo.containerDpSize.height)
@@ -285,7 +281,7 @@ private fun BlurBottomSheetContent(
                             val newOffset = dragOffsetY.value + dragAmount
                             // 往上拖时加阻尼，越往上越难拖
                             val dampedOffset = if (newOffset < 0f) {
-                                val resistance = 1f / (1f + kotlin.math.abs(newOffset) / 50f)
+                                val resistance = 1f / (1f + kotlin.math.abs(newOffset) / 30f)
                                 dragOffsetY.value + dragAmount * resistance
                             } else {
                                 newOffset
@@ -306,7 +302,7 @@ private fun BlurBottomSheetContent(
                                         dampingRatio = 0.72f,
                                         stiffness = Spring.StiffnessMediumLow
                                     ),
-                                    initialVelocity = velocity
+                                    initialVelocity = velocity * 0.12f
                                 )
                             }
                         }

@@ -4,6 +4,7 @@ package com.haooz.chedule.ui.screens
 import android.graphics.Bitmap
 import androidx.activity.compose.BackHandler
 import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.fadeOut
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
@@ -11,7 +12,6 @@ import androidx.compose.animation.fadeOut
 import androidx.compose.animation.shrinkVertically
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -24,7 +24,6 @@ import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.wrapContentHeight
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
@@ -33,8 +32,6 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
-import com.haooz.chedule.ui.components.AddEditCourseBottomSheet
-import com.haooz.chedule.ui.components.NativeTextField
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -43,7 +40,6 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.mutableStateSetOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
@@ -63,15 +59,13 @@ import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalHapticFeedback
-import androidx.compose.ui.state.ToggleableState
-import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.DpOffset
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.zIndex
 import com.haooz.chedule.data.Course
+import com.haooz.chedule.ui.components.AddEditCourseBottomSheet
 import com.haooz.chedule.ui.components.liquidglass.LiquidTopBarButton
 import com.haooz.chedule.ui.components.liquidglass.ProgressiveBlurTopBar
 import com.haooz.chedule.ui.miuix.OobeCubicOutEasing
@@ -86,14 +80,11 @@ import top.yukonga.miuix.kmp.basic.Button
 import top.yukonga.miuix.kmp.basic.ButtonDefaults
 import top.yukonga.miuix.kmp.basic.Card
 import top.yukonga.miuix.kmp.basic.CardDefaults
-import top.yukonga.miuix.kmp.basic.Checkbox
-import top.yukonga.miuix.kmp.basic.CheckboxDefaults
 import top.yukonga.miuix.kmp.basic.ColorPalette
 import top.yukonga.miuix.kmp.basic.FloatingActionButton
 import top.yukonga.miuix.kmp.basic.Icon
 import top.yukonga.miuix.kmp.basic.IconButton
 import top.yukonga.miuix.kmp.basic.MiuixScrollBehavior
-import top.yukonga.miuix.kmp.basic.NumberPicker
 import top.yukonga.miuix.kmp.basic.Scaffold
 import top.yukonga.miuix.kmp.basic.SmallTitle
 import top.yukonga.miuix.kmp.basic.SmallTopAppBar
@@ -107,13 +98,13 @@ import top.yukonga.miuix.kmp.blur.rememberLayerBackdrop
 import top.yukonga.miuix.kmp.blur.textureBlur
 import top.yukonga.miuix.kmp.icon.MiuixIcons
 import top.yukonga.miuix.kmp.icon.extended.Add
+import top.yukonga.miuix.kmp.icon.extended.Back
+import top.yukonga.miuix.kmp.icon.extended.ChevronBackward
 import top.yukonga.miuix.kmp.icon.extended.Close
 import top.yukonga.miuix.kmp.icon.extended.Delete
 import top.yukonga.miuix.kmp.icon.extended.Ok
 import top.yukonga.miuix.kmp.overlay.OverlayDialog
-import top.yukonga.miuix.kmp.preference.ArrowPreference
 import top.yukonga.miuix.kmp.theme.MiuixTheme
-import top.yukonga.miuix.kmp.utils.PressFeedbackType
 import top.yukonga.miuix.kmp.utils.overScrollVertical
 import top.yukonga.miuix.kmp.utils.scrollEndHaptic
 import kotlin.time.Duration.Companion.milliseconds
@@ -317,7 +308,6 @@ fun CourseEditScreen(
     }
     var listScrollY by remember { mutableIntStateOf(0) }
     val scrollBehavior = MiuixScrollBehavior()
-    var saveTrigger by remember { mutableIntStateOf(0) }
 
     // 删除动画状态
     var deletingGroupId by remember { mutableStateOf<String?>(null) }
@@ -327,6 +317,11 @@ fun CourseEditScreen(
 
     // 添加课程弹窗状态
     var showAddCourseSheet by remember { mutableStateOf(false) }
+    // 编辑课程弹窗状态
+    var showEditCourseSheet by remember { mutableStateOf(false) }
+    var editingGroup by remember { mutableStateOf<CourseGroup?>(null) }
+    // 待添加课程（弹窗关闭后再添加，触发淡入动画）
+    var pendingAddCourse by remember { mutableStateOf<Course?>(null) }
 
     // 动画结束后执行删除
     LaunchedEffect(deletingGroupId) {
@@ -339,12 +334,22 @@ fun CourseEditScreen(
         }
     }
 
-    // 保存时同步颜色到所有同名课程
-    LaunchedEffect(saveTrigger) {
-        if (saveTrigger > 0 && selectedColor != courses.firstOrNull()?.colorRes) {
+    // 颜色修改即保存
+    LaunchedEffect(selectedColor) {
+        if (selectedColor != courses.firstOrNull()?.colorRes) {
             onColorChanged(selectedColor)
             courses.forEach { course ->
                 onCourseUpdated(course.copy(colorRes = selectedColor, lastModified = System.currentTimeMillis()))
+            }
+        }
+    }
+
+    // 弹窗关闭后再添加课程，触发卡片淡入
+    LaunchedEffect(showAddCourseSheet) {
+        if (!showAddCourseSheet) {
+            pendingAddCourse?.let { course ->
+                onCourseAdded(course)
+                pendingAddCourse = null
             }
         }
     }
@@ -463,55 +468,14 @@ fun CourseEditScreen(
                                             }
                                         },
                                         backdrop = liquidGlassBackdrop,
-                                        icon = MiuixIcons.Normal.Close,
+                                        icon = MiuixIcons.Medium.ChevronBackward,
                                         contentDescription = "返回",
                                         modifier = Modifier
                                             .zIndex(2f)
                                             .offset(x = 20.dp, y = if (statusBarPadding > 0.dp) statusBarPadding + 5.dp else 42.dp),
                                         iconSize = 22.dp,
+                                        iconOffset = DpOffset(x = (-2).dp, y = 0.dp),
                                         useBackdropShadow = true
-                                    )
-                                    LiquidTopBarButton(
-                                        onClick = {
-                                            hapticFeedback.performHapticFeedback(HapticFeedbackType.Confirm)
-                                            saveTrigger++
-                                            onBackStart()
-                                            scope.launch {
-                                                coroutineScope {
-                                                    launch {
-                                                        animProgress.animateTo(
-                                                            targetValue = 0f,
-                                                            animationSpec = tween(
-                                                                durationMillis = 360,
-                                                                easing = morphExitEase
-                                                            )
-                                                        )
-                                                    }
-                                                    launch {
-                                                        animTransY.animateTo(
-                                                            targetValue = 0f,
-                                                            animationSpec = tween(
-                                                                durationMillis = transExitMillis,
-                                                                easing = transExitEase
-                                                            )
-                                                        )
-                                                    }
-                                                }
-                                                onBack()
-                                            }
-                                                  },
-                                        backdrop = liquidGlassBackdrop,
-                                        icon = MiuixIcons.Ok,
-                                        contentDescription = "保存并关闭",
-                                        modifier = Modifier
-                                            .zIndex(2f)
-                                            .align(Alignment.TopEnd)
-                                            .offset(x = (-20).dp, y = if (statusBarPadding > 0.dp) statusBarPadding + 5.dp else 42.dp),
-                                        iconSize = 23.dp,
-                                        iconOffset = DpOffset(x = 0.dp, y = 0.dp),
-                                        useBackdropShadow = true,
-                                        iconTint = Color.White,
-                                        containerColor = if (isAppDarkTheme())MiuixTheme.colorScheme.primary.copy(alpha = 0.8f) else MiuixTheme.colorScheme.primary.copy(alpha = 0.9f)
                                     )
                             }
                         }else {
@@ -559,51 +523,12 @@ fun CourseEditScreen(
                                             modifier = Modifier.padding(start = 4.dp)
                                         ) {
                                             Icon(
-                                                imageVector = MiuixIcons.Normal.Close,
+                                                imageVector = MiuixIcons.Back,
                                                 contentDescription = "返回",
-                                                modifier = Modifier.size(24.dp)
+                                                modifier = Modifier.size(28.dp)
                                             )
                                         }
                                     },
-                                    actions = {
-                                        IconButton(
-                                            onClick = {
-                                                hapticFeedback.performHapticFeedback(HapticFeedbackType.Confirm)
-                                                saveTrigger++
-                                                onBackStart()
-                                                scope.launch {
-                                                    coroutineScope {
-                                                        launch {
-                                                            animProgress.animateTo(
-                                                                targetValue = 0f,
-                                                                animationSpec = tween(
-                                                                    durationMillis = 360,
-                                                                    easing = morphExitEase
-                                                                )
-                                                            )
-                                                        }
-                                                        launch {
-                                                            animTransY.animateTo(
-                                                                targetValue = 0f,
-                                                                animationSpec = tween(
-                                                                    durationMillis = transExitMillis,
-                                                                    easing = transExitEase
-                                                                )
-                                                            )
-                                                        }
-                                                    }
-                                                    onBack()
-                                                }
-                                            },
-                                            modifier = Modifier.padding(end = 4.dp)
-                                        ) {
-                                            Icon(
-                                                imageVector = MiuixIcons.Ok,
-                                                contentDescription = "保存并关闭",
-                                                modifier = Modifier.size(26.dp)
-                                            )
-                                        }
-                                    }
                             )
                         }
                     }
@@ -898,14 +823,31 @@ fun CourseEditScreen(
                                             visible = !isDeleting,
                                             exit = shrinkVertically(tween(300)) + fadeOut(tween(300))
                                         ) {
-                                            Column(modifier = Modifier.fillMaxWidth()) {
+                                            val cardAlpha = remember { Animatable(0f) }
+                                            val cardScale = remember { Animatable(0.8f) }
+                                            LaunchedEffect(Unit) {
+                                                launch {
+                                                    cardAlpha.animateTo(1f, tween(400))
+                                                }
+                                                launch {
+                                                    cardScale.animateTo(1f, tween(400, easing = OobeQuartOutEasing))
+                                                }
+                                            }
+                                            Column(
+                                                modifier = Modifier
+                                                    .fillMaxWidth()
+                                                    .graphicsLayer {
+                                                        alpha = cardAlpha.value
+                                                        scaleX = cardScale.value
+                                                        scaleY = cardScale.value
+                                                    }
+                                            ) {
                                                 CourseGroupCard(
                                                     group = group,
                                                     sectionTimes = sectionTimes,
-                                                    onCourseUpdated = onCourseUpdated,
-                                                    saveTrigger = saveTrigger,
-                                                    getOccupiedWeeks = { dow, ss, es ->
-                                                        getOccupiedWeeks(dow, ss, es, group.courses.map { it.id })
+                                                    onEdit = { g ->
+                                                        editingGroup = g
+                                                        showEditCourseSheet = true
                                                     }
                                                 )
                                                 // 删除按钮
@@ -1027,7 +969,7 @@ fun CourseEditScreen(
                         Box(
                             modifier = Modifier
                                 .fillMaxSize()
-                                .padding(end = 20.dp, bottom = 20.dp),
+                                .padding(end = 32.dp, bottom = 48.dp),
                             contentAlignment = Alignment.BottomEnd
                         ) {
                             FloatingActionButton(
@@ -1055,7 +997,42 @@ fun CourseEditScreen(
                             fullscreen = true,
                             onDismissRequest = { showAddCourseSheet = false },
                             onConfirm = { newCourse ->
-                                onCourseAdded(newCourse)
+                                pendingAddCourse = newCourse
+                            },
+                            getOccupiedWeeks = { dow, ss, es, excludeIds ->
+                                getOccupiedWeeks(dow, ss, es, excludeIds)
+                            }
+                        )
+
+                        // 编辑课程底部弹窗
+                        AddEditCourseBottomSheet(
+                            show = showEditCourseSheet,
+                            courses = editingGroup?.courses ?: emptyList(),
+                            backdrop = backdrop,
+                            liquidGlassBackdrop = if (isLiquidGlass) liquidGlassBackdrop else null,
+                            fullscreen = true,
+                            editCourse = editingGroup?.courses?.first(),
+                            onDismissRequest = {
+                                showEditCourseSheet = false
+                                editingGroup = null
+                            },
+                            onConfirm = { updatedCourse ->
+                                editingGroup?.courses?.forEach { old ->
+                                    onCourseUpdated(old.copy(
+                                        classroom = updatedCourse.classroom,
+                                        teacher = updatedCourse.teacher,
+                                        dayOfWeek = updatedCourse.dayOfWeek,
+                                        startSection = updatedCourse.startSection,
+                                        endSection = updatedCourse.endSection,
+                                        startWeek = updatedCourse.startWeek,
+                                        endWeek = updatedCourse.endWeek,
+                                        weekType = updatedCourse.weekType,
+                                        selectedWeeks = updatedCourse.selectedWeeks,
+                                        lastModified = System.currentTimeMillis()
+                                    ))
+                                }
+                                showEditCourseSheet = false
+                                editingGroup = null
                             },
                             getOccupiedWeeks = { dow, ss, es, excludeIds ->
                                 getOccupiedWeeks(dow, ss, es, excludeIds)
@@ -1073,299 +1050,103 @@ fun CourseEditScreen(
 private fun CourseGroupCard(
     group: CourseGroup,
     sectionTimes: Map<Int, String>,
-    onCourseUpdated: (Course) -> Unit,
-    saveTrigger: Int,
-    getOccupiedWeeks: (dayOfWeek: Int, startSection: Int, endSection: Int) -> Set<Int> = { _, _, _ -> emptySet() }
+    onEdit: (CourseGroup) -> Unit
 ) {
-    val key = group.key
     val course = group.courses.first()
     val isDark = isAppDarkTheme()
-    val hapticFeedback = LocalHapticFeedback.current
-    val totalWeeks = 20
-    val totalSections = 12
+    val dayLabels = listOf("", "周一", "周二", "周三", "周四", "周五", "周六", "周日")
+    val weekText = course.getWeekText()
+    val sectionText = if (course.startSection == course.endSection) "第${course.startSection}节"
+        else "第${course.startSection}-${course.endSection}节"
 
-    var name by remember { mutableStateOf(course.name) }
-    var classroom by remember { mutableStateOf(course.classroom) }
-    var teacher by remember { mutableStateOf(course.teacher) }
-    var dayOfWeek by remember { mutableIntStateOf(course.dayOfWeek) }
-    var startSection by remember { mutableIntStateOf(course.startSection) }
-    var endSection by remember { mutableIntStateOf(course.endSection) }
-    var startWeek by remember { mutableIntStateOf(course.startWeek) }
-    var endWeek by remember { mutableIntStateOf(course.endWeek) }
+    Column(modifier = Modifier.fillMaxWidth()) {
+        SmallTitle(
+            text = weekText,
+            modifier = Modifier.offset(x = (-16).dp)
+        )
 
-    // 根据当前选择的星期和节次动态计算已占用的周次（排除自身）
-    val currentOccupiedWeeks by remember(dayOfWeek, startSection, endSection) {
-        derivedStateOf {
-            getOccupiedWeeks(dayOfWeek, startSection, endSection)
-        }
-    }
-
-    // 周次选择状态
-    val selectedWeeks = remember {
-        mutableStateSetOf<Int>().apply {
-            if (course.selectedWeeks.isNotEmpty()) {
-                addAll(course.selectedWeeks)
-            } else {
-                for (w in course.startWeek..course.endWeek) {
-                    when (course.weekType) {
-                        Course.WEEK_TYPE_ODD -> if (w % 2 == 1) add(w)
-                        Course.WEEK_TYPE_EVEN -> if (w % 2 == 0) add(w)
-                        else -> add(w)
-                    }
-                }
-            }
-        }
-    }
-
-    val allWeeks = remember { (1..totalWeeks).toList() }
-    val oddWeeks = remember { allWeeks.filter { it % 2 == 1 } }
-    val evenWeeks = remember { allWeeks.filter { it % 2 == 0 } }
-
-    val selectableWeeks = remember(allWeeks, currentOccupiedWeeks) { allWeeks.filter { it !in currentOccupiedWeeks } }
-    val selectableOddWeeks = remember(selectableWeeks) { selectableWeeks.filter { it % 2 == 1 } }
-    val selectableEvenWeeks = remember(selectableWeeks) { selectableWeeks.filter { it % 2 == 0 } }
-    val allSelectableSelected = remember(selectableWeeks, selectedWeeks) { selectableWeeks.isNotEmpty() && selectableWeeks.all { it in selectedWeeks } }
-    val allSelectableOddSelected = remember(selectableOddWeeks, selectedWeeks) { selectableOddWeeks.all { it in selectedWeeks } }
-    val allSelectableEvenSelected = remember(selectableEvenWeeks, selectedWeeks) { selectableEvenWeeks.all { it in selectedWeeks } }
-    val someSelectableOddSelected = remember(selectableOddWeeks, selectedWeeks) { selectableOddWeeks.any { it in selectedWeeks } }
-    val someSelectableEvenSelected = remember(selectableEvenWeeks, selectedWeeks) { selectableEvenWeeks.any { it in selectedWeeks } }
-    val hasOccupiedOddWeeks = remember(selectableOddWeeks, oddWeeks) { selectableOddWeeks.size != oddWeeks.size }
-    val hasOccupiedEvenWeeks = remember(selectableEvenWeeks, evenWeeks) { selectableEvenWeeks.size != evenWeeks.size }
-
-    // 节次选择弹窗状态
-    var showSectionDialog by remember { mutableStateOf(false) }
-    var tempStartSection by remember { mutableIntStateOf(course.startSection) }
-    var tempEndSection by remember { mutableIntStateOf(course.endSection) }
-
-    // 当 saveTrigger 变化时保存
-    LaunchedEffect(saveTrigger) {
-        if (saveTrigger > 0 && name.isNotBlank() && startSection <= endSection && selectedWeeks.isNotEmpty()) {
-            val sortedWeeks = selectedWeeks.sorted()
-            val minWeek = sortedWeeks.first()
-            val maxWeek = sortedWeeks.last()
-            val allWeeksInRange = (minWeek..maxWeek).toSet()
-            val oddWeeksInRange = allWeeksInRange.filter { it % 2 == 1 }.toSet()
-            val evenWeeksInRange = allWeeksInRange.filter { it % 2 == 0 }.toSet()
-
-            val weekType = when (selectedWeeks) {
-                allWeeksInRange -> Course.WEEK_TYPE_ALL
-                oddWeeksInRange -> Course.WEEK_TYPE_ODD
-                evenWeeksInRange -> Course.WEEK_TYPE_EVEN
-                else -> Course.WEEK_TYPE_ALL
-            }
-
-            val isContiguous = selectedWeeks.size == (maxWeek - minWeek + 1)
-            val weeksToSave = if (isContiguous) emptyList() else sortedWeeks
-
-            val updatedCourse = course.copy(
-                name = name.trim(),
-                classroom = classroom.trim(),
-                teacher = teacher.trim(),
-                dayOfWeek = dayOfWeek,
-                startSection = startSection,
-                endSection = endSection,
-                startWeek = minWeek,
-                endWeek = maxWeek,
-                weekType = weekType,
-                selectedWeeks = weeksToSave,
-                lastModified = System.currentTimeMillis()
-            )
-            onCourseUpdated(updatedCourse)
-        }
-    }
-
-    // 周次范围标题（对齐课程详情弹窗的 getWeekText 格式）
-    val weekTitle = if (selectedWeeks.isNotEmpty()) {
-        val sorted = selectedWeeks.sorted()
-        course.copy(
-            selectedWeeks = sorted,
-            startWeek = sorted.first(),
-            endWeek = sorted.last()
-        ).getWeekText()
-    } else {
-        course.getWeekText()
-    }
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .offset(x = (-16).dp)
-    ) {
-        SmallTitle(text = weekTitle)
-    }
-
-    Card(
-        cornerRadius = 20.dp,
-        modifier = Modifier.fillMaxWidth(),
-    ) {
-        Column(modifier = Modifier.fillMaxWidth()) {
-            // 地点
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(start = 16.dp, end = 16.dp, top = 17.dp, bottom = 14.dp),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Text(
-                    text = "地点",
-                    modifier = Modifier.weight(1f),
-                    fontSize = 17.sp,
-                    fontWeight = FontWeight.Medium,
-                    color = MiuixTheme.colorScheme.onSurface
-                )
-                NativeTextField(
-                    value = classroom,
-                    onValueChange = { classroom = it },
-                    modifier = Modifier.fillMaxWidth(0.65f),
-                    hint = "非必填",
-                    singleLine = true,
-                    textAlign = TextAlign.End,
-                    textStyle = TextStyle(
-                        fontSize = 17.sp,
-                        fontWeight = FontWeight.Medium
-                    )
-                )
-            }
-            // 教师
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(start = 16.dp, end = 16.dp, top = 14.dp, bottom = 17.dp),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Text(
-                    text = "教师",
-                    modifier = Modifier.weight(1f),
-                    fontSize = 17.sp,
-                    fontWeight = FontWeight.Medium,
-                    color = MiuixTheme.colorScheme.onSurface
-                )
-                NativeTextField(
-                    value = teacher,
-                    onValueChange = { teacher = it },
-                    modifier = Modifier.fillMaxWidth(0.65f),
-                    hint = "非必填",
-                    singleLine = true,
-                    textAlign = TextAlign.End,
-                    textStyle = TextStyle(
-                        fontSize = 17.sp,
-                        fontWeight = FontWeight.Medium
-                    )
-                )
-            }
-
-            Spacer(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 16.dp)
-                    .height(0.5.dp)
-                    .background(
-                        MiuixTheme.colorScheme.onSurfaceVariantActions.copy(
-                            alpha = 0.07f
-                        )
-                    )
-            )
-
-            // 上课星期
-            Column(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(vertical = 17.dp, horizontal = 16.dp)
-            ) {
-                Text(
-                    text = "上课星期",
-                    fontSize = 17.sp,
-                    fontWeight = FontWeight.Medium,
-                    color = MiuixTheme.colorScheme.onSurface,
-                    modifier = Modifier.padding(bottom = 10.dp)
-                )
+        Card(
+            cornerRadius = 20.dp,
+            modifier = Modifier.fillMaxWidth(),
+            onClick = { onEdit(group) }
+        ) {
+            Column(modifier = Modifier.fillMaxWidth()) {
                 Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(6.dp)
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(start = 16.dp, end = 16.dp, top = 17.dp, bottom = 14.dp),
+                    verticalAlignment = Alignment.CenterVertically
                 ) {
-                    val dayLabels = remember { listOf("一", "二", "三", "四", "五", "六", "日") }
-                    for (day in 1..7) {
-                        val isSelected = day == dayOfWeek
-                        Card(
-                            modifier = Modifier
-                                .weight(1f)
-                                .height(32.dp),
-                            cornerRadius = 10.dp,
-                            insideMargin = PaddingValues(0.dp),
-                            pressFeedbackType = PressFeedbackType.Sink,
-                            colors = CardDefaults.defaultColors(
-                                color = if (isSelected) MiuixTheme.colorScheme.primary
-                                else if (isDark) Color(0xFF505050) else Color(0xFFF7F7F7),
-                                contentColor = if (isSelected) Color.White else MiuixTheme.colorScheme.onSurfaceVariantSummary
-                            ),
-                            onClick = { dayOfWeek = day }
-                        ) {
-                            Box(
-                                modifier = Modifier.fillMaxSize(),
-                                contentAlignment = Alignment.Center
-                            ) {
-                                Text(
-                                    text = dayLabels[day - 1],
-                                    fontSize = 14.sp,
-                                    color = if (isSelected) Color.White else MiuixTheme.colorScheme.onSurfaceVariantSummary
-                                )
-                            }
-                        }
-                    }
-                }
-            }
-
-            Spacer(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 16.dp)
-                    .height(0.5.dp)
-                    .background(
-                        MiuixTheme.colorScheme.onSurfaceVariantActions.copy(
-                            alpha = 0.07f
-                        )
-                    )
-            )
-
-            // 上课节次
-            ArrowPreference(
-                title = "上课节次",
-                endActions = {
                     Text(
-                        text = "第${startSection} - ${endSection}节",
-                        fontSize = 14.5.sp,
+                        text = "地点",
+                        modifier = Modifier.weight(1f),
+                        fontSize = 17.sp,
+                        fontWeight = FontWeight.Medium,
+                        color = MiuixTheme.colorScheme.onSurface
+                    )
+                    Text(
+                        text = course.classroom.ifBlank { "未设置" },
+                        fontSize = 17.sp,
+                        fontWeight = FontWeight.Medium,
                         color = MiuixTheme.colorScheme.onSurfaceVariantActions
                     )
-                },
-                onClick = {
-                    tempStartSection = startSection
-                    tempEndSection = endSection
-                    showSectionDialog = true
-                },
-                holdDownState = showSectionDialog
-            )
-
-            Spacer(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 16.dp)
-                    .height(0.5.dp)
-                    .background(
-                        MiuixTheme.colorScheme.onSurfaceVariantActions.copy(
-                            alpha = 0.07f
-                        )
-                    )
-            )
-
-            // 上课周次
-            Column(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(16.dp)
-            ) {
-                val hasMixedSelection = someSelectableOddSelected && someSelectableEvenSelected
+                }
 
                 Row(
-                    modifier = Modifier.fillMaxWidth(),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(start = 16.dp, end = 16.dp, top = 14.dp, bottom = 17.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(
+                        text = "教师",
+                        modifier = Modifier.weight(1f),
+                        fontSize = 17.sp,
+                        fontWeight = FontWeight.Medium,
+                        color = MiuixTheme.colorScheme.onSurface
+                    )
+                    Text(
+                        text = course.teacher.ifBlank { "未设置" },
+                        fontSize = 17.sp,
+                        fontWeight = FontWeight.Medium,
+                        color = MiuixTheme.colorScheme.onSurfaceVariantActions
+                    )
+                }
+
+                Spacer(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 16.dp)
+                        .height(0.5.dp)
+                        .background(MiuixTheme.colorScheme.onSurfaceVariantActions.copy(alpha = 0.07f))
+                )
+
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(start = 16.dp, end = 16.dp, top = 14.dp, bottom = 17.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(
+                        text = "上课时间",
+                        modifier = Modifier.weight(1f),
+                        fontSize = 17.sp,
+                        fontWeight = FontWeight.Medium,
+                        color = MiuixTheme.colorScheme.onSurface
+                    )
+                    Text(
+                        text = "${dayLabels[course.dayOfWeek]} $sectionText",
+                        fontSize = 17.sp,
+                        fontWeight = FontWeight.Medium,
+                        color = MiuixTheme.colorScheme.onSurfaceVariantActions
+                    )
+                }
+                
+
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(start = 16.dp, end = 16.dp, top = 14.dp, bottom = 17.dp),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     Text(
@@ -1375,331 +1156,23 @@ private fun CourseGroupCard(
                         fontWeight = FontWeight.Medium,
                         color = MiuixTheme.colorScheme.onSurface
                     )
-                    Row(
-                        horizontalArrangement = Arrangement.spacedBy(8.dp),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        // 全部
-                        Row(
-                            verticalAlignment = Alignment.CenterVertically,
-                            modifier = Modifier.clickable {
-                                if (allSelectableSelected) {
-                                    selectedWeeks.clear()
-                                } else {
-                                    selectedWeeks.clear()
-                                    selectedWeeks.addAll(selectableWeeks)
-                                }
-                            }
-                        ) {
-                            Checkbox(
-                                state = if (allSelectableSelected) ToggleableState.On else ToggleableState.Off,
-                                onClick = {
-                                    if (allSelectableSelected) {
-                                        selectedWeeks.clear()
-                                    } else {
-                                        selectedWeeks.clear()
-                                        selectedWeeks.addAll(selectableWeeks)
-                                    }
-                                },
-                                colors = CheckboxDefaults.checkboxColors(
-                                    uncheckedBackgroundColor = if (isDark) Color(0xFF505050) else Color(
-                                        0xFFF7F7F7
-                                    )
-                                )
-                            )
-                            Spacer(modifier = Modifier.width(4.dp))
-                            Text(
-                                text = "全部",
-                                style = MiuixTheme.textStyles.body2,
-                                color = MiuixTheme.colorScheme.onSurfaceVariantSummary
-                            )
-                        }
-
-                        // 单周
-                        Row(
-                            verticalAlignment = Alignment.CenterVertically,
-                            modifier = Modifier.clickable {
-                                if (hasMixedSelection) {
-                                    selectedWeeks.clear()
-                                    selectedWeeks.addAll(selectableOddWeeks)
-                                } else if (allSelectableOddSelected) {
-                                    selectedWeeks.clear()
-                                } else {
-                                    selectedWeeks.clear()
-                                    selectedWeeks.addAll(selectableOddWeeks)
-                                }
-                            }
-                        ) {
-                            Checkbox(
-                                state = when {
-                                    hasMixedSelection -> ToggleableState.Off
-                                    allSelectableOddSelected && !hasOccupiedOddWeeks -> ToggleableState.On
-                                    someSelectableOddSelected -> ToggleableState.Indeterminate
-                                    else -> ToggleableState.Off
-                                },
-                                onClick = {
-                                    if (hasMixedSelection) {
-                                        selectedWeeks.clear()
-                                        selectedWeeks.addAll(selectableOddWeeks)
-                                    } else if (allSelectableOddSelected) {
-                                        selectedWeeks.clear()
-                                    } else {
-                                        selectedWeeks.clear()
-                                        selectedWeeks.addAll(selectableOddWeeks)
-                                    }
-                                },
-                                colors = CheckboxDefaults.checkboxColors(
-                                    uncheckedBackgroundColor = if (isDark) Color(0xFF505050) else Color(
-                                        0xFFF7F7F7
-                                    )
-                                )
-                            )
-                            Spacer(modifier = Modifier.width(4.dp))
-                            Text(
-                                text = "单周",
-                                style = MiuixTheme.textStyles.body2,
-                                color = MiuixTheme.colorScheme.onSurfaceVariantSummary
-                            )
-                        }
-
-                        // 双周
-                        Row(
-                            verticalAlignment = Alignment.CenterVertically,
-                            modifier = Modifier.clickable {
-                                if (hasMixedSelection) {
-                                    selectedWeeks.clear()
-                                    selectedWeeks.addAll(selectableEvenWeeks)
-                                } else if (allSelectableEvenSelected) {
-                                    selectedWeeks.clear()
-                                } else {
-                                    selectedWeeks.clear()
-                                    selectedWeeks.addAll(selectableEvenWeeks)
-                                }
-                            }
-                        ) {
-                            Checkbox(
-                                state = when {
-                                    hasMixedSelection -> ToggleableState.Off
-                                    allSelectableEvenSelected && !hasOccupiedEvenWeeks -> ToggleableState.On
-                                    someSelectableEvenSelected -> ToggleableState.Indeterminate
-                                    else -> ToggleableState.Off
-                                },
-                                onClick = {
-                                    if (hasMixedSelection) {
-                                        selectedWeeks.clear()
-                                        selectedWeeks.addAll(selectableEvenWeeks)
-                                    } else if (allSelectableEvenSelected) {
-                                        selectedWeeks.clear()
-                                    } else {
-                                        selectedWeeks.clear()
-                                        selectedWeeks.addAll(selectableEvenWeeks)
-                                    }
-                                },
-                                colors = CheckboxDefaults.checkboxColors(
-                                    uncheckedBackgroundColor = if (isDark) Color(0xFF505050) else Color(
-                                        0xFFF7F7F7
-                                    )
-                                )
-                            )
-                            Spacer(modifier = Modifier.width(4.dp))
-                            Text(
-                                text = "双周",
-                                style = MiuixTheme.textStyles.body2,
-                                color = MiuixTheme.colorScheme.onSurfaceVariantSummary
-                            )
-                        }
-                    }
-                }
-
-                Spacer(modifier = Modifier.height(10.dp))
-
-                // 周次网格
-                val columns = 6
-                val rows = remember(totalWeeks, columns) { (totalWeeks + columns - 1) / columns }
-                // 预计算主题色，避免循环内重复读取
-                val primaryColor = MiuixTheme.colorScheme.primary
-                val outlineColor = MiuixTheme.colorScheme.outline
-                val onSurfaceColor = MiuixTheme.colorScheme.onSurface
-                val onSurfaceSummaryColor = MiuixTheme.colorScheme.onSurfaceVariantSummary
-                val occupiedColor = if (isDark) Color(0xFF4A4A4A) else Color(0xFFF0F0F0)
-                val defaultCardColor = if (isDark) Color(0xFF505050) else Color(0xFFF7F7F7)
-                // 预计算每周状态，避免循环内重复集合查找
-                val weekStates = remember(totalWeeks, selectedWeeks, currentOccupiedWeeks) {
-                    (1..totalWeeks).map { weekNum ->
-                        val isSelected = weekNum in selectedWeeks
-                        val isOccupied = weekNum in currentOccupiedWeeks
-                        Triple(weekNum, isSelected, isOccupied)
-                    }
-                }
-                Column(
-                    modifier = Modifier.fillMaxWidth(),
-                    verticalArrangement = Arrangement.spacedBy(6.dp)
-                ) {
-                    for (row in 0 until rows) {
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.spacedBy(6.dp)
-                        ) {
-                            for (col in 0 until columns) {
-                                val idx = row * columns + col
-                                if (idx < weekStates.size) {
-                                    val (weekNum, isSelected, isOccupied) = weekStates[idx]
-                                    val cardColor = when {
-                                        isSelected -> primaryColor
-                                        isOccupied -> occupiedColor
-                                        else -> defaultCardColor
-                                    }
-                                    val cardContentColor = when {
-                                        isSelected -> Color.White
-                                        isOccupied -> outlineColor
-                                        else -> onSurfaceColor
-                                    }
-                                    val textColor = when {
-                                        isSelected -> Color.White
-                                        isOccupied -> outlineColor
-                                        else -> onSurfaceSummaryColor
-                                    }
-                                    Card(
-                                        modifier = Modifier
-                                            .weight(1f)
-                                            .height(32.dp),
-                                        cornerRadius = 10.dp,
-                                        insideMargin = PaddingValues(0.dp),
-                                        pressFeedbackType = PressFeedbackType.Sink,
-                                        showIndication = !isOccupied,
-                                        colors = CardDefaults.defaultColors(
-                                            color = cardColor,
-                                            contentColor = cardContentColor
-                                        ),
-                                        onClick = {
-                                            if (!isOccupied) {
-                                                if (isSelected) {
-                                                    selectedWeeks.remove(weekNum)
-                                                } else {
-                                                    selectedWeeks.add(weekNum)
-                                                }
-                                            }
-                                        }
-                                    ) {
-                                        Box(
-                                            modifier = Modifier.fillMaxSize(),
-                                            contentAlignment = Alignment.Center
-                                        ) {
-                                            Text(
-                                                text = "$weekNum",
-                                                fontSize = 13.sp,
-                                                color = textColor
-                                            )
-                                        }
-                                    }
-                                } else {
-                                    Spacer(modifier = Modifier.weight(1f))
-                                }
-                            }
-                        }
-                    }
+                    Text(
+                        text = weekText,
+                        fontSize = 17.sp,
+                        fontWeight = FontWeight.Medium,
+                        color = MiuixTheme.colorScheme.onSurfaceVariantActions
+                    )
                 }
             }
         }
-    }
 
-
-    if (group.courses.size > 1) {
-        Text(
-            text = "包含 ${group.courses.size} 个相同配置的课程",
-            fontSize = 12.sp,
-            color = MiuixTheme.colorScheme.onSurface.copy(alpha = 0.5f),
-            modifier = Modifier.padding(start = 32.dp, top = 4.dp)
-        )
-    }
-
-    // 节次选择弹窗
-    OverlayDialog(
-        title = "选择上课节次",
-        show = showSectionDialog,
-        onDismissRequest = { showSectionDialog = false }
-    ) {
-        Column(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalAlignment = Alignment.CenterHorizontally
-        ) {
-            LaunchedEffect(tempStartSection) {
-                if (tempEndSection < tempStartSection) {
-                    tempEndSection = tempStartSection
-                }
-            }
-
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceEvenly
-            ) {
-                Column(
-                    horizontalAlignment = Alignment.CenterHorizontally,
-                    modifier = Modifier.weight(1f)
-                ) {
-                    Text(
-                        text = "开始",
-                        style = MiuixTheme.textStyles.footnote1,
-                        color = MiuixTheme.colorScheme.onSurfaceVariantActions,
-                        modifier = Modifier.padding(top = 4.dp, bottom = 12.dp)
-                    )
-                    NumberPicker(
-                        value = tempStartSection,
-                        onValueChange = { tempStartSection = it },
-                        range = 1..totalSections,
-                        visibleItemCount = 3,
-                        itemHeight = 50.dp
-                    )
-                }
-
-                Column(
-                    horizontalAlignment = Alignment.CenterHorizontally,
-                    modifier = Modifier.weight(1f)
-                ) {
-                    Text(
-                        text = "结束",
-                        style = MiuixTheme.textStyles.footnote1,
-                        color = MiuixTheme.colorScheme.onSurfaceVariantActions,
-                        modifier = Modifier.padding(top = 4.dp, bottom = 12.dp)
-                    )
-                    NumberPicker(
-                        value = tempEndSection,
-                        onValueChange = { tempEndSection = it },
-                        range = tempStartSection..totalSections,
-                        visibleItemCount = 3,
-                        itemHeight = 50.dp
-                    )
-                }
-            }
-
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(top = 16.dp),
-                horizontalArrangement = Arrangement.spacedBy(12.dp)
-            ) {
-                TextButton(
-                    text = "取消",
-                    onClick = {
-                        hapticFeedback.performHapticFeedback(HapticFeedbackType.Confirm)
-                        showSectionDialog = false
-                    },
-                    modifier = Modifier.weight(1f)
-                )
-                TextButton(
-                    text = "确定",
-                    onClick = {
-                        hapticFeedback.performHapticFeedback(HapticFeedbackType.Confirm)
-                        if (tempStartSection <= tempEndSection) {
-                            startSection = tempStartSection
-                            endSection = tempEndSection
-                        }
-                        showSectionDialog = false
-                    },
-                    colors = ButtonDefaults.textButtonColorsPrimary(),
-                    modifier = Modifier.weight(1f)
-                )
-            }
+        if (group.courses.size > 1) {
+            Text(
+                text = "包含 ${group.courses.size} 个相同配置的课程",
+                fontSize = 12.sp,
+                color = MiuixTheme.colorScheme.onSurface.copy(alpha = 0.5f),
+                modifier = Modifier.padding(start = 32.dp, top = 4.dp)
+            )
         }
     }
 }

@@ -318,6 +318,11 @@ class CourseManageActivity : ComponentActivity() {
                             },
                             onCourseUpdated = { course ->
                                 courseViewModel.updateCourse(course)
+                                selectedCourses = selectedCourses.map { if (it.id == course.id) course else it }
+                            },
+                            onCourseAdded = { course ->
+                                courseViewModel.addCourse(course)
+                                selectedCourses = selectedCourses + course
                             },
                             onDeleteCourse = { courseId ->
                                 courseViewModel.deleteCourse(courseId)

@@ -8,14 +8,11 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.WindowInsets
-import androidx.compose.foundation.layout.asPaddingValues
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.statusBars
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
@@ -37,6 +34,7 @@ import androidx.compose.ui.state.ToggleableState
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.haooz.chedule.data.Course
@@ -79,15 +77,18 @@ fun AddEditCourseBottomSheet(
     backdrop: LayerBackdrop?,
     liquidGlassBackdrop: com.kyant.backdrop.Backdrop? = null,
     fullscreen: Boolean = false,
+    sheetOffsetDp: Dp = Dp.Unspecified,
     onDismissRequest: () -> Unit,
     onConfirm: (Course) -> Unit,
     okButtonContainerColor: Color? = null,
+    editCourse: Course? = null,
     getOccupiedWeeks: (dayOfWeek: Int, startSection: Int, endSection: Int, excludeIds: List<String>) -> Set<Int> = { _, _, _, _ -> emptySet() },
 ) {
     val hapticFeedback = LocalHapticFeedback.current
     val totalWeeks = 20
     val totalSections = 12
     var sheetContentBackdrop by remember { mutableStateOf<com.kyant.backdrop.Backdrop?>(null) }
+    val isEditMode = editCourse != null
 
     // 取最晚周次的课程作为默认地点和教师
     val latestCourse = remember(courses) {
@@ -96,28 +97,40 @@ fun AddEditCourseBottomSheet(
     val defaultClassroom = latestCourse?.classroom ?: ""
     val defaultTeacher = latestCourse?.teacher ?: ""
 
-    // 编辑状态
-    var classroom by remember { mutableStateOf(defaultClassroom) }
-    var teacher by remember { mutableStateOf(defaultTeacher) }
-    var dayOfWeek by remember { mutableIntStateOf(0) }
-    var startSection by remember { mutableIntStateOf(latestCourse?.startSection ?: 1) }
-    var endSection by remember { mutableIntStateOf(latestCourse?.endSection ?: 2) }
+    // 编辑状态（每次弹窗打开时根据 editCourse 初始化）
+    var classroom by remember(show) { mutableStateOf(editCourse?.classroom ?: defaultClassroom) }
+    var teacher by remember(show) { mutableStateOf(editCourse?.teacher ?: defaultTeacher) }
+    var dayOfWeek by remember(show) { mutableIntStateOf(editCourse?.dayOfWeek ?: 0) }
+    var startSection by remember(show) { mutableIntStateOf(editCourse?.startSection ?: latestCourse?.startSection ?: 1) }
+    var endSection by remember(show) { mutableIntStateOf(editCourse?.endSection ?: latestCourse?.endSection ?: 2) }
 
     // 节次选择弹窗状态
-    var showSectionDialog by remember { mutableStateOf(false) }
-    var tempStartSection by remember { mutableIntStateOf(startSection) }
-    var tempEndSection by remember { mutableIntStateOf(endSection) }
+    var showSectionDialog by remember(show) { mutableStateOf(false) }
+    var tempStartSection by remember(show) { mutableIntStateOf(startSection) }
+    var tempEndSection by remember(show) { mutableIntStateOf(endSection) }
 
     // 根据当前选择的星期和节次动态计算已占用的周次（排除自身）
-    val currentOccupiedWeeks by remember(dayOfWeek, startSection, endSection) {
-        derivedStateOf {
-            getOccupiedWeeks(dayOfWeek, startSection, endSection, emptyList())
-        }
+    val currentOccupiedWeeks = remember(dayOfWeek, startSection, endSection) {
+        getOccupiedWeeks(dayOfWeek, startSection, endSection, editCourse?.let { listOf(it.id) } ?: emptyList())
     }
 
-    // 周次选择状态
-    val selectedWeeks = remember {
-        mutableStateSetOf<Int>()
+    // 周次选择状态（编辑模式预填已选周次，每次弹窗打开时重置）
+    val selectedWeeks = remember(show) {
+        mutableStateSetOf<Int>().apply {
+            if (editCourse != null) {
+                if (editCourse.selectedWeeks.isNotEmpty()) {
+                    addAll(editCourse.selectedWeeks)
+                } else {
+                    for (w in editCourse.startWeek..editCourse.endWeek) {
+                        when (editCourse.weekType) {
+                            Course.WEEK_TYPE_ODD -> if (w % 2 == 1) add(w)
+                            Course.WEEK_TYPE_EVEN -> if (w % 2 == 0) add(w)
+                            else -> add(w)
+                        }
+                    }
+                }
+            }
+        }
     }
 
     val allWeeks = remember(totalWeeks) { (1..totalWeeks).toList() }
@@ -149,12 +162,12 @@ fun AddEditCourseBottomSheet(
 
     BlurBottomSheet(
         show = show,
-        title = "添加课程",
+        title = if (isEditMode) "编辑课程" else "添加课程",
         backdrop = backdrop,
         dimBackground = true,
         onDismissRequest = onDismissRequest,
         liquidGlassBackdrop = liquidGlassBackdrop,
-        fullscreen = fullscreen,
+        sheetOffsetDp = 100.dp,
         onSheetContentBackdropCreated = { sheetContentBackdrop = it },
         startAction = {
             if (liquidGlassBackdrop != null) {
@@ -208,8 +221,8 @@ fun AddEditCourseBottomSheet(
                     val weeksToSave = if (isContiguous) emptyList() else sortedWeeks
 
                     val course = Course(
-                        id = UUID.randomUUID().toString(),
-                        name = courses.firstOrNull()?.name ?: "",
+                        id = editCourse?.id ?: UUID.randomUUID().toString(),
+                        name = editCourse?.name ?: courses.firstOrNull()?.name ?: "",
                         classroom = classroom.trim(),
                         teacher = teacher.trim(),
                         dayOfWeek = dayOfWeek,
@@ -218,7 +231,7 @@ fun AddEditCourseBottomSheet(
                         startWeek = minWeek,
                         endWeek = maxWeek,
                         weekType = weekType,
-                        colorRes = courses.firstOrNull()?.colorRes ?: Course.courseColors.first(),
+                        colorRes = editCourse?.colorRes ?: courses.firstOrNull()?.colorRes ?: Course.courseColors.first(),
                         selectedWeeks = weeksToSave,
                         lastModified = System.currentTimeMillis()
                     )
@@ -234,6 +247,7 @@ fun AddEditCourseBottomSheet(
                     contentDescription = "确定",
                     modifier = Modifier.padding(end = 20.dp),
                     iconSize = 23.dp,
+                    iconTint = Color.White,
                     useBackdropShadow = true,
                     containerColor = if (isAppDarkTheme())MiuixTheme.colorScheme.primary.copy(alpha = 0.8f) else MiuixTheme.colorScheme.primary.copy(alpha = 0.9f)
                 )
@@ -246,7 +260,6 @@ fun AddEditCourseBottomSheet(
                         imageVector = MiuixIcons.Ok,
                         contentDescription = "确定",
                         modifier = Modifier.size(26.dp),
-                        tint = okButtonContainerColor ?: Color.Unspecified
                     )
                 }
             }
@@ -576,13 +589,11 @@ fun AddEditCourseBottomSheet(
                     val occupiedColor = if (isDark) Color(0xFF4A4A4A) else Color(0xFFF0F0F0)
                     val defaultCardColor = if (isDark) Color(0xFF505050) else Color(0xFFF7F7F7)
 
-                    val weekStates by remember {
-                        derivedStateOf {
-                            (1..totalWeeks).map { weekNum ->
-                                val isSelected = weekNum in selectedWeeks
-                                val isOccupied = weekNum in currentOccupiedWeeks
-                                Triple(weekNum, isSelected, isOccupied)
-                            }
+                    val weekStates = remember(currentOccupiedWeeks, selectedWeeks) {
+                        (1..totalWeeks).map { weekNum ->
+                            val isSelected = weekNum in selectedWeeks
+                            val isOccupied = weekNum in currentOccupiedWeeks
+                            Triple(weekNum, isSelected, isOccupied)
                         }
                     }
 
@@ -623,8 +634,8 @@ fun AddEditCourseBottomSheet(
                                                 color = cardColor,
                                                 contentColor = if (isSelected) Color.White else outlineColor
                                             ),
-                                            onClick = {
-                                                if (!noDaySelected && !isOccupied) {
+                                            onClick = if (noDaySelected || isOccupied) null else {
+                                                {
                                                     if (isSelected) {
                                                         selectedWeeks.remove(weekNum)
                                                     } else {
@@ -653,8 +664,7 @@ fun AddEditCourseBottomSheet(
                     }
                 }
             }
-            val statusBarsPadding = WindowInsets.statusBars.asPaddingValues().calculateTopPadding()
-            Spacer(modifier = Modifier.height(statusBarsPadding + 60.dp))
+            Spacer(modifier = Modifier.height(160.dp))
         }
     }
 
@@ -696,7 +706,6 @@ fun AddEditCourseBottomSheet(
                         itemHeight = 50.dp
                     )
                 }
-
                 Column(
                     horizontalAlignment = Alignment.CenterHorizontally,
                     modifier = Modifier.weight(1f)
