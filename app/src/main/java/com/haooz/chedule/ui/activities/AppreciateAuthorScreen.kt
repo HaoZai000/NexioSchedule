@@ -1,6 +1,7 @@
 /** 赞赏作者页面 - Screen */
 package com.haooz.chedule.ui.activities
 
+import android.annotation.SuppressLint
 import android.content.res.Configuration
 import com.haooz.chedule.R
 import androidx.compose.foundation.Image
@@ -58,6 +59,7 @@ import androidx.compose.ui.input.nestedscroll.nestedScroll
 import com.haooz.chedule.ui.data.sampleAppreciations
 import com.haooz.chedule.ui.data.AppreciationItem
 
+@SuppressLint("ConfigurationScreenWidthHeight")
 @Composable
 fun AppreciateAuthorScreen(onBack: () -> Unit) {
     val scrollBehavior = MiuixScrollBehavior()

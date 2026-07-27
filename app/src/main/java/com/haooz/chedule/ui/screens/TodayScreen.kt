@@ -173,8 +173,7 @@ private fun CourseItemContent(course: Course, sectionTimes: Map<Int, String>) {
                 val hours = remainingMinutes / 60
                 val mins = remainingMinutes % 60 + 1
                 if (mins >= 60) "还剩${hours + 1}小时"
-                else if (mins > 0) "还剩${hours}小时${mins}分钟"
-                else "还剩${hours}小时"
+                else "还剩${hours}小时${mins}分钟"
             }
             else -> "还剩${remainingMinutes + 1}分钟"
         }

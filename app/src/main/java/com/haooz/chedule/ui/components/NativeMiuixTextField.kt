@@ -1,4 +1,6 @@
 /** 仿 Miuix 样式的原生 EditText，使用系统原生选择控件 */
+@file:Suppress("DEPRECATION")
+
 package com.haooz.chedule.ui.components
 
 import android.content.Context
@@ -40,6 +42,7 @@ import androidx.compose.ui.viewinterop.AndroidView
 import top.yukonga.miuix.kmp.squircle.squircleBackground
 import top.yukonga.miuix.kmp.squircle.squircleBorder
 import top.yukonga.miuix.kmp.theme.MiuixTheme
+import kotlin.time.Duration.Companion.milliseconds
 
 @Composable
 fun NativeMiuixTextField(
@@ -73,12 +76,12 @@ fun NativeMiuixTextField(
         if (requestFocus) {
             focusRequester.requestFocus()
             // 延迟显示键盘，确保 EditText 已创建
-            kotlinx.coroutines.delay(150)
+            kotlinx.coroutines.delay(150.milliseconds)
             editTextHolder.value?.let { editText ->
                 val imm = context.getSystemService(Context.INPUT_METHOD_SERVICE) as InputMethodManager
                 imm.showSoftInput(editText, InputMethodManager.SHOW_IMPLICIT)
             }
-        } else if (lastRequestFocus.value && !requestFocus) {
+        } else if (lastRequestFocus.value) {
             // requestFocus 从 true 变为 false，说明弹窗正在关闭，隐藏键盘
             val imm = context.getSystemService(Context.INPUT_METHOD_SERVICE) as InputMethodManager
             imm.hideSoftInputFromWindow(view.windowToken, 0)
@@ -150,7 +153,7 @@ fun NativeMiuixTextField(
         if (requestFocus) {
             focusRequester.requestFocus()
             // 延迟显示键盘，确保 EditText 已创建
-            kotlinx.coroutines.delay(150)
+            kotlinx.coroutines.delay(150.milliseconds)
             editTextHolder.value?.let { editText ->
                 val imm = context.getSystemService(Context.INPUT_METHOD_SERVICE) as InputMethodManager
                 imm.showSoftInput(editText, InputMethodManager.SHOW_IMPLICIT)
@@ -307,12 +310,12 @@ fun NativeMiuixTextField(
         if (requestFocus) {
             focusRequester.requestFocus()
             // 延迟显示键盘，确保 EditText 已创建
-            kotlinx.coroutines.delay(150)
+            kotlinx.coroutines.delay(150.milliseconds)
             editTextHolder.value?.let { editText ->
                 val imm = context.getSystemService(Context.INPUT_METHOD_SERVICE) as InputMethodManager
                 imm.showSoftInput(editText, InputMethodManager.SHOW_IMPLICIT)
             }
-        } else if (lastRequestFocus.value && !requestFocus) {
+        } else if (lastRequestFocus.value) {
             // requestFocus 从 true 变为 false，说明弹窗正在关闭，隐藏键盘
             val imm = context.getSystemService(Context.INPUT_METHOD_SERVICE) as InputMethodManager
             imm.hideSoftInputFromWindow(view.windowToken, 0)
@@ -374,7 +377,7 @@ fun NativeMiuixTextField(
         if (requestFocus) {
             focusRequester.requestFocus()
             // 延迟显示键盘，确保 EditText 已创建
-            kotlinx.coroutines.delay(150)
+            kotlinx.coroutines.delay(150.milliseconds)
             editTextHolder.value?.let { editText ->
                 val imm = context.getSystemService(Context.INPUT_METHOD_SERVICE) as InputMethodManager
                 imm.showSoftInput(editText, InputMethodManager.SHOW_IMPLICIT)
@@ -437,7 +440,7 @@ fun NativeMiuixTextField(
                 ) {
                     AndroidView(
                         factory = { ctx ->
-                            android.widget.EditText(ctx).apply {
+                            EditText(ctx).apply {
                                 setText(value.text)
                                 this.hint = if (useLabelAsPlaceholder) label else ""
                                 this.isSingleLine = singleLine
@@ -446,7 +449,7 @@ fun NativeMiuixTextField(
                                 setTextColor(textColor.toArgb())
                                 setHintTextColor(hintColor.toArgb())
                                 textSize = textStyle.fontSize.value
-                                typeface = android.graphics.Typeface.create(typeface, weight, false)
+                                typeface = Typeface.create(typeface, weight, false)
 
                                 inputType = android.text.InputType.TYPE_CLASS_TEXT
                                 imeOptions = EditorInfo.IME_ACTION_DONE
@@ -464,7 +467,7 @@ fun NativeMiuixTextField(
                                     isFocused.value = focused
                                 }
 
-                                addTextChangedListener(object : android.text.TextWatcher {
+                                addTextChangedListener(object : TextWatcher {
                                     override fun beforeTextChanged(s: CharSequence?, start: Int, count: Int, after: Int) {}
                                     override fun onTextChanged(s: CharSequence?, start: Int, before: Int, count: Int) {}
                                     override fun afterTextChanged(s: android.text.Editable?) {

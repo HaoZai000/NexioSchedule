@@ -90,7 +90,7 @@ data class TimeConfigCardBounds(
     val height: Float
 )
 
-@SuppressLint("DefaultLocale", "UseOfNonLambdaOffsetOverload")
+@SuppressLint("DefaultLocale", "UseOfNonLambdaOffsetOverload", "ConfigurationScreenWidthHeight")
 @Composable
 fun CourseTimeSettingsScreen(
     onBack: () -> Unit,

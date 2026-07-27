@@ -1,6 +1,7 @@
 /** 排班课表组件 - 显示排班视图中的日期列 */
 package com.haooz.chedule.ui.components
 
+import android.annotation.SuppressLint
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxHeight
@@ -26,7 +27,7 @@ fun ShiftDayColumn(
     currentWeek: Int,
     onSlotClick: (dayOfWeek: Int, startSection: Int, courses: List<Pair<String, Course>>) -> Unit = { _, _, _ -> },
     cardHeightPerSection: Float = 54f,
-    modifier: Modifier = Modifier
+    @SuppressLint("ModifierParameter") modifier: Modifier = Modifier
 ) {
     val totalHeight = ((morningSections + afternoonSections + eveningSections) * cardHeightPerSection + 24 * 2).toInt()
 
@@ -51,7 +52,7 @@ fun ShiftDayColumn(
     for (i in allCourses.indices) {
         if (i in used) continue
         val (name, course) = allCourses[i]
-        val sameRange = mutableListOf<Pair<String, Course>>(name to course)
+        val sameRange = mutableListOf(name to course)
         for (j in i + 1 until allCourses.size) {
             if (j in used) continue
             val (name2, course2) = allCourses[j]
@@ -65,12 +66,10 @@ fun ShiftDayColumn(
     }
 
     fun sectionToY(section: Int): Float {
-        val m = morningSections
-        val a = afternoonSections
         return when {
-            section <= m -> (section - 1) * cardHeightPerSection
-            section <= m + a -> m * cardHeightPerSection + 24 + (section - m - 1) * cardHeightPerSection
-            else -> m * cardHeightPerSection + 24 + a * cardHeightPerSection + 24 + (section - m - a - 1) * cardHeightPerSection
+            section <= morningSections -> (section - 1) * cardHeightPerSection
+            section <= morningSections + afternoonSections -> morningSections * cardHeightPerSection + 24 + (section - morningSections - 1) * cardHeightPerSection
+            else -> morningSections * cardHeightPerSection + 24 + afternoonSections * cardHeightPerSection + 24 + (section - morningSections - afternoonSections - 1) * cardHeightPerSection
         }
     }
 
@@ -149,8 +148,8 @@ fun ShiftDayColumn(
             var segStart = group.startSection
             while (segStart <= group.endSection) {
                 var segEnd = group.endSection
-                if (segStart <= lunchBreak && segEnd > lunchBreak) segEnd = lunchBreak
-                if (segStart <= dinnerBreak && segEnd > dinnerBreak) segEnd = dinnerBreak
+                if (lunchBreak in segStart..<segEnd) segEnd = lunchBreak
+                if (dinnerBreak in segStart..<segEnd) segEnd = dinnerBreak
                 segments.add(segStart to segEnd)
                 segStart = segEnd + 1
             }

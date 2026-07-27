@@ -87,6 +87,7 @@ fun AiImportScreen(
     onBack: () -> Unit,
     viewModel: CourseViewModel = viewModel(),
     settingsViewModel: SettingsViewModel = viewModel(),
+    backdrop: top.yukonga.miuix.kmp.blur.LayerBackdrop? = null,
     liquidGlassBackdrop: com.kyant.backdrop.Backdrop? = null
 ) {
     val context = LocalContext.current
@@ -433,13 +434,16 @@ fun AiImportScreen(
     if (editingCourseIndex >= 0 && editingCourseIndex in parsedCourses.indices) {
         val editingCourse = parsedCourses[editingCourseIndex]
         AddCourseDialog(
+            show = true,
             course = editingCourse,
             selectedDay = editingCourse.dayOfWeek,
+            backdrop = backdrop,
+            liquidGlassBackdrop = liquidGlassBackdrop,
             totalWeeks = totalWeeks,
             totalSections = effectiveMaxSection,
             defaultStartSection = editingCourse.startSection,
             defaultEndSection = editingCourse.endSection,
-            getOccupiedWeeks = { _, _, _ -> emptySet() },
+            getOccupiedWeeks = { _, _, _, _ -> emptySet() },
             onDismiss = {
                 // 退出动画结束后才执行真正的删除，避免列表缩短导致组件被提前移除
                 if (pendingDelete && editingCourseIndex in parsedCourses.indices) {
@@ -455,8 +459,7 @@ fun AiImportScreen(
             },
             onDelete = { _ ->
                 pendingDelete = true
-            },
-            liquidGlassBackdrop = liquidGlassBackdrop
+            }
         )
     }
 

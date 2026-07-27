@@ -1,6 +1,7 @@
 /** 备份与迁移页面 - Screen */
 package com.haooz.chedule.ui.activities
 
+import android.annotation.SuppressLint
 import android.content.res.Configuration
 import android.content.Intent
 import android.widget.Toast
@@ -24,7 +25,6 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
@@ -69,6 +69,7 @@ import java.util.Calendar
 import java.util.Date
 import java.util.Locale
 
+@SuppressLint("ConfigurationScreenWidthHeight")
 @Composable
 fun BackupAndMigrationScreen(
     onBack: () -> Unit,
@@ -79,7 +80,6 @@ fun BackupAndMigrationScreen(
 ) {
     val context = LocalContext.current
     val hapticFeedback = LocalHapticFeedback.current
-    val coroutineScope = rememberCoroutineScope()
 
     val isLiquidGlass = liquidGlassBackdrop != null
     val isTablet = (LocalConfiguration.current.screenLayout and Configuration.SCREENLAYOUT_SIZE_MASK) in

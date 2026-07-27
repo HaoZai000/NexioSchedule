@@ -267,6 +267,7 @@ class MainActivity : ComponentActivity() {
         }
     }
 
+    @SuppressLint("NewApi")
     private fun extractIntentData(intent: android.content.Intent?) {
         when (intent?.action) {
             android.content.Intent.ACTION_VIEW -> {
@@ -1352,40 +1353,40 @@ fun CourseScheduleApp() {
                 val editingCourse by viewModel.editingCourse.collectAsState()
                 val selectedStartSection by viewModel.selectedStartSection.collectAsState()
                 val selectedEndSection by viewModel.selectedEndSection.collectAsState()
-                if (showAddDialog) {
-                    val editingStartSection =
-                        editingCourse?.startSection ?: selectedStartSection
-                    val editingEndSection = editingCourse?.endSection ?: selectedEndSection
+                val editingStartSection =
+                    editingCourse?.startSection ?: selectedStartSection
+                val editingEndSection = editingCourse?.endSection ?: selectedEndSection
 
-                    AddCourseDialog(
-                        course = editingCourse,
-                        selectedDay = viewModel.selectedDay.collectAsState().value,
-                        totalWeeks = totalWeeks,
-                        totalSections = totalSections,
-                        defaultStartSection = editingStartSection,
-                        defaultEndSection = editingEndSection,
-                        getOccupiedWeeks = { dayOfWeek, startSection, endSection ->
-                            viewModel.getOccupiedWeeks(
-                                dayOfWeek = dayOfWeek,
-                                startSection = startSection,
-                                endSection = endSection,
-                                excludeIds = setOfNotNull(editingCourse?.id)
-                            )
-                        },
-                        onDismiss = { viewModel.hideDialog() },
-                        onConfirm = { course ->
-                            if (editingCourse != null) {
-                                viewModel.updateCourse(course)
-                            } else {
-                                viewModel.addCourse(course)
-                            }
-                        },
-                        onDelete = { courseId ->
-                            viewModel.deleteCourse(courseId)
-                        },
-                        liquidGlassBackdrop = liquidGlassBackdrop
-                    )
-                }
+                AddCourseDialog(
+                    show = showAddDialog,
+                    course = editingCourse,
+                    selectedDay = viewModel.selectedDay.collectAsState().value,
+                    backdrop = backdrop,
+                    liquidGlassBackdrop = liquidGlassBackdrop,
+                    totalWeeks = totalWeeks,
+                    totalSections = totalSections,
+                    defaultStartSection = editingStartSection,
+                    defaultEndSection = editingEndSection,
+                    getOccupiedWeeks = { dayOfWeek, startSection, endSection, excludeIds ->
+                        viewModel.getOccupiedWeeks(
+                            dayOfWeek = dayOfWeek,
+                            startSection = startSection,
+                            endSection = endSection,
+                            excludeIds = excludeIds.toSet()
+                        )
+                    },
+                    onDismiss = { viewModel.hideDialog() },
+                    onConfirm = { course ->
+                        if (editingCourse != null) {
+                            viewModel.updateCourse(course)
+                        } else {
+                            viewModel.addCourse(course)
+                        }
+                    },
+                    onDelete = { courseId ->
+                        viewModel.deleteCourse(courseId)
+                    }
+                )
             }
         }
         // LiquidGlass 更多菜单（Scaffold 外层，显示在最上方）

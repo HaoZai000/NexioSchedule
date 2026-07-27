@@ -1,10 +1,11 @@
 /** 课程提醒设置页面 - Screen */
 package com.haooz.chedule.ui.activities
 
-import android.content.res.Configuration
 import android.Manifest
+import android.annotation.SuppressLint
 import android.content.Intent
 import android.content.pm.PackageManager
+import android.content.res.Configuration
 import android.os.PowerManager
 import android.provider.Settings
 import android.widget.Toast
@@ -12,7 +13,6 @@ import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.tween
-import androidx.compose.animation.animateContentSize
 import androidx.compose.animation.expandVertically
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
@@ -89,6 +89,7 @@ import top.yukonga.miuix.kmp.utils.overScrollVertical
 import top.yukonga.miuix.kmp.utils.scrollEndHaptic
 import androidx.compose.ui.graphics.Color as ComposeColor
 
+@SuppressLint("InlinedApi")
 @Composable
 fun CourseReminderScreen(
     onBack: () -> Unit,

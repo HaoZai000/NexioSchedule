@@ -1,6 +1,4 @@
 package com.haooz.chedule.ui.components
-import com.haooz.chedule.ui.activities.UpdateSettingsActivity
-import com.haooz.chedule.ui.utils.UpdateChecker
 
 import android.content.Context
 import android.content.Intent
@@ -22,22 +20,25 @@ import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.unit.DpSize
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.haooz.chedule.ui.activities.UpdateSettingsActivity
+import com.haooz.chedule.ui.utils.UpdateChecker
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.withContext
 import top.yukonga.miuix.kmp.basic.Button
 import top.yukonga.miuix.kmp.basic.ButtonDefaults
-import top.yukonga.miuix.kmp.overlay.OverlayDialog
 import top.yukonga.miuix.kmp.basic.Text
 import top.yukonga.miuix.kmp.basic.TextButton
+import top.yukonga.miuix.kmp.overlay.OverlayDialog
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 import java.io.File
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
+import androidx.core.content.edit
+import kotlin.time.Duration.Companion.milliseconds
 
 /**
  * 更新弹窗：每天启动时检查一次更新，有新版本则弹窗提示。
@@ -73,25 +74,25 @@ internal fun UpdateDialog() {
                     Pair(false, null)
                 }
             }
-            updatePrefs.edit()
-                .putString("last_check_date", today)
-                .putBoolean("has_update", hasUpdate)
-                .apply()
+            updatePrefs.edit {
+                putString("last_check_date", today)
+                    .putBoolean("has_update", hasUpdate)
+            }
 
             if (hasUpdate && release != null) {
-                updatePrefs.edit()
-                    .putString("latest_url", release.htmlUrl)
-                    .putString("latest_apk_url", release.apkUrl)
-                    .putString("latest_tag", release.tagName)
-                    .putString("latest_name", release.name)
-                    .putString("latest_body", release.body)
-                    .putString("latest_date", release.createdAt)
-                    .apply()
+                updatePrefs.edit {
+                    putString("latest_url", release.htmlUrl)
+                        .putString("latest_apk_url", release.apkUrl)
+                        .putString("latest_tag", release.tagName)
+                        .putString("latest_name", release.name)
+                        .putString("latest_body", release.body)
+                        .putString("latest_date", release.createdAt)
+                }
                 UpdateChecker.cleanOldApks(context, release.tagName)
             }
         }
 
-        delay(1400)
+        delay(1400.milliseconds)
 
         val hasUpdate = updatePrefs.getBoolean("has_update", false)
         val tag = updatePrefs.getString("latest_tag", "") ?: ""
@@ -105,7 +106,7 @@ internal fun UpdateDialog() {
 
         val actuallyHasUpdate = hasUpdate && tag.isNotBlank() && UpdateChecker.isNewerVersion(remoteVersion, localVersion)
         if (hasUpdate && !actuallyHasUpdate) {
-            updatePrefs.edit().putBoolean("has_update", false).apply()
+            updatePrefs.edit { putBoolean("has_update", false) }
         }
 
         if (actuallyHasUpdate && updateReminder) {
@@ -113,10 +114,10 @@ internal fun UpdateDialog() {
             updateBody = body
             val apkFile = File(context.filesDir, "update-$tag.apk")
             hasDownloadedApk = apkFile.exists() && apkFile.length() > 0
-            delay(800)
+            delay(800.milliseconds)
             showUpdateDialog = true
-        } else if (actuallyHasUpdate && !updateReminder) {
-            updatePrefs.edit().putBoolean("has_update", false).apply()
+        } else if (actuallyHasUpdate) {
+            updatePrefs.edit { putBoolean("has_update", false) }
         }
     }
 
@@ -125,7 +126,7 @@ internal fun UpdateDialog() {
     OverlayDialog(
         title = "发现新版本",
         summary = "最新版本: $updateTagName",
-        show = showUpdateDialog,
+        show = true,
 
         onDismissRequest = { showUpdateDialog = false }
     ) {

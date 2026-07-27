@@ -97,6 +97,7 @@ class AiImportActivity : ComponentActivity() {
                         ) {
                             AiImportScreen(
                                 onBack = { finish() },
+                                backdrop = backdrop,
                                 liquidGlassBackdrop = liquidGlassBackdrop
                             )
                         }

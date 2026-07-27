@@ -1,6 +1,7 @@
 /** 更新日志页 - Screen */
 package com.haooz.chedule.ui.activities
 
+import android.annotation.SuppressLint
 import android.content.res.Configuration
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.animateFloatAsState
@@ -54,6 +55,7 @@ import top.yukonga.miuix.kmp.theme.MiuixTheme
 import top.yukonga.miuix.kmp.utils.overScrollVertical
 import top.yukonga.miuix.kmp.utils.scrollEndHaptic
 
+@SuppressLint("ConfigurationScreenWidthHeight")
 @Composable
 fun ChangelogScreen(
     onBack: () -> Unit,

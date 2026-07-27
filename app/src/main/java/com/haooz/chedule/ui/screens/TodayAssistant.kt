@@ -254,8 +254,7 @@ private fun rememberCourseStatus(
                             val hours = minutes / 60
                             val mins = minutes % 60 + 1
                             if (mins >= 60) "还剩 ${hours + 1}小时"
-                            else if (mins > 0) "还剩 ${hours}小时${mins}分钟"
-                            else "还剩 ${hours}小时"
+                            else "还剩 ${hours}小时${mins}分钟"
                         } else {
                             "还剩 ${minutes + 1} 分钟"
                         }
@@ -270,8 +269,7 @@ private fun rememberCourseStatus(
                             val hours = minutes / 60
                             val mins = minutes % 60 + 1
                             if (mins >= 60) "${hours + 1}小时后"
-                            else if (mins > 0) "${hours}小时${mins}分钟后"
-                            else "${hours}小时后"
+                            else "${hours}小时${mins}分钟后"
                         } else {
                             "${minutes + 1} 分钟后"
                         }
@@ -310,14 +308,14 @@ private fun buildCourseTimeRanges(
 
 private fun getGreeting(): String {
     val hour = LocalTime.now().hour
-    return when {
-        hour in 5..6 -> "早安"
-        hour in 7..8 -> "早上好"
-        hour in 9..11 -> "上午好"
-        hour in 12..13 -> "中午好"
-        hour in 14..17 -> "下午好"
-        hour in 18..19 -> "傍晚好"
-        hour in 20..22 -> "晚上好"
+    return when (hour) {
+        in 5..6 -> "早安"
+        in 7..8 -> "早上好"
+        in 9..11 -> "上午好"
+        in 12..13 -> "中午好"
+        in 14..17 -> "下午好"
+        in 18..19 -> "傍晚好"
+        in 20..22 -> "晚上好"
         else -> "夜深了"
     }
 }
@@ -346,13 +344,13 @@ private fun generateSmartTip(
         } else if (hour in 20..23) {
             "，明天也没课"
         } else ""
-        return when {
-            hour in 6..8 -> "$greeting，今天没有课，可以睡个懒觉$tomorrowInfo"
-            hour in 9..11 -> "$greeting，今天没有课，自由安排吧$tomorrowInfo"
-            hour in 12..14 -> "$greeting，今天下午也没课，好好享受$tomorrowInfo"
-            hour in 14..17 -> "$greeting，今天没课，做点自己想做的事$tomorrowInfo"
-            hour in 18..19 -> "$greeting，今天没有课，可以放松一下$tomorrowInfo"
-            hour in 20..22 -> "$greeting，今天没课，早点休息养精蓄锐$tomorrowInfo"
+        return when (hour) {
+            in 6..8 -> "$greeting，今天没有课，可以睡个懒觉$tomorrowInfo"
+            in 9..11 -> "$greeting，今天没有课，自由安排吧$tomorrowInfo"
+            in 12..14 -> "$greeting，今天下午也没课，好好享受$tomorrowInfo"
+            in 14..17 -> "$greeting，今天没课，做点自己想做的事$tomorrowInfo"
+            in 18..19 -> "$greeting，今天没有课，可以放松一下$tomorrowInfo"
+            in 20..22 -> "$greeting，今天没课，早点休息养精蓄锐$tomorrowInfo"
             else -> "$greeting，今天没有课$tomorrowInfo"
         }
     }
@@ -388,7 +386,6 @@ private fun generateSmartTip(
         prev != null && next != null -> {
             val breakMinutes = java.time.Duration.between(prev.end, next.start).toMinutes()
             val nextCourse = next.course
-            val prevCourse = prev.course
             when {
                 breakMinutes <= 1 -> "马上开始${nextCourse.name}"
                 breakMinutes <= 3 -> "还有 $breakMinutes 分钟上${nextCourse.name}"
@@ -407,11 +404,8 @@ private fun generateSmartTip(
             val greeting = getGreeting()
             val hour = now.hour
             val tomorrowCount = tomorrowCourses.size
-            val tomorrowFirstCourse = tomorrowRanges.firstOrNull()?.course
             val tomorrowInfo = when {
                 tomorrowCount > 0 && hour >= 21 -> "，明天有 $tomorrowCount 节课"
-                tomorrowCount > 0 && hour >= 22 && tomorrowFirstCourse != null -> "，明天 ${tomorrowFirstCourse.name}是第一节课，早点休息"
-                tomorrowCount > 0 && hour >= 22 -> "，明天有 $tomorrowCount 节课，早点休息"
                 tomorrowCount == 0 && hour >= 21 -> "，明天没课"
                 else -> ""
             }
@@ -440,8 +434,7 @@ private fun generateSmartTip(
                 minutes in 10..14 -> "还有 $minutes 分钟，准备去${nextCourse.classroom}"
                 minutes in 5..9 -> "还有 $minutes 分钟，${nextCourse.name}要开始了"
                 minutes in 2..4 -> "快 $minutes 分钟了，抓紧时间"
-                minutes <= 1 -> "马上要上${nextCourse.name}了"
-                else -> "准备上${nextCourse.name}"
+                else -> "马上要上${nextCourse.name}了"
             }
         }
 

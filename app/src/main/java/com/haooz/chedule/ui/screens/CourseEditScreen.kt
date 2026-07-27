@@ -8,7 +8,6 @@ import androidx.compose.animation.fadeOut
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
-import androidx.compose.animation.fadeOut
 import androidx.compose.animation.shrinkVertically
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
@@ -100,9 +99,7 @@ import top.yukonga.miuix.kmp.icon.MiuixIcons
 import top.yukonga.miuix.kmp.icon.extended.Add
 import top.yukonga.miuix.kmp.icon.extended.Back
 import top.yukonga.miuix.kmp.icon.extended.ChevronBackward
-import top.yukonga.miuix.kmp.icon.extended.Close
 import top.yukonga.miuix.kmp.icon.extended.Delete
-import top.yukonga.miuix.kmp.icon.extended.Ok
 import top.yukonga.miuix.kmp.overlay.OverlayDialog
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 import top.yukonga.miuix.kmp.utils.overScrollVertical
@@ -994,7 +991,6 @@ fun CourseEditScreen(
                             courses = courses,
                             backdrop = backdrop,
                             liquidGlassBackdrop = if (isLiquidGlass) liquidGlassBackdrop else null,
-                            fullscreen = true,
                             onDismissRequest = { showAddCourseSheet = false },
                             onConfirm = { newCourse ->
                                 pendingAddCourse = newCourse
@@ -1010,7 +1006,6 @@ fun CourseEditScreen(
                             courses = editingGroup?.courses ?: emptyList(),
                             backdrop = backdrop,
                             liquidGlassBackdrop = if (isLiquidGlass) liquidGlassBackdrop else null,
-                            fullscreen = true,
                             editCourse = editingGroup?.courses?.first(),
                             onDismissRequest = {
                                 showEditCourseSheet = false

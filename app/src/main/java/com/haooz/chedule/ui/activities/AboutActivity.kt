@@ -124,7 +124,7 @@ class AboutActivity : ComponentActivity() {
     }
 }
 
-@SuppressLint("LocalContextGetResourceValueCall")
+@SuppressLint("LocalContextGetResourceValueCall", "ConfigurationScreenWidthHeight")
 @Composable
 private fun AboutScreen(onBack: () -> Unit) {
     val hapticFeedback = LocalHapticFeedback.current
@@ -408,7 +408,7 @@ private fun AboutScreen(onBack: () -> Unit) {
                                 if (isLiquidGlass) {
                                     if (WindowInsets.statusBars.asPaddingValues()
                                             .calculateTopPadding() > 0.dp
-                                    ) -8.dp else (-20).dp
+                                    ) (-8).dp else (-20).dp
                                 } else 12.dp,
                         start = WindowInsets.displayCutout.asPaddingValues()
                             .calculateLeftPadding(LayoutDirection.Ltr) + tabletHorizontalPadding,
@@ -544,11 +544,11 @@ private fun AboutScreen(onBack: () -> Unit) {
                                     )
                                 }
                                 val recentChangelog = changelogData.take(3)
-                                val expandedStates = recentChangelog.mapIndexed { index, _ ->
+                                val expandedStates = List(recentChangelog.size) { index ->
                                     val expandedState = remember { mutableStateOf(index == 0) }
                                     expandedState
                                 }
-                                val rotations = recentChangelog.mapIndexed { index, _ ->
+                                val rotations = List(recentChangelog.size) { index ->
                                     val rotation by animateFloatAsState(
                                         targetValue = if (expandedStates[index].value) 90f else -90f,
                                         animationSpec = tween(durationMillis = 200),
