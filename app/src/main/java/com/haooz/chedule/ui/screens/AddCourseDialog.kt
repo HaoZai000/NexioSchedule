@@ -37,6 +37,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
@@ -135,6 +136,10 @@ fun AddCourseDialog(
                 }
             }
         }
+    }
+
+    LaunchedEffect(currentOccupiedWeeks) {
+        selectedWeeks.removeAll(currentOccupiedWeeks)
     }
 
     val allWeeks = remember(totalWeeks) { (1..totalWeeks).toList() }
@@ -469,9 +474,10 @@ fun AddCourseDialog(
             }
 
             // 周次设置
+            val noDaySelected = dayOfWeek == 0
             Card(
                 cornerRadius = 20.dp,
-                modifier = Modifier.fillMaxWidth(),
+                modifier = Modifier.fillMaxWidth().alpha(if (noDaySelected) 0.5f else 1f),
                 colors = CardDefaults.defaultColors(
                     color = if (isDark) Color(0xFF363636).copy(alpha = 0.62f) else Color(0xFFFFFFFF).copy(alpha = 0.7f),
                     contentColor = MiuixTheme.colorScheme.onSurface
@@ -505,15 +511,17 @@ fun AddCourseDialog(
                             ) {
                                 Checkbox(
                                     state = if (allSelectableSelected) ToggleableState.On else ToggleableState.Off,
-                                    onClick = {
-                                        if (allSelectableSelected) {
-                                            selectedWeeks.clear()
-                                        } else {
-                                            selectedWeeks.clear()
-                                            selectedWeeks.addAll(selectableWeeks)
+                                    onClick = if (noDaySelected) null else {
+                                        {
+                                            if (allSelectableSelected) {
+                                                selectedWeeks.clear()
+                                            } else {
+                                                selectedWeeks.clear()
+                                                selectedWeeks.addAll(selectableWeeks)
+                                            }
+                                            isSingleWeek = false
+                                            isDoubleWeek = false
                                         }
-                                        isSingleWeek = false
-                                        isDoubleWeek = false
                                     },
                                     colors = CheckboxDefaults.checkboxColors(
                                         uncheckedBackgroundColor = if (isDark) Color(0xFF505050) else Color(0xFFF7F7F7)
@@ -534,21 +542,23 @@ fun AddCourseDialog(
                                         someSelectableOddSelected -> ToggleableState.Indeterminate
                                         else -> ToggleableState.Off
                                     },
-                                    onClick = {
-                                        if (hasMixedSelection) {
-                                            selectedWeeks.clear()
-                                            selectedWeeks.addAll(selectableOddWeeks)
-                                            isSingleWeek = true
-                                            isDoubleWeek = false
-                                        } else if (allSelectableOddSelected) {
-                                            selectedWeeks.clear()
-                                            isSingleWeek = false
-                                            isDoubleWeek = false
-                                        } else {
-                                            selectedWeeks.clear()
-                                            selectedWeeks.addAll(selectableOddWeeks)
-                                            isSingleWeek = true
-                                            isDoubleWeek = false
+                                    onClick = if (noDaySelected) null else {
+                                        {
+                                            if (hasMixedSelection) {
+                                                selectedWeeks.clear()
+                                                selectedWeeks.addAll(selectableOddWeeks)
+                                                isSingleWeek = true
+                                                isDoubleWeek = false
+                                            } else if (allSelectableOddSelected) {
+                                                selectedWeeks.clear()
+                                                isSingleWeek = false
+                                                isDoubleWeek = false
+                                            } else {
+                                                selectedWeeks.clear()
+                                                selectedWeeks.addAll(selectableOddWeeks)
+                                                isSingleWeek = true
+                                                isDoubleWeek = false
+                                            }
                                         }
                                     },
                                     colors = CheckboxDefaults.checkboxColors(
@@ -570,21 +580,23 @@ fun AddCourseDialog(
                                         someSelectableEvenSelected -> ToggleableState.Indeterminate
                                         else -> ToggleableState.Off
                                     },
-                                    onClick = {
-                                        if (hasMixedSelection) {
-                                            selectedWeeks.clear()
-                                            selectedWeeks.addAll(selectableEvenWeeks)
-                                            isSingleWeek = false
-                                            isDoubleWeek = true
-                                        } else if (allSelectableEvenSelected) {
-                                            selectedWeeks.clear()
-                                            isSingleWeek = false
-                                            isDoubleWeek = false
-                                        } else {
-                                            selectedWeeks.clear()
-                                            selectedWeeks.addAll(selectableEvenWeeks)
-                                            isSingleWeek = false
-                                            isDoubleWeek = true
+                                    onClick = if (noDaySelected) null else {
+                                        {
+                                            if (hasMixedSelection) {
+                                                selectedWeeks.clear()
+                                                selectedWeeks.addAll(selectableEvenWeeks)
+                                                isSingleWeek = false
+                                                isDoubleWeek = true
+                                            } else if (allSelectableEvenSelected) {
+                                                selectedWeeks.clear()
+                                                isSingleWeek = false
+                                                isDoubleWeek = false
+                                            } else {
+                                                selectedWeeks.clear()
+                                                selectedWeeks.addAll(selectableEvenWeeks)
+                                                isSingleWeek = false
+                                                isDoubleWeek = true
+                                            }
                                         }
                                     },
                                     colors = CheckboxDefaults.checkboxColors(
@@ -635,21 +647,23 @@ fun AddCourseDialog(
                                             cornerRadius = 10.dp,
                                             insideMargin = PaddingValues(0.dp),
                                             pressFeedbackType = PressFeedbackType.Sink,
-                                            showIndication = !isOccupied,
+                                            showIndication = !noDaySelected && !isOccupied,
                                             colors = CardDefaults.defaultColors(
                                                 color = when {
+                                                    noDaySelected -> defaultCardColor
                                                     isSelected -> primaryColor
                                                     isOccupied -> occupiedColor
                                                     else -> defaultCardColor
                                                 },
                                                 contentColor = when {
+                                                    noDaySelected -> outlineColor
                                                     isSelected -> Color.White
                                                     isOccupied -> outlineColor
                                                     else -> onSurfaceColor
                                                 }
                                             ),
-                                            onClick = {
-                                                if (!isOccupied) {
+                                            onClick = if (noDaySelected || isOccupied) null else {
+                                                {
                                                     if (isSelected) {
                                                         selectedWeeks.remove(weekNum)
                                                     } else {
@@ -668,8 +682,9 @@ fun AddCourseDialog(
                                                     text = "$weekNum",
                                                     fontSize = 13.sp,
                                                     color = when {
+                                                        noDaySelected -> if (isDark) Color(0xFF606060) else outlineColor
                                                         isSelected -> Color.White
-                                                        isOccupied -> outlineColor
+                                                        isOccupied -> if (isDark) Color(0xFF606060) else outlineColor
                                                         else -> onSurfaceSummaryColor
                                                     }
                                                 )
