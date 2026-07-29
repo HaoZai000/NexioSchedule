@@ -99,13 +99,13 @@ fun AddEditCourseBottomSheet(
     var classroom by remember(show) { mutableStateOf(editCourse?.classroom ?: defaultClassroom) }
     var teacher by remember(show) { mutableStateOf(editCourse?.teacher ?: defaultTeacher) }
     var dayOfWeek by remember(show) { mutableIntStateOf(editCourse?.dayOfWeek ?: 0) }
-    var startSection by remember(show) { mutableIntStateOf(editCourse?.startSection ?: latestCourse?.startSection ?: 1) }
-    var endSection by remember(show) { mutableIntStateOf(editCourse?.endSection ?: latestCourse?.endSection ?: 2) }
+    var startSection by remember(show) { mutableIntStateOf(editCourse?.startSection ?: latestCourse?.startSection ?: 0) }
+    var endSection by remember(show) { mutableIntStateOf(editCourse?.endSection ?: latestCourse?.endSection ?: 0) }
 
     // 节次选择弹窗状态
     var showSectionDialog by remember(show) { mutableStateOf(false) }
-    var tempStartSection by remember(show) { mutableIntStateOf(startSection) }
-    var tempEndSection by remember(show) { mutableIntStateOf(endSection) }
+    var tempStartSection by remember(show) { mutableIntStateOf(if (startSection > 0) startSection else 1) }
+    var tempEndSection by remember(show) { mutableIntStateOf(if (endSection > 0) endSection else 1) }
 
     // 根据当前选择的星期和节次动态计算已占用的周次（排除自身）
     val currentOccupiedWeeks = remember(dayOfWeek, startSection, endSection) {
@@ -407,14 +407,14 @@ fun AddEditCourseBottomSheet(
                     title = "上课节次",
                     endActions = {
                         Text(
-                            text = "第${startSection} - ${endSection}节",
+                            text = if (startSection > 0) "第${startSection} - ${endSection}节" else "未设置",
                             fontSize = 14.5.sp,
                             color = MiuixTheme.colorScheme.onSurfaceVariantActions
                         )
                     },
                     onClick = {
-                        tempStartSection = startSection
-                        tempEndSection = endSection
+                        tempStartSection = if (startSection > 0) startSection else 1
+                        tempEndSection = if (endSection > 0) endSection else 1
                         showSectionDialog = true
                     },
                     holdDownState = showSectionDialog

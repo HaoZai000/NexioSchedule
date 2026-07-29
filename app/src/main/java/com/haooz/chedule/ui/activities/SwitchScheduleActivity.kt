@@ -15,8 +15,8 @@ import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.slideInVertically
 import androidx.compose.animation.slideOutVertically
-import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
@@ -50,7 +50,6 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.drawWithContent
 import androidx.compose.ui.focus.FocusRequester
-import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.RectangleShape
 import androidx.compose.ui.graphics.asAndroidBitmap
@@ -60,20 +59,20 @@ import androidx.compose.ui.graphics.rememberGraphicsLayer
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.layout.onGloballyPositioned
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.DpOffset
-import androidx.compose.ui.unit.DpSize
-import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.zIndex
 import com.haooz.chedule.data.CourseRepository
+import com.haooz.chedule.ui.components.NativeMiuixTextField
 import com.haooz.chedule.ui.components.liquidglass.LiquidTopBarButton
 import com.haooz.chedule.ui.components.liquidglass.ProgressiveBlurTopBar
+import com.haooz.chedule.ui.theme.CourseScheduleTheme
 import com.haooz.chedule.ui.utils.applyThemeAwareSystemBars
 import com.haooz.chedule.ui.utils.isAppDarkTheme
 import com.haooz.chedule.ui.utils.rememberAppStyle
-import com.haooz.chedule.ui.theme.CourseScheduleTheme
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.launch
 import top.yukonga.miuix.kmp.basic.Button
@@ -81,7 +80,6 @@ import top.yukonga.miuix.kmp.basic.ButtonDefaults
 import top.yukonga.miuix.kmp.basic.Card
 import top.yukonga.miuix.kmp.basic.CardDefaults
 import top.yukonga.miuix.kmp.basic.FloatingActionButton
-import top.yukonga.miuix.kmp.utils.PressFeedbackType
 import top.yukonga.miuix.kmp.basic.Icon
 import top.yukonga.miuix.kmp.basic.IconButton
 import top.yukonga.miuix.kmp.basic.MiuixScrollBehavior
@@ -92,7 +90,6 @@ import top.yukonga.miuix.kmp.basic.Scaffold
 import top.yukonga.miuix.kmp.basic.SmallTitle
 import top.yukonga.miuix.kmp.basic.SmallTopAppBar
 import top.yukonga.miuix.kmp.basic.TextButton
-import com.haooz.chedule.ui.components.NativeMiuixTextField
 import top.yukonga.miuix.kmp.basic.TopAppBar
 import top.yukonga.miuix.kmp.blur.BlendColorEntry
 import top.yukonga.miuix.kmp.blur.BlurBlendMode
@@ -112,6 +109,7 @@ import top.yukonga.miuix.kmp.overlay.OverlayDialog
 import top.yukonga.miuix.kmp.preference.CheckboxLocation
 import top.yukonga.miuix.kmp.preference.CheckboxPreference
 import top.yukonga.miuix.kmp.theme.MiuixTheme
+import top.yukonga.miuix.kmp.utils.PressFeedbackType
 import top.yukonga.miuix.kmp.utils.overScrollVertical
 import top.yukonga.miuix.kmp.utils.scrollEndHaptic
 import kotlin.time.Duration.Companion.milliseconds
@@ -850,12 +848,13 @@ fun SwitchScheduleScreen(
                                 android.widget.Toast.makeText(context, "已存在同名课表", android.widget.Toast.LENGTH_SHORT).show()
                                 return@TextButton
                             }
-                            scheduleNames = repository.addSchedule(newScheduleName)
-                            currentScheduleId = newScheduleName
-                            repository.switchToSchedule(newScheduleName)
-                            onScheduleChanged()
+                            val name = newScheduleName
                             showAddDialog = false
                             newScheduleName = ""
+                            scheduleNames = repository.addSchedule(name)
+                            currentScheduleId = name
+                            repository.switchToSchedule(name)
+                            onScheduleChanged()
                         },
                         colors = ButtonDefaults.textButtonColorsPrimary(),
                         modifier = Modifier.weight(1f)
@@ -916,19 +915,21 @@ fun SwitchScheduleScreen(
                                 android.widget.Toast.makeText(context, "已存在同名课表", android.widget.Toast.LENGTH_SHORT).show()
                                 return@TextButton
                             }
-                            val wasChecked = checkboxStates[editingScheduleName] == true
-                            scheduleNames = repository.renameSchedule(editingScheduleName, editScheduleName)
-                            checkboxStates.remove(editingScheduleName)
-                            if (wasChecked) {
-                                checkboxStates[editScheduleName] = true
-                            }
-                            if (currentScheduleId == editingScheduleName) {
-                                currentScheduleId = editScheduleName
-                                repository.switchToSchedule(editScheduleName)
-                            }
-                            onScheduleChanged()
+                            val oldName = editingScheduleName
+                            val newName = editScheduleName
+                            val wasChecked = checkboxStates[oldName] == true
                             showEditDialog = false
                             editScheduleName = ""
+                            scheduleNames = repository.renameSchedule(oldName, newName)
+                            checkboxStates.remove(oldName)
+                            if (wasChecked) {
+                                checkboxStates[newName] = true
+                            }
+                            if (currentScheduleId == oldName) {
+                                currentScheduleId = newName
+                                repository.switchToSchedule(newName)
+                            }
+                            onScheduleChanged()
                         },
                         colors = ButtonDefaults.textButtonColorsPrimary(),
                         modifier = Modifier.weight(1f)

@@ -331,6 +331,31 @@ fun CourseEditScreen(
         }
     }
 
+    // 全部课程删除后自动退出编辑页
+    var hasTriggeredAutoBack by remember { mutableStateOf(false) }
+    LaunchedEffect(courses.size) {
+        if (courses.isEmpty() && !hasTriggeredAutoBack && animProgress.value > 0.5f) {
+            hasTriggeredAutoBack = true
+            delay(400)
+            onBackStart()
+            coroutineScope {
+                launch {
+                    animProgress.animateTo(
+                        targetValue = 0f,
+                        animationSpec = tween(370, easing = morphExitEase)
+                    )
+                }
+                launch {
+                    animTransY.animateTo(
+                        targetValue = 0f,
+                        animationSpec = tween(transExitMillis, easing = transExitEase)
+                    )
+                }
+            }
+            onBack()
+        }
+    }
+
     // 颜色修改即保存
     LaunchedEffect(selectedColor) {
         if (selectedColor != courses.firstOrNull()?.colorRes) {
@@ -598,7 +623,7 @@ fun CourseEditScreen(
                                         Card(
                                             cornerRadius = 20.dp,
                                             modifier = Modifier.fillMaxWidth(),
-                                            insideMargin = PaddingValues(vertical = 12.dp),
+                                            insideMargin = PaddingValues(top = 14.dp),
                                         ) {
                                             Column(modifier = Modifier.fillMaxWidth()) {
                                                 Text(
@@ -610,7 +635,7 @@ fun CourseEditScreen(
                                                 )
                                                 for (row in 0 until colorRows) {
                                                     Row(
-                                                        modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp),
+                                                        modifier = Modifier.fillMaxWidth().padding(start = 12.dp, end = 12.dp, bottom = 12.dp),
                                                         horizontalArrangement = Arrangement.spacedBy(12.dp)
                                                     ) {
                                                         for (col in 0 until colorColumns) {
@@ -1050,9 +1075,8 @@ private fun CourseGroupCard(
     val course = group.courses.first()
     val isDark = isAppDarkTheme()
     val dayLabels = listOf("", "周一", "周二", "周三", "周四", "周五", "周六", "周日")
-    val weekText = course.getWeekText()
-    val sectionText = if (course.startSection == course.endSection) "第${course.startSection}节"
-        else "第${course.startSection}-${course.endSection}节"
+    val weekText = course.getWeekText().ifEmpty { "未设置" }
+    val sectionText = course.getSectionText().ifEmpty { "未设置" }
 
     Column(modifier = Modifier.fillMaxWidth()) {
         SmallTitle(
@@ -1130,7 +1154,7 @@ private fun CourseGroupCard(
                         color = MiuixTheme.colorScheme.onSurface
                     )
                     Text(
-                        text = "${dayLabels[course.dayOfWeek]} $sectionText",
+                        text = if (course.dayOfWeek > 0) "${dayLabels[course.dayOfWeek]} $sectionText" else sectionText,
                         fontSize = 17.sp,
                         fontWeight = FontWeight.Medium,
                         color = MiuixTheme.colorScheme.onSurfaceVariantActions

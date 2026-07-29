@@ -206,6 +206,7 @@ fun AddCourseDialog(
             )
 
             onConfirm(newCourse)
+            onDismiss()
         }
     }
     val statusBarsPadding = WindowInsets.statusBars.asPaddingValues().calculateTopPadding()
@@ -797,7 +798,7 @@ fun AddCourseDialog(
                                                     .fillMaxSize()
                                                     .padding(if (isSelected) 2.dp else 0.dp)
                                                     .clip(RoundedRectangle(10.dp))
-                                                    .background(if (isDark) Color(0xFF363636) else Color(0xFFFFFFFF))
+                                                    .background(if (isDark) Color(0xFF303030) else Color(0xF8F8F8F8))
                                             )
                                             Box(
                                                 modifier = Modifier
@@ -985,6 +986,7 @@ fun AddCourseDialog(
                     hapticFeedback.performHapticFeedback(HapticFeedbackType.Confirm)
                     course?.id?.let { onDelete(it) }
                     showDeleteDialog = false
+                    onDismiss()
                 },
             ) {
                 Text("删除", fontSize = 17.sp, fontWeight = FontWeight.Medium, color = Color(0xFFF44336))

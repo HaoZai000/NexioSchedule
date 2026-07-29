@@ -143,6 +143,7 @@ data class Course(
      * 获取节次描述
      */
     fun getSectionText(): String {
+        if (startSection <= 0 && endSection <= 0) return ""
         return if (startSection == endSection) {
             "第${startSection}节"
         } else {
@@ -157,6 +158,7 @@ data class Course(
         if (selectedWeeks.isNotEmpty()) {
             return formatWeeks(selectedWeeks.sorted())
         }
+        if (startWeek <= 0 && endWeek <= 0) return ""
         val weekTypeStr = getWeekTypeText()
         return if (weekTypeStr.isNotEmpty()) {
             "${startWeek}-${endWeek}周 ($weekTypeStr)"

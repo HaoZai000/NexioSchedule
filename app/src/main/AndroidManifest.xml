@@ -82,7 +82,8 @@
             android:name=".ui.activities.CourseManageActivity"
             android:exported="false"
             android:label="课程管理"
-            android:theme="@style/Theme.课程表" />
+            android:theme="@style/Theme.课程表"
+            android:windowSoftInputMode="adjustResize" />
         <activity
             android:name=".ui.activities.CourseReminderActivity"
             android:exported="false"

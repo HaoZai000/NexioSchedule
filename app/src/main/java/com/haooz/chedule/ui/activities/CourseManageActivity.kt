@@ -16,6 +16,7 @@ import androidx.compose.foundation.layout.asPaddingValues
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.statusBars
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
@@ -111,6 +112,23 @@ class CourseManageActivity : ComponentActivity() {
                 var cardColor by remember { mutableStateOf(Color(0xFF4CAF50)) }
                 var cardAlpha by remember { mutableFloatStateOf(0.15f) }
                 var hiddenCourseIds by remember { mutableStateOf(setOf<String>()) }
+                var shrinkingCourseIds by remember { mutableStateOf(setOf<String>()) }
+                var pendingAutoExitDeleteIds by remember { mutableStateOf(setOf<String>()) }
+
+                // Track course IDs created in this session for cleanup on exit
+                var createdCourseIds by remember { mutableStateOf(setOf<String>()) }
+                // Track course IDs that were opened for editing (to avoid deleting modified ones)
+                var editedCourseIds by remember { mutableStateOf(setOf<String>()) }
+
+                // Cleanup empty courses when activity finishes
+                DisposableEffect(Unit) {
+                    onDispose {
+                        val coursesToDelete = createdCourseIds - editedCourseIds
+                        coursesToDelete.forEach { courseId: String ->
+                            courseViewModel.deleteCourse(courseId)
+                        }
+                    }
+                }
 
                 // Graphics layer for capturing screen content
                 val screenGraphicsLayer = rememberGraphicsLayer()
@@ -230,6 +248,11 @@ class CourseManageActivity : ComponentActivity() {
                                             onBack = { finish() },
                                             liquidGlassBackdrop = liquidGlassBackdrop,
                                             hiddenCourseIds = hiddenCourseIds,
+                                            shrinkingCourseIds = shrinkingCourseIds,
+                                            onNewCourseCreated = { course ->
+                                                courseViewModel.addCourse(course)
+                                                createdCourseIds = createdCourseIds + course.id
+                                            },
                                             onCourseClick = { courses, left, top, width, height, _, color, alpha ->
                                                 coroutineScope.launch {
                                                     selectedCourses = courses
@@ -240,6 +263,8 @@ class CourseManageActivity : ComponentActivity() {
                                                     cardColor = color
                                                     cardAlpha = alpha
                                                     hiddenCourseIds = courses.map { it.id }.toSet()
+                                                    // Mark courses as edited when opened
+                                                    editedCourseIds = editedCourseIds + courses.map { it.id }
 
                                                     // Capture full screen snapshot
                                                     val fullSnapshot = screenGraphicsLayer.toImageBitmap().asAndroidBitmap()
@@ -312,9 +337,24 @@ class CourseManageActivity : ComponentActivity() {
                                 }
                             },
                             onBack = {
-                                showEditScreen = false
-                                cardSnapshot = null
-                                hiddenCourseIds = emptySet()
+                                if (pendingAutoExitDeleteIds.isNotEmpty()) {
+                                    showEditScreen = false
+                                    cardSnapshot = null
+                                    hiddenCourseIds = emptySet()
+                                    shrinkingCourseIds = pendingAutoExitDeleteIds
+                                    coroutineScope.launch {
+                                        delay(300)
+                                        pendingAutoExitDeleteIds.forEach { id ->
+                                            courseViewModel.deleteCourse(id)
+                                        }
+                                        shrinkingCourseIds = emptySet()
+                                        pendingAutoExitDeleteIds = emptySet()
+                                    }
+                                } else {
+                                    showEditScreen = false
+                                    cardSnapshot = null
+                                    hiddenCourseIds = emptySet()
+                                }
                             },
                             onCourseUpdated = { course ->
                                 courseViewModel.updateCourse(course)
@@ -325,7 +365,11 @@ class CourseManageActivity : ComponentActivity() {
                                 selectedCourses = selectedCourses + course
                             },
                             onDeleteCourse = { courseId ->
-                                courseViewModel.deleteCourse(courseId)
+                                if (selectedCourses.size > 1) {
+                                    courseViewModel.deleteCourse(courseId)
+                                } else {
+                                    pendingAutoExitDeleteIds = setOf(courseId)
+                                }
                                 selectedCourses = selectedCourses.filter { it.id != courseId }
                             },
                             onColorChanged = { colorRes ->
