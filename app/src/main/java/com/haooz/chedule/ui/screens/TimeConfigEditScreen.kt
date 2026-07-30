@@ -309,7 +309,7 @@ fun TimeConfigEditScreen(
 
     LaunchedEffect(Unit) {
         if (hasCardBounds) {
-            delay(16.milliseconds)
+            delay(12.milliseconds)
             launch {
                 animProgress.animateTo(
                     targetValue = 1f,

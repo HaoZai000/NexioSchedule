@@ -282,7 +282,7 @@ class CourseManageActivity : ComponentActivity() {
 
                                                     showEditScreen = true
                                                     launch {
-                                                        delay(16.milliseconds)
+                                                        delay(12.milliseconds)
                                                         launch {
                                                             backgroundScale.animateTo(
                                                                 targetValue = 0.92f,
