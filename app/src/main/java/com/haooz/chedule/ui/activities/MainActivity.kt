@@ -388,12 +388,6 @@ fun CourseScheduleApp() {
 
     var detailFromToday by remember { mutableStateOf(false) }
     var hiddenCourseIds by remember { mutableStateOf(setOf<String>()) }
-    var showCardOverlay by remember { mutableStateOf(false) }
-    var overlayBitmap by remember { mutableStateOf<android.graphics.Bitmap?>(null) }
-    var overlayLeft by remember { mutableFloatStateOf(0f) }
-    var overlayTop by remember { mutableFloatStateOf(0f) }
-    var overlayWidth by remember { mutableFloatStateOf(0f) }
-    var overlayHeight by remember { mutableFloatStateOf(0f) }
 
     // 长按空白区域"自定义课表"按钮状态
     var showLongPressButton by remember { mutableStateOf(false) }
@@ -601,7 +595,6 @@ fun CourseScheduleApp() {
             showLongPressButton = false
         }
     }
-    var screenSnapshot by remember { mutableStateOf<android.graphics.Bitmap?>(null) }
     var mainContentSnapshot by remember { mutableStateOf<android.graphics.Bitmap?>(null) }
     var switchScreenSnapshot by remember { mutableStateOf<android.graphics.Bitmap?>(null) }
     var switchCardSnapshot by remember { mutableStateOf<android.graphics.Bitmap?>(null) }
@@ -618,6 +611,7 @@ fun CourseScheduleApp() {
     var switchAnimRunning by remember { mutableStateOf(false) }
     val switchAnimProgress = remember { Animatable(0f) }
     val backgroundScale = remember { Animatable(1f) }
+    val managePageBlurRadius = remember { Animatable(0f) }
     val switchReturnBgScrim = remember { Animatable(0f) }
     val screenGraphicsLayer = rememberGraphicsLayer()
     // 模糊变化后延迟重新捕获快照的 job
@@ -727,43 +721,25 @@ fun CourseScheduleApp() {
         detailCardHeight = cardHeight
         detailFromToday = fromToday
         coroutineScope.launch {
-            // 1. 截取卡片快照
-            val fullForCard = screenGraphicsLayer.toImageBitmap().asAndroidBitmap()
-            val cardBmp = try {
-                val x = cardLeft.toInt().coerceIn(0, fullForCard.width - 1)
-                val y = cardTop.toInt().coerceIn(0, fullForCard.height - 1)
-                val w = cardWidth.toInt().coerceIn(1, fullForCard.width - x)
-                val h = cardHeight.toInt().coerceIn(1, fullForCard.height - y)
-                android.graphics.Bitmap.createBitmap(fullForCard, x, y, w, h)
-            } catch (_: Exception) { null }
-            detailSnapshot = cardBmp
-
-            // 2. 显示覆盖层（遮住原卡片）
-            overlayBitmap = cardBmp
-            overlayLeft = cardLeft
-            overlayTop = cardTop
-            overlayWidth = cardWidth
-            overlayHeight = cardHeight
-            showCardOverlay = true
-
-            // 3. 隐藏原卡片
             hiddenCourseIds = setOf(courseIdToHide)
-
-            // 4. 等待一帧，让卡片隐藏生效
-            delay(50.milliseconds)
-
-            // 5. 截取屏幕快照（覆盖层不参与 record，快照里没有覆盖层）
+            // 截取全屏快照并裁剪卡片
             val fullSnapshot = screenGraphicsLayer.toImageBitmap().asAndroidBitmap()
-            screenSnapshot = fullSnapshot
+            detailSnapshot = try {
+                val x = cardLeft.toInt().coerceIn(0, fullSnapshot.width - 1)
+                val y = cardTop.toInt().coerceIn(0, fullSnapshot.height - 1)
+                val w = cardWidth.toInt().coerceIn(1, fullSnapshot.width - x)
+                val h = cardHeight.toInt().coerceIn(1, fullSnapshot.height - y)
+                android.graphics.Bitmap.createBitmap(fullSnapshot, x, y, w, h)
+            } catch (_: Exception) { null }
 
-            // 6. 隐藏覆盖层
-            showCardOverlay = false
-            overlayBitmap = null
-
-            // 7. 开始动画
             showDetail = true
             delay(12.milliseconds)
-            backgroundScale.animateTo(0.92f, animationSpec = tween(580, easing = OobeQuartOutEasing))
+            launch {
+                backgroundScale.animateTo(0.92f, animationSpec = tween(560, easing = OobeQuartOutEasing))
+            }
+            launch {
+                managePageBlurRadius.animateTo(5f, animationSpec = tween(560, easing = OobeQuartOutEasing))
+            }
         }
     }
 
@@ -973,36 +949,9 @@ fun CourseScheduleApp() {
 
     // 退出缩放中心：与搭配界面卡片中心对齐
 
-    val animationState = remember(isInFreeformWindow) {
-        derivedStateOf {
-            val progress = backgroundScale.value
-            val blurProg = ((1f - progress) / (1f - 0.92f)).coerceIn(0f, 1f)
-            val blurR = (blurProg * 6f).coerceIn(0f, 6f)
-            val clipR = if (showDetail) {
-                if (isInFreeformWindow) {
-                    20.dp
-                } else {
-                    with(density) { (screenCornerRadius * (2f - progress)).toDp() }
-                }
-            } else {
-                0.dp
-            }
-            Triple(blurR, clipR, progress)
-        }
-    }
-    val isDetailActive = showDetail && screenSnapshot != null
-    // 课程详情页背景快照模糊半径：跟随 backgroundScale 从 0 渐变到 5f
-    val snapshotBlurRadius = if (!isDetailActive) 0.dp
-    else {
-        val progress = backgroundScale.value
-        val blurProg = ((1f - progress) / (1f - 0.92f)).coerceIn(0f, 1f)
-        (blurProg * 5f).dp
-    }
     Box(modifier = Modifier.fillMaxSize().background(if (showCustomizePage) Color.Black else MiuixTheme.colorScheme.surface)) {
-        val shouldRecordGL = !isDetailActive
         val isEntryAnimating = showSwitchSchedule && switchAnimForward && switchAnimRunning
         val mainContentAlpha = when {
-            isDetailActive -> 0f
             showSwitchSchedule && switchScreenSnapshot != null -> 0f
             else -> 1f
         }
@@ -1016,6 +965,7 @@ fun CourseScheduleApp() {
         Box(
             modifier = Modifier
                 .fillMaxSize()
+                .blur(managePageBlurRadius.value.dp)
                 .then(
                     if (navBarStyle != "rail") {
                         // 圆角裁剪在 graphicsLayer 内部完成（见下），这里不再单独 clip
@@ -1024,7 +974,7 @@ fun CourseScheduleApp() {
                 )
                 .graphicsLayer {
                     val baseScale =
-                        if (showDetail || (!isDetailActive && !showSwitchSchedule)) animationState.value.third
+                        if (!showSwitchSchedule) backgroundScale.value
                         else if (isEntryAnimating) 1f
                         else 1f
                     val exitScale = if (isCustomizeExiting) customizeExitScale.value else 1f
@@ -1061,14 +1011,12 @@ fun CourseScheduleApp() {
                             val cutoutScale = cutoutMainScale.value
                             val effectiveScale =
                                 if (isWindowCutoutActive) cutoutScale else exitScale * cutoutScale
-                            val p = (1f - effectiveScale).coerceIn(0f, 1f)
-                            // 搭配页退出时锁定圆角为 screenCornerRadius，避免随缩放缩小
+                            val scale = backgroundScale.value
+                            val shouldClip = !isCustomizeExiting && scale < 0.999f
                             val animClipPx =
-                                if (isCustomizeExiting) screenCornerRadius else screenCornerRadius * p
-                            val baseClipPx = animationState.value.second.toPx()
-                            val finalClipPx =
-                                if (animClipPx > baseClipPx) animClipPx else baseClipPx
-                            if (finalClipPx > 0f) {
+                                if (isCustomizeExiting) screenCornerRadius else screenCornerRadius
+                            val finalClipPx = animClipPx
+                            if (finalClipPx > 0f && (shouldClip || isCustomizeExiting)) {
                                 val path = Path().apply {
                                     addSquircleRect(
                                         width = size.width,
@@ -1086,15 +1034,11 @@ fun CourseScheduleApp() {
                     } else Modifier
                 )
                 .then(
-                    if (shouldRecordGL) {
-                        Modifier.drawWithContent {
-                            screenGraphicsLayer.record {
-                                this@drawWithContent.drawContent()
-                            }
-                            drawContent()
+                    Modifier.drawWithContent {
+                        screenGraphicsLayer.record {
+                            this@drawWithContent.drawContent()
                         }
-                    } else {
-                        Modifier
+                        drawContent()
                     }
                 )
                 .layerBackdrop(fullBlurBackdrop)
@@ -2051,42 +1995,6 @@ fun CourseScheduleApp() {
                 windowInsetsController?.isAppearanceLightNavigationBars = true
             }
         }
-        // 卡片覆盖层（点击时短暂显示，遮住原卡片消失的过程）
-        if (showCardOverlay && overlayBitmap != null) {
-            Image(
-                bitmap = overlayBitmap!!.asImageBitmap(),
-                contentDescription = null,
-                modifier = Modifier
-                    .offset(
-                        x = with(LocalDensity.current) { overlayLeft.toDp() },
-                        y = with(LocalDensity.current) { overlayTop.toDp() }
-                    )
-                    .size(
-                        width = with(LocalDensity.current) { overlayWidth.toDp() },
-                        height = with(LocalDensity.current) { overlayHeight.toDp() }
-                    )
-                    .clip(RoundedRectangle(16.dp)),
-                contentScale = ContentScale.FillBounds
-            )
-        }
-        // 课程详情页背景快照（仅快照模糊，不模糊上层详情页）
-        if (isDetailActive) {
-            val s = animationState.value
-            Box(modifier = Modifier.fillMaxSize().blur(snapshotBlurRadius)) {
-                Image(
-                    bitmap = screenSnapshot!!.asImageBitmap(),
-                    contentDescription = null,
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .graphicsLayer {
-                            scaleX = s.third
-                            scaleY = s.third
-                        }
-                        .clip(RoundedRectangle(s.second)),
-                    contentScale = ContentScale.Crop
-                )
-            }
-        }
         // 课程详情页（不受缩放影响）
         if (showDetail) {
             val windowInfo = androidx.compose.ui.platform.LocalWindowInfo.current
@@ -2107,12 +2015,16 @@ fun CourseScheduleApp() {
                 classStartTime = classStartTime,
                 onBackStart = {
                     coroutineScope.launch {
-                        backgroundScale.animateTo(1f, animationSpec = tween(370, easing = OobeCubicOutEasing))
+                        launch {
+                            backgroundScale.animateTo(1f, animationSpec = tween(350, easing = OobeCubicOutEasing))
+                        }
+                        launch {
+                            managePageBlurRadius.animateTo(0f, animationSpec = tween(350, easing = OobeCubicOutEasing))
+                        }
                     }
                 },
                 onBack = {
                     showDetail = false
-                    screenSnapshot = null
                     hiddenCourseIds = emptySet()
                 }
             )
@@ -2185,7 +2097,7 @@ fun CourseScheduleApp() {
                                 }
                                 val currentProgress = switchAnimProgress.value
                                 val remainingDuration =
-                                    ((1f - currentProgress) * 580).toInt().coerceAtLeast(1)
+                                    ((1f - currentProgress) * 560).toInt().coerceAtLeast(1)
                                 launch {
                                     switchPageScale.animateTo(
                                         1.08f,
@@ -2249,7 +2161,7 @@ fun CourseScheduleApp() {
                             switchCardBounds = bounds
                             val currentProgress = switchAnimProgress.value
                             val remainingDuration =
-                                ((1f - currentProgress) * 580).toInt().coerceAtLeast(1)
+                                ((1f - currentProgress) * 560).toInt().coerceAtLeast(1)
                             launch {
                                 switchPageScale.animateTo(
                                     1.08f,
@@ -2310,7 +2222,7 @@ fun CourseScheduleApp() {
                                 switchScreenSnapshot = screenBitmap
                                 switchCardBounds = cardBoundsInScreen
                                 switchCardSnapshot = cardSnap
-                                val remainingDuration = 360
+                                val remainingDuration = 350
                                 val morphExitEase = CubicBezierEasing(0.3f, 0.65f, 0.35f, 1.0f)
                                 launch {
                                     switchPageScale.animateTo(

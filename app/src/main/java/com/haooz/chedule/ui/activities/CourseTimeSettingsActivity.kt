@@ -259,13 +259,13 @@ class CourseTimeSettingsActivity : ComponentActivity() {
                                                     launch {
                                                         backgroundScale.animateTo(
                                                             targetValue = 0.92f,
-                                                            animationSpec = tween(580, easing = OobeQuartOutEasing)
+                                                            animationSpec = tween(560, easing = OobeQuartOutEasing)
                                                         )
                                                     }
                                                     launch {
                                                         managePageBlurRadius.animateTo(
                                                             targetValue = 5f,
-                                                            animationSpec = tween(580, easing = OobeQuartOutEasing)
+                                                            animationSpec = tween(560, easing = OobeQuartOutEasing)
                                                         )
                                                     }
                                                 }
@@ -294,13 +294,13 @@ class CourseTimeSettingsActivity : ComponentActivity() {
                                                     launch {
                                                         backgroundScale.animateTo(
                                                             targetValue = 0.92f,
-                                                            animationSpec = tween(580, easing = OobeQuartOutEasing)
+                                                            animationSpec = tween(560, easing = OobeQuartOutEasing)
                                                         )
                                                     }
                                                     launch {
                                                         managePageBlurRadius.animateTo(
                                                             targetValue = 5f,
-                                                            animationSpec = tween(580, easing = OobeQuartOutEasing)
+                                                            animationSpec = tween(560, easing = OobeQuartOutEasing)
                                                         )
                                                     }
                                                 }
@@ -333,13 +333,13 @@ class CourseTimeSettingsActivity : ComponentActivity() {
                                     launch {
                                         backgroundScale.animateTo(
                                             targetValue = 1f,
-                                            animationSpec = tween(370, easing = OobeCubicOutEasing)
+                                            animationSpec = tween(350, easing = OobeCubicOutEasing)
                                         )
                                     }
                                     launch {
                                         managePageBlurRadius.animateTo(
                                             targetValue = 0f,
-                                            animationSpec = tween(370, easing = OobeCubicOutEasing)
+                                            animationSpec = tween(350, easing = OobeCubicOutEasing)
                                         )
                                     }
                                 }

@@ -301,7 +301,7 @@ fun SettingsScreen(
                                     Text(
                                         text = when {
                                             !isSemesterStarted -> "未开始"
-                                            isHoliday -> "放假中"
+                                            currentWeek > totalWeeks -> "放假中"
                                             else -> "第${currentWeek}周"
                                         },
                                         fontSize = 14.5.sp,
