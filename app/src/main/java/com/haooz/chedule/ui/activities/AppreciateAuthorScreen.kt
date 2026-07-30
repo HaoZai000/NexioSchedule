@@ -32,7 +32,9 @@ import androidx.compose.runtime.setValue
 import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
@@ -187,6 +189,9 @@ fun AppreciateAuthorScreen(onBack: () -> Unit) {
 
 @Composable
 private fun AppreciationListItem(item: AppreciationItem) {
+    val isAnonymous = item.nickname.isBlank()
+    val displayName = if (isAnonymous) "匿名" else item.nickname
+
     Row(
         modifier = Modifier
             .fillMaxWidth()
@@ -200,12 +205,21 @@ private fun AppreciationListItem(item: AppreciationItem) {
                 .background(MiuixTheme.colorScheme.primary.copy(alpha = 0.15f)),
             contentAlignment = Alignment.Center
         ) {
-            Text(
-                text = item.nickname.first().toString(),
-                fontSize = 16.sp,
-                fontWeight = FontWeight.Medium,
-                color = MiuixTheme.colorScheme.primary
-            )
+            if (isAnonymous) {
+                Icon(
+                    painter = painterResource(id = R.drawable.ic_anonymous_avatar),
+                    contentDescription = "匿名",
+                    modifier = Modifier.size(40.dp).alpha(0.6f),
+                    tint = Color.Unspecified
+                )
+            } else {
+                Text(
+                    text = item.nickname.first().toString(),
+                    fontSize = 16.sp,
+                    fontWeight = FontWeight.Medium,
+                    color = MiuixTheme.colorScheme.primary
+                )
+            }
         }
 
         Column(
@@ -214,7 +228,7 @@ private fun AppreciationListItem(item: AppreciationItem) {
                 .padding(start = 12.dp)
         ) {
             Text(
-                text = item.nickname,
+                text = displayName,
                 fontSize = 15.sp,
                 color = MiuixTheme.colorScheme.onSurface
             )

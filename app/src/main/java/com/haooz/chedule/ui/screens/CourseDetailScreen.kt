@@ -60,6 +60,8 @@ import com.haooz.chedule.data.Course
 import com.haooz.chedule.ui.components.liquidglass.LiquidTopBarButton
 import com.haooz.chedule.ui.components.liquidglass.ProgressiveBlurTopBar
 import com.haooz.chedule.ui.miuix.OobeCubicOutEasing
+import com.haooz.chedule.ui.miuix.OobeFifthpowerOutEasing
+import com.haooz.chedule.ui.miuix.OobeQuadraticOutEasing
 import com.haooz.chedule.ui.miuix.OobeQuartOutEasing
 import com.haooz.chedule.ui.utils.isAppDarkTheme
 import com.kyant.shapes.RoundedRectangle
@@ -194,10 +196,10 @@ fun CourseDetailScreen(
     val morphOpenEase = OobeQuartOutEasing
     val morphExitEase = OobeCubicOutEasing
     val isUpperHalf = cardTop < screenHeight / 2f
-    val transOpenEase = OobeQuartOutEasing
-    val transExitEase = OobeCubicOutEasing
-    val transOpenMillis = if (isUpperHalf) 580 else 540
-    val transExitMillis = if (isUpperHalf) 290 else 390
+    val transOpenEase = OobeFifthpowerOutEasing
+    val transExitEase = OobeQuadraticOutEasing
+    val transOpenMillis = if (isUpperHalf) 500 else 500
+    val transExitMillis = if (isUpperHalf) 320 else 320
 
     BackHandler {
         onBackStart()
@@ -207,7 +209,7 @@ fun CourseDetailScreen(
                     animProgress.animateTo(
                         targetValue = 0f,
                         animationSpec = tween(
-                            durationMillis = 370,
+                            durationMillis = 350,
                             easing = morphExitEase
                         )
                     )
@@ -233,7 +235,7 @@ fun CourseDetailScreen(
             animProgress.animateTo(
                 targetValue = 1f,
                 animationSpec = tween(
-                    durationMillis = 580,
+                    durationMillis = 560,
                     easing = morphOpenEase
                 )
             )
@@ -257,13 +259,22 @@ fun CourseDetailScreen(
             val snapAlpha = (1f - p * 3f).coerceIn(0f, 1f)
             val contAlpha = ((p - 0.1f) / 0.5f).coerceIn(0f, 1f)
             val scale = cardWidth / screenWidth + (1f - cardWidth / screenWidth) * p
-            val translationX = (cardLeft + cardWidth / 2f - screenWidth / 2f) * (1f - p)
-            val translationY = cardTop * (1f - ty)
+            // 起点 = cardCenter, 终点 = screenCenter
+            val cardCenter = cardTop + cardHeight / 2f
+            val screenCenter = screenHeight / 2f
+            // 抛物线插值因子：ty 落后于 p → 前快后慢的曲线
+            val curveT = ty  // 直接用 ty 作为曲线参数
+            val targetCenter = cardCenter + (screenCenter - cardCenter) * curveT
+            // 从 targetCenter 反推 translationY
+            val translationY = targetCenter - screenHeight / 2f * (1f - scale) - (cardHeight + (screenHeight - cardHeight) * p) / 2f
+            // translationX 保持不变
+            val translationX = cardLeft * (1f - p) - screenWidth / 2f * (1f - scale)
             val rawClipBottom = cardHeight + (screenHeight - cardHeight) * p
             val clipBottom = rawClipBottom / scale
             AnimState(bgAlpha, snapAlpha, contAlpha, translationX, translationY, scale, clipBottom, p)
         }
     }
+
 
     val isDark = isAppDarkTheme()
     val backgroundColor = MiuixTheme.colorScheme.surface
@@ -311,7 +322,7 @@ fun CourseDetailScreen(
                 .fillMaxSize()
                 .graphicsLayer {
                     clip = false
-                    transformOrigin = TransformOrigin(0.5f, 0f)
+                    transformOrigin = TransformOrigin(0.5f, 0.5f)
                     scaleX = s.scale
                     scaleY = s.scale
                     translationX = s.translationX
@@ -362,7 +373,7 @@ fun CourseDetailScreen(
                                                         animProgress.animateTo(
                                                             targetValue = 0f,
                                                             animationSpec = tween(
-                                                                durationMillis = 380,
+                                                                durationMillis = 350,
                                                                 easing = morphExitEase
                                                             )
                                                         )
@@ -415,7 +426,7 @@ fun CourseDetailScreen(
                                                     animProgress.animateTo(
                                                         targetValue = 0f,
                                                         animationSpec = tween(
-                                                            durationMillis = 380,
+                                                            durationMillis = 350,
                                                             easing = morphExitEase
                                                         )
                                                     )

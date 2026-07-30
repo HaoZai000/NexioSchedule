@@ -68,6 +68,8 @@ import com.haooz.chedule.ui.components.AddEditCourseBottomSheet
 import com.haooz.chedule.ui.components.liquidglass.LiquidTopBarButton
 import com.haooz.chedule.ui.components.liquidglass.ProgressiveBlurTopBar
 import com.haooz.chedule.ui.miuix.OobeCubicOutEasing
+import com.haooz.chedule.ui.miuix.OobeFifthpowerOutEasing
+import com.haooz.chedule.ui.miuix.OobeQuadraticOutEasing
 import com.haooz.chedule.ui.miuix.OobeQuartOutEasing
 import com.haooz.chedule.ui.utils.isAppDarkTheme
 import com.haooz.chedule.ui.utils.rememberAppStyle
@@ -210,10 +212,10 @@ fun CourseEditScreen(
     val morphExitEase = OobeCubicOutEasing
     // translationY 独立曲线，时长根据起始卡片位置决定
     val isUpperHalf = cardTop < screenHeight / 2f
-    val transOpenEase = OobeQuartOutEasing
-    val transExitEase = OobeCubicOutEasing
-    val transOpenMillis = if (isUpperHalf) 580 else 540
-    val transExitMillis = if (isUpperHalf) 290 else 390
+    val transOpenEase = OobeFifthpowerOutEasing
+    val transExitEase = OobeQuadraticOutEasing
+    val transOpenMillis = if (isUpperHalf) 500 else 500
+    val transExitMillis = if (isUpperHalf) 320 else 320
 
     // ---- Back navigation with exit animation ----
     BackHandler {
@@ -224,7 +226,7 @@ fun CourseEditScreen(
                     animProgress.animateTo(
                         targetValue = 0f,
                         animationSpec = tween(
-                            durationMillis = 370,
+                            durationMillis = 350,
                             easing = morphExitEase
                         )
                     )
@@ -251,7 +253,7 @@ fun CourseEditScreen(
             animProgress.animateTo(
                 targetValue = 1f,
                 animationSpec = tween(
-                    durationMillis = 580,
+                    durationMillis = 560,
                     easing = morphOpenEase
                 )
             )
@@ -278,21 +280,19 @@ fun CourseEditScreen(
             val snapAlpha = (1f - p * 3f).coerceIn(0f, 1f)
             val contAlpha = ((p - 0.1f) / 0.5f).coerceIn(0f, 1f)
             val scale = cardWidth / screenWidth + (1f - cardWidth / screenWidth) * p
-            val translationX = (cardLeft + cardWidth / 2f - screenWidth / 2f) * (1f - p)
-            val translationY = cardTop * (1f - ty)
-            // clipBottom 在 pre-transform 空间，需要除以 scale 使渲染后高度正确
+            // 起点 = cardCenter, 终点 = screenCenter
+            val cardCenter = cardTop + cardHeight / 2f
+            val screenCenter = screenHeight / 2f
+            // 抛物线插值因子：ty 落后于 p → 前快后慢的曲线
+            val curveT = ty  // 直接用 ty 作为曲线参数
+            val targetCenter = cardCenter + (screenCenter - cardCenter) * curveT
+            // 从 targetCenter 反推 translationY
+            val translationY = targetCenter - screenHeight / 2f * (1f - scale) - (cardHeight + (screenHeight - cardHeight) * p) / 2f
+            // translationX 保持不变
+            val translationX = cardLeft * (1f - p) - screenWidth / 2f * (1f - scale)
             val rawClipBottom = cardHeight + (screenHeight - cardHeight) * p
             val clipBottom = rawClipBottom / scale
-            EditAnimState(
-                bgAlpha,
-                snapAlpha,
-                contAlpha,
-                translationX,
-                translationY,
-                scale,
-                clipBottom,
-                p
-            )
+            EditAnimState(bgAlpha, snapAlpha, contAlpha, translationX, translationY, scale, clipBottom, p)
         }
     }
 
@@ -336,13 +336,13 @@ fun CourseEditScreen(
     LaunchedEffect(courses.size) {
         if (courses.isEmpty() && !hasTriggeredAutoBack && animProgress.value > 0.5f) {
             hasTriggeredAutoBack = true
-            delay(400)
+            delay(400.milliseconds)
             onBackStart()
             coroutineScope {
                 launch {
                     animProgress.animateTo(
                         targetValue = 0f,
-                        animationSpec = tween(370, easing = morphExitEase)
+                        animationSpec = tween(350, easing = morphExitEase)
                     )
                 }
                 launch {
@@ -416,7 +416,7 @@ fun CourseEditScreen(
                 .fillMaxSize()
                 .graphicsLayer {
                     clip = false
-                    transformOrigin = TransformOrigin(0.5f, 0f)
+                    transformOrigin = TransformOrigin(0.5f, 0.5f)
                     scaleX = s.scale
                     scaleY = s.scale
                     translationX = s.translationX
@@ -471,7 +471,7 @@ fun CourseEditScreen(
                                                         animProgress.animateTo(
                                                             targetValue = 0f,
                                                             animationSpec = tween(
-                                                                durationMillis = 360,
+                                                                durationMillis = 350,
                                                                 easing = morphExitEase
                                                             )
                                                         )
@@ -524,7 +524,7 @@ fun CourseEditScreen(
                                                     animProgress.animateTo(
                                                         targetValue = 0f,
                                                         animationSpec = tween(
-                                                            durationMillis = 360,
+                                                            durationMillis = 350,
                                                             easing = morphExitEase
                                                         )
                                                     )
@@ -1073,7 +1073,6 @@ private fun CourseGroupCard(
     onEdit: (CourseGroup) -> Unit
 ) {
     val course = group.courses.first()
-    val isDark = isAppDarkTheme()
     val dayLabels = listOf("", "周一", "周二", "周三", "周四", "周五", "周六", "周日")
     val weekText = course.getWeekText().ifEmpty { "未设置" }
     val sectionText = course.getSectionText().ifEmpty { "未设置" }

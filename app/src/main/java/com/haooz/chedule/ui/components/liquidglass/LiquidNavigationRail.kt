@@ -37,7 +37,7 @@ fun LiquidNavigationRail(
 
     val statusBarPadding = WindowInsets.statusBars.asPaddingValues().calculateTopPadding()
     val topPadding = if (statusBarPadding > 0.dp) statusBarPadding else 36.dp
-    val isDark = isAppDarkTheme()
+    val isDark = !isAppDarkTheme()
     val textColor = if (isDark) Color.White.copy(alpha = 0.8f) else Color.Black.copy(alpha = 0.8f)
 
     Box(

@@ -40,6 +40,10 @@ internal val OobeSinOutEasing = Easing { fraction ->
     sin(fraction * PI.toFloat() / 2f)
 }
 
+internal val OobeQuadraticOutEasing = Easing { fraction ->
+    1f - (1f - fraction) * (1f - fraction)
+}
+
 internal val OobeCubicOutEasing = Easing { fraction ->
     1f - (1f - fraction) * (1f - fraction) * (1f - fraction)
 }
@@ -47,6 +51,11 @@ internal val OobeCubicOutEasing = Easing { fraction ->
 internal val OobeQuartOutEasing = Easing { fraction ->
     val inverse = 1f - fraction
     1f - inverse * inverse * inverse * inverse
+}
+
+internal val OobeFifthpowerOutEasing = Easing { fraction ->
+    val inverse = 1f - fraction
+    1f - inverse * inverse * inverse * inverse * inverse
 }
 
 internal val OobeHomeSpringEasing = Easing { fraction ->

@@ -29,6 +29,7 @@ import androidx.compose.ui.graphics.nativeCanvas
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.haooz.chedule.ui.utils.isAppDarkTheme
 import com.kyant.backdrop.Backdrop
 import com.kyant.shapes.RoundedRectangle
 import com.kyant.backdrop.drawBackdrop
@@ -49,7 +50,7 @@ fun LiquidGlassDropdownMenu(
     menuHeight: androidx.compose.ui.unit.Dp = 100.dp,
     content: @Composable ColumnScope.() -> Unit
 ) {
-    val isLightTheme = !isSystemInDarkTheme()
+    val isLightTheme = !isAppDarkTheme()
     val containerColor =
         if (isLightTheme) Color(0xFFFAFAFA).copy(0.4f)
         else Color(0xFF121212).copy(0.4f)
@@ -139,7 +140,7 @@ fun LiquidGlassDropdownMenuItem(
     onClick: () -> Unit,
     modifier: Modifier = Modifier
 ) {
-    val isLightTheme = !isSystemInDarkTheme()
+    val isLightTheme = !isAppDarkTheme()
     val textColor = if (isLightTheme) Color(0xFF1A1A1A) else Color(0xFFE8E4DE)
 
     Box(

@@ -8,7 +8,7 @@ data class AppreciationItem(
 )
 
 val sampleAppreciations = listOf(
-    AppreciationItem("匿名", "¥11.45", "2026-07-27", "梦中情（课程）表\uD83E\uDD79感谢开发，加油！(ง๑ •̀_•́)ง"),
+    AppreciationItem("", "¥11.45", "2026-07-27", "梦中情（课程）表\uD83E\uDD79感谢开发，加油！(ง๑ •̀_•́)ง"),
     AppreciationItem("mendacious", "¥0.01", "2026-07-21", "给我留名，给我欧气"),
     AppreciationItem("QAQ", "¥2.22", "2026-07-21", "有一个人前来支持վ'ᴗ' ի"),
     AppreciationItem("停留那片海", "¥6.66", "2026-07-21", "爱播，我要做你的死侍"),

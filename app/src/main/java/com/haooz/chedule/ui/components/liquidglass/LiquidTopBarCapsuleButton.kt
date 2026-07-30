@@ -33,6 +33,7 @@ import top.yukonga.miuix.kmp.icon.MiuixIcons
 import top.yukonga.miuix.kmp.icon.extended.ConvertFile
 import top.yukonga.miuix.kmp.icon.extended.More
 import androidx.compose.ui.draw.drawBehind
+import com.haooz.chedule.ui.utils.isAppDarkTheme
 
 @Composable
 fun LiquidTopBarCapsuleButton(
@@ -45,7 +46,7 @@ fun LiquidTopBarCapsuleButton(
 ) {
     val animationScope = rememberCoroutineScope()
     val hapticFeedback = LocalHapticFeedback.current
-    val isLightTheme = !isSystemInDarkTheme()
+    val isLightTheme = !isAppDarkTheme()
     val containerColor =
         if (isLightTheme) Color(0xFFFAFAFA).copy(0.4f)
         else Color(0xFF121212).copy(0.4f)

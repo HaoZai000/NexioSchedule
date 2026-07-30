@@ -99,6 +99,8 @@ import top.yukonga.miuix.kmp.basic.SmallTopAppBar
 import top.yukonga.miuix.kmp.basic.Switch
 import top.yukonga.miuix.kmp.basic.TextButton
 import com.haooz.chedule.ui.components.NativeMiuixTextField
+import com.haooz.chedule.ui.miuix.OobeFifthpowerOutEasing
+import com.haooz.chedule.ui.miuix.OobeQuadraticOutEasing
 import top.yukonga.miuix.kmp.basic.TopAppBar
 import top.yukonga.miuix.kmp.blur.BlendColorEntry
 import top.yukonga.miuix.kmp.blur.BlurBlendMode
@@ -262,10 +264,10 @@ fun TimeConfigEditScreen(
     val morphOpenEase = OobeQuartOutEasing
     val morphExitEase = OobeCubicOutEasing
     val isUpperHalf = cardTop < screenHeight / 2f
-    val transOpenEase = OobeQuartOutEasing
-    val transExitEase = OobeCubicOutEasing
-    val transOpenMillis = if (isUpperHalf) 580 else 540
-    val transExitMillis = if (isUpperHalf) 290 else 390
+    val transOpenEase = OobeFifthpowerOutEasing
+    val transExitEase = OobeQuadraticOutEasing
+    val transOpenMillis = if (isUpperHalf) 500 else 500
+    val transExitMillis = if (isUpperHalf) 320 else 320
     val hasCardBounds = cardWidth > 0f && cardHeight > 0f && screenWidth > 0f
 
     // 动画过程中阻止返回
@@ -288,7 +290,7 @@ fun TimeConfigEditScreen(
                 launch {
                     animProgress.animateTo(
                         targetValue = 0f,
-                        animationSpec = tween(durationMillis = 370, easing = morphExitEase)
+                        animationSpec = tween(durationMillis = 350, easing = morphExitEase)
                     )
                 }
                 launch {
@@ -311,7 +313,7 @@ fun TimeConfigEditScreen(
             launch {
                 animProgress.animateTo(
                     targetValue = 1f,
-                    animationSpec = tween(durationMillis = 580, easing = morphOpenEase)
+                    animationSpec = tween(durationMillis = 560, easing = morphOpenEase)
                 )
             }
             launch {
@@ -334,20 +336,18 @@ fun TimeConfigEditScreen(
                 val snapAlpha = (1f - p * 3f).coerceIn(0f, 1f)
                 val contAlpha = ((p - 0.1f) / 0.5f).coerceIn(0f, 1f)
                 val scale = cardWidth / screenWidth + (1f - cardWidth / screenWidth) * p
+
                 val translationX = (cardLeft + cardWidth / 2f - screenWidth / 2f) * (1f - p)
-                val translationY = cardTop * (1f - ty)
+
+                // ★ 可见区域中心 Y 直接沿抛物线插值，不再依赖 p 和 ty 的时间差
+                val cardCenterY = cardTop + cardHeight / 2f
+                val screenCenterY = screenHeight / 2f
+                val targetCenterY = cardCenterY + (screenCenterY - cardCenterY) * ty
+                val translationY = targetCenterY - screenHeight / 2f * (1f - scale) - (cardHeight + (screenHeight - cardHeight) * p) / 2f
+
                 val rawClipBottom = cardHeight + (screenHeight - cardHeight) * p
                 val clipBottom = rawClipBottom / scale
-                ConfigAnimState(
-                    bgAlpha,
-                    snapAlpha,
-                    contAlpha,
-                    translationX,
-                    translationY,
-                    scale,
-                    clipBottom,
-                    p
-                )
+                ConfigAnimState(bgAlpha, snapAlpha, contAlpha, translationX, translationY, scale, clipBottom, p)
             }
         }
     }
@@ -369,7 +369,7 @@ fun TimeConfigEditScreen(
                 launch {
                     animProgress.animateTo(
                         targetValue = 0f,
-                        animationSpec = tween(durationMillis = 370, easing = morphExitEase)
+                        animationSpec = tween(durationMillis = 350, easing = morphExitEase)
                     )
                 }
                 launch {
@@ -519,7 +519,7 @@ fun TimeConfigEditScreen(
                 .fillMaxSize()
                 .graphicsLayer {
                     clip = false
-                    transformOrigin = TransformOrigin(0.5f, 0f)
+                    transformOrigin = TransformOrigin(0.5f, 0.5f)
                     scaleX = s.scale
                     scaleY = s.scale
                     translationX = s.translationX

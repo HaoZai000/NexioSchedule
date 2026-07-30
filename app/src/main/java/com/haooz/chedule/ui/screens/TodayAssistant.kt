@@ -360,6 +360,7 @@ private fun generateSmartTip(
     val prev = ranges.lastOrNull { now.isAfter(it.end) }
 
     val eveningCount = courses.count { it.startSection > morningSections + afternoonSections }
+    val afternoonCount = courses.count { it.startSection in (morningSections + 1)..(morningSections + afternoonSections) }
     val totalCount = courses.size
     val completedCount = ranges.count { now.isAfter(it.end) }
 
@@ -404,18 +405,20 @@ private fun generateSmartTip(
             val greeting = getGreeting()
             val hour = now.hour
             val tomorrowCount = tomorrowCourses.size
-            val tomorrowInfo = when {
-                tomorrowCount > 0 && hour >= 21 -> "，明天有 $tomorrowCount 节课"
-                tomorrowCount == 0 && hour >= 21 -> "，明天没课"
-                else -> ""
-            }
+            val tomorrowInfo = if (tomorrowCount > 0 && hour >= 21) {
+                val firstCourse = tomorrowRanges.firstOrNull()?.course
+                if (firstCourse != null) "，明天有 $tomorrowCount 节课，${firstCourse.name}是第一节课"
+                else "，明天有 $tomorrowCount 节课"
+            } else if (tomorrowCount == 0 && hour >= 21) {
+                "，明天没课"
+            } else ""
             when {
                 completedCount == totalCount && hour >= 22 -> "$greeting，今天 $totalCount 节课都上完了，早点休息$tomorrowInfo"
                 completedCount == totalCount && hour in 18..21 -> "$greeting，今天 $totalCount 节课都上完了，辛苦了$tomorrowInfo"
                 completedCount == totalCount -> "$greeting，今天 $totalCount 节课都上完了$tomorrowInfo"
                 completedCount > 0 && hour >= 22 -> "$greeting，已经上了 $completedCount/$totalCount 节课，早点休息$tomorrowInfo"
                 completedCount > 0 -> "$greeting，已经上了 $completedCount/$totalCount 节课$tomorrowInfo"
-                eveningCount > 0 && hour in 12..14 -> "$greeting，下午还有 $eveningCount 节课"
+                afternoonCount > 0 && hour in 12..14 -> "$greeting，下午还有 $afternoonCount 节课"
                 eveningCount > 0 && hour in 14..17 -> "$greeting，晚上还有 $eveningCount 节课"
                 else -> "$greeting，今天还有 $totalCount 节课"
             }
