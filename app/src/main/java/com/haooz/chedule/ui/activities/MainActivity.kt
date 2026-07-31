@@ -949,7 +949,7 @@ fun CourseScheduleApp() {
 
     // 退出缩放中心：与搭配界面卡片中心对齐
 
-    Box(modifier = Modifier.fillMaxSize().background(if (showCustomizePage) Color.Black else MiuixTheme.colorScheme.surface)) {
+    Box(modifier = Modifier.fillMaxSize().background(if (showCustomizePage) Color(0xFF1A1A1A) else MiuixTheme.colorScheme.surface)) {
         val isEntryAnimating = showSwitchSchedule && switchAnimForward && switchAnimRunning
         val mainContentAlpha = when {
             showSwitchSchedule && switchScreenSnapshot != null -> 0f
