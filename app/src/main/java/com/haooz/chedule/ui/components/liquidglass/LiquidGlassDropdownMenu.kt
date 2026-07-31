@@ -119,7 +119,7 @@ fun LiquidGlassDropdownMenu(
                     effects = {
                         vibrancy()
                         blur(2f.dp.toPx())
-                        lens(12f.dp.toPx(), 12f.dp.toPx())
+                        lens(24f.dp.toPx(), 24f.dp.toPx())
                     },
                     shadow = null,
                     onDrawSurface = {

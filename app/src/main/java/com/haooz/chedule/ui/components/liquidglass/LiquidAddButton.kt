@@ -52,7 +52,7 @@ fun LiquidAddButton(
                 effects = {
                     vibrancy()
                     blur(2f.dp.toPx())
-                    lens(18f.dp.toPx(), 18f.dp.toPx())
+                    lens(20f.dp.toPx(), 20f.dp.toPx())
                 },
                 layerBlock = {
                     val progress = interactiveHighlight.pressProgress

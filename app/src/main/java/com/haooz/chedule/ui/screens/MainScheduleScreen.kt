@@ -4,7 +4,10 @@ package com.haooz.chedule.ui.screens
 import androidx.activity.ComponentActivity
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.gestures.detectTransformGestures
+import androidx.compose.foundation.gestures.awaitEachGesture
+import androidx.compose.foundation.gestures.awaitFirstDown
+import androidx.compose.foundation.gestures.calculateZoom
+import androidx.compose.foundation.gestures.calculatePan
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -35,6 +38,12 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
+import androidx.compose.animation.core.Animatable
+import androidx.compose.animation.core.CubicBezierEasing
+import androidx.compose.animation.core.animate
+import androidx.compose.animation.core.spring
+import androidx.compose.animation.core.Spring
+import androidx.compose.animation.core.tween
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -46,7 +55,9 @@ import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.layout.onGloballyPositioned
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -122,6 +133,23 @@ fun MainScheduleScreen(
     val selectedStartSection by viewModel.selectedStartSection.collectAsState()
     val selectedEndSection by viewModel.selectedEndSection.collectAsState()
     val hapticFeedback = LocalHapticFeedback.current
+    val configuration = LocalConfiguration.current
+    val density = LocalDensity.current
+    val screenWidthPx = with(density) { configuration.screenWidthDp.dp.toPx() }
+    val screenHeightPx = with(density) { configuration.screenHeightDp.dp.toPx() }
+
+    // 计算壁纸最小缩放比例（填满短边，确保不露出底部背景）
+    // ContentScale.Fit 的基础缩放 = min(screenW/bitmapW, screenH/bitmapH)
+    // 要覆盖屏幕需要最终缩放 = max(screenW/bitmapW, screenH/bitmapH)
+    // 所以 wallpaperScale 的最小值 = max / min
+    val minWallpaperScale = remember(wallpaperBitmap, screenWidthPx, screenHeightPx) {
+        val bmp = wallpaperBitmap
+        if (bmp != null && bmp.width > 0 && bmp.height > 0) {
+            val fitScale = minOf(screenWidthPx / bmp.width, screenHeightPx / bmp.height)
+            val coverScale = maxOf(screenWidthPx / bmp.width, screenHeightPx / bmp.height)
+            if (fitScale > 0f) coverScale / fitScale else 1f
+        } else 1f
+    }
 
     var showCourseDetail by remember { mutableStateOf(false) }
     var sheetContentBackdrop by remember { mutableStateOf<com.kyant.backdrop.Backdrop?>(null) }
@@ -267,6 +295,28 @@ fun MainScheduleScreen(
         val latestWallpaperOffset by rememberUpdatedState(wallpaperOffset)
         val latestOnScaleChange by rememberUpdatedState(onWallpaperScaleChange)
         val latestOnOffsetChange by rememberUpdatedState(onWallpaperOffsetChange)
+        val latestMinWallpaperScale by rememberUpdatedState(minWallpaperScale)
+        val latestWallpaperBitmap by rememberUpdatedState(wallpaperBitmap)
+        val latestScreenWidthPx by rememberUpdatedState(screenWidthPx)
+        val latestScreenHeightPx by rememberUpdatedState(screenHeightPx)
+
+        // 手势结束后触发缩放回弹动画（指针输入作用域内无法调用 animate，需通过状态触发）
+        var bounceBackTrigger by remember { mutableIntStateOf(0) }
+        var gestureEndScale by remember { mutableStateOf(1f) }
+        LaunchedEffect(bounceBackTrigger) {
+            if (bounceBackTrigger > 0 && gestureEndScale < latestMinWallpaperScale) {
+                animate(
+                    initialValue = gestureEndScale,
+                    targetValue = latestMinWallpaperScale,
+                    animationSpec = tween(
+                        durationMillis = 350,
+                        easing = CubicBezierEasing(0.34f, 1.1f, 0.3f, 1f)
+                    )
+                ) { value, _ ->
+                    onWallpaperScaleChange(value)
+                }
+            }
+        }
 
         HorizontalPager(
             state = pagerState,
@@ -439,9 +489,49 @@ fun MainScheduleScreen(
                     modifier = Modifier
                         .fillMaxSize()
                         .pointerInput(Unit) {
-                            detectTransformGestures { _, pan, zoom, _ ->
-                                latestOnScaleChange((latestWallpaperScale * zoom).coerceIn(0.5f, 3f))
-                                latestOnOffsetChange(latestWallpaperOffset + pan)
+                            awaitEachGesture {
+                                val down = awaitFirstDown()
+                                down.consume()
+                                var gestureScale = latestWallpaperScale
+                                var lastDisplayScale = gestureScale
+                                do {
+                                    val event = awaitPointerEvent()
+                                    val zoom = event.calculateZoom()
+                                    val pan = event.calculatePan()
+                                    gestureScale *= zoom
+                                    // 低于最小缩放时逐渐增大阻力，越缩越难
+                                    val newScale = if (gestureScale < latestMinWallpaperScale) {
+                                        val diff = gestureScale - latestMinWallpaperScale
+                                        latestMinWallpaperScale + diff * 0.3f
+                                    } else {
+                                        gestureScale
+                                    }
+                                    lastDisplayScale = newScale
+                                    // 计算合法偏移范围
+                                    val bmp = latestWallpaperBitmap
+                                    if (bmp != null && bmp.width > 0 && bmp.height > 0) {
+                                        val fitScale = minOf(latestScreenWidthPx / bmp.width, latestScreenHeightPx / bmp.height)
+                                        val scaledW = bmp.width * fitScale * newScale
+                                        val scaledH = bmp.height * fitScale * newScale
+                                        val maxOffsetX = ((scaledW - latestScreenWidthPx) / 2f).coerceAtLeast(0f)
+                                        val maxOffsetY = ((scaledH - latestScreenHeightPx) / 2f).coerceAtLeast(0f)
+                                        val newOffset = latestWallpaperOffset + pan
+                                        latestOnScaleChange(newScale)
+                                        latestOnOffsetChange(
+                                            androidx.compose.ui.geometry.Offset(
+                                                newOffset.x.coerceIn(-maxOffsetX, maxOffsetX),
+                                                newOffset.y.coerceIn(-maxOffsetY, maxOffsetY)
+                                            )
+                                        )
+                                    } else {
+                                        latestOnScaleChange(newScale)
+                                        latestOnOffsetChange(latestWallpaperOffset + pan)
+                                    }
+                                    event.changes.forEach { it.consume() }
+                                } while (event.changes.any { it.pressed })
+                                // 手势结束，记录最终显示缩放并标记需要回弹
+                                gestureEndScale = lastDisplayScale
+                                bounceBackTrigger++
                             }
                         }
                 )

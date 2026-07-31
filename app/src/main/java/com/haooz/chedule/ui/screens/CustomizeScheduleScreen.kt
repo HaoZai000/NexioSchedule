@@ -8,6 +8,9 @@ import androidx.activity.compose.BackHandler
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.CubicBezierEasing
+import androidx.compose.animation.core.Spring
+import androidx.compose.animation.core.animate
+import androidx.compose.animation.core.spring
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.slideInVertically
 import androidx.compose.animation.slideOutVertically
@@ -15,7 +18,10 @@ import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.combinedClickable
-import androidx.compose.foundation.gestures.detectTransformGestures
+import androidx.compose.foundation.gestures.awaitEachGesture
+import androidx.compose.foundation.gestures.awaitFirstDown
+import androidx.compose.foundation.gestures.calculateZoom
+import androidx.compose.foundation.gestures.calculatePan
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -173,6 +179,17 @@ fun CustomizeScheduleScreen(
     val scope = rememberCoroutineScope()
     val configuration = LocalConfiguration.current
     val screenHPx = with(densityObj) { configuration.screenHeightDp.dp.toPx() }
+    val screenWPx = with(densityObj) { configuration.screenWidthDp.dp.toPx() }
+
+    // 计算壁纸最小缩放比例（填满短边，确保不露出底部背景）
+    val minWallpaperScale = remember(wallpaperBitmap, screenWPx, screenHPx) {
+        val bmp = wallpaperBitmap
+        if (bmp != null && bmp.width > 0 && bmp.height > 0) {
+            val fitScale = minOf(screenWPx / bmp.width, screenHPx / bmp.height)
+            val coverScale = maxOf(screenWPx / bmp.width, screenHPx / bmp.height)
+            if (fitScale > 0f) coverScale / fitScale else 1f
+        } else 1f
+    }
 
     // 模糊支持检测（API 31+ 支持 graphicsLayer blurRadius）
     val blurSupported = isRuntimeShaderSupported()
@@ -862,13 +879,76 @@ fun CustomizeScheduleScreen(
             val latestOffset by rememberUpdatedState(wallpaperOffset)
             val latestOnScale by rememberUpdatedState(onWallpaperScaleChange)
             val latestOnOffset by rememberUpdatedState(onWallpaperOffsetChange)
+            val latestMinWallpaperScale by rememberUpdatedState(minWallpaperScale)
+            val latestWallpaperBitmap by rememberUpdatedState(wallpaperBitmap)
+            val latestScreenWPx by rememberUpdatedState(screenWPx)
+            val latestScreenHPx by rememberUpdatedState(screenHPx)
+
+            // 手势结束后触发缩放回弹动画
+            var bounceBackTrigger by remember { mutableIntStateOf(0) }
+            var gestureEndScale by remember { mutableStateOf(1f) }
+            LaunchedEffect(bounceBackTrigger) {
+                if (bounceBackTrigger > 0 && gestureEndScale < latestMinWallpaperScale) {
+                    animate(
+                        initialValue = gestureEndScale,
+                        targetValue = latestMinWallpaperScale,
+                        animationSpec = tween(
+                            durationMillis = 350,
+                            easing = CubicBezierEasing(0.34f, 1.1f, 0.3f, 1f)
+                        )
+                    ) { value, _ ->
+                        onWallpaperScaleChange(value)
+                    }
+                }
+            }
+
             Box(
                 modifier = Modifier
                     .fillMaxSize()
                     .pointerInput(Unit) {
-                        detectTransformGestures { _, pan, zoom, _ ->
-                            latestOnScale((latestScale * zoom).coerceIn(0.5f, 5f))
-                            latestOnOffset(latestOffset + pan)
+                        awaitEachGesture {
+                            val down = awaitFirstDown()
+                            down.consume()
+                            var gestureScale = latestScale
+                            var lastDisplayScale = gestureScale
+                            do {
+                                val event = awaitPointerEvent()
+                                val zoom = event.calculateZoom()
+                                val pan = event.calculatePan()
+                                gestureScale *= zoom
+                                // 低于最小缩放时逐渐增大阻力，越缩越难
+                                val newScale = if (gestureScale < latestMinWallpaperScale) {
+                                    val diff = gestureScale - latestMinWallpaperScale
+                                    latestMinWallpaperScale + diff * 0.3f
+                                } else {
+                                    gestureScale
+                                }
+                                lastDisplayScale = newScale
+                                // 计算合法偏移范围
+                                val bmp = latestWallpaperBitmap
+                                if (bmp != null && bmp.width > 0 && bmp.height > 0) {
+                                    val fitScale = minOf(latestScreenWPx / bmp.width, latestScreenHPx / bmp.height)
+                                    val scaledW = bmp.width * fitScale * newScale
+                                    val scaledH = bmp.height * fitScale * newScale
+                                    val maxOffsetX = ((scaledW - latestScreenWPx) / 2f).coerceAtLeast(0f)
+                                    val maxOffsetY = ((scaledH - latestScreenHPx) / 2f).coerceAtLeast(0f)
+                                    val newOffset = latestOffset + pan
+                                    latestOnScale(newScale)
+                                    latestOnOffset(
+                                        Offset(
+                                            newOffset.x.coerceIn(-maxOffsetX, maxOffsetX),
+                                            newOffset.y.coerceIn(-maxOffsetY, maxOffsetY)
+                                        )
+                                    )
+                                } else {
+                                    latestOnScale(newScale)
+                                    latestOnOffset(latestOffset + pan)
+                                }
+                                event.changes.forEach { it.consume() }
+                            } while (event.changes.any { it.pressed })
+                            // 手势结束，记录最终显示缩放并标记需要回弹
+                            gestureEndScale = lastDisplayScale
+                            bounceBackTrigger++
                         }
                     }
             )

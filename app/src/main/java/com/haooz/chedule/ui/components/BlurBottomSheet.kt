@@ -180,7 +180,7 @@ private fun BlurBottomSheetContent(
                 targetValue = 1f,
                 animationSpec = tween(
                     durationMillis = 520,
-                    easing = CubicBezierEasing(0.34f, 1.18f, 0.3f, 1f)
+                    easing = CubicBezierEasing(0.34f, 1.15f, 0.3f, 1f)
                 )
             )
         } else {

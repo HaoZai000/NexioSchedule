@@ -93,7 +93,7 @@ fun LiquidTopBarButton(
                 effects = {
                     vibrancy()
                     blur(2f.dp.toPx())
-                    lens(12f.dp.toPx(), 12f.dp.toPx())
+                    lens(18f.dp.toPx(), 18f.dp.toPx())
                 },
                 shadow = if (useBackdropShadow) {
                     { Shadow(alpha = 1f) }

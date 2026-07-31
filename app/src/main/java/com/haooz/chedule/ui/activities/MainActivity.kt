@@ -360,6 +360,10 @@ fun CourseScheduleApp() {
             listOf(Configuration.SCREENLAYOUT_SIZE_LARGE, Configuration.SCREENLAYOUT_SIZE_XLARGE)
     val navBarStyle = if (isTablet) "rail" else "standard"
     val windowInfo = androidx.compose.ui.platform.LocalWindowInfo.current
+    val density = LocalDensity.current
+    // 提前计算屏幕像素尺寸，供 picker 回调和 LaunchedEffect 使用
+    val screenWPx = with(density) { config.screenWidthDp.dp.toPx() }
+    val screenHPx = with(density) { config.screenHeightDp.dp.toPx() }
     val railState = if (navBarStyle == "rail") rememberNavigationRailState() else null
     val railPaddingStart by animateDpAsState(
         targetValue = if (appStyle == "liquidglass" && liquidGlassBackdrop != null && navBarStyle == "rail") {
@@ -415,6 +419,7 @@ fun CourseScheduleApp() {
     var wallpaperBitmap by remember { mutableStateOf(MainActivity.cachedWallpaperBitmap) }
     var wallpaperOffset by remember { mutableStateOf(MainActivity.cachedWallpaperOffset) }
     var wallpaperScale by remember { mutableFloatStateOf(MainActivity.cachedWallpaperScale) }
+
     // 保存"已应用"的壁纸快照，用于开洞编辑取消时回退到当前查看的搭配
     var savedWallpaperBitmap by remember { mutableStateOf<android.graphics.Bitmap?>(null) }
     var savedWallpaperOffset by remember { mutableStateOf(wallpaperOffset) }
@@ -517,10 +522,17 @@ fun CourseScheduleApp() {
         if (curr != null) {
             wallpaperBitmap = curr.bitmap
             wallpaperOffset = curr.offset
-            wallpaperScale = curr.scale
+            // 计算最小缩放比例，确保壁纸填满屏幕不露出底部背景
+            val bmp = curr.bitmap
+            val minScale = if (bmp != null && bmp.width > 0 && bmp.height > 0) {
+                val fitScale = minOf(screenWPx / bmp.width, screenHPx / bmp.height)
+                val coverScale = maxOf(screenWPx / bmp.width, screenHPx / bmp.height)
+                if (fitScale > 0f) coverScale / fitScale else 1f
+            } else 1f
+            wallpaperScale = maxOf(curr.scale, minScale)
             savedWallpaperBitmap = curr.bitmap
             savedWallpaperOffset = curr.offset
-            savedWallpaperScale = curr.scale
+            savedWallpaperScale = wallpaperScale
             savedCourseCardBlur = curr.cardBlurRadius
             courseCardBlur = curr.cardBlurRadius
             savedCourseCardAlpha = curr.cardAlpha
@@ -535,7 +547,7 @@ fun CourseScheduleApp() {
             showBreakDividers = curr.showBreakDividers
             originalWallpaperBitmap = curr.bitmap
             originalWallpaperOffset = curr.offset
-            originalWallpaperScale = curr.scale
+            originalWallpaperScale = wallpaperScale
         }
 
         // Phase 2：后台逐张解码其余搭配的壁纸
@@ -565,7 +577,14 @@ fun CourseScheduleApp() {
             if (c != null) {
                 wallpaperBitmap = c.bitmap
                 wallpaperOffset = c.offset
-                wallpaperScale = c.scale
+                // 计算最小缩放比例，确保壁纸填满屏幕不露出底部背景
+                val bmp = c.bitmap
+                val minScale = if (bmp != null && bmp.width > 0 && bmp.height > 0) {
+                    val fitScale = minOf(screenWPx / bmp.width, screenHPx / bmp.height)
+                    val coverScale = maxOf(screenWPx / bmp.width, screenHPx / bmp.height)
+                    if (fitScale > 0f) coverScale / fitScale else 1f
+                } else 1f
+                wallpaperScale = maxOf(c.scale, minScale)
                 courseCardBlur = c.cardBlurRadius
                 courseCardAlpha = c.cardAlpha
                 courseCardHeight = c.cardHeight
@@ -682,7 +701,7 @@ fun CourseScheduleApp() {
         }
     }
 
-    val density = LocalDensity.current
+
     val isInFreeformWindow = activity?.isInFreeformWindow ?: false
 
     val screenCornerRadius = remember(isInFreeformWindow) {
@@ -797,7 +816,14 @@ fun CourseScheduleApp() {
                 val savedOrigBri2 = originalWallpaperBrightness
                 wallpaperBitmap = nextComb.bitmap
                 wallpaperOffset = nextComb.offset
-                wallpaperScale = nextComb.scale
+                // 计算最小缩放比例，确保壁纸填满屏幕不露出底部背景
+                val bmp2 = nextComb.bitmap
+                val minScale2 = if (bmp2 != null && bmp2.width > 0 && bmp2.height > 0) {
+                    val fitScale = minOf(screenWPx / bmp2.width, screenHPx / bmp2.height)
+                    val coverScale = maxOf(screenWPx / bmp2.width, screenHPx / bmp2.height)
+                    if (fitScale > 0f) coverScale / fitScale else 1f
+                } else 1f
+                wallpaperScale = maxOf(nextComb.scale, minScale2)
                 courseCardBlur = nextComb.cardBlurRadius
                 courseCardAlpha = nextComb.cardAlpha
                 courseCardHeight = nextComb.cardHeight
@@ -869,7 +895,14 @@ fun CourseScheduleApp() {
                 val comb = combinations[i]
                 wallpaperBitmap = comb.bitmap
                 wallpaperOffset = comb.offset
-                wallpaperScale = comb.scale
+                // 计算最小缩放比例，确保壁纸填满屏幕不露出底部背景
+                val bmp3 = comb.bitmap
+                val minScale3 = if (bmp3 != null && bmp3.width > 0 && bmp3.height > 0) {
+                    val fitScale = minOf(screenWPx / bmp3.width, screenHPx / bmp3.height)
+                    val coverScale = maxOf(screenWPx / bmp3.width, screenHPx / bmp3.height)
+                    if (fitScale > 0f) coverScale / fitScale else 1f
+                } else 1f
+                wallpaperScale = maxOf(comb.scale, minScale3)
                 courseCardBlur = comb.cardBlurRadius
                 courseCardAlpha = comb.cardAlpha
                 courseCardHeight = comb.cardHeight
@@ -920,9 +953,15 @@ fun CourseScheduleApp() {
                 android.graphics.BitmapFactory.decodeStream(stream)
             }
             wallpaperBitmap = bitmap
-            // 选择新壁纸时重置位移与缩放，便于从头调整
+            // 选择新壁纸时重置位移，缩放自动计算为填满短边的最小值
             wallpaperOffset = androidx.compose.ui.geometry.Offset.Zero
-            wallpaperScale = 1f
+            // 自动计算最小缩放比例，确保壁纸填满屏幕不露出底部背景
+            val autoScale = if (bitmap != null && bitmap.width > 0 && bitmap.height > 0) {
+                val fitScale = minOf(screenWPx / bitmap.width, screenHPx / bitmap.height)
+                val coverScale = maxOf(screenWPx / bitmap.width, screenHPx / bitmap.height)
+                if (fitScale > 0f) coverScale / fitScale else 1f
+            } else 1f
+            wallpaperScale = autoScale
             // 同步到当前搭配
             val idx = currentCombinationIndex
             if (idx in combinations.indices) {
@@ -930,7 +969,7 @@ fun CourseScheduleApp() {
                     it[idx] = it[idx].copy(
                         bitmap = bitmap,
                         offset = androidx.compose.ui.geometry.Offset.Zero,
-                        scale = 1f
+                        scale = autoScale
                     )
                 }
             }
@@ -1678,7 +1717,14 @@ fun CourseScheduleApp() {
                             val c = combinations[combIdx]
                             wallpaperBitmap = c.bitmap
                             wallpaperOffset = c.offset
-                            wallpaperScale = c.scale
+                            // 计算最小缩放比例，确保壁纸填满屏幕不露出底部背景
+                            val bmp = c.bitmap
+                            val minScale = if (bmp != null && bmp.width > 0 && bmp.height > 0) {
+                                val fitScale = minOf(screenWPx / bmp.width, screenHPx / bmp.height)
+                                val coverScale = maxOf(screenWPx / bmp.width, screenHPx / bmp.height)
+                                if (fitScale > 0f) coverScale / fitScale else 1f
+                            } else 1f
+                            wallpaperScale = maxOf(c.scale, minScale)
                             courseCardBlur = c.cardBlurRadius
                             courseCardAlpha = c.cardAlpha
                             courseCardHeight = c.cardHeight
@@ -1689,7 +1735,7 @@ fun CourseScheduleApp() {
                             // 切换搭配时必须同步，否则取消编辑会闪回原搭配
                             savedWallpaperBitmap = c.bitmap
                             savedWallpaperOffset = c.offset
-                            savedWallpaperScale = c.scale
+                            savedWallpaperScale = wallpaperScale
                             savedCourseCardBlur = c.cardBlurRadius
                             savedCourseCardAlpha = c.cardAlpha
                             savedCourseCardHeight = c.cardHeight
@@ -1743,10 +1789,17 @@ fun CourseScheduleApp() {
                                     val c = combinations[currentCombinationIndex]
                                     wallpaperBitmap = c.bitmap
                                     wallpaperOffset = c.offset
-                                    wallpaperScale = c.scale
+                                    // 计算最小缩放比例，确保壁纸填满屏幕不露出底部背景
+                                    val bmpDel = c.bitmap
+                                    val minScaleDel = if (bmpDel != null && bmpDel.width > 0 && bmpDel.height > 0) {
+                                        val fitScale = minOf(screenWPx / bmpDel.width, screenHPx / bmpDel.height)
+                                        val coverScale = maxOf(screenWPx / bmpDel.width, screenHPx / bmpDel.height)
+                                        if (fitScale > 0f) coverScale / fitScale else 1f
+                                    } else 1f
+                                    wallpaperScale = maxOf(c.scale, minScaleDel)
                                     savedWallpaperBitmap = c.bitmap
                                     savedWallpaperOffset = c.offset
-                                    savedWallpaperScale = c.scale
+                                    savedWallpaperScale = wallpaperScale
                                     savedCourseCardBlur = c.cardBlurRadius
                                     savedCourseCardAlpha = c.cardAlpha
                                     savedCourseCardHeight = c.cardHeight
@@ -1764,7 +1817,7 @@ fun CourseScheduleApp() {
                                     // 无条件更新原始搭配值，确保 MainScheduleScreen 显示正确
                                     originalWallpaperBitmap = c.bitmap
                                     originalWallpaperOffset = c.offset
-                                    originalWallpaperScale = c.scale
+                                    originalWallpaperScale = wallpaperScale
                                     originalCourseCardBlur = c.cardBlurRadius
                                     originalCourseCardAlpha = c.cardAlpha
                                     originalCourseCardHeight = c.cardHeight
