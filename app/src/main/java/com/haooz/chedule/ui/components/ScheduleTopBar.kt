@@ -1,6 +1,5 @@
 package com.haooz.chedule.ui.components
 
-import android.content.Context
 import android.os.Build
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.FastOutSlowInEasing
@@ -13,24 +12,19 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.WindowInsets
-import androidx.compose.foundation.layout.asPaddingValues
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.statusBars
 import androidx.compose.foundation.layout.width
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.RectangleShape
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.layout.onGloballyPositioned
-import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.text.font.FontWeight
@@ -121,11 +115,7 @@ internal fun ScheduleTopBar(
 
     val density = LocalDensity.current
     val hapticFeedback = LocalHapticFeedback.current
-    val context = LocalContext.current
-    val themePrefs = remember { context.getSharedPreferences("app_theme_prefs", Context.MODE_PRIVATE) }
     val appStyle = com.haooz.chedule.ui.utils.rememberAppStyle()
-    val statusBarPadding = WindowInsets.statusBars.asPaddingValues().calculateTopPadding()
-    val tabletTopPadding = if (statusBarPadding > 0.dp) statusBarPadding + 4.dp else 40.dp
 
     val railPaddingStart by animateDpAsState(
         targetValue = if (appStyle == "liquidglass" && navBarStyle == "rail") {
@@ -220,60 +210,64 @@ internal fun ScheduleTopBar(
                         onTitleBarMeasured(with(density) { coordinates.size.height.toDp() })
                     },
                 navigationIcon = {
-                    if (navBarStyle == "rail" && appStyle == "liquidglass" && liquidGlassBackdrop != null) {
-                        Text(
-                            text = when {
-                                isHoliday -> "放假中"
-                                currentWeek < 1 -> "学期未开始"
-                                else -> "第${pagerCurrentPage + 1}周"
-                            },
-                            fontSize = 21.sp,
-                            fontWeight = FontWeight.Medium,
-                            color = MiuixTheme.colorScheme.onSurface,
-                            modifier = Modifier.padding(start = 12.dp)
-                        )
-                    } else if (navBarStyle == "rail") {
-                        AnimatedVisibility(
-                            visible = !isViewingCurrentWeek,
-                            enter = fadeIn(animationSpec = tween(180)),
-                            exit = fadeOut(animationSpec = tween(120))
-                        ) {
-                            IconButton(
-                                onClick = onBackToCurrentWeek,
-                                modifier = Modifier.padding(start = 4.dp)
-                            ) {
-                                Icon(
-                                    imageVector = MiuixIcons.Medium.Reset,
-                                    contentDescription = "返回本周",
-                                    modifier = Modifier.size(24.dp)
-                                )
-                            }
+                    when (navBarStyle) {
+                        "rail" if appStyle == "liquidglass" && liquidGlassBackdrop != null -> {
+                            Text(
+                                text = when {
+                                    isHoliday -> "放假中"
+                                    currentWeek < 1 -> "学期未开始"
+                                    else -> "第${pagerCurrentPage + 1}周"
+                                },
+                                fontSize = 21.sp,
+                                fontWeight = FontWeight.Medium,
+                                color = MiuixTheme.colorScheme.onSurface,
+                                modifier = Modifier.padding(start = 12.dp)
+                            )
                         }
-                    } else {
-                        AnimatedVisibility(
-                            visible = !isViewingCurrentWeek,
-                            enter = fadeIn(animationSpec = tween(180)),
-                            exit = fadeOut(animationSpec = tween(120))
-                        ) {
-                            if (appStyle == "liquidglass" && liquidGlassBackdrop != null) {
-                                LiquidTopBarButton(
-                                    onClick = onBackToCurrentWeek,
-                                    backdrop = liquidGlassBackdrop,
-                                    icon = MiuixIcons.Medium.Reset,
-                                    contentDescription = "返回本周",
-                                    iconSize = 22.dp,
-                                    modifier = Modifier.padding(start = 4.dp)
-                                )
-                            } else {
+                        "rail" -> {
+                            AnimatedVisibility(
+                                visible = !isViewingCurrentWeek,
+                                enter = fadeIn(animationSpec = tween(180)),
+                                exit = fadeOut(animationSpec = tween(120))
+                            ) {
                                 IconButton(
                                     onClick = onBackToCurrentWeek,
-                                    modifier = Modifier.padding(start = 4.dp, bottom = 2.dp)
+                                    modifier = Modifier.padding(start = 4.dp)
                                 ) {
                                     Icon(
                                         imageVector = MiuixIcons.Medium.Reset,
                                         contentDescription = "返回本周",
                                         modifier = Modifier.size(24.dp)
                                     )
+                                }
+                            }
+                        }
+                        else -> {
+                            AnimatedVisibility(
+                                visible = !isViewingCurrentWeek,
+                                enter = fadeIn(animationSpec = tween(180)),
+                                exit = fadeOut(animationSpec = tween(120))
+                            ) {
+                                if (appStyle == "liquidglass" && liquidGlassBackdrop != null) {
+                                    LiquidTopBarButton(
+                                        onClick = onBackToCurrentWeek,
+                                        backdrop = liquidGlassBackdrop,
+                                        icon = MiuixIcons.Medium.Reset,
+                                        contentDescription = "返回本周",
+                                        iconSize = 22.dp,
+                                        modifier = Modifier.padding(start = 4.dp)
+                                    )
+                                } else {
+                                    IconButton(
+                                        onClick = onBackToCurrentWeek,
+                                        modifier = Modifier.padding(start = 4.dp, bottom = 2.dp)
+                                    ) {
+                                        Icon(
+                                            imageVector = MiuixIcons.Medium.Reset,
+                                            contentDescription = "返回本周",
+                                            modifier = Modifier.size(24.dp)
+                                        )
+                                    }
                                 }
                             }
                         }

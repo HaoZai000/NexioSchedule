@@ -1,7 +1,6 @@
-package com.haooz.chedule.ui.components.liquidglass
+﻿package com.haooz.chedule.ui.components.liquidglass
 
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.height
@@ -14,6 +13,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.drawscope.drawIntoCanvas
 import androidx.compose.ui.graphics.nativeCanvas
@@ -22,6 +22,7 @@ import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
+import com.haooz.chedule.ui.utils.isAppDarkTheme
 import com.kyant.backdrop.Backdrop
 import com.kyant.backdrop.drawBackdrop
 import com.kyant.backdrop.effects.blur
@@ -32,8 +33,7 @@ import com.kyant.shapes.Capsule
 import top.yukonga.miuix.kmp.icon.MiuixIcons
 import top.yukonga.miuix.kmp.icon.extended.ConvertFile
 import top.yukonga.miuix.kmp.icon.extended.More
-import androidx.compose.ui.draw.drawBehind
-import com.haooz.chedule.ui.utils.isAppDarkTheme
+import androidx.core.graphics.toColorInt
 
 @Composable
 fun LiquidTopBarCapsuleButton(
@@ -48,8 +48,8 @@ fun LiquidTopBarCapsuleButton(
     val hapticFeedback = LocalHapticFeedback.current
     val isLightTheme = !isAppDarkTheme()
     val containerColor =
-        if (isLightTheme) Color(0xFFFAFAFA).copy(0.4f)
-        else Color(0xFF121212).copy(0.4f)
+        if (isLightTheme) Color(0xFFFFFFFF).copy(0.6f)
+        else Color(0xFF121212).copy(0.54f)
 
     val interactiveHighlight = remember(animationScope) {
         InteractiveHighlight(
@@ -57,7 +57,7 @@ fun LiquidTopBarCapsuleButton(
         )
     }
 
-    val shadowColor = if (isLightTheme) android.graphics.Color.parseColor("#12000000") else android.graphics.Color.parseColor("#20000000")
+    val shadowColor = if (isLightTheme) "#12000000".toColorInt() else "#20000000".toColorInt()
 
     androidx.compose.foundation.layout.Box(
         modifier = modifier

@@ -2,7 +2,6 @@ package com.haooz.chedule.ui.components.liquidglass
 
 import android.os.Build
 import androidx.compose.foundation.background
-import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxScope
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -42,7 +41,6 @@ fun ProgressiveBlurTopBar(
     tintColor: Color = MiuixTheme.colorScheme.surface,
     content: @Composable BoxScope.() -> Unit
 ) {
-    val isDark = isSystemInDarkTheme()
     val density = LocalDensity.current
 
     Box(modifier = modifier) {

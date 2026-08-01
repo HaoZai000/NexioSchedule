@@ -94,7 +94,6 @@ fun BlurBottomSheet(
     onDismissRequest: () -> Unit,
     startAction: @Composable (() -> Unit)? = null,
     endAction: @Composable (() -> Unit)? = null,
-    liquidGlassBackdrop: Backdrop? = null,
     onSheetContentBackdropCreated: ((Backdrop?) -> Unit)? = null,
     content: @Composable () -> Unit,
 ) {
@@ -132,7 +131,6 @@ fun BlurBottomSheet(
             onDismissRequest = onDismissRequest,
             startAction = startAction,
             endAction = endAction,
-            liquidGlassBackdrop = liquidGlassBackdrop,
             sheetContentBackdropHolder = sheetContentBackdropHolder,
             sheetOffsetDp = sheetOffsetDp,
             sheetMaxWidth = sheetMaxWidth,
@@ -156,7 +154,6 @@ private fun BlurBottomSheetContent(
     onDismissRequest: () -> Unit,
     startAction: @Composable (() -> Unit)? = null,
     endAction: @Composable (() -> Unit)? = null,
-    liquidGlassBackdrop: Backdrop? = null,
     sheetContentBackdropHolder: MutableState<Backdrop?>? = null,
     content: @Composable () -> Unit,
 ) {
@@ -217,7 +214,14 @@ private fun BlurBottomSheetContent(
 
     // 底部弹窗主体 - 允许内容溢出屏幕底部
     Box(
-        modifier = Modifier.fillMaxSize(),
+        modifier = Modifier
+            .fillMaxSize()
+            .clickable(
+                interactionSource = null,
+                indication = null,
+                enabled = animationProgress.value > 0f,
+                onClick = onDismissRequest,
+            ),
     ) {
         val sheetModifier = Modifier
             .graphicsLayer {

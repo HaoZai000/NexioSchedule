@@ -51,7 +51,6 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.platform.LocalConfiguration
-import android.content.res.Configuration
 import com.haooz.chedule.data.Course
 import com.haooz.chedule.ui.components.BlurBottomSheet
 import com.haooz.chedule.ui.components.BlurBottomSheetTablet
@@ -334,7 +333,6 @@ fun AddCourseDialog(
         dimBackground = true,
         sheetOffsetDp = statusBarsPadding + 5.dp,
         onDismissRequest = onDismiss,
-        liquidGlassBackdrop = liquidGlassBackdrop,
         onSheetContentBackdropCreated = { sheetContentBackdrop = it },
         startAction = {
             if (liquidGlassBackdrop != null) {

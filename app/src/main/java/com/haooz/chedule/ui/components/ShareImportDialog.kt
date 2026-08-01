@@ -16,7 +16,6 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.unit.DpSize
 import androidx.compose.ui.unit.dp
 import com.haooz.chedule.ui.activities.MainActivity
 import com.haooz.chedule.ui.screens.applyScheduleData
@@ -26,9 +25,8 @@ import com.haooz.chedule.viewmodel.CourseViewModel
 import com.haooz.chedule.viewmodel.ScheduleViewModel
 import com.haooz.chedule.viewmodel.SettingsViewModel
 import top.yukonga.miuix.kmp.basic.ButtonDefaults
-import top.yukonga.miuix.kmp.overlay.OverlayDialog
 import top.yukonga.miuix.kmp.basic.TextButton
-import com.haooz.chedule.ui.components.NativeMiuixTextField
+import top.yukonga.miuix.kmp.overlay.OverlayDialog
 
 /**
  * 分享导入课表的状态与弹窗。

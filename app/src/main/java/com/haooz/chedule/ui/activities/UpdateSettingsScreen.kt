@@ -44,6 +44,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.core.content.FileProvider
 import androidx.core.content.edit
+import com.haooz.chedule.ui.utils.isAppDarkTheme
 import com.haooz.chedule.ui.utils.rememberAppStyle
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
@@ -593,7 +594,7 @@ fun UpdateSettingsScreen(onBack: () -> Unit) {
                             Text(text = "开始下载", fontSize = 17.sp, fontWeight = FontWeight.Medium, color = ComposeColor.White)
                             }
                         } else if (isDownloading) {
-                            Button(modifier = Modifier.weight(1f), enabled = false, onClick = {}) { Text(text = "正在下载", fontSize = 16.sp, fontWeight = FontWeight.Medium) }
+                            Button(modifier = Modifier.weight(1f), enabled = false, onClick = {}) { Text(text = "正在下载", fontSize = 16.sp, fontWeight = FontWeight.Medium, color = if (isAppDarkTheme()) ComposeColor.White else ComposeColor.Black) }
                         }
                     }
                 }

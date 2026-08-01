@@ -1,7 +1,6 @@
-package com.haooz.chedule.ui.components.liquidglass
+﻿package com.haooz.chedule.ui.components.liquidglass
 
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material3.Icon
@@ -34,8 +33,8 @@ fun LiquidAddButton(
     val hapticFeedback = LocalHapticFeedback.current
     val isLightTheme = !isAppDarkTheme()
     val containerColor =
-        if (isLightTheme) Color(0xFFFAFAFA).copy(0.4f)
-        else Color(0xFF121212).copy(0.4f)
+        if (isLightTheme) Color(0xFFFFFFFF).copy(0.6f)
+        else Color(0xFF121212).copy(0.54f)
 
     val interactiveHighlight = remember(animationScope) {
         InteractiveHighlight(

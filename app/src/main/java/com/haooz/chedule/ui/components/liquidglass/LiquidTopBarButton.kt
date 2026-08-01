@@ -1,7 +1,6 @@
-package com.haooz.chedule.ui.components.liquidglass
+﻿package com.haooz.chedule.ui.components.liquidglass
 
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.size
@@ -30,6 +29,7 @@ import com.kyant.backdrop.effects.blur
 import com.kyant.backdrop.effects.lens
 import com.kyant.backdrop.effects.vibrancy
 import com.kyant.backdrop.shadow.Shadow
+import androidx.core.graphics.toColorInt
 
 @Composable
 fun LiquidTopBarButton(
@@ -49,8 +49,8 @@ fun LiquidTopBarButton(
     val hapticFeedback = LocalHapticFeedback.current
     val isLightTheme = !isAppDarkTheme()
     val resolvedContainerColor = if (containerColor != Color.Unspecified) containerColor
-        else if (isLightTheme) Color(0xFFFAFAFA).copy(0.4f)
-        else Color(0xFF121212).copy(0.4f)
+        else if (isLightTheme) Color(0xFFFFFFFF).copy(0.6f)
+        else Color(0xFF121212).copy(0.54f)
 
     val interactiveHighlight = remember(animationScope) {
         InteractiveHighlight(
@@ -58,7 +58,7 @@ fun LiquidTopBarButton(
         )
     }
 
-    val shadowColor = if (isLightTheme) android.graphics.Color.parseColor("#12000000") else android.graphics.Color.parseColor("#20000000")
+    val shadowColor = if (isLightTheme) "#12000000".toColorInt() else "#20000000".toColorInt()
 
     Box(
         modifier = modifier

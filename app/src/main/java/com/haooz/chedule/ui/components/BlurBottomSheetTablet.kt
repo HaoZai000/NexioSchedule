@@ -116,7 +116,6 @@ fun BlurBottomSheetTablet(
             show = show,
             visibleState = visibleState,
             title = title,
-            blurRadius = blurRadius,
             dimBackground = dimBackground,
             sheetMaxWidth = sheetMaxWidth,
             sheetMaxHeight = sheetMaxHeight,
@@ -138,7 +137,6 @@ private fun BlurBottomSheetTabletContent(
     show: Boolean,
     visibleState: MutableState<Boolean>,
     title: String,
-    blurRadius: Float = 24f,
     dimBackground: Boolean = false,
     sheetMaxWidth: Dp = 560.dp,
     sheetMaxHeight: Dp = Dp.Unspecified,
@@ -201,7 +199,14 @@ private fun BlurBottomSheetTabletContent(
 
     // 平板弹窗主体 - 居中悬浮矩形，从底部滑入
     Box(
-        modifier = Modifier.fillMaxSize(),
+        modifier = Modifier
+            .fillMaxSize()
+            .clickable(
+                interactionSource = null,
+                indication = null,
+                enabled = animationProgress.value > 0f,
+                onClick = onDismissRequest,
+            ),
         contentAlignment = if (isBottomAligned) Alignment.BottomCenter else Alignment.Center,
     ) {
         val sheetModifier = Modifier

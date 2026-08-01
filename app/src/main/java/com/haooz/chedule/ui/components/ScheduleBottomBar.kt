@@ -1,6 +1,5 @@
 package com.haooz.chedule.ui.components
 
-import android.content.Context
 import android.os.Build
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
@@ -25,7 +24,6 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ColorFilter
 import androidx.compose.ui.graphics.RectangleShape
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
-import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -83,8 +81,6 @@ internal fun ScheduleBottomBar(
         onTabSelected(idx)
     }
 
-    val context = LocalContext.current
-    val themePrefs = remember { context.getSharedPreferences("app_theme_prefs", Context.MODE_PRIVATE) }
     val appStyle = com.haooz.chedule.ui.utils.rememberAppStyle()
 
     if (navBarStyle == "rail" && appStyle == "liquidglass" && liquidGlassBackdrop != null) {

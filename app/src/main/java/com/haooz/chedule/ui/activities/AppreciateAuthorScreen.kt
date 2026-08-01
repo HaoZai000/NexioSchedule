@@ -13,6 +13,7 @@ import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.aspectRatio
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -107,37 +108,26 @@ fun AppreciateAuthorScreen(onBack: () -> Unit) {
                 .fillMaxSize()
                 .layerBackdrop(backdrop)
         ) {
-            val listState = rememberLazyListState()
-            LaunchedEffect(listState) {
-                snapshotFlow { listState.firstVisibleItemScrollOffset }
-                    .collect { offset ->
-                        listScrollY = offset
-                    }
-            }
-            LazyColumn(
-                state = listState,
-                modifier = Modifier
-                    .fillMaxSize()
-                    .overScrollVertical()
-                    .scrollEndHaptic(
-                        hapticFeedbackType = androidx.compose.ui.hapticfeedback.HapticFeedbackType.TextHandleMove
-                    )
-                    .then(
-                        if (!isLiquidGlass) Modifier.nestedScroll(scrollBehavior.nestedScrollConnection) else Modifier
-                    ),
-                contentPadding = PaddingValues(
-                    start = tabletHorizontalPadding,
-                    end = tabletHorizontalPadding,
-                    top = if (isLiquidGlass) paddingValues.calculateTopPadding() + 64.dp else paddingValues.calculateTopPadding() + 8.dp,
-                    bottom = 60.dp
-                ),
-                verticalArrangement = Arrangement.spacedBy(12.dp)
-            ) {
-                item {
+            if (isTablet) {
+                // 平板：左侧固定图片 + 右侧独立滚动列表
+                Row(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .padding(
+                            start = tabletHorizontalPadding,
+                            end = tabletHorizontalPadding,
+                        ),
+                    horizontalArrangement = Arrangement.spacedBy(24.dp)
+                ) {
+                    // 左侧 - 赞赏码（固定，不可滚动）
                     Card(
                         cornerRadius = 20.dp,
                         modifier = Modifier
-                            .fillMaxWidth()
+                            .weight(1f)
+                            .padding(
+                                top = if (isLiquidGlass) paddingValues.calculateTopPadding() + 64.dp else paddingValues.calculateTopPadding() + 8.dp,
+                                bottom = 60.dp
+                            )
                             .aspectRatio(1f),
                         insideMargin = PaddingValues(0.dp)
                     ) {
@@ -151,30 +141,124 @@ fun AppreciateAuthorScreen(onBack: () -> Unit) {
                             contentScale = ContentScale.Crop,
                         )
                     }
+                    // 右侧 - 捐赠明细（独立滚动）
+                    if (sampleAppreciations.isNotEmpty()) {
+                        LazyColumn(
+                            modifier = Modifier
+                                .weight(1f)
+                                .fillMaxHeight()
+                                .overScrollVertical()
+                                .scrollEndHaptic(
+                                    hapticFeedbackType = androidx.compose.ui.hapticfeedback.HapticFeedbackType.TextHandleMove
+                                ),
+                            contentPadding = PaddingValues(
+                                top = if (isLiquidGlass) paddingValues.calculateTopPadding() + 64.dp else paddingValues.calculateTopPadding() + 8.dp,
+                                bottom = 60.dp
+                            ),
+                            verticalArrangement = Arrangement.spacedBy(0.dp)
+                        ) {
+                            item {
+                                SmallTitle(
+                                    text = "捐赠明细",
+                                    modifier = Modifier.offset(x = (-16).dp)
+                                )
+                            }
+                            item {
+                                Card(
+                                    cornerRadius = 20.dp,
+                                    modifier = Modifier.fillMaxWidth(),
+                                    insideMargin = PaddingValues(0.dp)
+                                ) {
+                                    Column(modifier = Modifier.fillMaxWidth()) {
+                                        sampleAppreciations.forEachIndexed { index, item ->
+                                            AppreciationListItem(item = item)
+                                            if (index < sampleAppreciations.lastIndex) {
+                                                Spacer(
+                                                    modifier = Modifier
+                                                        .fillMaxWidth()
+                                                        .padding(horizontal = 16.dp)
+                                                        .height(0.5.dp)
+                                                        .background(MiuixTheme.colorScheme.surfaceVariant)
+                                                )
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
                 }
-
-                if (sampleAppreciations.isNotEmpty()) {
-                    item {
-                        SmallTitle(
-                            text = "捐赠明细",
-                            modifier = Modifier.offset(x = (-16).dp)
+            } else {
+                // 手机：上下排列，整体滚动
+                val listState = rememberLazyListState()
+                LaunchedEffect(listState) {
+                    snapshotFlow { listState.firstVisibleItemScrollOffset }
+                        .collect { offset ->
+                            listScrollY = offset
+                        }
+                }
+                LazyColumn(
+                    state = listState,
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .overScrollVertical()
+                        .scrollEndHaptic(
+                            hapticFeedbackType = androidx.compose.ui.hapticfeedback.HapticFeedbackType.TextHandleMove
                         )
+                        .then(
+                            if (!isLiquidGlass) Modifier.nestedScroll(scrollBehavior.nestedScrollConnection) else Modifier
+                        ),
+                    contentPadding = PaddingValues(
+                        start = tabletHorizontalPadding,
+                        end = tabletHorizontalPadding,
+                        top = if (isLiquidGlass) paddingValues.calculateTopPadding() + 64.dp else paddingValues.calculateTopPadding() + 8.dp,
+                        bottom = 60.dp
+                    ),
+                    verticalArrangement = Arrangement.spacedBy(12.dp)
+                ) {
+                    item {
                         Card(
                             cornerRadius = 20.dp,
-                            modifier = Modifier.fillMaxWidth(),
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .aspectRatio(1f),
                             insideMargin = PaddingValues(0.dp)
                         ) {
-                            Column(modifier = Modifier.fillMaxWidth()) {
-                                sampleAppreciations.forEachIndexed { index, item ->
-                                    AppreciationListItem(item = item)
-                                    if (index < sampleAppreciations.lastIndex) {
-                                        Spacer(
-                                            modifier = Modifier
-                                                .fillMaxWidth()
-                                                .padding(horizontal = 16.dp)
-                                                .height(0.5.dp)
-                                                .background(MiuixTheme.colorScheme.surfaceVariant)
-                                        )
+                            Image(
+                                painter = painterResource(id = R.drawable.zanshangma),
+                                contentDescription = "赞赏码",
+                                modifier = Modifier
+                                    .fillMaxSize()
+                                    .padding(14.dp)
+                                    .clip(RoundedRectangle(10.dp)),
+                                contentScale = ContentScale.Crop,
+                            )
+                        }
+                    }
+
+                    if (sampleAppreciations.isNotEmpty()) {
+                        item {
+                            SmallTitle(
+                                text = "捐赠明细",
+                                modifier = Modifier.offset(x = (-16).dp)
+                            )
+                            Card(
+                                cornerRadius = 20.dp,
+                                modifier = Modifier.fillMaxWidth(),
+                                insideMargin = PaddingValues(0.dp)
+                            ) {
+                                Column(modifier = Modifier.fillMaxWidth()) {
+                                    sampleAppreciations.forEachIndexed { index, item ->
+                                        AppreciationListItem(item = item)
+                                        if (index < sampleAppreciations.lastIndex) {
+                                            Spacer(
+                                                modifier = Modifier
+                                                    .fillMaxWidth()
+                                                    .padding(horizontal = 16.dp)
+                                                    .height(0.5.dp)
+                                                    .background(MiuixTheme.colorScheme.surfaceVariant)
+                                            )
+                                        }
                                     }
                                 }
                             }

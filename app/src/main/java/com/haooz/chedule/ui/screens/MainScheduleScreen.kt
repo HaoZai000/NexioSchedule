@@ -38,11 +38,8 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
-import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.CubicBezierEasing
 import androidx.compose.animation.core.animate
-import androidx.compose.animation.core.spring
-import androidx.compose.animation.core.Spring
 import androidx.compose.animation.core.tween
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -55,7 +52,6 @@ import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.layout.onGloballyPositioned
-import android.content.res.Configuration
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
@@ -552,7 +548,6 @@ fun MainScheduleScreen(
                 showCourseDetail = false
                 onPopupStateChange(false)
             },
-            liquidGlassBackdrop = liquidGlassBackdrop,
             onSheetContentBackdropCreated = { sheetContentBackdrop = it },
             endAction = {
                 if (liquidGlassBackdrop != null) {
@@ -577,7 +572,7 @@ fun MainScheduleScreen(
                         modifier = Modifier.padding(end = 20.dp),
                         iconSize = 23.dp,
                         containerColor =if (isAppDarkTheme()) Color(0xFF363636).copy(0.4f)
-                        else Color(0xFFFAFAFA).copy(0.32f),
+                        else Color(0xFFFFFFFF).copy(0.6f),
                         useBackdropShadow = true,
                     )
                 } else {

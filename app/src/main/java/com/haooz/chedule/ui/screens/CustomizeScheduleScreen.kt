@@ -2,16 +2,13 @@
 package com.haooz.chedule.ui.screens
 
 import android.annotation.SuppressLint
-import android.content.res.Configuration
 import android.graphics.Bitmap
 import android.widget.Toast
 import androidx.activity.compose.BackHandler
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.CubicBezierEasing
-import androidx.compose.animation.core.Spring
 import androidx.compose.animation.core.animate
-import androidx.compose.animation.core.spring
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.slideInVertically
 import androidx.compose.animation.slideOutVertically
@@ -1330,7 +1327,7 @@ fun CustomizeScheduleScreen(
                             modifier = Modifier.padding(start = 20.dp),
                             iconSize = 22.dp,
                             containerColor = if (isAppDarkTheme()) Color(0xFF363636).copy(0.4f)
-                            else Color(0xFFFAFAFA).copy(0.32f),
+                            else Color(0xFFFFFFFF).copy(0.6f),
                             useBackdropShadow = true
                         )
                     } else {
@@ -1454,8 +1451,7 @@ fun CustomizeScheduleScreen(
             backdrop = sheetBackdrop,
             sheetBackgroundAlpha = if (isAppDarkTheme()) 0.9f else 0.86f,
             onDismissRequest = { showEffectSheet = false },
-            liquidGlassBackdrop = liquidGlassBackdrop,
-            onSheetContentBackdropCreated = { sheetContentBackdrop = it },
+                onSheetContentBackdropCreated = { sheetContentBackdrop = it },
             startAction = {
                 if (liquidGlassBackdrop != null) {
                     com.haooz.chedule.ui.components.liquidglass.LiquidTopBarButton(
@@ -1466,7 +1462,7 @@ fun CustomizeScheduleScreen(
                         modifier = Modifier.padding(start = 20.dp),
                         iconSize = 22.dp,
                         containerColor =if (isAppDarkTheme()) Color(0xFF363636).copy(0.4f)
-                        else Color(0xFFFAFAFA).copy(0.32f),
+                        else Color(0xFFFFFFFF).copy(0.6f),
                         useBackdropShadow = true
                     )
                 } else {
@@ -1605,7 +1601,7 @@ fun CustomizeScheduleScreen(
                             contentDescription = "关闭",
                             modifier = Modifier.padding(start = 20.dp),
                             containerColor = if (isAppDarkTheme()) Color(0xFF363636).copy(0.4f)
-                            else Color(0xFFFAFAFA).copy(0.32f),
+                            else Color(0xFFFFFFFF).copy(0.6f),
                             iconSize = 22.dp,
                             useBackdropShadow = true
                         )
@@ -1729,8 +1725,7 @@ fun CustomizeScheduleScreen(
             backdrop = sheetBackdrop,
             sheetBackgroundAlpha = if (isAppDarkTheme()) 0.9f else 0.86f,
             onDismissRequest = { showCustomizeSheet = false },
-            liquidGlassBackdrop = liquidGlassBackdrop,
-            onSheetContentBackdropCreated = { sheetContentBackdrop = it },
+                onSheetContentBackdropCreated = { sheetContentBackdrop = it },
             startAction = {
                 if (liquidGlassBackdrop != null) {
                     com.haooz.chedule.ui.components.liquidglass.LiquidTopBarButton(
@@ -1740,7 +1735,7 @@ fun CustomizeScheduleScreen(
                         contentDescription = "关闭",
                         modifier = Modifier.padding(start = 20.dp),
                         containerColor =if (isAppDarkTheme()) Color(0xFF363636).copy(0.4f)
-                        else Color(0xFFFAFAFA).copy(0.32f),
+                        else Color(0xFFFFFFFF).copy(0.6f),
                         iconSize = 22.dp,
                         useBackdropShadow = true
                     )

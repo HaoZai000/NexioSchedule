@@ -1,7 +1,7 @@
 ﻿/** 添加课程底部弹窗 */
 package com.haooz.chedule.ui.components
 
-import android.content.res.Configuration
+import android.annotation.SuppressLint
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -71,6 +71,7 @@ import java.util.UUID
  * @param onConfirm 确认回调，返回新创建的课程
  * @param getOccupiedWeeks 获取已占用周次的回调
  */
+@SuppressLint("ConfigurationScreenWidthHeight")
 @Composable
 fun AddEditCourseBottomSheet(
     show: Boolean,
@@ -646,7 +647,6 @@ fun AddEditCourseBottomSheet(
             backdrop = backdrop,
             dimBackground = true,
             onDismissRequest = onDismissRequest,
-            liquidGlassBackdrop = liquidGlassBackdrop,
             sheetOffsetDp = 100.dp,
             onSheetContentBackdropCreated = { sheetContentBackdrop = it },
             startAction = startAction,

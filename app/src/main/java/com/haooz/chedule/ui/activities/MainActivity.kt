@@ -1399,7 +1399,6 @@ fun CourseScheduleApp() {
             ) {
                     LiquidGlassDropdownMenu(
                         show = showMorePopup,
-                        onDismissRequest = { showMorePopup = false },
                         backdrop = liquidGlassBackdrop,
                     ) {
                         LiquidGlassDropdownMenuItem(
@@ -1430,7 +1429,6 @@ fun CourseScheduleApp() {
                     }
                     LiquidGlassDropdownMenu(
                         show = showTodayMorePopup,
-                        onDismissRequest = { showTodayMorePopup = false },
                         backdrop = liquidGlassBackdrop
                     ) {
                         LiquidGlassDropdownMenuItem(

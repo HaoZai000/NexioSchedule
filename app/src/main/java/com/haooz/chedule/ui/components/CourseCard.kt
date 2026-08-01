@@ -1,5 +1,6 @@
 package com.haooz.chedule.ui.components
 
+import android.annotation.SuppressLint
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -50,7 +51,7 @@ fun CourseCard(
     cardHeightPerSection: Float = 54f,
     cardCornerRadius: Float = 8f,
     onClick: () -> Unit,
-    modifier: Modifier = Modifier
+    @SuppressLint("ModifierParameter") modifier: Modifier = Modifier
 ) {
     val sectionCount = course.endSection - course.startSection + 1
     val cardHeight = (sectionCount * cardHeightPerSection).dp

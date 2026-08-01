@@ -1,15 +1,13 @@
-package com.haooz.chedule.ui.components.liquidglass
+﻿package com.haooz.chedule.ui.components.liquidglass
 
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.CubicBezierEasing
 import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ColumnScope
-import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
@@ -31,12 +29,13 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.haooz.chedule.ui.utils.isAppDarkTheme
 import com.kyant.backdrop.Backdrop
-import com.kyant.shapes.RoundedRectangle
 import com.kyant.backdrop.drawBackdrop
 import com.kyant.backdrop.effects.blur
 import com.kyant.backdrop.effects.lens
 import com.kyant.backdrop.effects.vibrancy
+import com.kyant.shapes.RoundedRectangle
 import kotlinx.coroutines.launch
+import androidx.core.graphics.toColorInt
 
 private val MenuEnterEasing = CubicBezierEasing(0.3f, 1.25f, 0.32f, 1f)
 private val ShadowPadding = 18.dp
@@ -44,16 +43,14 @@ private val ShadowPadding = 18.dp
 @Composable
 fun LiquidGlassDropdownMenu(
     show: Boolean,
-    onDismissRequest: () -> Unit,
     backdrop: Backdrop,
     modifier: Modifier = Modifier,
-    menuHeight: androidx.compose.ui.unit.Dp = 100.dp,
     content: @Composable ColumnScope.() -> Unit
 ) {
     val isLightTheme = !isAppDarkTheme()
     val containerColor =
-        if (isLightTheme) Color(0xFFFAFAFA).copy(0.4f)
-        else Color(0xFF121212).copy(0.4f)
+        if (isLightTheme) Color(0xFFFFFFFF).copy(0.6f)
+        else Color(0xFF121212).copy(0.54f)
     val scale = remember { Animatable(0f) }
     val alpha = remember { Animatable(0f) }
 
@@ -92,7 +89,7 @@ fun LiquidGlassDropdownMenu(
                 val blurRadius = 18f * density
                 val cornerRadiusPx = 26f * density
                 val paint = android.graphics.Paint().apply {
-                    color = android.graphics.Color.parseColor("#0A000000")
+                    color = "#0A000000".toColorInt()
                     maskFilter = android.graphics.BlurMaskFilter(
                         blurRadius,
                         android.graphics.BlurMaskFilter.Blur.NORMAL

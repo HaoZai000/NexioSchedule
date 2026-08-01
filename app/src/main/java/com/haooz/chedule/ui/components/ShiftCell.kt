@@ -1,6 +1,7 @@
 /** 调课单元格组件 */
 package com.haooz.chedule.ui.components
 
+import android.annotation.SuppressLint
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -33,7 +34,7 @@ fun ShiftCell(
     courses: List<Pair<String, Course>>,
     scheduleColors: Map<String, Color>,
     onClick: () -> Unit = {},
-    modifier: Modifier = Modifier
+    @SuppressLint("ModifierParameter") modifier: Modifier = Modifier
 ) {
     val isDark = isAppDarkTheme()
 
