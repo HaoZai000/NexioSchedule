@@ -1,4 +1,4 @@
-﻿/** 主页面 - 应用入口 Activity */
+/** 主页面 - 应用入口 Activity */
 package com.haooz.chedule.ui.activities
 
 import android.annotation.SuppressLint
@@ -43,6 +43,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
@@ -52,6 +53,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.blur
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.drawWithContent
+import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.TransformOrigin
@@ -75,6 +77,7 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import com.haooz.chedule.data.Course
 import com.haooz.chedule.reminder.CourseReminderHelper
 import com.haooz.chedule.reminder.IslandNotificationHelper
+import androidx.window.embedding.SplitController
 import com.haooz.chedule.ui.components.LongPressCustomizeButton
 import com.haooz.chedule.ui.components.ScheduleBottomBar
 import com.haooz.chedule.ui.components.ScheduleTopBar
@@ -983,7 +986,31 @@ fun CourseScheduleApp() {
 
     // 退出缩放中心：与搭配界面卡片中心对齐
 
-    Box(modifier = Modifier.fillMaxSize().background(if (showCustomizePage) Color(0xFF1A1A1A) else MiuixTheme.colorScheme.surface)) {
+    // 分屏分割线：在最外层 Box 绘制，层级高于所有内部模糊层，避免被顶部模糊层遮挡
+    // MainActivity 是分屏左侧（primary），其最右侧即为左右分界处
+    val splitDividerColor = if (isDark) Color(0xFF222222) else Color(0xFFEEEEEE)
+    val isInSplit by produceState(initialValue = false) {
+        val act = activity ?: return@produceState
+        SplitController.getInstance(context).splitInfoList(act).collect { list ->
+            value = list.isNotEmpty()
+        }
+    }
+
+    Box(modifier = Modifier
+        .fillMaxSize()
+        .background(if (showCustomizePage) Color(0xFF1A1A1A) else MiuixTheme.colorScheme.surface)
+        .drawWithContent {
+            drawContent()
+            if (isInSplit) {
+                val strokeWidth = 1.dp.toPx()
+                drawLine(
+                    color = splitDividerColor,
+                    start = Offset(size.width - strokeWidth / 2f, 0f),
+                    end = Offset(size.width - strokeWidth / 2f, size.height),
+                    strokeWidth = strokeWidth
+                )
+            }
+        }) {
         val isEntryAnimating = showSwitchSchedule && switchAnimForward && switchAnimRunning
         val mainContentAlpha = when {
             showSwitchSchedule && switchScreenSnapshot != null -> 0f

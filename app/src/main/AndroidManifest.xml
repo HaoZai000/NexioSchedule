@@ -30,6 +30,11 @@
         android:roundIcon="@mipmap/ic_launcher_round"
         android:supportsRtl="true"
         android:theme="@style/Theme.课程表">
+
+        <!-- 声明使用 Activity 嵌入（Android 13+ 强制要求，否则分屏规则不生效） -->
+        <property
+            android:name="android.window.PROPERTY_ACTIVITY_EMBEDDING_SPLITS_ENABLED"
+            android:value="true" />
         <activity
             android:name=".ui.activities.MainActivity"
             android:configChanges="orientation|screenSize|screenLayout|keyboardHidden|mnc|colorMode|density|fontScale|fontWeightAdjustment|keyboard|layoutDirection|locale|mcc|navigation|smallestScreenSize|touchscreen|uiMode"
@@ -166,6 +171,17 @@
             <meta-data
                 android:name="android.support.FILE_PROVIDER_PATHS"
                 android:resource="@xml/file_paths" />
+        </provider>
+
+        <provider
+            android:name="androidx.startup.InitializationProvider"
+            android:authorities="${applicationId}.androidx-startup"
+            android:exported="false"
+            tools:node="merge">
+            <!-- Activity 嵌入分屏规则初始化 -->
+            <meta-data
+                android:name="com.haooz.chedule.embedding.WindowInitializer"
+                android:value="androidx.startup" />
         </provider>
 
         <provider

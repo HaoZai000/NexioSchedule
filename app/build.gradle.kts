@@ -73,6 +73,12 @@ dependencies {
     // ViewModel 与 Compose 集成
     implementation(libs.androidx.lifecycle.viewmodel.compose)
 
+    // ===== Activity 嵌入（大屏分屏）=====
+    // Jetpack WindowManager：Activity 嵌入核心库
+    implementation(libs.androidx.window)
+    // App Startup：自动初始化分屏规则
+    implementation(libs.androidx.startup.runtime)
+
     // ===== Miuix UI =====
     // 基础 UI 组件
     implementation(libs.miuix.ui)

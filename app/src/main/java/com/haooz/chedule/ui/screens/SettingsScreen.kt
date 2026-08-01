@@ -1,7 +1,9 @@
 /** 设置页面 - 应用全局设置 */
 package com.haooz.chedule.ui.screens
 
+import android.app.Activity
 import android.content.Context
+import android.content.ContextWrapper
 import android.content.Intent
 import android.widget.Toast
 import androidx.activity.compose.rememberLauncherForActivityResult
@@ -1469,4 +1471,14 @@ internal fun applyScheduleData(
     } catch (e: Exception) {
         return Pair(false, "导入失败: ${e.message}")
     }
+}
+
+/** 从 Context 链中查找 Activity */
+private fun Context.findActivity(): Activity? {
+    var ctx: Context? = this
+    while (ctx is ContextWrapper) {
+        if (ctx is Activity) return ctx
+        ctx = ctx.baseContext
+    }
+    return null
 }

@@ -11,6 +11,8 @@ lifecycleRuntimeKtx = "2.9.1"         # 生命周期运行时 KTX
 activityCompose = "1.10.1"            # Activity 与 Compose 集成
 composeBom = "2026.05.01"             # Compose BOM 版本对齐
 material3 = "1.5.0-alpha19"           # Material3 (MotionScheme 公开 API 需要此版本)
+window = "1.5.1"                        # Jetpack WindowManager（Activity 嵌入，最新稳定版）
+startupRuntime = "1.2.0"               # App Startup（自动初始化 Activity 嵌入规则）
 
 # 第三方 UI
 miuix = "0.9.3"                       # Miuix 小米风格组件库
@@ -35,6 +37,10 @@ androidx-core-ktx = { group = "androidx.core", name = "core-ktx", version.ref = 
 androidx-lifecycle-runtime-ktx = { group = "androidx.lifecycle", name = "lifecycle-runtime-ktx", version.ref = "lifecycleRuntimeKtx" }  # 生命周期运行时
 androidx-lifecycle-viewmodel-compose = { group = "androidx.lifecycle", name = "lifecycle-viewmodel-compose", version.ref = "lifecycleRuntimeKtx" }  # ViewModel + Compose
 androidx-activity-compose = { group = "androidx.activity", name = "activity-compose", version.ref = "activityCompose" }  # Activity setContent 入口
+
+# Activity 嵌入（大屏分屏）
+androidx-window = { group = "androidx.window", name = "window", version.ref = "window" }                           # Jetpack WindowManager
+androidx-startup-runtime = { group = "androidx.startup", name = "startup-runtime", version.ref = "startupRuntime" }  # App Startup 自动初始化
 
 # ===== Compose（BOM 统一管理版本）=====
 androidx-compose-bom = { group = "androidx.compose", name = "compose-bom", version.ref = "composeBom" }            # Compose 版本对齐 BOM
