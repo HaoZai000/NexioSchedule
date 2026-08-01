@@ -1,4 +1,4 @@
-﻿/** 课程编辑页面 - 修改课程时段/周次 */
+/** 课程编辑页面 - 修改课程时段/周次 */
 package com.haooz.chedule.ui.screens
 
 import android.annotation.SuppressLint
@@ -29,9 +29,11 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBars
 import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
-import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.foundation.lazy.staggeredgrid.LazyVerticalStaggeredGrid
+import androidx.compose.foundation.lazy.staggeredgrid.StaggeredGridCells
+import androidx.compose.foundation.lazy.staggeredgrid.StaggeredGridItemSpan
+import androidx.compose.foundation.lazy.staggeredgrid.items
+import androidx.compose.foundation.lazy.staggeredgrid.rememberLazyStaggeredGridState
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -61,6 +63,7 @@ import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.DpOffset
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -571,14 +574,6 @@ fun CourseEditScreen(
                                     else Modifier
                                 )
                         ) {
-                            val listState = rememberLazyListState()
-                            LaunchedEffect(listState) {
-                                snapshotFlow { listState.firstVisibleItemScrollOffset }
-                                    .collect { offset ->
-                                        listScrollY = offset
-                                    }
-                            }
-
                             Card(
                                 modifier = Modifier.fillMaxSize().background(MiuixTheme.colorScheme.surface),
                                 insideMargin = PaddingValues(0.dp),
@@ -604,8 +599,16 @@ fun CourseEditScreen(
                                     }
                                 }
 
-                                LazyColumn(
-                                    state = listState,
+                                val gridState = rememberLazyStaggeredGridState()
+                                LaunchedEffect(gridState) {
+                                    snapshotFlow { gridState.firstVisibleItemScrollOffset }
+                                        .collect { offset ->
+                                            listScrollY = offset
+                                        }
+                                }
+                                LazyVerticalStaggeredGrid(
+                                    state = gridState,
+                                    columns = if (isTablet) StaggeredGridCells.Fixed(2) else StaggeredGridCells.Fixed(1),
                                     modifier = Modifier
                                         .fillMaxSize()
                                         .overScrollVertical()
@@ -619,10 +622,11 @@ fun CourseEditScreen(
                                         end = tabletHorizontalPadding,
                                         bottom = 120.dp
                                     ),
-                                    verticalArrangement = Arrangement.spacedBy(12.dp)
+                                    verticalItemSpacing = 12.dp,
+                                    horizontalArrangement = Arrangement.spacedBy(24.dp)
                                 ) {
                                     // 课程颜色选择器（与添加课程弹窗样式一致）
-                                    item(key = "color_picker") {
+                                    item(key = "color_picker", span = StaggeredGridItemSpan.FullLine) {
                                         val allColors = remember { Course.courseColors }
                                         val colorColumns = if (isTablet) allColors.size + 1 else 6
                                         val totalItems = remember(allColors) { allColors.size + 1 } // +1 for custom color button
@@ -840,104 +844,66 @@ fun CourseEditScreen(
                                         }
                                     }
 
-                                    if (isTablet) {
-                                        val pairs = courseGroups.chunked(2)
-                                        items(
-                                            items = pairs,
-                                            key = { pair ->
-                                                pair.joinToString("|") { "${it.key.dayOfWeek}_${it.key.startSection}_${it.key.startWeek}" }
-                                            },
-                                            contentType = { "CourseGroupPair" }
-                                        ) { pair ->
-                                            Row(
-                                                modifier = Modifier.fillMaxWidth(),
-                                                horizontalArrangement = Arrangement.spacedBy(24.dp)
-                                            ) {
-                                                pair.forEach { group ->
-                                                    Box(modifier = Modifier.weight(1f)) {
-                                                        CourseGroupCardWithDelete(
-                                                            group = group,
-                                                            isDark = isDark,
-                                                            deletingGroupId = deletingGroupId,
-                                                            onEdit = { g ->
-                                                                editingGroup = g
-                                                                showEditCourseSheet = true
-                                                            },
-                                                            onDelete = { g ->
-                                                                hapticFeedback.performHapticFeedback(HapticFeedbackType.Confirm)
-                                                                pendingDeleteGroup = g
-                                                                showDeleteDialog = true
-                                                            }
-                                                        )
-                                                    }
+                                    items(
+                                        items = courseGroups,
+                                        key = { "${it.key.dayOfWeek}_${it.key.startSection}_${it.key.startWeek}" },
+                                        contentType = { "CourseGroupCard" }
+                                    ) { group ->
+                                        val groupKey = "${group.key.dayOfWeek}_${group.key.startSection}_${group.key.startWeek}"
+                                        val isDeleting = deletingGroupId == groupKey
+
+                                        AnimatedVisibility(
+                                            visible = !isDeleting,
+                                            exit = shrinkVertically(tween(300)) + fadeOut(tween(300))
+                                        ) {
+                                            val cardAlpha = remember { Animatable(0f) }
+                                            val cardScale = remember { Animatable(0.8f) }
+                                            LaunchedEffect(Unit) {
+                                                launch {
+                                                    cardAlpha.animateTo(1f, tween(400))
                                                 }
-                                                if (pair.size == 1) {
-                                                    Spacer(modifier = Modifier.weight(1f))
+                                                launch {
+                                                    cardScale.animateTo(1f, tween(400, easing = OobeQuartOutEasing))
                                                 }
                                             }
-                                        }
-                                    } else {
-                                        items(
-                                            items = courseGroups,
-                                            key = { "${it.key.dayOfWeek}_${it.key.startSection}_${it.key.startWeek}" },
-                                            contentType = { "CourseGroupCard" }
-                                        ) { group ->
-                                            val groupKey = "${group.key.dayOfWeek}_${group.key.startSection}_${group.key.startWeek}"
-                                            val isDeleting = deletingGroupId == groupKey
-
-                                            AnimatedVisibility(
-                                                visible = !isDeleting,
-                                                exit = shrinkVertically(tween(300)) + fadeOut(tween(300))
+                                            Column(
+                                                modifier = Modifier
+                                                    .fillMaxWidth()
+                                                    .graphicsLayer {
+                                                        alpha = cardAlpha.value
+                                                        scaleX = cardScale.value
+                                                        scaleY = cardScale.value
+                                                    }
                                             ) {
-                                                val cardAlpha = remember { Animatable(0f) }
-                                                val cardScale = remember { Animatable(0.8f) }
-                                                LaunchedEffect(Unit) {
-                                                    launch {
-                                                        cardAlpha.animateTo(1f, tween(400))
+                                                CourseGroupCard(
+                                                    group = group,
+                                                    onEdit = { g ->
+                                                        editingGroup = g
+                                                        showEditCourseSheet = true
                                                     }
-                                                    launch {
-                                                        cardScale.animateTo(1f, tween(400, easing = OobeQuartOutEasing))
-                                                    }
-                                                }
-                                                Column(
+                                                )
+                                                // 删除按钮
+                                                Button(
                                                     modifier = Modifier
                                                         .fillMaxWidth()
-                                                        .graphicsLayer {
-                                                            alpha = cardAlpha.value
-                                                            scaleX = cardScale.value
-                                                            scaleY = cardScale.value
-                                                        }
+                                                        .padding(top = 12.dp)
+                                                        .height(50.dp),
+                                                    onClick = {
+                                                        hapticFeedback.performHapticFeedback(HapticFeedbackType.Confirm)
+                                                        pendingDeleteGroup = group
+                                                        showDeleteDialog = true
+                                                    },
+                                                    colors = if (isDark) ButtonDefaults.buttonColors(color = Color(0xFF2A2A2A))
+                                                    else ButtonDefaults.buttonColors(),
                                                 ) {
-                                                    CourseGroupCard(
-                                                        group = group,
-                                                        onEdit = { g ->
-                                                            editingGroup = g
-                                                            showEditCourseSheet = true
-                                                        }
+                                                    Icon(
+                                                        imageVector = MiuixIcons.Delete,
+                                                        contentDescription = null,
+                                                        modifier = Modifier.size(20.dp),
+                                                        tint = Color(0xFFF44336)
                                                     )
-                                                    // 删除按钮
-                                                    Button(
-                                                        modifier = Modifier
-                                                            .fillMaxWidth()
-                                                            .padding(top = 12.dp)
-                                                            .height(50.dp),
-                                                        onClick = {
-                                                            hapticFeedback.performHapticFeedback(HapticFeedbackType.Confirm)
-                                                            pendingDeleteGroup = group
-                                                            showDeleteDialog = true
-                                                        },
-                                                        colors = if (isDark) ButtonDefaults.buttonColors(color = Color(0xFF2A2A2A))
-                                                        else ButtonDefaults.buttonColors(),
-                                                    ) {
-                                                        Icon(
-                                                            imageVector = MiuixIcons.Delete,
-                                                            contentDescription = null,
-                                                            modifier = Modifier.size(20.dp),
-                                                            tint = Color(0xFFF44336)
-                                                        )
-                                                        Spacer(modifier = Modifier.width(4.dp))
-                                                        Text("删除", fontSize = 17.sp, fontWeight = FontWeight.Medium, color = Color(0xFFF44336))
-                                                    }
+                                                    Spacer(modifier = Modifier.width(4.dp))
+                                                    Text("删除", fontSize = 17.sp, fontWeight = FontWeight.Medium, color = Color(0xFFF44336))
                                                 }
                                             }
                                         }
@@ -1140,16 +1106,18 @@ private fun CourseGroupCard(
                 ) {
                     Text(
                         text = "地点",
-                        modifier = Modifier.weight(1f),
                         fontSize = 17.sp,
                         fontWeight = FontWeight.Medium,
                         color = MiuixTheme.colorScheme.onSurface
                     )
+                    Spacer(modifier = Modifier.weight(1f))
                     Text(
                         text = course.classroom.ifBlank { "未设置" },
+                        modifier = Modifier.fillMaxWidth(0.8f),
                         fontSize = 17.sp,
                         fontWeight = FontWeight.Medium,
-                        color = MiuixTheme.colorScheme.onSurfaceVariantActions
+                        color = MiuixTheme.colorScheme.onSurfaceVariantActions,
+                        textAlign = TextAlign.End
                     )
                 }
 
@@ -1161,16 +1129,18 @@ private fun CourseGroupCard(
                 ) {
                     Text(
                         text = "教师",
-                        modifier = Modifier.weight(1f),
                         fontSize = 17.sp,
                         fontWeight = FontWeight.Medium,
                         color = MiuixTheme.colorScheme.onSurface
                     )
+                    Spacer(modifier = Modifier.weight(1f))
                     Text(
                         text = course.teacher.ifBlank { "未设置" },
+                        modifier = Modifier.fillMaxWidth(0.8f),
                         fontSize = 17.sp,
                         fontWeight = FontWeight.Medium,
-                        color = MiuixTheme.colorScheme.onSurfaceVariantActions
+                        color = MiuixTheme.colorScheme.onSurfaceVariantActions,
+                        textAlign = TextAlign.End
                     )
                 }
 
@@ -1190,19 +1160,21 @@ private fun CourseGroupCard(
                 ) {
                     Text(
                         text = "上课时间",
-                        modifier = Modifier.weight(1f),
                         fontSize = 17.sp,
                         fontWeight = FontWeight.Medium,
                         color = MiuixTheme.colorScheme.onSurface
                     )
+                    Spacer(modifier = Modifier.weight(1f))
                     Text(
                         text = if (course.dayOfWeek > 0) "${dayLabels[course.dayOfWeek]} $sectionText" else sectionText,
+                        modifier = Modifier.fillMaxWidth(0.8f),
                         fontSize = 17.sp,
                         fontWeight = FontWeight.Medium,
-                        color = MiuixTheme.colorScheme.onSurfaceVariantActions
+                        color = MiuixTheme.colorScheme.onSurfaceVariantActions,
+                        textAlign = TextAlign.End
                     )
                 }
-                
+
 
                 Row(
                     modifier = Modifier
@@ -1212,16 +1184,18 @@ private fun CourseGroupCard(
                 ) {
                     Text(
                         text = "上课周次",
-                        modifier = Modifier.weight(1f),
                         fontSize = 17.sp,
                         fontWeight = FontWeight.Medium,
                         color = MiuixTheme.colorScheme.onSurface
                     )
+                    Spacer(modifier = Modifier.weight(1f))
                     Text(
                         text = weekText,
+                        modifier = Modifier.fillMaxWidth(0.8f),
                         fontSize = 17.sp,
                         fontWeight = FontWeight.Medium,
-                        color = MiuixTheme.colorScheme.onSurfaceVariantActions
+                        color = MiuixTheme.colorScheme.onSurfaceVariantActions,
+                        textAlign = TextAlign.End
                     )
                 }
             }

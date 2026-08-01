@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <!--
-    Activity 嵌入分屏配置（我的页 34% | 二级页面 66%）
+    Activity 嵌入分屏配置
     - splitMinWidthDp=600：宽度达到 600dp（平板/大屏）才分屏，手机自动堆叠
     - clearTop=true：右侧新开 Activity 时清掉旧 secondary，避免多实例
     - finishSecondaryWithPrimary=always：左侧我的页关闭时右侧也关闭
@@ -40,8 +40,11 @@
         <SplitPairFilter
             window:primaryActivityName=".ui.activities.MainActivity"
             window:secondaryActivityName=".ui.activities.AboutActivity" />
+        <SplitPairFilter
+            window:primaryActivityName=".ui.activities.MainActivity"
+            window:secondaryActivityName=".ui.activities.CourseManageActivity" />
 
-        <!-- 三级页面：从二级页面启动，仍留在右侧 70%（替换原 secondary） -->
+        <!-- 三级页面：从二级页面启动，仍留在右侧（替换原 secondary） -->
         <SplitPairFilter
             window:primaryActivityName=".ui.activities.MainActivity"
             window:secondaryActivityName=".ui.activities.UpdateSettingsActivity" />
@@ -58,12 +61,5 @@
             window:primaryActivityName=".ui.activities.MainActivity"
             window:secondaryActivityName=".ui.activities.WebDavSettingsActivity" />
     </SplitPairRule>
-
-    <!-- ===== CourseManageActivity 始终全屏（从课表页启动，不参与分屏）===== -->
-    <ActivityRule
-        window:alwaysExpand="true">
-        <ActivityFilter
-            window:activityName=".ui.activities.CourseManageActivity" />
-    </ActivityRule>
 
 </resources>

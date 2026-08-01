@@ -1,4 +1,4 @@
-﻿/** 赞赏作者页面 - Screen */
+/** 赞赏作者页面 - Screen */
 package com.haooz.chedule.ui.activities
 
 import android.annotation.SuppressLint
@@ -149,9 +149,12 @@ fun AppreciateAuthorScreen(onBack: () -> Unit) {
                                 .overScrollVertical()
                                 .scrollEndHaptic(
                                     hapticFeedbackType = androidx.compose.ui.hapticfeedback.HapticFeedbackType.TextHandleMove
+                                )
+                                .then(
+                                    if (!isLiquidGlass) Modifier.nestedScroll(scrollBehavior.nestedScrollConnection) else Modifier
                                 ),
                             contentPadding = PaddingValues(
-                                top = if (isLiquidGlass) paddingValues.calculateTopPadding() + 64.dp else paddingValues.calculateTopPadding() + 8.dp,
+                                top = if (isLiquidGlass) paddingValues.calculateTopPadding() + 56.dp else paddingValues.calculateTopPadding(),
                                 bottom = 60.dp
                             ),
                             verticalArrangement = Arrangement.spacedBy(0.dp)
@@ -271,8 +274,8 @@ fun AppreciateAuthorScreen(onBack: () -> Unit) {
 
 @Composable
 private fun AppreciationListItem(item: AppreciationItem) {
-    val isAnonymous = item.nickname.isBlank()
-    val displayName = if (isAnonymous) "匿名" else item.nickname
+    val isAnonymous = item.nickname == "[匿名]"
+    val displayName = item.nickname
 
     Row(
         modifier = Modifier
@@ -296,7 +299,7 @@ private fun AppreciationListItem(item: AppreciationItem) {
                 )
             } else {
                 Text(
-                    text = item.nickname.first().toString(),
+                    text = item.nickname.firstOrNull()?.toString() ?: "?",
                     fontSize = 16.sp,
                     fontWeight = FontWeight.Medium,
                     color = MiuixTheme.colorScheme.primary

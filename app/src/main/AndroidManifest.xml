@@ -39,7 +39,8 @@
             android:name=".ui.activities.MainActivity"
             android:configChanges="orientation|screenSize|screenLayout|keyboardHidden|mnc|colorMode|density|fontScale|fontWeightAdjustment|keyboard|layoutDirection|locale|mcc|navigation|smallestScreenSize|touchscreen|uiMode"
             android:exported="true"
-            android:launchMode="singleTask"
+            android:launchMode="singleTop"
+            android:alwaysRetainTaskState="true"
             android:label="@string/app_name"
             android:theme="@style/Theme.课程表"
             android:windowSoftInputMode="adjustResize">

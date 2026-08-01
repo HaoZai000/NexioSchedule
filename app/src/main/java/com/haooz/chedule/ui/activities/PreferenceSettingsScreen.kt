@@ -10,6 +10,7 @@ import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.offset
+import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.rememberLazyListState
@@ -87,7 +88,10 @@ fun PreferenceSettingsScreen(onBack: () -> Unit) {
                     title = "应用偏好设置",
                     scrollBehavior = scrollBehavior,
                     navigationIcon = {
-                        IconButton(onClick = { onBack() }) {
+                        IconButton(
+                            onClick = { onBack() },
+                            modifier = Modifier.padding(start = 4.dp)
+                        ) {
                             Icon(
                                 imageVector = MiuixIcons.Back,
                                 contentDescription = "返回",

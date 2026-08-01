@@ -139,7 +139,7 @@ internal fun ScheduleTopBar(
         Box(
             modifier = Modifier
                 .fillMaxWidth()
-                .height(titleBarHeight + if (appStyle == "liquidglass" && liquidGlassBackdrop != null) 70.dp else 40.dp)
+                .height(titleBarHeight + if (appStyle == "liquidglass" && liquidGlassBackdrop != null) 65.dp else 40.dp)
                 .then(
                     if (appStyle == "liquidglass" && liquidGlassBackdrop != null) {
                         if (Build.VERSION.SDK_INT >= 33) {

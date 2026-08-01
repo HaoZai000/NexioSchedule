@@ -142,7 +142,7 @@ class MainActivity : ComponentActivity() {
         @Volatile
         var cachedCurrentCombinationIndex: Int = 0
         @Volatile
-        var cachedWallpaperOffset: androidx.compose.ui.geometry.Offset = androidx.compose.ui.geometry.Offset.Zero
+        var cachedWallpaperOffset: Offset = Offset.Zero
         @Volatile
         var cachedWallpaperScale: Float = 1f
         @Volatile
@@ -217,7 +217,7 @@ class MainActivity : ComponentActivity() {
                 if (ids.isNotEmpty()) {
                     val currentIdValue = ids[idx]
                     cachedWallpaperBitmap = repo.loadCombinationWallpaper(currentIdValue)
-                    cachedWallpaperOffset = androidx.compose.ui.geometry.Offset(
+                    cachedWallpaperOffset = Offset(
                         repo.getCombinationOffsetX(currentIdValue),
                         repo.getCombinationOffsetY(currentIdValue)
                     )
@@ -463,7 +463,7 @@ fun CourseScheduleApp() {
                 com.haooz.chedule.data.Combination(
                     id = id,
                     bitmap = if (index == currentIndex) cached else null,
-                    offset = androidx.compose.ui.geometry.Offset(
+                    offset = Offset(
                         wallpaperRepository.getCombinationOffsetX(id),
                         wallpaperRepository.getCombinationOffsetY(id)
                     ),
@@ -490,7 +490,7 @@ fun CourseScheduleApp() {
                     com.haooz.chedule.data.Combination(
                         id = id,
                         bitmap = if (index == loadedIndex) wallpaperRepository.loadCombinationWallpaper(id) else null,
-                        offset = androidx.compose.ui.geometry.Offset(
+                        offset = Offset(
                             wallpaperRepository.getCombinationOffsetX(id),
                             wallpaperRepository.getCombinationOffsetY(id)
                         ),
@@ -952,7 +952,7 @@ fun CourseScheduleApp() {
             }
             wallpaperBitmap = bitmap
             // 选择新壁纸时重置位移，缩放自动计算为填满短边的最小值
-            wallpaperOffset = androidx.compose.ui.geometry.Offset.Zero
+            wallpaperOffset = Offset.Zero
             // 自动计算最小缩放比例，确保壁纸填满屏幕不露出底部背景
             val autoScale = if (bitmap != null && bitmap.width > 0 && bitmap.height > 0) {
                 val fitScale = minOf(screenWPx / bitmap.width, screenHPx / bitmap.height)
@@ -966,7 +966,7 @@ fun CourseScheduleApp() {
                 combinations = combinations.toMutableList().also {
                     it[idx] = it[idx].copy(
                         bitmap = bitmap,
-                        offset = androidx.compose.ui.geometry.Offset.Zero,
+                        offset = Offset.Zero,
                         scale = autoScale
                     )
                 }
@@ -1635,7 +1635,7 @@ fun CourseScheduleApp() {
                         val newComb = com.haooz.chedule.data.Combination(
                             id = newId,
                             bitmap = null,
-                            offset = androidx.compose.ui.geometry.Offset.Zero,
+                            offset = Offset.Zero,
                             scale = 1f
                         )
                         // 新搭配插入到列表头部，永远在加号卡右侧
@@ -1656,7 +1656,7 @@ fun CourseScheduleApp() {
                         val savedOrigDiv = originalShowBreakDividers
                         // 新搭配无背景，临时清除壁纸以截取无壁纸快照
                         wallpaperBitmap = null
-                        wallpaperOffset = androidx.compose.ui.geometry.Offset.Zero
+                        wallpaperOffset = Offset.Zero
                         wallpaperScale = 1f
                         courseCardBlur = 0f
                         courseCardAlpha = 0.15f
@@ -1666,7 +1666,7 @@ fun CourseScheduleApp() {
                         showBreakDividers = true
                         // 同步更新 original* 让 MainScheduleScreen 渲染空状态
                         originalWallpaperBitmap = null
-                        originalWallpaperOffset = androidx.compose.ui.geometry.Offset.Zero
+                        originalWallpaperOffset = Offset.Zero
                         originalWallpaperScale = 1f
                         originalCourseCardBlur = 0f
                         originalCourseCardAlpha = 0.15f
