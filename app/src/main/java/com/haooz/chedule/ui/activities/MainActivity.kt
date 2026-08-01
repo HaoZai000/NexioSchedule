@@ -74,10 +74,10 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.zIndex
 import androidx.lifecycle.viewmodel.compose.viewModel
+import androidx.window.embedding.SplitController
 import com.haooz.chedule.data.Course
 import com.haooz.chedule.reminder.CourseReminderHelper
 import com.haooz.chedule.reminder.IslandNotificationHelper
-import androidx.window.embedding.SplitController
 import com.haooz.chedule.ui.components.LongPressCustomizeButton
 import com.haooz.chedule.ui.components.ScheduleBottomBar
 import com.haooz.chedule.ui.components.ScheduleTopBar
@@ -108,7 +108,6 @@ import com.haooz.chedule.viewmodel.ShiftViewModel
 import com.kyant.shapes.RoundedRectangle
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
-import kotlinx.coroutines.flow.collect
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import top.yukonga.miuix.kmp.basic.MiuixScrollBehavior
@@ -1009,10 +1008,10 @@ fun CourseScheduleApp() {
             override fun onActivityPaused(a: android.app.Activity) {
                 if (a.javaClass.simpleName == value) value = null
             }
-            override fun onActivityCreated(a: android.app.Activity, b: android.os.Bundle?) {}
+            override fun onActivityCreated(a: android.app.Activity, b: Bundle?) {}
             override fun onActivityStarted(a: android.app.Activity) {}
             override fun onActivityStopped(a: android.app.Activity) {}
-            override fun onActivitySaveInstanceState(a: android.app.Activity, b: android.os.Bundle) {}
+            override fun onActivitySaveInstanceState(a: android.app.Activity, b: Bundle) {}
             override fun onActivityDestroyed(a: android.app.Activity) {}
         }
         app.registerActivityLifecycleCallbacks(callback)
