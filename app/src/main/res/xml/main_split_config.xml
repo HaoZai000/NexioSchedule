@@ -13,7 +13,10 @@
         window:splitMinWidthDp="600"
         window:finishPrimaryWithSecondary="never"
         window:finishSecondaryWithPrimary="always"
-        window:clearTop="true">
+        window:clearTop="true"
+        window:splitOpenAnimation="systemDefault"
+        window:splitChangeAnimation="systemDefault"
+        window:splitCloseAnimation="systemDefault">
 
         <!-- 二级页面：从我的页直接启动 -->
         <SplitPairFilter

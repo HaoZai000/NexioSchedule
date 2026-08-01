@@ -58,10 +58,12 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.TextFieldValue
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.viewinterop.AndroidView
@@ -135,10 +137,15 @@ fun WebViewScreen(
     onToggleDesktopModeRef: ((() -> Unit) -> Unit)? = null
 ) {
     val context = LocalContext.current
+    val isTablet = LocalConfiguration.current.screenWidthDp >= 600
+    val tabletHorizontalPadding = if (isTablet) {
+        val screenWidthDp = LocalConfiguration.current.screenWidthDp
+        ((screenWidthDp - 600).coerceIn(0, 600) / 600f * 112 + 16).dp
+    } else 0.dp
     var currentUrl by remember { mutableStateOf(importUrl ?: "about:blank") }
     var loadingProgress by remember { mutableFloatStateOf(0f) }
     var pageTitle by remember { mutableStateOf("加载中...") }
-    var isDesktopMode by remember { mutableStateOf(false) }
+    var isDesktopMode by remember { mutableStateOf(isTablet) }
     val hapticFeedback = LocalHapticFeedback.current
 
     LaunchedEffect(isDesktopMode) { onDesktopModeChanged(isDesktopMode) }
@@ -205,6 +212,7 @@ fun WebViewScreen(
             title = data.title,
             content = data.content,
             confirmText = data.confirmText,
+            tabletHorizontalPadding = tabletHorizontalPadding,
             onConfirm = {
                 data.onResult(true)
                 alertData = null
@@ -222,6 +230,7 @@ fun WebViewScreen(
             title = data.title,
             tip = data.tip,
             defaultText = data.defaultText,
+            tabletHorizontalPadding = tabletHorizontalPadding,
             onConfirm = { input ->
                 data.onResult(input)
                 promptData = null
@@ -239,6 +248,7 @@ fun WebViewScreen(
             title = data.title,
             items = data.items,
             defaultIndex = data.defaultIndex,
+            tabletHorizontalPadding = tabletHorizontalPadding,
             onSelect = { index ->
                 data.onResult(index)
                 selectionData = null
@@ -481,7 +491,7 @@ fun WebViewScreen(
         Surface(
             modifier = Modifier
                 .align(Alignment.BottomCenter)
-                .padding(horizontal = 16.dp)
+                .padding(horizontal = 16.dp + tabletHorizontalPadding)
                 .padding(bottom = 24.dp)
                 .border(0.5.dp, MiuixTheme.colorScheme.outline, Capsule())
                 .fillMaxWidth(),
@@ -577,6 +587,7 @@ private fun WebAlertDialog(
     title: String,
     content: String,
     confirmText: String,
+    tabletHorizontalPadding: Dp = 0.dp,
     onConfirm: () -> Unit,
     onDismiss: () -> Unit
 ) {
@@ -593,7 +604,7 @@ private fun WebAlertDialog(
             color = MiuixTheme.colorScheme.background,
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(horizontal = 20.dp)
+                .padding(horizontal = 20.dp + tabletHorizontalPadding)
         ) {
             Column(modifier = Modifier.padding(20.dp)) {
                 Text(
@@ -629,6 +640,7 @@ private fun WebPromptDialog(
     title: String,
     tip: String,
     defaultText: String,
+    tabletHorizontalPadding: Dp = 0.dp,
     onConfirm: (String) -> Unit,
     onDismiss: () -> Unit
 ) {
@@ -647,7 +659,7 @@ private fun WebPromptDialog(
             color = MiuixTheme.colorScheme.background,
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(horizontal = 20.dp)
+                .padding(horizontal = 20.dp + tabletHorizontalPadding)
         ) {
             Column(modifier = Modifier.padding(20.dp)) {
                 Text(
@@ -702,6 +714,7 @@ private fun WebSelectionDialog(
     title: String,
     items: List<String>,
     defaultIndex: Int,
+    tabletHorizontalPadding: Dp = 0.dp,
     onSelect: (Int) -> Unit,
     onDismiss: () -> Unit
 ) {
@@ -720,7 +733,7 @@ private fun WebSelectionDialog(
             color = MiuixTheme.colorScheme.background,
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(horizontal = 20.dp)
+                .padding(horizontal = 20.dp + tabletHorizontalPadding)
                 .heightIn(max = 400.dp)
         ) {
             Column(modifier = Modifier.padding(20.dp)) {

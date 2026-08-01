@@ -7,6 +7,14 @@ data class ChangelogEntry(
 )
 val changelogData = listOf(
     ChangelogEntry(
+        version = "v1.3.5-0805",
+        date = "2026-08-05",
+        changes = listOf(
+            "为Pad端进行适配",
+            "适配HyperOS无极窗口"
+        )
+    ),
+    ChangelogEntry(
         version = "v1.3.4-0801",
         date = "2026-08-01",
         changes = listOf(

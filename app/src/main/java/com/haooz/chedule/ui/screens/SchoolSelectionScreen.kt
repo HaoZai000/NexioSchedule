@@ -1,6 +1,7 @@
 /** 学校选择页面 - 用于教务系统导入时选择学校 */
 package com.haooz.chedule.ui.screens
 
+import android.annotation.SuppressLint
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.detectVerticalDragGestures
 import androidx.compose.foundation.layout.Arrangement
@@ -41,6 +42,7 @@ import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.DpOffset
@@ -53,6 +55,7 @@ import com.haooz.chedule.data.school.SchoolRepository
 import com.haooz.chedule.ui.components.liquidglass.LiquidTopBarButton
 import com.haooz.chedule.ui.components.liquidglass.ProgressiveBlurTopBar
 import com.kyant.backdrop.backdrops.LayerBackdrop
+import com.kyant.shapes.RoundedRectangle
 import kotlinx.coroutines.launch
 import top.yukonga.miuix.kmp.basic.ButtonDefaults
 import top.yukonga.miuix.kmp.basic.CircularProgressIndicator
@@ -75,6 +78,7 @@ import top.yukonga.miuix.kmp.theme.MiuixTheme
 import top.yukonga.miuix.kmp.utils.overScrollVertical
 import top.yukonga.miuix.kmp.utils.scrollEndHaptic
 
+@SuppressLint("ConfigurationScreenWidthHeight")
 @Composable
 fun SchoolSelectionScreen(
     isUpdating: Boolean = false,
@@ -224,6 +228,12 @@ fun SchoolSelectionScreen(
             }
         }
     ) { paddingValues ->
+        val isTablet = LocalConfiguration.current.screenWidthDp >= 600
+        val tabletHorizontalPadding = if (isTablet) {
+            val screenWidthDp = LocalConfiguration.current.screenWidthDp
+            ((screenWidthDp - 600).coerceIn(0, 600) / 600f * 112 + 16).dp
+        } else 0.dp
+
         Column(
             modifier = Modifier
                 .padding(top = paddingValues.calculateTopPadding() +
@@ -233,7 +243,7 @@ fun SchoolSelectionScreen(
                 .fillMaxSize()
         ) {
             SearchBar(
-                modifier = Modifier.padding(top = 12.dp, bottom = 6.dp, start = 4.dp, end = 4.dp),
+                modifier = Modifier.padding(top = 12.dp, bottom = 6.dp, start = 4.dp + tabletHorizontalPadding, end = 4.dp + tabletHorizontalPadding),
                 inputField = {
                     InputField(
                         query = searchQuery,
@@ -272,7 +282,7 @@ fun SchoolSelectionScreen(
 
                 LazyColumn(
                     modifier = Modifier.fillMaxSize(),
-                    contentPadding = PaddingValues(top = 8.dp, bottom = 60.dp)
+                    contentPadding = PaddingValues(top = 8.dp, bottom = 60.dp, start = tabletHorizontalPadding, end = tabletHorizontalPadding)
                 ) {
                     searchGroupedEntries.forEachIndexed { index, (letter, schools) ->
                         // 分割线
@@ -300,6 +310,7 @@ fun SchoolSelectionScreen(
                             val isPostgrad = school.adapters.any { it.category == AdapterData.CATEGORY_POSTGRADUATE }
                             Box(
                                 modifier = Modifier.fillMaxWidth()
+                                    .then(if (isTablet) Modifier.clip(RoundedRectangle(20.dp)) else Modifier)
                                     .clickable {
                                         hapticFeedback.performHapticFeedback(HapticFeedbackType.VirtualKey)
                                         val adapters = schoolRepository.getAdaptersForSchool(school.id, AdapterData.CATEGORY_BACHELOR)
@@ -346,19 +357,19 @@ fun SchoolSelectionScreen(
             }
 
             Row(
-                modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 4.dp),
+                modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp + tabletHorizontalPadding, vertical = 4.dp),
                 horizontalArrangement = Arrangement.spacedBy(8.dp)
             ) {
                 displayTabs.forEachIndexed { index, tabName ->
                     val isSelected = selectedTab == index
                     Surface(
                         modifier = Modifier
-                            .clip(com.kyant.shapes.RoundedRectangle(20.dp))
+                            .clip(RoundedRectangle(20.dp))
                             .clickable {
                                 hapticFeedback.performHapticFeedback(HapticFeedbackType.VirtualKey)
                                 selectedTab = index
                             },
-                        shape = com.kyant.shapes.RoundedRectangle(20.dp),
+                        shape = RoundedRectangle(20.dp),
                         color = if (isSelected) MiuixTheme.colorScheme.primary else MiuixTheme.colorScheme.surfaceVariant
                     ) {
                         Box(modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp), contentAlignment = Alignment.Center) {
@@ -455,6 +466,8 @@ fun SchoolSelectionScreen(
                                     if (!isLiquidGlass) Modifier.nestedScroll(scrollBehavior.nestedScrollConnection) else Modifier
                                 ),
                             contentPadding = PaddingValues(
+                                start = tabletHorizontalPadding,
+                                end = tabletHorizontalPadding,
                                 bottom = 60.dp
                             )
                         ) {
@@ -485,6 +498,7 @@ fun SchoolSelectionScreen(
                                     val isPostgrad = school.adapters.any { it.category == AdapterData.CATEGORY_POSTGRADUATE }
                                     Box(
                                         modifier = Modifier.fillMaxWidth()
+                                            .then(if (isTablet) Modifier.clip(RoundedRectangle(20.dp)) else Modifier)
                                             .clickable {
                                                 hapticFeedback.performHapticFeedback(HapticFeedbackType.VirtualKey)
                                                 val adapters = schoolRepository.getAdaptersForSchool(school.id, AdapterData.CATEGORY_BACHELOR)
@@ -566,7 +580,7 @@ fun SchoolSelectionScreen(
                         Box(
                             modifier = Modifier
                                 .align(Alignment.CenterEnd)
-                                .padding(end = 2.dp, top = indexBarPaddingTop, bottom = indexBarPaddingBottom)
+                                .padding(end = 2.dp + if (isTablet) 12.dp else 0.dp, top = indexBarPaddingTop, bottom = indexBarPaddingBottom)
                                 .width(20.dp)
                                 .fillMaxHeight()
                                     .pointerInput(Unit) {

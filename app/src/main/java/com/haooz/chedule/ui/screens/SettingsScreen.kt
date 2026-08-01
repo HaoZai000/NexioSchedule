@@ -126,7 +126,8 @@ fun SettingsScreen(
     navBarStyle: String = "standard",
     liquidGlassBackdrop: com.kyant.backdrop.Backdrop? = null,
     onScrollYChanged: (Int) -> Unit = {},
-    settingsScrollBehavior: top.yukonga.miuix.kmp.basic.ScrollBehavior? = null
+    settingsScrollBehavior: top.yukonga.miuix.kmp.basic.ScrollBehavior? = null,
+    activeSecondaryActivity: String? = null
 ) {
     val totalWeeks by viewModel.totalWeeks.collectAsState()
     val currentWeek by viewModel.currentWeek.collectAsState()
@@ -355,6 +356,7 @@ fun SettingsScreen(
                             ArrowPreference(
                                 title = "课程节数与时间",
                                 summary = "管理不同课表的节数与课程时间",
+                                holdDownState = activeSecondaryActivity == "CourseTimeSettingsActivity",
                                 onClick = {
                                     val intent =
                                         Intent(context, CourseTimeSettingsActivity::class.java)
@@ -383,6 +385,7 @@ fun SettingsScreen(
                                 ArrowPreference(
                                     title = "课程提醒",
                                     summary = "课前提醒、次日课程提醒",
+                                    holdDownState = activeSecondaryActivity == "CourseReminderActivity",
                                     onClick = {
                                         val intent = Intent(context, CourseReminderActivity::class.java)
                                         reminderSettingsLauncher.launch(intent)
@@ -390,6 +393,7 @@ fun SettingsScreen(
                                 )
                                 ArrowPreference(
                                     title = "桌面小部件",
+                                    holdDownState = activeSecondaryActivity == "WidgetIntroActivity",
                                     onClick = {
                                         val intent = Intent(context, WidgetIntroActivity::class.java)
                                         context.startActivity(intent)
@@ -482,6 +486,7 @@ fun SettingsScreen(
                             ) {
                                 ArrowPreference(
                                     title = "AI文本导入",
+                                    holdDownState = activeSecondaryActivity == "AiImportActivity",
                                     onClick = {
                                         val intent = Intent(context, com.haooz.chedule.ui.activities.AiImportActivity::class.java)
                                         context.startActivity(intent)
@@ -489,6 +494,7 @@ fun SettingsScreen(
                                 )
                                 ArrowPreference(
                                     title = "教务系统导入",
+                                    holdDownState = activeSecondaryActivity == "EducationalImportActivity",
                                     onClick = {
                                         val intent = Intent(context, com.haooz.chedule.ui.activities.EducationalImportActivity::class.java)
                                         context.startActivity(intent)
@@ -508,6 +514,7 @@ fun SettingsScreen(
                                 ArrowPreference(
                                     title = "备份与迁移",
                                     summary = "课表导入导出与备份",
+                                    holdDownState = activeSecondaryActivity == "BackupAndMigrationActivity",
                                     onClick = {
                                         val intent = Intent(context, com.haooz.chedule.ui.activities.BackupAndMigrationActivity::class.java)
                                         context.startActivity(intent)
@@ -555,6 +562,7 @@ fun SettingsScreen(
                             ) {
                                 ArrowPreference(
                                     title = "应用偏好设置",
+                                    holdDownState = activeSecondaryActivity == "PreferenceSettingsActivity",
                                     onClick = {
                                         val intent = Intent(context, PreferenceSettingsActivity::class.java)
                                         context.startActivity(intent)
@@ -562,6 +570,7 @@ fun SettingsScreen(
                                 )
                                 ArrowPreference(
                                     title = "关于应用",
+                                    holdDownState = activeSecondaryActivity == "AboutActivity",
                                     onClick = {
                                         val intent = Intent(context, AboutActivity::class.java)
                                         context.startActivity(intent)
