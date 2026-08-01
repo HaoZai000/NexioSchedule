@@ -182,7 +182,7 @@ fun CustomizeScheduleScreen(
     val scope = rememberCoroutineScope()
     val configuration = LocalConfiguration.current
     val isTablet = (configuration.screenLayout and Configuration.SCREENLAYOUT_SIZE_MASK) in
-            listOf(Configuration.SCREENLAYOUT_SIZE_LARGE, Configuration.SCREENLAYOUT_SIZE_XLARGE)
+            listOf(Configuration.SCREENLAYOUT_SIZE_XLARGE)
     val screenHPx = with(densityObj) { configuration.screenHeightDp.dp.toPx() }
     val screenWPx = with(densityObj) { configuration.screenWidthDp.dp.toPx() }
 

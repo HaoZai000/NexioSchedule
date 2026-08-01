@@ -214,7 +214,7 @@ fun AddCourseDialog(
     }
     val statusBarsPadding = WindowInsets.statusBars.asPaddingValues().calculateTopPadding()
     val isTablet = (LocalConfiguration.current.screenLayout and Configuration.SCREENLAYOUT_SIZE_MASK) in
-            listOf(Configuration.SCREENLAYOUT_SIZE_LARGE, Configuration.SCREENLAYOUT_SIZE_XLARGE)
+            listOf(Configuration.SCREENLAYOUT_SIZE_XLARGE)
 
     if (isTablet) {
         BlurBottomSheetTablet(
@@ -1318,7 +1318,7 @@ private fun AddCourseDialogContent(
         }
         val configuration = LocalConfiguration.current
         val isTablet = (configuration.screenLayout and Configuration.SCREENLAYOUT_SIZE_MASK) in
-                listOf(Configuration.SCREENLAYOUT_SIZE_LARGE, Configuration.SCREENLAYOUT_SIZE_XLARGE)
+                listOf(Configuration.SCREENLAYOUT_SIZE_XLARGE)
         Spacer(modifier = Modifier.height(if (isTablet) 4.dp else statusBarsPadding + 65.dp))
     }
 }

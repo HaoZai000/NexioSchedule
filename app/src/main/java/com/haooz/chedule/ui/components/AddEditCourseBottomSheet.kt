@@ -150,7 +150,7 @@ fun AddEditCourseBottomSheet(
     val someSelectableEvenSelected = selectableEvenWeeks.any { it in selectedWeeks }
     val isDark = isAppDarkTheme()
     val isTablet = (LocalConfiguration.current.screenLayout and Configuration.SCREENLAYOUT_SIZE_MASK) in
-            listOf(Configuration.SCREENLAYOUT_SIZE_LARGE, Configuration.SCREENLAYOUT_SIZE_XLARGE)
+            listOf(Configuration.SCREENLAYOUT_SIZE_XLARGE)
 
     val hasOccupiedOddWeeks = remember(selectableOddWeeks, oddWeeks) { selectableOddWeeks.size != oddWeeks.size }
     val hasOccupiedEvenWeeks = remember(selectableEvenWeeks, evenWeeks) { selectableEvenWeeks.size != evenWeeks.size }

@@ -42,7 +42,7 @@ fun BgEffectBackground(
         val isDarkTheme = isAppDarkTheme()
         val config = LocalConfiguration.current
         val isTablet = (config.screenLayout and Configuration.SCREENLAYOUT_SIZE_MASK) in
-                listOf(Configuration.SCREENLAYOUT_SIZE_LARGE, Configuration.SCREENLAYOUT_SIZE_XLARGE)
+                listOf(Configuration.SCREENLAYOUT_SIZE_XLARGE)
         val painter = remember { BgEffectPainter() }
 
         val preset = remember(isDarkTheme, isTablet) {

@@ -90,6 +90,7 @@ fun BlurBottomSheet(
     sheetBackgroundColor: Color? = null,
     sheetBackgroundAlpha: Float? = null,
     sheetOffsetDp: Dp = Dp.Unspecified,
+    sheetMaxWidth: Dp = Dp.Unspecified,
     onDismissRequest: () -> Unit,
     startAction: @Composable (() -> Unit)? = null,
     endAction: @Composable (() -> Unit)? = null,
@@ -134,6 +135,7 @@ fun BlurBottomSheet(
             liquidGlassBackdrop = liquidGlassBackdrop,
             sheetContentBackdropHolder = sheetContentBackdropHolder,
             sheetOffsetDp = sheetOffsetDp,
+            sheetMaxWidth = sheetMaxWidth,
             content = content,
         )
     }
@@ -150,6 +152,7 @@ private fun BlurBottomSheetContent(
     sheetBackgroundColor: Color? = null,
     sheetBackgroundAlpha: Float? = null,
     sheetOffsetDp: Dp = Dp.Unspecified,
+    sheetMaxWidth: Dp = Dp.Unspecified,
     onDismissRequest: () -> Unit,
     startAction: @Composable (() -> Unit)? = null,
     endAction: @Composable (() -> Unit)? = null,
@@ -231,7 +234,10 @@ private fun BlurBottomSheetContent(
             modifier = sheetModifier
                 .offset(y = sheetOffsetDpValue)
                 .align(Alignment.BottomCenter)
-                .fillMaxWidth()
+                .then(
+                    if (sheetMaxWidth != Dp.Unspecified) Modifier.width(sheetMaxWidth).fillMaxWidth()
+                    else Modifier.fillMaxWidth()
+                )
                 .heightIn(max = windowInfo.containerDpSize.height)
                 .onGloballyPositioned { coordinates ->
                     if (imeInsets.getBottom(density) == 0) {

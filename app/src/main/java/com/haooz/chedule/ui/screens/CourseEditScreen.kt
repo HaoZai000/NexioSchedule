@@ -204,7 +204,7 @@ fun CourseEditScreen(
     val appStyle = rememberAppStyle()
     val isLiquidGlass = appStyle == "liquidglass" && liquidGlassBackdrop != null
     val isTablet = (LocalConfiguration.current.screenLayout and Configuration.SCREENLAYOUT_SIZE_MASK) in
-            listOf(Configuration.SCREENLAYOUT_SIZE_LARGE, Configuration.SCREENLAYOUT_SIZE_XLARGE)
+            listOf(Configuration.SCREENLAYOUT_SIZE_XLARGE)
     val tabletHorizontalPadding = if (isTablet) {
         val screenWidthDp = LocalConfiguration.current.screenWidthDp
         ((screenWidthDp - 600).coerceIn(0, 600) / 600f * 112 + 16).dp
@@ -841,67 +841,106 @@ fun CourseEditScreen(
                                         }
                                     }
 
-                                    items(
-                                        items = courseGroups,
-                                        key = { "${it.key.dayOfWeek}_${it.key.startSection}_${it.key.startWeek}" },
-                                        contentType = { "CourseGroupCard" }
-                                    ) { group ->
-                                        val groupKey = "${group.key.dayOfWeek}_${group.key.startSection}_${group.key.startWeek}"
-                                        val isDeleting = deletingGroupId == groupKey
-
-                                        AnimatedVisibility(
-                                            visible = !isDeleting,
-                                            exit = shrinkVertically(tween(300)) + fadeOut(tween(300))
-                                        ) {
-                                            val cardAlpha = remember { Animatable(0f) }
-                                            val cardScale = remember { Animatable(0.8f) }
-                                            LaunchedEffect(Unit) {
-                                                launch {
-                                                    cardAlpha.animateTo(1f, tween(400))
+                                    if (isTablet) {
+                                        val pairs = courseGroups.chunked(2)
+                                        items(
+                                            items = pairs,
+                                            key = { pair ->
+                                                pair.joinToString("|") { "${it.key.dayOfWeek}_${it.key.startSection}_${it.key.startWeek}" }
+                                            },
+                                            contentType = { "CourseGroupPair" }
+                                        ) { pair ->
+                                            Row(
+                                                modifier = Modifier.fillMaxWidth(),
+                                                horizontalArrangement = Arrangement.spacedBy(24.dp)
+                                            ) {
+                                                pair.forEach { group ->
+                                                    Box(modifier = Modifier.weight(1f)) {
+                                                        CourseGroupCardWithDelete(
+                                                            group = group,
+                                                            sectionTimes = sectionTimes,
+                                                            isDark = isDark,
+                                                            deletingGroupId = deletingGroupId,
+                                                            onEdit = { g ->
+                                                                editingGroup = g
+                                                                showEditCourseSheet = true
+                                                            },
+                                                            onDelete = { g ->
+                                                                hapticFeedback.performHapticFeedback(HapticFeedbackType.Confirm)
+                                                                pendingDeleteGroup = g
+                                                                showDeleteDialog = true
+                                                            }
+                                                        )
+                                                    }
                                                 }
-                                                launch {
-                                                    cardScale.animateTo(1f, tween(400, easing = OobeQuartOutEasing))
+                                                if (pair.size == 1) {
+                                                    Spacer(modifier = Modifier.weight(1f))
                                                 }
                                             }
-                                            Column(
-                                                modifier = Modifier
-                                                    .fillMaxWidth()
-                                                    .graphicsLayer {
-                                                        alpha = cardAlpha.value
-                                                        scaleX = cardScale.value
-                                                        scaleY = cardScale.value
-                                                    }
+                                        }
+                                    } else {
+                                        items(
+                                            items = courseGroups,
+                                            key = { "${it.key.dayOfWeek}_${it.key.startSection}_${it.key.startWeek}" },
+                                            contentType = { "CourseGroupCard" }
+                                        ) { group ->
+                                            val groupKey = "${group.key.dayOfWeek}_${group.key.startSection}_${group.key.startWeek}"
+                                            val isDeleting = deletingGroupId == groupKey
+
+                                            AnimatedVisibility(
+                                                visible = !isDeleting,
+                                                exit = shrinkVertically(tween(300)) + fadeOut(tween(300))
                                             ) {
-                                                CourseGroupCard(
-                                                    group = group,
-                                                    sectionTimes = sectionTimes,
-                                                    onEdit = { g ->
-                                                        editingGroup = g
-                                                        showEditCourseSheet = true
+                                                val cardAlpha = remember { Animatable(0f) }
+                                                val cardScale = remember { Animatable(0.8f) }
+                                                LaunchedEffect(Unit) {
+                                                    launch {
+                                                        cardAlpha.animateTo(1f, tween(400))
                                                     }
-                                                )
-                                                // 删除按钮
-                                                Button(
+                                                    launch {
+                                                        cardScale.animateTo(1f, tween(400, easing = OobeQuartOutEasing))
+                                                    }
+                                                }
+                                                Column(
                                                     modifier = Modifier
                                                         .fillMaxWidth()
-                                                        .padding(top = 12.dp)
-                                                        .height(50.dp),
-                                                    onClick = {
-                                                        hapticFeedback.performHapticFeedback(HapticFeedbackType.Confirm)
-                                                        pendingDeleteGroup = group
-                                                        showDeleteDialog = true
-                                                    },
-                                                    colors = if (isDark) ButtonDefaults.buttonColors(color = Color(0xFF2A2A2A))
-                                                    else ButtonDefaults.buttonColors(),
+                                                        .graphicsLayer {
+                                                            alpha = cardAlpha.value
+                                                            scaleX = cardScale.value
+                                                            scaleY = cardScale.value
+                                                        }
                                                 ) {
-                                                    Icon(
-                                                        imageVector = MiuixIcons.Delete,
-                                                        contentDescription = null,
-                                                        modifier = Modifier.size(20.dp),
-                                                        tint = Color(0xFFF44336)
+                                                    CourseGroupCard(
+                                                        group = group,
+                                                        sectionTimes = sectionTimes,
+                                                        onEdit = { g ->
+                                                            editingGroup = g
+                                                            showEditCourseSheet = true
+                                                        }
                                                     )
-                                                    Spacer(modifier = Modifier.width(4.dp))
-                                                    Text("删除", fontSize = 17.sp, fontWeight = FontWeight.Medium, color = Color(0xFFF44336))
+                                                    // 删除按钮
+                                                    Button(
+                                                        modifier = Modifier
+                                                            .fillMaxWidth()
+                                                            .padding(top = 12.dp)
+                                                            .height(50.dp),
+                                                        onClick = {
+                                                            hapticFeedback.performHapticFeedback(HapticFeedbackType.Confirm)
+                                                            pendingDeleteGroup = group
+                                                            showDeleteDialog = true
+                                                        },
+                                                        colors = if (isDark) ButtonDefaults.buttonColors(color = Color(0xFF2A2A2A))
+                                                        else ButtonDefaults.buttonColors(),
+                                                    ) {
+                                                        Icon(
+                                                            imageVector = MiuixIcons.Delete,
+                                                            contentDescription = null,
+                                                            modifier = Modifier.size(20.dp),
+                                                            tint = Color(0xFFF44336)
+                                                        )
+                                                        Spacer(modifier = Modifier.width(4.dp))
+                                                        Text("删除", fontSize = 17.sp, fontWeight = FontWeight.Medium, color = Color(0xFFF44336))
+                                                    }
                                                 }
                                             }
                                         }
@@ -1199,6 +1238,66 @@ private fun CourseGroupCard(
                 color = MiuixTheme.colorScheme.onSurface.copy(alpha = 0.5f),
                 modifier = Modifier.padding(start = 32.dp, top = 4.dp)
             )
+        }
+    }
+}
+
+// ===================== Course Group Card + Delete (Tablet) =====================
+
+@Composable
+private fun CourseGroupCardWithDelete(
+    group: CourseGroup,
+    sectionTimes: Map<Int, String>,
+    isDark: Boolean,
+    deletingGroupId: String?,
+    onEdit: (CourseGroup) -> Unit,
+    onDelete: (CourseGroup) -> Unit
+) {
+    val groupKey = "${group.key.dayOfWeek}_${group.key.startSection}_${group.key.startWeek}"
+    val isDeleting = deletingGroupId == groupKey
+
+    AnimatedVisibility(
+        visible = !isDeleting,
+        exit = shrinkVertically(tween(300)) + fadeOut(tween(300))
+    ) {
+        val cardAlpha = remember { Animatable(0f) }
+        val cardScale = remember { Animatable(0.8f) }
+        LaunchedEffect(Unit) {
+            launch { cardAlpha.animateTo(1f, tween(400)) }
+            launch { cardScale.animateTo(1f, tween(400, easing = OobeQuartOutEasing)) }
+        }
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .graphicsLayer {
+                    alpha = cardAlpha.value
+                    scaleX = cardScale.value
+                    scaleY = cardScale.value
+                }
+        ) {
+            CourseGroupCard(
+                group = group,
+                sectionTimes = sectionTimes,
+                onEdit = onEdit
+            )
+            Button(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(top = 12.dp)
+                    .height(50.dp),
+                onClick = { onDelete(group) },
+                colors = if (isDark) ButtonDefaults.buttonColors(color = Color(0xFF2A2A2A))
+                else ButtonDefaults.buttonColors(),
+            ) {
+                Icon(
+                    imageVector = MiuixIcons.Delete,
+                    contentDescription = null,
+                    modifier = Modifier.size(20.dp),
+                    tint = Color(0xFFF44336)
+                )
+                Spacer(modifier = Modifier.width(4.dp))
+                Text("删除", fontSize = 17.sp, fontWeight = FontWeight.Medium, color = Color(0xFFF44336))
+            }
         }
     }
 }

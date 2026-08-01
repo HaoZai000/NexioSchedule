@@ -39,7 +39,6 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
-import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableIntStateOf
@@ -50,8 +49,8 @@ import androidx.compose.runtime.setValue
 import androidx.compose.runtime.withFrameNanos
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.blur
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.draw.drawWithContent
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
@@ -64,6 +63,7 @@ import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.rememberGraphicsLayer
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalHapticFeedback
@@ -83,6 +83,7 @@ import com.haooz.chedule.ui.components.UpdateDialog
 import com.haooz.chedule.ui.components.liquidglass.LiquidAddButton
 import com.haooz.chedule.ui.components.liquidglass.LiquidGlassDropdownMenu
 import com.haooz.chedule.ui.components.liquidglass.LiquidGlassDropdownMenuItem
+import com.haooz.chedule.ui.components.liquidglass.LiquidTopBarButton
 import com.haooz.chedule.ui.components.liquidglass.ProgressiveBlurTopBar
 import com.haooz.chedule.ui.miuix.OobeCubicOutEasing
 import com.haooz.chedule.ui.miuix.OobeQuartOutEasing
@@ -94,8 +95,6 @@ import com.haooz.chedule.ui.screens.SettingsScreen
 import com.haooz.chedule.ui.screens.ShiftScheduleScreen
 import com.haooz.chedule.ui.screens.TodayScreen
 import com.haooz.chedule.ui.theme.CourseScheduleTheme
-import com.haooz.chedule.ui.components.liquidglass.LiquidTopBarButton
-
 import com.haooz.chedule.ui.utils.applyThemeAwareSystemBars
 import com.haooz.chedule.ui.utils.isAppDarkTheme
 import com.haooz.chedule.ui.utils.rememberAppStyle
@@ -113,7 +112,6 @@ import top.yukonga.miuix.kmp.basic.NavigationRailDefaults
 import top.yukonga.miuix.kmp.basic.Scaffold
 import top.yukonga.miuix.kmp.basic.SmallTopAppBar
 import top.yukonga.miuix.kmp.basic.rememberNavigationRailState
-import androidx.compose.ui.draw.blur
 import top.yukonga.miuix.kmp.blur.BlendColorEntry
 import top.yukonga.miuix.kmp.blur.BlurBlendMode
 import top.yukonga.miuix.kmp.blur.BlurDefaults
@@ -282,6 +280,7 @@ class MainActivity : ComponentActivity() {
     }
 }
 
+@SuppressLint("ConfigurationScreenWidthHeight")
 @Composable
 fun CourseScheduleApp() {
     val context = LocalContext.current
@@ -357,7 +356,7 @@ fun CourseScheduleApp() {
     }
     val config = LocalConfiguration.current
     val isTablet = (config.screenLayout and Configuration.SCREENLAYOUT_SIZE_MASK) in
-            listOf(Configuration.SCREENLAYOUT_SIZE_LARGE, Configuration.SCREENLAYOUT_SIZE_XLARGE)
+            listOf(Configuration.SCREENLAYOUT_SIZE_XLARGE)
     val navBarStyle = if (isTablet) "rail" else "standard"
     val windowInfo = androidx.compose.ui.platform.LocalWindowInfo.current
     val density = LocalDensity.current
@@ -1040,12 +1039,11 @@ fun CourseScheduleApp() {
                     }
                 }
                 .then(
-                    if (navBarStyle != "rail") {
-                        // 用 drawWithContent + clipPath + addSquircleRect 实现 squircle 圆角裁剪
-                        // drawWithContent 在 graphicsLayer 缩放后应用，每帧重新裁剪
-                        // 视觉圆角 = screenRadius * effectiveScale（随缩放变小）
-                        // 搭配页退出时锁定圆角为 screenCornerRadius，避免缩小
-                        Modifier.drawWithContent {
+                    // 用 drawWithContent + clipPath + addSquircleRect 实现 squircle 圆角裁剪
+                    // drawWithContent 在 graphicsLayer 缩放后应用，每帧重新裁剪
+                    // 视觉圆角 = screenRadius * effectiveScale（随缩放变小）
+                    // 搭配页退出时锁定圆角为 screenCornerRadius，避免缩小
+                    Modifier.drawWithContent {
                             val exitScale = if (isCustomizeExiting) customizeExitScale.value else 1f
                             val cutoutScale = cutoutMainScale.value
                             val effectiveScale =
@@ -1070,7 +1068,6 @@ fun CourseScheduleApp() {
                                 drawContent()
                             }
                         }
-                    } else Modifier
                 )
                 .then(
                     Modifier.drawWithContent {
@@ -1081,7 +1078,6 @@ fun CourseScheduleApp() {
                     }
                 )
                 .layerBackdrop(fullBlurBackdrop)
-
         ) {
             Scaffold(
                 bottomBar = {
@@ -1399,7 +1395,7 @@ fun CourseScheduleApp() {
                 modifier = Modifier
                     .fillMaxSize()
                     .graphicsLayer { clip = false }
-                    .padding(top = (statusBarHeight + 32.dp).coerceAtLeast(76.dp), end = 2.dp),
+                    .padding(top = if (statusBarHeight > 0.dp) statusBarHeight + 32.dp else 70.dp, end = 2.dp),
                 contentAlignment = Alignment.TopEnd
             ) {
                     LiquidGlassDropdownMenu(

@@ -55,11 +55,13 @@ import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.layout.onGloballyPositioned
+import android.content.res.Configuration
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.haooz.chedule.data.Course
@@ -134,6 +136,8 @@ fun MainScheduleScreen(
     val selectedEndSection by viewModel.selectedEndSection.collectAsState()
     val hapticFeedback = LocalHapticFeedback.current
     val configuration = LocalConfiguration.current
+    val isTablet = (configuration.screenLayout and Configuration.SCREENLAYOUT_SIZE_MASK) in
+            listOf(Configuration.SCREENLAYOUT_SIZE_XLARGE)
     val density = LocalDensity.current
     val screenWidthPx = with(density) { configuration.screenWidthDp.dp.toPx() }
     val screenHeightPx = with(density) { configuration.screenHeightDp.dp.toPx() }
@@ -277,8 +281,9 @@ fun MainScheduleScreen(
                     modifier = Modifier
                         .fillMaxSize()
                         .graphicsLayer {
-                            scaleX = wallpaperScale
-                            scaleY = wallpaperScale
+                            val effectiveScale = maxOf(wallpaperScale, minWallpaperScale)
+                            scaleX = effectiveScale
+                            scaleY = effectiveScale
                             translationX = wallpaperOffset.x
                             translationY = wallpaperOffset.y
                         },
@@ -543,6 +548,7 @@ fun MainScheduleScreen(
             title = "课程详情",
             backdrop = screenBackdrop,
             dimBackground = true,
+            sheetMaxWidth = if (isTablet) 560.dp else Dp.Unspecified,
             onDismissRequest = {
                 showCourseDetail = false
                 onPopupStateChange(false)
