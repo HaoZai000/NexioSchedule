@@ -136,6 +136,13 @@ data class TimeConfig(
          * 从 CourseRepository 创建默认 TimeConfig
          */
         fun fromRepository(repository: CourseRepository): TimeConfig {
+            val sectionTimes = mutableMapOf<String, String>()
+            for (period in listOf("morning", "afternoon", "evening")) {
+                val times = repository.getPeriodTimes(period)
+                for ((idx, time) in times) {
+                    sectionTimes["${period}_$idx"] = time
+                }
+            }
             return TimeConfig(
                 morningSections = repository.getMorningSections(),
                 afternoonSections = repository.getAfternoonSections(),
@@ -155,7 +162,8 @@ data class TimeConfig(
                 afternoonStartHour = repository.getAfternoonStartHour(),
                 afternoonStartMinute = repository.getAfternoonStartMinute(),
                 eveningStartHour = repository.getEveningStartHour(),
-                eveningStartMinute = repository.getEveningStartMinute()
+                eveningStartMinute = repository.getEveningStartMinute(),
+                sectionTimes = sectionTimes
             )
         }
     }

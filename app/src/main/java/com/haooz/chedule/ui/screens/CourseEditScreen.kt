@@ -1,6 +1,7 @@
 /** 课程编辑页面 - 修改课程时段/周次 */
 package com.haooz.chedule.ui.screens
 
+import android.content.res.Configuration
 import android.graphics.Bitmap
 import androidx.activity.compose.BackHandler
 import androidx.compose.animation.AnimatedVisibility
@@ -57,6 +58,7 @@ import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.DpOffset
@@ -201,6 +203,12 @@ fun CourseEditScreen(
 
     val appStyle = rememberAppStyle()
     val isLiquidGlass = appStyle == "liquidglass" && liquidGlassBackdrop != null
+    val isTablet = (LocalConfiguration.current.screenLayout and Configuration.SCREENLAYOUT_SIZE_MASK) in
+            listOf(Configuration.SCREENLAYOUT_SIZE_LARGE, Configuration.SCREENLAYOUT_SIZE_XLARGE)
+    val tabletHorizontalPadding = if (isTablet) {
+        val screenWidthDp = LocalConfiguration.current.screenWidthDp
+        ((screenWidthDp - 600).coerceIn(0, 600) / 600f * 112 + 16).dp
+    } else 16.dp
 
     val density = LocalDensity.current
     val animProgress = remember { Animatable(0f) }
@@ -607,9 +615,9 @@ fun CourseEditScreen(
                                         )
                                         .nestedScroll(scrollBehavior.nestedScrollConnection),
                                     contentPadding = PaddingValues(
-                                        start = 16.dp,
+                                        start = tabletHorizontalPadding,
                                         top = if (isLiquidGlass) paddingValues.calculateTopPadding() + (-8).dp else paddingValues.calculateTopPadding() + 8.dp,
-                                        end = 16.dp,
+                                        end = tabletHorizontalPadding,
                                         bottom = 120.dp
                                     ),
                                     verticalArrangement = Arrangement.spacedBy(12.dp)
@@ -617,7 +625,7 @@ fun CourseEditScreen(
                                     // 课程颜色选择器（与添加课程弹窗样式一致）
                                     item(key = "color_picker") {
                                         val allColors = remember { Course.courseColors }
-                                        val colorColumns = 6
+                                        val colorColumns = if (isTablet) allColors.size + 1 else 6
                                         val totalItems = remember(allColors) { allColors.size + 1 } // +1 for custom color button
                                         val colorRows = remember(totalItems, colorColumns) { (totalItems + colorColumns - 1) / colorColumns }
                                         Card(

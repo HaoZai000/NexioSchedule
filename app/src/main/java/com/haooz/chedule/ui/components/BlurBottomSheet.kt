@@ -54,7 +54,6 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.zIndex
 import com.haooz.chedule.ui.components.liquidglass.ProgressiveBlurTopBar
-import com.haooz.chedule.ui.miuix.OobeCubicOutEasing
 import com.kyant.backdrop.Backdrop
 import com.kyant.backdrop.backdrops.layerBackdrop
 import kotlinx.coroutines.launch
@@ -185,7 +184,7 @@ private fun BlurBottomSheetContent(
             )
         } else {
             // 退出动画
-            animationProgress.animateTo(0f, animationSpec = tween(350, easing = OobeCubicOutEasing))
+            animationProgress.animateTo(0f, animationSpec = tween(400, easing = CubicBezierEasing(0.34f, 1f, 0.3f, 1f)))
             visibleState.value = false
         }
     }
@@ -203,7 +202,7 @@ private fun BlurBottomSheetContent(
             Box(
                 modifier = Modifier
                     .fillMaxSize()
-                    .background(Color.Black.copy(alpha = animationProgress.value * 0.14f))
+                    .background(Color.Black.copy(alpha = animationProgress.value * 0.2f))
                     .clickable(
                         interactionSource = null,
                         indication = null,
@@ -263,7 +262,7 @@ private fun BlurBottomSheetContent(
                     } else Modifier
                 )
                 .background(sheetBgColor.copy(alpha = sheetBackgroundAlpha ?: if (backdrop != null)
-                    if (isDark) 0.9f else 0.6f
+                    if (isDark) 0.9f else 0.76f
                     else 1f))
                 .pointerInput(Unit) {
                     detectTapGestures { /* consume clicks */ }

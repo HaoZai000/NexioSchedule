@@ -1,7 +1,7 @@
 /** 添加课程底部弹窗 */
 package com.haooz.chedule.ui.components
 
-import androidx.compose.foundation.clickable
+import android.content.res.Configuration
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -19,7 +19,6 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
@@ -31,6 +30,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.state.ToggleableState
 import androidx.compose.ui.text.TextStyle
@@ -149,121 +149,117 @@ fun AddEditCourseBottomSheet(
     val someSelectableOddSelected = selectableOddWeeks.any { it in selectedWeeks }
     val someSelectableEvenSelected = selectableEvenWeeks.any { it in selectedWeeks }
     val isDark = isAppDarkTheme()
+    val isTablet = (LocalConfiguration.current.screenLayout and Configuration.SCREENLAYOUT_SIZE_MASK) in
+            listOf(Configuration.SCREENLAYOUT_SIZE_LARGE, Configuration.SCREENLAYOUT_SIZE_XLARGE)
+
     val hasOccupiedOddWeeks = remember(selectableOddWeeks, oddWeeks) { selectableOddWeeks.size != oddWeeks.size }
     val hasOccupiedEvenWeeks = remember(selectableEvenWeeks, evenWeeks) { selectableEvenWeeks.size != evenWeeks.size }
 
-    BlurBottomSheet(
-        show = show,
-        title = if (isEditMode) "编辑课程" else "添加课程",
-        backdrop = backdrop,
-        dimBackground = true,
-        onDismissRequest = onDismissRequest,
-        liquidGlassBackdrop = liquidGlassBackdrop,
-        sheetOffsetDp = 100.dp,
-        onSheetContentBackdropCreated = { sheetContentBackdrop = it },
-        startAction = {
-            if (liquidGlassBackdrop != null) {
-                com.haooz.chedule.ui.components.liquidglass.LiquidTopBarButton(
-                    onClick = {
-                        hapticFeedback.performHapticFeedback(HapticFeedbackType.Confirm)
-                        onDismissRequest()
-                    },
-                    backdrop = sheetContentBackdrop ?: liquidGlassBackdrop,
-                    icon = MiuixIcons.Normal.Close,
-                    contentDescription = "关闭",
-                    modifier = Modifier.padding(start = 20.dp),
-                    iconSize = 22.dp,
-                    useBackdropShadow = true
-                )
-            } else {
-                IconButton(
-                    onClick = {
-                        hapticFeedback.performHapticFeedback(HapticFeedbackType.Confirm)
-                        onDismissRequest()
-                    },
-                    modifier = Modifier.padding(horizontal = 20.dp)
-                ) {
-                    Icon(
-                        imageVector = MiuixIcons.Normal.Close,
-                        contentDescription = "关闭",
-                        modifier = Modifier.size(24.dp)
-                    )
-                }
+    val onConfirmClick: () -> Unit = {
+        hapticFeedback.performHapticFeedback(HapticFeedbackType.Confirm)
+        if (selectedWeeks.isNotEmpty()) {
+            val sortedWeeks = selectedWeeks.sorted()
+            val minWeek = sortedWeeks.first()
+            val maxWeek = sortedWeeks.last()
+            val allWeeksInRange = (minWeek..maxWeek).toSet()
+            val oddWeeksInRange = allWeeksInRange.filter { it % 2 == 1 }.toSet()
+            val evenWeeksInRange = allWeeksInRange.filter { it % 2 == 0 }.toSet()
+
+            val weekType = when {
+                selectedWeeks.toSet() == allWeeksInRange -> Course.WEEK_TYPE_ALL
+                selectedWeeks.toSet() == oddWeeksInRange -> Course.WEEK_TYPE_ODD
+                selectedWeeks.toSet() == evenWeeksInRange -> Course.WEEK_TYPE_EVEN
+                else -> Course.WEEK_TYPE_ALL
             }
-        },
-        endAction = {
-            val onConfirmClick: () -> Unit = {
-                hapticFeedback.performHapticFeedback(HapticFeedbackType.Confirm)
-                if (selectedWeeks.isNotEmpty()) {
-                    val sortedWeeks = selectedWeeks.sorted()
-                    val minWeek = sortedWeeks.first()
-                    val maxWeek = sortedWeeks.last()
-                    val allWeeksInRange = (minWeek..maxWeek).toSet()
-                    val oddWeeksInRange = allWeeksInRange.filter { it % 2 == 1 }.toSet()
-                    val evenWeeksInRange = allWeeksInRange.filter { it % 2 == 0 }.toSet()
 
-                    val weekType = when {
-                        selectedWeeks.toSet() == allWeeksInRange -> Course.WEEK_TYPE_ALL
-                        selectedWeeks.toSet() == oddWeeksInRange -> Course.WEEK_TYPE_ODD
-                        selectedWeeks.toSet() == evenWeeksInRange -> Course.WEEK_TYPE_EVEN
-                        else -> Course.WEEK_TYPE_ALL
-                    }
+            val isContiguous = selectedWeeks.size == (maxWeek - minWeek + 1)
+            val weeksToSave = if (isContiguous) emptyList() else sortedWeeks
 
-                    val isContiguous = selectedWeeks.size == (maxWeek - minWeek + 1)
-                    val weeksToSave = if (isContiguous) emptyList() else sortedWeeks
+            val course = Course(
+                id = editCourse?.id ?: UUID.randomUUID().toString(),
+                name = editCourse?.name ?: courses.firstOrNull()?.name ?: "",
+                classroom = classroom.trim(),
+                teacher = teacher.trim(),
+                dayOfWeek = dayOfWeek,
+                startSection = startSection,
+                endSection = endSection,
+                startWeek = minWeek,
+                endWeek = maxWeek,
+                weekType = weekType,
+                colorRes = editCourse?.colorRes ?: courses.firstOrNull()?.colorRes ?: Course.courseColors.first(),
+                selectedWeeks = weeksToSave,
+                lastModified = System.currentTimeMillis()
+            )
+            onConfirm(course)
+            onDismissRequest()
+        }
+    }
 
-                    val course = Course(
-                        id = editCourse?.id ?: UUID.randomUUID().toString(),
-                        name = editCourse?.name ?: courses.firstOrNull()?.name ?: "",
-                        classroom = classroom.trim(),
-                        teacher = teacher.trim(),
-                        dayOfWeek = dayOfWeek,
-                        startSection = startSection,
-                        endSection = endSection,
-                        startWeek = minWeek,
-                        endWeek = maxWeek,
-                        weekType = weekType,
-                        colorRes = editCourse?.colorRes ?: courses.firstOrNull()?.colorRes ?: Course.courseColors.first(),
-                        selectedWeeks = weeksToSave,
-                        lastModified = System.currentTimeMillis()
-                    )
-                    onConfirm(course)
+    val startAction: @Composable () -> Unit = {
+        if (liquidGlassBackdrop != null) {
+            com.haooz.chedule.ui.components.liquidglass.LiquidTopBarButton(
+                onClick = {
+                    hapticFeedback.performHapticFeedback(HapticFeedbackType.Confirm)
                     onDismissRequest()
-                }
-            }
-            if (liquidGlassBackdrop != null) {
-                com.haooz.chedule.ui.components.liquidglass.LiquidTopBarButton(
-                    onClick = onConfirmClick,
-                    backdrop = sheetContentBackdrop ?: liquidGlassBackdrop,
-                    icon = MiuixIcons.Ok,
-                    contentDescription = "确定",
-                    modifier = Modifier.padding(end = 20.dp),
-                    iconSize = 23.dp,
-                    iconTint = Color.White,
-                    useBackdropShadow = true,
-                    containerColor = if (isAppDarkTheme())MiuixTheme.colorScheme.primary.copy(alpha = 0.8f) else MiuixTheme.colorScheme.primary.copy(alpha = 0.9f)
+                },
+                backdrop = sheetContentBackdrop ?: liquidGlassBackdrop,
+                icon = MiuixIcons.Normal.Close,
+                contentDescription = "关闭",
+                modifier = Modifier.padding(start = 20.dp),
+                iconSize = 22.dp,
+                useBackdropShadow = true
+            )
+        } else {
+            IconButton(
+                onClick = {
+                    hapticFeedback.performHapticFeedback(HapticFeedbackType.Confirm)
+                    onDismissRequest()
+                },
+                modifier = Modifier.padding(horizontal = 20.dp)
+            ) {
+                Icon(
+                    imageVector = MiuixIcons.Normal.Close,
+                    contentDescription = "关闭",
+                    modifier = Modifier.size(24.dp)
                 )
-            } else {
-                IconButton(
-                    onClick = onConfirmClick,
-                    modifier = Modifier.padding(end = 20.dp)
-                ) {
-                    Icon(
-                        imageVector = MiuixIcons.Ok,
-                        contentDescription = "确定",
-                        modifier = Modifier.size(26.dp),
-                    )
-                }
             }
-        },
-    ) {
+        }
+    }
+
+    val endAction: @Composable () -> Unit = {
+        if (liquidGlassBackdrop != null) {
+            com.haooz.chedule.ui.components.liquidglass.LiquidTopBarButton(
+                onClick = onConfirmClick,
+                backdrop = sheetContentBackdrop ?: liquidGlassBackdrop,
+                icon = MiuixIcons.Ok,
+                contentDescription = "确定",
+                modifier = Modifier.padding(end = 20.dp),
+                iconSize = 23.dp,
+                iconTint = Color.White,
+                useBackdropShadow = true,
+                containerColor = if (isAppDarkTheme()) MiuixTheme.colorScheme.primary.copy(alpha = 0.8f) else MiuixTheme.colorScheme.primary.copy(alpha = 0.9f)
+            )
+        } else {
+            IconButton(
+                onClick = onConfirmClick,
+                modifier = Modifier.padding(end = 20.dp)
+            ) {
+                Icon(
+                    imageVector = MiuixIcons.Ok,
+                    contentDescription = "确定",
+                    modifier = Modifier.size(26.dp),
+                )
+            }
+        }
+    }
+
+    val sheetContent: @Composable () -> Unit = {
         Column(
             modifier = Modifier
                 .fillMaxWidth()
-                
                 .overScrollVertical()
                 .scrollEndHaptic(
-                    hapticFeedbackType = HapticFeedbackType.TextHandleMove // 默认值
+                    hapticFeedbackType = HapticFeedbackType.TextHandleMove
                 )
                 .verticalScroll(rememberScrollState())
                 .padding(start = 16.dp, end = 16.dp),
@@ -627,7 +623,37 @@ fun AddEditCourseBottomSheet(
                     }
                 }
             }
-            Spacer(modifier = Modifier.height(160.dp))
+            Spacer(modifier = Modifier.height(if (isTablet) 4.dp else 160.dp))
+        }
+    }
+
+    if (isTablet) {
+        BlurBottomSheetTablet(
+            show = show,
+            title = if (isEditMode) "编辑课程" else "添加课程",
+            dimBackground = true,
+            onDismissRequest = onDismissRequest,
+            liquidGlassBackdrop = liquidGlassBackdrop,
+            onSheetContentBackdropCreated = { sheetContentBackdrop = it },
+            startAction = startAction,
+            endAction = endAction,
+        ) {
+            sheetContent()
+        }
+    } else {
+        BlurBottomSheet(
+            show = show,
+            title = if (isEditMode) "编辑课程" else "添加课程",
+            backdrop = backdrop,
+            dimBackground = true,
+            onDismissRequest = onDismissRequest,
+            liquidGlassBackdrop = liquidGlassBackdrop,
+            sheetOffsetDp = 100.dp,
+            onSheetContentBackdropCreated = { sheetContentBackdrop = it },
+            startAction = startAction,
+            endAction = endAction,
+        ) {
+            sheetContent()
         }
     }
 

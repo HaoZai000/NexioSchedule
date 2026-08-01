@@ -2,6 +2,7 @@
 package com.haooz.chedule.ui.screens
 
 import android.annotation.SuppressLint
+import android.content.res.Configuration
 import android.graphics.Bitmap
 import android.widget.Toast
 import androidx.activity.compose.BackHandler
@@ -85,9 +86,11 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.zIndex
 import com.haooz.chedule.ui.components.BlurBottomSheet
+import com.haooz.chedule.ui.components.BlurBottomSheetTablet
 import com.haooz.chedule.ui.components.liquidglass.InteractiveHighlight
 import com.haooz.chedule.ui.utils.isAppDarkTheme
 import com.haooz.chedule.ui.utils.rememberAppStyle
+import com.kyant.backdrop.backdrops.layerBackdrop as liquidGlassLayerBackdrop
 import com.kyant.backdrop.drawBackdrop
 import com.kyant.backdrop.effects.blur
 import com.kyant.backdrop.effects.lens
@@ -178,6 +181,8 @@ fun CustomizeScheduleScreen(
     val statusBarPadding = WindowInsets.statusBars.asPaddingValues().calculateTopPadding()
     val scope = rememberCoroutineScope()
     val configuration = LocalConfiguration.current
+    val isTablet = (configuration.screenLayout and Configuration.SCREENLAYOUT_SIZE_MASK) in
+            listOf(Configuration.SCREENLAYOUT_SIZE_LARGE, Configuration.SCREENLAYOUT_SIZE_XLARGE)
     val screenHPx = with(densityObj) { configuration.screenHeightDp.dp.toPx() }
     val screenWPx = with(densityObj) { configuration.screenWidthDp.dp.toPx() }
 
@@ -573,7 +578,11 @@ fun CustomizeScheduleScreen(
         // -------- 8.3 内容区域：卡片 Pager + 自定义按钮 --------
         // 内容区域：卡片居中于屏幕 60% 高度处
         Box(
-            modifier = Modifier.fillMaxSize(),
+            modifier = Modifier.fillMaxSize().then(
+                if (isLiquidGlass && liquidGlassBackdrop != null) {
+                    Modifier.liquidGlassLayerBackdrop(liquidGlassBackdrop)
+                } else Modifier
+            ),
             contentAlignment = Alignment.Center
         ) {
             // 水平翻页（卡片）
@@ -1302,7 +1311,145 @@ fun CustomizeScheduleScreen(
         }
 
         // -------- 8.11 效果弹窗 --------
-        BlurBottomSheet(
+        if (isTablet) {
+            BlurBottomSheetTablet(
+                show = showEffectSheet,
+                title = "效果",
+                sheetBackgroundAlpha = 1f,
+                sheetMaxHeight = 320.dp,
+                isBottomAligned = true,
+                onDismissRequest = { showEffectSheet = false },
+                liquidGlassBackdrop = liquidGlassBackdrop,
+                onSheetContentBackdropCreated = { sheetContentBackdrop = it },
+                startAction = {
+                    if (liquidGlassBackdrop != null) {
+                        com.haooz.chedule.ui.components.liquidglass.LiquidTopBarButton(
+                            onClick = { showEffectSheet = false },
+                            backdrop = sheetContentBackdrop ?: liquidGlassBackdrop,
+                            icon = MiuixIcons.Normal.Close,
+                            contentDescription = "关闭",
+                            modifier = Modifier.padding(start = 20.dp),
+                            iconSize = 22.dp,
+                            containerColor = if (isAppDarkTheme()) Color(0xFF363636).copy(0.4f)
+                            else Color(0xFFFAFAFA).copy(0.32f),
+                            useBackdropShadow = true
+                        )
+                    } else {
+                        IconButton(onClick = { showEffectSheet = false },
+                            modifier = Modifier.padding(horizontal = 20.dp)) {
+                            Icon(
+                                imageVector = MiuixIcons.Normal.Close,
+                                contentDescription = "关闭",
+                                tint = MiuixTheme.colorScheme.onSurface,
+                                modifier = Modifier.size(24.dp)
+                            )
+                        }
+                    }
+                }
+            ) {
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .heightIn(max = 540.dp)
+                        .verticalScroll(rememberScrollState()),
+                    verticalArrangement = Arrangement.spacedBy(16.dp)
+                ) {
+                    Spacer(Modifier.height(60.dp))
+                    Card(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 16.dp),
+                        cornerRadius = 20.dp,
+                        colors = CardDefaults.defaultColors(
+                            color = if (isAppDarkTheme()) Color(0xFF363636).copy(alpha = 0.62f) else Color(0xFFFFFFFF).copy(alpha = 0.7f),
+                            contentColor = MiuixTheme.colorScheme.onSurface
+                        ),
+                    ) {
+                        Column(modifier = Modifier.padding(16.dp)) {
+                            Text(
+                                text = "课程卡片模糊: ${effectValue.roundToInt()}.dp",
+                                fontWeight = FontWeight.Medium,
+                                fontSize = 15.sp,
+                                color = MiuixTheme.colorScheme.onSurface,
+                                modifier = Modifier.padding(bottom = 8.dp, start = 4.dp)
+                            )
+                            Slider(
+                                value = effectValue,
+                                onValueChange = { effectValue = it },
+                                valueRange = 0f..50f,
+                                showKeyPoints = true,
+                                keyPoints = listOf(0f, 10f, 20f, 30f, 40f, 50f),
+                                magnetThreshold = 0.05f,
+                                modifier = Modifier.fillMaxWidth(),
+                                hapticEffect = SliderDefaults.SliderHapticEffect.Step
+                            )
+                        }
+                    }
+                    Card(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 16.dp),
+                        cornerRadius = 20.dp,
+                        colors = CardDefaults.defaultColors(
+                            color = if (isAppDarkTheme()) Color(0xFF363636).copy(alpha = 0.62f) else Color(0xFFFFFFFF).copy(alpha = 0.7f),
+                            contentColor = MiuixTheme.colorScheme.onSurface
+                        ),
+                    ) {
+                        Column(modifier = Modifier.padding(16.dp)) {
+                            Text(
+                                text = "卡片透明度: ${(cardAlphaValue * 100).roundToInt()}%",
+                                fontWeight = FontWeight.Medium,
+                                fontSize = 15.sp,
+                                color = MiuixTheme.colorScheme.onSurface,
+                                modifier = Modifier.padding(bottom = 8.dp, start = 4.dp)
+                            )
+                            Slider(
+                                value = cardAlphaValue,
+                                onValueChange = { cardAlphaValue = it },
+                                valueRange = 0f..1f,
+                                showKeyPoints = true,
+                                keyPoints = listOf(0.15f),
+                                magnetThreshold = 0.05f,
+                                modifier = Modifier.fillMaxWidth(),
+                                hapticEffect = SliderDefaults.SliderHapticEffect.Step
+                            )
+                        }
+                    }
+                    Card(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 16.dp),
+                        cornerRadius = 20.dp,
+                        colors = CardDefaults.defaultColors(
+                            color = if (isAppDarkTheme()) Color(0xFF363636).copy(alpha = 0.62f) else Color(0xFFFFFFFF).copy(alpha = 0.7f),
+                            contentColor = MiuixTheme.colorScheme.onSurface
+                        ),
+                    ) {
+                        Column(modifier = Modifier.padding(16.dp)) {
+                            Text(
+                                text = "壁纸亮度: ${wallpaperBrightnessValue.roundToInt()}",
+                                fontWeight = FontWeight.Medium,
+                                fontSize = 15.sp,
+                                color = MiuixTheme.colorScheme.onSurface,
+                                modifier = Modifier.padding(bottom = 8.dp, start = 4.dp)
+                            )
+                            Slider(
+                                value = wallpaperBrightnessValue,
+                                onValueChange = { wallpaperBrightnessValue = it },
+                                valueRange = -50f..50f,
+                                showKeyPoints = true,
+                                keyPoints = listOf(0f),
+                                magnetThreshold = 0.05f,
+                                modifier = Modifier.fillMaxWidth(),
+                                hapticEffect = SliderDefaults.SliderHapticEffect.Step
+                            )
+                        }
+                    }
+                    Spacer(Modifier.height(4.dp))
+                }
+            }
+        } else {
+            BlurBottomSheet(
             show = showEffectSheet,
             title = "效果",
             backdrop = sheetBackdrop,
@@ -1437,9 +1584,147 @@ fun CustomizeScheduleScreen(
                 Spacer(Modifier.height(240.dp))
             }
         }
+        } // end if (isTablet) else
 
         // -------- 8.12 自定义弹窗 --------
-        BlurBottomSheet(
+        if (isTablet) {
+            BlurBottomSheetTablet(
+                show = showCustomizeSheet,
+                title = "自定义",
+                sheetBackgroundAlpha = 1f,
+                sheetMaxHeight = 320.dp,
+                isBottomAligned = true,
+                onDismissRequest = { showCustomizeSheet = false },
+                liquidGlassBackdrop = liquidGlassBackdrop,
+                onSheetContentBackdropCreated = { sheetContentBackdrop = it },
+                startAction = {
+                    if (liquidGlassBackdrop != null) {
+                        com.haooz.chedule.ui.components.liquidglass.LiquidTopBarButton(
+                            onClick = { showCustomizeSheet = false },
+                            backdrop = sheetContentBackdrop ?: liquidGlassBackdrop,
+                            icon = MiuixIcons.Normal.Close,
+                            contentDescription = "关闭",
+                            modifier = Modifier.padding(start = 20.dp),
+                            containerColor = if (isAppDarkTheme()) Color(0xFF363636).copy(0.4f)
+                            else Color(0xFFFAFAFA).copy(0.32f),
+                            iconSize = 22.dp,
+                            useBackdropShadow = true
+                        )
+                    } else {
+                        IconButton(onClick = { showCustomizeSheet = false },
+                            modifier = Modifier.padding(horizontal = 20.dp)) {
+                            Icon(
+                                imageVector = MiuixIcons.Normal.Close,
+                                contentDescription = "关闭",
+                                tint = MiuixTheme.colorScheme.onSurface,
+                                modifier = Modifier.size(24.dp)
+                            )
+                        }
+                    }
+                }
+            ) {
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .heightIn(max = 540.dp)
+                        .verticalScroll(rememberScrollState()),
+                    verticalArrangement = Arrangement.spacedBy(16.dp)
+                ) {
+                    Spacer(Modifier.height(60.dp))
+                    Card(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 16.dp),
+                        cornerRadius = 20.dp,
+                        colors = CardDefaults.defaultColors(
+                            color = if (isAppDarkTheme()) Color(0xFF363636).copy(alpha = 0.62f) else Color(0xFFFFFFFF).copy(alpha = 0.7f),
+                            contentColor = MiuixTheme.colorScheme.onSurface
+                        ),
+                    ) {
+                        Column(modifier = Modifier.padding(16.dp)) {
+                            Text(
+                                text = "课程卡片高度: ${cardHeightValue.roundToInt()}.dp",
+                                fontWeight = FontWeight.Medium,
+                                fontSize = 15.sp,
+                                color = MiuixTheme.colorScheme.onSurface,
+                                modifier = Modifier.padding(bottom = 8.dp, start = 4.dp)
+                            )
+                            Slider(
+                                value = cardHeightValue,
+                                onValueChange = { cardHeightValue = (it.roundToInt() / 2 * 2).toFloat() },
+                                valueRange = 34f..92f,
+                                showKeyPoints = true,
+                                keyPoints = listOf(54f),
+                                magnetThreshold = 0.05f,
+                                modifier = Modifier.fillMaxWidth(),
+                                hapticEffect = SliderDefaults.SliderHapticEffect.Step
+                            )
+                        }
+                    }
+                    Card(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 16.dp),
+                        cornerRadius = 20.dp,
+                        colors = CardDefaults.defaultColors(
+                            color = if (isAppDarkTheme()) Color(0xFF363636).copy(alpha = 0.62f) else Color(0xFFFFFFFF).copy(alpha = 0.7f),
+                            contentColor = MiuixTheme.colorScheme.onSurface
+                        ),
+                    ) {
+                        Column(modifier = Modifier.padding(16.dp)) {
+                            Text(
+                                text = "课程卡片圆角: ${cardCornerRadiusValue.roundToInt()}.dp",
+                                fontWeight = FontWeight.Medium,
+                                fontSize = 15.sp,
+                                color = MiuixTheme.colorScheme.onSurface,
+                                modifier = Modifier.padding(bottom = 8.dp, start = 4.dp)
+                            )
+                            Slider(
+                                value = cardCornerRadiusValue,
+                                onValueChange = { cardCornerRadiusValue = it },
+                                valueRange = 0f..48f,
+                                showKeyPoints = true,
+                                keyPoints = listOf(8f),
+                                magnetThreshold = 0.05f,
+                                modifier = Modifier.fillMaxWidth(),
+                                hapticEffect = SliderDefaults.SliderHapticEffect.Step
+                            )
+                        }
+                    }
+                    Card(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 16.dp),
+                        cornerRadius = 20.dp,
+                        colors = CardDefaults.defaultColors(
+                            color = if (isAppDarkTheme()) Color(0xFF363636).copy(alpha = 0.62f) else Color(0xFFFFFFFF).copy(alpha = 0.7f),
+                            contentColor = MiuixTheme.colorScheme.onSurface
+                        ),
+                    ) {
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(horizontal = 16.dp, vertical = 12.dp),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Text(
+                                text = "午休晚休分界线",
+                                fontWeight = FontWeight.Medium,
+                                fontSize = 17.sp,
+                                color = MiuixTheme.colorScheme.onSurface
+                            )
+                            Switch(
+                                checked = showBreakDividersValue,
+                                onCheckedChange = { showBreakDividersValue = it }
+                            )
+                        }
+                    }
+                    Spacer(Modifier.height(4.dp))
+                }
+            }
+        } else {
+            BlurBottomSheet(
             show = showCustomizeSheet,
             title = "自定义",
             backdrop = sheetBackdrop,
@@ -1573,6 +1858,7 @@ fun CustomizeScheduleScreen(
                 Spacer(Modifier.height(240.dp))
             }
         }
+        } // end if (isTablet) else for 自定义弹窗
     }
     } // Scaffold
 }
