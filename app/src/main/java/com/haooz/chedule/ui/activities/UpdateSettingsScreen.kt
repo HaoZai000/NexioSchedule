@@ -1,7 +1,7 @@
 ﻿/** 应用更新设置页面 - Screen */
 package com.haooz.chedule.ui.activities
 
-import android.content.res.Configuration
+import android.annotation.SuppressLint
 import android.content.Context
 import android.content.Intent
 import android.net.Uri
@@ -161,6 +161,7 @@ private fun checkForUpdate(context: Context, source: String = "gitee"): Pair<Boo
     }
 }
 
+@SuppressLint("ConfigurationScreenWidthHeight")
 @Composable
 fun UpdateSettingsScreen(onBack: () -> Unit) {
     val hapticFeedback = LocalHapticFeedback.current

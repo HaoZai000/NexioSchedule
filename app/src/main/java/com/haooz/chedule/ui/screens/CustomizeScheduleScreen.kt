@@ -78,22 +78,29 @@ import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalHapticFeedback
+import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.zIndex
+import com.haooz.chedule.data.Combination
 import com.haooz.chedule.ui.components.BlurBottomSheet
 import com.haooz.chedule.ui.components.BlurBottomSheetTablet
 import com.haooz.chedule.ui.components.liquidglass.InteractiveHighlight
+import com.haooz.chedule.ui.components.liquidglass.LiquidTopBarButton
 import com.haooz.chedule.ui.utils.isAppDarkTheme
 import com.haooz.chedule.ui.utils.rememberAppStyle
+import com.kyant.backdrop.Backdrop
 import com.kyant.backdrop.backdrops.layerBackdrop as liquidGlassLayerBackdrop
 import com.kyant.backdrop.drawBackdrop
 import com.kyant.backdrop.effects.blur
 import com.kyant.backdrop.effects.lens
 import com.kyant.backdrop.effects.vibrancy
+import com.kyant.backdrop.shadow.Shadow
 import com.kyant.shapes.Capsule
 import com.kyant.shapes.RoundedRectangle
+import kotlinx.coroutines.coroutineScope
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withTimeoutOrNull
@@ -124,7 +131,9 @@ import kotlin.math.absoluteValue
 import kotlin.math.roundToInt
 import kotlin.time.Duration.Companion.milliseconds
 
-@SuppressLint("ConfigurationScreenWidthHeight")
+@SuppressLint("ConfigurationScreenWidthHeight", "FrequentlyChangingValue",
+    "AutoboxingStateCreation"
+)
 @Composable
 fun CustomizeScheduleScreen(
     snapshot: Bitmap?,
@@ -135,7 +144,7 @@ fun CustomizeScheduleScreen(
     onCancelCutout: () -> Unit = {},
     onPickWallpaper: () -> Unit = {},
     onCreateNewCombination: () -> Unit = {},
-    combinations: List<com.haooz.chedule.data.Combination> = emptyList(),
+    combinations: List<Combination> = emptyList(),
     currentCombinationIndex: Int = 0,
     onCombinationPageChange: (Int) -> Unit = {},
     onDeleteCombination: (Long) -> Unit = {},
@@ -184,10 +193,9 @@ fun CustomizeScheduleScreen(
 
     // 计算壁纸最小缩放比例（填满短边，确保不露出底部背景）
     val minWallpaperScale = remember(wallpaperBitmap, screenWPx, screenHPx) {
-        val bmp = wallpaperBitmap
-        if (bmp != null && bmp.width > 0 && bmp.height > 0) {
-            val fitScale = minOf(screenWPx / bmp.width, screenHPx / bmp.height)
-            val coverScale = maxOf(screenWPx / bmp.width, screenHPx / bmp.height)
+        if (wallpaperBitmap != null && wallpaperBitmap.width > 0 && wallpaperBitmap.height > 0) {
+            val fitScale = minOf(screenWPx / wallpaperBitmap.width, screenHPx / wallpaperBitmap.height)
+            val coverScale = maxOf(screenWPx / wallpaperBitmap.width, screenHPx / wallpaperBitmap.height)
             if (fitScale > 0f) coverScale / fitScale else 1f
         } else 1f
     }
@@ -228,7 +236,7 @@ fun CustomizeScheduleScreen(
     // --- 编辑模式底部弹窗：效果 / 自定义 ---
     var showEffectSheet by remember { mutableStateOf(false) }
     var showCustomizeSheet by remember { mutableStateOf(false) }
-    var sheetContentBackdrop by remember { mutableStateOf<com.kyant.backdrop.Backdrop?>(null) }
+    var sheetContentBackdrop by remember { mutableStateOf<Backdrop?>(null) }
     // 重置标志：取消编辑时自增，触发弹窗内部状态回到 initial 值
     var sheetResetKey by remember { mutableIntStateOf(0) }
 
@@ -244,7 +252,7 @@ fun CustomizeScheduleScreen(
     var cardCornerRadiusValue by remember(currentCombinationIndex, sheetResetKey) { mutableFloatStateOf(initialCardCornerRadius) }
     var showBreakDividersValue by remember(currentCombinationIndex, sheetResetKey) { mutableStateOf(initialShowBreakDividers) }
     LaunchedEffect(cardHeightValue, cardCornerRadiusValue) {
-        kotlinx.coroutines.delay(16.milliseconds)
+        delay(16.milliseconds)
         onCustomizeValueChange(cardHeightValue, cardCornerRadiusValue)
     }
     LaunchedEffect(showBreakDividersValue) { onShowBreakDividersChange(showBreakDividersValue) }
@@ -340,7 +348,7 @@ fun CustomizeScheduleScreen(
     // 新建搭配后自动进入编辑模式
     LaunchedEffect(pendingEnterCutout) {
         if (pendingEnterCutout && !isCutoutActive) {
-            kotlinx.coroutines.delay(100.milliseconds)
+            delay(100.milliseconds)
             isCutoutActive = true
             onCutoutEntered()
         }
@@ -348,7 +356,7 @@ fun CustomizeScheduleScreen(
 
     // 进入动画：animProgress 0→1，按钮 1.5→1.0，间距 -140→-10，标题延迟淡入
     LaunchedEffect(Unit) {
-        kotlinx.coroutines.coroutineScope {
+        coroutineScope {
             launch {
                 animProgress.animateTo(
                     targetValue = 1f,
@@ -367,7 +375,7 @@ fun CustomizeScheduleScreen(
             }
             // 延迟 100ms 后淡入标题，与进入动画并行
             launch {
-                kotlinx.coroutines.delay(100.milliseconds)
+                delay(100.milliseconds)
                 titleFadeAnim.animateTo(1f, tween(250, easing = CubicBezierEasing(0.3f, 0.72f, 0.2f, 1.0f)))
             }
         }
@@ -377,7 +385,7 @@ fun CustomizeScheduleScreen(
     LaunchedEffect(isExiting) {
         if (isExiting) {
             exitProgress.snapTo(0f)
-            kotlinx.coroutines.coroutineScope {
+            coroutineScope {
                 launch { exitProgress.animateTo(1f, tween(500, easing = CubicBezierEasing(0.3f, 0.72f, 0.2f, 1.0f))) }
                 launch { buttonScaleAnim.animateTo(1.5f, tween(500, easing = CubicBezierEasing(0.3f, 0.72f, 0.2f, 1.0f))) }
                 launch { titleFadeAnim.animateTo(0f, tween(150)) }
@@ -389,7 +397,7 @@ fun CustomizeScheduleScreen(
     LaunchedEffect(isCutoutActive) {
         if (isCutoutActive) {
             isCutoutAnimating = true
-            kotlinx.coroutines.coroutineScope {
+            coroutineScope {
                 launch { cardScaleAnim.animateTo(0.75f, tween(400, easing = CubicBezierEasing(0.3f, 0.72f, 0.2f, 1.0f))) }
                 launch { cutoutProgress.snapTo(1f) }
                 // 编辑模式下顶部按钮保持可见（显示"取消"和"应用"），"自定义"按钮淡出
@@ -403,7 +411,7 @@ fun CustomizeScheduleScreen(
         } else if (animDone) {
             cardHidden = false
             // 退出开洞，恢复原始状态
-            kotlinx.coroutines.coroutineScope {
+            coroutineScope {
                 launch { cardScaleAnim.animateTo(0.65f, tween(400, easing = CubicBezierEasing(0.3f, 0.72f, 0.2f, 1.0f))) }
                 launch { cutoutProgress.snapTo(0f) }
                 launch { customizeButtonAlpha.animateTo(1f, tween(250)) }
@@ -419,7 +427,7 @@ fun CustomizeScheduleScreen(
     // 应用动画：裁剪区域完全跟随卡片放大进程（位置由 cardScaleAnim 推导）
     LaunchedEffect(isApplying) {
         if (isApplying) {
-            kotlinx.coroutines.coroutineScope {
+            coroutineScope {
                 launch { cardScaleAnim.animateTo(1f, tween(500, easing = CubicBezierEasing(0.3f, 0.72f, 0.2f, 1.0f))) }
                 launch { buttonAlphaAnim.animateTo(0f, tween(250)) }
                 launch { titleAlphaAnim.animateTo(0f, tween(250)) }
@@ -440,14 +448,14 @@ fun CustomizeScheduleScreen(
     val anySheetOpen = showEffectSheet || showCustomizeSheet
     LaunchedEffect(anySheetOpen) {
         if (anySheetOpen) {
-            kotlinx.coroutines.coroutineScope {
+            coroutineScope {
                 launch { buttonAlphaAnim.animateTo(0f, tween(250)) }
                 launch {
                     sheetOffsetY.animateTo(-sheetOffsetTargetPx, tween(350, easing = CubicBezierEasing(0.3f, 0.72f, 0.2f, 1.0f)))
                 }
             }
         } else {
-            kotlinx.coroutines.coroutineScope {
+            coroutineScope {
                 launch { buttonAlphaAnim.animateTo(1f, tween(250)) }
                 launch {
                     sheetOffsetY.animateTo(0f, tween(350, easing = CubicBezierEasing(0.3f, 0.72f, 0.2f, 1.0f)))
@@ -474,7 +482,7 @@ fun CustomizeScheduleScreen(
                 sheetResetKey++  // 重置弹窗内部状态，丢弃编辑中的拖动值
                 onRevertWallpaper()
                 scope.launch {
-                    kotlinx.coroutines.delay(400.milliseconds)
+                    delay(400.milliseconds)
                     onCancelCutout()
                 }
             }
@@ -529,8 +537,6 @@ fun CustomizeScheduleScreen(
 
                 val left = cardCenterX + ((cardCenterX - animW / 2f) - cardCenterX) * p
                 val top = cardCenterY + ((cardCenterY - animH / 2f) - cardCenterY) * p
-                val right = cardCenterX + ((cardCenterX + animW / 2f) - cardCenterX) * p
-                val bottom = cardCenterY + ((cardCenterY + animH / 2f) - cardCenterY) * p
 
                 val path = Path().apply {
                     addRect(Rect(0f, 0f, size.width, size.height))
@@ -613,7 +619,6 @@ fun CustomizeScheduleScreen(
                     }
                     else -> targetCardScale + cutoutScaleBoost
                 }
-                val cardAlpha = baseCardAlpha
                 // z-order：离当前页越近越在上（当前卡在最上方，相邻卡在其下，第三个更下）
                 // 距离越远 zIndex 越小
                 val zOrdinal = (pageCount - pageOffset).coerceAtLeast(0f)
@@ -648,7 +653,7 @@ fun CustomizeScheduleScreen(
                                 scaleX = cardScale * extraScale
                                 scaleY = cardScale * extraScale
                                 transformOrigin = TransformOrigin(pivotOriginX, pivotOriginY)
-                                alpha = cardAlpha * extraAlpha
+                                alpha = baseCardAlpha * extraAlpha
                             }
                             .clip(RoundedRectangle(screenRadiusDp * cardScaleAnim.value))
                     ) {
@@ -770,52 +775,50 @@ fun CustomizeScheduleScreen(
                                                     .clickable {
                                                         // 触发删除：先做缩小消失动画，再补位
                                                         val targetId = comb.id
-                                                        val combIdx = currentCombinationIndex
                                                         val totalSize = combinations.size
-                                                        if (targetId != null) {
-                                                            deleteTargetCombId = null
-                                                            isDeleting = true
-                                                            scope.launch {
-                                                                try {
-                                                                    // 1. 卡片缩小消失动画：缩小到 0.6f 同时淡出
-                                                                    disappearingCombId = targetId
-                                                                    kotlinx.coroutines.coroutineScope {
-                                                                        launch { disappearScale.animateTo(0.6f, tween(280, easing = CubicBezierEasing(0.3f, 0.72f, 0.2f, 1.0f))) }
-                                                                        launch { disappearAlpha.animateTo(0f, tween(280, easing = CubicBezierEasing(0.3f, 0.72f, 0.2f, 1.0f))) }
-                                                                    }
-                                                                    // 2. 补位滚动（延迟到消失动画结束后）
-                                                                    if (combIdx == 0 && totalSize > 1) {
-                                                                        // 删除第一个：先滚动到 page 2（B 从右侧滑入），删除后立即跳回 page 1（B）
-                                                                        if (2 < pageCount) {
-                                                                            pagerState.animateScrollToPage(2)
-                                                                        }
-                                                                        val oldSize = combinations.size
-                                                                        onDeleteCombination(targetId)
-                                                                        // 等待 combinations 列表更新（带超时保护，避免 onDeleteCombination
-                                                                        // 未收缩列表时 isDeleting 永久卡死，导致返回键失效和编辑模式无法退出）
-                                                                        withTimeoutOrNull(500) {
-                                                                            snapshotFlow { combinations.size }.first { it < oldSize }
-                                                                        }
-                                                                        // 立即跳到 page 1（B），避免显示 page 2（C）
-                                                                        pagerState.scrollToPage(1)
-                                                                    } else if (combIdx > 0) {
-                                                                        // 删除非第一个：滚动到左侧搭配所在页（page = combIdx），
-                                                                        // 让左侧搭配向右滑入补位；删除后该页正好对应新的当前搭配
-                                                                        // 该分支无需等待列表更新：MainActivity 会将 currentCombinationIndex
-                                                                        // 设为 combIdx-1，目标页 = combIdx-1+1 = combIdx，与当前页一致，不会触发冲突滚动
-                                                                        val targetPage = combIdx
-                                                                        if (targetPage != pagerState.currentPage) {
-                                                                            pagerState.animateScrollToPage(targetPage)
-                                                                        }
-                                                                        onDeleteCombination(targetId)
-                                                                    }
-                                                                } finally {
-                                                                    // 3. 重置状态（finally 确保异常时也能恢复）
-                                                                    isDeleting = false
-                                                                    disappearingCombId = null
-                                                                    disappearScale.snapTo(1f)
-                                                                    disappearAlpha.snapTo(1f)
+                                                        deleteTargetCombId = null
+                                                        isDeleting = true
+                                                        scope.launch {
+                                                            try {
+                                                                // 1. 卡片缩小消失动画：缩小到 0.6f 同时淡出
+                                                                disappearingCombId = targetId
+                                                                coroutineScope {
+                                                                    launch { disappearScale.animateTo(0.6f, tween(280, easing = CubicBezierEasing(0.3f, 0.72f, 0.2f, 1.0f))) }
+                                                                    launch { disappearAlpha.animateTo(0f, tween(280, easing = CubicBezierEasing(0.3f, 0.72f, 0.2f, 1.0f))) }
                                                                 }
+                                                                // 2. 补位滚动（延迟到消失动画结束后）
+                                                                if (currentCombinationIndex == 0 && totalSize > 1) {
+                                                                    // 删除第一个：先滚动到 page 2（B 从右侧滑入），删除后立即跳回 page 1（B）
+                                                                    if (2 < pageCount) {
+                                                                        pagerState.animateScrollToPage(2)
+                                                                    }
+                                                                    val oldSize = combinations.size
+                                                                    onDeleteCombination(targetId)
+                                                                    // 等待 combinations 列表更新（带超时保护，避免 onDeleteCombination
+                                                                    // 未收缩列表时 isDeleting 永久卡死，导致返回键失效和编辑模式无法退出）
+                                                                    withTimeoutOrNull(500.milliseconds) {
+                                                                        snapshotFlow { combinations.size }.first { it < oldSize }
+                                                                    }
+                                                                    // 立即跳到 page 1（B），避免显示 page 2（C）
+                                                                    pagerState.scrollToPage(1)
+                                                                } else if (currentCombinationIndex > 0) {
+                                                                    // 删除非第一个：滚动到左侧搭配所在页（page = combIdx），
+                                                                    // 让左侧搭配向右滑入补位；删除后该页正好对应新的当前搭配
+                                                                    // 该分支无需等待列表更新：MainActivity 会将 currentCombinationIndex
+                                                                    // 设为 combIdx-1，目标页 = combIdx-1+1 = combIdx，与当前页一致，不会触发冲突滚动
+                                                                    val targetPage =
+                                                                        currentCombinationIndex
+                                                                    if (targetPage != pagerState.currentPage) {
+                                                                        pagerState.animateScrollToPage(targetPage)
+                                                                    }
+                                                                    onDeleteCombination(targetId)
+                                                                }
+                                                            } finally {
+                                                                // 3. 重置状态（finally 确保异常时也能恢复）
+                                                                isDeleting = false
+                                                                disappearingCombId = null
+                                                                disappearScale.snapTo(1f)
+                                                                disappearAlpha.snapTo(1f)
                                                             }
                                                         }
                                                     },
@@ -857,7 +860,7 @@ fun CustomizeScheduleScreen(
                     contentAlignment = Alignment.BottomCenter
                 ) {
                     Button(
-                        modifier = Modifier.offset(y = -60.dp).width(200.dp).height(48.dp).clip(RoundedRectangle(24.dp)),
+                        modifier = Modifier.offset(y = (-60).dp).width(200.dp).height(48.dp).clip(RoundedRectangle(24.dp)),
                         enabled = !isCutoutActive,
                         onClick = {
                             // 进入开洞前先清除删除态，让模糊随 alpha 一起淡出
@@ -915,7 +918,7 @@ fun CustomizeScheduleScreen(
                             val down = awaitFirstDown()
                             down.consume()
                             var gestureScale = latestScale
-                            var lastDisplayScale = gestureScale
+                            var lastDisplayScale: Float
                             do {
                                 val event = awaitPointerEvent()
                                 val zoom = event.calculateZoom()
@@ -931,7 +934,7 @@ fun CustomizeScheduleScreen(
                                 lastDisplayScale = newScale
                                 // 计算合法偏移范围
                                 val bmp = latestWallpaperBitmap
-                                if (bmp != null && bmp.width > 0 && bmp.height > 0) {
+                                if (bmp.width > 0 && bmp.height > 0) {
                                     val fitScale = minOf(latestScreenWPx / bmp.width, latestScreenHPx / bmp.height)
                                     val scaledW = bmp.width * fitScale * newScale
                                     val scaledH = bmp.height * fitScale * newScale
@@ -1018,7 +1021,7 @@ fun CustomizeScheduleScreen(
                                 blur(2f.dp.toPx())
                                 lens(12f.dp.toPx(), 12f.dp.toPx())
                             },
-                            shadow = { com.kyant.backdrop.shadow.Shadow(alpha = 0.3f) },
+                            shadow = { Shadow(alpha = 0.3f) },
                             layerBlock = {
                                 val progress = exitHighlight.pressProgress
                                 val scale = 1f + 2f.dp.toPx() / 40.dp.toPx() * progress
@@ -1036,7 +1039,7 @@ fun CustomizeScheduleScreen(
                         .clickable(
                             interactionSource = null,
                             indication = null,
-                            role = androidx.compose.ui.semantics.Role.Button,
+                            role = Role.Button,
                             onClick = {
                                 hapticFeedback.performHapticFeedback(HapticFeedbackType.VirtualKey)
                                 if (isPageAnimating || isCutoutAnimating) { /* 动画中不响应 */ }
@@ -1045,7 +1048,7 @@ fun CustomizeScheduleScreen(
                                     sheetResetKey++
                                     onRevertWallpaper()
                                     scope.launch {
-                                        kotlinx.coroutines.delay(400.milliseconds)
+                                        delay(400.milliseconds)
                                         onCancelCutout()
                                     }
                                 } else onDismiss()
@@ -1071,7 +1074,7 @@ fun CustomizeScheduleScreen(
                                 blur(2f.dp.toPx())
                                 lens(12f.dp.toPx(), 12f.dp.toPx())
                             },
-                            shadow = { com.kyant.backdrop.shadow.Shadow(alpha = 0.3f) },
+                            shadow = { Shadow(alpha = 0.3f) },
                             layerBlock = {
                                 val progress = applyHighlight.pressProgress
                                 val scale = 1f + 2f.dp.toPx() / 40.dp.toPx() * progress
@@ -1089,7 +1092,7 @@ fun CustomizeScheduleScreen(
                         .clickable(
                             interactionSource = null,
                             indication = null,
-                            role = androidx.compose.ui.semantics.Role.Button,
+                            role = Role.Button,
                             onClick = {
                                 hapticFeedback.performHapticFeedback(HapticFeedbackType.VirtualKey)
                                 if (!showApplyLoading) {
@@ -1117,7 +1120,7 @@ fun CustomizeScheduleScreen(
                             sheetResetKey++  // 重置弹窗内部状态，丢弃编辑中的拖动值
                             onRevertWallpaper()
                             scope.launch {
-                                kotlinx.coroutines.delay(400.milliseconds)
+                                delay(400.milliseconds)
                                 onCancelCutout()
                             }
                         } else onDismiss()
@@ -1319,7 +1322,7 @@ fun CustomizeScheduleScreen(
                 onSheetContentBackdropCreated = { sheetContentBackdrop = it },
                 startAction = {
                     if (liquidGlassBackdrop != null) {
-                        com.haooz.chedule.ui.components.liquidglass.LiquidTopBarButton(
+                        LiquidTopBarButton(
                             onClick = { showEffectSheet = false },
                             backdrop = sheetContentBackdrop ?: liquidGlassBackdrop,
                             icon = MiuixIcons.Normal.Close,
@@ -1454,7 +1457,7 @@ fun CustomizeScheduleScreen(
                 onSheetContentBackdropCreated = { sheetContentBackdrop = it },
             startAction = {
                 if (liquidGlassBackdrop != null) {
-                    com.haooz.chedule.ui.components.liquidglass.LiquidTopBarButton(
+                    LiquidTopBarButton(
                         onClick = { showEffectSheet = false },
                         backdrop = sheetContentBackdrop ?: liquidGlassBackdrop,
                         icon = MiuixIcons.Normal.Close,
@@ -1594,7 +1597,7 @@ fun CustomizeScheduleScreen(
                 onSheetContentBackdropCreated = { sheetContentBackdrop = it },
                 startAction = {
                     if (liquidGlassBackdrop != null) {
-                        com.haooz.chedule.ui.components.liquidglass.LiquidTopBarButton(
+                        LiquidTopBarButton(
                             onClick = { showCustomizeSheet = false },
                             backdrop = sheetContentBackdrop ?: liquidGlassBackdrop,
                             icon = MiuixIcons.Normal.Close,
@@ -1728,7 +1731,7 @@ fun CustomizeScheduleScreen(
                 onSheetContentBackdropCreated = { sheetContentBackdrop = it },
             startAction = {
                 if (liquidGlassBackdrop != null) {
-                    com.haooz.chedule.ui.components.liquidglass.LiquidTopBarButton(
+                    LiquidTopBarButton(
                         onClick = { showCustomizeSheet = false },
                         backdrop = sheetContentBackdrop ?: liquidGlassBackdrop,
                         icon = MiuixIcons.Normal.Close,

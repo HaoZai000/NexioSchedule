@@ -3,7 +3,6 @@ package com.haooz.chedule.ui.activities
 
 import android.annotation.SuppressLint
 import android.content.Intent
-import android.content.res.Configuration
 import android.graphics.Canvas
 import android.os.Bundle
 import androidx.activity.ComponentActivity

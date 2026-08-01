@@ -1,7 +1,7 @@
 ﻿/** 课程管理页面 - Screen */
 package com.haooz.chedule.ui.activities
 
-import android.content.res.Configuration
+import android.annotation.SuppressLint
 import android.graphics.Bitmap
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.animateFloatAsState
@@ -85,6 +85,7 @@ import top.yukonga.miuix.kmp.utils.scrollEndHaptic
 import kotlin.time.Duration.Companion.milliseconds
 import androidx.compose.ui.graphics.Color as ComposeColor
 
+@SuppressLint("ConfigurationScreenWidthHeight")
 @Composable
 fun CourseManageScreen(
     onBack: () -> Unit,

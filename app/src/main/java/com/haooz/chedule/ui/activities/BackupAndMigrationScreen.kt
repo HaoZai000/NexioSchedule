@@ -2,7 +2,6 @@
 package com.haooz.chedule.ui.activities
 
 import android.annotation.SuppressLint
-import android.content.res.Configuration
 import android.content.Intent
 import android.widget.Toast
 import androidx.activity.compose.rememberLauncherForActivityResult
@@ -38,6 +37,7 @@ import androidx.compose.ui.unit.dp
 import com.google.gson.GsonBuilder
 import com.haooz.chedule.data.CourseRepository
 import com.haooz.chedule.data.WebDavManager
+import com.haooz.chedule.ui.components.NativeMiuixTextField
 import com.haooz.chedule.ui.screens.applyScheduleData
 import com.haooz.chedule.ui.screens.parseFullScheduleJson
 import com.haooz.chedule.ui.screens.parseIcsFile
@@ -55,7 +55,6 @@ import top.yukonga.miuix.kmp.basic.MiuixScrollBehavior
 import top.yukonga.miuix.kmp.basic.Scaffold
 import top.yukonga.miuix.kmp.basic.SmallTitle
 import top.yukonga.miuix.kmp.basic.TextButton
-import com.haooz.chedule.ui.components.NativeMiuixTextField
 import top.yukonga.miuix.kmp.basic.TopAppBar
 import top.yukonga.miuix.kmp.icon.MiuixIcons
 import top.yukonga.miuix.kmp.icon.extended.Back
@@ -323,7 +322,8 @@ fun BackupAndMigrationScreen(
                             title = "JSON 格式导出",
                             summary = "导出课表为JSON格式",
                             onClick = {
-                                val json = buildExportJson(courseViewModel, scheduleViewModel, settingsViewModel, selectedExportSchedule)
+                                val json = buildExportJson(courseViewModel,
+                                    settingsViewModel, selectedExportSchedule)
                                 if (json != null) {
                                     pendingExportJson = json
                                     jsonExportLauncher.launch("${selectedExportSchedule}.json")
@@ -334,7 +334,8 @@ fun BackupAndMigrationScreen(
                             title = "ICS 格式导出",
                             summary = "导出课表为日程格式",
                             onClick = {
-                                val ics = buildExportIcs(courseViewModel, scheduleViewModel, settingsViewModel, selectedExportSchedule)
+                                val ics = buildExportIcs(courseViewModel,
+                                    settingsViewModel, selectedExportSchedule)
                                 if (ics != null) {
                                     pendingExportIcs = ics
                                     icsExportLauncher.launch("${selectedExportSchedule}.ics")
@@ -446,7 +447,6 @@ fun BackupAndMigrationScreen(
 
 private fun buildExportJson(
     viewModel: CourseViewModel,
-    scheduleViewModel: ScheduleViewModel,
     settingsViewModel: SettingsViewModel,
     scheduleName: String
 ): String? {
@@ -494,7 +494,6 @@ private fun buildExportJson(
 
 private fun buildExportIcs(
     viewModel: CourseViewModel,
-    scheduleViewModel: ScheduleViewModel,
     settingsViewModel: SettingsViewModel,
     scheduleName: String
 ): String? {

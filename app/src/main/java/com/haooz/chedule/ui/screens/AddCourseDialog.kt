@@ -1,6 +1,7 @@
 ﻿/** 添加/编辑课程对话框 - Blur版本 */
 package com.haooz.chedule.ui.screens
 
+import android.annotation.SuppressLint
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
@@ -84,6 +85,7 @@ import top.yukonga.miuix.kmp.utils.overScrollVertical
 import top.yukonga.miuix.kmp.utils.scrollEndHaptic
 import java.util.UUID
 
+@SuppressLint("ConfigurationScreenWidthHeight")
 @Composable
 fun AddCourseDialog(
     show: Boolean,
@@ -147,8 +149,6 @@ fun AddCourseDialog(
     val allWeeks = remember(totalWeeks) { (1..totalWeeks).toList() }
     val oddWeeks = remember(allWeeks) { allWeeks.filter { it % 2 == 1 } }
     val evenWeeks = remember(allWeeks) { allWeeks.filter { it % 2 == 0 } }
-    val someOddSelected by remember { derivedStateOf { oddWeeks.any { it in selectedWeeks } } }
-    val someEvenSelected by remember { derivedStateOf { evenWeeks.any { it in selectedWeeks } } }
 
     val selectableWeeks = remember(allWeeks, currentOccupiedWeeks) { allWeeks.filter { it !in currentOccupiedWeeks } }
     val selectableOddWeeks = remember(selectableWeeks) { selectableWeeks.filter { it % 2 == 1 } }
@@ -292,7 +292,6 @@ fun AddCourseDialog(
                 onDayOfWeekChange = { dayOfWeek = it; selectedWeeks.clear() },
                 startSection = startSection,
                 endSection = endSection,
-                totalSections = totalSections,
                 totalWeeks = totalWeeks,
                 selectedWeeks = selectedWeeks,
                 selectedColor = selectedColor,
@@ -308,8 +307,6 @@ fun AddCourseDialog(
                 someSelectableEvenSelected = someSelectableEvenSelected,
                 hasOccupiedOddWeeks = hasOccupiedOddWeeks,
                 hasOccupiedEvenWeeks = hasOccupiedEvenWeeks,
-                isSingleWeek = isSingleWeek,
-                isDoubleWeek = isDoubleWeek,
                 onIsSingleWeekChange = { isSingleWeek = it; isDoubleWeek = false },
                 onIsDoubleWeekChange = { isDoubleWeek = it; isSingleWeek = false },
                 onShowSectionDialog = {
@@ -322,7 +319,6 @@ fun AddCourseDialog(
                     showColorDialog = true
                 },
                 onDeleteClick = { showDeleteDialog = true },
-                onConfirmClick = onConfirmClick,
             )
         }
     } else {
@@ -404,7 +400,6 @@ fun AddCourseDialog(
             onDayOfWeekChange = { dayOfWeek = it; selectedWeeks.clear() },
             startSection = startSection,
             endSection = endSection,
-            totalSections = totalSections,
             totalWeeks = totalWeeks,
             selectedWeeks = selectedWeeks,
             selectedColor = selectedColor,
@@ -420,8 +415,6 @@ fun AddCourseDialog(
             someSelectableEvenSelected = someSelectableEvenSelected,
             hasOccupiedOddWeeks = hasOccupiedOddWeeks,
             hasOccupiedEvenWeeks = hasOccupiedEvenWeeks,
-            isSingleWeek = isSingleWeek,
-            isDoubleWeek = isDoubleWeek,
             onIsSingleWeekChange = { isSingleWeek = it; isDoubleWeek = false },
             onIsDoubleWeekChange = { isDoubleWeek = it; isSingleWeek = false },
             onShowSectionDialog = {
@@ -434,7 +427,6 @@ fun AddCourseDialog(
                 showColorDialog = true
             },
             onDeleteClick = { showDeleteDialog = true },
-            onConfirmClick = onConfirmClick,
         )
     }
     } // end of if (isTablet) else
@@ -613,6 +605,7 @@ fun AddCourseDialog(
     }
 }
 
+@SuppressLint("ConfigurationScreenWidthHeight")
 @Composable
 private fun AddCourseDialogContent(
     isEdit: Boolean,
@@ -627,7 +620,6 @@ private fun AddCourseDialogContent(
     onDayOfWeekChange: (Int) -> Unit,
     startSection: Int,
     endSection: Int,
-    totalSections: Int,
     totalWeeks: Int,
     selectedWeeks: MutableSet<Int>,
     selectedColor: Long,
@@ -643,14 +635,11 @@ private fun AddCourseDialogContent(
     someSelectableEvenSelected: Boolean,
     hasOccupiedOddWeeks: Boolean,
     hasOccupiedEvenWeeks: Boolean,
-    isSingleWeek: Boolean,
-    isDoubleWeek: Boolean,
     onIsSingleWeekChange: (Boolean) -> Unit,
     onIsDoubleWeekChange: (Boolean) -> Unit,
     onShowSectionDialog: () -> Unit,
     onShowColorDialog: () -> Unit,
     onDeleteClick: () -> Unit,
-    onConfirmClick: () -> Unit,
 ) {
     val hapticFeedback = LocalHapticFeedback.current
     val statusBarsPadding = WindowInsets.statusBars.asPaddingValues().calculateTopPadding()

@@ -1,7 +1,7 @@
 ﻿/** WebDAV 备份/恢复设置页面 - Screen */
 package com.haooz.chedule.ui.activities
 
-import android.content.res.Configuration
+import android.annotation.SuppressLint
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -32,7 +32,6 @@ import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Brush
-import com.haooz.chedule.ui.components.NativeTextField
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.platform.LocalConfiguration
@@ -43,13 +42,14 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.lifecycle.viewmodel.compose.viewModel
 import com.haooz.chedule.data.SyncManager
 import com.haooz.chedule.data.WebDavManager
+import com.haooz.chedule.ui.components.NativeTextField
 import com.haooz.chedule.ui.utils.rememberAppStyle
 import com.haooz.chedule.viewmodel.CourseViewModel
 import com.haooz.chedule.viewmodel.ScheduleViewModel
 import com.haooz.chedule.viewmodel.SettingsViewModel
-import androidx.lifecycle.viewmodel.compose.viewModel
 import kotlinx.coroutines.launch
 import top.yukonga.miuix.kmp.basic.ButtonDefaults
 import top.yukonga.miuix.kmp.basic.Card
@@ -72,6 +72,7 @@ import top.yukonga.miuix.kmp.utils.overScrollVertical
 import top.yukonga.miuix.kmp.utils.scrollEndHaptic
 import androidx.compose.ui.graphics.Color as ComposeColor
 
+@SuppressLint("ConfigurationScreenWidthHeight")
 @Composable
 fun WebDavSettingsScreen(onBack: () -> Unit, onConnectedChange: (Boolean) -> Unit = {}, onTestConnectionReady: (() -> Unit) -> Unit = {}) {
     val context = LocalContext.current

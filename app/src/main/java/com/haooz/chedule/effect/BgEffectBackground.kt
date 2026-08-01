@@ -1,11 +1,10 @@
 ﻿/** 背景特效 - 绘制动态背景效果 */
 package com.haooz.chedule.effect
 
-import android.content.res.Configuration
+import android.annotation.SuppressLint
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.spring
 import androidx.compose.foundation.layout.Box
-import com.haooz.chedule.ui.utils.isAppDarkTheme
 import androidx.compose.foundation.layout.BoxScope
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
@@ -14,12 +13,15 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalConfiguration
+import com.haooz.chedule.ui.utils.isAppDarkTheme
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.isActive
 import top.yukonga.miuix.kmp.blur.isRuntimeShaderSupported
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 import kotlin.math.floor
+import kotlin.time.Duration.Companion.milliseconds
 
+@SuppressLint("ConfigurationScreenWidthHeight")
 @Composable
 fun BgEffectBackground(
     dynamicBackground: Boolean,
@@ -57,7 +59,7 @@ fun BgEffectBackground(
 
             var targetStage = floor(colorStage.value) + 1f
             while (isActive) {
-                delay((preset.colorInterpPeriod * 500).toLong())
+                delay((preset.colorInterpPeriod * 500).toLong().milliseconds)
                 colorStage.animateTo(
                     targetValue = targetStage,
                     animationSpec = spring(dampingRatio = 0.9f, stiffness = 35f),

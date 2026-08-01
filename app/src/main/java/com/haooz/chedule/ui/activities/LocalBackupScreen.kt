@@ -1,7 +1,7 @@
 ﻿/** 本地备份页面 - Screen */
 package com.haooz.chedule.ui.activities
 
-import android.content.res.Configuration
+import android.annotation.SuppressLint
 import android.net.Uri
 import android.os.Environment
 import android.widget.Toast
@@ -164,6 +164,7 @@ private fun scanBackupFiles(): List<BackupFileInfo> {
     }?.sortedByDescending { it.file.lastModified() } ?: emptyList()
 }
 
+@SuppressLint("ConfigurationScreenWidthHeight")
 @Composable
 fun LocalBackupScreen(onBack: () -> Unit) {
     val context = LocalContext.current
@@ -417,7 +418,7 @@ fun LocalBackupScreen(onBack: () -> Unit) {
                     }
                 }
             }
-            itemsIndexed(backupHistory, key = { _, item -> item.fileName }) { index, info ->
+            itemsIndexed(backupHistory, key = { _, item -> item.fileName }) { _, info ->
                 val isDeleting = deletingFileName == info.fileName
                 val cardScale = remember { Animatable(0.8f) }
                 val cardAlpha = remember { Animatable(0f) }

@@ -1,6 +1,7 @@
 ﻿/** 主课程表页面 - 显示周视图课程表 */
 package com.haooz.chedule.ui.screens
 
+import android.annotation.SuppressLint
 import androidx.activity.ComponentActivity
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -90,6 +91,7 @@ import top.yukonga.miuix.kmp.utils.overScrollVertical
 import top.yukonga.miuix.kmp.utils.scrollEndHaptic
 import kotlin.time.Duration.Companion.milliseconds
 
+@SuppressLint("ConfigurationScreenWidthHeight")
 @Composable
 fun MainScheduleScreen(
     viewModel: CourseViewModel,
@@ -112,8 +114,6 @@ fun MainScheduleScreen(
     cardCornerRadius: Float = 8f,
     wallpaperBrightness: Float = 0f,
     showBreakDividers: Boolean = true,
-    wallpaperHasAppeared: Boolean = false,
-    onWallpaperAppeared: () -> Unit = {},
     liquidGlassBackdrop: com.kyant.backdrop.Backdrop? = null
 ) {
     val courses by viewModel.courses.collectAsState()
@@ -121,15 +121,12 @@ fun MainScheduleScreen(
     val totalWeeks by viewModel.totalWeeks.collectAsState()
     val showAddDialog by viewModel.showAddDialog.collectAsState()
     val showJumpWeekDialog by viewModel.showJumpWeekDialog.collectAsState()
-    val editingCourse by viewModel.editingCourse.collectAsState()
     val showNonCurrentWeek by settingsViewModel.showNonCurrentWeek.collectAsState()
     val smartWeekend by settingsViewModel.smartWeekend.collectAsState()
     val morningSections by settingsViewModel.morningSections.collectAsState()
     val afternoonSections by settingsViewModel.afternoonSections.collectAsState()
     val eveningSections by settingsViewModel.eveningSections.collectAsState()
     val sectionTimes by settingsViewModel.sectionTimes.collectAsState()
-    val selectedStartSection by viewModel.selectedStartSection.collectAsState()
-    val selectedEndSection by viewModel.selectedEndSection.collectAsState()
     val hapticFeedback = LocalHapticFeedback.current
     val configuration = LocalConfiguration.current
     val isTablet = configuration.screenWidthDp >= 600
@@ -142,10 +139,9 @@ fun MainScheduleScreen(
     // 要覆盖屏幕需要最终缩放 = max(screenW/bitmapW, screenH/bitmapH)
     // 所以 wallpaperScale 的最小值 = max / min
     val minWallpaperScale = remember(wallpaperBitmap, screenWidthPx, screenHeightPx) {
-        val bmp = wallpaperBitmap
-        if (bmp != null && bmp.width > 0 && bmp.height > 0) {
-            val fitScale = minOf(screenWidthPx / bmp.width, screenHeightPx / bmp.height)
-            val coverScale = maxOf(screenWidthPx / bmp.width, screenHeightPx / bmp.height)
+        if (wallpaperBitmap != null && wallpaperBitmap.width > 0 && wallpaperBitmap.height > 0) {
+            val fitScale = minOf(screenWidthPx / wallpaperBitmap.width, screenHeightPx / wallpaperBitmap.height)
+            val coverScale = maxOf(screenWidthPx / wallpaperBitmap.width, screenHeightPx / wallpaperBitmap.height)
             if (fitScale > 0f) coverScale / fitScale else 1f
         } else 1f
     }
@@ -302,7 +298,7 @@ fun MainScheduleScreen(
 
         // 手势结束后触发缩放回弹动画（指针输入作用域内无法调用 animate，需通过状态触发）
         var bounceBackTrigger by remember { mutableIntStateOf(0) }
-        var gestureEndScale by remember { mutableStateOf(1f) }
+        var gestureEndScale by remember { androidx.compose.runtime.mutableFloatStateOf(1f) }
         LaunchedEffect(bounceBackTrigger) {
             if (bounceBackTrigger > 0 && gestureEndScale < latestMinWallpaperScale) {
                 animate(

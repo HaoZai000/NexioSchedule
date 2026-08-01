@@ -12,13 +12,10 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
-import androidx.compose.foundation.layout.ime
-import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.wrapContentHeight
@@ -154,7 +151,6 @@ private fun BlurBottomSheetTabletContent(
     val density = LocalDensity.current
     val windowInfo = LocalWindowInfo.current
     val sheetHeightPx = remember { mutableIntStateOf(0) }
-    val imeInsets = WindowInsets.ime
 
     val isDark = MiuixTheme.colorScheme.background.luminance() < 0.5f
     val sheetBgColor = sheetBackgroundColor ?: if (isDark) Color(0xFF1E1E1E) else Color(0xFFF7F7F7)
@@ -224,12 +220,9 @@ private fun BlurBottomSheetTabletContent(
                 .heightIn(max = if (sheetMaxHeight != Dp.Unspecified) sheetMaxHeight else windowInfo.containerDpSize.height * 0.8f)
                 .then(if (isBottomAligned) Modifier.padding(bottom = 20.dp) else Modifier)
                 .onGloballyPositioned { coordinates ->
-                    if (imeInsets.getBottom(density) == 0) {
-                        sheetHeightPx.intValue = coordinates.size.height
-                    }
+                    sheetHeightPx.intValue = coordinates.size.height
                 }
                 .clip(RoundedRectangle(38.dp))
-                .imePadding()
                 .then(
                     if (liquidGlassBackdrop != null && Build.VERSION.SDK_INT >= 33) {
                         Modifier.drawBackdrop(

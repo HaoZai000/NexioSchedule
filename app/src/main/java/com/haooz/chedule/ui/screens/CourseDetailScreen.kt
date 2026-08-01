@@ -1,7 +1,7 @@
 ﻿/** 课程详情页面 */
 package com.haooz.chedule.ui.screens
 
-import android.content.res.Configuration
+import android.annotation.SuppressLint
 import android.graphics.Bitmap
 import androidx.activity.compose.BackHandler
 import androidx.compose.animation.core.Animatable
@@ -127,6 +127,7 @@ private class AnimClipShape(
     }
 }
 
+@SuppressLint("ConfigurationScreenWidthHeight")
 @Composable
 fun CourseDetailScreen(
     courses: List<Course>,

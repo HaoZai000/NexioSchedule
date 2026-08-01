@@ -1,7 +1,7 @@
 ﻿/** 切换课程表页面 */
 package com.haooz.chedule.ui.activities
 
-import android.content.res.Configuration
+import android.annotation.SuppressLint
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.SystemBarStyle
@@ -143,6 +143,7 @@ class SwitchScheduleActivity : ComponentActivity() {
     }
 }
 
+@SuppressLint("ConfigurationScreenWidthHeight", "MutableCollectionMutableState")
 @Composable
 fun SwitchScheduleScreen(
     onBack: (android.graphics.Bitmap?) -> Unit = { _ -> },
@@ -978,7 +979,7 @@ fun SwitchScheduleScreen(
                             scope.launch {
                                 selectedNames.forEach { name ->
                                     deletingScheduleName = name
-                                    kotlinx.coroutines.delay(300)
+                                    kotlinx.coroutines.delay(300.milliseconds)
                                     scheduleNames = repository.deleteSchedule(name)
                                     if (currentScheduleId == name && scheduleNames.isNotEmpty()) {
                                         currentScheduleId = scheduleNames.first()

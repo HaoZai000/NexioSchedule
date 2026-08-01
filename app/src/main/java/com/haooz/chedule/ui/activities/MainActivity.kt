@@ -173,9 +173,6 @@ class MainActivity : ComponentActivity() {
     var resumeCount by mutableIntStateOf(0)
         private set
 
-    // 壁纸是否已首次出现（用于控制淡入动画只播放一次）
-    var wallpaperHasAppeared by mutableStateOf(false)
-
     fun clearShareIntent() {
         shareIntentUri = null
         shareIntentAction = null
@@ -1043,21 +1040,16 @@ fun CourseScheduleApp() {
                     // 视觉圆角 = screenRadius * effectiveScale（随缩放变小）
                     // 搭配页退出时锁定圆角为 screenCornerRadius，避免缩小
                     Modifier.drawWithContent {
-                            val exitScale = if (isCustomizeExiting) customizeExitScale.value else 1f
-                            val cutoutScale = cutoutMainScale.value
-                            val effectiveScale =
-                                if (isWindowCutoutActive) cutoutScale else exitScale * cutoutScale
                             val scale = backgroundScale.value
                             val shouldClip = !isCustomizeExiting && scale < 0.999f
                             val animClipPx =
                                 if (isCustomizeExiting) screenCornerRadius else screenCornerRadius
-                            val finalClipPx = animClipPx
-                            if (finalClipPx > 0f && (shouldClip || isCustomizeExiting)) {
+                        if (animClipPx > 0f && (shouldClip || isCustomizeExiting)) {
                                 val path = Path().apply {
                                     addSquircleRect(
                                         width = size.width,
                                         height = size.height,
-                                        cornerRadius = finalClipPx
+                                        cornerRadius = animClipPx
                                     )
                                 }
                                 clipPath(path) {
@@ -1231,8 +1223,6 @@ fun CourseScheduleApp() {
                                 cardCornerRadius = if (showCustomizePage && !isWindowCutoutActive) originalCourseCardCornerRadius else courseCardCornerRadius,
                                 wallpaperBrightness = if (showCustomizePage && !isWindowCutoutActive) originalWallpaperBrightness else wallpaperBrightness,
                                 showBreakDividers = if (showCustomizePage && !isWindowCutoutActive) originalShowBreakDividers else showBreakDividers,
-                                wallpaperHasAppeared = activity?.wallpaperHasAppeared ?: false,
-                                onWallpaperAppeared = { activity?.wallpaperHasAppeared = true },
                                 liquidGlassBackdrop = liquidGlassBackdrop
                             )
 

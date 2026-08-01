@@ -111,7 +111,7 @@ fun CourseCard(
                 ),
                 onClick = onClick
             ) {
-                CardContent(course, sectionCount, cardColor, textColor, hasMultipleCourses)
+                CardContent(course, sectionCount, textColor, hasMultipleCourses)
             }
         }
     } else {
@@ -130,7 +130,7 @@ fun CourseCard(
             ),
             onClick = onClick
         ) {
-            CardContent(course, sectionCount, cardColor, textColor, hasMultipleCourses)
+            CardContent(course, sectionCount, textColor, hasMultipleCourses)
         }
     }
 }
@@ -139,7 +139,7 @@ fun CourseCard(
 private val overflowCache = java.util.concurrent.ConcurrentHashMap<String, Boolean>()
 
 @Composable
-private fun CardContent(course: Course, sectionCount: Int, cardColor: Color, textColor: Color, hasMultipleCourses: Boolean) {
+private fun CardContent(course: Course, sectionCount: Int, textColor: Color, hasMultipleCourses: Boolean) {
     val footnote2Size = 10.5.sp
     val smallSize = (footnote2Size.value - 1.7).sp
 

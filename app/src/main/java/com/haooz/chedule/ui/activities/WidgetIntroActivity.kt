@@ -96,8 +96,7 @@ class WidgetIntroActivity : ComponentActivity() {
                             )
                         ) {
                             WidgetIntroScreen(
-                                onBack = { finish() },
-                                liquidGlassBackdrop = liquidGlassBackdrop
+                                onBack = { finish() }
                             )
                         }
                     }

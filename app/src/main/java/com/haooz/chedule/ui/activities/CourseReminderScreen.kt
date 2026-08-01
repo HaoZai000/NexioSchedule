@@ -5,7 +5,6 @@ import android.Manifest
 import android.annotation.SuppressLint
 import android.content.Intent
 import android.content.pm.PackageManager
-import android.content.res.Configuration
 import android.os.PowerManager
 import android.provider.Settings
 import android.widget.Toast
@@ -62,7 +61,6 @@ import com.haooz.chedule.reminder.IslandNotificationHelper
 import com.haooz.chedule.shizuku.ShizukuManager
 import com.haooz.chedule.ui.utils.isAppDarkTheme
 import com.haooz.chedule.ui.utils.rememberAppStyle
-import com.haooz.chedule.viewmodel.CourseViewModel
 import com.haooz.chedule.viewmodel.SettingsViewModel
 import kotlinx.coroutines.launch
 import top.yukonga.miuix.kmp.basic.Card
@@ -89,11 +87,12 @@ import top.yukonga.miuix.kmp.utils.overScrollVertical
 import top.yukonga.miuix.kmp.utils.scrollEndHaptic
 import androidx.compose.ui.graphics.Color as ComposeColor
 
-@SuppressLint("InlinedApi")
+@SuppressLint("InlinedApi", "ConfigurationScreenWidthHeight", "DefaultLocale", "UseKtx",
+    "BatteryLife"
+)
 @Composable
 fun CourseReminderScreen(
     onBack: () -> Unit,
-    viewModel: CourseViewModel = viewModel(),
     settingsViewModel: SettingsViewModel = viewModel(),
     liquidGlassBackdrop: com.kyant.backdrop.Backdrop? = null
 ) {
@@ -360,7 +359,7 @@ fun CourseReminderScreen(
                                 }
                             )
                             AnimatedVisibility(
-                                visible = preClassReminder && masterEnabled,
+                                visible = preClassReminder,
                                 enter = expandVertically(animationSpec = tween(250)) + fadeIn(animationSpec = tween(200)),
                                 exit = shrinkVertically(animationSpec = tween(200)) + fadeOut(animationSpec = tween(150))
                             ) {
@@ -398,7 +397,7 @@ fun CourseReminderScreen(
                                 }
                             )
                             AnimatedVisibility(
-                                visible = nextDayReminder && masterEnabled,
+                                visible = nextDayReminder,
                                 enter = expandVertically(animationSpec = tween(250)) + fadeIn(animationSpec = tween(200)),
                                 exit = shrinkVertically(animationSpec = tween(200)) + fadeOut(animationSpec = tween(150))
                             ) {
@@ -750,7 +749,7 @@ fun CourseReminderScreen(
                         val courseName = nextCourse?.name ?: "暂无课程"
                         val classroom = nextCourse?.classroom ?: ""
                         val startTime = nextCourse?.let { CourseReminderHelper.getCourseStartTime(it, repo) } ?: ""
-                        val section = nextCourse?.let { it.getSectionText() } ?: ""
+                        val section = nextCourse?.getSectionText() ?: ""
                         if (islandNotification && isIslandSupported) {
                             IslandNotificationHelper.sendTestIslandNotification(context)
                             Toast.makeText(context, "已发送超级岛测试通知", Toast.LENGTH_SHORT).show()

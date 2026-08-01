@@ -1,7 +1,7 @@
 ﻿/** 小组件使用引导页面 - Screen */
 package com.haooz.chedule.ui.activities
 
-import android.content.res.Configuration
+import android.annotation.SuppressLint
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
@@ -37,7 +37,6 @@ import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.unit.DpSize
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.haooz.chedule.R
@@ -59,9 +58,9 @@ import top.yukonga.miuix.kmp.theme.MiuixTheme
 import top.yukonga.miuix.kmp.utils.overScrollVertical
 import androidx.compose.ui.graphics.Color as ComposeColor
 
+@SuppressLint("ConfigurationScreenWidthHeight")
 @Composable
-fun WidgetIntroScreen(onBack: () -> Unit, liquidGlassBackdrop: com.kyant.backdrop.backdrops.LayerBackdrop? = null) {
-    val context = androidx.compose.ui.platform.LocalContext.current
+fun WidgetIntroScreen(onBack: () -> Unit) {
     val hapticFeedback = LocalHapticFeedback.current
     var showGuideDialog by remember { mutableStateOf(false) }
     val appStyle = rememberAppStyle()

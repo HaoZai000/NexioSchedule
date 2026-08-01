@@ -2,7 +2,6 @@
 package com.haooz.chedule.ui.activities
 
 import android.annotation.SuppressLint
-import android.content.res.Configuration
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
@@ -84,7 +83,7 @@ fun ChangelogScreen(
         }
     }
 
-    val rotations = changelogData.mapIndexed { index, _ ->
+    val rotations = List(changelogData.size) { index ->
         val rotation by animateFloatAsState(
             targetValue = if (expandedStates[index]) 90f else -90f,
             animationSpec = tween(durationMillis = 200),

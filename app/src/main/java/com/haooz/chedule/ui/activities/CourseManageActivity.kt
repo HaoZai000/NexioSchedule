@@ -319,7 +319,6 @@ class CourseManageActivity : ComponentActivity() {
                             cardSnapshot = cardSnapshot,
                             cardColor = cardColor,
                             cardAlpha = cardAlpha,
-                            sectionTimes = Course.defaultSectionTimes,
                             onBackStart = {
                                 coroutineScope.launch {
                                     launch {

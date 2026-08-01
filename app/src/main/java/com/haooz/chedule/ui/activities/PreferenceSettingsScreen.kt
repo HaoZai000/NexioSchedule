@@ -1,7 +1,7 @@
 ﻿/** 偏好设置页面 - Screen */
 package com.haooz.chedule.ui.activities
 
-import android.content.res.Configuration
+import android.annotation.SuppressLint
 import android.content.Context
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -30,7 +30,6 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import androidx.core.content.edit
 import com.haooz.chedule.ui.utils.rememberAppStyle
-import com.haooz.chedule.viewmodel.CourseViewModel
 import com.haooz.chedule.viewmodel.SettingsViewModel
 import top.yukonga.miuix.kmp.basic.Card
 import top.yukonga.miuix.kmp.basic.DropdownEntry
@@ -51,6 +50,7 @@ import top.yukonga.miuix.kmp.theme.MiuixTheme
 import top.yukonga.miuix.kmp.utils.overScrollVertical
 import top.yukonga.miuix.kmp.utils.scrollEndHaptic
 
+@SuppressLint("ConfigurationScreenWidthHeight")
 @Composable
 fun PreferenceSettingsScreen(onBack: () -> Unit) {
     val scrollBehavior = MiuixScrollBehavior()
@@ -64,7 +64,6 @@ fun PreferenceSettingsScreen(onBack: () -> Unit) {
     var themeMode by remember { mutableStateOf(themePrefs.getString("theme_mode", "system") ?: "system") }
     var appStyle by remember { mutableStateOf(themePrefs.getString("app_style", "hyperos3") ?: "hyperos3") }
 
-    val viewModel = remember { CourseViewModel(context.applicationContext as android.app.Application) }
     val settingsViewModel = remember { SettingsViewModel(context.applicationContext as android.app.Application) }
     val defaultHomepage by settingsViewModel.defaultHomepage.collectAsState()
 

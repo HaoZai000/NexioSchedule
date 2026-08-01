@@ -1,14 +1,14 @@
 ﻿/** 课程编辑页面 - 修改课程时段/周次 */
 package com.haooz.chedule.ui.screens
 
-import android.content.res.Configuration
+import android.annotation.SuppressLint
 import android.graphics.Bitmap
 import androidx.activity.compose.BackHandler
 import androidx.compose.animation.AnimatedVisibility
-import androidx.compose.animation.fadeOut
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
+import androidx.compose.animation.fadeOut
 import androidx.compose.animation.shrinkVertically
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
@@ -57,8 +57,8 @@ import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.ContentScale
-import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalConfiguration
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.DpOffset
@@ -172,6 +172,7 @@ data class CourseGroup(
 
 // ===================== CourseEditScreen =====================
 
+@SuppressLint("ConfigurationScreenWidthHeight")
 @Composable
 fun CourseEditScreen(
     courses: List<Course>,
@@ -185,7 +186,6 @@ fun CourseEditScreen(
     cardSnapshot: Bitmap?,
     cardColor: Color = Color(0xFF4CAF50),
     cardAlpha: Float = 0.15f,
-    sectionTimes: Map<Int, String>,
     onBackStart: () -> Unit,
     onBack: () -> Unit,
     onCourseUpdated: (Course) -> Unit = { _ -> },
@@ -857,7 +857,6 @@ fun CourseEditScreen(
                                                     Box(modifier = Modifier.weight(1f)) {
                                                         CourseGroupCardWithDelete(
                                                             group = group,
-                                                            sectionTimes = sectionTimes,
                                                             isDark = isDark,
                                                             deletingGroupId = deletingGroupId,
                                                             onEdit = { g ->
@@ -911,7 +910,6 @@ fun CourseEditScreen(
                                                 ) {
                                                     CourseGroupCard(
                                                         group = group,
-                                                        sectionTimes = sectionTimes,
                                                         onEdit = { g ->
                                                             editingGroup = g
                                                             showEditCourseSheet = true
@@ -1115,7 +1113,6 @@ fun CourseEditScreen(
 @Composable
 private fun CourseGroupCard(
     group: CourseGroup,
-    sectionTimes: Map<Int, String>,
     onEdit: (CourseGroup) -> Unit
 ) {
     val course = group.courses.first()
@@ -1246,7 +1243,6 @@ private fun CourseGroupCard(
 @Composable
 private fun CourseGroupCardWithDelete(
     group: CourseGroup,
-    sectionTimes: Map<Int, String>,
     isDark: Boolean,
     deletingGroupId: String?,
     onEdit: (CourseGroup) -> Unit,
@@ -1276,7 +1272,6 @@ private fun CourseGroupCardWithDelete(
         ) {
             CourseGroupCard(
                 group = group,
-                sectionTimes = sectionTimes,
                 onEdit = onEdit
             )
             Button(
