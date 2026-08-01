@@ -1,4 +1,4 @@
-/** 关于页面 */
+﻿/** 关于页面 */
 package com.haooz.chedule.ui.activities
 
 import android.annotation.SuppressLint
@@ -134,8 +134,7 @@ private fun AboutScreen(onBack: () -> Unit) {
     val isInDark = isAppDarkTheme()
     val appStyle = rememberAppStyle()
     val isLiquidGlass = appStyle == "liquidglass"
-    val isTablet = (LocalConfiguration.current.screenLayout and Configuration.SCREENLAYOUT_SIZE_MASK) in
-            listOf(Configuration.SCREENLAYOUT_SIZE_XLARGE)
+    val isTablet = LocalConfiguration.current.screenWidthDp >= 600
     val tabletHorizontalPadding = if (isTablet) {
         val screenWidthDp = LocalConfiguration.current.screenWidthDp
         ((screenWidthDp - 600).coerceIn(0, 600) / 600f * 128).dp

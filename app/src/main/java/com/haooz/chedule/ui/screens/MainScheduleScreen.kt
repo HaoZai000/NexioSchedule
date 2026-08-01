@@ -1,4 +1,4 @@
-/** 主课程表页面 - 显示周视图课程表 */
+﻿/** 主课程表页面 - 显示周视图课程表 */
 package com.haooz.chedule.ui.screens
 
 import androidx.activity.ComponentActivity
@@ -136,8 +136,7 @@ fun MainScheduleScreen(
     val selectedEndSection by viewModel.selectedEndSection.collectAsState()
     val hapticFeedback = LocalHapticFeedback.current
     val configuration = LocalConfiguration.current
-    val isTablet = (configuration.screenLayout and Configuration.SCREENLAYOUT_SIZE_MASK) in
-            listOf(Configuration.SCREENLAYOUT_SIZE_XLARGE)
+    val isTablet = configuration.screenWidthDp >= 600
     val density = LocalDensity.current
     val screenWidthPx = with(density) { configuration.screenWidthDp.dp.toPx() }
     val screenHeightPx = with(density) { configuration.screenHeightDp.dp.toPx() }

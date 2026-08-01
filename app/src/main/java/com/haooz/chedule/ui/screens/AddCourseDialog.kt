@@ -1,4 +1,4 @@
-/** 添加/编辑课程对话框 - Blur版本 */
+﻿/** 添加/编辑课程对话框 - Blur版本 */
 package com.haooz.chedule.ui.screens
 
 import androidx.compose.animation.core.Animatable
@@ -213,8 +213,7 @@ fun AddCourseDialog(
         }
     }
     val statusBarsPadding = WindowInsets.statusBars.asPaddingValues().calculateTopPadding()
-    val isTablet = (LocalConfiguration.current.screenLayout and Configuration.SCREENLAYOUT_SIZE_MASK) in
-            listOf(Configuration.SCREENLAYOUT_SIZE_XLARGE)
+    val isTablet = LocalConfiguration.current.screenWidthDp >= 600
 
     if (isTablet) {
         BlurBottomSheetTablet(
@@ -1317,8 +1316,7 @@ private fun AddCourseDialogContent(
             }
         }
         val configuration = LocalConfiguration.current
-        val isTablet = (configuration.screenLayout and Configuration.SCREENLAYOUT_SIZE_MASK) in
-                listOf(Configuration.SCREENLAYOUT_SIZE_XLARGE)
+        val isTablet = configuration.screenWidthDp >= 600
         Spacer(modifier = Modifier.height(if (isTablet) 4.dp else statusBarsPadding + 65.dp))
     }
 }

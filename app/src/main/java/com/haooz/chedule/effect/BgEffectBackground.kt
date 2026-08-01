@@ -1,4 +1,4 @@
-/** 背景特效 - 绘制动态背景效果 */
+﻿/** 背景特效 - 绘制动态背景效果 */
 package com.haooz.chedule.effect
 
 import android.content.res.Configuration
@@ -41,8 +41,7 @@ fun BgEffectBackground(
         val surface = MiuixTheme.colorScheme.surface
         val isDarkTheme = isAppDarkTheme()
         val config = LocalConfiguration.current
-        val isTablet = (config.screenLayout and Configuration.SCREENLAYOUT_SIZE_MASK) in
-                listOf(Configuration.SCREENLAYOUT_SIZE_XLARGE)
+        val isTablet = config.screenWidthDp >= 600
         val painter = remember { BgEffectPainter() }
 
         val preset = remember(isDarkTheme, isTablet) {

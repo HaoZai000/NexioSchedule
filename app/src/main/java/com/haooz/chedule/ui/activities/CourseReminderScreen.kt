@@ -1,4 +1,4 @@
-/** 课程提醒设置页面 - Screen */
+﻿/** 课程提醒设置页面 - Screen */
 package com.haooz.chedule.ui.activities
 
 import android.Manifest
@@ -207,8 +207,7 @@ fun CourseReminderScreen(
     val isDark = isAppDarkTheme()
     val appStyle = rememberAppStyle()
     val isLiquidGlass = appStyle == "liquidglass" && liquidGlassBackdrop != null
-    val isTablet = (LocalConfiguration.current.screenLayout and Configuration.SCREENLAYOUT_SIZE_MASK) in
-            listOf(Configuration.SCREENLAYOUT_SIZE_XLARGE)
+    val isTablet = LocalConfiguration.current.screenWidthDp >= 600
     val tabletHorizontalPadding = if (isTablet) {
         val screenWidthDp = LocalConfiguration.current.screenWidthDp
         ((screenWidthDp - 600).coerceIn(0, 600) / 600f * 112 + 16).dp

@@ -1,4 +1,4 @@
-/** 主页面 - 应用入口 Activity */
+﻿/** 主页面 - 应用入口 Activity */
 package com.haooz.chedule.ui.activities
 
 import android.annotation.SuppressLint
@@ -355,8 +355,7 @@ fun CourseScheduleApp() {
         }
     }
     val config = LocalConfiguration.current
-    val isTablet = (config.screenLayout and Configuration.SCREENLAYOUT_SIZE_MASK) in
-            listOf(Configuration.SCREENLAYOUT_SIZE_XLARGE)
+    val isTablet = config.screenWidthDp >= 600
     val navBarStyle = if (isTablet) "rail" else "standard"
     val windowInfo = androidx.compose.ui.platform.LocalWindowInfo.current
     val density = LocalDensity.current

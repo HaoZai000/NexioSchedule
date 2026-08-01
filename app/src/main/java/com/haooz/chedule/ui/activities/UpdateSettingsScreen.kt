@@ -1,4 +1,4 @@
-/** 应用更新设置页面 - Screen */
+﻿/** 应用更新设置页面 - Screen */
 package com.haooz.chedule.ui.activities
 
 import android.content.res.Configuration
@@ -238,8 +238,7 @@ fun UpdateSettingsScreen(onBack: () -> Unit) {
     }
     val appStyleValue = rememberAppStyle()
     val isLiquidGlass = appStyleValue == "liquidglass"
-    val isTablet = (LocalConfiguration.current.screenLayout and Configuration.SCREENLAYOUT_SIZE_MASK) in
-            listOf(Configuration.SCREENLAYOUT_SIZE_XLARGE)
+    val isTablet = LocalConfiguration.current.screenWidthDp >= 600
     val tabletHorizontalPadding = if (isTablet) {
         val screenWidthDp = LocalConfiguration.current.screenWidthDp
         ((screenWidthDp - 600).coerceIn(0, 600) / 600f * 112 + 16).dp

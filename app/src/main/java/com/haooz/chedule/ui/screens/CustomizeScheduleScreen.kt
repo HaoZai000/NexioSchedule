@@ -1,4 +1,4 @@
-/** 自定义课表页面 - 课表外观选择 */
+﻿/** 自定义课表页面 - 课表外观选择 */
 package com.haooz.chedule.ui.screens
 
 import android.annotation.SuppressLint
@@ -181,8 +181,7 @@ fun CustomizeScheduleScreen(
     val statusBarPadding = WindowInsets.statusBars.asPaddingValues().calculateTopPadding()
     val scope = rememberCoroutineScope()
     val configuration = LocalConfiguration.current
-    val isTablet = (configuration.screenLayout and Configuration.SCREENLAYOUT_SIZE_MASK) in
-            listOf(Configuration.SCREENLAYOUT_SIZE_XLARGE)
+    val isTablet = configuration.screenWidthDp >= 600
     val screenHPx = with(densityObj) { configuration.screenHeightDp.dp.toPx() }
     val screenWPx = with(densityObj) { configuration.screenWidthDp.dp.toPx() }
 
