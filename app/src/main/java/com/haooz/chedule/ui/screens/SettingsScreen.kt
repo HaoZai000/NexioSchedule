@@ -514,7 +514,11 @@ fun SettingsScreen(
                                 ArrowPreference(
                                     title = "备份与迁移",
                                     summary = "课表导入导出与备份",
-                                    holdDownState = activeSecondaryActivity == "BackupAndMigrationActivity",
+                                    holdDownState = activeSecondaryActivity in setOf(
+                                        "BackupAndMigrationActivity",
+                                        "LocalBackupActivity",
+                                        "WebDavSettingsActivity"
+                                    ),
                                     onClick = {
                                         val intent = Intent(context, com.haooz.chedule.ui.activities.BackupAndMigrationActivity::class.java)
                                         context.startActivity(intent)
@@ -570,7 +574,12 @@ fun SettingsScreen(
                                 )
                                 ArrowPreference(
                                     title = "关于应用",
-                                    holdDownState = activeSecondaryActivity == "AboutActivity",
+                                    holdDownState = activeSecondaryActivity in setOf(
+                                        "AboutActivity",
+                                        "UpdateSettingsActivity",
+                                        "AppreciateAuthorActivity",
+                                        "ChangelogActivity"
+                                    ),
                                     onClick = {
                                         val intent = Intent(context, AboutActivity::class.java)
                                         context.startActivity(intent)

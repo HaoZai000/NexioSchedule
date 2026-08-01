@@ -108,6 +108,7 @@ import com.haooz.chedule.viewmodel.ShiftViewModel
 import com.kyant.shapes.RoundedRectangle
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.collect
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import top.yukonga.miuix.kmp.basic.MiuixScrollBehavior
@@ -995,6 +996,28 @@ fun CourseScheduleApp() {
             value = list.isNotEmpty()
         }
     }
+    // 追踪分屏右侧当前打开的 Activity 类名，用于压暗左侧对应选项
+    // ActivityStack 不暴露公开的 Activity 列表，改用全局生命周期回调追踪
+    val activeSecondaryActivity by produceState<String?>(initialValue = null) {
+        val app = context.applicationContext as? android.app.Application ?: return@produceState
+        val mainActivityClass = activity?.javaClass
+        val callback = object : android.app.Application.ActivityLifecycleCallbacks {
+            override fun onActivityResumed(a: android.app.Activity) {
+                if (a.javaClass == mainActivityClass) return
+                value = a.javaClass.simpleName
+            }
+            override fun onActivityPaused(a: android.app.Activity) {
+                if (a.javaClass.simpleName == value) value = null
+            }
+            override fun onActivityCreated(a: android.app.Activity, b: android.os.Bundle?) {}
+            override fun onActivityStarted(a: android.app.Activity) {}
+            override fun onActivityStopped(a: android.app.Activity) {}
+            override fun onActivitySaveInstanceState(a: android.app.Activity, b: android.os.Bundle) {}
+            override fun onActivityDestroyed(a: android.app.Activity) {}
+        }
+        app.registerActivityLifecycleCallbacks(callback)
+        awaitDispose { app.unregisterActivityLifecycleCallbacks(callback) }
+    }
 
     Box(modifier = Modifier
         .fillMaxSize()
@@ -1265,7 +1288,8 @@ fun CourseScheduleApp() {
                                 navBarStyle = navBarStyle,
                                 liquidGlassBackdrop = liquidGlassBackdrop,
                                 onScrollYChanged = { settingsScrollY = it },
-                                settingsScrollBehavior = settingsScrollBehavior
+                                settingsScrollBehavior = settingsScrollBehavior,
+                                activeSecondaryActivity = activeSecondaryActivity
                             )
                         }
                     } else {
@@ -1294,7 +1318,8 @@ fun CourseScheduleApp() {
                                 navBarStyle = navBarStyle,
                                 liquidGlassBackdrop = liquidGlassBackdrop,
                                 onScrollYChanged = { settingsScrollY = it },
-                                settingsScrollBehavior = settingsScrollBehavior
+                                settingsScrollBehavior = settingsScrollBehavior,
+                                activeSecondaryActivity = activeSecondaryActivity
                             )
                         }
                     }
