@@ -1,4 +1,4 @@
-﻿/** 更新日志页 - Screen */
+/** 更新日志页 - Screen */
 package com.haooz.chedule.ui.activities
 
 import android.annotation.SuppressLint
@@ -44,6 +44,7 @@ import top.yukonga.miuix.kmp.basic.Icon
 import top.yukonga.miuix.kmp.basic.IconButton
 import top.yukonga.miuix.kmp.basic.MiuixScrollBehavior
 import top.yukonga.miuix.kmp.basic.Scaffold
+import top.yukonga.miuix.kmp.basic.SmallTopAppBar
 import top.yukonga.miuix.kmp.basic.TopAppBar
 import top.yukonga.miuix.kmp.blur.layerBackdrop
 import top.yukonga.miuix.kmp.blur.rememberLayerBackdrop
@@ -95,22 +96,31 @@ fun ChangelogScreen(
     Scaffold(
         topBar = {
             if (!isLiquidGlass) {
-                TopAppBar(
-                    title = "更新日志",
-                    scrollBehavior = scrollBehavior,
-                    navigationIcon = {
-                        IconButton(
-                            onClick = { onBack() },
-                            modifier = Modifier.padding(start = 4.dp)
-                        ) {
-                            Icon(
-                                imageVector = MiuixIcons.Back,
-                                contentDescription = "返回",
-                                modifier = Modifier.size(28.dp)
-                            )
-                        }
+                val navIcon: @Composable () -> Unit = {
+                    IconButton(
+                        onClick = { onBack() },
+                        modifier = Modifier.padding(start = 4.dp)
+                    ) {
+                        Icon(
+                            imageVector = MiuixIcons.Back,
+                            contentDescription = "返回",
+                            modifier = Modifier.size(28.dp)
+                        )
                     }
-                )
+                }
+                if (isTablet) {
+                    SmallTopAppBar(
+                        title = "更新日志",
+                        scrollBehavior = scrollBehavior,
+                        navigationIcon = navIcon
+                    )
+                } else {
+                    TopAppBar(
+                        title = "更新日志",
+                        scrollBehavior = scrollBehavior,
+                        navigationIcon = navIcon
+                    )
+                }
             }
         }
     ) { paddingValues ->

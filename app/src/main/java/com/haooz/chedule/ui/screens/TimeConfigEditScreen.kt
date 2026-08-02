@@ -1,4 +1,4 @@
-﻿/** 时间配置编辑页面 - Screen */
+/** 时间配置编辑页面 - Screen */
 package com.haooz.chedule.ui.screens
 
 import android.annotation.SuppressLint
@@ -659,102 +659,117 @@ fun TimeConfigEditScreen(
                                 )
                             }
                         } else {
-                            TopAppBar(
-                                modifier = if (blurAlpha > 0f) {
-                                    Modifier.textureBlur(
-                                        backdrop = backdrop,
-                                        shape = RectangleShape,
-                                        colors = topAppBarColors
+                            val topBarModifier = if (blurAlpha > 0f) {
+                                Modifier.textureBlur(
+                                    backdrop = backdrop,
+                                    shape = RectangleShape,
+                                    colors = topAppBarColors
+                                )
+                            } else Modifier
+                            val navIcon: @Composable () -> Unit = {
+                                IconButton(onClick = {
+                                    hapticFeedback.performHapticFeedback(HapticFeedbackType.Confirm)
+                                    triggerExitAndBack()
+                                }) {
+                                    Icon(
+                                        MiuixIcons.Normal.Close,
+                                        contentDescription = "返回",
+                                        modifier = Modifier.size(24.dp)
                                     )
-                                } else Modifier,
-                                color = topBarColor,
-                                title = screenTitle, largeTitle = screenTitle,
-                                scrollBehavior = scrollBehavior,
-                                navigationIconPadding = 20.dp,
-                                navigationIcon = {
-                                    IconButton(onClick = {
-                                        hapticFeedback.performHapticFeedback(HapticFeedbackType.Confirm)
-                                        triggerExitAndBack()
-                                    }) {
-                                        Icon(
-                                            MiuixIcons.Normal.Close,
-                                            contentDescription = "返回",
-                                            modifier = Modifier.size(24.dp)
-                                        )
-                                    }
-                                },
-                                actions = {
-                                    IconButton(
-                                        onClick = {
-                                            hapticFeedback.performHapticFeedback(HapticFeedbackType.Confirm)
-                                            if (configName.isBlank()) {
-                                                Toast.makeText(
-                                                    context,
-                                                    "请输入配置名称",
-                                                    Toast.LENGTH_SHORT
-                                                ).show()
-                                                return@IconButton
-                                            }
-                                            val existingNames = repository.getTimeConfigIds()
-                                                .filter { id -> id != timeConfig.id }
-                                                .map { id -> repository.getTimeConfig(id).name }
-                                            if (existingNames.contains(configName)) {
-                                                Toast.makeText(
-                                                    context,
-                                                    "已存在同名配置",
-                                                    Toast.LENGTH_SHORT
-                                                ).show()
-                                                return@IconButton
-                                            }
-                                            val overlapMsg = checkTimeOverlap()
-                                            if (overlapMsg != null) {
-                                                overlapMessage = overlapMsg
-                                                showOverlapDialog = true
-                                                return@IconButton
-                                            }
-                                            val finalSectionTimes = mutableMapOf<String, String>()
-                                            for ((k, v) in morningTimes) if (k <= morningSections) finalSectionTimes["morning_$k"] =
-                                                v
-                                            for ((k, v) in afternoonTimes) if (k <= afternoonSections) finalSectionTimes["afternoon_$k"] =
-                                                v
-                                            for ((k, v) in eveningTimes) if (k <= eveningSections) finalSectionTimes["evening_$k"] =
-                                                v
-
-                                            val newConfig = timeConfig.copy(
-                                                name = configName,
-                                                morningSections = morningSections,
-                                                afternoonSections = afternoonSections,
-                                                eveningSections = eveningSections,
-                                                quickTimeEnabled = quickTimeEnabled,
-                                                classDuration = classDuration,
-                                                shortBreak = shortBreak,
-                                                longBreakEnabled = longBreakEnabled,
-                                                longBreakMorning = longBreakMorning,
-                                                longBreakAfternoon = longBreakAfternoon,
-                                                longBreakEvening = longBreakEvening,
-                                                longBreakMorningSection = longBreakMorningSection,
-                                                longBreakAfternoonSection = longBreakAfternoonSection,
-                                                longBreakEveningSection = longBreakEveningSection,
-                                                morningStartHour = morningStartHour,
-                                                morningStartMinute = morningStartMinute,
-                                                afternoonStartHour = afternoonStartHour,
-                                                afternoonStartMinute = afternoonStartMinute,
-                                                eveningStartHour = eveningStartHour,
-                                                eveningStartMinute = eveningStartMinute,
-                                                sectionTimes = finalSectionTimes
-                                            )
-                                            triggerExitAndBack(onSavePending = { onSave(newConfig) })
-                                        },
-                                        modifier = Modifier.padding(end = 4.dp)
-                                    ) {
-                                        Icon(
-                                            imageVector = MiuixIcons.Ok,
-                                            contentDescription = "保存并关闭",
-                                            modifier = Modifier.size(26.dp)
-                                        )
-                                    }
                                 }
-                            )
+                            }
+                            val actionsSlot: @Composable androidx.compose.foundation.layout.RowScope.() -> Unit = {
+                                IconButton(
+                                    onClick = {
+                                        hapticFeedback.performHapticFeedback(HapticFeedbackType.Confirm)
+                                        if (configName.isBlank()) {
+                                            Toast.makeText(
+                                                context,
+                                                "请输入配置名称",
+                                                Toast.LENGTH_SHORT
+                                            ).show()
+                                            return@IconButton
+                                        }
+                                        val existingNames = repository.getTimeConfigIds()
+                                            .filter { id -> id != timeConfig.id }
+                                            .map { id -> repository.getTimeConfig(id).name }
+                                        if (existingNames.contains(configName)) {
+                                            Toast.makeText(
+                                                context,
+                                                "已存在同名配置",
+                                                Toast.LENGTH_SHORT
+                                            ).show()
+                                            return@IconButton
+                                        }
+                                        val overlapMsg = checkTimeOverlap()
+                                        if (overlapMsg != null) {
+                                            overlapMessage = overlapMsg
+                                            showOverlapDialog = true
+                                            return@IconButton
+                                        }
+                                        val finalSectionTimes = mutableMapOf<String, String>()
+                                        for ((k, v) in morningTimes) if (k <= morningSections) finalSectionTimes["morning_$k"] =
+                                            v
+                                        for ((k, v) in afternoonTimes) if (k <= afternoonSections) finalSectionTimes["afternoon_$k"] =
+                                            v
+                                        for ((k, v) in eveningTimes) if (k <= eveningSections) finalSectionTimes["evening_$k"] =
+                                            v
+
+                                        val newConfig = timeConfig.copy(
+                                            name = configName,
+                                            morningSections = morningSections,
+                                            afternoonSections = afternoonSections,
+                                            eveningSections = eveningSections,
+                                            quickTimeEnabled = quickTimeEnabled,
+                                            classDuration = classDuration,
+                                            shortBreak = shortBreak,
+                                            longBreakEnabled = longBreakEnabled,
+                                            longBreakMorning = longBreakMorning,
+                                            longBreakAfternoon = longBreakAfternoon,
+                                            longBreakEvening = longBreakEvening,
+                                            longBreakMorningSection = longBreakMorningSection,
+                                            longBreakAfternoonSection = longBreakAfternoonSection,
+                                            longBreakEveningSection = longBreakEveningSection,
+                                            morningStartHour = morningStartHour,
+                                            morningStartMinute = morningStartMinute,
+                                            afternoonStartHour = afternoonStartHour,
+                                            afternoonStartMinute = afternoonStartMinute,
+                                            eveningStartHour = eveningStartHour,
+                                            eveningStartMinute = eveningStartMinute,
+                                            sectionTimes = finalSectionTimes
+                                        )
+                                        triggerExitAndBack(onSavePending = { onSave(newConfig) })
+                                    },
+                                    modifier = Modifier.padding(end = 4.dp)
+                                ) {
+                                    Icon(
+                                        imageVector = MiuixIcons.Ok,
+                                        contentDescription = "保存并关闭",
+                                        modifier = Modifier.size(26.dp)
+                                    )
+                                }
+                            }
+                            if (isTablet) {
+                                SmallTopAppBar(
+                                    modifier = topBarModifier,
+                                    color = topBarColor,
+                                    title = screenTitle,
+                                    scrollBehavior = scrollBehavior,
+                                    navigationIconPadding = 20.dp,
+                                    navigationIcon = navIcon,
+                                    actions = actionsSlot
+                                )
+                            } else {
+                                TopAppBar(
+                                    modifier = topBarModifier,
+                                    color = topBarColor,
+                                    title = screenTitle, largeTitle = screenTitle,
+                                    scrollBehavior = scrollBehavior,
+                                    navigationIconPadding = 20.dp,
+                                    navigationIcon = navIcon,
+                                    actions = actionsSlot
+                                )
+                            }
                         }
                     }
                 ) { paddingValues ->

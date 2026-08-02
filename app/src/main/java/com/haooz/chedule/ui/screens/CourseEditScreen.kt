@@ -511,21 +511,16 @@ fun CourseEditScreen(
                                     )
                             }
                         }else {
-                            TopAppBar(
-                                modifier = if (blurAlpha > 0f) {
-                                    Modifier.textureBlur(
-                                        backdrop = backdrop,
-                                        shape = RectangleShape,
-                                        colors = topAppBarColors
-                                    )
-                                } else {
-                                    Modifier
-                                       },
-                                color = topBarColor,
-                                title = courseName,
-                                scrollBehavior = scrollBehavior,
-                                navigationIcon = {
-                                    IconButton(onClick = {
+                            val topBarModifier = if (blurAlpha > 0f) {
+                                Modifier.textureBlur(
+                                    backdrop = backdrop,
+                                    shape = RectangleShape,
+                                    colors = topAppBarColors
+                                )
+                            } else Modifier
+                            val navIcon: @Composable () -> Unit = {
+                                IconButton(
+                                    onClick = {
                                         hapticFeedback.performHapticFeedback(HapticFeedbackType.Confirm)
                                         onBackStart()
                                         scope.launch {
@@ -551,17 +546,33 @@ fun CourseEditScreen(
                                             }
                                             onBack()
                                         }
-                                        },
-                                            modifier = Modifier.padding(start = 4.dp)
-                                        ) {
-                                            Icon(
-                                                imageVector = MiuixIcons.Back,
-                                                contentDescription = "返回",
-                                                modifier = Modifier.size(28.dp)
-                                            )
-                                        }
                                     },
-                            )
+                                    modifier = Modifier.padding(start = 4.dp)
+                                ) {
+                                    Icon(
+                                        imageVector = MiuixIcons.Back,
+                                        contentDescription = "返回",
+                                        modifier = Modifier.size(28.dp)
+                                    )
+                                }
+                            }
+                            if (isTablet) {
+                                SmallTopAppBar(
+                                    modifier = topBarModifier,
+                                    color = topBarColor,
+                                    title = courseName,
+                                    scrollBehavior = scrollBehavior,
+                                    navigationIcon = navIcon
+                                )
+                            } else {
+                                TopAppBar(
+                                    modifier = topBarModifier,
+                                    color = topBarColor,
+                                    title = courseName,
+                                    scrollBehavior = scrollBehavior,
+                                    navigationIcon = navIcon
+                                )
+                            }
                         }
                     }
                     ) { paddingValues ->

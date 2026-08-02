@@ -1,4 +1,4 @@
-﻿/** 主课程表页面 - 显示周视图课程表 */
+/** 主课程表页面 - 显示周视图课程表 */
 package com.haooz.chedule.ui.screens
 
 import android.annotation.SuppressLint
@@ -63,6 +63,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.haooz.chedule.data.Course
 import com.haooz.chedule.ui.components.BlurBottomSheet
+import com.haooz.chedule.ui.components.BlurBottomSheetTablet
 import com.haooz.chedule.ui.components.DayColumn
 import com.haooz.chedule.ui.components.SectionColumn
 import com.haooz.chedule.ui.utils.isAppDarkTheme
@@ -534,45 +535,10 @@ fun MainScheduleScreen(
             }
         }
 
-        BlurBottomSheet(
-            show = showCourseDetail,
-            title = "课程详情",
-            backdrop = screenBackdrop,
-            dimBackground = true,
-            sheetMaxWidth = if (isTablet) 560.dp else Dp.Unspecified,
-            onDismissRequest = {
-                showCourseDetail = false
-                onPopupStateChange(false)
-            },
-            onSheetContentBackdropCreated = { sheetContentBackdrop = it },
-            endAction = {
-                if (liquidGlassBackdrop != null) {
-                    com.haooz.chedule.ui.components.liquidglass.LiquidTopBarButton(
-                        onClick = {
-                            hapticFeedback.performHapticFeedback(HapticFeedbackType.Confirm)
-                            val course = selectedCourse ?: selectedCourses.firstOrNull()
-                            showCourseDetail = false
-                            if (course != null) {
-                                viewModel.showAddDialog(
-                                    course.dayOfWeek,
-                                    course.startSection,
-                                    course.endSection
-                                )
-                            } else {
-                                viewModel.showAddDialog()
-                            }
-                        },
-                        backdrop = sheetContentBackdrop ?: liquidGlassBackdrop,
-                        icon = MiuixIcons.Normal.Add,
-                        contentDescription = "添加课程",
-                        modifier = Modifier.padding(end = 20.dp),
-                        iconSize = 23.dp,
-                        containerColor =if (isAppDarkTheme()) Color(0xFF363636).copy(0.4f)
-                        else Color(0xFFFFFFFF).copy(0.6f),
-                        useBackdropShadow = true,
-                    )
-                } else {
-                    IconButton(onClick = {
+        val detailEndAction: @Composable (() -> Unit)? = {
+            if (liquidGlassBackdrop != null) {
+                com.haooz.chedule.ui.components.liquidglass.LiquidTopBarButton(
+                    onClick = {
                         hapticFeedback.performHapticFeedback(HapticFeedbackType.Confirm)
                         val course = selectedCourse ?: selectedCourses.firstOrNull()
                         showCourseDetail = false
@@ -585,16 +551,40 @@ fun MainScheduleScreen(
                         } else {
                             viewModel.showAddDialog()
                         }
-                    }, modifier = Modifier.padding(horizontal = 20.dp)) {
-                        Icon(
-                            imageVector = MiuixIcons.Normal.Add,
-                            contentDescription = "添加课程",
-                            modifier = Modifier.size(25.dp)
+                    },
+                    backdrop = sheetContentBackdrop ?: liquidGlassBackdrop,
+                    icon = MiuixIcons.Normal.Add,
+                    contentDescription = "添加课程",
+                    modifier = Modifier.padding(end = 20.dp),
+                    iconSize = 23.dp,
+                    containerColor =if (isAppDarkTheme()) Color(0xFF363636).copy(0.4f)
+                    else Color(0xFFFFFFFF).copy(0.6f),
+                    useBackdropShadow = true,
+                )
+            } else {
+                IconButton(onClick = {
+                    hapticFeedback.performHapticFeedback(HapticFeedbackType.Confirm)
+                    val course = selectedCourse ?: selectedCourses.firstOrNull()
+                    showCourseDetail = false
+                    if (course != null) {
+                        viewModel.showAddDialog(
+                            course.dayOfWeek,
+                            course.startSection,
+                            course.endSection
                         )
+                    } else {
+                        viewModel.showAddDialog()
                     }
+                }, modifier = Modifier.padding(horizontal = 20.dp)) {
+                    Icon(
+                        imageVector = MiuixIcons.Normal.Add,
+                        contentDescription = "添加课程",
+                        modifier = Modifier.size(25.dp)
+                    )
                 }
             }
-        ) {
+        }
+        val detailContent: @Composable () -> Unit = {
             val coursesToShow =
                 selectedCourses.ifEmpty { listOfNotNull(selectedCourse) }
                     .sortedWith(
@@ -720,8 +710,38 @@ fun MainScheduleScreen(
                     }
                     } // Column (isHidden)
                 }
-                Spacer(modifier = Modifier.height(260.dp))
+                Spacer(modifier = Modifier.height(if (isTablet) 0.dp else 260.dp))
             }
+        }
+        if (isTablet) {
+            BlurBottomSheetTablet(
+                show = showCourseDetail,
+                title = "课程详情",
+                dimBackground = true,
+                isBottomAligned = true,
+                onDismissRequest = {
+                    showCourseDetail = false
+                    onPopupStateChange(false)
+                },
+                liquidGlassBackdrop = liquidGlassBackdrop,
+                onSheetContentBackdropCreated = { sheetContentBackdrop = it },
+                endAction = detailEndAction,
+                content = detailContent
+            )
+        } else {
+            BlurBottomSheet(
+                show = showCourseDetail,
+                title = "课程详情",
+                backdrop = screenBackdrop,
+                dimBackground = true,
+                onDismissRequest = {
+                    showCourseDetail = false
+                    onPopupStateChange(false)
+                },
+                onSheetContentBackdropCreated = { sheetContentBackdrop = it },
+                endAction = detailEndAction,
+                content = detailContent
+            )
         }
 
         OverlayDialog(

@@ -65,6 +65,7 @@ import top.yukonga.miuix.kmp.basic.Scaffold
 import top.yukonga.miuix.kmp.basic.SmallTitle
 import top.yukonga.miuix.kmp.basic.TextButton
 import com.haooz.chedule.ui.components.NativeMiuixTextField
+import top.yukonga.miuix.kmp.basic.SmallTopAppBar
 import top.yukonga.miuix.kmp.basic.TopAppBar
 import top.yukonga.miuix.kmp.blur.BlendColorEntry
 import top.yukonga.miuix.kmp.blur.BlurBlendMode
@@ -221,15 +222,25 @@ fun SettingsScreen(
         Scaffold(
         topBar = {
             if (!isLiquidGlass) {
-                TopAppBar(
-                    modifier = if (blurAlpha > 0f) {
-                        Modifier.textureBlur(backdrop = backdrop, shape = RectangleShape, colors = topAppBarColors!!)
-                    } else Modifier,
-                    color = topBarColor,
-                    title = "我的",
-                    largeTitle = "我的",
-                    scrollBehavior = scrollBehavior,
-                )
+                val topBarModifier = if (blurAlpha > 0f) {
+                    Modifier.textureBlur(backdrop = backdrop, shape = RectangleShape, colors = topAppBarColors!!)
+                } else Modifier
+                if (navBarStyle == "rail") {
+                    SmallTopAppBar(
+                        modifier = topBarModifier,
+                        color = topBarColor,
+                        title = "我的",
+                        scrollBehavior = scrollBehavior,
+                    )
+                } else {
+                    TopAppBar(
+                        modifier = topBarModifier,
+                        color = topBarColor,
+                        title = "我的",
+                        largeTitle = "我的",
+                        scrollBehavior = scrollBehavior,
+                    )
+                }
             }
         }
     ) { paddingValues ->

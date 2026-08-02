@@ -1,4 +1,4 @@
-﻿/** 课程时间设置页面 - 选择页面 */
+/** 课程时间设置页面 - 选择页面 */
 package com.haooz.chedule.ui.activities
 
 import android.annotation.SuppressLint
@@ -63,6 +63,7 @@ import top.yukonga.miuix.kmp.basic.IconButton
 import top.yukonga.miuix.kmp.basic.MiuixScrollBehavior
 import top.yukonga.miuix.kmp.basic.Scaffold
 import top.yukonga.miuix.kmp.basic.TextButton
+import top.yukonga.miuix.kmp.basic.SmallTopAppBar
 import top.yukonga.miuix.kmp.basic.TopAppBar
 import top.yukonga.miuix.kmp.blur.BlendColorEntry
 import top.yukonga.miuix.kmp.blur.BlurBlendMode
@@ -172,22 +173,35 @@ fun CourseTimeSettingsScreen(
         Scaffold(
             topBar = {
                 if (!isLiquidGlass) {
-                    TopAppBar(
-                        modifier = if (blurAlpha > 0f) {
-                            Modifier.textureBlur(backdrop = backdrop, shape = RectangleShape, colors = topAppBarColors!!)
-                        } else Modifier,
-                        color = topBarColor,
-                        title = "课程节数与时间",
-                        scrollBehavior = scrollBehavior,
-                        navigationIconPadding = 20.dp,
-                        navigationIcon = {
-                            IconButton(onClick = { onBack() }) {
-                                Icon(MiuixIcons.Back,
-                                    contentDescription = "返回",
-                                    modifier = Modifier.size(28.dp))
-                            }
+                    val topBarModifier = if (blurAlpha > 0f) {
+                        Modifier.textureBlur(backdrop = backdrop, shape = RectangleShape, colors = topAppBarColors!!)
+                    } else Modifier
+                    val navIcon: @Composable () -> Unit = {
+                        IconButton(onClick = { onBack() }) {
+                            Icon(MiuixIcons.Back,
+                                contentDescription = "返回",
+                                modifier = Modifier.size(28.dp))
                         }
-                    )
+                    }
+                    if (isTablet) {
+                        SmallTopAppBar(
+                            modifier = topBarModifier,
+                            color = topBarColor,
+                            title = "课程节数与时间",
+                            scrollBehavior = scrollBehavior,
+                            navigationIconPadding = 20.dp,
+                            navigationIcon = navIcon
+                        )
+                    } else {
+                        TopAppBar(
+                            modifier = topBarModifier,
+                            color = topBarColor,
+                            title = "课程节数与时间",
+                            scrollBehavior = scrollBehavior,
+                            navigationIconPadding = 20.dp,
+                            navigationIcon = navIcon
+                        )
+                    }
                 }
             }
         ) { paddingValues ->

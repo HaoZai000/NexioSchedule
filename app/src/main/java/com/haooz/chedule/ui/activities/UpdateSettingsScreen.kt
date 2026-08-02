@@ -1,4 +1,4 @@
-﻿/** 应用更新设置页面 - Screen */
+/** 应用更新设置页面 - Screen */
 package com.haooz.chedule.ui.activities
 
 import android.annotation.SuppressLint
@@ -59,6 +59,7 @@ import top.yukonga.miuix.kmp.basic.LinearProgressIndicator
 import top.yukonga.miuix.kmp.basic.MiuixScrollBehavior
 import top.yukonga.miuix.kmp.basic.Scaffold
 import top.yukonga.miuix.kmp.basic.SmallTitle
+import top.yukonga.miuix.kmp.basic.SmallTopAppBar
 import top.yukonga.miuix.kmp.basic.Switch
 import top.yukonga.miuix.kmp.basic.TextButton
 import top.yukonga.miuix.kmp.basic.TopAppBar
@@ -249,22 +250,31 @@ fun UpdateSettingsScreen(onBack: () -> Unit) {
     Scaffold(
         topBar = {
             if (!isLiquidGlass) {
-                TopAppBar(
-                    title = "更新设置",
-                    scrollBehavior = scrollBehavior,
-                    navigationIcon = {
-                        IconButton(
-                            onClick = { onBack() },
-                            modifier = Modifier.padding(start = 4.dp)
-                        ) {
-                            Icon(
-                                imageVector = MiuixIcons.Back,
-                                contentDescription = "返回",
-                                modifier = Modifier.size(28.dp)
-                            )
-                        }
+                val navIcon: @Composable () -> Unit = {
+                    IconButton(
+                        onClick = { onBack() },
+                        modifier = Modifier.padding(start = 4.dp)
+                    ) {
+                        Icon(
+                            imageVector = MiuixIcons.Back,
+                            contentDescription = "返回",
+                            modifier = Modifier.size(28.dp)
+                        )
                     }
-                )
+                }
+                if (isTablet) {
+                    SmallTopAppBar(
+                        title = "更新设置",
+                        scrollBehavior = scrollBehavior,
+                        navigationIcon = navIcon
+                    )
+                } else {
+                    TopAppBar(
+                        title = "更新设置",
+                        scrollBehavior = scrollBehavior,
+                        navigationIcon = navIcon
+                    )
+                }
             }
         }
     ) { paddingValues ->

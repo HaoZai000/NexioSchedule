@@ -1,6 +1,7 @@
 /** 自定义模糊底部弹窗 - 支持全区域模糊背景 */
 package com.haooz.chedule.ui.components
 
+import android.os.Build
 import androidx.activity.compose.BackHandler
 import androidx.compose.animation.EnterTransition
 import androidx.compose.animation.ExitTransition
@@ -272,7 +273,7 @@ private fun BlurBottomSheetContent(
                     } else Modifier
                 )
                 .background(sheetBgColor.copy(alpha = sheetBackgroundAlpha ?: if (backdrop != null)
-                    if (isDark) 0.9f else 0.76f
+                    if (Build.VERSION.SDK_INT >= 33) (if (isDark) 0.9f else 0.76f) else 1f
                     else 1f))
                 .pointerInput(Unit) {
                     detectTapGestures { /* consume clicks */ }

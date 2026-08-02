@@ -7,11 +7,13 @@
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
     <uses-permission android:name="android.permission.INTERNET" />
     <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
-    <uses-permission android:name="android.permission.REQUEST_INSTALL_PACKAGES" />
+    <uses-permission android:name="android.permission.REQUEST_INSTALL_PACKAGES"
+        tools:ignore="RequestInstallPackagesPolicy" />
     <uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE"
         android:maxSdkVersion="28" />
     <uses-permission android:name="android.permission.SCHEDULE_EXACT_ALARM" />
-    <uses-permission android:name="android.permission.USE_EXACT_ALARM" />
+    <uses-permission android:name="android.permission.USE_EXACT_ALARM"
+        tools:ignore="ExactAlarm" />
     <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_SPECIAL_USE" />
@@ -30,7 +32,8 @@
         android:resizeableActivity="true"
         android:roundIcon="@mipmap/ic_launcher_round"
         android:supportsRtl="true"
-        android:theme="@style/Theme.课程表">
+        android:theme="@style/Theme.课程表"
+        tools:ignore="UnusedAttribute">
 
         <!-- 声明使用 Activity 嵌入（Android 13+ 强制要求，否则分屏规则不生效） -->
         <property
@@ -51,7 +54,6 @@
             android:exported="true"
             android:launchMode="singleTop"
             android:alwaysRetainTaskState="true"
-            android:label="@string/app_name"
             android:theme="@style/Theme.课程表"
             android:windowSoftInputMode="adjustResize">
             <intent-filter>
@@ -64,7 +66,8 @@
             android:targetActivity=".ui.activities.MainActivity"
             android:exported="true"
             android:label="导入课程表"
-            android:theme="@style/Theme.课程表">
+            android:theme="@style/Theme.课程表"
+            tools:ignore="InvalidManifestAttribute">
             <intent-filter>
                 <action android:name="android.intent.action.VIEW" />
                 <category android:name="android.intent.category.DEFAULT" />
@@ -209,7 +212,8 @@
 
         <receiver
             android:name=".reminder.IslandExpandReceiver"
-            android:exported="true">
+            android:exported="true"
+            tools:ignore="ExportedReceiver">
             <intent-filter>
                 <action android:name="com.haooz.chedule.ACTION_ISLAND_EXPAND" />
             </intent-filter>

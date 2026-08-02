@@ -1,4 +1,4 @@
-﻿/** 今日课程页面 - 显示当天课程和当前/下一节课信息 */
+/** 今日课程页面 - 显示当天课程和当前/下一节课信息 */
 package com.haooz.chedule.ui.screens
 
 import android.content.Context
@@ -63,6 +63,7 @@ import top.yukonga.miuix.kmp.basic.Icon
 import top.yukonga.miuix.kmp.basic.IconButton
 import top.yukonga.miuix.kmp.basic.Scaffold
 import top.yukonga.miuix.kmp.basic.SmallTitle
+import top.yukonga.miuix.kmp.basic.SmallTopAppBar
 import top.yukonga.miuix.kmp.basic.TopAppBar
 import top.yukonga.miuix.kmp.icon.MiuixIcons
 import top.yukonga.miuix.kmp.icon.extended.Reset
@@ -362,85 +363,100 @@ fun TodayScreen(
     Scaffold(
         topBar = {
             if (!isLiquidGlass) {
-                TopAppBar(
-                    modifier = if (blurAlpha > 0f) {
-                        Modifier.textureBlur(
-                            backdrop = backdrop,
-                            shape = RectangleShape,
-                            colors = topAppBarColors!!
-                        )
-                    } else Modifier,
-                    color = topBarColor,
-                    title = if (isToday) "今天是$dayOfWeekName" else dayOfWeekName,
-                    largeTitle = if (isToday) "今天是$dayOfWeekName" else dayOfWeekName,
-                    scrollBehavior = scrollBehavior,
-                    navigationIcon = {
-                        AnimatedVisibility(
-                            visible = !isToday,
-                            enter = fadeIn(animationSpec = tween(180)),
-                            exit = fadeOut(animationSpec = tween(120))
+                val topBarModifier = if (blurAlpha > 0f) {
+                    Modifier.textureBlur(
+                        backdrop = backdrop,
+                        shape = RectangleShape,
+                        colors = topAppBarColors!!
+                    )
+                } else Modifier
+                val titleText = if (isToday) "今天是$dayOfWeekName" else dayOfWeekName
+                val navIcon: @Composable () -> Unit = {
+                    AnimatedVisibility(
+                        visible = !isToday,
+                        enter = fadeIn(animationSpec = tween(180)),
+                        exit = fadeOut(animationSpec = tween(120))
+                    ) {
+                        IconButton(
+                            onClick = {
+                                scope.launch { pagerState.animateScrollToPage(MAX_DATE_OFFSET) }
+                            },
+                            modifier = Modifier.padding(start = 4.dp, bottom = 4.dp)
                         ) {
-                            IconButton(
-                                onClick = {
-                                    scope.launch { pagerState.animateScrollToPage(MAX_DATE_OFFSET) }
-                                },
-                                modifier = Modifier.padding(start = 4.dp, bottom = 4.dp)
-                            ) {
-                                Icon(
-                                    imageVector = MiuixIcons.Medium.Reset,
-                                    contentDescription = "返回今天",
-                                    modifier = Modifier.size(24.dp)
-                                )
-                            }
+                            Icon(
+                                imageVector = MiuixIcons.Medium.Reset,
+                                contentDescription = "返回今天",
+                                modifier = Modifier.size(24.dp)
+                            )
                         }
-                    },
-                    actions = {
-                        Box(modifier = Modifier.padding(end = 4.dp)) {
-                            IconButton(onClick = {
-                                hapticFeedback.performHapticFeedback(HapticFeedbackType.VirtualKey)
-                                onShowMorePopupChange(true)
-                            }) {
-                                Icon(
-                                    imageVector = MiuixIcons.More,
-                                    contentDescription = "更多",
-                                    modifier = Modifier.size(22.dp)
+                    }
+                }
+                val actionsSlot: @Composable androidx.compose.foundation.layout.RowScope.() -> Unit = {
+                    Box(modifier = Modifier.padding(end = 4.dp)) {
+                        IconButton(onClick = {
+                            hapticFeedback.performHapticFeedback(HapticFeedbackType.VirtualKey)
+                            onShowMorePopupChange(true)
+                        }) {
+                            Icon(
+                                imageVector = MiuixIcons.More,
+                                contentDescription = "更多",
+                                modifier = Modifier.size(22.dp)
+                            )
+                        }
+                        OverlayListPopup(
+                            show = showMorePopup,
+                            alignment = PopupPositionProvider.Align.End,
+                            onDismissRequest = { onShowMorePopupChange(false) }
+                        ) {
+                            ListPopupColumn {
+                                DropdownImpl(
+                                    text = "跳转日期",
+                                    optionSize = 2,
+                                    isSelected = false,
+                                    index = 0,
+                                    onSelectedIndexChange = {
+                                        onShowMorePopupChange(false)
+                                        val now = LocalDate.now()
+                                        datePickerYear = now.year
+                                        datePickerMonth = now.monthValue - 1
+                                        datePickerDay = now.dayOfMonth
+                                        showDatePicker = true
+                                    }
                                 )
-                            }
-                            OverlayListPopup(
-                                show = showMorePopup,
-                                alignment = PopupPositionProvider.Align.End,
-                                onDismissRequest = { onShowMorePopupChange(false) }
-                            ) {
-                                ListPopupColumn {
-                                    DropdownImpl(
-                                        text = "跳转日期",
-                                        optionSize = 2,
-                                        isSelected = false,
-                                        index = 0,
-                                        onSelectedIndexChange = {
-                                            onShowMorePopupChange(false)
-                                            val now = LocalDate.now()
-                                            datePickerYear = now.year
-                                            datePickerMonth = now.monthValue - 1
-                                            datePickerDay = now.dayOfMonth
-                                            showDatePicker = true
-                                        }
-                                    )
-                                    DropdownImpl(
-                                        text = "课程管理",
-                                        optionSize = 2,
-                                        isSelected = false,
-                                        index = 1,
-                                        onSelectedIndexChange = {
-                                            onShowMorePopupChange(false)
-                                            onCourseManage()
-                                        }
-                                    )
-                                }
+                                DropdownImpl(
+                                    text = "课程管理",
+                                    optionSize = 2,
+                                    isSelected = false,
+                                    index = 1,
+                                    onSelectedIndexChange = {
+                                        onShowMorePopupChange(false)
+                                        onCourseManage()
+                                    }
+                                )
                             }
                         }
                     }
-                )
+                }
+                if (isTablet) {
+                    SmallTopAppBar(
+                        modifier = topBarModifier,
+                        color = topBarColor,
+                        title = titleText,
+                        scrollBehavior = scrollBehavior,
+                        navigationIcon = navIcon,
+                        actions = actionsSlot
+                    )
+                } else {
+                    TopAppBar(
+                        modifier = topBarModifier,
+                        color = topBarColor,
+                        title = titleText,
+                        largeTitle = titleText,
+                        scrollBehavior = scrollBehavior,
+                        navigationIcon = navIcon,
+                        actions = actionsSlot
+                    )
+                }
             }
         }
     ) { paddingValues ->

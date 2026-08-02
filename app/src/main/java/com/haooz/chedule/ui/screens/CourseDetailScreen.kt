@@ -1,4 +1,4 @@
-﻿/** 课程详情页面 */
+/** 课程详情页面 */
 package com.haooz.chedule.ui.screens
 
 import android.annotation.SuppressLint
@@ -403,8 +403,7 @@ fun CourseDetailScreen(
                                     )
                                 }
                             } else {
-                                TopAppBar(
-                                modifier = if (blurAlpha > 0f) {
+                                val topBarModifier = if (blurAlpha > 0f) {
                                     Modifier.textureBlur(
                                         backdrop = backdrop,
                                         shape = RectangleShape,
@@ -412,11 +411,8 @@ fun CourseDetailScreen(
                                     )
                                 } else {
                                     Modifier
-                                },
-                                color = topBarColor,
-                                title = courseName,
-                                scrollBehavior = scrollBehavior,
-                                navigationIcon = {
+                                }
+                                val navIcon: @Composable () -> Unit = {
                                     IconButton(onClick = {
                                         hapticFeedback.performHapticFeedback(HapticFeedbackType.Confirm)
                                         onBackStart()
@@ -453,7 +449,23 @@ fun CourseDetailScreen(
                                         )
                                     }
                                 }
-                            )
+                                if (isTablet) {
+                                    SmallTopAppBar(
+                                        modifier = topBarModifier,
+                                        color = topBarColor,
+                                        title = courseName,
+                                        scrollBehavior = scrollBehavior,
+                                        navigationIcon = navIcon
+                                    )
+                                } else {
+                                    TopAppBar(
+                                        modifier = topBarModifier,
+                                        color = topBarColor,
+                                        title = courseName,
+                                        scrollBehavior = scrollBehavior,
+                                        navigationIcon = navIcon
+                                    )
+                                }
                             }
                         }
                     ) { paddingValues ->

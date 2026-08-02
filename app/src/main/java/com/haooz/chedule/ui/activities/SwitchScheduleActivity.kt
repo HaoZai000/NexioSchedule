@@ -1,4 +1,4 @@
-﻿/** 切换课程表页面 */
+/** 切换课程表页面 */
 package com.haooz.chedule.ui.activities
 
 import android.annotation.SuppressLint
@@ -360,78 +360,94 @@ fun SwitchScheduleScreen(
                     }
                 }
                 val surfaceColor = MiuixTheme.colorScheme.onSurface
-                TopAppBar(
-                    modifier = if (blurAlpha > 0f) {
-                        Modifier.textureBlur(
-                            backdrop = backdrop,
-                            shape = RectangleShape,
-                            colors = topAppBarColors
-                        )
-                    } else {
-                        Modifier
-                    },
-                    color = topBarColor,
-                    title = displayTitle,
-                    largeTitle = displayTitle,
-                    largeTitleColor = surfaceColor.copy(alpha = maxOf(allTitleAlpha.value, editTitleAlpha.value)),
-                    titleColor = surfaceColor.copy(alpha = maxOf(allTitleAlpha.value, editTitleAlpha.value)),
-                    scrollBehavior = scrollBehavior,
-                    navigationIconPadding = 20.dp,
-                    navigationIcon = {
-                        val backAlpha = remember { Animatable(1f) }
-                        val closeAlpha = remember { Animatable(0f) }
-                        LaunchedEffect(isEditMode) {
-                            if (isEditMode) {
-                                backAlpha.animateTo(0f, animationSpec = tween(100))
-                                closeAlpha.animateTo(1f, animationSpec = tween(300))
-                            } else {
-                                closeAlpha.animateTo(0f, animationSpec = tween(100))
-                                backAlpha.animateTo(1f, animationSpec = tween(300))
-                            }
-                        }
-                        IconButton(onClick = {
-                            if (isEditMode) {
-                                isEditMode = false
-                                editMode = ""
-                                checkboxStates.clear()
-                            } else { switchToCurrentSchedule() }
-                        }) {
-                            Icon(
-                                imageVector = MiuixIcons.Back,
-                                contentDescription = "返回",
-                                modifier = Modifier
-                                    .size(28.dp)
-                                    .graphicsLayer { alpha = backAlpha.value }
-                            )
-                            Icon(
-                                imageVector = MiuixIcons.Close,
-                                contentDescription = "关闭",
-                                modifier = Modifier
-                                    .size(22.dp)
-                                    .graphicsLayer { alpha = closeAlpha.value }
-                            )
-                        }
-                    },
-                    actions = {
-                        val editAlpha by animateFloatAsState(
-                            targetValue = if (isEditMode) 0f else 1f,
-                            animationSpec = tween(150),
-                            label = "editAlpha"
-                        )
-                        IconButton(
-                            onClick = { if (!isEditMode) isEditMode = true },
-                            modifier = Modifier
-                                .padding(end = 4.dp)
-                                .graphicsLayer { alpha = editAlpha }
-                        ) {
-                            Icon(
-                                imageVector = MiuixIcons.Edit,
-                                contentDescription = "编辑",
-                                modifier = Modifier.size(26.dp)
-                            )
+                val topBarModifier = if (blurAlpha > 0f) {
+                    Modifier.textureBlur(
+                        backdrop = backdrop,
+                        shape = RectangleShape,
+                        colors = topAppBarColors
+                    )
+                } else {
+                    Modifier
+                }
+                val navIcon: @Composable () -> Unit = {
+                    val backAlpha = remember { Animatable(1f) }
+                    val closeAlpha = remember { Animatable(0f) }
+                    LaunchedEffect(isEditMode) {
+                        if (isEditMode) {
+                            backAlpha.animateTo(0f, animationSpec = tween(100))
+                            closeAlpha.animateTo(1f, animationSpec = tween(300))
+                        } else {
+                            closeAlpha.animateTo(0f, animationSpec = tween(100))
+                            backAlpha.animateTo(1f, animationSpec = tween(300))
                         }
                     }
-                )
+                    IconButton(onClick = {
+                        if (isEditMode) {
+                            isEditMode = false
+                            editMode = ""
+                            checkboxStates.clear()
+                        } else { switchToCurrentSchedule() }
+                    }) {
+                        Icon(
+                            imageVector = MiuixIcons.Back,
+                            contentDescription = "返回",
+                            modifier = Modifier
+                                .size(28.dp)
+                                .graphicsLayer { alpha = backAlpha.value }
+                        )
+                        Icon(
+                            imageVector = MiuixIcons.Close,
+                            contentDescription = "关闭",
+                            modifier = Modifier
+                                .size(22.dp)
+                                .graphicsLayer { alpha = closeAlpha.value }
+                        )
+                    }
+                }
+                val actionsSlot: @Composable androidx.compose.foundation.layout.RowScope.() -> Unit = {
+                    val editAlpha by animateFloatAsState(
+                        targetValue = if (isEditMode) 0f else 1f,
+                        animationSpec = tween(150),
+                        label = "editAlpha"
+                    )
+                    IconButton(
+                        onClick = { if (!isEditMode) isEditMode = true },
+                        modifier = Modifier
+                            .padding(end = 4.dp)
+                            .graphicsLayer { alpha = editAlpha }
+                    ) {
+                        Icon(
+                            imageVector = MiuixIcons.Edit,
+                            contentDescription = "编辑",
+                            modifier = Modifier.size(26.dp)
+                        )
+                    }
+                }
+                if (isTablet) {
+                    SmallTopAppBar(
+                        modifier = topBarModifier,
+                        color = topBarColor,
+                        title = displayTitle,
+                        titleColor = surfaceColor.copy(alpha = maxOf(allTitleAlpha.value, editTitleAlpha.value)),
+                        scrollBehavior = scrollBehavior,
+                        navigationIconPadding = 20.dp,
+                        navigationIcon = navIcon,
+                        actions = actionsSlot
+                    )
+                } else {
+                    TopAppBar(
+                        modifier = topBarModifier,
+                        color = topBarColor,
+                        title = displayTitle,
+                        largeTitle = displayTitle,
+                        largeTitleColor = surfaceColor.copy(alpha = maxOf(allTitleAlpha.value, editTitleAlpha.value)),
+                        titleColor = surfaceColor.copy(alpha = maxOf(allTitleAlpha.value, editTitleAlpha.value)),
+                        scrollBehavior = scrollBehavior,
+                        navigationIconPadding = 20.dp,
+                        navigationIcon = navIcon,
+                        actions = actionsSlot
+                    )
+                }
             }
         },
         bottomBar = {

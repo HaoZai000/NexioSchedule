@@ -52,6 +52,7 @@ import top.yukonga.miuix.kmp.basic.IconButton
 import top.yukonga.miuix.kmp.basic.MiuixScrollBehavior
 import top.yukonga.miuix.kmp.basic.Scaffold
 import top.yukonga.miuix.kmp.basic.SmallTitle
+import top.yukonga.miuix.kmp.basic.SmallTopAppBar
 import top.yukonga.miuix.kmp.basic.TopAppBar
 import top.yukonga.miuix.kmp.blur.layerBackdrop
 import top.yukonga.miuix.kmp.blur.rememberLayerBackdrop
@@ -83,22 +84,31 @@ fun AppreciateAuthorScreen(onBack: () -> Unit) {
     Scaffold(
         topBar = {
             if (!isLiquidGlass) {
-                TopAppBar(
-                    title = "捐赠支持",
-                    scrollBehavior = scrollBehavior,
-                    navigationIcon = {
-                        IconButton(
-                            onClick = { onBack() },
-                            modifier = Modifier.padding(start = 4.dp)
-                        ) {
-                            Icon(
-                                imageVector = MiuixIcons.Back,
-                                contentDescription = "返回",
-                                modifier = Modifier.size(28.dp)
-                            )
-                        }
+                val navIcon: @Composable () -> Unit = {
+                    IconButton(
+                        onClick = { onBack() },
+                        modifier = Modifier.padding(start = 4.dp)
+                    ) {
+                        Icon(
+                            imageVector = MiuixIcons.Back,
+                            contentDescription = "返回",
+                            modifier = Modifier.size(28.dp)
+                        )
                     }
-                )
+                }
+                if (isTablet) {
+                    SmallTopAppBar(
+                        title = "捐赠支持",
+                        scrollBehavior = scrollBehavior,
+                        navigationIcon = navIcon
+                    )
+                } else {
+                    TopAppBar(
+                        title = "捐赠支持",
+                        scrollBehavior = scrollBehavior,
+                        navigationIcon = navIcon
+                    )
+                }
             }
         }
     ) { paddingValues ->

@@ -1,4 +1,4 @@
-﻿/** 小组件使用引导页面 - Screen */
+/** 小组件使用引导页面 - Screen */
 package com.haooz.chedule.ui.activities
 
 import android.annotation.SuppressLint
@@ -47,6 +47,7 @@ import top.yukonga.miuix.kmp.basic.Icon
 import top.yukonga.miuix.kmp.basic.IconButton
 import top.yukonga.miuix.kmp.basic.MiuixScrollBehavior
 import top.yukonga.miuix.kmp.basic.Scaffold
+import top.yukonga.miuix.kmp.basic.SmallTopAppBar
 import top.yukonga.miuix.kmp.basic.TextButton
 import top.yukonga.miuix.kmp.basic.TopAppBar
 import top.yukonga.miuix.kmp.blur.layerBackdrop
@@ -80,22 +81,31 @@ fun WidgetIntroScreen(onBack: () -> Unit) {
     Scaffold(
         topBar = {
             if (!isLiquidGlass) {
-                TopAppBar(
-                    title = "桌面小部件",
-                    scrollBehavior = scrollBehavior,
-                    navigationIcon = {
-                        IconButton(
-                            onClick = { onBack() },
-                            modifier = Modifier.padding(start = 4.dp)
-                        ) {
-                            Icon(
-                                imageVector = MiuixIcons.Back,
-                                contentDescription = "返回",
-                                modifier = Modifier.size(28.dp)
-                            )
-                        }
+                val navIcon: @Composable () -> Unit = {
+                    IconButton(
+                        onClick = { onBack() },
+                        modifier = Modifier.padding(start = 4.dp)
+                    ) {
+                        Icon(
+                            imageVector = MiuixIcons.Back,
+                            contentDescription = "返回",
+                            modifier = Modifier.size(28.dp)
+                        )
                     }
-                )
+                }
+                if (isTablet) {
+                    SmallTopAppBar(
+                        title = "桌面小部件",
+                        scrollBehavior = scrollBehavior,
+                        navigationIcon = navIcon
+                    )
+                } else {
+                    TopAppBar(
+                        title = "桌面小部件",
+                        scrollBehavior = scrollBehavior,
+                        navigationIcon = navIcon
+                    )
+                }
             }
         }
     ) { paddingValues ->

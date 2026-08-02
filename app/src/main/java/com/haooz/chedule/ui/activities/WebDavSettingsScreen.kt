@@ -1,4 +1,4 @@
-﻿/** WebDAV 备份/恢复设置页面 - Screen */
+/** WebDAV 备份/恢复设置页面 - Screen */
 package com.haooz.chedule.ui.activities
 
 import android.annotation.SuppressLint
@@ -59,6 +59,7 @@ import top.yukonga.miuix.kmp.basic.IconButton
 import top.yukonga.miuix.kmp.basic.MiuixScrollBehavior
 import top.yukonga.miuix.kmp.basic.Scaffold
 import top.yukonga.miuix.kmp.basic.SmallTitle
+import top.yukonga.miuix.kmp.basic.SmallTopAppBar
 import top.yukonga.miuix.kmp.basic.TextButton
 import top.yukonga.miuix.kmp.basic.TopAppBar
 import top.yukonga.miuix.kmp.blur.layerBackdrop
@@ -197,59 +198,70 @@ fun WebDavSettingsScreen(onBack: () -> Unit, onConnectedChange: (Boolean) -> Uni
     Scaffold(
         topBar = {
             if (!isLiquidGlass) {
-                TopAppBar(
-                    title = "WebDAV 云备份",
-                    scrollBehavior = scrollBehavior,
-                    navigationIcon = {
-                        IconButton(
-                            onClick = { onBack()
-                                saveConfig()},
-                            modifier = Modifier.padding(start = 4.dp)
-                        ) {
-                            Icon(
-                                imageVector = MiuixIcons.Back,
-                                contentDescription = "返回",
-                                modifier = Modifier.size(28.dp)
-                            )
-                        }
-                    },
-                    actions = {
-                        IconButton(
-                            onClick = {
-                                hapticFeedback.performHapticFeedback(HapticFeedbackType.Confirm)
-                                if (!testing) {
-                                    testing = true
-                                    statusText = ""
-                                    connected = false
-                                    coroutineScope.launch {
-                                        webDavManager.serverUrl = serverUrl
-                                        webDavManager.username = username
-                                        webDavManager.password = password
-                                        val result = webDavManager.testConnection()
-                                        if (result.isSuccess) {
-                                            statusText = result.getOrThrow()
-                                            statusIsError = false
-                                            connected = true
-                                        } else {
-                                            statusText = result.exceptionOrNull()?.message ?: "连接失败"
-                                            statusIsError = true
-                                            connected = false
-                                        }
-                                        testing = false
-                                    }
-                                }
-                            },
-                            enabled = canTest && !testing && !connected
-                        ) {
-                            Icon(
-                                imageVector = if (connected) MiuixIcons.Ok else MiuixIcons.Play,
-                                contentDescription = if (connected) "连接成功" else "测试连接",
-                                modifier = Modifier.size(26.dp),
-                                tint = if (connected) ComposeColor(0xFF4CAF50) else MiuixTheme.colorScheme.onSurface.copy(alpha = if (canTest) 1f else 0.3f)
-                            )
-                        }
+                val navIcon: @Composable () -> Unit = {
+                    IconButton(
+                        onClick = { onBack()
+                            saveConfig()},
+                        modifier = Modifier.padding(start = 4.dp)
+                    ) {
+                        Icon(
+                            imageVector = MiuixIcons.Back,
+                            contentDescription = "返回",
+                            modifier = Modifier.size(28.dp)
+                        )
                     }
-                )
+                }
+                val actionsContent: @Composable androidx.compose.foundation.layout.RowScope.() -> Unit = {
+                    IconButton(
+                        onClick = {
+                            hapticFeedback.performHapticFeedback(HapticFeedbackType.Confirm)
+                            if (!testing) {
+                                testing = true
+                                statusText = ""
+                                connected = false
+                                coroutineScope.launch {
+                                    webDavManager.serverUrl = serverUrl
+                                    webDavManager.username = username
+                                    webDavManager.password = password
+                                    val result = webDavManager.testConnection()
+                                    if (result.isSuccess) {
+                                        statusText = result.getOrThrow()
+                                        statusIsError = false
+                                        connected = true
+                                    } else {
+                                        statusText = result.exceptionOrNull()?.message ?: "连接失败"
+                                        statusIsError = true
+                                        connected = false
+                                    }
+                                    testing = false
+                                }
+                            }
+                        },
+                        enabled = canTest && !testing && !connected
+                    ) {
+                        Icon(
+                            imageVector = if (connected) MiuixIcons.Ok else MiuixIcons.Play,
+                            contentDescription = if (connected) "连接成功" else "测试连接",
+                            modifier = Modifier.size(26.dp),
+                            tint = if (connected) ComposeColor(0xFF4CAF50) else MiuixTheme.colorScheme.onSurface.copy(alpha = if (canTest) 1f else 0.3f)
+                        )
+                    }
+                }
+                if (isTablet) {
+                    SmallTopAppBar(
+                        title = "WebDAV 云备份",
+                        scrollBehavior = scrollBehavior,
+                        navigationIcon = navIcon,
+                        actions = actionsContent
+                    )
+                } else {
+                    TopAppBar(
+                        title = "WebDAV 云备份",
+                        scrollBehavior = scrollBehavior,
+                        navigationIcon = navIcon,
+                        actions = actionsContent
+                    )
+                }
             }
         }
     ) { paddingValues ->
