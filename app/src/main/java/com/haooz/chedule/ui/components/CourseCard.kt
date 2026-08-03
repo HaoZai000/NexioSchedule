@@ -49,13 +49,15 @@ fun CourseCard(
     cardBlurRadius: Float = 0f,
     cardAlpha: Float = 0.15f,
     cardHeightPerSection: Float = 54f,
-    cardCornerRadius: Float = 8f,
+    cardCornerRadius: Float = 10f,
+    isTablet: Boolean = false,
     onClick: () -> Unit,
     @SuppressLint("ModifierParameter") modifier: Modifier = Modifier
 ) {
     val sectionCount = course.endSection - course.startSection + 1
     val cardHeight = (sectionCount * cardHeightPerSection).dp
     val hasBlur = cardBlurRadius > 0f && wallpaperBackdrop != null
+    val effectiveCornerRadius = if (isTablet) (cardCornerRadius * 1.3f) else cardCornerRadius
 
     val cardColor = if (isCurrentWeek) {
         Color(course.colorRes).copy(alpha = cardAlpha)
@@ -89,7 +91,7 @@ fun CourseCard(
     ) else null
 
     if (hasBlur) {
-        key(cardCornerRadius) {
+        key(effectiveCornerRadius) {
             Card(
                 modifier = modifier
                     .fillMaxWidth()
@@ -97,11 +99,11 @@ fun CourseCard(
                     .padding(horizontal = 2.dp, vertical = 2.dp)
                     .textureBlur(
                         backdrop = wallpaperBackdrop,
-                        shape = RoundedRectangle(cardCornerRadius.dp),
+                        shape = RoundedRectangle(effectiveCornerRadius.dp),
                         blurRadius = cardBlurRadius,
                         colors = blurColors!!
                     ),
-                cornerRadius = cardCornerRadius.dp,
+                cornerRadius = effectiveCornerRadius.dp,
                 insideMargin = PaddingValues(0.dp),
                 pressFeedbackType = PressFeedbackType.Sink,
                 showIndication = true,
@@ -111,7 +113,7 @@ fun CourseCard(
                 ),
                 onClick = onClick
             ) {
-                CardContent(course, sectionCount, textColor, hasMultipleCourses)
+                CardContent(course, sectionCount, textColor, hasMultipleCourses, isTablet)
             }
         }
     } else {
@@ -120,7 +122,7 @@ fun CourseCard(
                 .fillMaxWidth()
                 .height(cardHeight)
                 .padding(horizontal = 2.dp, vertical = 2.dp),
-            cornerRadius = cardCornerRadius.dp,
+            cornerRadius = effectiveCornerRadius.dp,
             insideMargin = PaddingValues(0.dp),
             pressFeedbackType = PressFeedbackType.Sink,
             showIndication = true,
@@ -130,7 +132,7 @@ fun CourseCard(
             ),
             onClick = onClick
         ) {
-            CardContent(course, sectionCount, textColor, hasMultipleCourses)
+            CardContent(course, sectionCount, textColor, hasMultipleCourses, isTablet)
         }
     }
 }
@@ -139,7 +141,7 @@ fun CourseCard(
 private val overflowCache = java.util.concurrent.ConcurrentHashMap<String, Boolean>()
 
 @Composable
-private fun CardContent(course: Course, sectionCount: Int, textColor: Color, hasMultipleCourses: Boolean) {
+private fun CardContent(course: Course, sectionCount: Int, textColor: Color, hasMultipleCourses: Boolean, isTablet: Boolean = false) {
     val footnote2Size = 10.5.sp
     val smallSize = (footnote2Size.value - 1.7).sp
 
@@ -210,7 +212,7 @@ private fun CardContent(course: Course, sectionCount: Int, textColor: Color, has
             Box(
                 modifier = Modifier
                     .align(Alignment.BottomEnd)
-                    .padding(4.dp)
+                    .padding(if (isTablet) 6.dp else 5.dp)
                     .size(8.dp)
                     .background(color = textColor, shape = CircleShape)
             )

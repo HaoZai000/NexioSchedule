@@ -17,6 +17,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.platform.LocalHapticFeedback
@@ -61,8 +62,9 @@ fun DayColumn(
     cardBlurRadius: Float = 0f,
     cardAlpha: Float = 0.15f,
     cardHeightPerSection: Float = 54f,
-    cardCornerRadius: Float = 8f,
+    cardCornerRadius: Float = 10f,
     showBreakDividers: Boolean = true,
+    isTablet: Boolean = false,
     modifier: Modifier = Modifier
 ) {
     val totalHeight = ((morningSections + afternoonSections + eveningSections) * cardHeightPerSection + (if (showBreakDividers) 24 * 2 else 0)).toInt()
@@ -211,12 +213,14 @@ fun DayColumn(
                         .offset(y = currentOffset.dp),
                     contentAlignment = Alignment.Center
                 ) {
-                    Box(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .height(20.dp)
-                            .background(dividerColor)
-                    )
+                    if (!isTablet) {
+                        Box(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .height(20.dp)
+                                .background(dividerColor)
+                        )
+                    }
                 }
             }
             currentOffset += if (showBreakDividers) 24 else 0
@@ -333,12 +337,14 @@ fun DayColumn(
                         .offset(y = currentOffset.dp),
                     contentAlignment = Alignment.Center
                 ) {
-                    Box(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .height(20.dp)
-                            .background(dividerColor)
-                    )
+                    if (!isTablet) {
+                        Box(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .height(20.dp)
+                                .background(dividerColor)
+                        )
+                    }
                 }
             }
             currentOffset += if (showBreakDividers) 24 else 0
@@ -528,6 +534,7 @@ fun DayColumn(
                             cardAlpha = cardAlpha,
                             cardHeightPerSection = cardHeightPerSection,
                             cardCornerRadius = cardCornerRadius,
+                            isTablet = isTablet,
                             onClick = {
                                 onPendingChange(-1, -1)
                                 onCourseClick(course)

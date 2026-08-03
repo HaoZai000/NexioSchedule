@@ -45,6 +45,7 @@ import androidx.compose.animation.core.tween
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.RectangleShape
 import androidx.compose.ui.graphics.asImageBitmap
@@ -61,6 +62,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.kyant.shapes.RoundedRectangle
 import com.haooz.chedule.data.Course
 import com.haooz.chedule.ui.components.BlurBottomSheet
 import com.haooz.chedule.ui.components.BlurBottomSheetTablet
@@ -112,7 +114,7 @@ fun MainScheduleScreen(
     cardBlurRadius: Float = 0f,
     cardAlpha: Float = 0.15f,
     cardHeightPerSection: Float = 54f,
-    cardCornerRadius: Float = 8f,
+    cardCornerRadius: Float = 10f,
     wallpaperBrightness: Float = 0f,
     showBreakDividers: Boolean = true,
     liquidGlassBackdrop: com.kyant.backdrop.Backdrop? = null
@@ -339,7 +341,13 @@ fun MainScheduleScreen(
                     )
             ) {
                 Box(modifier = Modifier.fillMaxWidth()) {
-                    Row(modifier = Modifier.fillMaxWidth()) {
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .then(
+                                if (isTablet) Modifier.padding(horizontal = 24.dp) else Modifier
+                            )
+                    ) {
                         SectionColumn(
                             totalSections = totalSections,
                             morningSections = morningSections,
@@ -349,7 +357,8 @@ fun MainScheduleScreen(
                             cardHeightPerSection = cardHeightPerSection,
                             cardBlurRadius = cardBlurRadius,
                             showBreakDividers = showBreakDividers,
-                            currentSection = if (week == currentWeek) currentSection else -1
+                            currentSection = if (week == currentWeek) currentSection else -1,
+                            isTablet = isTablet
                         )
 
                         // 按周计算要显示的天数范围（智能周末模式下，不同周可能显示不同天数）
@@ -404,6 +413,7 @@ fun MainScheduleScreen(
                                 cardHeightPerSection = cardHeightPerSection,
                                 cardCornerRadius = cardCornerRadius,
                                 showBreakDividers = showBreakDividers,
+                                isTablet = isTablet,
                                 modifier = Modifier.weight(1f)
                             )
                         }
@@ -415,15 +425,21 @@ fun MainScheduleScreen(
                     val dinnerBreakY = morningHeight + dividerOffset + afternoonHeight
 
                     if (showBreakDividers) {
+                    val dividerColor = if (cardBlurRadius > 0f) Color.Transparent else MiuixTheme.colorScheme.surfaceContainer
+                    val dividerShape = if (isTablet) RoundedRectangle(12.dp) else RectangleShape
                     Box(
                         modifier = Modifier.fillMaxWidth().offset(y = morningHeight.dp)
                             .height(24.dp)
                             .padding(vertical = 2.dp)
                             .then(
+                                if (isTablet) Modifier.padding(horizontal = 24.dp) else Modifier
+                            )
+                            .background(dividerColor, dividerShape)
+                            .then(
                                 if (cardBlurRadius > 0f) {
                                     Modifier.textureBlur(
                                         backdrop = wallpaperBackdrop,
-                                        shape = RectangleShape,
+                                        shape = dividerShape,
                                         blurRadius = cardBlurRadius * 2,
                                         colors = BlurDefaults.blurColors(
                                             blendColors = listOf(
@@ -451,10 +467,14 @@ fun MainScheduleScreen(
                             .height(24.dp)
                             .padding(vertical = 2.dp)
                             .then(
+                                if (isTablet) Modifier.padding(horizontal = 24.dp) else Modifier
+                            )
+                            .background(dividerColor, dividerShape)
+                            .then(
                                 if (cardBlurRadius > 0f) {
                                     Modifier.textureBlur(
                                         backdrop = wallpaperBackdrop,
-                                        shape = RectangleShape,
+                                        shape = dividerShape,
                                         blurRadius = cardBlurRadius * 2,
                                         colors = BlurDefaults.blurColors(
                                             blendColors = listOf(

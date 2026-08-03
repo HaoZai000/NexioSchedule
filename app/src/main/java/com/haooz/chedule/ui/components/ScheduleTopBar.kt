@@ -107,6 +107,7 @@ internal fun ScheduleTopBar(
     onOpenCustomize: () -> Unit,
     onCourseManage: () -> Unit,
     onTitleBarMeasured: (Dp) -> Unit,
+    isTablet: Boolean = false,
     liquidGlassBackdrop: com.kyant.backdrop.Backdrop? = null,
     showMorePopup: Boolean = false,
     onShowMorePopupChange: (Boolean) -> Unit = {}
@@ -376,9 +377,14 @@ internal fun ScheduleTopBar(
                 }
             )
             Row(
-                modifier = Modifier.fillMaxWidth().height(40.dp)
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(40.dp)
+                    .then(
+                        if (isTablet) Modifier.padding(horizontal = 24.dp) else Modifier
+                    )
             ) {
-                Spacer(modifier = Modifier.width(36.dp))
+                Spacer(modifier = Modifier.width(if (isTablet) 56.dp else 36.dp))
                 val dayNames = listOf("周一", "周二", "周三", "周四", "周五", "周六", "周日")
                 dayRange.forEach { dayOfWeek ->
                     val index = dayOfWeek - 1

@@ -31,6 +31,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.DpSize
@@ -64,6 +65,8 @@ fun ShiftScheduleScreen(
     val isInFreeformWindow = activity?.isInFreeformWindow == true
     val isDark = isAppDarkTheme()
     val hapticFeedback = androidx.compose.ui.platform.LocalHapticFeedback.current
+    val configuration = LocalConfiguration.current
+    val isTablet = configuration.screenWidthDp >= 600
     val sectionTimes by settingsViewModel.sectionTimes.collectAsState()
     val smartWeekend by settingsViewModel.smartWeekend.collectAsState()
 
@@ -119,14 +122,21 @@ fun ShiftScheduleScreen(
                 )
         ) {
             Box(modifier = Modifier.fillMaxWidth()) {
-                Row(modifier = Modifier.fillMaxWidth()) {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .then(
+                            if (isTablet) Modifier.padding(horizontal = 24.dp) else Modifier
+                        )
+                ) {
                     SectionColumn(
                         totalSections = totalSections,
                         morningSections = maxMorning,
                         afternoonSections = maxAfternoon,
                         eveningSections = maxEvening,
                         sectionTimes = sectionTimes,
-                        cardHeightPerSection = cardHeightPerSection
+                        cardHeightPerSection = cardHeightPerSection,
+                        isTablet = isTablet
                     )
 
                     val pageDayRange = remember(week, smartWeekend) {

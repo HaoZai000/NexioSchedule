@@ -34,6 +34,7 @@ fun SectionColumn(
     cardBlurRadius: Float = 0f,
     showBreakDividers: Boolean = true,
     currentSection: Int = -1,
+    isTablet: Boolean = false,
     @SuppressLint("ModifierParameter") modifier: Modifier = Modifier
 ) {
     // 缓存时间字符串拆分结果，避免每次重组重复 split
@@ -47,9 +48,11 @@ fun SectionColumn(
 
     val totalHeight = (totalSections * cardHeightPerSection + (if (showBreakDividers) 24 * 2 else 0)).toInt()
 
+    val sectionWidth = if (isTablet) 56.dp else 36.dp
+
     Box(
         modifier = modifier
-            .width(36.dp)
+            .width(sectionWidth)
             .height(totalHeight.dp)
     ) {
         var currentOffset = 0
@@ -63,7 +66,7 @@ fun SectionColumn(
 
         // 午休分界线
         val dividerColor = if (cardBlurRadius > 0f) Color.Transparent else MiuixTheme.colorScheme.surfaceContainer
-        if (showBreakDividers) {
+        if (showBreakDividers && !isTablet) {
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -91,7 +94,7 @@ fun SectionColumn(
         }
 
         // 晚休分界线
-        if (showBreakDividers) {
+        if (showBreakDividers && !isTablet) {
             Box(
                 modifier = Modifier
                     .fillMaxWidth()

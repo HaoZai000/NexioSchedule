@@ -169,7 +169,7 @@ fun CustomizeScheduleScreen(
     initialWallpaperBrightness: Float = 0f,
     onCustomizeValueChange: (Float, Float) -> Unit = { _, _ -> },
     initialCardHeight: Float = 54f,
-    initialCardCornerRadius: Float = 8f,
+    initialCardCornerRadius: Float = 10f,
     onShowBreakDividersChange: (Boolean) -> Unit = {},
     initialShowBreakDividers: Boolean = true,
 ) {
@@ -1682,7 +1682,7 @@ fun CustomizeScheduleScreen(
                                 onValueChange = { cardCornerRadiusValue = it },
                                 valueRange = 0f..48f,
                                 showKeyPoints = true,
-                                keyPoints = listOf(8f),
+                                keyPoints = listOf(10f),
                                 magnetThreshold = 0.05f,
                                 modifier = Modifier.fillMaxWidth(),
                                 hapticEffect = SliderDefaults.SliderHapticEffect.Step
@@ -1816,7 +1816,7 @@ fun CustomizeScheduleScreen(
                             onValueChange = { cardCornerRadiusValue = it },
                             valueRange = 0f..48f,
                             showKeyPoints = true,
-                            keyPoints = listOf(8f),
+                            keyPoints = listOf(10f),
                             magnetThreshold = 0.05f,
                             modifier = Modifier.fillMaxWidth(),
                             hapticEffect = SliderDefaults.SliderHapticEffect.Step

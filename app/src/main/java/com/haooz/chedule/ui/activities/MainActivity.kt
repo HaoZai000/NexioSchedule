@@ -1179,6 +1179,7 @@ fun CourseScheduleApp() {
                             context.startActivity(intent)
                         },
                         onTitleBarMeasured = { activity?.titleBarHeight = it },
+                        isTablet = isTablet,
                         liquidGlassBackdrop = liquidGlassBackdrop,
                         showMorePopup = showMorePopup,
                         onShowMorePopupChange = { showMorePopup = it }

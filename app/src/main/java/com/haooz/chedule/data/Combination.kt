@@ -15,7 +15,7 @@ data class Combination(
     var cardBlurRadius: Float = 0f,
     var cardAlpha: Float = 0.15f,
     var cardHeight: Float = 54f,
-    var cardCornerRadius: Float = 8f,
+    var cardCornerRadius: Float = 10f,
     var wallpaperBrightness: Float = 0f,
     var showBreakDividers: Boolean = true
 )
