@@ -92,6 +92,8 @@ import top.yukonga.miuix.kmp.theme.MiuixTheme
 import top.yukonga.miuix.kmp.utils.PressFeedbackType
 import top.yukonga.miuix.kmp.utils.overScrollVertical
 import top.yukonga.miuix.kmp.utils.scrollEndHaptic
+import com.kyant.backdrop.backdrops.rememberLayerBackdrop as rememberKyantLayerBackdrop
+import com.kyant.backdrop.backdrops.layerBackdrop as kyantLayerBackdrop
 import kotlin.time.Duration.Companion.milliseconds
 
 @SuppressLint("ConfigurationScreenWidthHeight")
@@ -251,11 +253,16 @@ fun MainScheduleScreen(
         drawRect(wallpaperBackdropColor)
         drawContent()
     }
+    // Kyant Backdrop：供课程卡片 drawBackdrop 使用
+    val courseCardBackdrop = rememberKyantLayerBackdrop {
+        drawRect(wallpaperBackdropColor)
+        drawContent()
+    }
 
     Box(modifier = Modifier.fillMaxSize().layerBackdrop(screenBackdrop)) {
         // 壁纸背景
         if (wallpaperBitmap != null) {
-            Box(modifier = Modifier.fillMaxSize().layerBackdrop(wallpaperBackdrop)) {
+            Box(modifier = Modifier.fillMaxSize().layerBackdrop(wallpaperBackdrop).kyantLayerBackdrop(courseCardBackdrop)) {
                 val brightnessFilter = if (wallpaperBrightness != 0f) {
                     val b = (1f + wallpaperBrightness / 50f).coerceIn(0f, 2f)
                     androidx.compose.ui.graphics.ColorFilter.colorMatrix(
@@ -286,7 +293,7 @@ fun MainScheduleScreen(
                 )
             }
         } else {
-            Box(modifier = Modifier.fillMaxSize().layerBackdrop(wallpaperBackdrop).background(wallpaperBackdropColor))
+            Box(modifier = Modifier.fillMaxSize().layerBackdrop(wallpaperBackdrop).kyantLayerBackdrop(courseCardBackdrop).background(wallpaperBackdropColor))
         }
 
         // 用于手势回调中读取最新值，避免 pointerInput(Unit) 捕获陈旧状态
@@ -407,7 +414,7 @@ fun MainScheduleScreen(
                                 pendingDay = pendingDay,
                                 pendingSection = pendingSection,
                                 onPendingChange = onPendingChange,
-                                wallpaperBackdrop = wallpaperBackdrop,
+                                wallpaperBackdrop = courseCardBackdrop,
                                 cardBlurRadius = cardBlurRadius,
                                 cardAlpha = cardAlpha,
                                 cardHeightPerSection = cardHeightPerSection,

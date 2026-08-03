@@ -11,7 +11,8 @@ val changelogData = listOf(
         date = "2026-08-05",
         changes = listOf(
             "为Pad端进行适配",
-            "适配HyperOS无极窗口"
+            "适配HyperOS无极窗口",
+            "优化液态玻璃材质"
         )
     ),
     ChangelogEntry(

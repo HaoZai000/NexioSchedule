@@ -1,6 +1,8 @@
 package com.haooz.chedule.ui.components
 
 import android.annotation.SuppressLint
+import androidx.compose.animation.core.Animatable
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -15,13 +17,17 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
 import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import android.graphics.Color as AndroidColor
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
@@ -29,24 +35,23 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.haooz.chedule.data.Course
 import com.haooz.chedule.ui.utils.isAppDarkTheme
+import com.kyant.backdrop.Backdrop
+import com.kyant.backdrop.drawBackdrop
+import com.kyant.backdrop.effects.blur
+import com.kyant.backdrop.effects.lens
 import com.kyant.shapes.RoundedRectangle
 import top.yukonga.miuix.kmp.basic.Card
 import top.yukonga.miuix.kmp.basic.CardDefaults
-import top.yukonga.miuix.kmp.blur.BlendColorEntry
-import top.yukonga.miuix.kmp.blur.BlurBlendMode
-import top.yukonga.miuix.kmp.blur.BlurDefaults
-import top.yukonga.miuix.kmp.blur.LayerBackdrop
-import top.yukonga.miuix.kmp.blur.highlight.Highlight
-import top.yukonga.miuix.kmp.blur.textureBlur
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 import top.yukonga.miuix.kmp.utils.PressFeedbackType
+import android.graphics.Color as AndroidColor
 
 @Composable
 fun CourseCard(
     course: Course,
     isCurrentWeek: Boolean = true,
     hasMultipleCourses: Boolean = false,
-    wallpaperBackdrop: LayerBackdrop? = null,
+    wallpaperBackdrop: Backdrop? = null,
     cardBlurRadius: Float = 0f,
     cardAlpha: Float = 0.15f,
     cardHeightPerSection: Float = 54f,
@@ -84,35 +89,58 @@ fun CourseCard(
         }
     }
 
-    val blurColors = if (hasBlur) BlurDefaults.blurColors(
-        blendColors = listOf(
-            if (isAppDarkTheme()) BlendColorEntry(color = Color.Black.copy(alpha = cardAlpha * 0.4f), mode = BlurBlendMode.Multiply)
-            else BlendColorEntry(color = Color.White.copy(alpha = cardAlpha), mode = BlurBlendMode.Screen)
-        )
-    ) else null
-
     if (hasBlur) {
         key(effectiveCornerRadius) {
-            Card(
+            var isPressed by remember { mutableStateOf(false) }
+            val scale = remember { Animatable(1f) }
+            LaunchedEffect(isPressed) {
+                if (isPressed) {
+                    scale.animateTo(
+                        targetValue = 0.94f,
+                        animationSpec = tween(durationMillis = 100)
+                    )
+                } else {
+                    scale.animateTo(
+                        targetValue = 1f,
+                        animationSpec = tween(durationMillis = 180)
+                    )
+                }
+            }
+
+            Box(
                 modifier = modifier
                     .fillMaxWidth()
                     .height(cardHeight)
                     .padding(horizontal = 2.dp, vertical = 2.dp)
-                    .textureBlur(
+                    .graphicsLayer {
+                        scaleX = scale.value
+                        scaleY = scale.value
+                    }
+                    .drawBackdrop(
                         backdrop = wallpaperBackdrop,
-                        shape = RoundedRectangle(effectiveCornerRadius.dp),
-                        blurRadius = cardBlurRadius,
-                        colors = blurColors!!,
-                    ),
-                cornerRadius = effectiveCornerRadius.dp,
-                insideMargin = PaddingValues(0.dp),
-                pressFeedbackType = PressFeedbackType.Sink,
-                showIndication = true,
-                colors = CardDefaults.defaultColors(
-                    color = cardColor,
-                    contentColor = MiuixTheme.colorScheme.onSurface
-                ),
-                onClick = onClick
+                        shape = { RoundedRectangle(effectiveCornerRadius.dp) },
+                        effects = {
+                            blur(cardBlurRadius.dp.toPx())
+                            lens(12f.dp.toPx(), 12f.dp.toPx())
+                        },
+                        highlight = null,
+                        onDrawSurface = {
+                            drawRect(cardColor)
+                        }
+                    )
+                    .pointerInput(Unit) {
+                        awaitPointerEventScope {
+                            while (true) {
+                                val event = awaitPointerEvent()
+                                val anyPressed = event.changes.any { it.pressed }
+                                isPressed = anyPressed
+                                if (!anyPressed) {
+                                    onClick()
+                                }
+                            }
+                        }
+                    },
+                contentAlignment = Alignment.Center
             ) {
                 CardContent(course, sectionCount, textColor, hasMultipleCourses, isTablet)
             }
