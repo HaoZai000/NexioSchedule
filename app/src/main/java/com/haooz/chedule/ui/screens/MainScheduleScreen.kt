@@ -119,7 +119,7 @@ fun MainScheduleScreen(
     cardCornerRadius: Float = 10f,
     wallpaperBrightness: Float = 0f,
     showBreakDividers: Boolean = true,
-    cardContentAlignment: com.haooz.chedule.data.CardContentAlignment = com.haooz.chedule.data.CardContentAlignment.TOP_START,
+    cardContentAlignment: com.haooz.chedule.data.CardContentAlignment = com.haooz.chedule.data.CardContentAlignment.CENTER_CENTER,
     liquidGlassBackdrop: com.kyant.backdrop.Backdrop? = null
 ) {
     val courses by viewModel.courses.collectAsState()

@@ -57,7 +57,7 @@ fun CourseCard(
     cardHeightPerSection: Float = 54f,
     cardCornerRadius: Float = 10f,
     isTablet: Boolean = false,
-    cardContentAlignment: com.haooz.chedule.data.CardContentAlignment = com.haooz.chedule.data.CardContentAlignment.TOP_START,
+    cardContentAlignment: com.haooz.chedule.data.CardContentAlignment = com.haooz.chedule.data.CardContentAlignment.CENTER_CENTER,
     onClick: () -> Unit,
     @SuppressLint("ModifierParameter") modifier: Modifier = Modifier
 ) {
@@ -171,7 +171,7 @@ fun CourseCard(
 private val overflowCache = java.util.concurrent.ConcurrentHashMap<String, Boolean>()
 
 @Composable
-private fun CardContent(course: Course, sectionCount: Int, textColor: Color, hasMultipleCourses: Boolean, isTablet: Boolean = false, cardContentAlignment: com.haooz.chedule.data.CardContentAlignment = com.haooz.chedule.data.CardContentAlignment.TOP_START) {
+private fun CardContent(course: Course, sectionCount: Int, textColor: Color, hasMultipleCourses: Boolean, isTablet: Boolean = false, cardContentAlignment: com.haooz.chedule.data.CardContentAlignment = com.haooz.chedule.data.CardContentAlignment.CENTER_CENTER) {
     val footnote2Size = 10.5.sp
     val smallSize = (footnote2Size.value - 1.7).sp
 

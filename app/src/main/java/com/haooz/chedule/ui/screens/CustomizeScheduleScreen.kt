@@ -1,4 +1,4 @@
-﻿/** 自定义课表页面 - 课表外观选择 */
+/** 自定义课表页面 - 课表外观选择 */
 package com.haooz.chedule.ui.screens
 
 import android.annotation.SuppressLint
@@ -175,7 +175,7 @@ fun CustomizeScheduleScreen(
     onShowBreakDividersChange: (Boolean) -> Unit = {},
     initialShowBreakDividers: Boolean = true,
     onCardContentAlignmentChange: (com.haooz.chedule.data.CardContentAlignment) -> Unit = {},
-    initialCardContentAlignment: com.haooz.chedule.data.CardContentAlignment = com.haooz.chedule.data.CardContentAlignment.TOP_START,
+    initialCardContentAlignment: com.haooz.chedule.data.CardContentAlignment = com.haooz.chedule.data.CardContentAlignment.CENTER_CENTER,
 ) {
     // ================================================================
     // 一、基础环境与尺寸计算

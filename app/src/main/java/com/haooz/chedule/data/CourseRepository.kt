@@ -1314,7 +1314,7 @@ class CourseRepository private constructor(context: Context) {
     }
 
     fun getCombinationCardContentAlignment(id: Long): CardContentAlignment =
-        CardContentAlignment.fromOrdinal(prefs.getInt("${KEY_COMBINATION_CARD_CONTENT_ALIGNMENT_PREFIX}$id", 0))
+        CardContentAlignment.fromOrdinal(prefs.getInt("${KEY_COMBINATION_CARD_CONTENT_ALIGNMENT_PREFIX}$id", CardContentAlignment.CENTER_CENTER.ordinal))
 
     /** 迁移：如果只有旧的单搭配数据（无 combination_ids），将其作为 id=0 的搭配 */
     fun migrateToCombinationsIfNeeded() {

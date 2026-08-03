@@ -18,5 +18,5 @@ data class Combination(
     var cardCornerRadius: Float = 10f,
     var wallpaperBrightness: Float = 0f,
     var showBreakDividers: Boolean = true,
-    var cardContentAlignment: CardContentAlignment = CardContentAlignment.TOP_START
+    var cardContentAlignment: CardContentAlignment = CardContentAlignment.CENTER_CENTER
 )
