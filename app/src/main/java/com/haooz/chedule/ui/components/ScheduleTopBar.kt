@@ -32,8 +32,8 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.zIndex
-import com.haooz.chedule.ui.components.liquidglass.LiquidTopBarButton
-import com.haooz.chedule.ui.components.liquidglass.LiquidTopBarCapsuleButton
+import com.haooz.chedule.ui.effects.liquidglass.LiquidTopBarButton
+import com.haooz.chedule.ui.effects.liquidglass.LiquidTopBarCapsuleButton
 import com.kyant.backdrop.drawPlainBackdrop
 import com.kyant.backdrop.effects.blur
 import com.kyant.backdrop.effects.runtimeShaderEffect

@@ -60,6 +60,8 @@ import top.yukonga.miuix.kmp.utils.PressFeedbackType
 import top.yukonga.miuix.kmp.utils.overScrollVertical
 import top.yukonga.miuix.kmp.utils.scrollEndHaptic
 import java.util.UUID
+import com.haooz.chedule.ui.effects.blur.BlurBottomSheet
+import com.haooz.chedule.ui.effects.blur.BlurBottomSheetTablet
 
 /**
  * 添加课程底部弹窗
@@ -197,7 +199,7 @@ fun AddEditCourseBottomSheet(
 
     val startAction: @Composable () -> Unit = {
         if (liquidGlassBackdrop != null) {
-            com.haooz.chedule.ui.components.liquidglass.LiquidTopBarButton(
+            com.haooz.chedule.ui.effects.liquidglass.LiquidTopBarButton(
                 onClick = {
                     hapticFeedback.performHapticFeedback(HapticFeedbackType.Confirm)
                     onDismissRequest()
@@ -228,7 +230,7 @@ fun AddEditCourseBottomSheet(
 
     val endAction: @Composable () -> Unit = {
         if (liquidGlassBackdrop != null) {
-            com.haooz.chedule.ui.components.liquidglass.LiquidTopBarButton(
+            com.haooz.chedule.ui.effects.liquidglass.LiquidTopBarButton(
                 onClick = onConfirmClick,
                 backdrop = sheetContentBackdrop ?: liquidGlassBackdrop,
                 icon = MiuixIcons.Ok,

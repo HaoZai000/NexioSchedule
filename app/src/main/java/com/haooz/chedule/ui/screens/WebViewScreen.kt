@@ -72,8 +72,8 @@ import androidx.compose.ui.window.DialogProperties
 import androidx.compose.ui.zIndex
 import com.haooz.chedule.data.Course
 import com.haooz.chedule.data.school.SchoolData
-import com.haooz.chedule.ui.components.liquidglass.LiquidTopBarButton
-import com.haooz.chedule.ui.components.liquidglass.ProgressiveBlurTopBar
+import com.haooz.chedule.ui.effects.liquidglass.LiquidTopBarButton
+import com.haooz.chedule.ui.effects.liquidglass.ProgressiveBlurTopBar
 import com.haooz.chedule.ui.web.AndroidBridge
 import com.haooz.chedule.ui.web.WebCompatDelegate
 import com.haooz.chedule.ui.web.WebPostBridge

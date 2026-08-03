@@ -52,8 +52,8 @@ import androidx.compose.ui.zIndex
 import com.haooz.chedule.data.school.AdapterData
 import com.haooz.chedule.data.school.SchoolData
 import com.haooz.chedule.data.school.SchoolRepository
-import com.haooz.chedule.ui.components.liquidglass.LiquidTopBarButton
-import com.haooz.chedule.ui.components.liquidglass.ProgressiveBlurTopBar
+import com.haooz.chedule.ui.effects.liquidglass.LiquidTopBarButton
+import com.haooz.chedule.ui.effects.liquidglass.ProgressiveBlurTopBar
 import com.kyant.backdrop.backdrops.LayerBackdrop
 import com.kyant.shapes.RoundedRectangle
 import kotlinx.coroutines.launch

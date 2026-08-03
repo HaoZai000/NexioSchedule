@@ -42,10 +42,10 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import com.haooz.chedule.data.CourseRepository
 import com.haooz.chedule.data.TimeConfig
-import com.haooz.chedule.ui.components.liquidglass.LiquidTopBarButton
-import com.haooz.chedule.ui.components.liquidglass.ProgressiveBlurTopBar
-import com.haooz.chedule.ui.miuix.OobeCubicOutEasing
-import com.haooz.chedule.ui.miuix.OobeQuartOutEasing
+import com.haooz.chedule.ui.effects.liquidglass.LiquidTopBarButton
+import com.haooz.chedule.ui.effects.liquidglass.ProgressiveBlurTopBar
+import com.haooz.chedule.ui.effects.motion.OobeCubicOutEasing
+import com.haooz.chedule.ui.effects.motion.OobeQuartOutEasing
 import com.haooz.chedule.ui.screens.TimeConfigEditScreen
 import com.haooz.chedule.ui.theme.CourseScheduleTheme
 import com.haooz.chedule.ui.utils.applyThemeAwareSystemBars

@@ -5,6 +5,7 @@ import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.ui.geometry.Offset
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
@@ -27,6 +28,8 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.foundation.gestures.awaitFirstDown
+import androidx.compose.foundation.gestures.waitForUpOrCancellation
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
@@ -132,11 +135,17 @@ fun CourseCard(
                     .pointerInput(Unit) {
                         awaitPointerEventScope {
                             while (true) {
-                                val event = awaitPointerEvent()
-                                val anyPressed = event.changes.any { it.pressed }
-                                isPressed = anyPressed
-                                if (!anyPressed) {
-                                    onClick()
+                                val down = awaitFirstDown(requireUnconsumed = false)
+                                down.consume()
+                                isPressed = true
+                                val up = waitForUpOrCancellation()
+                                isPressed = false
+                                if (up != null) {
+                                    up.consume()
+                                    val dist = (up.position - down.position).getDistance()
+                                    if (dist < 8f * density) {
+                                        onClick()
+                                    }
                                 }
                             }
                         }

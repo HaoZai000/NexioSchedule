@@ -53,10 +53,10 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.platform.LocalConfiguration
 import com.haooz.chedule.data.Course
-import com.haooz.chedule.ui.components.BlurBottomSheet
-import com.haooz.chedule.ui.components.BlurBottomSheetTablet
+import com.haooz.chedule.ui.effects.blur.BlurBottomSheet
+import com.haooz.chedule.ui.effects.blur.BlurBottomSheetTablet
 import com.haooz.chedule.ui.components.NativeTextField
-import com.haooz.chedule.ui.components.liquidglass.LiquidTopBarButton
+import com.haooz.chedule.ui.effects.liquidglass.LiquidTopBarButton
 import com.haooz.chedule.ui.utils.isAppDarkTheme
 import com.kyant.backdrop.Backdrop
 import com.kyant.shapes.RoundedRectangle

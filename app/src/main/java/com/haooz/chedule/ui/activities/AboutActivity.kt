@@ -67,11 +67,11 @@ import androidx.compose.ui.unit.sp
 import androidx.compose.ui.zIndex
 import androidx.core.graphics.createBitmap
 import com.haooz.chedule.R
-import com.haooz.chedule.effect.BgEffectBackground
-import com.haooz.chedule.ui.components.BlurredBar
-import com.haooz.chedule.ui.components.liquidglass.LiquidTopBarButton
-import com.haooz.chedule.ui.components.liquidglass.ProgressiveBlurTopBar
-import com.haooz.chedule.ui.components.rememberBlurBackdrop
+import com.haooz.chedule.ui.effects.background.BgEffectBackground
+import com.haooz.chedule.ui.effects.blur.BlurredBar
+import com.haooz.chedule.ui.effects.liquidglass.LiquidTopBarButton
+import com.haooz.chedule.ui.effects.liquidglass.ProgressiveBlurTopBar
+import com.haooz.chedule.ui.effects.blur.rememberBlurBackdrop
 import com.haooz.chedule.ui.data.changelogData
 import com.haooz.chedule.ui.theme.CourseScheduleTheme
 import com.haooz.chedule.ui.utils.applyThemeAwareSystemBars

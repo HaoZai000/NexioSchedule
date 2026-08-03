@@ -27,9 +27,9 @@ import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.haooz.chedule.ui.components.liquidglass.LiquidBottomTab
-import com.haooz.chedule.ui.components.liquidglass.LiquidBottomTabs
-import com.haooz.chedule.ui.components.liquidglass.LiquidNavigationRail
+import com.haooz.chedule.ui.effects.liquidglass.LiquidBottomTab
+import com.haooz.chedule.ui.effects.liquidglass.LiquidBottomTabs
+import com.haooz.chedule.ui.effects.liquidglass.LiquidNavigationRail
 import com.kyant.backdrop.Backdrop
 import top.yukonga.miuix.kmp.basic.NavigationBar
 import top.yukonga.miuix.kmp.basic.NavigationBarDisplayMode

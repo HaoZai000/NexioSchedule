@@ -41,10 +41,10 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.zIndex
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.haooz.chedule.data.Course
-import com.haooz.chedule.ui.components.liquidglass.LiquidTopBarButton
-import com.haooz.chedule.ui.components.liquidglass.ProgressiveBlurTopBar
-import com.haooz.chedule.ui.miuix.OobeCubicOutEasing
-import com.haooz.chedule.ui.miuix.OobeQuartOutEasing
+import com.haooz.chedule.ui.effects.liquidglass.LiquidTopBarButton
+import com.haooz.chedule.ui.effects.liquidglass.ProgressiveBlurTopBar
+import com.haooz.chedule.ui.effects.motion.OobeCubicOutEasing
+import com.haooz.chedule.ui.effects.motion.OobeQuartOutEasing
 import com.haooz.chedule.ui.screens.CourseEditScreen
 import com.haooz.chedule.ui.theme.CourseScheduleTheme
 import com.haooz.chedule.ui.utils.applyThemeAwareSystemBars
@@ -342,7 +342,7 @@ class CourseManageActivity : ComponentActivity() {
                                     hiddenCourseIds = emptySet()
                                     shrinkingCourseIds = pendingAutoExitDeleteIds
                                     coroutineScope.launch {
-                                        delay(300)
+                                        delay(300.milliseconds)
                                         pendingAutoExitDeleteIds.forEach { id ->
                                             courseViewModel.deleteCourse(id)
                                         }

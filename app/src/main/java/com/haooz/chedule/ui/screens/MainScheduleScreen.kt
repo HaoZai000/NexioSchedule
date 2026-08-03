@@ -64,8 +64,8 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.kyant.shapes.RoundedRectangle
 import com.haooz.chedule.data.Course
-import com.haooz.chedule.ui.components.BlurBottomSheet
-import com.haooz.chedule.ui.components.BlurBottomSheetTablet
+import com.haooz.chedule.ui.effects.blur.BlurBottomSheet
+import com.haooz.chedule.ui.effects.blur.BlurBottomSheetTablet
 import com.haooz.chedule.ui.components.DayColumn
 import com.haooz.chedule.ui.components.SectionColumn
 import com.haooz.chedule.ui.utils.isAppDarkTheme
@@ -566,7 +566,7 @@ fun MainScheduleScreen(
 
         val detailEndAction: @Composable (() -> Unit)? = {
             if (liquidGlassBackdrop != null) {
-                com.haooz.chedule.ui.components.liquidglass.LiquidTopBarButton(
+                com.haooz.chedule.ui.effects.liquidglass.LiquidTopBarButton(
                     onClick = {
                         hapticFeedback.performHapticFeedback(HapticFeedbackType.Confirm)
                         val course = selectedCourse ?: selectedCourses.firstOrNull()
