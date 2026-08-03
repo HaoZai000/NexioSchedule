@@ -36,6 +36,7 @@ import top.yukonga.miuix.kmp.blur.BlendColorEntry
 import top.yukonga.miuix.kmp.blur.BlurBlendMode
 import top.yukonga.miuix.kmp.blur.BlurDefaults
 import top.yukonga.miuix.kmp.blur.LayerBackdrop
+import top.yukonga.miuix.kmp.blur.highlight.Highlight
 import top.yukonga.miuix.kmp.blur.textureBlur
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 import top.yukonga.miuix.kmp.utils.PressFeedbackType
@@ -101,7 +102,7 @@ fun CourseCard(
                         backdrop = wallpaperBackdrop,
                         shape = RoundedRectangle(effectiveCornerRadius.dp),
                         blurRadius = cardBlurRadius,
-                        colors = blurColors!!
+                        colors = blurColors!!,
                     ),
                 cornerRadius = effectiveCornerRadius.dp,
                 insideMargin = PaddingValues(0.dp),
