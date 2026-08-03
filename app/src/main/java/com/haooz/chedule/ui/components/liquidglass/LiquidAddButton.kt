@@ -15,6 +15,8 @@ import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.unit.dp
 import com.haooz.chedule.ui.utils.isAppDarkTheme
+import com.haooz.chedule.edgelight.edgeLight
+import com.haooz.chedule.edgelight.rememberDefaultEdgeLight
 import com.kyant.backdrop.Backdrop
 import com.kyant.backdrop.drawBackdrop
 import com.kyant.backdrop.effects.blur
@@ -53,6 +55,7 @@ fun LiquidAddButton(
                     blur(2f.dp.toPx())
                     lens(20f.dp.toPx(), 20f.dp.toPx())
                 },
+                highlight = null,
                 layerBlock = {
                     val progress = interactiveHighlight.pressProgress
                     val scale = 1f + 4f.dp.toPx() / size.height * progress
@@ -67,6 +70,7 @@ fun LiquidAddButton(
                     drawRect(Color.Black.copy(alpha = 0.03f * interactiveHighlight.pressProgress))
                 }
             )
+            .edgeLight(shape = CircleShape, edgeLight = rememberDefaultEdgeLight())
             .clickable(
                 interactionSource = null,
                 indication = null,

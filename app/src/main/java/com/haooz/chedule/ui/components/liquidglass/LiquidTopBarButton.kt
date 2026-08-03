@@ -23,6 +23,8 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.DpOffset
 import androidx.compose.ui.unit.dp
 import com.haooz.chedule.ui.utils.isAppDarkTheme
+import com.haooz.chedule.edgelight.edgeLight
+import com.haooz.chedule.edgelight.rememberDefaultEdgeLight
 import com.kyant.backdrop.Backdrop
 import com.kyant.backdrop.drawBackdrop
 import com.kyant.backdrop.effects.blur
@@ -95,6 +97,7 @@ fun LiquidTopBarButton(
                     blur(2f.dp.toPx())
                     lens(18f.dp.toPx(), 18f.dp.toPx())
                 },
+                highlight = null,
                 shadow = if (useBackdropShadow) {
                     { Shadow(alpha = 1f) }
                 } else {
@@ -114,6 +117,7 @@ fun LiquidTopBarButton(
                     drawRect(Color.Black.copy(alpha = 0.03f * interactiveHighlight.pressProgress))
                 }
             )
+            .edgeLight(shape = CircleShape, edgeLight = rememberDefaultEdgeLight())
             .clickable(
                 interactionSource = null,
                 indication = null,

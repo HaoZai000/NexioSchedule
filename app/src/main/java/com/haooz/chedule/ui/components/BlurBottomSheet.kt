@@ -54,9 +54,13 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.zIndex
+import com.haooz.chedule.edgelight.edgeLight
+import com.haooz.chedule.edgelight.rememberDefaultEdgeLight
 import com.haooz.chedule.ui.components.liquidglass.ProgressiveBlurTopBar
 import com.kyant.backdrop.Backdrop
 import com.kyant.backdrop.backdrops.layerBackdrop
+import com.kyant.shapes.Capsule
+import com.kyant.shapes.RoundedRectangle
 import kotlinx.coroutines.launch
 import top.yukonga.miuix.kmp.blur.BlendColorEntry
 import top.yukonga.miuix.kmp.blur.BlurBlendMode
@@ -250,14 +254,14 @@ private fun BlurBottomSheetContent(
                     }
                 }
                 .imePadding()
-                .clip(RoundedCornerShape(topStart = 36.dp, topEnd = 36.dp))
+                .clip(RoundedRectangle(36.dp))
                 .then(
                     if (backdrop != null) {
                         Modifier.textureBlur(
                             backdrop = backdrop,
-                            shape = RoundedCornerShape(topStart = 36.dp, topEnd = 36.dp),
+                            shape = RoundedRectangle(36.dp),
                             blurRadius = blurRadius,
-                            highlight = Highlight.GlassStrokeSmallDark,
+
                             colors = BlurDefaults.blurColors(
                                 blendColors = listOf(
                                     BlendColorEntry(
@@ -272,6 +276,7 @@ private fun BlurBottomSheetContent(
                         )
                     } else Modifier
                 )
+                .edgeLight(shape = RoundedRectangle(36.dp), edgeLight = rememberDefaultEdgeLight())
                 .background(sheetBgColor.copy(alpha = sheetBackgroundAlpha ?: if (backdrop != null)
                     if (Build.VERSION.SDK_INT >= 33) (if (isDark) 0.9f else 0.76f) else 1f
                     else 1f))

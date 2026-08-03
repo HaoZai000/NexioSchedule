@@ -88,6 +88,8 @@ import com.haooz.chedule.ui.components.BlurBottomSheet
 import com.haooz.chedule.ui.components.BlurBottomSheetTablet
 import com.haooz.chedule.ui.components.liquidglass.InteractiveHighlight
 import com.haooz.chedule.ui.components.liquidglass.LiquidTopBarButton
+import com.haooz.chedule.edgelight.edgeLight
+import com.haooz.chedule.edgelight.rememberDefaultEdgeLight
 import com.haooz.chedule.ui.utils.isAppDarkTheme
 import com.haooz.chedule.ui.utils.rememberAppStyle
 import com.kyant.backdrop.Backdrop
@@ -1021,6 +1023,7 @@ fun CustomizeScheduleScreen(
                                 blur(2f.dp.toPx())
                                 lens(12f.dp.toPx(), 12f.dp.toPx())
                             },
+                            highlight = null,
                             shadow = { Shadow(alpha = 0.3f) },
                             layerBlock = {
                                 val progress = exitHighlight.pressProgress
@@ -1036,6 +1039,7 @@ fun CustomizeScheduleScreen(
                                 drawRect(Color.Black.copy(alpha = 0.03f * exitHighlight.pressProgress))
                             }
                         )
+                        .edgeLight(shape = Capsule(), edgeLight = rememberDefaultEdgeLight())
                         .clickable(
                             interactionSource = null,
                             indication = null,
@@ -1074,6 +1078,7 @@ fun CustomizeScheduleScreen(
                                 blur(2f.dp.toPx())
                                 lens(12f.dp.toPx(), 12f.dp.toPx())
                             },
+                            highlight = null,
                             shadow = { Shadow(alpha = 0.3f) },
                             layerBlock = {
                                 val progress = applyHighlight.pressProgress
@@ -1089,6 +1094,7 @@ fun CustomizeScheduleScreen(
                                 drawRect(Color.Black.copy(alpha = 0.03f * applyHighlight.pressProgress))
                             }
                         )
+                        .edgeLight(shape = Capsule(), edgeLight = rememberDefaultEdgeLight())
                         .clickable(
                             interactionSource = null,
                             indication = null,

@@ -44,6 +44,8 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.zIndex
 import com.haooz.chedule.ui.components.liquidglass.ProgressiveBlurTopBar
+import com.haooz.chedule.edgelight.edgeLight
+import com.haooz.chedule.edgelight.rememberDefaultEdgeLight
 import com.kyant.backdrop.Backdrop
 import com.kyant.backdrop.backdrops.layerBackdrop
 import com.kyant.backdrop.backdrops.rememberLayerBackdrop
@@ -231,7 +233,8 @@ private fun BlurBottomSheetTabletContent(
                             effects = {
                                 vibrancy()
                                 blur(24.dp.toPx())
-                            }
+                            },
+                            highlight = null
                         )
                     } else if (liquidGlassBackdrop != null) {
                         // API < 33 降级：渐变遮罩
@@ -247,6 +250,7 @@ private fun BlurBottomSheetTabletContent(
                         )
                     } else Modifier
                 )
+                .edgeLight(shape = RoundedRectangle(38.dp), edgeLight = rememberDefaultEdgeLight())
                 .background(sheetBgColor.copy(alpha = sheetBackgroundAlpha ?: if (liquidGlassBackdrop != null)
                     if (isDark) 0.92f else 0.9f
                     else 1f))

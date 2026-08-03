@@ -27,6 +27,8 @@ import androidx.compose.ui.graphics.nativeCanvas
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.haooz.chedule.edgelight.edgeLight
+import com.haooz.chedule.edgelight.rememberDefaultEdgeLight
 import com.haooz.chedule.ui.utils.isAppDarkTheme
 import com.kyant.backdrop.Backdrop
 import com.kyant.backdrop.drawBackdrop
@@ -118,11 +120,13 @@ fun LiquidGlassDropdownMenu(
                         blur(2f.dp.toPx())
                         lens(24f.dp.toPx(), 24f.dp.toPx())
                     },
+                    highlight = null,
                     shadow = null,
                     onDrawSurface = {
                         drawRect(containerColor)
                     }
                 )
+                .edgeLight(shape = RoundedRectangle(22.dp), edgeLight = rememberDefaultEdgeLight())
         ) {
             Column(modifier = Modifier.padding(vertical = 6.dp)) {
                 content()
