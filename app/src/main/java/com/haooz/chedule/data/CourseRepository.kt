@@ -98,6 +98,7 @@ class CourseRepository private constructor(context: Context) {
         private const val KEY_SHIFT_SELECTED_SCHEDULES = "shift_selected_schedules"
         private const val KEY_DEFAULT_HOMEPAGE = "default_homepage"
         private const val KEY_NAV_BAR_STYLE = "nav_bar_style"
+        private const val KEY_TODAY_SHOW_WALLPAPER = "today_show_wallpaper"
         @Suppress("UNUSED") private const val KEY_WALLPAPER_OFFSET_X = "wallpaper_offset_x"
         @Suppress("UNUSED") private const val KEY_WALLPAPER_OFFSET_Y = "wallpaper_offset_y"
         @Suppress("UNUSED") private const val KEY_WALLPAPER_SCALE = "wallpaper_scale"
@@ -450,6 +451,23 @@ class CourseRepository private constructor(context: Context) {
     fun setSmartWeekend(smart: Boolean) {
         val key = "${getScheduleKeyPrefix()}$KEY_SMART_WEEKEND"
         prefs.edit { putBoolean(key, smart) }
+        notifyCourseChanged("settings")
+    }
+
+    /**
+     * 获取今日页是否显示壁纸
+     */
+    fun getTodayShowWallpaper(): Boolean {
+        val key = "${getScheduleKeyPrefix()}$KEY_TODAY_SHOW_WALLPAPER"
+        return prefs.getBoolean(key, true)
+    }
+
+    /**
+     * 设置今日页是否显示壁纸
+     */
+    fun setTodayShowWallpaper(show: Boolean) {
+        val key = "${getScheduleKeyPrefix()}$KEY_TODAY_SHOW_WALLPAPER"
+        prefs.edit { putBoolean(key, show) }
         notifyCourseChanged("settings")
     }
 

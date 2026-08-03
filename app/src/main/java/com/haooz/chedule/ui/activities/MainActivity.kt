@@ -1127,6 +1127,7 @@ fun CourseScheduleApp() {
                         )
                     ) {
                     if (!isShiftMode) {
+                        val displayAppearance = if (showCustomizePage && !isWindowCutoutActive) originalAppearance else appearance
                         when (selectedTab) {
                             0 -> TodayScreen(
                                 viewModel = viewModel,
@@ -1150,11 +1151,15 @@ fun CourseScheduleApp() {
                                 onCourseManage = {
                                     val intent = android.content.Intent(context, CourseManageActivity::class.java)
                                     context.startActivity(intent)
-                                }
+                                },
+                                wallpaperBitmap = if (showCustomizePage && !isWindowCutoutActive) originalWallpaperBitmap else wallpaperBitmap,
+                                wallpaperOffset = if (showCustomizePage && !isWindowCutoutActive) originalWallpaperOffset else wallpaperOffset,
+                                wallpaperScale = if (showCustomizePage && !isWindowCutoutActive) originalWallpaperScale else wallpaperScale,
+                                wallpaperBrightness = displayAppearance.wallpaperBrightness,
+                                cardBlurRadius = displayAppearance.cardBlurRadius
                             )
 
                             1 -> {
-                                val displayAppearance = if (showCustomizePage && !isWindowCutoutActive) originalAppearance else appearance
                                 MainScheduleScreen(
                                 viewModel = viewModel,
                                 settingsViewModel = settingsViewModel,

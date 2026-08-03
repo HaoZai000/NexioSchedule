@@ -1,6 +1,8 @@
 /** 今日助手 - 智能课程状态、天气提醒、时段提示 */
 package com.haooz.chedule.ui.screens
 
+// ===================== 天气工具 =====================
+
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -25,22 +27,18 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.google.gson.Gson
+import com.haooz.chedule.R
 import com.haooz.chedule.data.Course
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.withContext
 import okhttp3.OkHttpClient
 import okhttp3.Request
-import top.yukonga.miuix.kmp.basic.Card
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 import java.time.LocalTime
 import java.time.format.DateTimeFormatter
 import java.util.concurrent.TimeUnit
 import kotlin.time.Duration.Companion.milliseconds
-
-// ===================== 天气工具 =====================
-
-import com.haooz.chedule.R
 
 private fun getWeatherIconRes(code: Int, isNight: Boolean = false): Int = when (code) {
     0 -> if (isNight) R.drawable.icon_sunny_night else R.drawable.icon_sunny
@@ -453,7 +451,9 @@ fun TodayAssistantCard(
     tomorrowCourses: List<Course> = emptyList(),
     sectionTimes: Map<Int, String>,
     morningSections: Int,
-    afternoonSections: Int
+    afternoonSections: Int,
+    wallpaperBackdrop: com.kyant.backdrop.Backdrop? = null,
+    blurRadius: Float = 0f
 ) {
     val weather = rememberWeather()
     val courseStatus = rememberCourseStatus(courses, sectionTimes)
@@ -468,10 +468,14 @@ fun TodayAssistantCard(
         generateSmartTip(courses, tomorrowCourses, sectionTimes, morningSections, afternoonSections) ?: ""
     }
 
-    Card(
+    BlurCard(
         cornerRadius = 20.dp,
-        modifier = Modifier.fillMaxWidth(),
-        insideMargin = androidx.compose.foundation.layout.PaddingValues(0.dp)
+        wallpaperBackdrop = wallpaperBackdrop,
+        blurRadius = blurRadius,
+        lightAlpha = 0.74f,
+        darkAlpha = 0.74f,
+        showEdgeLight = wallpaperBackdrop != null && blurRadius > 0f,
+        modifier = Modifier.fillMaxWidth()
     ) {
         Column(
             modifier = Modifier
@@ -562,7 +566,11 @@ fun TodayAssistantCard(
             Column(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .background(MiuixTheme.colorScheme.surfaceVariant.copy(alpha = 0.35f)),
+                    .then(
+                        if (wallpaperBackdrop == null || blurRadius <= 0f) {
+                            Modifier.background(MiuixTheme.colorScheme.surfaceVariant.copy(alpha = 0.35f))
+                        } else Modifier
+                    ),
                 verticalArrangement = Arrangement.spacedBy(4.dp)
             ) {
                 if (smartTip.isNotBlank()) {

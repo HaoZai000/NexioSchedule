@@ -1,6 +1,7 @@
 /** 今日课程页面 - 显示当天课程和当前/下一节课信息 */
 package com.haooz.chedule.ui.screens
 
+import android.annotation.SuppressLint
 import android.content.Context
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.tween
@@ -8,7 +9,6 @@ import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.pager.HorizontalPager
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -24,6 +24,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.foundation.pager.HorizontalPager
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -35,50 +36,65 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.snapshotFlow
-import androidx.compose.ui.Modifier
 import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.RectangleShape
+import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.lerp
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.input.nestedscroll.nestedScroll
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.core.content.edit
 import com.haooz.chedule.data.Course
+import com.haooz.chedule.ui.effects.edgelight.edgeLight
+import com.haooz.chedule.ui.effects.edgelight.rememberDefaultEdgeLight
 import com.haooz.chedule.ui.utils.isAppDarkTheme
 import com.haooz.chedule.ui.utils.rememberAppStyle
 import com.haooz.chedule.viewmodel.CourseViewModel
 import com.haooz.chedule.viewmodel.SettingsViewModel
+import com.kyant.backdrop.Backdrop
+import com.kyant.backdrop.drawBackdrop
+import com.kyant.backdrop.effects.blur
+import com.kyant.backdrop.effects.lens
+import com.kyant.shapes.RoundedRectangle
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import top.yukonga.miuix.kmp.basic.Card
-import top.yukonga.miuix.kmp.basic.NumberPicker
+import top.yukonga.miuix.kmp.basic.DropdownImpl
 import top.yukonga.miuix.kmp.basic.Icon
 import top.yukonga.miuix.kmp.basic.IconButton
+import top.yukonga.miuix.kmp.basic.ListPopupColumn
+import top.yukonga.miuix.kmp.basic.NumberPicker
+import top.yukonga.miuix.kmp.basic.PopupPositionProvider
 import top.yukonga.miuix.kmp.basic.Scaffold
 import top.yukonga.miuix.kmp.basic.SmallTitle
 import top.yukonga.miuix.kmp.basic.SmallTopAppBar
+import top.yukonga.miuix.kmp.basic.TextButton
 import top.yukonga.miuix.kmp.basic.TopAppBar
-import top.yukonga.miuix.kmp.icon.MiuixIcons
-import top.yukonga.miuix.kmp.icon.extended.Reset
-import top.yukonga.miuix.kmp.icon.extended.More
-import top.yukonga.miuix.kmp.overlay.OverlayDialog
-import top.yukonga.miuix.kmp.overlay.OverlayListPopup
-import top.yukonga.miuix.kmp.basic.DropdownImpl
-import top.yukonga.miuix.kmp.basic.ListPopupColumn
-import top.yukonga.miuix.kmp.basic.PopupPositionProvider
 import top.yukonga.miuix.kmp.blur.BlendColorEntry
 import top.yukonga.miuix.kmp.blur.BlurBlendMode
 import top.yukonga.miuix.kmp.blur.BlurDefaults
 import top.yukonga.miuix.kmp.blur.layerBackdrop
 import top.yukonga.miuix.kmp.blur.rememberLayerBackdrop
 import top.yukonga.miuix.kmp.blur.textureBlur
+import top.yukonga.miuix.kmp.icon.MiuixIcons
+import top.yukonga.miuix.kmp.icon.extended.More
+import top.yukonga.miuix.kmp.icon.extended.Reset
+import top.yukonga.miuix.kmp.overlay.OverlayDialog
+import top.yukonga.miuix.kmp.overlay.OverlayListPopup
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 import top.yukonga.miuix.kmp.utils.overScrollVertical
 import top.yukonga.miuix.kmp.utils.scrollEndHaptic
@@ -88,8 +104,69 @@ import java.time.format.DateTimeFormatter
 import java.time.temporal.ChronoUnit
 import kotlin.time.Duration.Companion.milliseconds
 import androidx.compose.ui.graphics.Color as ComposeColor
-import androidx.core.content.edit
-import top.yukonga.miuix.kmp.basic.TextButton
+import com.kyant.backdrop.backdrops.layerBackdrop as kyantLayerBackdrop
+import com.kyant.backdrop.backdrops.rememberLayerBackdrop as rememberKyantLayerBackdrop
+
+/**
+ * 今日页卡片：有壁纸时使用 drawBackdrop 模糊壁纸（与课程卡片风格一致），
+ * 无壁纸时回退为普通 miuix Card。
+ * @param lightAlpha 亮色模式底色透明度
+ * @param darkAlpha 暗色模式底色透明度
+ * @param showEdgeLight 是否显示高光描边
+ */
+@Composable
+fun BlurCard(
+    cornerRadius: Dp = 20.dp,
+    wallpaperBackdrop: Backdrop? = null,
+    blurRadius: Float = 0f,
+    lightAlpha: Float = 0.64f,
+    darkAlpha: Float = 0.64f,
+    showEdgeLight: Boolean = false,
+    modifier: Modifier = Modifier,
+    content: @Composable () -> Unit
+) {
+    val hasBlur = blurRadius > 0f && wallpaperBackdrop != null
+    val isDark = isAppDarkTheme()
+
+    if (hasBlur) {
+        val shape = RoundedRectangle(cornerRadius)
+        val defaultEdgeLight = rememberDefaultEdgeLight()
+        Box(
+            modifier = modifier
+                .clip(shape)
+                .drawBackdrop(
+                    backdrop = wallpaperBackdrop,
+                    shape = { RoundedRectangle(cornerRadius) },
+                    effects = {
+                        blur(blurRadius.dp.toPx())
+                        lens(18f.dp.toPx(), 18f.dp.toPx())
+                    },
+                    highlight = null,
+                    onDrawSurface = {
+                        drawRect(if (isDark) Color.Black.copy(alpha = darkAlpha) else Color.White.copy(alpha = lightAlpha))
+                    }
+                )
+                .then(
+                    if (showEdgeLight) {
+                        Modifier.edgeLight(
+                            shape = RoundedRectangle(cornerRadius),
+                            edgeLight = defaultEdgeLight
+                        )
+                    } else Modifier
+                )
+        ) {
+            content()
+        }
+    } else {
+        Card(
+            cornerRadius = cornerRadius,
+            modifier = modifier,
+            insideMargin = PaddingValues(0.dp)
+        ) {
+            content()
+        }
+    }
+}
 
 
 @Composable
@@ -233,6 +310,7 @@ private fun calculateWeekFromDate(startDate: String, date: LocalDate): Int {
     } catch (_: Exception) { 1 }
 }
 
+@SuppressLint("ConfigurationScreenWidthHeight")
 @Composable
 fun TodayScreen(
     viewModel: CourseViewModel,
@@ -251,7 +329,12 @@ fun TodayScreen(
     onShowMorePopupChange: (Boolean) -> Unit = {},
     jumpToDateTrigger: Int = 0,
     onJumpToDateProcessed: () -> Unit = {},
-    onCourseManage: () -> Unit = {}
+    onCourseManage: () -> Unit = {},
+    wallpaperBitmap: android.graphics.Bitmap? = null,
+    wallpaperOffset: androidx.compose.ui.geometry.Offset = androidx.compose.ui.geometry.Offset.Zero,
+    wallpaperScale: Float = 1f,
+    wallpaperBrightness: Float = 0f,
+    cardBlurRadius: Float = 0f
 ) {
     val courses by viewModel.courses.collectAsState()
     val classStartTime by viewModel.classStartTime.collectAsState()
@@ -259,6 +342,19 @@ fun TodayScreen(
     val morningSections by settingsViewModel.morningSections.collectAsState()
     val afternoonSections by settingsViewModel.afternoonSections.collectAsState()
     val smartWeekend by settingsViewModel.smartWeekend.collectAsState()
+    val todayShowWallpaper by settingsViewModel.todayShowWallpaper.collectAsState()
+
+    val density = LocalDensity.current
+    val configuration = LocalConfiguration.current
+    val screenWidthPx = with(density) { configuration.screenWidthDp.dp.toPx() }
+    val screenHeightPx = with(density) { configuration.screenHeightDp.dp.toPx() }
+    val minWallpaperScale = remember(wallpaperBitmap, screenWidthPx, screenHeightPx) {
+        if (wallpaperBitmap != null && wallpaperBitmap.width > 0 && wallpaperBitmap.height > 0) {
+            val fitScale = minOf(screenWidthPx / wallpaperBitmap.width, screenHeightPx / wallpaperBitmap.height)
+            val coverScale = maxOf(screenWidthPx / wallpaperBitmap.width, screenHeightPx / wallpaperBitmap.height)
+            if (fitScale > 0f) coverScale / fitScale else 1f
+        } else 1f
+    }
 
     val MAX_DATE_OFFSET = 1000
     val initialDaysOffset = pagerState.currentPage - MAX_DATE_OFFSET
@@ -316,6 +412,12 @@ fun TodayScreen(
         drawRect(backgroundColor)
         drawContent()
     }
+    // Kyant Backdrop：供今日页卡片 drawBackdrop 模糊壁纸使用
+    val cardBackdrop = rememberKyantLayerBackdrop {
+        drawRect(backgroundColor)
+        drawContent()
+    }
+    val hasWallpaper = todayShowWallpaper && wallpaperBitmap != null && cardBlurRadius > 0f
     val dayOfWeekNames = listOf("周一", "周二", "周三", "周四", "周五", "周六", "周日")
     val dayOfWeekName = if (selectedDayOfWeek in 1..7) dayOfWeekNames[selectedDayOfWeek - 1] else ""
 
@@ -465,6 +567,40 @@ fun TodayScreen(
                 .fillMaxSize()
                 .layerBackdrop(backdrop)
         ) {
+            // 壁纸背景
+            if (todayShowWallpaper && wallpaperBitmap != null) {
+                Box(modifier = Modifier.fillMaxSize().kyantLayerBackdrop(cardBackdrop)) {
+                    val brightnessFilter = if (wallpaperBrightness != 0f) {
+                        val b = (1f + wallpaperBrightness / 50f).coerceIn(0f, 2f)
+                        androidx.compose.ui.graphics.ColorFilter.colorMatrix(
+                            androidx.compose.ui.graphics.ColorMatrix(
+                                floatArrayOf(
+                                    b, 0f, 0f, 0f, 0f,
+                                    0f, b, 0f, 0f, 0f,
+                                    0f, 0f, b, 0f, 0f,
+                                    0f, 0f, 0f, 1f, 0f
+                                )
+                            )
+                        )
+                    } else null
+                    androidx.compose.foundation.Image(
+                        bitmap = wallpaperBitmap.asImageBitmap(),
+                        contentDescription = null,
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .graphicsLayer {
+                                val effectiveScale = maxOf(wallpaperScale, minWallpaperScale)
+                                scaleX = effectiveScale
+                                scaleY = effectiveScale
+                                translationX = wallpaperOffset.x
+                                translationY = wallpaperOffset.y
+                            },
+                        contentScale = ContentScale.Fit,
+                        colorFilter = brightnessFilter
+                    )
+                }
+            }
+
             HorizontalPager(
                 state = pagerState,
                 modifier = Modifier.fillMaxSize()
@@ -545,7 +681,7 @@ fun TodayScreen(
                                 modifier = Modifier.padding(start = 16.dp, top = 8.dp)
                             )
                             Spacer(modifier = Modifier.height(12.dp))
-                            QuoteCard(hour = now.hour)
+                            QuoteCard(hour = now.hour, wallpaperBackdrop = if (hasWallpaper) cardBackdrop else null, blurRadius = cardBlurRadius)
                             if (isPageToday) {
                                 Spacer(modifier = Modifier.height(12.dp))
                                 TodayAssistantCard(
@@ -553,7 +689,9 @@ fun TodayScreen(
                                     tomorrowCourses = tomorrowCourses,
                                     sectionTimes = sectionTimes,
                                     morningSections = morningSections,
-                                    afternoonSections = afternoonSections
+                                    afternoonSections = afternoonSections,
+                                    wallpaperBackdrop = if (hasWallpaper) cardBackdrop else null,
+                                    blurRadius = cardBlurRadius
                                 )
                             }
                         }
@@ -575,7 +713,7 @@ fun TodayScreen(
                             ),
                             verticalArrangement = Arrangement.spacedBy(12.dp)
                         ) {
-                            addCourseSections(morningCourses, afternoonCourses, eveningCourses, pageCourses, isPageToday, courses, hiddenCourseIds, sectionTimes, onCourseClick)
+                            addCourseSections(morningCourses, afternoonCourses, eveningCourses, pageCourses, isPageToday, courses, hiddenCourseIds, sectionTimes, onCourseClick, if (hasWallpaper) cardBackdrop else null, cardBlurRadius)
                         }
                     }
                 } else {
@@ -611,7 +749,7 @@ fun TodayScreen(
                             )
                         }
                         item {
-                            QuoteCard(hour = now.hour)
+                            QuoteCard(hour = now.hour, wallpaperBackdrop = if (hasWallpaper) cardBackdrop else null, blurRadius = cardBlurRadius)
                         }
                         if (isPageToday) {
                             item {
@@ -620,11 +758,13 @@ fun TodayScreen(
                                     tomorrowCourses = tomorrowCourses,
                                     sectionTimes = sectionTimes,
                                     morningSections = morningSections,
-                                    afternoonSections = afternoonSections
+                                    afternoonSections = afternoonSections,
+                                    wallpaperBackdrop = if (hasWallpaper) cardBackdrop else null,
+                                    blurRadius = cardBlurRadius
                                 )
                             }
                         }
-                        addCourseSections(morningCourses, afternoonCourses, eveningCourses, pageCourses, isPageToday, courses, hiddenCourseIds, sectionTimes, onCourseClick)
+                        addCourseSections(morningCourses, afternoonCourses, eveningCourses, pageCourses, isPageToday, courses, hiddenCourseIds, sectionTimes, onCourseClick, if (hasWallpaper) cardBackdrop else null, cardBlurRadius)
                     }
                 }
             }
@@ -721,7 +861,7 @@ fun TodayScreen(
 }
 
 @Composable
-private fun QuoteCard(hour: Int) {
+private fun QuoteCard(hour: Int, wallpaperBackdrop: Backdrop? = null, blurRadius: Float = 0f) {
     val h6 = listOf(
         "太阳刚打卡上班，我的灵魂还在梦里蹦迪",
         "闹钟响了三遍，和被窝的离婚官司还没打完",
@@ -1035,10 +1175,14 @@ private fun QuoteCard(hour: Int) {
         }
     }
     val quote = quotes[quoteIndex]
-    Card(
+    BlurCard(
         cornerRadius = 20.dp,
-        modifier = Modifier.fillMaxWidth(),
-        insideMargin = PaddingValues(0.dp)
+        wallpaperBackdrop = wallpaperBackdrop,
+        blurRadius = blurRadius,
+        lightAlpha = 0.74f,
+        darkAlpha = 0.74f,
+        showEdgeLight = wallpaperBackdrop != null && blurRadius > 0f,
+        modifier = Modifier.fillMaxWidth()
     ) {
         Column(modifier = Modifier.fillMaxWidth().padding(16.dp)) {
             Text(
@@ -1060,16 +1204,18 @@ private fun androidx.compose.foundation.lazy.LazyListScope.addCourseSections(
     courses: List<Course>,
     hiddenCourseIds: Set<String>,
     sectionTimes: Map<Int, String>,
-    onCourseClick: (courses: List<Course>, cardLeft: Float, cardTop: Float, cardWidth: Float, cardHeight: Float, snapshot: android.graphics.Bitmap?, courseIdToHide: String) -> Unit
+    onCourseClick: (courses: List<Course>, cardLeft: Float, cardTop: Float, cardWidth: Float, cardHeight: Float, snapshot: android.graphics.Bitmap?, courseIdToHide: String) -> Unit,
+    wallpaperBackdrop: Backdrop? = null,
+    blurRadius: Float = 0f
 ) {
     if (morningCourses.isNotEmpty()) {
         item {
             Column {
                 SmallTitle(text = "上午课程", modifier = Modifier.offset(x = (-15).dp))
-                Card(cornerRadius = 20.dp, modifier = Modifier.fillMaxWidth(), insideMargin = PaddingValues(0.dp)) {
+                BlurCard(cornerRadius = 20.dp, wallpaperBackdrop = wallpaperBackdrop, blurRadius = blurRadius, modifier = Modifier.fillMaxWidth()) {
                     Column {
                         morningCourses.forEach { course ->
-                            CourseItemWithClick(course, courses, hiddenCourseIds, sectionTimes, onCourseClick)
+                            CourseItemWithClick(course, courses, hiddenCourseIds, sectionTimes, onCourseClick, wallpaperBackdrop != null && blurRadius > 0f)
                         }
                     }
                 }
@@ -1080,10 +1226,10 @@ private fun androidx.compose.foundation.lazy.LazyListScope.addCourseSections(
         item {
             Column {
                 SmallTitle(text = "下午课程", modifier = Modifier.offset(x = (-15).dp))
-                Card(cornerRadius = 20.dp, modifier = Modifier.fillMaxWidth(), insideMargin = PaddingValues(0.dp)) {
+                BlurCard(cornerRadius = 20.dp, wallpaperBackdrop = wallpaperBackdrop, blurRadius = blurRadius, modifier = Modifier.fillMaxWidth()) {
                     Column {
                         afternoonCourses.forEach { course ->
-                            CourseItemWithClick(course, courses, hiddenCourseIds, sectionTimes, onCourseClick)
+                            CourseItemWithClick(course, courses, hiddenCourseIds, sectionTimes, onCourseClick, wallpaperBackdrop != null && blurRadius > 0f)
                         }
                     }
                 }
@@ -1094,10 +1240,10 @@ private fun androidx.compose.foundation.lazy.LazyListScope.addCourseSections(
         item {
             Column {
                 SmallTitle(text = "晚上课程", modifier = Modifier.offset(x = (-15).dp))
-                Card(cornerRadius = 20.dp, modifier = Modifier.fillMaxWidth(), insideMargin = PaddingValues(0.dp)) {
+                BlurCard(cornerRadius = 20.dp, wallpaperBackdrop = wallpaperBackdrop, blurRadius = blurRadius, modifier = Modifier.fillMaxWidth()) {
                     Column {
                         eveningCourses.forEach { course ->
-                            CourseItemWithClick(course, courses, hiddenCourseIds, sectionTimes, onCourseClick)
+                            CourseItemWithClick(course, courses, hiddenCourseIds, sectionTimes, onCourseClick, wallpaperBackdrop != null && blurRadius > 0f)
                         }
                     }
                 }
@@ -1124,7 +1270,8 @@ private fun CourseItemWithClick(
     allCourses: List<Course>,
     hiddenCourseIds: Set<String>,
     sectionTimes: Map<Int, String>,
-    onCourseClick: (courses: List<Course>, cardLeft: Float, cardTop: Float, cardWidth: Float, cardHeight: Float, snapshot: android.graphics.Bitmap?, courseIdToHide: String) -> Unit
+    onCourseClick: (courses: List<Course>, cardLeft: Float, cardTop: Float, cardWidth: Float, cardHeight: Float, snapshot: android.graphics.Bitmap?, courseIdToHide: String) -> Unit,
+    hasWallpaper: Boolean = false
 ) {
     var itemBounds by remember { mutableStateOf<androidx.compose.ui.geometry.Rect?>(null) }
     val isHidden = course.id in hiddenCourseIds
@@ -1136,7 +1283,7 @@ private fun CourseItemWithClick(
         Box(
             modifier = Modifier
                 .fillMaxWidth()
-                .background(MiuixTheme.colorScheme.background)
+                .then(if (hasWallpaper) Modifier else Modifier.background(MiuixTheme.colorScheme.background))
                 .onGloballyPositioned { coordinates ->
                     val position = coordinates.localToRoot(androidx.compose.ui.geometry.Offset.Zero)
                     val size = coordinates.size

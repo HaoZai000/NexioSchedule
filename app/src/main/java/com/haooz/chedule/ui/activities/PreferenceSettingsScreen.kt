@@ -48,6 +48,7 @@ import top.yukonga.miuix.kmp.icon.MiuixIcons
 import top.yukonga.miuix.kmp.icon.extended.Back
 import top.yukonga.miuix.kmp.preference.OverlayDropdownPreference
 import top.yukonga.miuix.kmp.preference.RadioButtonPreference
+import top.yukonga.miuix.kmp.preference.SwitchPreference
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 import top.yukonga.miuix.kmp.utils.overScrollVertical
 import top.yukonga.miuix.kmp.utils.scrollEndHaptic
@@ -183,6 +184,7 @@ fun PreferenceSettingsScreen(onBack: () -> Unit) {
                     }
                 }
                 item {
+                    val todayShowWallpaper by settingsViewModel.todayShowWallpaper.collectAsState()
 
                     Card(
                         cornerRadius = 20.dp,
@@ -215,6 +217,13 @@ fun PreferenceSettingsScreen(onBack: () -> Unit) {
                                 title = "应用风格",
                                 entry = appStyleEntry,
                                 collapseOnSelection = true
+                            )
+
+                            SwitchPreference(
+                                title = "今日页显示壁纸",
+                                summary = "开启后今日页显示课表页设置的壁纸",
+                                checked = todayShowWallpaper,
+                                onCheckedChange = { settingsViewModel.setTodayShowWallpaper(it) }
                             )
                         }
                     }

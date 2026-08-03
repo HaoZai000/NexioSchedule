@@ -42,6 +42,10 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
     private val _showNonCurrentWeek = MutableStateFlow(repository.getShowNonCurrentWeek())
     val showNonCurrentWeek: StateFlow<Boolean> = _showNonCurrentWeek.asStateFlow()
 
+    // 今日页显示壁纸
+    private val _todayShowWallpaper = MutableStateFlow(repository.getTodayShowWallpaper())
+    val todayShowWallpaper: StateFlow<Boolean> = _todayShowWallpaper.asStateFlow()
+
     // 上午节数
     private val _morningSections = MutableStateFlow(repository.getMorningSections())
     val morningSections: StateFlow<Int> = _morningSections.asStateFlow()
@@ -136,6 +140,7 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
         _nextDayReminderHour.value = repository.getNextDayReminderHour()
         _nextDayReminderMinute.value = repository.getNextDayReminderMinute()
         _islandNotification.value = repository.getIslandNotification()
+        _todayShowWallpaper.value = repository.getTodayShowWallpaper()
         _defaultHomepage.value = repository.getDefaultHomepage()
     }
 
@@ -147,6 +152,11 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
     fun setShowNonCurrentWeek(show: Boolean) {
         _showNonCurrentWeek.value = show
         repository.setShowNonCurrentWeek(show)
+    }
+
+    fun setTodayShowWallpaper(show: Boolean) {
+        _todayShowWallpaper.value = show
+        repository.setTodayShowWallpaper(show)
     }
 
     fun setDefaultHomepage(homepage: String) {

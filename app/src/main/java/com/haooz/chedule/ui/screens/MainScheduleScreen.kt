@@ -366,7 +366,8 @@ fun MainScheduleScreen(
                             cardBlurRadius = cardBlurRadius,
                             showBreakDividers = showBreakDividers,
                             currentSection = if (week == currentWeek) currentSection else -1,
-                            isTablet = isTablet
+                            isTablet = isTablet,
+                            hasWallpaper = wallpaperBitmap != null
                         )
 
                         // 按周计算要显示的天数范围（智能周末模式下，不同周可能显示不同天数）
