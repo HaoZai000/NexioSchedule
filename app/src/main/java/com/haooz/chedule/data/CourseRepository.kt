@@ -117,6 +117,7 @@ class CourseRepository private constructor(context: Context) {
         private const val KEY_COMBINATION_CARD_CORNER_PREFIX = "comb_card_corner_"
         private const val KEY_COMBINATION_WALLPAPER_BRIGHTNESS_PREFIX = "comb_wp_brightness_"
         private const val KEY_COMBINATION_SHOW_BREAK_DIVIDERS_PREFIX = "comb_break_div_"
+        private const val KEY_COMBINATION_CARD_CONTENT_ALIGNMENT_PREFIX = "comb_card_align_"
         // 多时间配置支持
         private const val KEY_TIME_CONFIG_IDS = "time_config_ids"
         private const val KEY_CURRENT_TIME_CONFIG_ID = "current_time_config_id"
@@ -1305,6 +1306,15 @@ class CourseRepository private constructor(context: Context) {
     }
 
     fun getCombinationShowBreakDividers(id: Long): Boolean = prefs.getBoolean("${KEY_COMBINATION_SHOW_BREAK_DIVIDERS_PREFIX}$id", true)
+
+    fun saveCombinationCardContentAlignment(id: Long, alignment: CardContentAlignment) {
+        prefs.edit {
+            putInt("${KEY_COMBINATION_CARD_CONTENT_ALIGNMENT_PREFIX}$id", alignment.ordinal)
+        }
+    }
+
+    fun getCombinationCardContentAlignment(id: Long): CardContentAlignment =
+        CardContentAlignment.fromOrdinal(prefs.getInt("${KEY_COMBINATION_CARD_CONTENT_ALIGNMENT_PREFIX}$id", 0))
 
     /** 迁移：如果只有旧的单搭配数据（无 combination_ids），将其作为 id=0 的搭配 */
     fun migrateToCombinationsIfNeeded() {

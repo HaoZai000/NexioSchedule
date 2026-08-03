@@ -119,6 +119,7 @@ fun MainScheduleScreen(
     cardCornerRadius: Float = 10f,
     wallpaperBrightness: Float = 0f,
     showBreakDividers: Boolean = true,
+    cardContentAlignment: com.haooz.chedule.data.CardContentAlignment = com.haooz.chedule.data.CardContentAlignment.TOP_START,
     liquidGlassBackdrop: com.kyant.backdrop.Backdrop? = null
 ) {
     val courses by viewModel.courses.collectAsState()
@@ -421,6 +422,7 @@ fun MainScheduleScreen(
                                 cardCornerRadius = cardCornerRadius,
                                 showBreakDividers = showBreakDividers,
                                 isTablet = isTablet,
+                                cardContentAlignment = cardContentAlignment,
                                 modifier = Modifier.weight(1f)
                             )
                         }

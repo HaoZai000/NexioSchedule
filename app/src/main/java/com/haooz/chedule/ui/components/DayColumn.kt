@@ -65,6 +65,7 @@ fun DayColumn(
     cardCornerRadius: Float = 10f,
     showBreakDividers: Boolean = true,
     isTablet: Boolean = false,
+    cardContentAlignment: com.haooz.chedule.data.CardContentAlignment = com.haooz.chedule.data.CardContentAlignment.TOP_START,
     modifier: Modifier = Modifier
 ) {
     val totalHeight = ((morningSections + afternoonSections + eveningSections) * cardHeightPerSection + (if (showBreakDividers) 24 * 2 else 0)).toInt()
@@ -559,6 +560,7 @@ fun DayColumn(
                             cardHeightPerSection = cardHeightPerSection,
                             cardCornerRadius = cardCornerRadius,
                             isTablet = isTablet,
+                            cardContentAlignment = cardContentAlignment,
                             onClick = {
                                 onPendingChange(-1, -1)
                                 onCourseClick(course)

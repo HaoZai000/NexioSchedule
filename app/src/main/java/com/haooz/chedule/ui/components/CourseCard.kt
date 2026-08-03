@@ -57,6 +57,7 @@ fun CourseCard(
     cardHeightPerSection: Float = 54f,
     cardCornerRadius: Float = 10f,
     isTablet: Boolean = false,
+    cardContentAlignment: com.haooz.chedule.data.CardContentAlignment = com.haooz.chedule.data.CardContentAlignment.TOP_START,
     onClick: () -> Unit,
     @SuppressLint("ModifierParameter") modifier: Modifier = Modifier
 ) {
@@ -142,7 +143,7 @@ fun CourseCard(
                     },
                 contentAlignment = Alignment.Center
             ) {
-                CardContent(course, sectionCount, textColor, hasMultipleCourses, isTablet)
+                CardContent(course, sectionCount, textColor, hasMultipleCourses, isTablet, cardContentAlignment)
             }
         }
     } else {
@@ -161,7 +162,7 @@ fun CourseCard(
             ),
             onClick = onClick
         ) {
-            CardContent(course, sectionCount, textColor, hasMultipleCourses, isTablet)
+            CardContent(course, sectionCount, textColor, hasMultipleCourses, isTablet, cardContentAlignment)
         }
     }
 }
@@ -170,7 +171,7 @@ fun CourseCard(
 private val overflowCache = java.util.concurrent.ConcurrentHashMap<String, Boolean>()
 
 @Composable
-private fun CardContent(course: Course, sectionCount: Int, textColor: Color, hasMultipleCourses: Boolean, isTablet: Boolean = false) {
+private fun CardContent(course: Course, sectionCount: Int, textColor: Color, hasMultipleCourses: Boolean, isTablet: Boolean = false, cardContentAlignment: com.haooz.chedule.data.CardContentAlignment = com.haooz.chedule.data.CardContentAlignment.TOP_START) {
     val footnote2Size = 10.5.sp
     val smallSize = (footnote2Size.value - 1.7).sp
 
@@ -181,12 +182,30 @@ private fun CardContent(course: Course, sectionCount: Int, textColor: Color, has
     val teacherOverflow = remember { mutableStateOf(overflowCache[teacherKey] ?: false) }
 
     Box(modifier = Modifier.fillMaxSize()) {
+        val verticalArrangement = when (cardContentAlignment) {
+            com.haooz.chedule.data.CardContentAlignment.TOP_START,
+            com.haooz.chedule.data.CardContentAlignment.TOP_CENTER -> Arrangement.Top
+            com.haooz.chedule.data.CardContentAlignment.CENTER_START,
+            com.haooz.chedule.data.CardContentAlignment.CENTER_CENTER -> Arrangement.Center
+        }
+        val horizontalAlignment = when (cardContentAlignment) {
+            com.haooz.chedule.data.CardContentAlignment.TOP_START,
+            com.haooz.chedule.data.CardContentAlignment.CENTER_START -> Alignment.Start
+            com.haooz.chedule.data.CardContentAlignment.TOP_CENTER,
+            com.haooz.chedule.data.CardContentAlignment.CENTER_CENTER -> Alignment.CenterHorizontally
+        }
+        val textAlign = when (cardContentAlignment) {
+            com.haooz.chedule.data.CardContentAlignment.TOP_START,
+            com.haooz.chedule.data.CardContentAlignment.CENTER_START -> TextAlign.Start
+            com.haooz.chedule.data.CardContentAlignment.TOP_CENTER,
+            com.haooz.chedule.data.CardContentAlignment.CENTER_CENTER -> TextAlign.Center
+        }
         Column(
             modifier = Modifier
                 .fillMaxSize()
                 .padding(horizontal = 4.dp, vertical = 6.dp),
-            horizontalAlignment = Alignment.Start,
-            verticalArrangement = Arrangement.Center
+            horizontalAlignment = horizontalAlignment,
+            verticalArrangement = verticalArrangement
         ) {
             Text(
                 text = course.name,
@@ -194,7 +213,7 @@ private fun CardContent(course: Course, sectionCount: Int, textColor: Color, has
                 fontSize = 12.5.sp,
                 lineHeight = 14.2.sp,
                 color = textColor,
-                textAlign = TextAlign.Start,
+                textAlign = textAlign,
                 maxLines = 3,
                 overflow = TextOverflow.Ellipsis
             )
@@ -205,7 +224,7 @@ private fun CardContent(course: Course, sectionCount: Int, textColor: Color, has
                     fontSize = if (classroomOverflow.value) smallSize else footnote2Size,
                     lineHeight = if (classroomOverflow.value) 11.sp else 12.sp,
                     color = textColor,
-                    textAlign = TextAlign.Start,
+                    textAlign = textAlign,
                     maxLines = 2,
                     overflow = TextOverflow.Ellipsis,
                     onTextLayout = { textLayoutResult ->
@@ -223,7 +242,7 @@ private fun CardContent(course: Course, sectionCount: Int, textColor: Color, has
                     text = course.teacher,
                     fontSize = if (teacherOverflow.value) smallSize else footnote2Size,
                     color = textColor,
-                    textAlign = TextAlign.Start,
+                    textAlign = textAlign,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
                     onTextLayout = { textLayoutResult ->

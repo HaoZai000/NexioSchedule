@@ -174,6 +174,8 @@ fun CustomizeScheduleScreen(
     initialCardCornerRadius: Float = 10f,
     onShowBreakDividersChange: (Boolean) -> Unit = {},
     initialShowBreakDividers: Boolean = true,
+    onCardContentAlignmentChange: (com.haooz.chedule.data.CardContentAlignment) -> Unit = {},
+    initialCardContentAlignment: com.haooz.chedule.data.CardContentAlignment = com.haooz.chedule.data.CardContentAlignment.TOP_START,
 ) {
     // ================================================================
     // 一、基础环境与尺寸计算
@@ -253,11 +255,13 @@ fun CustomizeScheduleScreen(
     var cardHeightValue by remember(currentCombinationIndex, sheetResetKey) { mutableFloatStateOf(initialCardHeight) }
     var cardCornerRadiusValue by remember(currentCombinationIndex, sheetResetKey) { mutableFloatStateOf(initialCardCornerRadius) }
     var showBreakDividersValue by remember(currentCombinationIndex, sheetResetKey) { mutableStateOf(initialShowBreakDividers) }
+    var cardContentAlignmentValue by remember(currentCombinationIndex, sheetResetKey) { mutableStateOf(initialCardContentAlignment) }
     LaunchedEffect(cardHeightValue, cardCornerRadiusValue) {
         delay(16.milliseconds)
         onCustomizeValueChange(cardHeightValue, cardCornerRadiusValue)
     }
     LaunchedEffect(showBreakDividersValue) { onShowBreakDividersChange(showBreakDividersValue) }
+    LaunchedEffect(cardContentAlignmentValue) { onCardContentAlignmentChange(cardContentAlignmentValue) }
 
     // --- 删除流程状态 ---
     // 长按删除遮罩：记录当前处于删除态的搭配 id（null 表示无遮罩）
@@ -1724,6 +1728,31 @@ fun CustomizeScheduleScreen(
                             )
                         }
                     }
+                    Card(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 16.dp),
+                        cornerRadius = 20.dp,
+                        colors = CardDefaults.defaultColors(
+                            color = if (isAppDarkTheme()) Color(0xFF363636).copy(alpha = 0.62f) else Color(0xFFFFFFFF).copy(alpha = 0.7f),
+                            contentColor = MiuixTheme.colorScheme.onSurface
+                        ),
+                    ) {
+                        val contentAlignmentEntry = top.yukonga.miuix.kmp.basic.DropdownEntry(
+                            items = com.haooz.chedule.data.CardContentAlignment.entries.map { alignment ->
+                                top.yukonga.miuix.kmp.basic.DropdownItem(
+                                    text = alignment.label,
+                                    selected = cardContentAlignmentValue == alignment,
+                                    onClick = { cardContentAlignmentValue = alignment }
+                                )
+                            }
+                        )
+                        top.yukonga.miuix.kmp.preference.OverlayDropdownPreference(
+                            title = "卡片内容对齐",
+                            entry = contentAlignmentEntry,
+                            collapseOnSelection = true
+                        )
+                    }
                     Spacer(Modifier.height(4.dp))
                 }
             }
@@ -1857,6 +1886,31 @@ fun CustomizeScheduleScreen(
                             onCheckedChange = { showBreakDividersValue = it }
                         )
                     }
+                }
+                Card(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 16.dp),
+                    cornerRadius = 20.dp,
+                    colors = CardDefaults.defaultColors(
+                        color = if (isAppDarkTheme()) Color(0xFF363636).copy(alpha = 0.62f) else Color(0xFFFFFFFF).copy(alpha = 0.7f),
+                        contentColor = MiuixTheme.colorScheme.onSurface
+                    ),
+                ) {
+                    val contentAlignmentEntry = top.yukonga.miuix.kmp.basic.DropdownEntry(
+                        items = com.haooz.chedule.data.CardContentAlignment.entries.map { alignment ->
+                            top.yukonga.miuix.kmp.basic.DropdownItem(
+                                text = alignment.label,
+                                selected = cardContentAlignmentValue == alignment,
+                                onClick = { cardContentAlignmentValue = alignment }
+                            )
+                        }
+                    )
+                    top.yukonga.miuix.kmp.preference.OverlayDropdownPreference(
+                        title = "卡片内容对齐",
+                        entry = contentAlignmentEntry,
+                        collapseOnSelection = true
+                    )
                 }
                 Spacer(Modifier.height(240.dp))
             }

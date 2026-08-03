@@ -17,5 +17,6 @@ data class Combination(
     var cardHeight: Float = 54f,
     var cardCornerRadius: Float = 10f,
     var wallpaperBrightness: Float = 0f,
-    var showBreakDividers: Boolean = true
+    var showBreakDividers: Boolean = true,
+    var cardContentAlignment: CardContentAlignment = CardContentAlignment.TOP_START
 )
