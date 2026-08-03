@@ -188,7 +188,7 @@ fun CourseEditScreen(
     screenCornerRadius: Float,
     cardSnapshot: Bitmap?,
     cardColor: Color = Color(0xFF4CAF50),
-    cardAlpha: Float = 0.15f,
+    cardAlpha: Float = 0.20f,
     onBackStart: () -> Unit,
     onBack: () -> Unit,
     onCourseUpdated: (Course) -> Unit = { _ -> },

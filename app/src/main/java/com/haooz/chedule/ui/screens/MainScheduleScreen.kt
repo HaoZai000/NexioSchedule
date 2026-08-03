@@ -114,7 +114,7 @@ fun MainScheduleScreen(
     onWallpaperOffsetChange: (androidx.compose.ui.geometry.Offset) -> Unit = {},
     onWallpaperScaleChange: (Float) -> Unit = {},
     cardBlurRadius: Float = 0f,
-    cardAlpha: Float = 0.15f,
+    cardAlpha: Float = 0.20f,
     cardHeightPerSection: Float = 54f,
     cardCornerRadius: Float = 10f,
     wallpaperBrightness: Float = 0f,

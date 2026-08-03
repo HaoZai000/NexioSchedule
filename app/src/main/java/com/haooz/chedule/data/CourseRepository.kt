@@ -1273,7 +1273,7 @@ class CourseRepository private constructor(context: Context) {
         }
     }
 
-    fun getCombinationCardAlpha(id: Long): Float = prefs.getFloat("${KEY_COMBINATION_CARD_ALPHA_PREFIX}$id", 0.15f)
+    fun getCombinationCardAlpha(id: Long): Float = prefs.getFloat("${KEY_COMBINATION_CARD_ALPHA_PREFIX}$id", 0.20f)
 
     fun saveCombinationCardHeight(id: Long, height: Float) {
         prefs.edit {

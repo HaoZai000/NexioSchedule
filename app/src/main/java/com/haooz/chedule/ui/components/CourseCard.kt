@@ -4,8 +4,9 @@ import android.annotation.SuppressLint
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
+import androidx.compose.foundation.gestures.awaitFirstDown
+import androidx.compose.foundation.gestures.waitForUpOrCancellation
 import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.ui.geometry.Offset
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
@@ -26,10 +27,9 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
-import androidx.compose.foundation.gestures.awaitFirstDown
-import androidx.compose.foundation.gestures.waitForUpOrCancellation
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
@@ -56,7 +56,7 @@ fun CourseCard(
     hasMultipleCourses: Boolean = false,
     wallpaperBackdrop: Backdrop? = null,
     cardBlurRadius: Float = 0f,
-    cardAlpha: Float = 0.15f,
+    cardAlpha: Float = 0.20f,
     cardHeightPerSection: Float = 54f,
     cardCornerRadius: Float = 10f,
     isTablet: Boolean = false,
@@ -68,6 +68,7 @@ fun CourseCard(
     val cardHeight = (sectionCount * cardHeightPerSection).dp
     val hasBlur = cardBlurRadius > 0f && wallpaperBackdrop != null
     val effectiveCornerRadius = if (isTablet) (cardCornerRadius * 1.3f) else cardCornerRadius
+    val isDark = isAppDarkTheme()
 
     val cardColor = if (isCurrentWeek) {
         Color(course.colorRes).copy(alpha = cardAlpha)
@@ -78,18 +79,22 @@ fun CourseCard(
         if (hasBlur) Color(course.colorRes).let { c ->
             val hsv = FloatArray(3)
             AndroidColor.RGBToHSV((c.red * 255).toInt(), (c.green * 255).toInt(), (c.blue * 255).toInt(), hsv)
-            hsv[1] = (hsv[1] * 2.0f).coerceIn(0f, 1f)
-            val boosted = AndroidColor.HSVToColor(hsv)
-            Color(AndroidColor.red(boosted), AndroidColor.green(boosted), AndroidColor.blue(boosted)).let { bc ->
-                Color(bc.red + (1f - bc.red) * 0.4f, bc.green + (1f - bc.green) * 0.4f, bc.blue + (1f - bc.blue) * 0.4f)
+            if (isDark) {
+                hsv[1] = (hsv[1] * 0.5f).coerceIn(0f, 1f)
+                hsv[2] = (hsv[2] + 0.4f).coerceIn(0f, 1f)
+            } else {
+                hsv[1] = (hsv[1] * 0.84f).coerceIn(0f, 1f)
+                hsv[2] = (hsv[2] + 0.5f).coerceIn(0f, 1f)
             }
+            val boosted = AndroidColor.HSVToColor(hsv)
+            Color(AndroidColor.red(boosted), AndroidColor.green(boosted), AndroidColor.blue(boosted))
         }
         else Color(course.colorRes)
     } else {
         if (hasBlur) {
-            Color.Black.copy(alpha = 0.5f)
+            if (isDark) Color.White.copy(alpha = 0.5f) else Color.Black.copy(alpha = 0.5f)
         } else {
-            Color(0xFF9E9E9E).copy(alpha = if (isAppDarkTheme()) 0.28f else 0.45f)
+            Color(0xFF9E9E9E).copy(alpha = if (isDark) 0.28f else 0.45f)
         }
     }
 
@@ -132,6 +137,9 @@ fun CourseCard(
                             drawRect(cardColor)
                         }
                     )
+                    .drawBehind {
+                        drawRect(color = if (isDark) Color.Black.copy(alpha = 0.14f) else Color.White.copy(alpha = 0.15f))
+                    }
                     .pointerInput(Unit) {
                         awaitPointerEventScope {
                             while (true) {

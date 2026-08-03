@@ -60,7 +60,7 @@ fun DayColumn(
     onPendingChange: (day: Int, section: Int) -> Unit = { _, _ -> },
     wallpaperBackdrop: Backdrop? = null,
     cardBlurRadius: Float = 0f,
-    cardAlpha: Float = 0.15f,
+    cardAlpha: Float = 0.20f,
     cardHeightPerSection: Float = 54f,
     cardCornerRadius: Float = 10f,
     showBreakDividers: Boolean = true,
@@ -140,7 +140,7 @@ fun DayColumn(
                                             },
                                             highlight = null,
                                             onDrawSurface = {
-                                                drawRect(Color(0xFF9E9E9E).copy(alpha = if (isDark) 0.13f else 0.15f))
+                                                drawRect( if (isDark) Color(0xFF242424).copy(alpha =0.64f) else Color(0xFFF0F0F0).copy(alpha =0.5f))
                                             }
                                         )
                                         .edgeLight(shape = RoundedRectangle(cardCornerRadius.dp), edgeLight = rememberDefaultEdgeLight())
@@ -153,7 +153,7 @@ fun DayColumn(
                                         showIndication = true,
                                         colors = CardDefaults.defaultColors(
                                             color = Color.Transparent,
-                                            contentColor = Color(0xFF6E6E6E).copy(alpha = if (isDark) 0.8f else 0.7f)
+                                            contentColor = if (isDark) Color(0xFFF0F0F0).copy(alpha =0.64f) else Color(0xFF242424).copy(alpha =0.5f)
                                         ),
                                         onClick = {
                                             hapticFeedback.performHapticFeedback(HapticFeedbackType.Confirm)
@@ -275,7 +275,7 @@ fun DayColumn(
                                             },
                                             highlight = null,
                                             onDrawSurface = {
-                                                drawRect(Color(0xFF9E9E9E).copy(alpha = if (isDark) 0.13f else 0.15f))
+                                                drawRect( if (isDark) Color(0xFF242424).copy(alpha =0.64f) else Color(0xFFF0F0F0).copy(alpha =0.5f))
                                             }
                                         )
                                         .edgeLight(shape = RoundedRectangle(cardCornerRadius.dp), edgeLight = rememberDefaultEdgeLight())
@@ -288,7 +288,7 @@ fun DayColumn(
                                         showIndication = true,
                                         colors = CardDefaults.defaultColors(
                                             color = Color.Transparent,
-                                            contentColor = Color(0xFF6E6E6E).copy(alpha = if (isDark) 0.7f else 0.85f)
+                                            contentColor = if (isDark) Color(0xFFF0F0F0).copy(alpha =0.64f) else Color(0xFF242424).copy(alpha =0.5f)
                                         ),
                                         onClick = {
                                             hapticFeedback.performHapticFeedback(HapticFeedbackType.Confirm)
@@ -409,7 +409,7 @@ fun DayColumn(
                                             },
                                             highlight = null,
                                             onDrawSurface = {
-                                                drawRect(Color(0xFF9E9E9E).copy(alpha = if (isDark) 0.13f else 0.15f))
+                                                drawRect( if (isDark) Color(0xFF242424).copy(alpha =0.64f) else Color(0xFFF0F0F0).copy(alpha =0.5f))
                                             }
                                         )
                                         .edgeLight(shape = RoundedRectangle(cardCornerRadius.dp), edgeLight = rememberDefaultEdgeLight())
@@ -422,7 +422,7 @@ fun DayColumn(
                                         showIndication = true,
                                         colors = CardDefaults.defaultColors(
                                             color = Color.Transparent,
-                                            contentColor = Color(0xFF6E6E6E).copy(alpha = if (isDark) 0.7f else 0.85f)
+                                            contentColor = if (isDark) Color(0xFFF0F0F0).copy(alpha =0.64f) else Color(0xFF242424).copy(alpha =0.5f)
                                         ),
                                         onClick = {
                                             hapticFeedback.performHapticFeedback(HapticFeedbackType.Confirm)

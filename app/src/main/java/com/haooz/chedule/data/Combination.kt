@@ -13,7 +13,7 @@ data class Combination(
     var scale: Float,
     var snapshot: Bitmap? = null,
     var cardBlurRadius: Float = 0f,
-    var cardAlpha: Float = 0.15f,
+    var cardAlpha: Float = 0.20f,
     var cardHeight: Float = 54f,
     var cardCornerRadius: Float = 10f,
     var wallpaperBrightness: Float = 0f,

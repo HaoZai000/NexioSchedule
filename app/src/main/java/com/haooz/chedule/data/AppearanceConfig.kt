@@ -11,7 +11,7 @@ package com.haooz.chedule.data
  */
 data class AppearanceConfig(
     val cardBlurRadius: Float = 0f,
-    val cardAlpha: Float = 0.15f,
+    val cardAlpha: Float = 0.20f,
     val cardHeight: Float = 54f,
     val cardCornerRadius: Float = 10f,
     val wallpaperBrightness: Float = 0f,

@@ -83,6 +83,6 @@ data class EdgeLight(
 fun rememberDefaultEdgeLight(): EdgeLight {
     val isLightTheme = !isAppDarkTheme()
     val color = if (isLightTheme) Color.White.copy(alpha = 0.5f)
-                else Color.White.copy(alpha = 1f)
+                else Color.White.copy(alpha = 0.8f)
     return remember(isLightTheme) { EdgeLight.Uniform(color = color) }
 }
