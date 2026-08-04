@@ -3,7 +3,6 @@ package com.haooz.chedule.ui.components
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.CubicBezierEasing
 import androidx.compose.animation.core.tween
-import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
@@ -58,15 +57,16 @@ fun ShortcutMenu(
     show: Boolean,
     items: List<ShortcutMenuItem>,
     modifier: Modifier = Modifier,
-    backdrop: Backdrop? = null,
+    backdrop: Backdrop,
     onDismiss: () -> Unit = {},
     onMeasuredSize: (width: Int, height: Int) -> Unit = { _, _ -> }
 ) {
-    val isDark = isAppDarkTheme()
+    val isLightTheme = !isAppDarkTheme()
     val density = LocalDensity.current
 
-    val containerColor = if (isDark) Color(0xFF1E1E1E).copy(alpha = 0.85f)
-    else Color(0xFFF5F5F5).copy(alpha = 0.85f)
+    val containerColor =
+        if (isLightTheme) Color(0xFFFFFFFF).copy(0.6f)
+        else Color(0xFF121212).copy(0.54f)
 
     val scale = remember { Animatable(0f) }
     val alpha = remember { Animatable(0f) }
@@ -133,34 +133,21 @@ fun ShortcutMenu(
             modifier = Modifier
                 .wrapContentSize()
                 .padding(ShadowPadding)
-                .let { mod ->
-                    if (backdrop != null) {
-                        mod.drawBackdrop(
-                            backdrop = backdrop,
-                            shape = { RoundedRectangle(18.dp) },
-                            effects = {
-                                vibrancy()
-                                blur(2f.dp.toPx())
-                                lens(18f.dp.toPx(), 18f.dp.toPx())
-                            },
-                            highlight = null,
-                            shadow = null,
-                            onDrawSurface = {
-                                drawRect(containerColor)
-                            }
-                        )
-                    } else {
-                        mod.clip(RoundedRectangle(18.dp))
-                            .background(containerColor)
+                .drawBackdrop(
+                    backdrop = backdrop,
+                    shape = { RoundedRectangle(18.dp) },
+                    effects = {
+                        vibrancy()
+                        blur(4f.dp.toPx())
+                        lens(12f.dp.toPx(), 12f.dp.toPx())
+                    },
+                    highlight = null,
+                    shadow = null,
+                    onDrawSurface = {
+                        drawRect(containerColor)
                     }
-                }
-                .let { mod ->
-                    if (backdrop != null) {
-                        mod.edgeLight(shape = RoundedRectangle(18.dp), edgeLight = rememberDefaultEdgeLight())
-                    } else {
-                        mod
-                    }
-                }
+                )
+                .edgeLight(shape = RoundedRectangle(18.dp), edgeLight = rememberDefaultEdgeLight())
                 .clickable(
                     indication = null,
                     interactionSource = remember { MutableInteractionSource() }

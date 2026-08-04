@@ -3,6 +3,7 @@ package com.haooz.chedule.ui.activities
 
 import android.annotation.SuppressLint
 import android.graphics.Bitmap
+import android.widget.Toast
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
@@ -48,6 +49,7 @@ import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.platform.LocalConfiguration
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
@@ -107,9 +109,13 @@ fun CourseManageScreen(
         cardAlpha: Float
     ) -> Unit = { _, _, _, _, _, _, _, _ -> },
     onNewCourseCreated: (com.haooz.chedule.data.Course) -> Unit = {},
-    onCourseLongPress: (courses: List<com.haooz.chedule.data.Course>, left: Float, top: Float) -> Unit = { _, _, _ -> }
+    onCourseUpdated: (oldName: String, updated: com.haooz.chedule.data.Course) -> Unit = { _, _ -> },
+    onEditDismiss: () -> Unit = {},
+    pendingEditCourse: com.haooz.chedule.data.Course? = null,
+    onCourseLongPress: (courses: List<com.haooz.chedule.data.Course>, left: Float, top: Float, width: Float, height: Float) -> Unit = { _, _, _, _, _ -> }
 ) {
     val hapticFeedback = LocalHapticFeedback.current
+    val context = LocalContext.current
     val courses by viewModel.courses.collectAsState()
     val scrollBehavior = MiuixScrollBehavior()
     var listScrollY by remember { mutableIntStateOf(0) }
@@ -157,6 +163,17 @@ fun CourseManageScreen(
     var newCourseColor by remember { mutableLongStateOf(com.haooz.chedule.data.Course.courseColors.first()) }
     var showCustomColorDialog by remember { mutableStateOf(false) }
     var customColor by remember { mutableStateOf(ComposeColor(com.haooz.chedule.data.Course.courseColors.first())) }
+    var editingCourse by remember { mutableStateOf<com.haooz.chedule.data.Course?>(null) }
+
+    // 接收外部传入的编辑课程
+    LaunchedEffect(pendingEditCourse) {
+        if (pendingEditCourse != null) {
+            editingCourse = pendingEditCourse
+            newCourseName = pendingEditCourse.name
+            newCourseColor = pendingEditCourse.colorRes
+            showNewCourseDialog = true
+        }
+    }
 
     // 新课程入场动画跟踪
     var newlyAddedCourseNames by remember { mutableStateOf(setOf<String>()) }
@@ -333,8 +350,8 @@ fun CourseManageScreen(
                                     onClick = { left, top, width, height, snapshot ->
                                         onCourseClick(courseList, left, top, width, height, snapshot, Color(representative.colorRes), 0.20f)
                                     },
-                                    onLongPress = { left, top ->
-                                        onCourseLongPress(courseList, left, top)
+                                    onLongPress = { left, top, width, height ->
+                                        onCourseLongPress(courseList, left, top, width, height)
                                     }
                                 )
                             }
@@ -360,11 +377,17 @@ fun CourseManageScreen(
         }
     }
 
-    // 新建课程弹窗
+    // 新建/编辑课程弹窗
     OverlayDialog(
-        title = "新建课程",
+        title = if (editingCourse != null) "编辑课程" else "新建课程",
         show = showNewCourseDialog,
-        onDismissRequest = { showNewCourseDialog = false }
+        onDismissRequest = {
+            showNewCourseDialog = false
+            editingCourse = null
+            newCourseName = ""
+            newCourseColor = com.haooz.chedule.data.Course.courseColors.first()
+            onEditDismiss()
+        }
     ) {
         Column(
             modifier = Modifier.fillMaxWidth(),
@@ -605,6 +628,10 @@ fun CourseManageScreen(
                     onClick = {
                         hapticFeedback.performHapticFeedback(HapticFeedbackType.Confirm)
                         showNewCourseDialog = false
+                        editingCourse = null
+                        newCourseName = ""
+                        newCourseColor = com.haooz.chedule.data.Course.courseColors.first()
+                        onEditDismiss()
                     },
                     modifier = Modifier.weight(1f)
                 )
@@ -613,21 +640,40 @@ fun CourseManageScreen(
                     onClick = {
                         hapticFeedback.performHapticFeedback(HapticFeedbackType.Confirm)
                         if (newCourseName.isNotBlank()) {
-                            val course = com.haooz.chedule.data.Course(
-                                id = java.util.UUID.randomUUID().toString(),
-                                name = newCourseName.trim(),
-                                classroom = "",
-                                teacher = "",
-                                dayOfWeek = 0,
-                                startSection = 0,
-                                endSection = 0,
-                                startWeek = 0,
-                                endWeek = 0,
-                                weekType = com.haooz.chedule.data.Course.WEEK_TYPE_ALL,
-                                colorRes = newCourseColor
-                            )
-                            pendingNewCourse = course
-                            showNewCourseDialog = false
+                            if (editingCourse != null) {
+                                val oldName = editingCourse!!.name
+                                val newName = newCourseName.trim()
+                                val updated = editingCourse!!.copy(
+                                    name = newName,
+                                    colorRes = newCourseColor
+                                )
+                                onCourseUpdated(oldName, updated)
+                                showNewCourseDialog = false
+                                editingCourse = null
+                                newCourseName = ""
+                                newCourseColor = com.haooz.chedule.data.Course.courseColors.first()
+                                onEditDismiss()
+                            } else {
+                                if (courses.any { it.name == newCourseName.trim() }) {
+                                    Toast.makeText(context, "已存在同名课程", Toast.LENGTH_SHORT).show()
+                                } else {
+                                    val course = com.haooz.chedule.data.Course(
+                                        id = java.util.UUID.randomUUID().toString(),
+                                        name = newCourseName.trim(),
+                                        classroom = "",
+                                        teacher = "",
+                                        dayOfWeek = 0,
+                                        startSection = 0,
+                                        endSection = 0,
+                                        startWeek = 0,
+                                        endWeek = 0,
+                                        weekType = com.haooz.chedule.data.Course.WEEK_TYPE_ALL,
+                                        colorRes = newCourseColor
+                                    )
+                                    pendingNewCourse = course
+                                    showNewCourseDialog = false
+                                }
+                            }
                         }
                     },
                     colors = ButtonDefaults.textButtonColorsPrimary(),
@@ -695,7 +741,7 @@ private fun CourseManageCard(
     daySectionInfo: String,
     isHidden: Boolean = false,
     onClick: (left: Float, top: Float, width: Float, height: Float, snapshot: Bitmap?) -> Unit,
-    onLongPress: (left: Float, top: Float) -> Unit = { _, _ -> }
+    onLongPress: (left: Float, top: Float, width: Float, height: Float) -> Unit = { _, _, _, _ -> }
 ) {
     var cardLeft by remember { mutableFloatStateOf(0f) }
     var cardTop by remember { mutableFloatStateOf(0f) }
@@ -721,7 +767,7 @@ private fun CourseManageCard(
                     onClick(cardLeft, cardTop, cardWidth, cardHeight, null)
                 },
                 onLongClick = {
-                    onLongPress(cardLeft, cardTop)
+                    onLongPress(cardLeft, cardTop, cardWidth, cardHeight)
                 }
             )
     ) {

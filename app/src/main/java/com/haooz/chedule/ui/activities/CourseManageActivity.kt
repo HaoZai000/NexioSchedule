@@ -9,12 +9,16 @@ import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.tween
+import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.asPaddingValues
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.offset
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBars
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
@@ -37,6 +41,8 @@ import androidx.compose.ui.graphics.rememberGraphicsLayer
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalWindowInfo
 import androidx.compose.ui.unit.DpOffset
+import androidx.compose.ui.unit.IntOffset
+import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.zIndex
 import androidx.lifecycle.viewmodel.compose.viewModel
@@ -100,6 +106,7 @@ class CourseManageActivity : ComponentActivity() {
                 val editLiquidGlassBackdrop = if (appStyle == "liquidglass") {
                     com.kyant.backdrop.backdrops.rememberLayerBackdrop()
                 } else null
+                val shortcutMenuBackdrop = com.kyant.backdrop.backdrops.rememberLayerBackdrop()
                 val isLiquidGlass = liquidGlassBackdrop != null
                 val courseViewModel: CourseViewModel = viewModel()
 
@@ -122,6 +129,12 @@ class CourseManageActivity : ComponentActivity() {
                 var shortcutMenuPosition by remember { mutableStateOf(androidx.compose.ui.geometry.Offset.Zero) }
                 var shortcutMenuCourses by remember { mutableStateOf<List<Course>>(emptyList()) }
                 var shortcutMenuHeight by remember { mutableFloatStateOf(0f) }
+                var shortcutMenuCardWidth by remember { mutableFloatStateOf(0f) }
+                var shortcutMenuCardHeight by remember { mutableFloatStateOf(0f) }
+                val shortcutMenuBlurRadius = remember { Animatable(0f) }
+                val shortcutMenuCardScale = remember { Animatable(1f) }
+                var shortcutMenuSnapshot by remember { mutableStateOf<androidx.compose.ui.graphics.ImageBitmap?>(null) }
+                var editingCourse by remember { mutableStateOf<Course?>(null) }
 
                 // Track course IDs created in this session for cleanup on exit
                 var createdCourseIds by remember { mutableStateOf(setOf<String>()) }
@@ -140,6 +153,21 @@ class CourseManageActivity : ComponentActivity() {
 
                 // Graphics layer for capturing screen content
                 val screenGraphicsLayer = rememberGraphicsLayer()
+
+                LaunchedEffect(showShortcutMenu) {
+                    if (showShortcutMenu) {
+                        launch { shortcutMenuBlurRadius.animateTo(10f, tween(280)) }
+                        launch { shortcutMenuCardScale.animateTo(1.05f, tween(280)) }
+                    } else {
+                        launch { shortcutMenuBlurRadius.animateTo(0f, tween(200)) }
+                        launch { shortcutMenuCardScale.animateTo(1f, tween(200)) }
+                    }
+                }
+
+                // 返回键关闭菜单
+                androidx.activity.compose.BackHandler(enabled = showShortcutMenu) {
+                    showShortcutMenu = false
+                }
 
                 // Background scale animation (same as MainActivity)
                 val backgroundScale = remember { Animatable(1f) }
@@ -180,7 +208,7 @@ class CourseManageActivity : ComponentActivity() {
                     // Main content with blur and scale animation
                     Box(modifier = Modifier
                         .fillMaxSize()
-                        .blur(managePageBlurRadius.value.dp)
+                        .blur(if (shortcutMenuBlurRadius.value > 0.01f) shortcutMenuBlurRadius.value.dp else managePageBlurRadius.value.dp)
                         .background(MiuixTheme.colorScheme.surface)) {
                         Box(
                             modifier = Modifier
@@ -227,7 +255,7 @@ class CourseManageActivity : ComponentActivity() {
                                             )
                                             LiquidTopBarButton(
                                                 onClick = { finish() },
-                                                backdrop = liquidGlassBackdrop,
+                                                backdrop = shortcutMenuBackdrop,
                                                 icon = MiuixIcons.Medium.ChevronBackward,
                                                 contentDescription = "返回",
                                                 modifier = Modifier
@@ -261,10 +289,22 @@ class CourseManageActivity : ComponentActivity() {
                                                 courseViewModel.addCourse(course)
                                                 createdCourseIds = createdCourseIds + course.id
                                             },
-                                            onCourseLongPress = { courses, left, top ->
+                                            onCourseUpdated = { oldName, course ->
+                                                courseViewModel.updateCoursesByName(oldName, course)
+                                            },
+                                            onEditDismiss = {
+                                                editingCourse = null
+                                            },
+                                            pendingEditCourse = editingCourse,
+                                            onCourseLongPress = { courses, left, top, width, height ->
                                                 shortcutMenuCourses = courses
                                                 shortcutMenuPosition = androidx.compose.ui.geometry.Offset(left, top)
-                                                showShortcutMenu = true
+                                                shortcutMenuCardWidth = width
+                                                shortcutMenuCardHeight = height
+                                                coroutineScope.launch {
+                                                    shortcutMenuSnapshot = screenGraphicsLayer.toImageBitmap()
+                                                    showShortcutMenu = true
+                                                }
                                             },
                                             onCourseClick = { courses, left, top, width, height, _, color, alpha ->
                                                 coroutineScope.launch {
@@ -399,6 +439,61 @@ class CourseManageActivity : ComponentActivity() {
                         )
                     }
 
+                    // Shortcut菜单遮罩层
+                    if (showShortcutMenu || shortcutMenuBlurRadius.value > 0.01f) {
+                        val snapshot = shortcutMenuSnapshot
+                        val cardLeft = shortcutMenuPosition.x
+                        val cardTop = shortcutMenuPosition.y
+                        val cardW = shortcutMenuCardWidth
+                        val cardH = shortcutMenuCardHeight
+
+                        // 点击空白区域关闭菜单
+                        Box(
+                            modifier = Modifier
+                                .fillMaxSize()
+                                .clickable(
+                                    indication = null,
+                                    interactionSource = remember { MutableInteractionSource() }
+                                ) { showShortcutMenu = false }
+                        )
+
+                        // 卡片快照（清晰，在最顶层）
+                        if (snapshot != null && cardW > 0f && cardH > 0f) {
+                            Canvas(
+                                modifier = Modifier
+                                    .offset(
+                                        x = with(density) { cardLeft.toDp() },
+                                        y = with(density) { cardTop.toDp() }
+                                    )
+                                    .size(
+                                        width = with(density) { cardW.toDp() },
+                                        height = with(density) { cardH.toDp() }
+                                    )
+                                    .graphicsLayer {
+                                        scaleX = shortcutMenuCardScale.value
+                                        scaleY = shortcutMenuCardScale.value
+                                    }
+                            ) {
+                                val cornerRadius = 16.dp.toPx()
+                                val squirclePath = Path().apply {
+                                    addSquircleRect(
+                                        width = size.width,
+                                        height = size.height,
+                                        cornerRadius = cornerRadius
+                                    )
+                                }
+                                clipPath(squirclePath) {
+                                    drawImage(
+                                        image = snapshot,
+                                        srcOffset = IntOffset(cardLeft.toInt(), cardTop.toInt()),
+                                        srcSize = IntSize(cardW.toInt(), cardH.toInt()),
+                                        dstSize = IntSize(size.width.toInt(), size.height.toInt())
+                                    )
+                                }
+                            }
+                        }
+                    }
+
                     // Shortcut菜单
                     val shortcutMenuDensity = density
                     com.haooz.chedule.ui.components.ShortcutMenu(
@@ -409,44 +504,11 @@ class CourseManageActivity : ComponentActivity() {
                                 label = "编辑",
                                 onClick = {
                                     if (shortcutMenuCourses.isNotEmpty()) {
+                                        val courseToEdit = shortcutMenuCourses.first()
+                                        showShortcutMenu = false
                                         coroutineScope.launch {
-                                            selectedCourses = shortcutMenuCourses
-                                            cardLeft = shortcutMenuPosition.x
-                                            cardTop = shortcutMenuPosition.y
-                                            cardWidth = 0f
-                                            cardHeight = 0f
-                                            cardColor = Color(shortcutMenuCourses.first().colorRes)
-                                            cardAlpha = 0.20f
-                                            hiddenCourseIds = shortcutMenuCourses.map { it.id }.toSet()
-                                            editedCourseIds = editedCourseIds + shortcutMenuCourses.map { it.id }
-
-                                            val fullSnapshot = screenGraphicsLayer.toImageBitmap().asAndroidBitmap()
-                                            cardSnapshot = try {
-                                                val x = shortcutMenuPosition.x.toInt().coerceIn(0, fullSnapshot.width - 1)
-                                                val y = shortcutMenuPosition.y.toInt().coerceIn(0, fullSnapshot.height - 1)
-                                                val w = (fullSnapshot.width - x).coerceIn(1, fullSnapshot.width)
-                                                val h = (fullSnapshot.height - y).coerceIn(1, fullSnapshot.height)
-                                                android.graphics.Bitmap.createBitmap(fullSnapshot, x, y, w, h)
-                                            } catch (_: Exception) {
-                                                null
-                                            }
-
-                                            showEditScreen = true
-                                            launch {
-                                                delay(12.milliseconds)
-                                                launch {
-                                                    backgroundScale.animateTo(
-                                                        targetValue = 0.92f,
-                                                        animationSpec = tween(560, easing = OobeQuartOutEasing)
-                                                    )
-                                                }
-                                                launch {
-                                                    managePageBlurRadius.animateTo(
-                                                        targetValue = 5f,
-                                                        animationSpec = tween(560, easing = OobeQuartOutEasing)
-                                                    )
-                                                }
-                                            }
+                                            delay(240.milliseconds)
+                                            editingCourse = courseToEdit
                                         }
                                     }
                                 }
@@ -455,18 +517,22 @@ class CourseManageActivity : ComponentActivity() {
                                 icon = MiuixIcons.Delete,
                                 label = "删除",
                                 onClick = {
-                                    shortcutMenuCourses.forEach { course ->
-                                        courseViewModel.deleteCourse(course.id)
-                                    }
+                                    val coursesToDelete = shortcutMenuCourses.toList()
                                     showShortcutMenu = false
+                                    coroutineScope.launch {
+                                        delay(240.milliseconds)
+                                        coursesToDelete.forEach { course ->
+                                            courseViewModel.deleteCourse(course.id)
+                                        }
+                                    }
                                 }
                             )
                         ),
                         modifier = Modifier.offset(
-                            x = with(shortcutMenuDensity) { shortcutMenuPosition.x.toDp() - 12.dp },
-                            y = with(shortcutMenuDensity) { shortcutMenuPosition.y.toDp() - shortcutMenuHeight.toDp() + 6.dp }
+                            x = with(shortcutMenuDensity) { shortcutMenuPosition.x.toDp() - 14.dp },
+                            y = with(shortcutMenuDensity) { shortcutMenuPosition.y.toDp() - shortcutMenuHeight.toDp() + 4.dp }
                         ),
-                        backdrop = liquidGlassBackdrop,
+                        backdrop = shortcutMenuBackdrop,
                         onDismiss = { showShortcutMenu = false },
                         onMeasuredSize = { _, height ->
                             shortcutMenuHeight = height.toFloat()

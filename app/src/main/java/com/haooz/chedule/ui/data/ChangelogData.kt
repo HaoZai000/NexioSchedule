@@ -12,7 +12,10 @@ val changelogData = listOf(
         changes = listOf(
             "为Pad端进行适配",
             "适配HyperOS无极窗口",
-            "优化液态玻璃材质"
+            "新增今日页支持显示壁纸（可在「我的」-「应用偏好设置」中关闭）",
+            "课程管理支持长按卡片进行 [ 编辑 / 删除 ] ",
+            "优化液态玻璃材质",
+            "优化课程卡片可读性",
         )
     ),
     ChangelogEntry(

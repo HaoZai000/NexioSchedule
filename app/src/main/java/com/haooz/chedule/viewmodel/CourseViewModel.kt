@@ -263,6 +263,13 @@ class CourseViewModel(application: Application) : AndroidViewModel(application) 
     }
 
     /**
+     * 按旧名称更新所有同名课程
+     */
+    fun updateCoursesByName(oldName: String, updated: Course) {
+        _courses.value = repository.updateCoursesByName(oldName, updated)
+    }
+
+    /**
      * 删除课程
      */
     fun deleteCourse(courseId: String) {

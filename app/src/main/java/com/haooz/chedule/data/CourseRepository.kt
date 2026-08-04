@@ -340,6 +340,29 @@ class CourseRepository private constructor(context: Context) {
     }
 
     /**
+     * 按旧名称更新所有同名课程
+     */
+    fun updateCoursesByName(oldName: String, updated: Course): List<Course> {
+        val courses = getAllCourses().toMutableList()
+        var changed = false
+        for (i in courses.indices) {
+            if (courses[i].name == oldName) {
+                courses[i] = courses[i].copy(
+                    name = updated.name,
+                    colorRes = updated.colorRes,
+                    lastModified = System.currentTimeMillis()
+                )
+                changed = true
+            }
+        }
+        if (changed) {
+            saveCourses(courses, notify = false)
+            onCourseChanged?.invoke("update", updated.id)
+        }
+        return courses
+    }
+
+    /**
      * 删除课程
      */
     fun deleteCourse(courseId: String): List<Course> {
