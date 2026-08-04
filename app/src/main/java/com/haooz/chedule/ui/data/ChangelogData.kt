@@ -7,13 +7,27 @@ data class ChangelogEntry(
 )
 val changelogData = listOf(
     ChangelogEntry(
-        version = "v1.3.5-0805",
-        date = "2026-08-05",
+        version = "v1.3.8-0810",
+        date = "2026-08-10",
+        changes = listOf(
+            "",
+            "",
+            "",
+            "",
+            "",
+            "",
+            "提示：在1.4.0版本后将不会再提供应用风格选择，将统一为类HyperOS4风格（不会完全一致），重要功能会在1.4.0前补齐"
+        )
+    ),
+    ChangelogEntry(
+        version = "v1.3.7-0806",
+        date = "2026-08-06",
         changes = listOf(
             "为Pad端进行适配",
             "适配HyperOS无极窗口",
             "新增今日页支持显示壁纸（可在「我的」-「应用偏好设置」中关闭）",
             "课程管理支持长按卡片进行 [ 编辑 / 删除 ] ",
+            "新增支持调节课程卡片内容对齐方式",
             "优化液态玻璃材质",
             "优化课程卡片可读性",
         )

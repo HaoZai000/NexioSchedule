@@ -4,8 +4,8 @@ import android.annotation.SuppressLint
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
+import androidx.compose.foundation.gestures.awaitEachGesture
 import androidx.compose.foundation.gestures.awaitFirstDown
-import androidx.compose.foundation.gestures.waitForUpOrCancellation
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -24,13 +24,17 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.drawBehind
+import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.input.pointer.PointerEventPass
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
@@ -43,10 +47,13 @@ import com.kyant.backdrop.drawBackdrop
 import com.kyant.backdrop.effects.blur
 import com.kyant.backdrop.effects.lens
 import com.kyant.shapes.RoundedRectangle
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
 import top.yukonga.miuix.kmp.basic.Card
 import top.yukonga.miuix.kmp.basic.CardDefaults
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 import top.yukonga.miuix.kmp.utils.PressFeedbackType
+import kotlin.time.Duration.Companion.milliseconds
 import android.graphics.Color as AndroidColor
 
 @Composable
@@ -61,7 +68,13 @@ fun CourseCard(
     cardCornerRadius: Float = 10f,
     isTablet: Boolean = false,
     cardContentAlignment: com.haooz.chedule.data.CardContentAlignment = com.haooz.chedule.data.CardContentAlignment.CENTER_CENTER,
+    isDragging: Boolean = false,
+    disablePadding: Boolean = false,
     onClick: () -> Unit,
+    onLongPressStart: (cardLeft: Float, cardTop: Float, width: Float, height: Float) -> Unit = { _, _, _, _ -> },
+    onDragStart: () -> Unit = {},
+    onDrag: (offsetX: Float, offsetY: Float) -> Unit = { _, _ -> },
+    onDragEnd: () -> Unit = {},
     @SuppressLint("ModifierParameter") modifier: Modifier = Modifier
 ) {
     val sectionCount = course.endSection - course.startSection + 1
@@ -69,6 +82,7 @@ fun CourseCard(
     val hasBlur = cardBlurRadius > 0f && wallpaperBackdrop != null
     val effectiveCornerRadius = if (isTablet) (cardCornerRadius * 1.3f) else cardCornerRadius
     val isDark = isAppDarkTheme()
+    val scope = rememberCoroutineScope()
 
     val cardColor = if (isCurrentWeek) {
         Color(course.colorRes).copy(alpha = cardAlpha)
@@ -102,6 +116,9 @@ fun CourseCard(
         key(effectiveCornerRadius) {
             var isPressed by remember { mutableStateOf(false) }
             val scale = remember { Animatable(1f) }
+            var cardPosition by remember { mutableStateOf(Offset.Zero) }
+            var cardSize by remember { mutableStateOf(Offset.Zero) }
+            var layoutCoordinates by remember { mutableStateOf<androidx.compose.ui.layout.LayoutCoordinates?>(null) }
             LaunchedEffect(isPressed) {
                 if (isPressed) {
                     scale.animateTo(
@@ -120,10 +137,17 @@ fun CourseCard(
                 modifier = modifier
                     .fillMaxWidth()
                     .height(cardHeight)
-                    .padding(horizontal = 2.dp, vertical = 2.dp)
+                    .then(if (disablePadding) Modifier else Modifier.padding(horizontal = 2.dp, vertical = 2.dp))
                     .graphicsLayer {
                         scaleX = scale.value
                         scaleY = scale.value
+                        alpha = if (isDragging) 0f else 1f
+                    }
+                    .onGloballyPositioned { coordinates ->
+                        layoutCoordinates = coordinates
+                        val position = coordinates.localToRoot(Offset.Zero)
+                        cardPosition = position
+                        cardSize = Offset(coordinates.size.width.toFloat(), coordinates.size.height.toFloat())
                     }
                     .drawBackdrop(
                         backdrop = wallpaperBackdrop,
@@ -141,20 +165,75 @@ fun CourseCard(
                         drawRect(color = if (isDark) Color.Black.copy(alpha = 0.14f) else Color.White.copy(alpha = 0.15f))
                     }
                     .pointerInput(Unit) {
-                        awaitPointerEventScope {
-                            while (true) {
-                                val down = awaitFirstDown(requireUnconsumed = false)
-                                down.consume()
-                                isPressed = true
-                                val up = waitForUpOrCancellation()
+                        awaitEachGesture {
+                            val down = awaitFirstDown(requireUnconsumed = false)
+                            down.consume()
+                            isPressed = true
+                            val downPosition = down.position
+                            var isLongPress = false
+                            var isDraggingCard = false
+                            var menuShown = false
+                            var menuShowPosition = downPosition
+                            // 长按定时器：按住不动到时触发，不再依赖 pointer event 唤醒
+                            val longPressJob = scope.launch {
+                                delay(viewConfiguration.longPressTimeoutMillis.milliseconds)
+                                isLongPress = true
                                 isPressed = false
-                                if (up != null) {
-                                    up.consume()
-                                    val dist = (up.position - down.position).getDistance()
-                                    if (dist < 8f * density) {
-                                        onClick()
+                                menuShown = true
+                                onLongPressStart(
+                                    cardPosition.x,
+                                    cardPosition.y,
+                                    cardSize.x,
+                                    cardSize.y
+                                )
+                            }
+                            try {
+                                while (true) {
+                                    val event = awaitPointerEvent(PointerEventPass.Main)
+                                    val pressed = event.changes.any { it.pressed }
+                                    if (!pressed) {
+                                        isPressed = false
+                                        if (isDraggingCard) {
+                                            isDraggingCard = false
+                                            onDragEnd()
+                                        } else if (menuShown) {
+                                            // 菜单已显示，松手 → 菜单保持
+                                        } else {
+                                            val upChange = event.changes.firstOrNull()
+                                            if (upChange != null) {
+                                                upChange.consume()
+                                                val dist = (upChange.position - downPosition).getDistance()
+                                                if (!isLongPress && dist < 8f * density) {
+                                                    onClick()
+                                                }
+                                            }
+                                        }
+                                        break
                                     }
+                                    val currentPos = event.changes.firstOrNull()?.position ?: continue
+                                    // 长按前：手指移动超过8dp → 取消长按（当作滚动）
+                                    val dragDist = (currentPos - downPosition).getDistance()
+                                    if (!isLongPress && dragDist > 8f * density) {
+                                        isPressed = false
+                                        event.changes.forEach { it.consume() }
+                                        break
+                                    }
+                                    // 菜单已显示：从菜单弹出位置算，移动超过8dp才触发拖拽
+                                    if (menuShown && !isDraggingCard) {
+                                        val menuDragDist = (currentPos - menuShowPosition).getDistance()
+                                        if (menuDragDist > 8f * density) {
+                                            menuShown = false
+                                            isDraggingCard = true
+                                            onDragStart()
+                                        }
+                                    }
+                                    if (isDraggingCard) {
+                                        onDrag(currentPos.x - downPosition.x, currentPos.y - downPosition.y)
+                                    }
+                                    event.changes.forEach { it.consume() }
                                 }
+                            } finally {
+                                longPressJob.cancel()
                             }
                         }
                     },
@@ -164,22 +243,103 @@ fun CourseCard(
             }
         }
     } else {
-        Card(
+        var cardPosition by remember { mutableStateOf(Offset.Zero) }
+        var cardSize by remember { mutableStateOf(Offset.Zero) }
+        var layoutCoordinates by remember { mutableStateOf<androidx.compose.ui.layout.LayoutCoordinates?>(null) }
+        Box(
             modifier = modifier
                 .fillMaxWidth()
                 .height(cardHeight)
-                .padding(horizontal = 2.dp, vertical = 2.dp),
-            cornerRadius = effectiveCornerRadius.dp,
-            insideMargin = PaddingValues(0.dp),
-            pressFeedbackType = PressFeedbackType.Sink,
-            showIndication = true,
-            colors = CardDefaults.defaultColors(
-                color = cardColor,
-                contentColor = MiuixTheme.colorScheme.onSurface
-            ),
-            onClick = onClick
+                .then(if (disablePadding) Modifier else Modifier.padding(horizontal = 2.dp, vertical = 2.dp))
+                .graphicsLayer {
+                    alpha = if (isDragging) 0f else 1f
+                }
+                .onGloballyPositioned { coordinates ->
+                    layoutCoordinates = coordinates
+                    val position = coordinates.localToRoot(Offset.Zero)
+                    cardPosition = position
+                    cardSize = Offset(coordinates.size.width.toFloat(), coordinates.size.height.toFloat())
+                }
+                .pointerInput(Unit) {
+                    awaitEachGesture {
+                        val down = awaitFirstDown(requireUnconsumed = false)
+                        down.consume()
+                        val downPosition = down.position
+                        var isLongPress = false
+                        var isDraggingCard = false
+                        var menuShown = false
+                        var menuShowPosition = downPosition
+                        val longPressJob = scope.launch {
+                            delay(viewConfiguration.longPressTimeoutMillis)
+                            isLongPress = true
+                            menuShown = true
+                            onLongPressStart(
+                                cardPosition.x,
+                                cardPosition.y,
+                                cardSize.x,
+                                cardSize.y
+                            )
+                        }
+                        try {
+                            while (true) {
+                                val event = awaitPointerEvent(PointerEventPass.Main)
+                                val pressed = event.changes.any { it.pressed }
+                                if (!pressed) {
+                                    if (isDraggingCard) {
+                                        isDraggingCard = false
+                                        onDragEnd()
+                                    } else if (menuShown) {
+                                    } else {
+                                        val upChange = event.changes.firstOrNull()
+                                        if (upChange != null) {
+                                            upChange.consume()
+                                            val dist = (upChange.position - downPosition).getDistance()
+                                            if (!isLongPress && dist < 8f * density) {
+                                                onClick()
+                                            }
+                                        }
+                                    }
+                                    break
+                                }
+                                val currentPos = event.changes.firstOrNull()?.position ?: continue
+                                val dragDist = (currentPos - downPosition).getDistance()
+                                if (!isLongPress && dragDist > 8f * density) {
+                                    event.changes.forEach { it.consume() }
+                                    break
+                                }
+                                if (menuShown && !isDraggingCard) {
+                                    val menuDragDist = (currentPos - menuShowPosition).getDistance()
+                                    if (menuDragDist > 8f * density) {
+                                        menuShown = false
+                                        isDraggingCard = true
+                                        onDragStart()
+                                    }
+                                }
+                                if (isDraggingCard) {
+                                    onDrag(currentPos.x - downPosition.x, currentPos.y - downPosition.y)
+                                }
+                                event.changes.forEach { it.consume() }
+                            }
+                        } finally {
+                            longPressJob.cancel()
+                        }
+                    }
+                }
         ) {
-            CardContent(course, sectionCount, textColor, hasMultipleCourses, isTablet, cardContentAlignment)
+            Card(
+                modifier = Modifier.fillMaxSize(),
+                cornerRadius = effectiveCornerRadius.dp,
+                insideMargin = PaddingValues(0.dp),
+                pressFeedbackType = PressFeedbackType.Sink,
+                showIndication = true,
+                colors = CardDefaults.defaultColors(
+                    color = cardColor,
+                    contentColor = MiuixTheme.colorScheme.onSurface
+                ),
+                onClick = {}
+            ) {
+                CardContent(course, sectionCount, textColor, hasMultipleCourses, isTablet, cardContentAlignment)
+            }
         }
     }
 }

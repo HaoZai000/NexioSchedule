@@ -1,6 +1,7 @@
 /** 日期列组件 - 显示单日课程列表 */
 package com.haooz.chedule.ui.components
 
+import android.annotation.SuppressLint
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.combinedClickable
@@ -66,7 +67,12 @@ fun DayColumn(
     showBreakDividers: Boolean = true,
     isTablet: Boolean = false,
     cardContentAlignment: com.haooz.chedule.data.CardContentAlignment = com.haooz.chedule.data.CardContentAlignment.CENTER_CENTER,
-    modifier: Modifier = Modifier
+    draggingCourseIds: Set<String> = emptySet(),
+    onCourseLongPress: (course: Course, cardLeft: Float, cardTop: Float, width: Float, height: Float, backdrop: Backdrop?) -> Unit = { _, _, _, _, _, _ -> },
+    onCourseDragStart: (courseId: String) -> Unit = { _ -> },
+    onCourseDrag: (courseId: String, offsetX: Float, offsetY: Float) -> Unit = { _, _, _ -> },
+    onCourseDragEnd: (courseId: String) -> Unit = { _ -> },
+    @SuppressLint("ModifierParameter") modifier: Modifier = Modifier
 ) {
     val totalHeight = ((morningSections + afternoonSections + eveningSections) * cardHeightPerSection + (if (showBreakDividers) 24 * 2 else 0)).toInt()
     val isDark = isAppDarkTheme()
@@ -561,9 +567,22 @@ fun DayColumn(
                             cardCornerRadius = cardCornerRadius,
                             isTablet = isTablet,
                             cardContentAlignment = cardContentAlignment,
+                            isDragging = displayCourse.id in draggingCourseIds,
                             onClick = {
                                 onPendingChange(-1, -1)
                                 onCourseClick(course)
+                            },
+                            onLongPressStart = { left, top, width, height ->
+                                onCourseLongPress(course, left, top, width, height, wallpaperBackdrop)
+                            },
+                            onDragStart = {
+                                onCourseDragStart(course.id)
+                            },
+                            onDrag = { offsetX, offsetY ->
+                                onCourseDrag(course.id, offsetX, offsetY)
+                            },
+                            onDragEnd = {
+                                onCourseDragEnd(course.id)
                             }
                         )
                     }

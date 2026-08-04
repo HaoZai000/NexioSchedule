@@ -104,9 +104,14 @@ fun MainScheduleScreen(
     pagerState: PagerState,
     currentDayOfWeek: Int,
     hiddenCourseIds: Set<String> = emptySet(),
+    draggingCourseIds: Set<String> = emptySet(),
     onCourseClick: (courses: List<Course>, cardLeft: Float, cardTop: Float, cardWidth: Float, cardHeight: Float, snapshot: android.graphics.Bitmap?, courseIdToHide: String) -> Unit = { _, _, _, _, _, _, _ -> },
     onPopupStateChange: (Boolean) -> Unit = {},
     onEmptyLongPress: () -> Unit = {},
+    onCourseLongPress: (course: Course, cardLeft: Float, cardTop: Float, width: Float, height: Float, backdrop: com.kyant.backdrop.Backdrop?) -> Unit = { _, _, _, _, _, _ -> },
+    onCourseDragStart: (courseId: String) -> Unit = { _ -> },
+    onCourseDrag: (courseId: String, offsetX: Float, offsetY: Float) -> Unit = { _, _, _ -> },
+    onCourseDragEnd: (courseId: String) -> Unit = { _ -> },
     wallpaperBitmap: android.graphics.Bitmap? = null,
     wallpaperOffset: androidx.compose.ui.geometry.Offset = androidx.compose.ui.geometry.Offset.Zero,
     wallpaperScale: Float = 1f,
@@ -424,6 +429,13 @@ fun MainScheduleScreen(
                                 showBreakDividers = showBreakDividers,
                                 isTablet = isTablet,
                                 cardContentAlignment = cardContentAlignment,
+                                draggingCourseIds = draggingCourseIds,
+                                onCourseLongPress = { course, left, top, width, height, _ ->
+                                    onCourseLongPress(course, left, top, width, height, courseCardBackdrop)
+                                },
+                                onCourseDragStart = onCourseDragStart,
+                                onCourseDrag = onCourseDrag,
+                                onCourseDragEnd = onCourseDragEnd,
                                 modifier = Modifier.weight(1f)
                             )
                         }

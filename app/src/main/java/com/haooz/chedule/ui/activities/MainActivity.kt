@@ -78,10 +78,13 @@ import androidx.window.embedding.SplitController
 import com.haooz.chedule.data.Course
 import com.haooz.chedule.reminder.CourseReminderHelper
 import com.haooz.chedule.reminder.IslandNotificationHelper
+import com.haooz.chedule.ui.components.CourseCard
 import com.haooz.chedule.ui.components.LongPressCustomizeButton
 import com.haooz.chedule.ui.components.ScheduleBottomBar
 import com.haooz.chedule.ui.components.ScheduleTopBar
 import com.haooz.chedule.ui.components.ShareImportDialog
+import com.haooz.chedule.ui.components.ShortcutMenu
+import com.haooz.chedule.ui.components.ShortcutMenuItem
 import com.haooz.chedule.ui.components.UpdateDialog
 import com.haooz.chedule.ui.effects.liquidglass.LiquidAddButton
 import com.haooz.chedule.ui.effects.liquidglass.LiquidGlassDropdownMenu
@@ -121,6 +124,8 @@ import top.yukonga.miuix.kmp.blur.BlurDefaults
 import top.yukonga.miuix.kmp.blur.layerBackdrop
 import top.yukonga.miuix.kmp.blur.rememberLayerBackdrop
 import top.yukonga.miuix.kmp.icon.MiuixIcons
+import top.yukonga.miuix.kmp.icon.extended.Delete
+import top.yukonga.miuix.kmp.icon.extended.Edit
 import top.yukonga.miuix.kmp.icon.extended.More
 import top.yukonga.miuix.kmp.icon.extended.Reset
 import top.yukonga.miuix.kmp.squircle.addSquircleRect
@@ -314,9 +319,8 @@ fun CourseScheduleApp() {
     }
     val isDark = isAppDarkTheme()
     val appStyle = rememberAppStyle()
-    val liquidGlassBackdrop = if (appStyle == "liquidglass") {
-        com.kyant.backdrop.backdrops.rememberLayerBackdrop()
-    } else null
+    // 始终创建液态玻璃 backdrop，供长按卡片菜单等组件采样（不受 appStyle 限制）
+    val liquidGlassBackdrop = com.kyant.backdrop.backdrops.rememberLayerBackdrop()
     val blurColors = BlurDefaults.blurColors(
         blendColors = listOf(
             if (isDark) BlendColorEntry(
@@ -383,6 +387,19 @@ fun CourseScheduleApp() {
 
     var detailFromToday by remember { mutableStateOf(false) }
     var hiddenCourseIds by remember { mutableStateOf(setOf<String>()) }
+
+    // 拖拽课程卡片状态
+    var isDraggingCard by remember { mutableStateOf(false) }
+    var draggingCourseIds by remember { mutableStateOf(setOf<String>()) }
+    var draggedCardCourse by remember { mutableStateOf<Course?>(null) }
+    var draggedCardPosition by remember { mutableStateOf(Offset.Zero) }
+    var draggedCardSize by remember { mutableStateOf(Offset.Zero) }
+    var draggedCardOffset by remember { mutableStateOf(Offset.Zero) }
+    var draggedCardBackdrop by remember { mutableStateOf<com.kyant.backdrop.Backdrop?>(null) }
+    // 快捷菜单状态
+    var shortcutMenuCourse by remember { mutableStateOf<Course?>(null) }
+    var shortcutMenuPosition by remember { mutableStateOf(Offset.Zero) }
+    var shortcutMenuBackdrop by remember { mutableStateOf<com.kyant.backdrop.Backdrop?>(null) }
 
     // 长按空白区域"自定义课表"按钮状态
     var showLongPressButton by remember { mutableStateOf(false) }
@@ -939,6 +956,7 @@ fun CourseScheduleApp() {
                 )
             }
         }) {
+        val displayAppearance = if (showCustomizePage && !isWindowCutoutActive) originalAppearance else appearance
         val isEntryAnimating = showSwitchSchedule && switchAnimForward && switchAnimRunning
         val mainContentAlpha = when {
             showSwitchSchedule && switchScreenSnapshot != null -> 0f
@@ -1122,12 +1140,11 @@ fun CourseScheduleApp() {
                 ) {
                     Box(
                         modifier = Modifier.fillMaxSize().then(
-                            if (liquidGlassBackdrop != null) Modifier.liquidGlassLayerBackdrop(liquidGlassBackdrop)
+                            if (appStyle == "liquidglass" && liquidGlassBackdrop != null) Modifier.liquidGlassLayerBackdrop(liquidGlassBackdrop)
                             else Modifier
                         )
                     ) {
                     if (!isShiftMode) {
-                        val displayAppearance = if (showCustomizePage && !isWindowCutoutActive) originalAppearance else appearance
                         when (selectedTab) {
                             0 -> TodayScreen(
                                 viewModel = viewModel,
@@ -1166,6 +1183,7 @@ fun CourseScheduleApp() {
                                 pagerState = pagerState,
                                 currentDayOfWeek = currentDayOfWeek,
                                 hiddenCourseIds = hiddenCourseIds,
+                                draggingCourseIds = draggingCourseIds,
                                 onCourseClick = { courses, left, top, width, height, _, courseIdToHide ->
                                     openCourseDetail(courses, left, top, width, height, fromToday = false, courseIdToHide = courseIdToHide)
                                 },
@@ -1173,6 +1191,32 @@ fun CourseScheduleApp() {
                                 onEmptyLongPress = {
                                     hapticFeedback.performHapticFeedback(HapticFeedbackType.LongPress)
                                     showLongPressButton = true
+                                },
+                                onCourseLongPress = { course, left, top, width, height, backdrop ->
+                                    hapticFeedback.performHapticFeedback(HapticFeedbackType.LongPress)
+                                    isDraggingCard = true
+                                    draggingCourseIds = setOf(course.id)
+                                    draggedCardCourse = course
+                                    draggedCardPosition = Offset(left, top)
+                                    draggedCardOffset = Offset.Zero
+                                    draggedCardSize = Offset(width, height)
+                                    draggedCardBackdrop = backdrop
+                                    shortcutMenuCourse = course
+                                    shortcutMenuPosition = Offset(left, top)
+                                    shortcutMenuBackdrop = backdrop
+                                },
+                                onCourseDragStart = { courseId ->
+                                    shortcutMenuCourse = null
+                                },
+                                onCourseDrag = { courseId, offsetX, offsetY ->
+                                    draggedCardOffset = Offset(offsetX, offsetY)
+                                },
+                                onCourseDragEnd = { courseId ->
+                                    isDraggingCard = false
+                                    draggingCourseIds = emptySet()
+                                    draggedCardCourse = null
+                                    draggedCardOffset = Offset.Zero
+                                    shortcutMenuCourse = null
                                 },
                                 wallpaperBitmap = if (showCustomizePage && !isWindowCutoutActive) originalWallpaperBitmap else wallpaperBitmap,
                                 wallpaperOffset = if (showCustomizePage && !isWindowCutoutActive) originalWallpaperOffset else wallpaperOffset,
@@ -1255,6 +1299,7 @@ fun CourseScheduleApp() {
                     },
                     onDismiss = { showLongPressButton = false }
                 )
+
                 // 分享导入确认弹窗（必须在 Scaffold 内部）
                 ShareImportDialog(
                     activity = activity,
@@ -1320,6 +1365,103 @@ fun CourseScheduleApp() {
                     },
                     onDelete = { courseId ->
                         viewModel.deleteCourse(courseId)
+                    }
+                )
+            }
+        }
+        // 拖拽课程卡片浮层
+        if (isDraggingCard) {
+            val course = draggedCardCourse
+            if (course != null) {
+                val offset2dp = with(density) { 2.dp.toPx() }
+                val offset3dp = with(density) { 3.dp.toPx() }
+                val offsetX = with(density) { (draggedCardPosition.x + draggedCardOffset.x - offset2dp).toDp() }
+                val offsetY = with(density) { (draggedCardPosition.y + draggedCardOffset.y - offset3dp).toDp() }
+                val width = with(density) { draggedCardSize.x.toDp() }
+                val height = with(density) { draggedCardSize.y.toDp() }
+
+                Box(
+                    modifier = Modifier
+                        .offset(x = offsetX, y = offsetY)
+                        .size(width = width, height = height)
+                ) {
+                    CourseCard(
+                        course = course,
+                        isCurrentWeek = course.isActiveInWeek(currentWeek),
+                        wallpaperBackdrop = liquidGlassBackdrop,
+                        cardBlurRadius = displayAppearance.cardBlurRadius,
+                        cardAlpha = displayAppearance.cardAlpha,
+                        cardHeightPerSection = displayAppearance.cardHeight,
+                        cardCornerRadius = displayAppearance.cardCornerRadius,
+                        isTablet = isTablet,
+                        cardContentAlignment = displayAppearance.cardContentAlignment,
+                        disablePadding = true,
+                        onClick = {}
+                    )
+                }
+            }
+        }
+        // 快捷菜单：点击外部关闭
+        if (shortcutMenuCourse != null) {
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .clickable(
+                        interactionSource = remember { MutableInteractionSource() },
+                        indication = null
+                    ) {
+                        shortcutMenuCourse = null
+                        isDraggingCard = false
+                        draggingCourseIds = emptySet()
+                        draggedCardCourse = null
+                        draggedCardOffset = Offset.Zero
+                    }
+            )
+        }
+        // 快捷菜单浮层
+        val activeShortcutCourse = shortcutMenuCourse
+        if (activeShortcutCourse != null) {
+            val menuBackdrop = liquidGlassBackdrop
+            if (menuBackdrop != null) {
+                ShortcutMenu(
+                    show = true,
+                    items = listOf(
+                        ShortcutMenuItem(
+                            icon = MiuixIcons.Edit,
+                            label = "编辑",
+                            onClick = {
+                                shortcutMenuCourse = null
+                                isDraggingCard = false
+                                draggingCourseIds = emptySet()
+                                draggedCardCourse = null
+                                draggedCardOffset = Offset.Zero
+                                viewModel.showEditDialog(activeShortcutCourse)
+                            }
+                        ),
+                        ShortcutMenuItem(
+                            icon = MiuixIcons.Delete,
+                            label = "删除",
+                            onClick = {
+                                shortcutMenuCourse = null
+                                isDraggingCard = false
+                                draggingCourseIds = emptySet()
+                                draggedCardCourse = null
+                                draggedCardOffset = Offset.Zero
+                                viewModel.deleteCourse(activeShortcutCourse.id)
+                            }
+                        )
+                    ),
+                    modifier = Modifier.offset(
+                        x = with(density) { shortcutMenuPosition.x.toDp() },
+                        y = with(density) { shortcutMenuPosition.y.toDp() - 60.dp }
+                    ),
+                    backdrop = menuBackdrop,
+                    onDismiss = {
+                        shortcutMenuCourse = null
+                        isDraggingCard = false
+                        draggingCourseIds = emptySet()
+                        draggedCardCourse = null
+                        draggedCardOffset = Offset.Zero
                     }
                 )
             }

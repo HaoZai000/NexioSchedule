@@ -133,6 +133,7 @@ class CourseManageActivity : ComponentActivity() {
                 var shortcutMenuCardHeight by remember { mutableFloatStateOf(0f) }
                 val shortcutMenuBlurRadius = remember { Animatable(0f) }
                 val shortcutMenuCardScale = remember { Animatable(1f) }
+                val shortcutMenuPageScale = remember { Animatable(1f) }
                 var shortcutMenuSnapshot by remember { mutableStateOf<androidx.compose.ui.graphics.ImageBitmap?>(null) }
                 var editingCourse by remember { mutableStateOf<Course?>(null) }
 
@@ -157,10 +158,12 @@ class CourseManageActivity : ComponentActivity() {
                 LaunchedEffect(showShortcutMenu) {
                     if (showShortcutMenu) {
                         launch { shortcutMenuBlurRadius.animateTo(10f, tween(280)) }
-                        launch { shortcutMenuCardScale.animateTo(1.05f, tween(280)) }
+                        launch { shortcutMenuCardScale.animateTo(1.04f, tween(280)) }
+                        launch { shortcutMenuPageScale.animateTo(0.98f, tween(280)) }
                     } else {
-                        launch { shortcutMenuBlurRadius.animateTo(0f, tween(200)) }
-                        launch { shortcutMenuCardScale.animateTo(1f, tween(200)) }
+                        launch { shortcutMenuBlurRadius.animateTo(0f, tween(250)) }
+                        launch { shortcutMenuCardScale.animateTo(1f, tween(250)) }
+                        launch { shortcutMenuPageScale.animateTo(1f, tween(250)) }
                     }
                 }
 
@@ -209,6 +212,10 @@ class CourseManageActivity : ComponentActivity() {
                     Box(modifier = Modifier
                         .fillMaxSize()
                         .blur(if (shortcutMenuBlurRadius.value > 0.01f) shortcutMenuBlurRadius.value.dp else managePageBlurRadius.value.dp)
+                        .graphicsLayer {
+                            scaleX = shortcutMenuPageScale.value
+                            scaleY = shortcutMenuPageScale.value
+                        }
                         .background(MiuixTheme.colorScheme.surface)) {
                         Box(
                             modifier = Modifier
@@ -507,7 +514,7 @@ class CourseManageActivity : ComponentActivity() {
                                         val courseToEdit = shortcutMenuCourses.first()
                                         showShortcutMenu = false
                                         coroutineScope.launch {
-                                            delay(240.milliseconds)
+                                            delay(260.milliseconds)
                                             editingCourse = courseToEdit
                                         }
                                     }
@@ -520,7 +527,7 @@ class CourseManageActivity : ComponentActivity() {
                                     val coursesToDelete = shortcutMenuCourses.toList()
                                     showShortcutMenu = false
                                     coroutineScope.launch {
-                                        delay(240.milliseconds)
+                                        delay(260.milliseconds)
                                         coursesToDelete.forEach { course ->
                                             courseViewModel.deleteCourse(course.id)
                                         }
