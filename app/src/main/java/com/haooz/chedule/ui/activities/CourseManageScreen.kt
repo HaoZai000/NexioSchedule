@@ -7,6 +7,8 @@ import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
+import androidx.compose.foundation.combinedClickable
+import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -67,8 +69,8 @@ import top.yukonga.miuix.kmp.basic.Icon
 import top.yukonga.miuix.kmp.basic.IconButton
 import top.yukonga.miuix.kmp.basic.MiuixScrollBehavior
 import top.yukonga.miuix.kmp.basic.Scaffold
-import top.yukonga.miuix.kmp.basic.TextButton
 import top.yukonga.miuix.kmp.basic.SmallTopAppBar
+import top.yukonga.miuix.kmp.basic.TextButton
 import top.yukonga.miuix.kmp.basic.TopAppBar
 import top.yukonga.miuix.kmp.blur.BlendColorEntry
 import top.yukonga.miuix.kmp.blur.BlurBlendMode
@@ -104,7 +106,8 @@ fun CourseManageScreen(
         cardColor: Color,
         cardAlpha: Float
     ) -> Unit = { _, _, _, _, _, _, _, _ -> },
-    onNewCourseCreated: (com.haooz.chedule.data.Course) -> Unit = {}
+    onNewCourseCreated: (com.haooz.chedule.data.Course) -> Unit = {},
+    onCourseLongPress: (courses: List<com.haooz.chedule.data.Course>, left: Float, top: Float) -> Unit = { _, _, _ -> }
 ) {
     val hapticFeedback = LocalHapticFeedback.current
     val courses by viewModel.courses.collectAsState()
@@ -329,6 +332,9 @@ fun CourseManageScreen(
                                     isHidden = courseList.any { it.id in hiddenCourseIds },
                                     onClick = { left, top, width, height, snapshot ->
                                         onCourseClick(courseList, left, top, width, height, snapshot, Color(representative.colorRes), 0.20f)
+                                    },
+                                    onLongPress = { left, top ->
+                                        onCourseLongPress(courseList, left, top)
                                     }
                                 )
                             }
@@ -348,11 +354,11 @@ fun CourseManageScreen(
                                 )
                             }
                         }
+                    }
                 }
             }
         }
     }
-}
 
     // 新建课程弹窗
     OverlayDialog(
@@ -688,20 +694,16 @@ private fun CourseManageCard(
     cardAlpha: Float = 0.20f,
     daySectionInfo: String,
     isHidden: Boolean = false,
-    onClick: (left: Float, top: Float, width: Float, height: Float, snapshot: Bitmap?) -> Unit
+    onClick: (left: Float, top: Float, width: Float, height: Float, snapshot: Bitmap?) -> Unit,
+    onLongPress: (left: Float, top: Float) -> Unit = { _, _ -> }
 ) {
     var cardLeft by remember { mutableFloatStateOf(0f) }
     var cardTop by remember { mutableFloatStateOf(0f) }
     var cardWidth by remember { mutableFloatStateOf(0f) }
     var cardHeight by remember { mutableFloatStateOf(0f) }
+    val interactionSource = remember { MutableInteractionSource() }
 
-    Card(
-        cornerRadius = 16.dp,
-        showIndication = true,
-        insideMargin = PaddingValues(16.dp),
-        colors = CardDefaults.defaultColors(
-            color = if (isHidden) ComposeColor.Transparent else color.copy(alpha = cardAlpha)
-        ),
+    Box(
         modifier = Modifier
             .fillMaxWidth()
             .onGloballyPositioned { coordinates ->
@@ -711,17 +713,27 @@ private fun CourseManageCard(
                 cardTop = position.y
                 cardWidth = size.width.toFloat()
                 cardHeight = size.height.toFloat()
-            },
-        onClick = {
-            onClick(
-                cardLeft,
-                cardTop,
-                cardWidth,
-                cardHeight,
-                null
+            }
+            .combinedClickable(
+                interactionSource = interactionSource,
+                indication = null,
+                onClick = {
+                    onClick(cardLeft, cardTop, cardWidth, cardHeight, null)
+                },
+                onLongClick = {
+                    onLongPress(cardLeft, cardTop)
+                }
             )
-        }
     ) {
+        Card(
+            cornerRadius = 16.dp,
+            showIndication = true,
+            insideMargin = PaddingValues(16.dp),
+            colors = CardDefaults.defaultColors(
+                color = if (isHidden) ComposeColor.Transparent else color.copy(alpha = cardAlpha)
+            ),
+            modifier = Modifier.fillMaxWidth()
+        ) {
         Column(modifier = Modifier.graphicsLayer { alpha = if (isHidden) 0f else 1f }) {
             Box(
                 modifier = Modifier
@@ -770,6 +782,7 @@ private fun CourseManageCard(
             }
         }
     }
+}
 }
 
 @Composable

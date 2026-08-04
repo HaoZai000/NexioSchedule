@@ -58,6 +58,8 @@ import top.yukonga.miuix.kmp.blur.layerBackdrop
 import top.yukonga.miuix.kmp.blur.rememberLayerBackdrop
 import top.yukonga.miuix.kmp.icon.MiuixIcons
 import top.yukonga.miuix.kmp.icon.extended.ChevronBackward
+import top.yukonga.miuix.kmp.icon.extended.Delete
+import top.yukonga.miuix.kmp.icon.extended.Edit
 import top.yukonga.miuix.kmp.squircle.addSquircleRect
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 import kotlin.time.Duration.Companion.milliseconds
@@ -114,6 +116,12 @@ class CourseManageActivity : ComponentActivity() {
                 var hiddenCourseIds by remember { mutableStateOf(setOf<String>()) }
                 var shrinkingCourseIds by remember { mutableStateOf(setOf<String>()) }
                 var pendingAutoExitDeleteIds by remember { mutableStateOf(setOf<String>()) }
+
+                // Shortcut菜单状态
+                var showShortcutMenu by remember { mutableStateOf(false) }
+                var shortcutMenuPosition by remember { mutableStateOf(androidx.compose.ui.geometry.Offset.Zero) }
+                var shortcutMenuCourses by remember { mutableStateOf<List<Course>>(emptyList()) }
+                var shortcutMenuHeight by remember { mutableFloatStateOf(0f) }
 
                 // Track course IDs created in this session for cleanup on exit
                 var createdCourseIds by remember { mutableStateOf(setOf<String>()) }
@@ -253,6 +261,11 @@ class CourseManageActivity : ComponentActivity() {
                                                 courseViewModel.addCourse(course)
                                                 createdCourseIds = createdCourseIds + course.id
                                             },
+                                            onCourseLongPress = { courses, left, top ->
+                                                shortcutMenuCourses = courses
+                                                shortcutMenuPosition = androidx.compose.ui.geometry.Offset(left, top)
+                                                showShortcutMenu = true
+                                            },
                                             onCourseClick = { courses, left, top, width, height, _, color, alpha ->
                                                 coroutineScope.launch {
                                                     selectedCourses = courses
@@ -385,6 +398,80 @@ class CourseManageActivity : ComponentActivity() {
                             liquidGlassBackdrop = editLiquidGlassBackdrop
                         )
                     }
+
+                    // Shortcut菜单
+                    val shortcutMenuDensity = density
+                    com.haooz.chedule.ui.components.ShortcutMenu(
+                        show = showShortcutMenu,
+                        items = listOf(
+                            com.haooz.chedule.ui.components.ShortcutMenuItem(
+                                icon = MiuixIcons.Edit,
+                                label = "编辑",
+                                onClick = {
+                                    if (shortcutMenuCourses.isNotEmpty()) {
+                                        coroutineScope.launch {
+                                            selectedCourses = shortcutMenuCourses
+                                            cardLeft = shortcutMenuPosition.x
+                                            cardTop = shortcutMenuPosition.y
+                                            cardWidth = 0f
+                                            cardHeight = 0f
+                                            cardColor = Color(shortcutMenuCourses.first().colorRes)
+                                            cardAlpha = 0.20f
+                                            hiddenCourseIds = shortcutMenuCourses.map { it.id }.toSet()
+                                            editedCourseIds = editedCourseIds + shortcutMenuCourses.map { it.id }
+
+                                            val fullSnapshot = screenGraphicsLayer.toImageBitmap().asAndroidBitmap()
+                                            cardSnapshot = try {
+                                                val x = shortcutMenuPosition.x.toInt().coerceIn(0, fullSnapshot.width - 1)
+                                                val y = shortcutMenuPosition.y.toInt().coerceIn(0, fullSnapshot.height - 1)
+                                                val w = (fullSnapshot.width - x).coerceIn(1, fullSnapshot.width)
+                                                val h = (fullSnapshot.height - y).coerceIn(1, fullSnapshot.height)
+                                                android.graphics.Bitmap.createBitmap(fullSnapshot, x, y, w, h)
+                                            } catch (_: Exception) {
+                                                null
+                                            }
+
+                                            showEditScreen = true
+                                            launch {
+                                                delay(12.milliseconds)
+                                                launch {
+                                                    backgroundScale.animateTo(
+                                                        targetValue = 0.92f,
+                                                        animationSpec = tween(560, easing = OobeQuartOutEasing)
+                                                    )
+                                                }
+                                                launch {
+                                                    managePageBlurRadius.animateTo(
+                                                        targetValue = 5f,
+                                                        animationSpec = tween(560, easing = OobeQuartOutEasing)
+                                                    )
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+                            ),
+                            com.haooz.chedule.ui.components.ShortcutMenuItem(
+                                icon = MiuixIcons.Delete,
+                                label = "删除",
+                                onClick = {
+                                    shortcutMenuCourses.forEach { course ->
+                                        courseViewModel.deleteCourse(course.id)
+                                    }
+                                    showShortcutMenu = false
+                                }
+                            )
+                        ),
+                        modifier = Modifier.offset(
+                            x = with(shortcutMenuDensity) { shortcutMenuPosition.x.toDp() - 12.dp },
+                            y = with(shortcutMenuDensity) { shortcutMenuPosition.y.toDp() - shortcutMenuHeight.toDp() + 6.dp }
+                        ),
+                        backdrop = liquidGlassBackdrop,
+                        onDismiss = { showShortcutMenu = false },
+                        onMeasuredSize = { _, height ->
+                            shortcutMenuHeight = height.toFloat()
+                        }
+                    )
                 }
             }
         }
