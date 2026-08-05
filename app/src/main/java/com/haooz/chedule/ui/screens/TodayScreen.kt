@@ -60,6 +60,7 @@ import androidx.compose.ui.unit.sp
 import androidx.core.content.edit
 import com.haooz.chedule.data.Course
 import com.haooz.chedule.ui.effects.edgelight.edgeLight
+import com.haooz.chedule.ui.effects.edgelight.rememberCardEdgeLight
 import com.haooz.chedule.ui.effects.edgelight.rememberDefaultEdgeLight
 import com.haooz.chedule.ui.utils.isAppDarkTheme
 import com.haooz.chedule.ui.utils.rememberAppStyle
@@ -139,7 +140,7 @@ fun BlurCard(
                     shape = { RoundedRectangle(cornerRadius) },
                     effects = {
                         blur(blurRadius.dp.toPx())
-                        lens(18f.dp.toPx(), 18f.dp.toPx())
+                        lens(12f.dp.toPx(), 12f.dp.toPx())
                     },
                     highlight = null,
                     onDrawSurface = {
@@ -150,9 +151,11 @@ fun BlurCard(
                     if (showEdgeLight) {
                         Modifier.edgeLight(
                             shape = RoundedRectangle(cornerRadius),
-                            edgeLight = defaultEdgeLight
-                        )
-                    } else Modifier
+                            edgeLight = defaultEdgeLight)
+                    } else
+                        Modifier.edgeLight(
+                            shape = RoundedRectangle(cornerRadius),
+                            edgeLight = rememberCardEdgeLight())
                 )
         ) {
             content()
@@ -417,7 +420,7 @@ fun TodayScreen(
         drawRect(backgroundColor)
         drawContent()
     }
-    val hasWallpaper = todayShowWallpaper && wallpaperBitmap != null && cardBlurRadius > 0f
+    val hasWallpaper = todayShowWallpaper && wallpaperBitmap != null
     val dayOfWeekNames = listOf("周一", "周二", "周三", "周四", "周五", "周六", "周日")
     val dayOfWeekName = if (selectedDayOfWeek in 1..7) dayOfWeekNames[selectedDayOfWeek - 1] else ""
 

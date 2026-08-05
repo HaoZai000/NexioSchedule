@@ -119,7 +119,7 @@ class CourseManageActivity : ComponentActivity() {
                 var cardHeight by remember { mutableFloatStateOf(0f) }
                 var cardSnapshot by remember { mutableStateOf<android.graphics.Bitmap?>(null) }
                 var cardColor by remember { mutableStateOf(Color(0xFF4CAF50)) }
-                var cardAlpha by remember { mutableFloatStateOf(0.20f) }
+                var cardAlpha by remember { mutableFloatStateOf(0.15f) }
                 var hiddenCourseIds by remember { mutableStateOf(setOf<String>()) }
                 var shrinkingCourseIds by remember { mutableStateOf(setOf<String>()) }
                 var pendingAutoExitDeleteIds by remember { mutableStateOf(setOf<String>()) }

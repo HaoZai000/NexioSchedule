@@ -18,8 +18,8 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.gestures.awaitEachGesture
 import androidx.compose.foundation.gestures.awaitFirstDown
-import androidx.compose.foundation.gestures.calculateZoom
 import androidx.compose.foundation.gestures.calculatePan
+import androidx.compose.foundation.gestures.calculateZoom
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -86,14 +86,13 @@ import androidx.compose.ui.zIndex
 import com.haooz.chedule.data.Combination
 import com.haooz.chedule.ui.effects.blur.BlurBottomSheet
 import com.haooz.chedule.ui.effects.blur.BlurBottomSheetTablet
-import com.haooz.chedule.ui.effects.liquidglass.InteractiveHighlight
-import com.haooz.chedule.ui.effects.liquidglass.LiquidTopBarButton
 import com.haooz.chedule.ui.effects.edgelight.edgeLight
 import com.haooz.chedule.ui.effects.edgelight.rememberDefaultEdgeLight
+import com.haooz.chedule.ui.effects.liquidglass.InteractiveHighlight
+import com.haooz.chedule.ui.effects.liquidglass.LiquidTopBarButton
 import com.haooz.chedule.ui.utils.isAppDarkTheme
 import com.haooz.chedule.ui.utils.rememberAppStyle
 import com.kyant.backdrop.Backdrop
-import com.kyant.backdrop.backdrops.layerBackdrop as liquidGlassLayerBackdrop
 import com.kyant.backdrop.drawBackdrop
 import com.kyant.backdrop.effects.blur
 import com.kyant.backdrop.effects.lens
@@ -132,6 +131,7 @@ import top.yukonga.miuix.kmp.theme.MiuixTheme
 import kotlin.math.absoluteValue
 import kotlin.math.roundToInt
 import kotlin.time.Duration.Companion.milliseconds
+import com.kyant.backdrop.backdrops.layerBackdrop as liquidGlassLayerBackdrop
 
 @SuppressLint("ConfigurationScreenWidthHeight", "FrequentlyChangingValue",
     "AutoboxingStateCreation"
@@ -166,7 +166,7 @@ fun CustomizeScheduleScreen(
     onCutoutEntered: () -> Unit = {},
     onEffectValueChange: (Float, Float) -> Unit = { _, _ -> },
     initialCardBlurRadius: Float = 0f,
-    initialCardAlpha: Float = 0.20f,
+    initialCardAlpha: Float = 0.15f,
     onWallpaperBrightnessChange: (Float) -> Unit = {},
     initialWallpaperBrightness: Float = 0f,
     onCustomizeValueChange: (Float, Float) -> Unit = { _, _ -> },
@@ -176,6 +176,7 @@ fun CustomizeScheduleScreen(
     initialShowBreakDividers: Boolean = true,
     onCardContentAlignmentChange: (com.haooz.chedule.data.CardContentAlignment) -> Unit = {},
     initialCardContentAlignment: com.haooz.chedule.data.CardContentAlignment = com.haooz.chedule.data.CardContentAlignment.CENTER_CENTER,
+    hasWallpaper: Boolean = false,
 ) {
     // ================================================================
     // 一、基础环境与尺寸计算
@@ -248,6 +249,7 @@ fun CustomizeScheduleScreen(
     var effectValue by remember(currentCombinationIndex, sheetResetKey) { mutableFloatStateOf(initialCardBlurRadius) }
     var cardAlphaValue by remember(currentCombinationIndex, sheetResetKey) { mutableFloatStateOf(initialCardAlpha) }
     var wallpaperBrightnessValue by remember(currentCombinationIndex, sheetResetKey) { mutableFloatStateOf(initialWallpaperBrightness) }
+    LaunchedEffect(initialCardBlurRadius) { effectValue = initialCardBlurRadius }
     LaunchedEffect(effectValue, cardAlphaValue) { onEffectValueChange(effectValue, cardAlphaValue) }
     LaunchedEffect(wallpaperBrightnessValue) { onWallpaperBrightnessChange(wallpaperBrightnessValue) }
 
@@ -1376,21 +1378,22 @@ fun CustomizeScheduleScreen(
                     ) {
                         Column(modifier = Modifier.padding(16.dp)) {
                             Text(
-                                text = "课程卡片模糊: ${effectValue.roundToInt()}.dp",
+                                text = if (hasWallpaper) "课程卡片模糊: ${effectValue.roundToInt()}.dp" else "课程卡片模糊: 需设置壁纸",
                                 fontWeight = FontWeight.Medium,
                                 fontSize = 15.sp,
-                                color = MiuixTheme.colorScheme.onSurface,
+                                color = if (hasWallpaper) MiuixTheme.colorScheme.onSurface else MiuixTheme.colorScheme.onSurface.copy(alpha = 0.4f),
                                 modifier = Modifier.padding(bottom = 8.dp, start = 4.dp)
                             )
                             Slider(
                                 value = effectValue,
-                                onValueChange = { effectValue = it },
+                                onValueChange = { if (hasWallpaper) effectValue = it },
                                 valueRange = 0f..50f,
                                 showKeyPoints = true,
                                 keyPoints = listOf(0f, 10f, 20f, 30f, 40f, 50f),
                                 magnetThreshold = 0.05f,
                                 modifier = Modifier.fillMaxWidth(),
-                                hapticEffect = SliderDefaults.SliderHapticEffect.Step
+                                hapticEffect = SliderDefaults.SliderHapticEffect.Step,
+                                enabled = hasWallpaper
                             )
                         }
                     }
@@ -1406,7 +1409,7 @@ fun CustomizeScheduleScreen(
                     ) {
                         Column(modifier = Modifier.padding(16.dp)) {
                             Text(
-                                text = "卡片透明度: ${(cardAlphaValue * 100).roundToInt()}%",
+                                text = "卡片不透明度: ${(cardAlphaValue * 100).roundToInt()}%",
                                 fontWeight = FontWeight.Medium,
                                 fontSize = 15.sp,
                                 color = MiuixTheme.colorScheme.onSurface,
@@ -1417,7 +1420,7 @@ fun CustomizeScheduleScreen(
                                 onValueChange = { cardAlphaValue = it },
                                 valueRange = 0f..1f,
                                 showKeyPoints = true,
-                                keyPoints = listOf(0.20f),
+                                keyPoints = listOf(0.15f),
                                 magnetThreshold = 0.05f,
                                 modifier = Modifier.fillMaxWidth(),
                                 hapticEffect = SliderDefaults.SliderHapticEffect.Step
@@ -1511,21 +1514,22 @@ fun CustomizeScheduleScreen(
                 ) {
                     Column(modifier = Modifier.padding(16.dp)) {
                         Text(
-                            text = "课程卡片模糊: ${effectValue.roundToInt()}.dp",
+                            text = if (hasWallpaper) "课程卡片模糊: ${effectValue.roundToInt()}.dp" else "课程卡片模糊: 需设置壁纸",
                             fontWeight = FontWeight.Medium,
                             fontSize = 15.sp,
-                            color = MiuixTheme.colorScheme.onSurface,
+                            color = if (hasWallpaper) MiuixTheme.colorScheme.onSurface else MiuixTheme.colorScheme.onSurface.copy(alpha = 0.4f),
                             modifier = Modifier.padding(bottom = 8.dp, start = 4.dp)
                         )
                         Slider(
                             value = effectValue,
-                            onValueChange = { effectValue = it },
-                            valueRange = 0f..50f,
+                            onValueChange = { if (hasWallpaper) effectValue = it },
+                            valueRange = 0f..20f,
                             showKeyPoints = true,
-                            keyPoints = listOf(0f, 10f, 20f, 30f, 40f, 50f),
+                            keyPoints = listOf(4f),
                             magnetThreshold = 0.05f,
                             modifier = Modifier.fillMaxWidth(),
-                            hapticEffect = SliderDefaults.SliderHapticEffect.Step
+                            hapticEffect = SliderDefaults.SliderHapticEffect.Step,
+                            enabled = hasWallpaper
                         )
                     }
                 }
@@ -1541,7 +1545,7 @@ fun CustomizeScheduleScreen(
                 ) {
                     Column(modifier = Modifier.padding(16.dp)) {
                         Text(
-                            text = "卡片透明度: ${(cardAlphaValue * 100).roundToInt()}%",
+                            text = "卡片不透明度: ${(cardAlphaValue * 100).roundToInt()}%",
                             fontWeight = FontWeight.Medium,
                             fontSize = 15.sp,
                             color = MiuixTheme.colorScheme.onSurface,
@@ -1552,7 +1556,7 @@ fun CustomizeScheduleScreen(
                             onValueChange = { cardAlphaValue = it },
                             valueRange = 0f..1f,
                             showKeyPoints = true,
-                            keyPoints = listOf(0.20f),
+                            keyPoints = listOf(0.15f),
                             magnetThreshold = 0.05f,
                             modifier = Modifier.fillMaxWidth(),
                             hapticEffect = SliderDefaults.SliderHapticEffect.Step

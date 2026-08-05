@@ -277,6 +277,13 @@ class CourseViewModel(application: Application) : AndroidViewModel(application) 
     }
 
     /**
+     * 仅删除指定周次的课程实例
+     */
+    fun deleteCourseForWeek(courseId: String, week: Int) {
+        _courses.value = repository.deleteCourseForWeek(courseId, week)
+    }
+
+    /**
      * 替换所有课程（导入时使用）
      */
     fun replaceCourses(courses: List<Course>) {

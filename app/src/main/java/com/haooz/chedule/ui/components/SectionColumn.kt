@@ -14,8 +14,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.drawscope.Stroke
-import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.graphics.Shadow
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -159,10 +158,7 @@ private fun SectionItem(section: Int, startTime: String, endTime: String, yOffse
 }
 
 /**
- * 节次文字：设置壁纸时叠加柔和描边（渐变光晕）以保证可读性。
- * 通过多层 Stroke 叠加实现：外层宽且透明、内层窄且不透明，
- * 形成从字形边缘向外渐淡的过渡，比硬描边更自然。
- * 描边颜色按主题取反色（亮色模式白、暗色模式黑）。
+ * 节次文字：设置壁纸时叠加柔和阴影以保证可读性。
  */
 @Composable
 private fun OutlinedText(
@@ -173,33 +169,18 @@ private fun OutlinedText(
 ) {
     if (hasWallpaper) {
         val isDark = isAppDarkTheme()
-        val outlineColor = if (isDark) Color.Black else Color.White
-        val density = LocalDensity.current
-        // 从外到内：宽度递减、透明度递增，形成柔和渐变描边
-        val layers = remember(density) {
-            listOf(
-                1.5.dp to 0.1f,
-                1.dp to 0.16f,
-                0.5.dp to 0.20f
-            ).map { (w, a) ->
-                with(density) { w.toPx() } to a
-            }
-        }
-        Box {
-            layers.forEach { (widthPx, alpha) ->
-                Text(
-                    text = text,
-                    style = style.copy(drawStyle = Stroke(width = widthPx)),
-                    color = outlineColor.copy(alpha = alpha)
-                )
-            }
-            // 填充层：覆盖在描边之上
-            Text(
-                text = text,
-                style = style,
-                color = color
+        val shadowColor = if (isDark) Color.Black else Color.White
+        val shadowStyle = style.copy(
+            shadow = Shadow(
+                color = shadowColor.copy(alpha = 0.92f),
+                blurRadius = 12f
             )
-        }
+        )
+        Text(
+            text = text,
+            style = shadowStyle,
+            color = color
+        )
     } else {
         Text(
             text = text,

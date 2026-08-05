@@ -348,7 +348,7 @@ fun CourseManageScreen(
                                     daySectionInfo = daySectionInfo,
                                     isHidden = courseList.any { it.id in hiddenCourseIds },
                                     onClick = { left, top, width, height, snapshot ->
-                                        onCourseClick(courseList, left, top, width, height, snapshot, Color(representative.colorRes), 0.20f)
+                                        onCourseClick(courseList, left, top, width, height, snapshot, Color(representative.colorRes), 0.15f)
                                     },
                                     onLongPress = { left, top, width, height ->
                                         onCourseLongPress(courseList, left, top, width, height)
@@ -737,7 +737,7 @@ private fun CourseManageCard(
     teacher: String,
     classroom: String,
     color: Color,
-    cardAlpha: Float = 0.20f,
+    cardAlpha: Float = 0.15f,
     daySectionInfo: String,
     isHidden: Boolean = false,
     onClick: (left: Float, top: Float, width: Float, height: Float, snapshot: Bitmap?) -> Unit,

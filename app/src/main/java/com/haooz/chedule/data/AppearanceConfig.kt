@@ -10,8 +10,8 @@ package com.haooz.chedule.data
  * 新增外观字段只需在此处加一个属性，save/switch/restore 自动覆盖，无需在各调用点逐一补同步。
  */
 data class AppearanceConfig(
-    val cardBlurRadius: Float = 0f,
-    val cardAlpha: Float = 0.20f,
+    val cardBlurRadius: Float = 4f,
+    val cardAlpha: Float = 0.15f,
     val cardHeight: Float = 54f,
     val cardCornerRadius: Float = 10f,
     val wallpaperBrightness: Float = 0f,

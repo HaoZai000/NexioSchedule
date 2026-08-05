@@ -25,10 +25,13 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.asPaddingValues
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
@@ -118,6 +121,9 @@ import top.yukonga.miuix.kmp.basic.MiuixScrollBehavior
 import top.yukonga.miuix.kmp.basic.NavigationRailDefaults
 import top.yukonga.miuix.kmp.basic.Scaffold
 import top.yukonga.miuix.kmp.basic.SmallTopAppBar
+import top.yukonga.miuix.kmp.basic.Button
+import top.yukonga.miuix.kmp.basic.ButtonDefaults
+import top.yukonga.miuix.kmp.basic.TextButton
 import top.yukonga.miuix.kmp.basic.rememberNavigationRailState
 import top.yukonga.miuix.kmp.blur.BlendColorEntry
 import top.yukonga.miuix.kmp.blur.BlurBlendMode
@@ -129,6 +135,7 @@ import top.yukonga.miuix.kmp.icon.extended.Delete
 import top.yukonga.miuix.kmp.icon.extended.Edit
 import top.yukonga.miuix.kmp.icon.extended.More
 import top.yukonga.miuix.kmp.icon.extended.Reset
+import top.yukonga.miuix.kmp.overlay.OverlayDialog
 import top.yukonga.miuix.kmp.squircle.addSquircleRect
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 import java.time.LocalDate
@@ -397,6 +404,7 @@ fun CourseScheduleApp() {
     var draggedCardSize by remember { mutableStateOf(Offset.Zero) }
     var draggedCardOffset by remember { mutableStateOf(Offset.Zero) }
     var draggedCardBackdrop by remember { mutableStateOf<com.kyant.backdrop.Backdrop?>(null) }
+    var draggedWeek by remember { mutableIntStateOf(1) }
     // 浮层卡片是否仍在渲染（退出动画期间保持 true，动画结束才 false，此时原卡片 alpha 恢复 1）
     var floatingCardVisible by remember { mutableStateOf(false) }
     // 浮层缩放：入场 0.94→1.04，退场 1.04→1.0；退场结束才让原卡片显现
@@ -407,6 +415,9 @@ fun CourseScheduleApp() {
     var shortcutMenuPosition by remember { mutableStateOf(Offset.Zero) }
     var shortcutMenuSize by remember { mutableStateOf(IntSize.Zero) }
     var shortcutMenuBackdrop by remember { mutableStateOf<com.kyant.backdrop.Backdrop?>(null) }
+    // 删除确认弹窗状态
+    var showDeleteConfirmDialog by remember { mutableStateOf(false) }
+    var deleteConfirmCourse by remember { mutableStateOf<Course?>(null) }
 
     // 长按空白区域"自定义课表"按钮状态
     var showLongPressButton by remember { mutableStateOf(false) }
@@ -1223,12 +1234,13 @@ fun CourseScheduleApp() {
                                     hapticFeedback.performHapticFeedback(HapticFeedbackType.LongPress)
                                     showLongPressButton = true
                                 },
-                                onCourseLongPress = { course, left, top, width, height, backdrop ->
+                                onCourseLongPress = { course, left, top, width, height, backdrop, currentWeek ->
                                     hapticFeedback.performHapticFeedback(HapticFeedbackType.LongPress)
                                     isDraggingCard = true
                                     floatingCardVisible = true
                                     draggingCourseIds = setOf(course.id)
                                     draggedCardCourse = course
+                                    draggedWeek = currentWeek
                                     // left/top 现在是卡片正中心绝对坐标，浮层按中心对齐使用
                                     draggedCardPosition = Offset(left, top)
                                     draggedCardOffset = Offset.Zero
@@ -1407,6 +1419,42 @@ fun CourseScheduleApp() {
                         viewModel.deleteCourse(courseId)
                     }
                 )
+                // 删除本周课程确认弹窗
+                OverlayDialog(
+                    title = "删除本周课程",
+                    summary = "确定要删除「${deleteConfirmCourse?.name}」在第${draggedWeek}周的课程吗？\n此操作不可撤销。",
+                    show = showDeleteConfirmDialog,
+                    onDismissRequest = { showDeleteConfirmDialog = false }
+                ) {
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(top = 16.dp),
+                        horizontalArrangement = Arrangement.spacedBy(12.dp)
+                    ) {
+                        Button(
+                            modifier = Modifier.weight(1f),
+                            onClick = {
+                                hapticFeedback.performHapticFeedback(HapticFeedbackType.Confirm)
+                                showDeleteConfirmDialog = false
+                            },
+                        ) {
+                            Text("取消", fontSize = 17.sp, fontWeight = FontWeight.Medium, color = MiuixTheme.colorScheme.onSurface)
+                        }
+                        Button(
+                            modifier = Modifier.weight(1f),
+                            onClick = {
+                                hapticFeedback.performHapticFeedback(HapticFeedbackType.Confirm)
+                                deleteConfirmCourse?.let { course ->
+                                    viewModel.deleteCourseForWeek(course.id, draggedWeek)
+                                }
+                                showDeleteConfirmDialog = false
+                            },
+                        ) {
+                            Text("删除", fontSize = 17.sp, fontWeight = FontWeight.Medium, color = Color(0xFFF44336))
+                        }
+                    }
+                }
             }
         }
         // 拖拽课程卡片浮层（退出动画期间仍保持渲染，直到 scale 回到 1f 才移除并让原卡片显现）
@@ -1440,7 +1488,7 @@ fun CourseScheduleApp() {
                 ) {
                     CourseCard(
                         course = course,
-                        isCurrentWeek = course.isActiveInWeek(currentWeek),
+                        isCurrentWeek = course.isActiveInWeek(draggedWeek),
                         wallpaperBackdrop = liquidGlassBackdrop,
                         cardBlurRadius = displayAppearance.cardBlurRadius,
                         cardAlpha = displayAppearance.cardAlpha,
@@ -1496,13 +1544,14 @@ fun CourseScheduleApp() {
                         icon = MiuixIcons.Delete,
                         label = "删除",
                         onClick = {
+                            deleteConfirmCourse = activeShortcutCourse
                             shortcutMenuVisible = false
                             dismissFloatingCard()
                             coroutineScope.launch {
                                 delay(240.milliseconds)
                                 shortcutMenuCourse = null
                             }
-                            viewModel.deleteCourse(activeShortcutCourse.id)
+                            showDeleteConfirmDialog = true
                         }
                     )
                 ),
@@ -2050,6 +2099,7 @@ fun CourseScheduleApp() {
                         }
                     },
                     initialCardContentAlignment = appearance.cardContentAlignment,
+                    hasWallpaper = wallpaperBitmap != null,
                     onCustomizeValueChange = { height, cornerRadius ->
                         appearance = appearance.copy(cardHeight = height, cardCornerRadius = cornerRadius)
                         val idx = currentCombinationIndex

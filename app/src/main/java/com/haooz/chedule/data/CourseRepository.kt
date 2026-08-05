@@ -374,6 +374,48 @@ class CourseRepository private constructor(context: Context) {
     }
 
     /**
+     * 仅删除指定周次的课程实例
+     * 如果该课程只有当前周，则删除整个课程
+     */
+    fun deleteCourseForWeek(courseId: String, week: Int): List<Course> {
+        val courses = getAllCourses().toMutableList()
+        val index = courses.indexOfFirst { it.id == courseId }
+        if (index != -1) {
+            val course = courses[index]
+            // 计算有效的周次列表
+            val currentSelectedWeeks = course.selectedWeeks.ifEmpty {
+                // 如果没有 selectedWeeks，根据 startWeek/endWeek/weekType 生成
+                val weeks = mutableListOf<Int>()
+                for (w in course.startWeek..course.endWeek) {
+                    when (course.weekType) {
+                        Course.WEEK_TYPE_ODD -> if (w % 2 == 1) weeks.add(w)
+                        Course.WEEK_TYPE_EVEN -> if (w % 2 == 0) weeks.add(w)
+                        else -> weeks.add(w)
+                    }
+                }
+                weeks
+            }
+            // 从有效周次中移除指定周次
+            val newSelectedWeeks = currentSelectedWeeks.filter { it != week }
+            if (newSelectedWeeks.isEmpty()) {
+                // 所有周次都已移除，删除整个课程
+                courses.removeAt(index)
+            } else {
+                // 更新课程的周次列表
+                courses[index] = course.copy(
+                    selectedWeeks = newSelectedWeeks,
+                    startWeek = newSelectedWeeks.min(),
+                    endWeek = newSelectedWeeks.max(),
+                    lastModified = System.currentTimeMillis()
+                )
+            }
+            saveCourses(courses, notify = false)
+            onCourseChanged?.invoke("delete", courseId)
+        }
+        return courses
+    }
+
+    /**
      * 获取有课程的最晚周次，若没有任何课程则返回 0
      */
     fun getLastWeekWithCourses(): Int {
@@ -1314,7 +1356,7 @@ class CourseRepository private constructor(context: Context) {
         }
     }
 
-    fun getCombinationCardAlpha(id: Long): Float = prefs.getFloat("${KEY_COMBINATION_CARD_ALPHA_PREFIX}$id", 0.20f)
+    fun getCombinationCardAlpha(id: Long): Float = prefs.getFloat("${KEY_COMBINATION_CARD_ALPHA_PREFIX}$id", 0.15f)
 
     fun saveCombinationCardHeight(id: Long, height: Float) {
         prefs.edit {

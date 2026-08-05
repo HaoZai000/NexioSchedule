@@ -41,6 +41,8 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.haooz.chedule.data.Course
+import com.haooz.chedule.ui.effects.edgelight.edgeLight
+import com.haooz.chedule.ui.effects.edgelight.rememberCourseCardEdgeLight
 import com.haooz.chedule.ui.utils.isAppDarkTheme
 import com.kyant.backdrop.Backdrop
 import com.kyant.backdrop.drawBackdrop
@@ -63,7 +65,7 @@ fun CourseCard(
     hasMultipleCourses: Boolean = false,
     wallpaperBackdrop: Backdrop? = null,
     cardBlurRadius: Float = 0f,
-    cardAlpha: Float = 0.20f,
+    cardAlpha: Float = 0.15f,
     cardHeightPerSection: Float = 54f,
     cardCornerRadius: Float = 10f,
     isTablet: Boolean = false,
@@ -80,15 +82,16 @@ fun CourseCard(
 ) {
     val sectionCount = course.endSection - course.startSection + 1
     val cardHeight = (sectionCount * cardHeightPerSection).dp
-    val hasBlur = cardBlurRadius > 0f && wallpaperBackdrop != null
+    val hasBlur = wallpaperBackdrop != null
     val effectiveCornerRadius = if (isTablet) (cardCornerRadius * 1.3f) else cardCornerRadius
     val isDark = isAppDarkTheme()
     val scope = rememberCoroutineScope()
 
+    val effectiveAlpha = if (hasBlur) cardAlpha * 1.6f else cardAlpha
     val cardColor = if (isCurrentWeek) {
-        Color(course.colorRes).copy(alpha = cardAlpha)
+        Color(course.colorRes).copy(alpha = effectiveAlpha)
     } else {
-        Color(0xFF9E9E9E).copy(alpha = cardAlpha * 0.7f)
+        Color(0xFF9E9E9E).copy(alpha = effectiveAlpha * 0.7f)
     }
     val textColor = if (isCurrentWeek) {
         if (hasBlur) Color(course.colorRes).let { c ->
@@ -107,7 +110,7 @@ fun CourseCard(
         else Color(course.colorRes)
     } else {
         if (hasBlur) {
-            if (isDark) Color.White.copy(alpha = 0.5f) else Color.Black.copy(alpha = 0.5f)
+            if (isDark) Color.White.copy(alpha = 0.4f) else Color.Black.copy(alpha = 0.3f)
         } else {
             Color(0xFF9E9E9E).copy(alpha = if (isDark) 0.28f else 0.45f)
         }
@@ -146,7 +149,7 @@ fun CourseCard(
                     }
                     .onGloballyPositioned { coordinates ->
                         layoutCoordinates = coordinates
-                        // 上报卡片正中心的绝对坐标，避免左上角对齐时 drawBackdrop/lens 折射导致的视觉偏移
+                        // 上报卡片正中心的绝对坐标
                         val center = coordinates.localToRoot(Offset(coordinates.size.width / 2f, coordinates.size.height / 2f))
                         cardPosition = center
                         cardSize = Offset(coordinates.size.width.toFloat(), coordinates.size.height.toFloat())
@@ -156,7 +159,7 @@ fun CourseCard(
                         shape = { RoundedRectangle(effectiveCornerRadius.dp) },
                         effects = {
                             blur(cardBlurRadius.dp.toPx())
-                            lens(12f.dp.toPx(), 12f.dp.toPx())
+                            lens(8f.dp.toPx(), 8f.dp.toPx())
                         },
                         highlight = null,
                         onDrawSurface = {
@@ -164,8 +167,9 @@ fun CourseCard(
                         }
                     )
                     .drawBehind {
-                        drawRect(color = if (isDark) Color.Black.copy(alpha = 0.14f) else Color.White.copy(alpha = 0.15f))
+                        drawRect(color = if (isDark) Color.Black.copy(alpha = 0.15f) else Color.White.copy(alpha = 0.17f))
                     }
+                    .edgeLight(shape = RoundedRectangle(cardCornerRadius.dp), edgeLight = rememberCourseCardEdgeLight())
                     .pointerInput(Unit) {
                         awaitEachGesture {
                             val down = awaitFirstDown(requireUnconsumed = false)
@@ -248,7 +252,8 @@ fun CourseCard(
                     },
                 contentAlignment = Alignment.Center
             ) {
-                CardContent(course, sectionCount, textColor, hasMultipleCourses, isTablet, cardContentAlignment)
+                CardContent(course, sectionCount, textColor, hasMultipleCourses,
+                    isTablet, cardContentAlignment)
             }
         }
     } else {
@@ -356,7 +361,8 @@ fun CourseCard(
                 ),
                 onClick = {}
             ) {
-                CardContent(course, sectionCount, textColor, hasMultipleCourses, isTablet, cardContentAlignment)
+                CardContent(course, sectionCount, textColor, hasMultipleCourses,
+                    isTablet, cardContentAlignment)
             }
         }
     }
@@ -366,7 +372,8 @@ fun CourseCard(
 private val overflowCache = java.util.concurrent.ConcurrentHashMap<String, Boolean>()
 
 @Composable
-private fun CardContent(course: Course, sectionCount: Int, textColor: Color, hasMultipleCourses: Boolean, isTablet: Boolean = false, cardContentAlignment: com.haooz.chedule.data.CardContentAlignment = com.haooz.chedule.data.CardContentAlignment.CENTER_CENTER) {
+private fun CardContent(course: Course, sectionCount: Int, textColor: Color, hasMultipleCourses: Boolean,
+                        isTablet: Boolean = false, cardContentAlignment: com.haooz.chedule.data.CardContentAlignment = com.haooz.chedule.data.CardContentAlignment.CENTER_CENTER) {
     val footnote2Size = 10.5.sp
     val smallSize = (footnote2Size.value - 1.7).sp
 
@@ -410,7 +417,7 @@ private fun CardContent(course: Course, sectionCount: Int, textColor: Color, has
                 color = textColor,
                 textAlign = textAlign,
                 maxLines = 3,
-                overflow = TextOverflow.Ellipsis
+                overflow = TextOverflow.Ellipsis,
             )
             if (sectionCount >= 2 && course.classroom.isNotEmpty()) {
                 Spacer(modifier = Modifier.height(2.dp))

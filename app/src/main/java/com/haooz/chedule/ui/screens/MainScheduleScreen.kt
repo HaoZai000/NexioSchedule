@@ -105,7 +105,7 @@ fun MainScheduleScreen(
     onCourseClick: (courses: List<Course>, cardLeft: Float, cardTop: Float, cardWidth: Float, cardHeight: Float, snapshot: android.graphics.Bitmap?, courseIdToHide: String) -> Unit = { _, _, _, _, _, _, _ -> },
     onPopupStateChange: (Boolean) -> Unit = {},
     onEmptyLongPress: () -> Unit = {},
-    onCourseLongPress: (course: Course, cardLeft: Float, cardTop: Float, width: Float, height: Float, backdrop: com.kyant.backdrop.Backdrop?) -> Unit = { _, _, _, _, _, _ -> },
+    onCourseLongPress: (course: Course, cardLeft: Float, cardTop: Float, width: Float, height: Float, backdrop: com.kyant.backdrop.Backdrop?, currentWeek: Int) -> Unit = { _, _, _, _, _, _, _ -> },
     onCourseDragStart: (courseId: String) -> Unit = { _ -> },
     onCourseDrag: (courseId: String, offsetX: Float, offsetY: Float) -> Unit = { _, _, _ -> },
     onCourseDragEnd: (courseId: String) -> Unit = { _ -> },
@@ -117,7 +117,7 @@ fun MainScheduleScreen(
     onWallpaperOffsetChange: (androidx.compose.ui.geometry.Offset) -> Unit = {},
     onWallpaperScaleChange: (Float) -> Unit = {},
     cardBlurRadius: Float = 0f,
-    cardAlpha: Float = 0.20f,
+    cardAlpha: Float = 0.15f,
     cardHeightPerSection: Float = 54f,
     cardCornerRadius: Float = 10f,
     wallpaperBrightness: Float = 0f,
@@ -418,7 +418,7 @@ fun MainScheduleScreen(
                                 pendingDay = pendingDay,
                                 pendingSection = pendingSection,
                                 onPendingChange = onPendingChange,
-                                wallpaperBackdrop = courseCardBackdrop,
+                                wallpaperBackdrop = if (wallpaperBitmap != null) courseCardBackdrop else null,
                                 cardBlurRadius = cardBlurRadius,
                                 cardAlpha = cardAlpha,
                                 cardHeightPerSection = cardHeightPerSection,
@@ -427,8 +427,8 @@ fun MainScheduleScreen(
                                 isTablet = isTablet,
                                 cardContentAlignment = cardContentAlignment,
                                 draggingCourseIds = draggingCourseIds,
-                                onCourseLongPress = { course, left, top, width, height, _ ->
-                                    onCourseLongPress(course, left, top, width, height, courseCardBackdrop)
+                                onCourseLongPress = { course, left, top, width, height, _, currentWeek ->
+                                    onCourseLongPress(course, left, top, width, height, courseCardBackdrop, currentWeek)
                                 },
                                 onCourseDragStart = onCourseDragStart,
                                 onCourseDrag = onCourseDrag,
@@ -445,7 +445,7 @@ fun MainScheduleScreen(
                     val dinnerBreakY = morningHeight + dividerOffset + afternoonHeight
 
                     if (showBreakDividers) {
-                    val dividerColor = if (cardBlurRadius > 0f) Color.Transparent else MiuixTheme.colorScheme.surfaceContainer
+                    val dividerColor = if (wallpaperBitmap != null) Color.Transparent else MiuixTheme.colorScheme.surfaceContainer
                     val dividerShape = if (isTablet) RoundedRectangle(12.dp) else RectangleShape
                     Box(
                         modifier = Modifier.fillMaxWidth().offset(y = morningHeight.dp)
@@ -456,7 +456,7 @@ fun MainScheduleScreen(
                             )
                             .background(dividerColor, dividerShape)
                             .then(
-                                if (cardBlurRadius > 0f) {
+                                if (wallpaperBitmap != null) {
                                     Modifier.textureBlur(
                                         backdrop = wallpaperBackdrop,
                                         shape = dividerShape,
@@ -491,7 +491,7 @@ fun MainScheduleScreen(
                             )
                             .background(dividerColor, dividerShape)
                             .then(
-                                if (cardBlurRadius > 0f) {
+                                if (wallpaperBitmap != null) {
                                     Modifier.textureBlur(
                                         backdrop = wallpaperBackdrop,
                                         shape = dividerShape,

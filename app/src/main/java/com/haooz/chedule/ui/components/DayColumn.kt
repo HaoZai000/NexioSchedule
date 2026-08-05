@@ -26,7 +26,7 @@ import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.unit.dp
 import com.haooz.chedule.data.Course
 import com.haooz.chedule.ui.effects.edgelight.edgeLight
-import com.haooz.chedule.ui.effects.edgelight.rememberDefaultEdgeLight
+import com.haooz.chedule.ui.effects.edgelight.rememberCourseCardEdgeLight
 import com.haooz.chedule.ui.utils.isAppDarkTheme
 import com.kyant.backdrop.Backdrop
 import com.kyant.backdrop.drawBackdrop
@@ -60,14 +60,14 @@ fun DayColumn(
     onPendingChange: (day: Int, section: Int) -> Unit = { _, _ -> },
     wallpaperBackdrop: Backdrop? = null,
     cardBlurRadius: Float = 0f,
-    cardAlpha: Float = 0.20f,
+    cardAlpha: Float = 0.15f,
     cardHeightPerSection: Float = 54f,
     cardCornerRadius: Float = 10f,
     showBreakDividers: Boolean = true,
     isTablet: Boolean = false,
     cardContentAlignment: com.haooz.chedule.data.CardContentAlignment = com.haooz.chedule.data.CardContentAlignment.CENTER_CENTER,
     draggingCourseIds: Set<String> = emptySet(),
-    onCourseLongPress: (course: Course, cardLeft: Float, cardTop: Float, width: Float, height: Float, backdrop: Backdrop?) -> Unit = { _, _, _, _, _, _ -> },
+    onCourseLongPress: (course: Course, cardLeft: Float, cardTop: Float, width: Float, height: Float, backdrop: Backdrop?, currentWeek: Int) -> Unit = { _, _, _, _, _, _, _ -> },
     onCourseDragStart: (courseId: String) -> Unit = { _ -> },
     onCourseDrag: (courseId: String, offsetX: Float, offsetY: Float) -> Unit = { _, _, _ -> },
     onCourseDragEnd: (courseId: String) -> Unit = { _ -> },
@@ -76,7 +76,7 @@ fun DayColumn(
 ) {
     val totalHeight = ((morningSections + afternoonSections + eveningSections) * cardHeightPerSection + (if (showBreakDividers) 24 * 2 else 0)).toInt()
     val isDark = isAppDarkTheme()
-    val hasBlur = cardBlurRadius > 0f && wallpaperBackdrop != null
+    val hasBlur = wallpaperBackdrop != null
     val isPendingDay = pendingDay == dayOfWeek
     val hapticFeedback = LocalHapticFeedback.current
     // 共享交互源，避免每个空单元格创建新的 MutableInteractionSource
@@ -149,13 +149,12 @@ fun DayColumn(
                                                 drawRect( if (isDark) Color(0xFF242424).copy(alpha =0.64f) else Color(0xFFF0F0F0).copy(alpha =0.5f))
                                             }
                                         )
-                                        .edgeLight(shape = RoundedRectangle(cardCornerRadius.dp), edgeLight = rememberDefaultEdgeLight())
+                                        .edgeLight(shape = RoundedRectangle(cardCornerRadius.dp), edgeLight = rememberCourseCardEdgeLight())
                                 ) {
                                     Card(
                                         modifier = Modifier.fillMaxSize(),
                                         cornerRadius = cardCornerRadius.dp,
                                         insideMargin = PaddingValues(0.dp),
-                                        pressFeedbackType = PressFeedbackType.Sink,
                                         showIndication = true,
                                         colors = CardDefaults.defaultColors(
                                             color = Color.Transparent,
@@ -284,13 +283,12 @@ fun DayColumn(
                                                 drawRect( if (isDark) Color(0xFF242424).copy(alpha =0.64f) else Color(0xFFF0F0F0).copy(alpha =0.5f))
                                             }
                                         )
-                                        .edgeLight(shape = RoundedRectangle(cardCornerRadius.dp), edgeLight = rememberDefaultEdgeLight())
+                                        .edgeLight(shape = RoundedRectangle(cardCornerRadius.dp), edgeLight = rememberCourseCardEdgeLight())
                                 ) {
                                     Card(
                                         modifier = Modifier.fillMaxSize(),
                                         cornerRadius = cardCornerRadius.dp,
                                         insideMargin = PaddingValues(0.dp),
-                                        pressFeedbackType = PressFeedbackType.Sink,
                                         showIndication = true,
                                         colors = CardDefaults.defaultColors(
                                             color = Color.Transparent,
@@ -418,13 +416,12 @@ fun DayColumn(
                                                 drawRect( if (isDark) Color(0xFF242424).copy(alpha =0.64f) else Color(0xFFF0F0F0).copy(alpha =0.5f))
                                             }
                                         )
-                                        .edgeLight(shape = RoundedRectangle(cardCornerRadius.dp), edgeLight = rememberDefaultEdgeLight())
+                                        .edgeLight(shape = RoundedRectangle(cardCornerRadius.dp), edgeLight = rememberCourseCardEdgeLight())
                                 ) {
                                     Card(
                                         modifier = Modifier.fillMaxSize(),
                                         cornerRadius = cardCornerRadius.dp,
                                         insideMargin = PaddingValues(0.dp),
-                                        pressFeedbackType = PressFeedbackType.Sink,
                                         showIndication = true,
                                         colors = CardDefaults.defaultColors(
                                             color = Color.Transparent,
@@ -567,13 +564,15 @@ fun DayColumn(
                             cardCornerRadius = cardCornerRadius,
                             isTablet = isTablet,
                             cardContentAlignment = cardContentAlignment,
-                            isDragging = displayCourse.id in draggingCourseIds,
+                            isDragging = displayCourse.id in draggingCourseIds && isCurrentWeekCourse,
                             onClick = {
                                 onPendingChange(-1, -1)
                                 onCourseClick(course)
                             },
                             onLongPressStart = { left, top, width, height ->
-                                onCourseLongPress(course, left, top, width, height, wallpaperBackdrop)
+                                if (isCurrentWeekCourse) {
+                                    onCourseLongPress(course, left, top, width, height, wallpaperBackdrop, currentWeek)
+                                }
                             },
                             onDragStart = {
                                 onCourseDragStart(course.id)
