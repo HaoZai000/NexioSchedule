@@ -70,6 +70,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.zIndex
@@ -396,9 +397,15 @@ fun CourseScheduleApp() {
     var draggedCardSize by remember { mutableStateOf(Offset.Zero) }
     var draggedCardOffset by remember { mutableStateOf(Offset.Zero) }
     var draggedCardBackdrop by remember { mutableStateOf<com.kyant.backdrop.Backdrop?>(null) }
+    // 浮层卡片是否仍在渲染（退出动画期间保持 true，动画结束才 false，此时原卡片 alpha 恢复 1）
+    var floatingCardVisible by remember { mutableStateOf(false) }
+    // 浮层缩放：入场 0.94→1.04，退场 1.04→1.0；退场结束才让原卡片显现
+    val floatingScale = remember { Animatable(0.94f) }
     // 快捷菜单状态
     var shortcutMenuCourse by remember { mutableStateOf<Course?>(null) }
+    var shortcutMenuVisible by remember { mutableStateOf(false) }
     var shortcutMenuPosition by remember { mutableStateOf(Offset.Zero) }
+    var shortcutMenuSize by remember { mutableStateOf(IntSize.Zero) }
     var shortcutMenuBackdrop by remember { mutableStateOf<com.kyant.backdrop.Backdrop?>(null) }
 
     // 长按空白区域"自定义课表"按钮状态
@@ -611,6 +618,18 @@ fun CourseScheduleApp() {
     val switchAnimProgress = remember { Animatable(0f) }
     val backgroundScale = remember { Animatable(1f) }
     val managePageBlurRadius = remember { Animatable(0f) }
+    // 长按快捷菜单显示时的背景模糊与缩放（与 CourseManageActivity 一致：blur 10dp / scale 0.98）
+    val shortcutMenuBlurRadius = remember { Animatable(0f) }
+    val shortcutMenuPageScale = remember { Animatable(1f) }
+    LaunchedEffect(shortcutMenuVisible) {
+        if (shortcutMenuVisible) {
+            launch { shortcutMenuBlurRadius.animateTo(10f, tween(280)) }
+            launch { shortcutMenuPageScale.animateTo(0.98f, tween(280)) }
+        } else {
+            launch { shortcutMenuBlurRadius.animateTo(0f, tween(250)) }
+            launch { shortcutMenuPageScale.animateTo(1f, tween(250)) }
+        }
+    }
     val switchReturnBgScrim = remember { Animatable(0f) }
     val screenGraphicsLayer = rememberGraphicsLayer()
     // 模糊变化后延迟重新捕获快照的 job
@@ -702,6 +721,19 @@ fun CourseScheduleApp() {
     }
 
     val coroutineScope = rememberCoroutineScope()
+    // 关闭浮层：先播退场动画（scale 1.04→1.0），动画结束再清空状态，让原卡片 alpha 恢复 1
+    val dismissFloatingCard: () -> Unit = {
+        coroutineScope.launch {
+            floatingScale.animateTo(1f, tween(durationMillis = 180))
+            isDraggingCard = false
+            floatingCardVisible = false
+            draggingCourseIds = emptySet()
+            draggedCardCourse = null
+            draggedCardOffset = Offset.Zero
+            // 重置为入场起始值，避免下次显示时首帧渲染残留的 1.0 造成抖动
+            floatingScale.snapTo(0.94f)
+        }
+    }
 
     // 统一的课程详情页打开函数
     fun openCourseDetail(
@@ -972,7 +1004,7 @@ fun CourseScheduleApp() {
         Box(
             modifier = Modifier
                 .fillMaxSize()
-                .blur(managePageBlurRadius.value.dp)
+                .blur(if (shortcutMenuBlurRadius.value > 0.01f) shortcutMenuBlurRadius.value.dp else managePageBlurRadius.value.dp)
                 .then(
                     if (navBarStyle != "rail") {
                         // 圆角裁剪在 graphicsLayer 内部完成（见下），这里不再单独 clip
@@ -993,8 +1025,8 @@ fun CourseScheduleApp() {
                     } else {
                         exitScale * cutoutScale
                     }
-                    scaleX = baseScale * effectiveScale
-                    scaleY = baseScale * effectiveScale
+                    scaleX = baseScale * effectiveScale * shortcutMenuPageScale.value
+                    scaleY = baseScale * effectiveScale * shortcutMenuPageScale.value
                     alpha = mainContentAlpha
                     // 弹窗打开时同步上移（直接 translationY，与 CustomizeScheduleScreen 同帧）
                     // cutout 区域的偏移贡献为 sheetOffsetY * (1-scaleProg)，scale=0.75 时 = 0.7143
@@ -1013,7 +1045,7 @@ fun CourseScheduleApp() {
                     // 视觉圆角 = screenRadius * effectiveScale（随缩放变小）
                     // 搭配页退出时锁定圆角为 screenCornerRadius，避免缩小
                     Modifier.drawWithContent {
-                            val scale = backgroundScale.value
+                            val scale = backgroundScale.value * shortcutMenuPageScale.value
                             val shouldClip = !isCustomizeExiting && scale < 0.999f
                             val animClipPx =
                                 if (isCustomizeExiting) screenCornerRadius else screenCornerRadius
@@ -1195,28 +1227,37 @@ fun CourseScheduleApp() {
                                 onCourseLongPress = { course, left, top, width, height, backdrop ->
                                     hapticFeedback.performHapticFeedback(HapticFeedbackType.LongPress)
                                     isDraggingCard = true
+                                    floatingCardVisible = true
                                     draggingCourseIds = setOf(course.id)
                                     draggedCardCourse = course
+                                    // left/top 现在是卡片正中心绝对坐标，浮层按中心对齐使用
                                     draggedCardPosition = Offset(left, top)
                                     draggedCardOffset = Offset.Zero
                                     draggedCardSize = Offset(width, height)
                                     draggedCardBackdrop = backdrop
                                     shortcutMenuCourse = course
-                                    shortcutMenuPosition = Offset(left, top)
+                                    shortcutMenuVisible = true
+                                    // 快捷菜单仍按左上角定位，把中心点转回左上角
+                                    shortcutMenuPosition = Offset(left - width / 2f, top - height / 2f)
                                     shortcutMenuBackdrop = backdrop
                                 },
                                 onCourseDragStart = { courseId ->
-                                    shortcutMenuCourse = null
+                                    // 拖拽开始不关闭菜单，菜单保留到移动超过阈值后由 onCourseMenuDismiss 关闭
+                                },
+                                onCourseMenuDismiss = {
+                                    // 移动超过阈值，触发菜单退出动画
+                                    shortcutMenuVisible = false
+                                    coroutineScope.launch {
+                                        delay(220)
+                                        shortcutMenuCourse = null
+                                    }
                                 },
                                 onCourseDrag = { courseId, offsetX, offsetY ->
                                     draggedCardOffset = Offset(offsetX, offsetY)
                                 },
                                 onCourseDragEnd = { courseId ->
-                                    isDraggingCard = false
-                                    draggingCourseIds = emptySet()
-                                    draggedCardCourse = null
-                                    draggedCardOffset = Offset.Zero
-                                    shortcutMenuCourse = null
+                                    // 仅结束拖拽浮层，不关闭菜单；菜单关闭交给 onCourseMenuDismiss（超过阈值）或点击空白处
+                                    dismissFloatingCard()
                                 },
                                 wallpaperBitmap = if (showCustomizePage && !isWindowCutoutActive) originalWallpaperBitmap else wallpaperBitmap,
                                 wallpaperOffset = if (showCustomizePage && !isWindowCutoutActive) originalWallpaperOffset else wallpaperOffset,
@@ -1369,21 +1410,34 @@ fun CourseScheduleApp() {
                 )
             }
         }
-        // 拖拽课程卡片浮层
-        if (isDraggingCard) {
+        // 拖拽课程卡片浮层（退出动画期间仍保持渲染，直到 scale 回到 1f 才移除并让原卡片显现）
+        if (floatingCardVisible) {
             val course = draggedCardCourse
             if (course != null) {
-                val offset2dp = with(density) { 2.dp.toPx() }
-                val offset3dp = with(density) { 3.dp.toPx() }
-                val offsetX = with(density) { (draggedCardPosition.x + draggedCardOffset.x - offset2dp).toDp() }
-                val offsetY = with(density) { (draggedCardPosition.y + draggedCardOffset.y - offset3dp).toDp() }
-                val width = with(density) { draggedCardSize.x.toDp() }
-                val height = with(density) { draggedCardSize.y.toDp() }
+                // draggedCardPosition 为卡片正中心绝对坐标，浮层按中心对齐：offset = 中心 - 半宽
+                val centerX = draggedCardPosition.x + draggedCardOffset.x
+                val centerY = draggedCardPosition.y + draggedCardOffset.y
+                val widthPx = draggedCardSize.x
+                val heightPx = draggedCardSize.y
+                val offsetX = with(density) { (centerX - widthPx / 2f).toDp() }
+                val offsetY = with(density) { (centerY - heightPx / 2f).toDp() }
+                val width = with(density) { widthPx.toDp() }
+                val height = with(density) { heightPx.toDp() }
+                LaunchedEffect(floatingCardVisible) {
+                    if (floatingCardVisible) {
+                        floatingScale.snapTo(0.94f)
+                        floatingScale.animateTo(1.04f, tween(durationMillis = 120))
+                    }
+                }
 
                 Box(
                     modifier = Modifier
                         .offset(x = offsetX, y = offsetY)
                         .size(width = width, height = height)
+                        .graphicsLayer {
+                            scaleX = floatingScale.value
+                            scaleY = floatingScale.value
+                        }
                 ) {
                     CourseCard(
                         course = course,
@@ -1401,7 +1455,7 @@ fun CourseScheduleApp() {
                 }
             }
         }
-        // 快捷菜单：点击外部关闭
+        // 快捷菜单：点击外部关闭（先触发退出动画，动画结束再清空状态）
         if (shortcutMenuCourse != null) {
             Box(
                 modifier = Modifier
@@ -1410,11 +1464,13 @@ fun CourseScheduleApp() {
                         interactionSource = remember { MutableInteractionSource() },
                         indication = null
                     ) {
-                        shortcutMenuCourse = null
-                        isDraggingCard = false
-                        draggingCourseIds = emptySet()
-                        draggedCardCourse = null
-                        draggedCardOffset = Offset.Zero
+                        // 菜单退场动画 + 浮层缩回 1f 动画并行，动画结束再清空
+                        shortcutMenuVisible = false
+                        dismissFloatingCard()
+                        coroutineScope.launch {
+                            delay(220)
+                            shortcutMenuCourse = null
+                        }
                     }
             )
         }
@@ -1424,17 +1480,18 @@ fun CourseScheduleApp() {
             val menuBackdrop = liquidGlassBackdrop
             if (menuBackdrop != null) {
                 ShortcutMenu(
-                    show = true,
+                    show = shortcutMenuVisible,
                     items = listOf(
                         ShortcutMenuItem(
                             icon = MiuixIcons.Edit,
                             label = "编辑",
                             onClick = {
-                                shortcutMenuCourse = null
-                                isDraggingCard = false
-                                draggingCourseIds = emptySet()
-                                draggedCardCourse = null
-                                draggedCardOffset = Offset.Zero
+                                shortcutMenuVisible = false
+                                dismissFloatingCard()
+                                coroutineScope.launch {
+                                    delay(220)
+                                    shortcutMenuCourse = null
+                                }
                                 viewModel.showEditDialog(activeShortcutCourse)
                             }
                         ),
@@ -1442,26 +1499,31 @@ fun CourseScheduleApp() {
                             icon = MiuixIcons.Delete,
                             label = "删除",
                             onClick = {
-                                shortcutMenuCourse = null
-                                isDraggingCard = false
-                                draggingCourseIds = emptySet()
-                                draggedCardCourse = null
-                                draggedCardOffset = Offset.Zero
+                                shortcutMenuVisible = false
+                                dismissFloatingCard()
+                                coroutineScope.launch {
+                                    delay(220)
+                                    shortcutMenuCourse = null
+                                }
                                 viewModel.deleteCourse(activeShortcutCourse.id)
                             }
                         )
                     ),
                     modifier = Modifier.offset(
-                        x = with(density) { shortcutMenuPosition.x.toDp() },
-                        y = with(density) { shortcutMenuPosition.y.toDp() - 60.dp }
+                        x = with(density) { shortcutMenuPosition.x.toDp() - 14.dp },
+                        y = with(density) { (shortcutMenuPosition.y - shortcutMenuSize.height).toDp()  + 6.dp }
                     ),
                     backdrop = menuBackdrop,
+                    onMeasuredSize = { width, height ->
+                        shortcutMenuSize = IntSize(width, height)
+                    },
                     onDismiss = {
-                        shortcutMenuCourse = null
-                        isDraggingCard = false
-                        draggingCourseIds = emptySet()
-                        draggedCardCourse = null
-                        draggedCardOffset = Offset.Zero
+                        shortcutMenuVisible = false
+                        dismissFloatingCard()
+                        coroutineScope.launch {
+                            delay(220)
+                            shortcutMenuCourse = null
+                        }
                     }
                 )
             }

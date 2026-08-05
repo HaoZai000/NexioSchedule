@@ -112,6 +112,7 @@ fun MainScheduleScreen(
     onCourseDragStart: (courseId: String) -> Unit = { _ -> },
     onCourseDrag: (courseId: String, offsetX: Float, offsetY: Float) -> Unit = { _, _, _ -> },
     onCourseDragEnd: (courseId: String) -> Unit = { _ -> },
+    onCourseMenuDismiss: () -> Unit = {},
     wallpaperBitmap: android.graphics.Bitmap? = null,
     wallpaperOffset: androidx.compose.ui.geometry.Offset = androidx.compose.ui.geometry.Offset.Zero,
     wallpaperScale: Float = 1f,
@@ -436,6 +437,7 @@ fun MainScheduleScreen(
                                 onCourseDragStart = onCourseDragStart,
                                 onCourseDrag = onCourseDrag,
                                 onCourseDragEnd = onCourseDragEnd,
+                                onCourseMenuDismiss = onCourseMenuDismiss,
                                 modifier = Modifier.weight(1f)
                             )
                         }

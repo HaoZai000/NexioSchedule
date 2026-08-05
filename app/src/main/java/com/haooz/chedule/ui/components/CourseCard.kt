@@ -75,6 +75,7 @@ fun CourseCard(
     onDragStart: () -> Unit = {},
     onDrag: (offsetX: Float, offsetY: Float) -> Unit = { _, _ -> },
     onDragEnd: () -> Unit = {},
+    onMenuDismiss: () -> Unit = {},
     @SuppressLint("ModifierParameter") modifier: Modifier = Modifier
 ) {
     val sectionCount = course.endSection - course.startSection + 1
@@ -145,8 +146,9 @@ fun CourseCard(
                     }
                     .onGloballyPositioned { coordinates ->
                         layoutCoordinates = coordinates
-                        val position = coordinates.localToRoot(Offset.Zero)
-                        cardPosition = position
+                        // 上报卡片正中心的绝对坐标，避免左上角对齐时 drawBackdrop/lens 折射导致的视觉偏移
+                        val center = coordinates.localToRoot(Offset(coordinates.size.width / 2f, coordinates.size.height / 2f))
+                        cardPosition = center
                         cardSize = Offset(coordinates.size.width.toFloat(), coordinates.size.height.toFloat())
                     }
                     .drawBackdrop(
@@ -176,7 +178,7 @@ fun CourseCard(
                             var menuShowPosition = downPosition
                             // 长按定时器：按住不动到时触发，不再依赖 pointer event 唤醒
                             val longPressJob = scope.launch {
-                                delay(viewConfiguration.longPressTimeoutMillis.milliseconds)
+                                delay(320.milliseconds)
                                 isLongPress = true
                                 isPressed = false
                                 menuShown = true
@@ -195,7 +197,13 @@ fun CourseCard(
                                         isPressed = false
                                         if (isDraggingCard) {
                                             isDraggingCard = false
-                                            onDragEnd()
+                                            if (menuShown) {
+                                                // 拖拽中但菜单未关闭（移动未超阈值）：浮层回弹原位，不结束拖拽
+                                                onDrag(0f, 0f)
+                                            } else {
+                                                // 菜单已关闭：正常结束拖拽
+                                                onDragEnd()
+                                            }
                                         } else if (menuShown) {
                                             // 菜单已显示，松手 → 菜单保持
                                         } else {
@@ -218,13 +226,16 @@ fun CourseCard(
                                         event.changes.forEach { it.consume() }
                                         break
                                     }
-                                    // 菜单已显示：从菜单弹出位置算，移动超过8dp才触发拖拽
+                                    // 菜单已显示：任意移动即触发拖拽，仅当移动超过12dp才关闭菜单
                                     if (menuShown && !isDraggingCard) {
+                                        isDraggingCard = true
+                                        onDragStart()
+                                    }
+                                    if (menuShown && isDraggingCard) {
                                         val menuDragDist = (currentPos - menuShowPosition).getDistance()
                                         if (menuDragDist > 8f * density) {
                                             menuShown = false
-                                            isDraggingCard = true
-                                            onDragStart()
+                                            onMenuDismiss()
                                         }
                                     }
                                     if (isDraggingCard) {
@@ -256,8 +267,9 @@ fun CourseCard(
                 }
                 .onGloballyPositioned { coordinates ->
                     layoutCoordinates = coordinates
-                    val position = coordinates.localToRoot(Offset.Zero)
-                    cardPosition = position
+                    // 上报卡片正中心的绝对坐标，与 hasBlur 分支保持一致
+                    val center = coordinates.localToRoot(Offset(coordinates.size.width / 2f, coordinates.size.height / 2f))
+                    cardPosition = center
                     cardSize = Offset(coordinates.size.width.toFloat(), coordinates.size.height.toFloat())
                 }
                 .pointerInput(Unit) {
@@ -270,7 +282,7 @@ fun CourseCard(
                         var menuShown = false
                         var menuShowPosition = downPosition
                         val longPressJob = scope.launch {
-                            delay(viewConfiguration.longPressTimeoutMillis)
+                            delay(320.milliseconds)
                             isLongPress = true
                             menuShown = true
                             onLongPressStart(
@@ -287,7 +299,13 @@ fun CourseCard(
                                 if (!pressed) {
                                     if (isDraggingCard) {
                                         isDraggingCard = false
-                                        onDragEnd()
+                                        if (menuShown) {
+                                            // 拖拽中但菜单未关闭（移动未超阈值）：浮层回弹原位，不结束拖拽
+                                            onDrag(0f, 0f)
+                                        } else {
+                                            // 菜单已关闭：正常结束拖拽
+                                            onDragEnd()
+                                        }
                                     } else if (menuShown) {
                                     } else {
                                         val upChange = event.changes.firstOrNull()
@@ -307,12 +325,16 @@ fun CourseCard(
                                     event.changes.forEach { it.consume() }
                                     break
                                 }
+                                // 菜单已显示：任意移动即触发拖拽，仅当移动超过12dp才关闭菜单
                                 if (menuShown && !isDraggingCard) {
+                                    isDraggingCard = true
+                                    onDragStart()
+                                }
+                                if (menuShown && isDraggingCard) {
                                     val menuDragDist = (currentPos - menuShowPosition).getDistance()
                                     if (menuDragDist > 8f * density) {
                                         menuShown = false
-                                        isDraggingCard = true
-                                        onDragStart()
+                                        onMenuDismiss()
                                     }
                                 }
                                 if (isDraggingCard) {

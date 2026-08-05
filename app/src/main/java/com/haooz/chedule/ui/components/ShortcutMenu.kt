@@ -77,14 +77,14 @@ fun ShortcutMenu(
                 scale.animateTo(1f, tween(420, easing = MenuEnterEasing))
             }
             launch {
-                alpha.animateTo(1f, tween(250))
+                alpha.animateTo(1f, tween(240))
             }
         } else {
             launch {
-                scale.animateTo(0.24f, tween(200, easing = MenuExitEasing))
+                scale.animateTo(0.24f, tween(240, easing = MenuExitEasing))
             }
             launch {
-                alpha.animateTo(0f, tween(200))
+                alpha.animateTo(0f, tween(120))
             }
         }
     }

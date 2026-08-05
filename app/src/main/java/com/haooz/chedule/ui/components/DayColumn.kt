@@ -72,6 +72,7 @@ fun DayColumn(
     onCourseDragStart: (courseId: String) -> Unit = { _ -> },
     onCourseDrag: (courseId: String, offsetX: Float, offsetY: Float) -> Unit = { _, _, _ -> },
     onCourseDragEnd: (courseId: String) -> Unit = { _ -> },
+    onCourseMenuDismiss: () -> Unit = {},
     @SuppressLint("ModifierParameter") modifier: Modifier = Modifier
 ) {
     val totalHeight = ((morningSections + afternoonSections + eveningSections) * cardHeightPerSection + (if (showBreakDividers) 24 * 2 else 0)).toInt()
@@ -583,6 +584,9 @@ fun DayColumn(
                             },
                             onDragEnd = {
                                 onCourseDragEnd(course.id)
+                            },
+                            onMenuDismiss = {
+                                onCourseMenuDismiss()
                             }
                         )
                     }
