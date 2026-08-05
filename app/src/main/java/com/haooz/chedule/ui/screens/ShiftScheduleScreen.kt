@@ -1,6 +1,7 @@
 /** 排班课表页面 */
 package com.haooz.chedule.ui.screens
 
+import android.annotation.SuppressLint
 import androidx.activity.ComponentActivity
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
@@ -50,6 +51,7 @@ import top.yukonga.miuix.kmp.utils.PressFeedbackType
 import top.yukonga.miuix.kmp.utils.overScrollVertical
 import top.yukonga.miuix.kmp.utils.scrollEndHaptic
 
+@SuppressLint("ConfigurationScreenWidthHeight")
 @Composable
 fun ShiftScheduleScreen(
     shiftViewModel: ShiftViewModel,
@@ -59,7 +61,6 @@ fun ShiftScheduleScreen(
 ) {
     val shiftScheduleCourses by shiftViewModel.shiftScheduleCourses.collectAsState()
     val shiftScheduleSections by shiftViewModel.shiftScheduleSections.collectAsState()
-    val shiftSelectedSchedules by shiftViewModel.shiftSelectedSchedules.collectAsState()
     val context = LocalContext.current
     val activity = context as? ComponentActivity as? com.haooz.chedule.ui.activities.MainActivity
     val isInFreeformWindow = activity?.isInFreeformWindow == true
@@ -88,12 +89,6 @@ fun ShiftScheduleScreen(
         shiftScheduleSections.values.maxOfOrNull { it.third } ?: 4
     }
     val totalSections = maxMorning + maxAfternoon + maxEvening
-
-    val scheduleColors = remember(shiftSelectedSchedules) {
-        shiftSelectedSchedules.mapIndexed { index, name ->
-            name to Color(Course.courseColors[index % Course.courseColors.size])
-        }.toMap()
-    }
 
     if (!contentReady) return
 

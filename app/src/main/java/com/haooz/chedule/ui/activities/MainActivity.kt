@@ -1213,8 +1213,7 @@ fun CourseScheduleApp() {
                                 viewModel = viewModel,
                                 settingsViewModel = settingsViewModel,
                                 pagerState = pagerState,
-                                currentDayOfWeek = currentDayOfWeek,
-                                hiddenCourseIds = hiddenCourseIds,
+                                    hiddenCourseIds = hiddenCourseIds,
                                 draggingCourseIds = draggingCourseIds,
                                 onCourseClick = { courses, left, top, width, height, _, courseIdToHide ->
                                     openCourseDetail(courses, left, top, width, height, fromToday = false, courseIdToHide = courseIdToHide)

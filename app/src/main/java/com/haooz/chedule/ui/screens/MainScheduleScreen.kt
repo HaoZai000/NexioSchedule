@@ -3,12 +3,15 @@ package com.haooz.chedule.ui.screens
 
 import android.annotation.SuppressLint
 import androidx.activity.ComponentActivity
+import androidx.compose.animation.core.CubicBezierEasing
+import androidx.compose.animation.core.animate
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.awaitEachGesture
 import androidx.compose.foundation.gestures.awaitFirstDown
-import androidx.compose.foundation.gestures.calculateZoom
 import androidx.compose.foundation.gestures.calculatePan
+import androidx.compose.foundation.gestures.calculateZoom
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -39,9 +42,6 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
-import androidx.compose.animation.core.CubicBezierEasing
-import androidx.compose.animation.core.animate
-import androidx.compose.animation.core.tween
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -60,17 +60,16 @@ import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.kyant.shapes.RoundedRectangle
 import com.haooz.chedule.data.Course
-import com.haooz.chedule.ui.effects.blur.BlurBottomSheet
-import com.haooz.chedule.ui.effects.blur.BlurBottomSheetTablet
 import com.haooz.chedule.ui.components.DayColumn
 import com.haooz.chedule.ui.components.SectionColumn
+import com.haooz.chedule.ui.effects.blur.BlurBottomSheet
+import com.haooz.chedule.ui.effects.blur.BlurBottomSheetTablet
 import com.haooz.chedule.ui.utils.isAppDarkTheme
 import com.haooz.chedule.viewmodel.CourseViewModel
 import com.haooz.chedule.viewmodel.SettingsViewModel
+import com.kyant.shapes.RoundedRectangle
 import kotlinx.coroutines.launch
-import java.util.Calendar
 import top.yukonga.miuix.kmp.basic.Card
 import top.yukonga.miuix.kmp.basic.CardDefaults
 import top.yukonga.miuix.kmp.basic.Icon
@@ -90,9 +89,10 @@ import top.yukonga.miuix.kmp.theme.MiuixTheme
 import top.yukonga.miuix.kmp.utils.PressFeedbackType
 import top.yukonga.miuix.kmp.utils.overScrollVertical
 import top.yukonga.miuix.kmp.utils.scrollEndHaptic
-import com.kyant.backdrop.backdrops.rememberLayerBackdrop as rememberKyantLayerBackdrop
-import com.kyant.backdrop.backdrops.layerBackdrop as kyantLayerBackdrop
+import java.util.Calendar
 import kotlin.time.Duration.Companion.milliseconds
+import com.kyant.backdrop.backdrops.layerBackdrop as kyantLayerBackdrop
+import com.kyant.backdrop.backdrops.rememberLayerBackdrop as rememberKyantLayerBackdrop
 
 @SuppressLint("ConfigurationScreenWidthHeight")
 @Composable
@@ -100,7 +100,6 @@ fun MainScheduleScreen(
     viewModel: CourseViewModel,
     settingsViewModel: SettingsViewModel,
     pagerState: PagerState,
-    currentDayOfWeek: Int,
     hiddenCourseIds: Set<String> = emptySet(),
     draggingCourseIds: Set<String> = emptySet(),
     onCourseClick: (courses: List<Course>, cardLeft: Float, cardTop: Float, cardWidth: Float, cardHeight: Float, snapshot: android.graphics.Bitmap?, courseIdToHide: String) -> Unit = { _, _, _, _, _, _, _ -> },
@@ -576,7 +575,7 @@ fun MainScheduleScreen(
             }
         }
 
-        val detailEndAction: @Composable (() -> Unit)? = {
+        val detailEndAction: @Composable () -> Unit = {
             if (liquidGlassBackdrop != null) {
                 com.haooz.chedule.ui.effects.liquidglass.LiquidTopBarButton(
                     onClick = {
@@ -730,7 +729,7 @@ fun MainScheduleScreen(
                             }
                             Box(
                                 modifier = Modifier
-                                    .clip(com.kyant.shapes.RoundedRectangle(20.dp))
+                                    .clip(RoundedRectangle(20.dp))
                                     .background(MiuixTheme.colorScheme.primary.copy(alpha = 0.1f))
                                     .clickable {
                                         showCourseDetail = false
