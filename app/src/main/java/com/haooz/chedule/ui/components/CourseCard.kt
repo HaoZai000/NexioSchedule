@@ -175,7 +175,6 @@ fun CourseCard(
                             var isLongPress = false
                             var isDraggingCard = false
                             var menuShown = false
-                            var menuShowPosition = downPosition
                             // 长按定时器：按住不动到时触发，不再依赖 pointer event 唤醒
                             val longPressJob = scope.launch {
                                 delay(320.milliseconds)
@@ -196,7 +195,6 @@ fun CourseCard(
                                     if (!pressed) {
                                         isPressed = false
                                         if (isDraggingCard) {
-                                            isDraggingCard = false
                                             if (menuShown) {
                                                 // 拖拽中但菜单未关闭（移动未超阈值）：浮层回弹原位，不结束拖拽
                                                 onDrag(0f, 0f)
@@ -231,8 +229,8 @@ fun CourseCard(
                                         isDraggingCard = true
                                         onDragStart()
                                     }
-                                    if (menuShown && isDraggingCard) {
-                                        val menuDragDist = (currentPos - menuShowPosition).getDistance()
+                                    if (menuShown) {
+                                        val menuDragDist = (currentPos - downPosition).getDistance()
                                         if (menuDragDist > 8f * density) {
                                             menuShown = false
                                             onMenuDismiss()
@@ -280,7 +278,6 @@ fun CourseCard(
                         var isLongPress = false
                         var isDraggingCard = false
                         var menuShown = false
-                        var menuShowPosition = downPosition
                         val longPressJob = scope.launch {
                             delay(320.milliseconds)
                             isLongPress = true
@@ -298,7 +295,6 @@ fun CourseCard(
                                 val pressed = event.changes.any { it.pressed }
                                 if (!pressed) {
                                     if (isDraggingCard) {
-                                        isDraggingCard = false
                                         if (menuShown) {
                                             // 拖拽中但菜单未关闭（移动未超阈值）：浮层回弹原位，不结束拖拽
                                             onDrag(0f, 0f)
@@ -330,8 +326,8 @@ fun CourseCard(
                                     isDraggingCard = true
                                     onDragStart()
                                 }
-                                if (menuShown && isDraggingCard) {
-                                    val menuDragDist = (currentPos - menuShowPosition).getDistance()
+                                if (menuShown) {
+                                    val menuDragDist = (currentPos - downPosition).getDistance()
                                     if (menuDragDist > 8f * density) {
                                         menuShown = false
                                         onMenuDismiss()

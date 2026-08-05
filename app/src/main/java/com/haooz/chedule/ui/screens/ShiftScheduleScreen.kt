@@ -147,7 +147,6 @@ fun ShiftScheduleScreen(
                         ShiftDayColumn(
                             dayOfWeek = dayOfWeek,
                             allScheduleCourses = shiftScheduleCourses,
-                            scheduleColors = scheduleColors,
                             morningSections = maxMorning,
                             afternoonSections = maxAfternoon,
                             eveningSections = maxEvening,

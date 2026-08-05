@@ -48,7 +48,6 @@ import top.yukonga.miuix.kmp.utils.PressFeedbackType
 fun DayColumn(
     dayOfWeek: Int,
     courses: List<Course>,
-    currentDay: Int,
     onCourseClick: (Course) -> Unit,
     onEmptyClick: (Int) -> Unit,
     onEmptyLongPress: () -> Unit = {},

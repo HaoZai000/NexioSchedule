@@ -11,7 +11,6 @@ import androidx.compose.foundation.layout.offset
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
 import com.haooz.chedule.data.Course
 import top.yukonga.miuix.kmp.theme.MiuixTheme
@@ -20,7 +19,6 @@ import top.yukonga.miuix.kmp.theme.MiuixTheme
 fun ShiftDayColumn(
     dayOfWeek: Int,
     allScheduleCourses: Map<String, List<Course>>,
-    scheduleColors: Map<String, Color>,
     morningSections: Int,
     afternoonSections: Int,
     eveningSections: Int,
@@ -160,7 +158,6 @@ fun ShiftDayColumn(
                 val y = sectionToY(segStartSection)
                 ShiftCell(
                     courses = group.items,
-                    scheduleColors = scheduleColors,
                     onClick = { onSlotClick(dayOfWeek, group.startSection, group.items) },
                     modifier = Modifier
                         .fillMaxWidth()

@@ -45,7 +45,6 @@ import androidx.compose.animation.core.tween
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.RectangleShape
 import androidx.compose.ui.graphics.asImageBitmap
@@ -59,7 +58,6 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.kyant.shapes.RoundedRectangle
@@ -411,7 +409,6 @@ fun MainScheduleScreen(
                             DayColumn(
                                 dayOfWeek = dayOfWeek,
                                 courses = filteredDayCourses,
-                                currentDay = if (week == currentWeek) currentDayOfWeek else -1,
                                 onCourseClick = stableOnCourseClick,
                                 onEmptyClick = stableOnEmptyClick,
                                 onEmptyLongPress = onEmptyLongPress,

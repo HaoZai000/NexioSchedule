@@ -279,7 +279,7 @@ class MainActivity : ComponentActivity() {
     }
 }
 
-@SuppressLint("ConfigurationScreenWidthHeight")
+@SuppressLint("ConfigurationScreenWidthHeight", "UseOfNonLambdaOffsetOverload")
 @Composable
 fun CourseScheduleApp() {
     val context = LocalContext.current
@@ -362,7 +362,7 @@ fun CourseScheduleApp() {
     val screenHPx = with(density) { config.screenHeightDp.dp.toPx() }
     val railState = if (navBarStyle == "rail") rememberNavigationRailState() else null
     val railPaddingStart by animateDpAsState(
-        targetValue = if (appStyle == "liquidglass" && liquidGlassBackdrop != null && navBarStyle == "rail") {
+        targetValue = if (appStyle == "liquidglass" && navBarStyle == "rail") {
             0.dp
         } else if (railState != null && railState.isExpanded) {
             NavigationRailDefaults.ExpandedWidth
@@ -1172,7 +1172,7 @@ fun CourseScheduleApp() {
                 ) {
                     Box(
                         modifier = Modifier.fillMaxSize().then(
-                            if (appStyle == "liquidglass" && liquidGlassBackdrop != null) Modifier.liquidGlassLayerBackdrop(liquidGlassBackdrop)
+                            if (appStyle == "liquidglass") Modifier.liquidGlassLayerBackdrop(liquidGlassBackdrop)
                             else Modifier
                         )
                     ) {
@@ -1241,21 +1241,21 @@ fun CourseScheduleApp() {
                                     shortcutMenuPosition = Offset(left - width / 2f, top - height / 2f)
                                     shortcutMenuBackdrop = backdrop
                                 },
-                                onCourseDragStart = { courseId ->
+                                onCourseDragStart = { _ ->
                                     // 拖拽开始不关闭菜单，菜单保留到移动超过阈值后由 onCourseMenuDismiss 关闭
                                 },
                                 onCourseMenuDismiss = {
                                     // 移动超过阈值，触发菜单退出动画
                                     shortcutMenuVisible = false
                                     coroutineScope.launch {
-                                        delay(220)
+                                        delay(220.milliseconds)
                                         shortcutMenuCourse = null
                                     }
                                 },
-                                onCourseDrag = { courseId, offsetX, offsetY ->
+                                onCourseDrag = { _, offsetX, offsetY ->
                                     draggedCardOffset = Offset(offsetX, offsetY)
                                 },
-                                onCourseDragEnd = { courseId ->
+                                onCourseDragEnd = { _ ->
                                     // 仅结束拖拽浮层，不关闭菜单；菜单关闭交给 onCourseMenuDismiss（超过阈值）或点击空白处
                                     dismissFloatingCard()
                                 },
@@ -1354,7 +1354,7 @@ fun CourseScheduleApp() {
                 UpdateDialog()
 
                 // LiquidGlass 添加课程浮动按钮
-                if (appStyle == "liquidglass" && liquidGlassBackdrop != null && !isShiftMode) {
+                if (appStyle == "liquidglass" && !isShiftMode) {
                     Box(
                         modifier = Modifier
                             .fillMaxSize()
@@ -1468,7 +1468,7 @@ fun CourseScheduleApp() {
                         shortcutMenuVisible = false
                         dismissFloatingCard()
                         coroutineScope.launch {
-                            delay(220)
+                            delay(220.milliseconds)
                             shortcutMenuCourse = null
                         }
                     }
@@ -1477,59 +1477,56 @@ fun CourseScheduleApp() {
         // 快捷菜单浮层
         val activeShortcutCourse = shortcutMenuCourse
         if (activeShortcutCourse != null) {
-            val menuBackdrop = liquidGlassBackdrop
-            if (menuBackdrop != null) {
-                ShortcutMenu(
-                    show = shortcutMenuVisible,
-                    items = listOf(
-                        ShortcutMenuItem(
-                            icon = MiuixIcons.Edit,
-                            label = "编辑",
-                            onClick = {
-                                shortcutMenuVisible = false
-                                dismissFloatingCard()
-                                coroutineScope.launch {
-                                    delay(220)
-                                    shortcutMenuCourse = null
-                                }
-                                viewModel.showEditDialog(activeShortcutCourse)
+            ShortcutMenu(
+                show = shortcutMenuVisible,
+                items = listOf(
+                    ShortcutMenuItem(
+                        icon = MiuixIcons.Edit,
+                        label = "编辑",
+                        onClick = {
+                            shortcutMenuVisible = false
+                            dismissFloatingCard()
+                            coroutineScope.launch {
+                                delay(240.milliseconds)
+                                shortcutMenuCourse = null
                             }
-                        ),
-                        ShortcutMenuItem(
-                            icon = MiuixIcons.Delete,
-                            label = "删除",
-                            onClick = {
-                                shortcutMenuVisible = false
-                                dismissFloatingCard()
-                                coroutineScope.launch {
-                                    delay(220)
-                                    shortcutMenuCourse = null
-                                }
-                                viewModel.deleteCourse(activeShortcutCourse.id)
-                            }
-                        )
-                    ),
-                    modifier = Modifier.offset(
-                        x = with(density) { shortcutMenuPosition.x.toDp() - 14.dp },
-                        y = with(density) { (shortcutMenuPosition.y - shortcutMenuSize.height).toDp()  + 6.dp }
-                    ),
-                    backdrop = menuBackdrop,
-                    onMeasuredSize = { width, height ->
-                        shortcutMenuSize = IntSize(width, height)
-                    },
-                    onDismiss = {
-                        shortcutMenuVisible = false
-                        dismissFloatingCard()
-                        coroutineScope.launch {
-                            delay(220)
-                            shortcutMenuCourse = null
+                            viewModel.showEditDialog(activeShortcutCourse)
                         }
+                    ),
+                    ShortcutMenuItem(
+                        icon = MiuixIcons.Delete,
+                        label = "删除",
+                        onClick = {
+                            shortcutMenuVisible = false
+                            dismissFloatingCard()
+                            coroutineScope.launch {
+                                delay(240.milliseconds)
+                                shortcutMenuCourse = null
+                            }
+                            viewModel.deleteCourse(activeShortcutCourse.id)
+                        }
+                    )
+                ),
+                modifier = Modifier.offset(
+                    x = with(density) { shortcutMenuPosition.x.toDp() - 14.dp },
+                    y = with(density) { (shortcutMenuPosition.y - shortcutMenuSize.height).toDp()  + 6.dp }
+                ),
+                backdrop = liquidGlassBackdrop,
+                onMeasuredSize = { width, height ->
+                    shortcutMenuSize = IntSize(width, height)
+                },
+                onDismiss = {
+                    shortcutMenuVisible = false
+                    dismissFloatingCard()
+                    coroutineScope.launch {
+                        delay(220.milliseconds)
+                        shortcutMenuCourse = null
                     }
-                )
-            }
+                }
+            )
         }
         // LiquidGlass 更多菜单（Scaffold 外层，显示在最上方）
-        if (appStyle == "liquidglass" && liquidGlassBackdrop != null) {
+        if (appStyle == "liquidglass") {
             if (showMorePopup) {
                 Box(
                     modifier = Modifier

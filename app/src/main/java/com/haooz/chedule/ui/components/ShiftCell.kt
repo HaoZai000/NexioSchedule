@@ -32,7 +32,6 @@ private val ShiftBlue = Color(0xFF2196F3)
 @Composable
 fun ShiftCell(
     courses: List<Pair<String, Course>>,
-    scheduleColors: Map<String, Color>,
     onClick: () -> Unit = {},
     @SuppressLint("ModifierParameter") modifier: Modifier = Modifier
 ) {
