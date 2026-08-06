@@ -23,11 +23,11 @@ import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.asPaddingValues
 import androidx.compose.foundation.layout.fillMaxSize
@@ -117,13 +117,11 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import top.yukonga.miuix.kmp.basic.Button
 import top.yukonga.miuix.kmp.basic.MiuixScrollBehavior
 import top.yukonga.miuix.kmp.basic.NavigationRailDefaults
 import top.yukonga.miuix.kmp.basic.Scaffold
 import top.yukonga.miuix.kmp.basic.SmallTopAppBar
-import top.yukonga.miuix.kmp.basic.Button
-import top.yukonga.miuix.kmp.basic.ButtonDefaults
-import top.yukonga.miuix.kmp.basic.TextButton
 import top.yukonga.miuix.kmp.basic.rememberNavigationRailState
 import top.yukonga.miuix.kmp.blur.BlendColorEntry
 import top.yukonga.miuix.kmp.blur.BlurBlendMode
@@ -1489,7 +1487,7 @@ fun CourseScheduleApp() {
                     CourseCard(
                         course = course,
                         isCurrentWeek = course.isActiveInWeek(draggedWeek),
-                        wallpaperBackdrop = liquidGlassBackdrop,
+                        wallpaperBackdrop = if (wallpaperBitmap != null) liquidGlassBackdrop else null,
                         cardBlurRadius = displayAppearance.cardBlurRadius,
                         cardAlpha = displayAppearance.cardAlpha,
                         cardHeightPerSection = displayAppearance.cardHeight,
