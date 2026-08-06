@@ -75,6 +75,8 @@ fun DayColumn(
     onCourseMenuDismiss: () -> Unit = {},
     // 拖拽落点高亮：当前列中需高亮的节次范围（含起止），null 表示无高亮
     dropHighlightSections: IntRange? = null,
+    // 调课后需要淡入放大的课程ID集合
+    animateInCourseIds: Set<String> = emptySet(),
     @SuppressLint("ModifierParameter") modifier: Modifier = Modifier
 ) {
     val totalHeight = ((morningSections + afternoonSections + eveningSections) * cardHeightPerSection + (if (showBreakDividers) 24 * 2 else 0)).toInt()
@@ -94,8 +96,12 @@ fun DayColumn(
             }
         }
     }
-    // 落点高亮背景色：浅黄半透明，让用户清楚看到落点位置
-    val dropHighlightColor = if (isDark) Color.Black.copy(alpha = 0.2f) else Color.White.copy(alpha = 0.15f)
+    // 落点高亮背景色：让用户清楚看到落点位置
+    val dropHighlightColor = if (hasBlur) {
+        if (isDark) Color.Black.copy(alpha = 0.2f) else Color.White.copy(alpha = 0.15f)
+    } else {
+        if (isDark) Color.White.copy(alpha = 0.06f) else Color.Black.copy(alpha = 0.04f)
+    }
     val dropHighlightCornerRadius = cardCornerRadius.dp
     val dropHighlightPaddingV = 2.dp
     val dropHighlightPaddingH = 2.dp

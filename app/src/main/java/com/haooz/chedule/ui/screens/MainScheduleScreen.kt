@@ -145,6 +145,8 @@ fun MainScheduleScreen(
     liquidGlassBackdrop: com.kyant.backdrop.Backdrop? = null,
     // 拖拽落点高亮：Pair(dayOfWeek, sectionRange)，sectionRange 为落点覆盖的节次区间
     dropHighlight: Pair<Int, IntRange>? = null,
+    // 调课后需要淡入放大的课程ID集合
+    animateInCourseIds: Set<String> = emptySet(),
     onGridGeometryChange: (ScheduleGridGeometry) -> Unit = {}
 ) {
     val courses by viewModel.courses.collectAsState()
@@ -455,6 +457,7 @@ fun MainScheduleScreen(
                                 onCourseDragEnd = onCourseDragEnd,
                                 onCourseMenuDismiss = onCourseMenuDismiss,
                                 dropHighlightSections = if (dropHighlight?.first == dayOfWeek) dropHighlight.second else null,
+                                animateInCourseIds = animateInCourseIds,
                                 modifier = Modifier
                                     .weight(1f)
                                     .onGloballyPositioned { coordinates ->

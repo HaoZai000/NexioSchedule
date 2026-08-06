@@ -76,10 +76,6 @@ class CourseViewModel(application: Application) : AndroidViewModel(application) 
     private val _editingCourse = MutableStateFlow<Course?>(null)
     val editingCourse: StateFlow<Course?> = _editingCourse.asStateFlow()
 
-    // 是否显示设置页面
-    private val _showSettings = MutableStateFlow(false)
-    val showSettings: StateFlow<Boolean> = _showSettings.asStateFlow()
-
     // 当前是否处于假期（无课程的周）
     private val _isHoliday = MutableStateFlow(false)
     val isHoliday: StateFlow<Boolean> = _isHoliday.asStateFlow()
@@ -235,28 +231,6 @@ class CourseViewModel(application: Application) : AndroidViewModel(application) 
         if (week < 1) return false
         val lastWeekWithCourses = repository.getLastWeekWithCourses()
         return week > lastWeekWithCourses
-    }
-
-    /**
-     * 选择星期
-     */
-    fun selectDay(day: Int) {
-        _selectedDay.value = day
-    }
-
-    /**
-     * 获取指定周次、星期的课程（包括非本周课程）
-     */
-    fun getCoursesForDay(week: Int, dayOfWeek: Int, showNonCurrentWeek: Boolean = true): List<Course> {
-        val courses = _courses.value.filter {
-            it.dayOfWeek == dayOfWeek
-        }.sortedBy { it.startSection }
-
-        return if (showNonCurrentWeek) {
-            courses
-        } else {
-            courses.filter { it.isActiveInWeek(week) }
-        }
     }
 
     /**

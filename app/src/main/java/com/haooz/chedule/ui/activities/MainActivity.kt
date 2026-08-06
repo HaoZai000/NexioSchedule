@@ -407,6 +407,8 @@ fun CourseScheduleApp() {
     var gridGeometry by remember { mutableStateOf<com.haooz.chedule.ui.screens.ScheduleGridGeometry?>(null) }
     // 当前拖拽落点：(dayOfWeek, startSection)，null 表示无有效落点
     var pendingDropTarget by remember { mutableStateOf<Pair<Int, Int>?>(null) }
+    // 调课后需要淡入放大的课程ID集合
+    var animateInCourseIds by remember { mutableStateOf(setOf<String>()) }
     // 调课冲突对话框状态：拖到有课位置时弹出
     var showRescheduleConflictDialog by remember { mutableStateOf(false) }
     var pendingConflictCourse by remember { mutableStateOf<Course?>(null) }
@@ -1431,6 +1433,8 @@ fun CourseScheduleApp() {
                                     val source = draggedCardCourse
                                     val target = pendingDropTarget
                                     val week = draggedWeek
+                                    // 松手立即清除高亮
+                                    pendingDropTarget = null
                                     if (source != null && target != null) {
                                         val sectionSpan = source.endSection - source.startSection
                                         val targetStart = target.second
@@ -1450,6 +1454,17 @@ fun CourseScheduleApp() {
                                                     source.id, week, target.first, targetStart, targetEnd
                                                 )
                                                 snapFloatingCardToTarget(target.first, targetStart, sectionSpan)
+                                                // 计算原位置露出的非本周课程，添加淡入放大动画
+                                                val sourceCourses = viewModel.getCoursesAtSlot(
+                                                    week, source.dayOfWeek, source.startSection, source.endSection
+                                                ).filter { it.id != source.id && !it.isActiveInWeek(week) }
+                                                if (sourceCourses.isNotEmpty()) {
+                                                    animateInCourseIds = sourceCourses.map { it.id }.toSet()
+                                                    coroutineScope.launch {
+                                                        delay(350)
+                                                        animateInCourseIds = emptySet()
+                                                    }
+                                                }
                                             } else {
                                                 // 有课：暂存冲突信息，弹出对话框让用户选择"覆盖"或"交换"
                                                 pendingConflictCourse = conflicts.first()
@@ -1497,7 +1512,8 @@ fun CourseScheduleApp() {
                                         val sectionSpan = source.endSection - source.startSection
                                         target.first to (target.second..(target.second + sectionSpan))
                                     } else null
-                                }
+                                },
+                                animateInCourseIds = animateInCourseIds
                             )
                             }
 
@@ -1722,6 +1738,17 @@ fun CourseScheduleApp() {
                                     viewModel.overwriteCourseForWeek(
                                         source.id, draggedWeek, target.first, target.second, targetEnd
                                     )
+                                    // 计算原位置露出的非本周课程
+                                    val sourceCourses = viewModel.getCoursesAtSlot(
+                                        draggedWeek, source.dayOfWeek, source.startSection, source.endSection
+                                    ).filter { it.id != source.id && !it.isActiveInWeek(draggedWeek) }
+                                    if (sourceCourses.isNotEmpty()) {
+                                        animateInCourseIds = sourceCourses.map { it.id }.toSet()
+                                        coroutineScope.launch {
+                                            delay(350)
+                                            animateInCourseIds = emptySet()
+                                        }
+                                    }
                                 }
                                 showRescheduleConflictDialog = false
                                 pendingConflictCourse = null
@@ -1739,6 +1766,21 @@ fun CourseScheduleApp() {
                                 val conflict = pendingConflictCourse
                                 if (source != null && conflict != null) {
                                     viewModel.swapCoursesForWeek(source.id, conflict.id, draggedWeek)
+                                    // 计算两个原位置露出的非本周课程
+                                    val sourceCourses = viewModel.getCoursesAtSlot(
+                                        draggedWeek, source.dayOfWeek, source.startSection, source.endSection
+                                    ).filter { it.id != source.id && it.id != conflict.id && !it.isActiveInWeek(draggedWeek) }
+                                    val conflictCourses = viewModel.getCoursesAtSlot(
+                                        draggedWeek, conflict.dayOfWeek, conflict.startSection, conflict.endSection
+                                    ).filter { it.id != conflict.id && it.id != source.id && !it.isActiveInWeek(draggedWeek) }
+                                    val allAnimated = (sourceCourses + conflictCourses).map { it.id }.toSet()
+                                    if (allAnimated.isNotEmpty()) {
+                                        animateInCourseIds = allAnimated
+                                        coroutineScope.launch {
+                                            delay(350)
+                                            animateInCourseIds = emptySet()
+                                        }
+                                    }
                                 }
                                 showRescheduleConflictDialog = false
                                 pendingConflictCourse = null

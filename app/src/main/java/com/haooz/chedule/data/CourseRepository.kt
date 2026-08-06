@@ -1767,7 +1767,7 @@ class CourseRepository private constructor(context: Context) {
         return if (cleaned.startsWith("[")) {
             // JSON 数组格式
             try {
-                val type = object : com.google.gson.reflect.TypeToken<List<Long>>() {}.type
+                val type = object : TypeToken<List<Long>>() {}.type
                 val list: List<Long> = gson.fromJson(cleaned, type) ?: emptyList()
                 list
             } catch (_: Exception) {
@@ -2104,7 +2104,7 @@ class CourseRepository private constructor(context: Context) {
                 (timeConfigData["sectionTimes"] as? Map<String, String>)?.forEach { (k, v) ->
                     sectionTimesMap[k] = v
                 }
-                com.haooz.chedule.data.TimeConfig(
+                TimeConfig(
                     name = scheduleName,
                     morningSections = (timeConfigData["morningSections"] as? Number)?.toInt() ?: 4,
                     afternoonSections = (timeConfigData["afternoonSections"] as? Number)?.toInt() ?: 4,
