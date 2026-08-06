@@ -828,6 +828,27 @@ fun CourseScheduleApp() {
         }
     }
 
+    /** 回弹动画：浮层从当前位置动画回到原位再消失 */
+    val snapFloatingCardToOrigin: () -> Unit = {
+        coroutineScope.launch {
+            isSnapping = true
+            floatingOffsetX.snapTo(draggedCardOffset.x)
+            floatingOffsetY.snapTo(draggedCardOffset.y)
+            val jobX = launch { floatingOffsetX.animateTo(0f, tween(durationMillis = 220, easing = CubicBezierEasing(0.34f, 1.1f, 0.3f, 1f))) }
+            val jobY = launch { floatingOffsetY.animateTo(0f, tween(durationMillis = 220, easing = CubicBezierEasing(0.34f, 1.1f, 0.3f, 1f))) }
+            val jobScale = launch { floatingScale.animateTo(1f, tween(durationMillis = 220)) }
+            jobX.join(); jobY.join(); jobScale.join()
+            isDraggingCard = false
+            floatingCardVisible = false
+            draggingCourseIds = emptySet()
+            draggedCardCourse = null
+            draggedCardOffset = Offset.Zero
+            pendingDropTarget = null
+            isSnapping = false
+            floatingScale.snapTo(0.94f)
+        }
+    }
+
     /**
      * 根据浮层位置计算落点 (dayOfWeek, startSection)
      * - dayOfWeek：用浮层中心点 x 找出 dayBounds 中包含的列
@@ -1448,7 +1469,7 @@ fun CourseScheduleApp() {
                                                 }
                                             }
                                         } else {
-                                            dismissFloatingCard()
+                                            snapFloatingCardToOrigin()
                                         }
                                     } else {
                                         dismissFloatingCard()
@@ -1763,6 +1784,7 @@ fun CourseScheduleApp() {
                     modifier = Modifier
                         .offset(x = offsetX, y = offsetY)
                         .size(width = width, height = height)
+                        .padding(vertical = 2.dp)
                         .graphicsLayer {
                             scaleX = floatingScale.value
                             scaleY = floatingScale.value

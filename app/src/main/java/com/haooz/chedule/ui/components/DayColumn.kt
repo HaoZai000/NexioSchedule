@@ -15,6 +15,7 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.key
 import androidx.compose.runtime.remember
@@ -94,7 +95,28 @@ fun DayColumn(
         }
     }
     // 落点高亮背景色：浅黄半透明，让用户清楚看到落点位置
-    val dropHighlightColor = if (isDark) Color(0xFFFFC107).copy(alpha = 0.22f) else Color(0xFFFFC107).copy(alpha = 0.18f)
+    val dropHighlightColor = if (isDark) Color.Black.copy(alpha = 0.2f) else Color.White.copy(alpha = 0.15f)
+    val dropHighlightCornerRadius = cardCornerRadius.dp
+    val dropHighlightPaddingV = 2.dp
+    val dropHighlightPaddingH = 2.dp
+    fun dropHighlightPadding(section: Int): PaddingValues {
+        val range = dropHighlightSections ?: return PaddingValues(0.dp)
+        if (section !in range) return PaddingValues(0.dp)
+        val isFirst = section == range.first
+        val isLast = section == range.last
+        val top = if (isFirst) dropHighlightPaddingV else 0.dp
+        val bottom = if (isLast) dropHighlightPaddingV else 0.dp
+        return PaddingValues(start = dropHighlightPaddingH, end = dropHighlightPaddingH, top = top, bottom = bottom)
+    }
+    fun dropHighlightShape(section: Int): androidx.compose.ui.graphics.Shape {
+        val range = dropHighlightSections ?: return RoundedCornerShape(0.dp)
+        if (section !in range) return RoundedCornerShape(0.dp)
+        val isFirst = section == range.first
+        val isLast = section == range.last
+        val top = if (isFirst) dropHighlightCornerRadius else 0.dp
+        val bottom = if (isLast) dropHighlightCornerRadius else 0.dp
+        return RoundedCornerShape(topStart = top, topEnd = top, bottomStart = bottom, bottomEnd = bottom)
+    }
 
     Box(
         modifier = modifier
@@ -117,7 +139,7 @@ fun DayColumn(
                         .fillMaxWidth()
                         .height(cardHeightPerSection.dp)
                         .offset(y = currentOffset.dp)
-                        .then(if (isDropHighlight) Modifier.background(dropHighlightColor) else Modifier)
+                        .then(if (isDropHighlight) Modifier.padding(dropHighlightPadding(section)).background(dropHighlightColor, dropHighlightShape(section)) else Modifier)
                         .then(
                             if (!isSectionPending && !isOccupied) {
                                 Modifier.combinedClickable(
@@ -253,7 +275,7 @@ fun DayColumn(
                         .fillMaxWidth()
                         .height(cardHeightPerSection.dp)
                         .offset(y = currentOffset.dp)
-                        .then(if (isDropHighlight) Modifier.background(dropHighlightColor) else Modifier)
+                        .then(if (isDropHighlight) Modifier.padding(dropHighlightPadding(section)).background(dropHighlightColor, dropHighlightShape(section)) else Modifier)
                         .then(
                             if (!isSectionPending && !isOccupied) {
                                 Modifier.combinedClickable(
@@ -388,7 +410,7 @@ fun DayColumn(
                         .fillMaxWidth()
                         .height(cardHeightPerSection.dp)
                         .offset(y = currentOffset.dp)
-                        .then(if (isDropHighlight) Modifier.background(dropHighlightColor) else Modifier)
+                        .then(if (isDropHighlight) Modifier.padding(dropHighlightPadding(section)).background(dropHighlightColor, dropHighlightShape(section)) else Modifier)
                         .then(
                             if (!isSectionPending && !isOccupied) {
                                 Modifier.combinedClickable(
