@@ -1735,16 +1735,18 @@ fun CourseScheduleApp() {
         if (floatingCardVisible) {
             val course = draggedCardCourse
             if (course != null) {
+                android.util.Log.d("FloatRender", "render course=${course.name}, sec=${course.startSection}-${course.endSection}, draggedCardSize=${draggedCardSize}")
                 // draggedCardPosition 为卡片正中心绝对坐标，浮层按中心对齐：offset = 中心 - 半宽
                 // 吸附期间使用 floatingOffsetAnim 替代 draggedCardOffset，实现从当前位置到目标位置的动画
                 val currentOffsetX = if (isSnapping) floatingOffsetX.value else draggedCardOffset.x
                 val currentOffsetY = if (isSnapping) floatingOffsetY.value else draggedCardOffset.y
                 val centerX = draggedCardPosition.x + currentOffsetX
                 val centerY = draggedCardPosition.y + currentOffsetY
-                // 宽度用 draggedCardSize（宽度不随节数变化），高度基于 course 实时计算避免缓存旧值
+                // 宽度用 draggedCardSize（宽度不随节数变化）
+                // 高度按原卡片每节高度 × 当前 course 节数实时计算，避免 draggedCardSize 缓存旧节数
                 val widthPx = draggedCardSize.x
                 val sectionCount = course.endSection - course.startSection + 1
-                val sectionH = with(density) { displayAppearance.cardHeight.dp.toPx() }
+                val sectionH = gridGeometry?.sectionHeightPx ?: with(density) { displayAppearance.cardHeight.dp.toPx() }
                 val heightPx = sectionCount * sectionH
                 val offsetX = with(density) { (centerX - widthPx / 2f).toDp() }
                 val offsetY = with(density) { (centerY - heightPx / 2f).toDp() }

@@ -115,6 +115,17 @@ class CourseViewModel(application: Application) : AndroidViewModel(application) 
     private fun loadCourses() {
         _courses.value = repository.getAllCourses()
         _isHoliday.value = isWeekHoliday(_currentWeek.value)
+        updateWidgets()
+    }
+
+    /** 同步更新 _courses 并异步刷新小组件（供课程变更操作使用，保证 UI 即时响应） */
+    private fun applyCoursesAndRefreshWidgets(courses: List<Course>) {
+        _courses.value = courses
+        _isHoliday.value = isWeekHoliday(_currentWeek.value)
+        updateWidgets()
+    }
+
+    private fun updateWidgets() {
         viewModelScope.launch {
             CourseWidgetProvider.updateAllWidgets(getApplication())
             CourseWidgetProvider4x7.updateAllWidgets(getApplication())
@@ -252,35 +263,35 @@ class CourseViewModel(application: Application) : AndroidViewModel(application) 
      * 添加课程
      */
     fun addCourse(course: Course) {
-        _courses.value = repository.addCourse(course)
+        applyCoursesAndRefreshWidgets(repository.addCourse(course))
     }
 
     /**
      * 更新课程
      */
     fun updateCourse(course: Course) {
-        _courses.value = repository.updateCourse(course)
+        applyCoursesAndRefreshWidgets(repository.updateCourse(course))
     }
 
     /**
      * 按旧名称更新所有同名课程
      */
     fun updateCoursesByName(oldName: String, updated: Course) {
-        _courses.value = repository.updateCoursesByName(oldName, updated)
+        applyCoursesAndRefreshWidgets(repository.updateCoursesByName(oldName, updated))
     }
 
     /**
      * 删除课程
      */
     fun deleteCourse(courseId: String) {
-        _courses.value = repository.deleteCourse(courseId)
+        applyCoursesAndRefreshWidgets(repository.deleteCourse(courseId))
     }
 
     /**
      * 仅删除指定周次的课程实例
      */
     fun deleteCourseForWeek(courseId: String, week: Int) {
-        _courses.value = repository.deleteCourseForWeek(courseId, week)
+        applyCoursesAndRefreshWidgets(repository.deleteCourseForWeek(courseId, week))
     }
 
     /**
@@ -293,11 +304,9 @@ class CourseViewModel(application: Application) : AndroidViewModel(application) 
         targetStartSection: Int,
         targetEndSection: Int
     ) {
-        viewModelScope.launch(Dispatchers.IO) {
-            _courses.value = repository.moveCourseForWeek(
-                sourceCourseId, week, targetDayOfWeek, targetStartSection, targetEndSection
-            )
-        }
+        applyCoursesAndRefreshWidgets(repository.moveCourseForWeek(
+            sourceCourseId, week, targetDayOfWeek, targetStartSection, targetEndSection
+        ))
     }
 
     /**
@@ -310,20 +319,16 @@ class CourseViewModel(application: Application) : AndroidViewModel(application) 
         targetStartSection: Int,
         targetEndSection: Int
     ) {
-        viewModelScope.launch(Dispatchers.IO) {
-            _courses.value = repository.overwriteCourseForWeek(
-                sourceCourseId, week, targetDayOfWeek, targetStartSection, targetEndSection
-            )
-        }
+        applyCoursesAndRefreshWidgets(repository.overwriteCourseForWeek(
+            sourceCourseId, week, targetDayOfWeek, targetStartSection, targetEndSection
+        ))
     }
 
     /**
      * 调课-交换：将指定周次的源课程与目标课程互换位置（仅影响该周）
      */
     fun swapCoursesForWeek(sourceCourseId: String, targetCourseId: String, week: Int) {
-        viewModelScope.launch(Dispatchers.IO) {
-            _courses.value = repository.swapCoursesForWeek(sourceCourseId, targetCourseId, week)
-        }
+        applyCoursesAndRefreshWidgets(repository.swapCoursesForWeek(sourceCourseId, targetCourseId, week))
     }
 
     /**

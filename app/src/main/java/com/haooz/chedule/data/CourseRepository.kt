@@ -321,7 +321,6 @@ class CourseRepository private constructor(context: Context) {
         }
         courses.add(courseWithSchedule)
         saveCourses(courses, notify = false)
-        onCourseChanged?.invoke("add", courseWithSchedule.id)
         return courses
     }
 
@@ -334,7 +333,6 @@ class CourseRepository private constructor(context: Context) {
         if (index != -1) {
             courses[index] = course.copy(lastModified = System.currentTimeMillis())
             saveCourses(courses, notify = false)
-            onCourseChanged?.invoke("update", course.id)
         }
         return courses
     }
@@ -357,7 +355,6 @@ class CourseRepository private constructor(context: Context) {
         }
         if (changed) {
             saveCourses(courses, notify = false)
-            onCourseChanged?.invoke("update", updated.id)
         }
         return courses
     }
@@ -369,7 +366,6 @@ class CourseRepository private constructor(context: Context) {
         val courses = getAllCourses().toMutableList()
         courses.removeAll { it.id == courseId }
         saveCourses(courses, notify = false)
-        onCourseChanged?.invoke("delete", courseId)
         return courses
     }
 
@@ -410,7 +406,7 @@ class CourseRepository private constructor(context: Context) {
                 )
             }
             saveCourses(courses, notify = false)
-            onCourseChanged?.invoke("delete", courseId)
+            // 不在此处触发 onCourseChanged，由 ViewModel 统一处理 UI 更新，避免竞态
         }
         return courses
     }
@@ -551,7 +547,7 @@ class CourseRepository private constructor(context: Context) {
             courses.add(newCourse)
         }
         saveCourses(courses, notify = false)
-        onCourseChanged?.invoke("update", sourceCourseId)
+        // 不在此处触发 onCourseChanged，由 ViewModel 统一处理 UI 更新，避免竞态
         return courses
     }
 
@@ -658,7 +654,7 @@ class CourseRepository private constructor(context: Context) {
         result = applyMoveInPlace(result, tgt.id, week, srcPos.first, srcPos.second, srcPos.third)
 
         saveCourses(result, notify = false)
-        onCourseChanged?.invoke("update", sourceCourseId)
+        // 不在此处触发 onCourseChanged，由 ViewModel 统一处理 UI 更新，避免竞态
         return result
     }
 

@@ -170,7 +170,7 @@ fun CourseCard(
                         drawRect(color = if (isDark) Color.Black.copy(alpha = 0.15f) else Color.White.copy(alpha = 0.17f))
                     }
                     .edgeLight(shape = RoundedRectangle(cardCornerRadius.dp), edgeLight = rememberCourseCardEdgeLight())
-                    .pointerInput(Unit) {
+                    .pointerInput(course) {
                         awaitEachGesture {
                             val down = awaitFirstDown(requireUnconsumed = false)
                             down.consume()
@@ -275,7 +275,7 @@ fun CourseCard(
                     cardPosition = center
                     cardSize = Offset(coordinates.size.width.toFloat(), coordinates.size.height.toFloat())
                 }
-                .pointerInput(Unit) {
+                .pointerInput(course) {
                     awaitEachGesture {
                         val down = awaitFirstDown(requireUnconsumed = false)
                         down.consume()
