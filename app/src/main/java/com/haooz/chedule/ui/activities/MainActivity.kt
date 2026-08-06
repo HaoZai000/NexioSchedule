@@ -403,10 +403,22 @@ fun CourseScheduleApp() {
     var draggedCardOffset by remember { mutableStateOf(Offset.Zero) }
     var draggedCardBackdrop by remember { mutableStateOf<com.kyant.backdrop.Backdrop?>(null) }
     var draggedWeek by remember { mutableIntStateOf(1) }
+    // 网格几何信息：拖拽落点检测使用
+    var gridGeometry by remember { mutableStateOf<com.haooz.chedule.ui.screens.ScheduleGridGeometry?>(null) }
+    // 当前拖拽落点：(dayOfWeek, startSection)，null 表示无有效落点
+    var pendingDropTarget by remember { mutableStateOf<Pair<Int, Int>?>(null) }
+    // 调课冲突对话框状态：拖到有课位置时弹出
+    var showRescheduleConflictDialog by remember { mutableStateOf(false) }
+    var pendingConflictCourse by remember { mutableStateOf<Course?>(null) }
     // 浮层卡片是否仍在渲染（退出动画期间保持 true，动画结束才 false，此时原卡片 alpha 恢复 1）
     var floatingCardVisible by remember { mutableStateOf(false) }
     // 浮层缩放：入场 0.94→1.04，退场 1.04→1.0；退场结束才让原卡片显现
     val floatingScale = remember { Animatable(0.94f) }
+    // 吸附动画：调课成功后浮层从当前位置动画移动到目标位置，同时缩小到 1f
+    // 吸附期间 isSnapping=true，浮层使用 floatingOffsetAnim 替代 draggedCardOffset
+    var isSnapping by remember { mutableStateOf(false) }
+    val floatingOffsetX = remember { Animatable(0f) }
+    val floatingOffsetY = remember { Animatable(0f) }
     // 快捷菜单状态
     var shortcutMenuCourse by remember { mutableStateOf<Course?>(null) }
     var shortcutMenuVisible by remember { mutableStateOf(false) }
@@ -739,9 +751,124 @@ fun CourseScheduleApp() {
             draggingCourseIds = emptySet()
             draggedCardCourse = null
             draggedCardOffset = Offset.Zero
+            pendingDropTarget = null
+            isSnapping = false
             // 重置为入场起始值，避免下次显示时首帧渲染残留的 1.0 造成抖动
             floatingScale.snapTo(0.94f)
         }
+    }
+
+    /**
+     * 计算目标落点位置卡片正中心的绝对坐标（root px）
+     * 用于吸附动画：浮层从当前位置移动到目标位置中心
+     */
+    fun computeTargetCenter(dayOfWeek: Int, startSection: Int, sectionSpan: Int): Offset? {
+        val geom = gridGeometry ?: return null
+        val bounds = geom.dayBounds[dayOfWeek] ?: return null
+        if (bounds.size < 3) return null
+        val centerX = (bounds[0] + bounds[1]) / 2f
+        val topY = bounds[2]
+        val sectionH = geom.sectionHeightPx
+        val dividerH = with(density) { 24.dp.toPx() }
+        // 计算起始节次相对于列顶部的 y 偏移
+        var cursor = 0f
+        val morningEnd = geom.morningSections
+        val afternoonStart = morningEnd + 1
+        val afternoonEnd = morningEnd + geom.afternoonSections
+        val eveningStart = afternoonEnd + 1
+        val targetSectionTop: Float = when {
+            startSection <= morningEnd -> {
+                (startSection - 1) * sectionH
+            }
+            startSection in afternoonStart..afternoonEnd -> {
+                morningEnd * sectionH + dividerH + (startSection - afternoonStart) * sectionH
+            }
+            else -> {
+                morningEnd * sectionH + dividerH + geom.afternoonSections * sectionH + dividerH + (startSection - eveningStart) * sectionH
+            }
+        }
+        // 卡片中心 = 卡片顶部 + 半高；卡片顶部 = 列顶 + 起始节次顶部
+        val cardTopY = topY + targetSectionTop
+        val cardCenterY = cardTopY + (sectionSpan + 1) * sectionH / 2f
+        return Offset(centerX, cardCenterY)
+    }
+
+    /**
+     * 启动吸附动画：浮层从当前 offset 移动到目标位置中心，同时缩小到 1f
+     * 动画结束后清空状态，原卡片在目标位置显现
+     */
+    val snapFloatingCardToTarget: (dayOfWeek: Int, startSection: Int, sectionSpan: Int) -> Unit = { day, section, span ->
+        val targetCenter = computeTargetCenter(day, section, span)
+        if (targetCenter != null) {
+            // 目标 offset = 目标中心 - 原卡片中心（原卡片中心 = draggedCardPosition）
+            val targetOffsetX = targetCenter.x - draggedCardPosition.x
+            val targetOffsetY = targetCenter.y - draggedCardPosition.y
+            coroutineScope.launch {
+                isSnapping = true
+                // 初始化吸附起点为当前拖拽 offset
+                floatingOffsetX.snapTo(draggedCardOffset.x)
+                floatingOffsetY.snapTo(draggedCardOffset.y)
+                // 并行执行位移和缩小动画
+                val jobX = launch { floatingOffsetX.animateTo(targetOffsetX, tween(durationMillis = 220, easing = CubicBezierEasing(0.34f, 1.1f, 0.3f, 1f))) }
+                val jobY = launch { floatingOffsetY.animateTo(targetOffsetY, tween(durationMillis = 220, easing = CubicBezierEasing(0.34f, 1.1f, 0.3f, 1f))) }
+                val jobScale = launch { floatingScale.animateTo(1f, tween(durationMillis = 220)) }
+                jobX.join(); jobY.join(); jobScale.join()
+                // 清空状态，原卡片在目标位置显现
+                isDraggingCard = false
+                floatingCardVisible = false
+                draggingCourseIds = emptySet()
+                draggedCardCourse = null
+                draggedCardOffset = Offset.Zero
+                pendingDropTarget = null
+                isSnapping = false
+                floatingScale.snapTo(0.94f)
+            }
+        } else {
+            dismissFloatingCard()
+        }
+    }
+
+    /**
+     * 根据浮层位置计算落点 (dayOfWeek, startSection)
+     * - dayOfWeek：用浮层中心点 x 找出 dayBounds 中包含的列
+     * - startSection：用卡片第一格中心 y（= 卡片顶部 + 半节高）对齐网格节次
+     */
+    fun computeDropTarget(centerX: Float, firstSectionCenterY: Float): Pair<Int, Int>? {
+        val geom = gridGeometry ?: return null
+        if (geom.sectionHeightPx <= 0f) return null
+        if (geom.dayBounds.isEmpty()) return null
+        // 找出 centerX 落在哪一列
+        val day = geom.dayBounds.entries.firstOrNull { (_, bounds) ->
+            bounds.size >= 2 && centerX >= bounds[0] && centerX <= bounds[1]
+        }?.key ?: return null
+        val topY = geom.dayBounds[day]?.getOrNull(2) ?: return null
+        val relY = firstSectionCenterY - topY
+        if (relY < 0f) return null
+        val sectionH = geom.sectionHeightPx
+        val dividerH = with(density) { 24.dp.toPx() }
+        var cursor = 0f
+        // 上午
+        for (s in 1..geom.morningSections) {
+            if (relY < cursor + sectionH) return day to s
+            cursor += sectionH
+        }
+        if (geom.showBreakDividers) cursor += dividerH
+        // 下午
+        val afternoonStart = geom.morningSections + 1
+        for (i in 1..geom.afternoonSections) {
+            val s = afternoonStart + i - 1
+            if (relY < cursor + sectionH) return day to s
+            cursor += sectionH
+        }
+        if (geom.showBreakDividers) cursor += dividerH
+        // 晚上
+        val eveningStart = afternoonStart + geom.afternoonSections
+        for (i in 1..geom.eveningSections) {
+            val s = eveningStart + i - 1
+            if (relY < cursor + sectionH) return day to s
+            cursor += sectionH
+        }
+        return null
     }
 
     // 统一的课程详情页打开函数
@@ -1252,6 +1379,7 @@ fun CourseScheduleApp() {
                                 },
                                 onCourseDragStart = { _ ->
                                     // 拖拽开始不关闭菜单，菜单保留到移动超过阈值后由 onCourseMenuDismiss 关闭
+                                    pendingDropTarget = null
                                 },
                                 onCourseMenuDismiss = {
                                     // 移动超过阈值，触发菜单退出动画
@@ -1263,10 +1391,68 @@ fun CourseScheduleApp() {
                                 },
                                 onCourseDrag = { _, offsetX, offsetY ->
                                     draggedCardOffset = Offset(offsetX, offsetY)
+                                    // 实时计算落点：x 用浮层中心，y 用卡片第一格中心（卡片顶部 + 半节高）
+                                    // 卡片高度基于 course 实时计算，避免 draggedCardSize 缓存旧值导致偏移
+                                    val course = draggedCardCourse
+                                    if (course != null) {
+                                        val sectionH = gridGeometry?.sectionHeightPx ?: 0f
+                                        val sectionCount = course.endSection - course.startSection + 1
+                                        val cardHeightPx = sectionCount * sectionH
+                                        val centerX = draggedCardPosition.x + offsetX
+                                        val cardTopY = draggedCardPosition.y + offsetY - cardHeightPx / 2f
+                                        val firstSectionCenterY = cardTopY + sectionH / 2f
+                                        pendingDropTarget = computeDropTarget(centerX, firstSectionCenterY)
+                                    }
                                 },
                                 onCourseDragEnd = { _ ->
                                     // 仅结束拖拽浮层，不关闭菜单；菜单关闭交给 onCourseMenuDismiss（超过阈值）或点击空白处
-                                    dismissFloatingCard()
+                                    // 调课落点提交：根据 pendingDropTarget 决定是否调课
+                                    val source = draggedCardCourse
+                                    val target = pendingDropTarget
+                                    val week = draggedWeek
+                                    if (source != null && target != null) {
+                                        val sectionSpan = source.endSection - source.startSection
+                                        val targetStart = target.second
+                                        val targetEnd = targetStart + sectionSpan
+                                        // 落点位置若与原位置一致，不做任何操作
+                                        val sameSlot = source.dayOfWeek == target.first &&
+                                            source.startSection == targetStart &&
+                                            source.endSection == targetEnd
+                                        if (!sameSlot) {
+                                            // 检查目标位置该周是否有冲突课程（仅算本周活跃的课）
+                                            val conflicts = viewModel.getCoursesAtSlot(
+                                                week, target.first, targetStart, targetEnd
+                                            ).filter { it.id != source.id && it.isActiveInWeek(week) }
+                                            if (conflicts.isEmpty()) {
+                                                // 空位：移动并播放吸附动画
+                                                viewModel.moveCourseForWeek(
+                                                    source.id, week, target.first, targetStart, targetEnd
+                                                )
+                                                snapFloatingCardToTarget(target.first, targetStart, sectionSpan)
+                                            } else {
+                                                // 有课：暂存冲突信息，弹出对话框让用户选择"覆盖"或"交换"
+                                                pendingConflictCourse = conflicts.first()
+                                                // 暂存目标位置到 draggedCardCourse 的临时字段不容易，借助独立状态
+                                                pendingDropTarget = target.first to targetStart
+                                                showRescheduleConflictDialog = true
+                                                // 不立刻关闭浮层，等用户选择后再处理
+                                                // 但浮层要先隐藏，避免遮挡对话框
+                                                coroutineScope.launch {
+                                                    floatingScale.animateTo(1f, tween(durationMillis = 180))
+                                                    delay(180.milliseconds)
+                                                    isDraggingCard = false
+                                                    floatingCardVisible = false
+                                                    draggingCourseIds = emptySet()
+                                                    // 不清空 draggedCardCourse/pendingDropTarget，待对话框处理后再清
+                                                    draggedCardOffset = Offset.Zero
+                                                }
+                                            }
+                                        } else {
+                                            dismissFloatingCard()
+                                        }
+                                    } else {
+                                        dismissFloatingCard()
+                                    }
                                 },
                                 wallpaperBitmap = if (showCustomizePage && !isWindowCutoutActive) originalWallpaperBitmap else wallpaperBitmap,
                                 wallpaperOffset = if (showCustomizePage && !isWindowCutoutActive) originalWallpaperOffset else wallpaperOffset,
@@ -1281,7 +1467,16 @@ fun CourseScheduleApp() {
                                 wallpaperBrightness = displayAppearance.wallpaperBrightness,
                                 showBreakDividers = displayAppearance.showBreakDividers,
                                 cardContentAlignment = displayAppearance.cardContentAlignment,
-                                liquidGlassBackdrop = liquidGlassBackdrop
+                                liquidGlassBackdrop = liquidGlassBackdrop,
+                                onGridGeometryChange = { geom -> gridGeometry = geom },
+                                dropHighlight = run {
+                                    val target = pendingDropTarget
+                                    val source = draggedCardCourse
+                                    if (floatingCardVisible && target != null && source != null) {
+                                        val sectionSpan = source.endSection - source.startSection
+                                        target.first to (target.second..(target.second + sectionSpan))
+                                    } else null
+                                }
                             )
                             }
 
@@ -1453,6 +1648,87 @@ fun CourseScheduleApp() {
                         }
                     }
                 }
+                // 调课冲突弹窗：拖到有课位置时让用户选择"覆盖"或"交换"
+                val conflictSource = draggedCardCourse
+                val conflictTarget = pendingConflictCourse
+                val conflictDrop = pendingDropTarget
+                OverlayDialog(
+                    title = "该位置已有课程",
+                    summary = if (conflictTarget != null && conflictSource != null && conflictDrop != null) {
+                        "「${conflictSource.name}」要如何处理与「${conflictTarget.name}」的位置冲突？\n" +
+                            "覆盖：删除「${conflictTarget.name}」本周的课程，并把「${conflictSource.name}」调到此位置\n" +
+                            "交换：互换本周两节课的位置"
+                    } else {
+                        "该位置已有课程，要如何处理？"
+                    },
+                    show = showRescheduleConflictDialog,
+                    onDismissRequest = {
+                        // 取消：仅清空状态，不做调课
+                        showRescheduleConflictDialog = false
+                        pendingConflictCourse = null
+                        pendingDropTarget = null
+                        draggedCardCourse = null
+                    }
+                ) {
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(top = 16.dp),
+                        horizontalArrangement = Arrangement.spacedBy(12.dp)
+                    ) {
+                        Button(
+                            modifier = Modifier.weight(1f),
+                            onClick = {
+                                hapticFeedback.performHapticFeedback(HapticFeedbackType.Confirm)
+                                showRescheduleConflictDialog = false
+                                pendingConflictCourse = null
+                                pendingDropTarget = null
+                                draggedCardCourse = null
+                            },
+                        ) {
+                            Text("取消", fontSize = 17.sp, fontWeight = FontWeight.Medium, color = MiuixTheme.colorScheme.onSurface)
+                        }
+                        Button(
+                            modifier = Modifier.weight(1f),
+                            onClick = {
+                                hapticFeedback.performHapticFeedback(HapticFeedbackType.Confirm)
+                                val source = draggedCardCourse
+                                val target = pendingDropTarget
+                                val conflict = pendingConflictCourse
+                                if (source != null && target != null && conflict != null) {
+                                    val sectionSpan = source.endSection - source.startSection
+                                    val targetEnd = target.second + sectionSpan
+                                    viewModel.overwriteCourseForWeek(
+                                        source.id, draggedWeek, target.first, target.second, targetEnd
+                                    )
+                                }
+                                showRescheduleConflictDialog = false
+                                pendingConflictCourse = null
+                                pendingDropTarget = null
+                                draggedCardCourse = null
+                            },
+                        ) {
+                            Text("覆盖", fontSize = 17.sp, fontWeight = FontWeight.Medium, color = Color(0xFFFF9800))
+                        }
+                        Button(
+                            modifier = Modifier.weight(1f),
+                            onClick = {
+                                hapticFeedback.performHapticFeedback(HapticFeedbackType.Confirm)
+                                val source = draggedCardCourse
+                                val conflict = pendingConflictCourse
+                                if (source != null && conflict != null) {
+                                    viewModel.swapCoursesForWeek(source.id, conflict.id, draggedWeek)
+                                }
+                                showRescheduleConflictDialog = false
+                                pendingConflictCourse = null
+                                pendingDropTarget = null
+                                draggedCardCourse = null
+                            },
+                        ) {
+                            Text("交换", fontSize = 17.sp, fontWeight = FontWeight.Medium, color = MiuixTheme.colorScheme.primary)
+                        }
+                    }
+                }
             }
         }
         // 拖拽课程卡片浮层（退出动画期间仍保持渲染，直到 scale 回到 1f 才移除并让原卡片显现）
@@ -1460,10 +1736,16 @@ fun CourseScheduleApp() {
             val course = draggedCardCourse
             if (course != null) {
                 // draggedCardPosition 为卡片正中心绝对坐标，浮层按中心对齐：offset = 中心 - 半宽
-                val centerX = draggedCardPosition.x + draggedCardOffset.x
-                val centerY = draggedCardPosition.y + draggedCardOffset.y
+                // 吸附期间使用 floatingOffsetAnim 替代 draggedCardOffset，实现从当前位置到目标位置的动画
+                val currentOffsetX = if (isSnapping) floatingOffsetX.value else draggedCardOffset.x
+                val currentOffsetY = if (isSnapping) floatingOffsetY.value else draggedCardOffset.y
+                val centerX = draggedCardPosition.x + currentOffsetX
+                val centerY = draggedCardPosition.y + currentOffsetY
+                // 宽度用 draggedCardSize（宽度不随节数变化），高度基于 course 实时计算避免缓存旧值
                 val widthPx = draggedCardSize.x
-                val heightPx = draggedCardSize.y
+                val sectionCount = course.endSection - course.startSection + 1
+                val sectionH = with(density) { displayAppearance.cardHeight.dp.toPx() }
+                val heightPx = sectionCount * sectionH
                 val offsetX = with(density) { (centerX - widthPx / 2f).toDp() }
                 val offsetY = with(density) { (centerY - heightPx / 2f).toDp() }
                 val width = with(density) { widthPx.toDp() }

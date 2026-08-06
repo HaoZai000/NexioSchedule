@@ -72,6 +72,8 @@ fun DayColumn(
     onCourseDrag: (courseId: String, offsetX: Float, offsetY: Float) -> Unit = { _, _, _ -> },
     onCourseDragEnd: (courseId: String) -> Unit = { _ -> },
     onCourseMenuDismiss: () -> Unit = {},
+    // 拖拽落点高亮：当前列中需高亮的节次范围（含起止），null 表示无高亮
+    dropHighlightSections: IntRange? = null,
     @SuppressLint("ModifierParameter") modifier: Modifier = Modifier
 ) {
     val totalHeight = ((morningSections + afternoonSections + eveningSections) * cardHeightPerSection + (if (showBreakDividers) 24 * 2 else 0)).toInt()
@@ -91,6 +93,8 @@ fun DayColumn(
             }
         }
     }
+    // 落点高亮背景色：浅黄半透明，让用户清楚看到落点位置
+    val dropHighlightColor = if (isDark) Color(0xFFFFC107).copy(alpha = 0.22f) else Color(0xFFFFC107).copy(alpha = 0.18f)
 
     Box(
         modifier = modifier
@@ -107,11 +111,13 @@ fun DayColumn(
             for (section in 1..morningSections) {
                 val isOccupied = section in occupiedSections
                 val isSectionPending = isPendingDay && pendingSection == section && !isOccupied
+                val isDropHighlight = dropHighlightSections?.contains(section) == true
                 Box(
                     modifier = Modifier
                         .fillMaxWidth()
                         .height(cardHeightPerSection.dp)
                         .offset(y = currentOffset.dp)
+                        .then(if (isDropHighlight) Modifier.background(dropHighlightColor) else Modifier)
                         .then(
                             if (!isSectionPending && !isOccupied) {
                                 Modifier.combinedClickable(
@@ -241,11 +247,13 @@ fun DayColumn(
             for (section in afternoonStart..afternoonEnd) {
                 val isOccupied = section in occupiedSections
                 val isSectionPending = isPendingDay && pendingSection == section && !isOccupied
+                val isDropHighlight = dropHighlightSections?.contains(section) == true
                 Box(
                     modifier = Modifier
                         .fillMaxWidth()
                         .height(cardHeightPerSection.dp)
                         .offset(y = currentOffset.dp)
+                        .then(if (isDropHighlight) Modifier.background(dropHighlightColor) else Modifier)
                         .then(
                             if (!isSectionPending && !isOccupied) {
                                 Modifier.combinedClickable(
@@ -374,11 +382,13 @@ fun DayColumn(
             for (section in eveningStart..eveningEnd) {
                 val isOccupied = section in occupiedSections
                 val isSectionPending = isPendingDay && pendingSection == section && !isOccupied
+                val isDropHighlight = dropHighlightSections?.contains(section) == true
                 Box(
                     modifier = Modifier
                         .fillMaxWidth()
                         .height(cardHeightPerSection.dp)
                         .offset(y = currentOffset.dp)
+                        .then(if (isDropHighlight) Modifier.background(dropHighlightColor) else Modifier)
                         .then(
                             if (!isSectionPending && !isOccupied) {
                                 Modifier.combinedClickable(

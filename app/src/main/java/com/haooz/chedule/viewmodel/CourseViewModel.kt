@@ -284,6 +284,49 @@ class CourseViewModel(application: Application) : AndroidViewModel(application) 
     }
 
     /**
+     * 调课-移动：将指定周次的课程实例移动到新位置（仅影响该周）
+     */
+    fun moveCourseForWeek(
+        sourceCourseId: String,
+        week: Int,
+        targetDayOfWeek: Int,
+        targetStartSection: Int,
+        targetEndSection: Int
+    ) {
+        viewModelScope.launch(Dispatchers.IO) {
+            _courses.value = repository.moveCourseForWeek(
+                sourceCourseId, week, targetDayOfWeek, targetStartSection, targetEndSection
+            )
+        }
+    }
+
+    /**
+     * 调课-覆盖：将指定周次的源课程移动到目标位置，并删除该周在目标位置上的所有冲突课程
+     */
+    fun overwriteCourseForWeek(
+        sourceCourseId: String,
+        week: Int,
+        targetDayOfWeek: Int,
+        targetStartSection: Int,
+        targetEndSection: Int
+    ) {
+        viewModelScope.launch(Dispatchers.IO) {
+            _courses.value = repository.overwriteCourseForWeek(
+                sourceCourseId, week, targetDayOfWeek, targetStartSection, targetEndSection
+            )
+        }
+    }
+
+    /**
+     * 调课-交换：将指定周次的源课程与目标课程互换位置（仅影响该周）
+     */
+    fun swapCoursesForWeek(sourceCourseId: String, targetCourseId: String, week: Int) {
+        viewModelScope.launch(Dispatchers.IO) {
+            _courses.value = repository.swapCoursesForWeek(sourceCourseId, targetCourseId, week)
+        }
+    }
+
+    /**
      * 替换所有课程（导入时使用）
      */
     fun replaceCourses(courses: List<Course>) {

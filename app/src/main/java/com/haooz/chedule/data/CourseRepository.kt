@@ -416,6 +416,349 @@ class CourseRepository private constructor(context: Context) {
     }
 
     /**
+     * 解析课程有效周次列表（若 selectedWeeks 为空，根据 startWeek/endWeek/weekType 推导）
+     */
+    private fun resolveSelectedWeeks(course: Course): List<Int> {
+        if (course.selectedWeeks.isNotEmpty()) return course.selectedWeeks
+        val weeks = mutableListOf<Int>()
+        for (w in course.startWeek..course.endWeek) {
+            when (course.weekType) {
+                Course.WEEK_TYPE_ODD -> if (w % 2 == 1) weeks.add(w)
+                Course.WEEK_TYPE_EVEN -> if (w % 2 == 0) weeks.add(w)
+                else -> weeks.add(w)
+            }
+        }
+        return weeks
+    }
+
+    /**
+     * 判断两课程是否同源（相同名称、教室、教师、位置）
+     * 用于调课时合并周次而非新建重复课程
+     */
+    private fun isSameCourseIdentity(a: Course, b: Course): Boolean {
+        return a.name == b.name &&
+            a.classroom == b.classroom &&
+            a.teacher == b.teacher &&
+            a.dayOfWeek == b.dayOfWeek &&
+            a.startSection == b.startSection &&
+            a.endSection == b.endSection
+    }
+
+    /**
+     * 调课-移动：将指定周次的课程实例移动到新位置（仅影响该周）
+     *
+     * 核心逻辑：
+     * 1. 若源课程只在该周有效 → 直接改位置
+     * 2. 若源课程多周有效 → 拆分：源移除该周，新建单周课程到目标位置
+     * 3. 若目标位置已有同源课程 → 合并周次进同源课程，不新建
+     *
+     * 边界情况处理：
+     * - 调回原位置：若与原课程同源，合并回去并删除拆分出的课程
+     * - 连续调课到同位置：同源合并，避免产生多条相同课程
+     * - selectedWeeks 为空：先展开为周次列表再操作
+     */
+    fun moveCourseForWeek(
+        sourceCourseId: String,
+        week: Int,
+        targetDayOfWeek: Int,
+        targetStartSection: Int,
+        targetEndSection: Int
+    ): List<Course> {
+        val courses = getAllCourses().toMutableList()
+        val sourceIdx = courses.indexOfFirst { it.id == sourceCourseId }
+        if (sourceIdx == -1) return courses
+        val source = courses[sourceIdx]
+
+        // 位置未变化，直接返回
+        if (source.dayOfWeek == targetDayOfWeek &&
+            source.startSection == targetStartSection &&
+            source.endSection == targetEndSection
+        ) return courses
+
+        val currentSelectedWeeks = resolveSelectedWeeks(source)
+        if (week !in currentSelectedWeeks) return courses
+
+        // 构造目标位置的临时课程对象，用于同源判断
+        val targetTemp = source.copy(
+            dayOfWeek = targetDayOfWeek,
+            startSection = targetStartSection,
+            endSection = targetEndSection
+        )
+
+        // 查找目标位置是否已有同源课程
+        val mergeTargetIdx = courses.indexOfFirst { existing ->
+            existing.id != source.id && isSameCourseIdentity(existing, targetTemp)
+        }
+
+        if (mergeTargetIdx != -1) {
+            // 情况3：目标位置有同源课程，合并周次
+            val mergeTarget = courses[mergeTargetIdx]
+            val mergeWeeks = resolveSelectedWeeks(mergeTarget).toMutableSet()
+            mergeWeeks.add(week)
+            val sortedWeeks = mergeWeeks.sorted()
+            courses[mergeTargetIdx] = mergeTarget.copy(
+                selectedWeeks = sortedWeeks,
+                startWeek = sortedWeeks.min(),
+                endWeek = sortedWeeks.max(),
+                weekType = Course.WEEK_TYPE_ALL,
+                lastModified = System.currentTimeMillis()
+            )
+            // 从源课程移除该周
+            val sourceWeeks = currentSelectedWeeks.filter { it != week }
+            if (sourceWeeks.isEmpty()) {
+                // 源课程所有周次已合并到同源课程，删除源课程
+                // 注意：此时只修改了 mergeTargetIdx 处的元素，未删除过任何元素，sourceIdx 仍有效
+                courses.removeAt(sourceIdx)
+            } else {
+                // 源课程还有其他周次，更新剩余周次
+                courses[sourceIdx] = source.copy(
+                    selectedWeeks = sourceWeeks,
+                    startWeek = sourceWeeks.min(),
+                    endWeek = sourceWeeks.max(),
+                    weekType = Course.WEEK_TYPE_ALL,
+                    lastModified = System.currentTimeMillis()
+                )
+            }
+        } else if (currentSelectedWeeks.size == 1 && currentSelectedWeeks.first() == week) {
+            // 情况1：源课程只在该周有效，直接改位置
+            courses[sourceIdx] = source.copy(
+                dayOfWeek = targetDayOfWeek,
+                startSection = targetStartSection,
+                endSection = targetEndSection,
+                lastModified = System.currentTimeMillis()
+            )
+        } else {
+            // 情况2：源课程多周有效，拆分
+            val sourceWeeks = currentSelectedWeeks.filter { it != week }
+            courses[sourceIdx] = source.copy(
+                selectedWeeks = sourceWeeks,
+                startWeek = sourceWeeks.min(),
+                endWeek = sourceWeeks.max(),
+                weekType = Course.WEEK_TYPE_ALL,
+                lastModified = System.currentTimeMillis()
+            )
+            val newCourse = source.copy(
+                id = java.util.UUID.randomUUID().toString(),
+                dayOfWeek = targetDayOfWeek,
+                startSection = targetStartSection,
+                endSection = targetEndSection,
+                selectedWeeks = listOf(week),
+                startWeek = week,
+                endWeek = week,
+                weekType = Course.WEEK_TYPE_ALL,
+                lastModified = System.currentTimeMillis()
+            )
+            courses.add(newCourse)
+        }
+        saveCourses(courses, notify = false)
+        onCourseChanged?.invoke("update", sourceCourseId)
+        return courses
+    }
+
+    /**
+     * 调课-覆盖：将指定周次的源课程移动到目标位置，并删除该周在目标位置上的所有冲突课程
+     *
+     * 冲突课程处理：
+     * - 非同源课程：按周删除（从 selectedWeeks 移除该周，若变空则删除整个课程）
+     * - 同源课程：不删除，由 moveCourseForWeek 走合并路径
+     */
+    fun overwriteCourseForWeek(
+        sourceCourseId: String,
+        week: Int,
+        targetDayOfWeek: Int,
+        targetStartSection: Int,
+        targetEndSection: Int
+    ): List<Course> {
+        val courses = getAllCourses().toMutableList()
+        val source = courses.find { it.id == sourceCourseId } ?: return courses
+
+        // 构造目标位置的临时课程对象，用于同源判断
+        val targetTemp = source.copy(
+            dayOfWeek = targetDayOfWeek,
+            startSection = targetStartSection,
+            endSection = targetEndSection
+        )
+
+        // 找到目标位置上、该周有效的所有冲突课程（排除源课程自身和同源课程）
+        val conflictIds = courses.asSequence()
+            .filter { existing ->
+                existing.id != sourceCourseId &&
+                !isSameCourseIdentity(existing, targetTemp) &&
+                existing.dayOfWeek == targetDayOfWeek &&
+                existing.startSection <= targetEndSection &&
+                existing.endSection >= targetStartSection
+            }
+            .filter { existing -> week in resolveSelectedWeeks(existing) }
+            .map { it.id }
+            .toList()
+
+        // 对每个冲突课程执行按周删除
+        var result = courses
+        for (id in conflictIds) {
+            val idx = result.indexOfFirst { it.id == id }
+            if (idx == -1) continue
+            val course = result[idx]
+            val currentSelectedWeeks = resolveSelectedWeeks(course)
+            val newSelectedWeeks = currentSelectedWeeks.filter { it != week }
+            result = result.toMutableList().also { list ->
+                if (newSelectedWeeks.isEmpty()) {
+                    list.removeAt(idx)
+                } else {
+                    list[idx] = course.copy(
+                        selectedWeeks = newSelectedWeeks,
+                        startWeek = newSelectedWeeks.min(),
+                        endWeek = newSelectedWeeks.max(),
+                        weekType = Course.WEEK_TYPE_ALL,
+                        lastModified = System.currentTimeMillis()
+                    )
+                }
+            }
+        }
+        // 保存中间结果，避免 moveCourseForWeek 重新读取旧数据
+        saveCourses(result, notify = false)
+        // 然后执行移动
+        return moveCourseForWeek(sourceCourseId, week, targetDayOfWeek, targetStartSection, targetEndSection)
+    }
+
+    /**
+     * 调课-交换：将指定周次的源课程与目标课程互换位置（仅影响该周）
+     *
+     * 双方都拆分出该周实例，互换位置。
+     * 拆分后若与对方原位置已有同源课程，同样走合并逻辑。
+     */
+    fun swapCoursesForWeek(
+        sourceCourseId: String,
+        targetCourseId: String,
+        week: Int
+    ): List<Course> {
+        if (sourceCourseId == targetCourseId) return getAllCourses()
+        val courses = getAllCourses().toMutableList()
+        val srcIdx = courses.indexOfFirst { it.id == sourceCourseId }
+        val tgtIdx = courses.indexOfFirst { it.id == targetCourseId }
+        if (srcIdx == -1 || tgtIdx == -1) return courses
+        val src = courses[srcIdx]
+        val tgt = courses[tgtIdx]
+
+        // 记录双方原位置
+        val srcPos = Triple(src.dayOfWeek, src.startSection, src.endSection)
+        val tgtPos = Triple(tgt.dayOfWeek, tgt.startSection, tgt.endSection)
+
+        // 双方都必须在该周有效
+        val srcWeeks = resolveSelectedWeeks(src)
+        val tgtWeeks = resolveSelectedWeeks(tgt)
+        if (week !in srcWeeks || week !in tgtWeeks) return courses
+
+        // 双方互换位置：源移到目标位置，目标移到源位置
+        // 复用 moveCourseForWeek 的拆分+合并逻辑，分两步执行
+        // 第一步：源课程移到目标位置（会自动处理与目标位置其他课程的同源合并）
+        var result = courses
+        result = applyMoveInPlace(result, src.id, week, tgtPos.first, tgtPos.second, tgtPos.third)
+        // 第二步：目标课程移到源原位置
+        // 注意：第一步后源课程可能已拆分，src 的 id 仍在原课程（已移除该周）
+        result = applyMoveInPlace(result, tgt.id, week, srcPos.first, srcPos.second, srcPos.third)
+
+        saveCourses(result, notify = false)
+        onCourseChanged?.invoke("update", sourceCourseId)
+        return result
+    }
+
+    /**
+     * 在给定列表上执行 moveCourseForWeek 的拆分+合并逻辑（原地操作，不保存）
+     * 返回修改后的列表
+     */
+    private fun applyMoveInPlace(
+        courses: List<Course>,
+        sourceCourseId: String,
+        week: Int,
+        targetDayOfWeek: Int,
+        targetStartSection: Int,
+        targetEndSection: Int
+    ): MutableList<Course> {
+        val result = courses.toMutableList()
+        val sourceIdx = result.indexOfFirst { it.id == sourceCourseId }
+        if (sourceIdx == -1) return result
+        val source = result[sourceIdx]
+
+        if (source.dayOfWeek == targetDayOfWeek &&
+            source.startSection == targetStartSection &&
+            source.endSection == targetEndSection
+        ) return result
+
+        val currentSelectedWeeks = resolveSelectedWeeks(source)
+        if (week !in currentSelectedWeeks) return result
+
+        val targetTemp = source.copy(
+            dayOfWeek = targetDayOfWeek,
+            startSection = targetStartSection,
+            endSection = targetEndSection
+        )
+
+        val mergeTargetIdx = result.indexOfFirst { existing ->
+            existing.id != source.id && isSameCourseIdentity(existing, targetTemp)
+        }
+
+        if (mergeTargetIdx != -1) {
+            // 合并周次进同源课程
+            val mergeTarget = result[mergeTargetIdx]
+            val mergeWeeks = resolveSelectedWeeks(mergeTarget).toMutableSet()
+            mergeWeeks.add(week)
+            val sortedWeeks = mergeWeeks.sorted()
+            result[mergeTargetIdx] = mergeTarget.copy(
+                selectedWeeks = sortedWeeks,
+                startWeek = sortedWeeks.min(),
+                endWeek = sortedWeeks.max(),
+                weekType = Course.WEEK_TYPE_ALL,
+                lastModified = System.currentTimeMillis()
+            )
+            val sourceWeeks = currentSelectedWeeks.filter { it != week }
+            if (sourceWeeks.isEmpty()) {
+                // 源课程所有周次已合并到同源课程，删除源课程
+                result.removeAt(sourceIdx)
+            } else {
+                // 源课程还有其他周次，更新剩余周次
+                result[sourceIdx] = source.copy(
+                    selectedWeeks = sourceWeeks,
+                    startWeek = sourceWeeks.min(),
+                    endWeek = sourceWeeks.max(),
+                    weekType = Course.WEEK_TYPE_ALL,
+                    lastModified = System.currentTimeMillis()
+                )
+            }
+        } else if (currentSelectedWeeks.size == 1 && currentSelectedWeeks.first() == week) {
+            // 源课程只在该周有效，直接改位置
+            result[sourceIdx] = source.copy(
+                dayOfWeek = targetDayOfWeek,
+                startSection = targetStartSection,
+                endSection = targetEndSection,
+                lastModified = System.currentTimeMillis()
+            )
+        } else {
+            // 拆分
+            val sourceWeeks = currentSelectedWeeks.filter { it != week }
+            result[sourceIdx] = source.copy(
+                selectedWeeks = sourceWeeks,
+                startWeek = sourceWeeks.min(),
+                endWeek = sourceWeeks.max(),
+                weekType = Course.WEEK_TYPE_ALL,
+                lastModified = System.currentTimeMillis()
+            )
+            val newCourse = source.copy(
+                id = java.util.UUID.randomUUID().toString(),
+                dayOfWeek = targetDayOfWeek,
+                startSection = targetStartSection,
+                endSection = targetEndSection,
+                selectedWeeks = listOf(week),
+                startWeek = week,
+                endWeek = week,
+                weekType = Course.WEEK_TYPE_ALL,
+                lastModified = System.currentTimeMillis()
+            )
+            result.add(newCourse)
+        }
+        return result
+    }
+
+    /**
      * 获取有课程的最晚周次，若没有任何课程则返回 0
      */
     fun getLastWeekWithCourses(): Int {

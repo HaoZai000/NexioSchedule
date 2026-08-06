@@ -42,6 +42,8 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.SideEffect
+import androidx.compose.runtime.mutableStateMapOf
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -53,6 +55,7 @@ import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.layout.onGloballyPositioned
+import androidx.compose.ui.layout.positionInRoot
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
@@ -94,6 +97,22 @@ import kotlin.time.Duration.Companion.milliseconds
 import com.kyant.backdrop.backdrops.layerBackdrop as kyantLayerBackdrop
 import com.kyant.backdrop.backdrops.rememberLayerBackdrop as rememberKyantLayerBackdrop
 
+/**
+ * 课表网格几何信息，供拖拽调课时落点检测使用。
+ * - dayBounds: dayOfWeek(1-7) -> [leftX, rightX, topY]（root px）
+ * - sectionHeightPx: 每节高度（root px）
+ * - morningSections/afternoonSections/eveningSections: 上午/下午/晚上的节次数
+ * - showBreakDividers: 是否有午休/晚休分界带（24dp）
+ */
+data class ScheduleGridGeometry(
+    val dayBounds: Map<Int, FloatArray>,
+    val sectionHeightPx: Float,
+    val morningSections: Int,
+    val afternoonSections: Int,
+    val eveningSections: Int,
+    val showBreakDividers: Boolean
+)
+
 @SuppressLint("ConfigurationScreenWidthHeight")
 @Composable
 fun MainScheduleScreen(
@@ -123,7 +142,10 @@ fun MainScheduleScreen(
     wallpaperBrightness: Float = 0f,
     showBreakDividers: Boolean = true,
     cardContentAlignment: com.haooz.chedule.data.CardContentAlignment = com.haooz.chedule.data.CardContentAlignment.CENTER_CENTER,
-    liquidGlassBackdrop: com.kyant.backdrop.Backdrop? = null
+    liquidGlassBackdrop: com.kyant.backdrop.Backdrop? = null,
+    // 拖拽落点高亮：Pair(dayOfWeek, sectionRange)，sectionRange 为落点覆盖的节次区间
+    dropHighlight: Pair<Int, IntRange>? = null,
+    onGridGeometryChange: (ScheduleGridGeometry) -> Unit = {}
 ) {
     val courses by viewModel.courses.collectAsState()
     val currentWeek by viewModel.currentWeek.collectAsState()
@@ -352,6 +374,8 @@ fun MainScheduleScreen(
                     )
             ) {
                 Box(modifier = Modifier.fillMaxWidth()) {
+                    // 收集每列在 root 中的 x 区间与顶部 y，供拖拽落点检测使用
+                    val dayBoundsMap = remember { mutableStateMapOf<Int, FloatArray>() }
                     Row(
                         modifier = Modifier
                             .fillMaxWidth()
@@ -391,13 +415,9 @@ fun MainScheduleScreen(
                                             course.startSection,
                                             course.endSection
                                         )
-                                        if (coursesAtSlot.size > 1) {
-                                            selectedCourses = coursesAtSlot
-                                            selectedCourse = coursesAtSlot.first()
-                                        } else {
-                                            selectedCourses = emptyList()
-                                            selectedCourse = course
-                                        }
+                                        // 选中点击的课程（若在槽位列表中），避免选到节次更靠前的旧课程
+                                        selectedCourses = coursesAtSlot
+                                        selectedCourse = coursesAtSlot.find { it.id == course.id } ?: course
                                         showCourseDetail = true
                                         onPopupStateChange(true)
                                     }
@@ -434,7 +454,31 @@ fun MainScheduleScreen(
                                 onCourseDrag = onCourseDrag,
                                 onCourseDragEnd = onCourseDragEnd,
                                 onCourseMenuDismiss = onCourseMenuDismiss,
-                                modifier = Modifier.weight(1f)
+                                dropHighlightSections = if (dropHighlight?.first == dayOfWeek) dropHighlight.second else null,
+                                modifier = Modifier
+                                    .weight(1f)
+                                    .onGloballyPositioned { coordinates ->
+                                        val pos = coordinates.positionInRoot()
+                                        val w = coordinates.size.width.toFloat()
+                                        dayBoundsMap[dayOfWeek] = floatArrayOf(pos.x, pos.x + w, pos.y)
+                                    }
+                            )
+                        }
+                    }
+
+                    // 网格布局完成后上报几何信息（仅当前页上报，避免 beyondViewportPageCount 缓存页覆盖当前页数据）
+                    val sectionHeightPx = with(density) { cardHeightPerSection.dp.toPx() }
+                    SideEffect {
+                        if (page == pagerState.currentPage) {
+                            onGridGeometryChange(
+                                ScheduleGridGeometry(
+                                    dayBounds = dayBoundsMap.toMap(),
+                                    sectionHeightPx = sectionHeightPx,
+                                    morningSections = morningSections,
+                                    afternoonSections = afternoonSections,
+                                    eveningSections = eveningSections,
+                                    showBreakDividers = showBreakDividers
+                                )
                             )
                         }
                     }
