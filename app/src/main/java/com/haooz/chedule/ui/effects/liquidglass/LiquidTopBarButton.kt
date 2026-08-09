@@ -30,7 +30,6 @@ import com.kyant.backdrop.drawBackdrop
 import com.kyant.backdrop.effects.blur
 import com.kyant.backdrop.effects.lens
 import com.kyant.backdrop.effects.vibrancy
-import com.kyant.backdrop.shadow.Shadow
 import androidx.core.graphics.toColorInt
 
 @Composable
@@ -43,7 +42,6 @@ fun LiquidTopBarButton(
     iconSize: Dp = 24.dp,
     iconOffset: DpOffset = DpOffset.Zero,
     buttonHeight: Dp = 40.dp,
-    useBackdropShadow: Boolean = false,
     iconTint: Color = Color.Unspecified,
     containerColor: Color = Color.Unspecified
 ) {
@@ -65,30 +63,26 @@ fun LiquidTopBarButton(
     Box(
         modifier = modifier
             .size(buttonHeight)
-            .then(
-                if (!useBackdropShadow) {
-                    Modifier.drawBehind {
-                        val blurRadius = 6f * density
-                        val cornerRadiusPx = buttonHeight.toPx() / 2f
-                        val paint = android.graphics.Paint().apply {
-                            color = shadowColor
-                            maskFilter = android.graphics.BlurMaskFilter(
-                                blurRadius,
-                                android.graphics.BlurMaskFilter.Blur.NORMAL
-                            )
-                        }
-                        drawIntoCanvas { canvas ->
-                            canvas.nativeCanvas.drawRoundRect(
-                                0f, 0f, size.width, size.height,
-                                cornerRadiusPx, cornerRadiusPx,
-                                paint
-                            )
-                        }
-                    }
-                } else {
-                    Modifier
+            .drawBehind {
+                val blurRadius = 10f * density
+                val shadowSpread = 2f * density
+                val cornerRadiusPx = buttonHeight.toPx() / 2f
+                val paint = android.graphics.Paint().apply {
+                    color = shadowColor
+                    maskFilter = android.graphics.BlurMaskFilter(
+                        blurRadius,
+                        android.graphics.BlurMaskFilter.Blur.NORMAL
+                    )
                 }
-            )
+                drawIntoCanvas { canvas ->
+                    canvas.nativeCanvas.drawRoundRect(
+                        -shadowSpread, -shadowSpread,
+                        size.width + shadowSpread, size.height + shadowSpread,
+                        cornerRadiusPx, cornerRadiusPx,
+                        paint
+                    )
+                }
+            }
             .drawBackdrop(
                 backdrop = backdrop,
                 shape = { CircleShape },
@@ -98,11 +92,7 @@ fun LiquidTopBarButton(
                     lens(18f.dp.toPx(), 18f.dp.toPx())
                 },
                 highlight = null,
-                shadow = if (useBackdropShadow) {
-                    { Shadow(alpha = 1f) }
-                } else {
-                    null
-                },
+                shadow = null,
                 layerBlock = {
                     val progress = interactiveHighlight.pressProgress
                     val scale = 1f + 2f.dp.toPx() / buttonHeight.toPx() * progress

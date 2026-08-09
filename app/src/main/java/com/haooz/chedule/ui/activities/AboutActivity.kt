@@ -237,7 +237,6 @@ private fun AboutScreen(onBack: () -> Unit) {
                             .offset(x = 20.dp, y = if (statusBarPadding > 0.dp) statusBarPadding + 5.dp else 42.dp),
                         iconSize = 22.dp,
                         iconOffset = DpOffset(x = (-2).dp, y = 0.dp),
-                        useBackdropShadow = true
                     )
                 }
             } else {

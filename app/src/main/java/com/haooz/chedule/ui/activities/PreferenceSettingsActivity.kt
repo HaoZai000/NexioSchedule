@@ -1,4 +1,4 @@
-/** 偏好设置页面 */
+﻿/** 偏好设置页面 */
 package com.haooz.chedule.ui.activities
 
 import android.os.Bundle
@@ -78,7 +78,6 @@ class PreferenceSettingsActivity : ComponentActivity() {
                                         .offset(x = 20.dp, y = if (statusBarPadding > 0.dp) statusBarPadding + 5.dp else 42.dp),
                                     iconSize = 22.dp,
                                     iconOffset = DpOffset(x = (-2).dp, y = 0.dp),
-                                    useBackdropShadow = true
                                 )
                             }
                         }

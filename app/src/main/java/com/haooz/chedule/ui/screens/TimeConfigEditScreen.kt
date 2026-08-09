@@ -1,4 +1,4 @@
-/** 时间配置编辑页面 - Screen */
+﻿/** 时间配置编辑页面 - Screen */
 package com.haooz.chedule.ui.screens
 
 import android.annotation.SuppressLint
@@ -577,7 +577,6 @@ fun TimeConfigEditScreen(
                                             y = if (statusBarPadding > 0.dp) statusBarPadding + 5.dp else 42.dp
                                         ),
                                     iconSize = 22.dp,
-                                    useBackdropShadow = true
                                 )
                                 LiquidTopBarButton(
                                     onClick = {
@@ -651,7 +650,6 @@ fun TimeConfigEditScreen(
                                             y = if (statusBarPadding > 0.dp) statusBarPadding + 5.dp else 42.dp
                                         ),
                                     iconSize = 23.dp,
-                                    useBackdropShadow = true,
                                     iconTint = Color.White,
                                     containerColor = if (isAppDarkTheme()) MiuixTheme.colorScheme.primary.copy(
                                         alpha = 0.8f

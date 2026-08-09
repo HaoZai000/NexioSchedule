@@ -1,4 +1,4 @@
-package com.haooz.chedule.ui.components
+﻿package com.haooz.chedule.ui.components
 
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.AnimationSpec
@@ -326,7 +326,6 @@ fun CollapsibleTopAppBar(
                         contentDescription = "返回",
                         iconSize = 22.dp,
                         iconOffset = DpOffset(x = (-2).dp, y = 0.dp),
-                        useBackdropShadow = true
                     )
                 }
             }
@@ -391,7 +390,6 @@ fun CollapsibleTopAppBar(
         },
         modifier = finalModifier
             .windowInsetsPadding(WindowInsets.systemBars.only(WindowInsetsSides.Top))
-            .clipToBounds()
             .onSizeChanged { size ->
                 scrollBehavior?.currentHeightPx = size.height.toFloat()
                 contentPadding(with(density) { size.height.toDp() })

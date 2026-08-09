@@ -1,4 +1,4 @@
-/** 课程编辑页面 - 修改课程时段/周次 */
+﻿/** 课程编辑页面 - 修改课程时段/周次 */
 package com.haooz.chedule.ui.screens
 
 import android.annotation.SuppressLint
@@ -507,7 +507,6 @@ fun CourseEditScreen(
                                             .offset(x = 20.dp, y = if (statusBarPadding > 0.dp) statusBarPadding + 5.dp else 42.dp),
                                         iconSize = 22.dp,
                                         iconOffset = DpOffset(x = (-2).dp, y = 0.dp),
-                                        useBackdropShadow = true
                                     )
                             }
                         }else {

@@ -1,4 +1,4 @@
-/** WebDAV 备份/恢复设置页面 */
+﻿/** WebDAV 备份/恢复设置页面 */
 package com.haooz.chedule.ui.activities
 
 import android.os.Bundle
@@ -96,7 +96,6 @@ class WebDavSettingsActivity : ComponentActivity() {
                                         modifier = Modifier.offset(x = 20.dp),
                                         iconSize = 22.dp,
                                         iconOffset = DpOffset(x = (-2).dp, y = 0.dp),
-                                        useBackdropShadow = true
                                     )
                                     LiquidTopBarButton(
                                         onClick = { onTestConnection() },
@@ -107,7 +106,6 @@ class WebDavSettingsActivity : ComponentActivity() {
                                         iconSize = 22.dp,
                                         iconOffset = if (!connected) DpOffset(x = 1.5.dp, y = 0.dp) else DpOffset.Zero,
                                         iconTint = if (connected) ComposeColor(0xFF4CAF50) else Color.Unspecified,
-                                        useBackdropShadow = true
                                     )
                                 }
                             }

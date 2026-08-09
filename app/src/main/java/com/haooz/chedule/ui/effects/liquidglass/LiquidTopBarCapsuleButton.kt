@@ -30,7 +30,6 @@ import com.kyant.backdrop.drawBackdrop
 import com.kyant.backdrop.effects.blur
 import com.kyant.backdrop.effects.lens
 import com.kyant.backdrop.effects.vibrancy
-import com.kyant.backdrop.shadow.Shadow
 import com.kyant.shapes.Capsule
 import top.yukonga.miuix.kmp.icon.MiuixIcons
 import top.yukonga.miuix.kmp.icon.extended.ConvertFile
@@ -43,8 +42,7 @@ fun LiquidTopBarCapsuleButton(
     onRightClick: () -> Unit,
     backdrop: Backdrop,
     modifier: Modifier = Modifier,
-    buttonHeight: Dp = 40.dp,
-    useBackdropShadow: Boolean = false
+    buttonHeight: Dp = 40.dp
 ) {
     val animationScope = rememberCoroutineScope()
     val hapticFeedback = LocalHapticFeedback.current
@@ -66,30 +64,26 @@ fun LiquidTopBarCapsuleButton(
             .height(buttonHeight)
             .width(88.dp)
             .padding(end = 4.dp)
-            .then(
-                if (!useBackdropShadow) {
-                    Modifier.drawBehind {
-                        val blurRadius = 6f * density
-                        val cornerRadiusPx = buttonHeight.toPx() / 2f
-                        val paint = android.graphics.Paint().apply {
-                            color = shadowColor
-                            maskFilter = android.graphics.BlurMaskFilter(
-                                blurRadius,
-                                android.graphics.BlurMaskFilter.Blur.NORMAL
-                            )
-                        }
-                        drawIntoCanvas { canvas ->
-                            canvas.nativeCanvas.drawRoundRect(
-                                0f, 0f, size.width, size.height,
-                                cornerRadiusPx, cornerRadiusPx,
-                                paint
-                            )
-                        }
-                    }
-                } else {
-                    Modifier
+            .drawBehind {
+                val blurRadius = 10f * density
+                val shadowSpread = 2f * density
+                val cornerRadiusPx = buttonHeight.toPx() / 2f
+                val paint = android.graphics.Paint().apply {
+                    color = shadowColor
+                    maskFilter = android.graphics.BlurMaskFilter(
+                        blurRadius,
+                        android.graphics.BlurMaskFilter.Blur.NORMAL
+                    )
                 }
-            )
+                drawIntoCanvas { canvas ->
+                    canvas.nativeCanvas.drawRoundRect(
+                        -shadowSpread, -shadowSpread,
+                        size.width + shadowSpread, size.height + shadowSpread,
+                        cornerRadiusPx, cornerRadiusPx,
+                        paint
+                    )
+                }
+            }
             .drawBackdrop(
                 backdrop = backdrop,
                 shape = { Capsule() },
@@ -99,11 +93,7 @@ fun LiquidTopBarCapsuleButton(
                     lens(18f.dp.toPx(), 18f.dp.toPx())
                 },
                 highlight = null,
-                shadow = if (useBackdropShadow) {
-                    { Shadow(alpha = 0.3f) }
-                } else {
-                    null
-                },
+                shadow = null,
                 layerBlock = {
                     val progress = interactiveHighlight.pressProgress
                     val scale = 1f + 2f.dp.toPx() / buttonHeight.toPx() * progress

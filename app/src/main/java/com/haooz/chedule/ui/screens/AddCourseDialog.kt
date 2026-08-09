@@ -234,7 +234,6 @@ fun AddCourseDialog(
                         contentDescription = "关闭",
                         modifier = Modifier.padding(start = 20.dp),
                         iconSize = 22.dp,
-                        useBackdropShadow = true
                     )
                 } else {
                     IconButton(
@@ -262,7 +261,6 @@ fun AddCourseDialog(
                         modifier = Modifier.padding(end = 20.dp),
                         iconSize = 23.dp,
                         iconTint = Color.White,
-                        useBackdropShadow = true,
                         containerColor = if (isDark) MiuixTheme.colorScheme.primary.copy(alpha = 0.8f) else MiuixTheme.colorScheme.primary.copy(alpha = 0.9f)
                     )
                 } else {
@@ -342,7 +340,6 @@ fun AddCourseDialog(
                     contentDescription = "关闭",
                     modifier = Modifier.padding(start = 20.dp),
                     iconSize = 22.dp,
-                    useBackdropShadow = true
                 )
             } else {
                 IconButton(
@@ -370,7 +367,6 @@ fun AddCourseDialog(
                     modifier = Modifier.padding(end = 20.dp),
                     iconSize = 23.dp,
                     iconTint = Color.White,
-                    useBackdropShadow = true,
                     containerColor = if (isDark) MiuixTheme.colorScheme.primary.copy(alpha = 0.8f) else MiuixTheme.colorScheme.primary.copy(alpha = 0.9f)
                 )
             } else {

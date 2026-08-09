@@ -1,4 +1,4 @@
-/** 自定义课表页面 - 课表外观选择 */
+﻿/** 自定义课表页面 - 课表外观选择 */
 package com.haooz.chedule.ui.screens
 
 import android.annotation.SuppressLint
@@ -1343,7 +1343,6 @@ fun CustomizeScheduleScreen(
                             iconSize = 22.dp,
                             containerColor = if (isAppDarkTheme()) Color(0xFF363636).copy(0.4f)
                             else Color(0xFFFFFFFF).copy(0.6f),
-                            useBackdropShadow = true
                         )
                     } else {
                         IconButton(onClick = { showEffectSheet = false },
@@ -1479,7 +1478,6 @@ fun CustomizeScheduleScreen(
                         iconSize = 22.dp,
                         containerColor =if (isAppDarkTheme()) Color(0xFF363636).copy(0.4f)
                         else Color(0xFFFFFFFF).copy(0.6f),
-                        useBackdropShadow = true
                     )
                 } else {
                     IconButton(onClick = { showEffectSheet = false },
@@ -1620,7 +1618,6 @@ fun CustomizeScheduleScreen(
                             containerColor = if (isAppDarkTheme()) Color(0xFF363636).copy(0.4f)
                             else Color(0xFFFFFFFF).copy(0.6f),
                             iconSize = 22.dp,
-                            useBackdropShadow = true
                         )
                     } else {
                         IconButton(onClick = { showCustomizeSheet = false },
@@ -1779,7 +1776,6 @@ fun CustomizeScheduleScreen(
                         containerColor =if (isAppDarkTheme()) Color(0xFF363636).copy(0.4f)
                         else Color(0xFFFFFFFF).copy(0.6f),
                         iconSize = 22.dp,
-                        useBackdropShadow = true
                     )
                 } else {
                     IconButton(onClick = { showCustomizeSheet = false },

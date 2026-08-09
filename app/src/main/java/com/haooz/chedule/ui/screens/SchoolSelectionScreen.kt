@@ -1,4 +1,4 @@
-/** 学校选择页面 - 用于教务系统导入时选择学校 */
+﻿/** 学校选择页面 - 用于教务系统导入时选择学校 */
 package com.haooz.chedule.ui.screens
 
 import android.annotation.SuppressLint
@@ -156,7 +156,6 @@ fun SchoolSelectionScreen(
                             modifier = Modifier.offset(x = 20.dp),
                             iconSize = 22.dp,
                             iconOffset = DpOffset(x = (-2).dp, y = 0.dp),
-                            useBackdropShadow = true
                         )
                         if (!isUpdating) {
                             LiquidTopBarButton(
@@ -169,7 +168,6 @@ fun SchoolSelectionScreen(
                                 contentDescription = "更新",
                                 modifier = Modifier.offset(x = (-20).dp),
                                 iconSize = 25.dp,
-                                useBackdropShadow = true
                             )
                         } else {
                             Box(

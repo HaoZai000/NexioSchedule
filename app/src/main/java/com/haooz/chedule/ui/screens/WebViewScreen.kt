@@ -1,4 +1,4 @@
-/** WebView 页面 - 用于加载教务系统网页 */
+﻿/** WebView 页面 - 用于加载教务系统网页 */
 package com.haooz.chedule.ui.screens
 
 import android.annotation.SuppressLint
@@ -419,7 +419,6 @@ fun WebViewScreen(
                                 contentDescription = "关闭",
                                 modifier = Modifier.offset(x = 20.dp),
                                 iconSize = 22.dp,
-                                useBackdropShadow = true
                             )
                             LiquidTopBarButton(
                                 onClick = {
@@ -431,7 +430,6 @@ fun WebViewScreen(
                                 contentDescription = "刷新",
                                 modifier = Modifier.offset(x = (-20).dp),
                                 iconSize = 24.dp,
-                                useBackdropShadow = true
                             )
                         }
                     }

@@ -1,4 +1,4 @@
-/** 切换课程表页面 */
+﻿/** 切换课程表页面 */
 package com.haooz.chedule.ui.activities
 
 import android.annotation.SuppressLint
@@ -327,7 +327,6 @@ fun SwitchScheduleScreen(
                             modifier = Modifier.offset(x = 20.dp),
                             iconSize = if (isEditMode) 21.dp else 22.dp,
                             iconOffset = if (isEditMode) DpOffset.Zero else DpOffset(x = (-2).dp, y = 0.dp),
-                            useBackdropShadow = true
                         )
                         if (!isEditMode) {
                             LiquidTopBarButton(
@@ -337,7 +336,6 @@ fun SwitchScheduleScreen(
                                 contentDescription = "编辑",
                                 modifier = Modifier.offset(x = (-20).dp),
                                 iconSize = 23.dp,
-                                useBackdropShadow = true
                             )
                         }
                     }

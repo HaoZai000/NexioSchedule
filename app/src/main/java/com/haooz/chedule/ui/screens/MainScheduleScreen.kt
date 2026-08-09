@@ -1,4 +1,4 @@
-/** 主课程表页面 - 显示周视图课程表 */
+﻿/** 主课程表页面 - 显示周视图课程表 */
 package com.haooz.chedule.ui.screens
 
 import android.annotation.SuppressLint
@@ -646,7 +646,6 @@ fun MainScheduleScreen(
                     iconSize = 23.dp,
                     containerColor =if (isAppDarkTheme()) Color(0xFF363636).copy(0.4f)
                     else Color(0xFFFFFFFF).copy(0.6f),
-                    useBackdropShadow = true,
                 )
             } else {
                 IconButton(onClick = {
