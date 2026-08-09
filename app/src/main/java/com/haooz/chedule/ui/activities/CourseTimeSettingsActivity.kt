@@ -348,7 +348,8 @@ class CourseTimeSettingsActivity : ComponentActivity() {
                             cardSnapshot = cardSnapshot,
                             isFabCreation = isNewConfig && bounds != null && bounds.width > 0f && bounds.height > 0f
                                     && abs(bounds.width - bounds.height) / bounds.width < 0.2f,
-                            liquidGlassBackdrop = editLiquidGlassBackdrop
+                            liquidGlassBackdrop = editLiquidGlassBackdrop,
+                            sharedScrollBehavior = scrollBehavior
                         )
                     }
                 }

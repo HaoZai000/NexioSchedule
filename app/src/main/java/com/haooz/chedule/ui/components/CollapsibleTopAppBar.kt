@@ -22,14 +22,15 @@ import androidx.compose.runtime.Stable
 import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.Saver
 import androidx.compose.runtime.saveable.listSaver
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.blur
-import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.nestedscroll.NestedScrollConnection
@@ -55,6 +56,7 @@ import top.yukonga.miuix.kmp.anim.folmeSpring
 import top.yukonga.miuix.kmp.icon.MiuixIcons
 import top.yukonga.miuix.kmp.icon.extended.ChevronBackward
 import top.yukonga.miuix.kmp.theme.MiuixTheme
+import top.yukonga.miuix.kmp.utils.LocalOverScrollState
 import kotlin.math.abs
 import kotlin.math.roundToInt
 
@@ -78,6 +80,8 @@ class CollapsibleTopAppBarState(
         }
 
     var contentOffset by mutableFloatStateOf(initialContentOffset)
+
+    var showButtonShadow = false
 
     val collapsedFraction: Float
         get() = if (heightOffsetLimit != 0f) {
@@ -121,6 +125,9 @@ class SharedScrollBehavior(
 ) {
     var currentHeightPx by mutableFloatStateOf(0f)
 
+    var postCollapseScrollOffset by mutableFloatStateOf(0f)
+        internal set
+
     private var connection: NestedScrollConnection? = null
 
     val nestedScrollConnection: NestedScrollConnection
@@ -128,12 +135,18 @@ class SharedScrollBehavior(
             if (connection == null) {
                 connection = object : NestedScrollConnection {
                     override fun onPreScroll(available: Offset, source: NestedScrollSource): Offset {
-                        if (available.y > 0) return Offset.Zero
+                        if (available.y > 0) {
+                            postCollapseScrollOffset = 0f
+                            return Offset.Zero
+                        }
 
                         val currentHeightOffset = state.heightOffset
                         val heightOffsetLimit = state.heightOffsetLimit
 
-                        if (currentHeightOffset <= heightOffsetLimit) return Offset.Zero
+                        if (currentHeightOffset <= heightOffsetLimit) {
+                            postCollapseScrollOffset += -available.y
+                            return Offset.Zero
+                        }
 
                         val maxConsumable = currentHeightOffset - heightOffsetLimit
                         val consumed = maxConsumable.coerceAtMost(-available.y)
@@ -260,13 +273,26 @@ fun CollapsibleTopAppBar(
     val state = scrollBehavior?.state
     val density = LocalDensity.current
 
+    val overScrollState = LocalOverScrollState.current
+    val lastOverScrollActive = remember { mutableStateOf(overScrollState.isOverScrollActive) }
+    LaunchedEffect(overScrollState) {
+        snapshotFlow { overScrollState.isOverScrollActive }
+            .collect { isActive ->
+                if (lastOverScrollActive.value && !isActive) {
+                    scrollBehavior?.postCollapseScrollOffset = 0f
+                }
+                lastOverScrollActive.value = isActive
+            }
+    }
+    
+
     val scrolledOffset = remember(scrollBehavior) {
         { scrollBehavior?.state?.heightOffset ?: 0f }
     }
     val largeTitleAlpha = remember(scrollBehavior) {
         {
             val frac = scrollBehavior?.state?.collapsedFraction ?: 0f
-            1f - (frac * 4f).coerceIn(0f, 1f)
+            1f - (frac * 2.5f).coerceIn(0f, 1f)
         }
     }
     val largeTitleBlur: () -> Dp = remember(scrollBehavior) {
@@ -287,8 +313,28 @@ fun CollapsibleTopAppBar(
 
     val smallTitleVisible by remember(state) {
         derivedStateOf {
-            (state?.collapsedFraction ?: 0f) >= 0.3f
+            (state?.collapsedFraction ?: 0f) >= 0.45f
         }
+    }
+    val showButtonShadow = remember(scrollBehavior) {
+        derivedStateOf {
+            (scrollBehavior?.postCollapseScrollOffset ?: 0f) > 10f
+        }
+    }
+    val shadowAlpha = remember { Animatable(if (showButtonShadow.value) 1f else 0f) }
+    val backdropAlpha = remember { Animatable(if (showButtonShadow.value) 1f else 0f) }
+    LaunchedEffect(showButtonShadow.value) {
+        val target = if (showButtonShadow.value) 1f else 0f
+        val spec = if (showButtonShadow.value) {
+            folmeSpring<Float>(damping = 1.0f, response = 0.6f)
+        } else {
+            folmeSpring<Float>(damping = 1.0f, response = 0.4f)
+        }
+        launch { shadowAlpha.animateTo(target, spec) }
+        launch { backdropAlpha.animateTo(target, spec) }
+    }
+    LaunchedEffect(showButtonShadow.value) {
+        state?.showButtonShadow = showButtonShadow.value
     }
     val smallTitleAlpha = remember { Animatable(if (smallTitleVisible) 1f else 0f) }
     val smallTitleTranslationY = remember { Animatable(if (smallTitleVisible) 0f else 20f) }
@@ -322,10 +368,12 @@ fun CollapsibleTopAppBar(
                     LiquidTopBarButton(
                         onClick = onBack,
                         backdrop = backdrop,
-                        icon = MiuixIcons.Medium.ChevronBackward,
+                        icon = MiuixIcons.ChevronBackward,
                         contentDescription = "返回",
-                        iconSize = 22.dp,
+                        iconSize = 24.dp,
                         iconOffset = DpOffset(x = (-2).dp, y = 0.dp),
+                        backdropAlpha = backdropAlpha.value,
+                        shadowAlpha = shadowAlpha.value,
                     )
                 }
             }

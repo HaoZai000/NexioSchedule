@@ -128,3 +128,18 @@ fun rememberCardEdgeLight(): EdgeLight {
     else Color.White.copy(alpha = 0.2f)
     return remember(isLightTheme) { EdgeLight.Card(color = color) }
 }
+
+@Composable
+fun rememberLiquidTopBarButtonEdgeLight(): EdgeLight {
+    val isLightTheme = !isAppDarkTheme()
+    val color = if (isLightTheme) Color.White.copy(alpha = 0.8f)
+                else Color.White.copy(alpha = 0.32f)
+    return remember(isLightTheme) {
+        EdgeLight.Uniform(
+            color = color,
+            width = 0.15f.dp,
+            blurRadius = 0.5f.dp,
+            intensity = 1f
+        )
+    }
+}

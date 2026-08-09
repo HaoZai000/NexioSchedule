@@ -4,6 +4,7 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.wrapContentSize
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material3.Icon
 import androidx.compose.runtime.Composable
@@ -22,15 +23,16 @@ import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.DpOffset
 import androidx.compose.ui.unit.dp
-import com.haooz.chedule.ui.utils.isAppDarkTheme
+import androidx.compose.ui.zIndex
+import androidx.core.graphics.toColorInt
 import com.haooz.chedule.ui.effects.edgelight.edgeLight
-import com.haooz.chedule.ui.effects.edgelight.rememberDefaultEdgeLight
+import com.haooz.chedule.ui.effects.edgelight.rememberLiquidTopBarButtonEdgeLight
+import com.haooz.chedule.ui.utils.isAppDarkTheme
 import com.kyant.backdrop.Backdrop
 import com.kyant.backdrop.drawBackdrop
 import com.kyant.backdrop.effects.blur
 import com.kyant.backdrop.effects.lens
 import com.kyant.backdrop.effects.vibrancy
-import androidx.core.graphics.toColorInt
 
 @Composable
 fun LiquidTopBarButton(
@@ -41,7 +43,9 @@ fun LiquidTopBarButton(
     modifier: Modifier = Modifier,
     iconSize: Dp = 24.dp,
     iconOffset: DpOffset = DpOffset.Zero,
-    buttonHeight: Dp = 40.dp,
+    buttonHeight: Dp = 42.dp,
+    backdropAlpha: Float = 1f,
+    shadowAlpha: Float = 1f,
     iconTint: Color = Color.Unspecified,
     containerColor: Color = Color.Unspecified
 ) {
@@ -49,8 +53,8 @@ fun LiquidTopBarButton(
     val hapticFeedback = LocalHapticFeedback.current
     val isLightTheme = !isAppDarkTheme()
     val resolvedContainerColor = if (containerColor != Color.Unspecified) containerColor
-        else if (isLightTheme) Color(0xFFFFFFFF).copy(0.6f)
-        else Color(0xFF121212).copy(0.54f)
+        else if (isLightTheme) Color(0xFFFFFFFF).copy(0.8f)
+        else Color(0xFF242424).copy(0.9f)
 
     val interactiveHighlight = remember(animationScope) {
         InteractiveHighlight(
@@ -62,69 +66,88 @@ fun LiquidTopBarButton(
 
     Box(
         modifier = modifier
-            .size(buttonHeight)
+            .wrapContentSize()
             .drawBehind {
-                val blurRadius = 10f * density
-                val shadowSpread = 2f * density
-                val cornerRadiusPx = buttonHeight.toPx() / 2f
-                val paint = android.graphics.Paint().apply {
-                    color = shadowColor
-                    maskFilter = android.graphics.BlurMaskFilter(
-                        blurRadius,
-                        android.graphics.BlurMaskFilter.Blur.NORMAL
-                    )
+                val spread = shadowAlpha
+                if (spread > 0.01f) {
+                    val maxBlurRadius = 10f * density
+                    val maxShadowSpread = 2f * density
+                    val blurRadius = maxBlurRadius * spread
+                    val shadowSpread = maxShadowSpread * spread
+                    val outerRadius = size.minDimension / 2f + shadowSpread
+                    val innerRadius = size.minDimension / 2f
+                    val path = android.graphics.Path().apply {
+                        addCircle(center.x, center.y, outerRadius, android.graphics.Path.Direction.CW)
+                        addCircle(center.x, center.y, innerRadius, android.graphics.Path.Direction.CCW)
+                    }
+                    val paint = android.graphics.Paint().apply {
+                        color = android.graphics.Color.argb(
+                            (android.graphics.Color.alpha(shadowColor) * 4.0f).coerceAtMost(255f).toInt(),
+                            android.graphics.Color.red(shadowColor),
+                            android.graphics.Color.green(shadowColor),
+                            android.graphics.Color.blue(shadowColor)
+                        )
+                        maskFilter = android.graphics.BlurMaskFilter(
+                            blurRadius.coerceAtLeast(0.1f),
+                            android.graphics.BlurMaskFilter.Blur.NORMAL
+                        )
+                    }
+                    drawIntoCanvas { canvas ->
+                        canvas.nativeCanvas.drawPath(path, paint)
+                    }
                 }
-                drawIntoCanvas { canvas ->
-                    canvas.nativeCanvas.drawRoundRect(
-                        -shadowSpread, -shadowSpread,
-                        size.width + shadowSpread, size.height + shadowSpread,
-                        cornerRadiusPx, cornerRadiusPx,
-                        paint
-                    )
-                }
-            }
-            .drawBackdrop(
-                backdrop = backdrop,
-                shape = { CircleShape },
-                effects = {
-                    vibrancy()
-                    blur(2f.dp.toPx())
-                    lens(18f.dp.toPx(), 18f.dp.toPx())
-                },
-                highlight = null,
-                shadow = null,
-                layerBlock = {
-                    val progress = interactiveHighlight.pressProgress
-                    val scale = 1f + 2f.dp.toPx() / buttonHeight.toPx() * progress
-                    scaleX = scale
-                    scaleY = scale
-                    val offset = interactiveHighlight.offset
-                    translationX = size.minDimension * 0.05f * offset.x / size.maxDimension
-                    translationY = size.minDimension * 0.05f * offset.y / size.maxDimension
-                },
-                onDrawSurface = {
-                    drawRect(resolvedContainerColor)
-                    drawRect(Color.Black.copy(alpha = 0.03f * interactiveHighlight.pressProgress))
-                }
-            )
-            .edgeLight(shape = CircleShape, edgeLight = rememberDefaultEdgeLight())
-            .clickable(
-                interactionSource = null,
-                indication = null,
-                role = Role.Button,
-                onClick = {
-                    hapticFeedback.performHapticFeedback(HapticFeedbackType.Confirm)
-                    onClick()
-                }
-            )
-            .then(interactiveHighlight.modifier)
-            .then(interactiveHighlight.gestureModifier),
+            },
         contentAlignment = Alignment.Center
     ) {
+        Box(
+            modifier = Modifier
+                .size(buttonHeight)
+                .drawBackdrop(
+                    backdrop = backdrop,
+                    shape = { CircleShape },
+                    effects = {
+                        vibrancy()
+                        blur(2f.dp.toPx())
+                        lens(12f.dp.toPx(), 12f.dp.toPx())
+                    },
+                    highlight = null,
+                    shadow = null,
+                    layerBlock = {
+                        val progress = interactiveHighlight.pressProgress
+                        val scale = 1f + 2f.dp.toPx() / buttonHeight.toPx() * progress
+                        scaleX = scale
+                        scaleY = scale
+                        val offset = interactiveHighlight.offset
+                        translationX = size.minDimension * 0.05f * offset.x / size.maxDimension
+                        translationY = size.minDimension * 0.05f * offset.y / size.maxDimension
+                        alpha = backdropAlpha
+                    },
+                    onDrawSurface = {
+                        drawRect(resolvedContainerColor)
+                        drawRect(Color.Black.copy(alpha = 0.03f * interactiveHighlight.pressProgress))
+                    }
+                )
+                .edgeLight(shape = CircleShape, edgeLight = rememberLiquidTopBarButtonEdgeLight())
+                .clickable(
+                    interactionSource = null,
+                    indication = null,
+                    role = Role.Button,
+                    onClick = {
+                        hapticFeedback.performHapticFeedback(HapticFeedbackType.Confirm)
+                        onClick()
+                    }
+                )
+                .then(interactiveHighlight.modifier)
+                .then(interactiveHighlight.gestureModifier)
+                .zIndex(0f)
+        )
         Icon(
             imageVector = icon,
             contentDescription = contentDescription,
-            modifier = Modifier.size(iconSize).offset(iconOffset.x, iconOffset.y),
+            modifier = Modifier
+                .size(iconSize)
+                .offset(iconOffset.x, iconOffset.y)
+                .zIndex(1f),
             tint = if (iconTint != Color.Unspecified) iconTint else if (isLightTheme) Color.Black.copy(alpha = 0.8f) else Color.White.copy(alpha = 0.8f)
         )
     }
