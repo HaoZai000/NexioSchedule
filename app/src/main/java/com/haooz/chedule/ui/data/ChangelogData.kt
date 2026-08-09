@@ -7,16 +7,13 @@ data class ChangelogEntry(
 )
 val changelogData = listOf(
     ChangelogEntry(
-        version = "v1.3.8-0810",
-        date = "2026-08-10",
+        version = "v1.3.8-0811",
+        date = "2026-08-11",
         changes = listOf(
             "优化课程表界面视觉效果",
             "优化课表外观设置逻辑",
-            "",
-            "",
-            "",
-            "",
-            "提示：在1.4.0版本后将不会再提供应用风格选择，将统一为类HyperOS4风格（不会完全一致），重要功能会在1.4.0前补齐"
+            "支持长按课程快速调课",
+            "提示：在1.4.0版本后将不会再提供应用风格选择，将统一为类HyperOS4风格"
         )
     ),
     ChangelogEntry(

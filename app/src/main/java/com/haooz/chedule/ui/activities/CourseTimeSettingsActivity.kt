@@ -2,8 +2,8 @@
 package com.haooz.chedule.ui.activities
 
 import android.annotation.SuppressLint
-import android.os.Bundle
 import android.graphics.Bitmap
+import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.SystemBarStyle
 import androidx.activity.compose.setContent
@@ -12,50 +12,40 @@ import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.WindowInsets
-import androidx.compose.foundation.layout.asPaddingValues
 import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.offset
-import androidx.compose.foundation.layout.statusBars
-import androidx.compose.runtime.getValue
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.drawWithContent
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.asAndroidBitmap
 import androidx.compose.ui.graphics.asComposeRenderEffect
-import androidx.compose.ui.graphics.rememberGraphicsLayer
 import androidx.compose.ui.graphics.drawscope.clipPath
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.graphics.rememberGraphicsLayer
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.DpOffset
 import androidx.compose.ui.zIndex
-import androidx.compose.runtime.rememberCoroutineScope
-import androidx.compose.ui.graphics.graphicsLayer
-import kotlinx.coroutines.delay
-import kotlinx.coroutines.launch
 import com.haooz.chedule.data.CourseRepository
 import com.haooz.chedule.data.TimeConfig
-import com.haooz.chedule.ui.effects.liquidglass.LiquidTopBarButton
+import com.haooz.chedule.ui.components.CollapsibleTopAppBar
 import com.haooz.chedule.ui.effects.liquidglass.ProgressiveBlurTopBar
 import com.haooz.chedule.ui.effects.motion.OobeCubicOutEasing
 import com.haooz.chedule.ui.effects.motion.OobeQuartOutEasing
 import com.haooz.chedule.ui.screens.TimeConfigEditScreen
 import com.haooz.chedule.ui.theme.CourseScheduleTheme
 import com.haooz.chedule.ui.utils.applyThemeAwareSystemBars
-import com.haooz.chedule.ui.utils.rememberAppStyle
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
 import top.yukonga.miuix.kmp.basic.Scaffold
-import top.yukonga.miuix.kmp.basic.SmallTopAppBar
 import top.yukonga.miuix.kmp.blur.layerBackdrop
 import top.yukonga.miuix.kmp.blur.rememberLayerBackdrop
-import top.yukonga.miuix.kmp.icon.MiuixIcons
-import top.yukonga.miuix.kmp.icon.extended.ChevronBackward
 import top.yukonga.miuix.kmp.squircle.addSquircleRect
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 import kotlin.math.abs
@@ -90,14 +80,9 @@ class CourseTimeSettingsActivity : ComponentActivity() {
                     drawRect(backgroundColor)
                     drawContent()
                 }
-                val appStyle = rememberAppStyle()
-                val liquidGlassBackdrop = if (appStyle == "liquidglass") {
-                    com.kyant.backdrop.backdrops.rememberLayerBackdrop()
-                } else null
-                val editLiquidGlassBackdrop = if (appStyle == "liquidglass") {
-                    com.kyant.backdrop.backdrops.rememberLayerBackdrop()
-                } else null
-                val isLiquidGlass = liquidGlassBackdrop != null
+                val liquidGlassBackdrop = com.kyant.backdrop.backdrops.rememberLayerBackdrop()
+                val editLiquidGlassBackdrop = com.kyant.backdrop.backdrops.rememberLayerBackdrop()
+                val scrollBehavior = com.haooz.chedule.ui.components.rememberSharedScrollBehavior()
                 val repository = remember { CourseRepository(this@CourseTimeSettingsActivity) }
                 val context = androidx.compose.ui.platform.LocalContext.current
                 val activity = context as? CourseTimeSettingsActivity
@@ -195,32 +180,21 @@ class CourseTimeSettingsActivity : ComponentActivity() {
                                     }
                                 }
                         ) {
+                            var topBarHeight by remember { mutableStateOf(0.dp) }
                             Scaffold(
                                 topBar = {
-                                    if (isLiquidGlass) {
-                                        val statusBarPadding = WindowInsets.statusBars.asPaddingValues().calculateTopPadding()
-                                        ProgressiveBlurTopBar(
+                                    ProgressiveBlurTopBar(
+                                        backdrop = liquidGlassBackdrop,
+                                    ) {
+                                        CollapsibleTopAppBar(
+                                            title = "课程节数与时间",
+                                            largeTitle = "课程节数与时间",
+                                            modifier = Modifier.zIndex(1f),
+                                            scrollBehavior = scrollBehavior,
+                                            contentPadding = { height -> topBarHeight = height },
+                                            onBack = { finish() },
                                             backdrop = liquidGlassBackdrop,
-                                        ) {
-                                            SmallTopAppBar(
-                                                color = Color.Transparent,
-                                                title = "课程节数与时间",
-                                                modifier = Modifier.zIndex(1f),
-                                                navigationIcon = {}
-                                            )
-                                            LiquidTopBarButton(
-                                                onClick = { finish() },
-                                                backdrop = liquidGlassBackdrop,
-                                                icon = MiuixIcons.Medium.ChevronBackward,
-                                                contentDescription = "返回",
-                                                modifier = Modifier
-                                                    .zIndex(2f)
-                                                    .offset(x = 20.dp, y = if (statusBarPadding > 0.dp) statusBarPadding + 5.dp else 42.dp),
-                                                iconSize = 22.dp,
-                                                iconOffset = DpOffset(x = (-2).dp, y = 0.dp),
-                                                useBackdropShadow = true
-                                            )
-                                        }
+                                        )
                                     }
                                 }
                             ) { _ ->
@@ -231,12 +205,10 @@ class CourseTimeSettingsActivity : ComponentActivity() {
                                 ) {
                                     Box(
                                         modifier = Modifier.fillMaxSize().then(
-                                            if (liquidGlassBackdrop != null) Modifier.liquidGlassLayerBackdrop(liquidGlassBackdrop)
-                                            else Modifier
+                                            Modifier.liquidGlassLayerBackdrop(liquidGlassBackdrop)
                                         )
                                     ) {
                                         CourseTimeSettingsScreen(
-                                            onBack = { finish() },
                                             onEditConfig = { config, bounds ->
                                                 editingConfig = config
                                                 editingCardBounds = bounds
@@ -307,12 +279,12 @@ class CourseTimeSettingsActivity : ComponentActivity() {
                                                 // 最后触发组合（背景已在动画中）
                                                 currentPage = "edit"
                                             },
-                                            liquidGlassBackdrop = liquidGlassBackdrop,
                                             refreshTrigger = listRefreshTrigger,
                                 hideConfigId = hideConfigId,
                                 hideFab = hideFab,
                                 newlyAddedConfigId = newlyAddedConfigId,
-                                onNewConfigAnimDone = { newlyAddedConfigId = null }
+                                onNewConfigAnimDone = { newlyAddedConfigId = null },
+                                scrollBehavior = scrollBehavior,
                                         )
                                     }
                                 }

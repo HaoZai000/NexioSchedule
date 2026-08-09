@@ -38,42 +38,32 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.RectangleShape
 import androidx.compose.ui.graphics.graphicsLayer
-import androidx.compose.ui.graphics.lerp
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.layout.positionInWindow
 import androidx.compose.ui.platform.LocalConfiguration
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.haooz.chedule.data.CourseRepository
 import com.haooz.chedule.data.TimeConfig
+import com.haooz.chedule.ui.components.SharedScrollBehavior
 import com.haooz.chedule.ui.utils.isAppDarkTheme
-import com.haooz.chedule.ui.utils.rememberAppStyle
 import kotlinx.coroutines.launch
 import top.yukonga.miuix.kmp.basic.ButtonDefaults
 import top.yukonga.miuix.kmp.basic.Card
 import top.yukonga.miuix.kmp.basic.FloatingActionButton
 import top.yukonga.miuix.kmp.basic.Icon
-import top.yukonga.miuix.kmp.basic.IconButton
-import top.yukonga.miuix.kmp.basic.MiuixScrollBehavior
 import top.yukonga.miuix.kmp.basic.Scaffold
 import top.yukonga.miuix.kmp.basic.TextButton
-import top.yukonga.miuix.kmp.basic.SmallTopAppBar
-import top.yukonga.miuix.kmp.basic.TopAppBar
-import top.yukonga.miuix.kmp.blur.BlendColorEntry
-import top.yukonga.miuix.kmp.blur.BlurBlendMode
-import top.yukonga.miuix.kmp.blur.BlurDefaults
 import top.yukonga.miuix.kmp.blur.layerBackdrop
 import top.yukonga.miuix.kmp.blur.rememberLayerBackdrop
-import top.yukonga.miuix.kmp.blur.textureBlur
 import top.yukonga.miuix.kmp.icon.MiuixIcons
 import top.yukonga.miuix.kmp.icon.extended.Add
-import top.yukonga.miuix.kmp.icon.extended.Back
 import top.yukonga.miuix.kmp.icon.extended.Delete
 import top.yukonga.miuix.kmp.icon.extended.Edit
 import top.yukonga.miuix.kmp.overlay.OverlayDialog
@@ -81,7 +71,6 @@ import top.yukonga.miuix.kmp.theme.MiuixTheme
 import top.yukonga.miuix.kmp.utils.overScrollVertical
 import top.yukonga.miuix.kmp.utils.scrollEndHaptic
 import kotlin.time.Duration.Companion.milliseconds
-import androidx.compose.ui.graphics.Color as ComposeColor
 
 data class TimeConfigCardBounds(
     val left: Float,
@@ -93,15 +82,14 @@ data class TimeConfigCardBounds(
 @SuppressLint("DefaultLocale", "UseOfNonLambdaOffsetOverload", "ConfigurationScreenWidthHeight")
 @Composable
 fun CourseTimeSettingsScreen(
-    onBack: () -> Unit,
     onEditConfig: (TimeConfig, TimeConfigCardBounds) -> Unit,
     onCreateConfig: (TimeConfigCardBounds) -> Unit,
-    liquidGlassBackdrop: com.kyant.backdrop.Backdrop? = null,
     refreshTrigger: Int = 0,
     hideConfigId: Long? = null,
     hideFab: Boolean = false,
     newlyAddedConfigId: Long? = null,
-    onNewConfigAnimDone: () -> Unit = {}
+    onNewConfigAnimDone: () -> Unit = {},
+    scrollBehavior: SharedScrollBehavior? = null,
 ) {
     val context = androidx.compose.ui.platform.LocalContext.current
     val hapticFeedback = androidx.compose.ui.platform.LocalHapticFeedback.current
@@ -125,43 +113,16 @@ fun CourseTimeSettingsScreen(
     var deletingConfig by remember { mutableStateOf<TimeConfig?>(null) }
     var deletingConfigId by remember { mutableStateOf<Long?>(null) }
 
-    val scrollBehavior = MiuixScrollBehavior()
-    var listScrollY by remember { mutableIntStateOf(0) }
-
     val backgroundColor = MiuixTheme.colorScheme.surface
     val backdrop = rememberLayerBackdrop {
         drawRect(backgroundColor)
         drawContent()
     }
-    val isDark = isAppDarkTheme()
-    val appStyle = rememberAppStyle()
-    val isLiquidGlass = appStyle == "liquidglass" && liquidGlassBackdrop != null
     val isTablet = LocalConfiguration.current.screenWidthDp >= 600
     val tabletHorizontalPadding = if (isTablet) {
         val screenWidthDp = LocalConfiguration.current.screenWidthDp
         ((screenWidthDp - 600).coerceIn(0, 600) / 600f * 112 + 16).dp
     } else 16.dp
-    val blurAlpha = if (!isLiquidGlass) {
-        if (listScrollY < 50) 0f else ((listScrollY - 50) / 30f).coerceIn(0f, 0.7f)
-    } else 0f
-    val topBarColorProgress = if (!isLiquidGlass) ((listScrollY - 50) / 30f).coerceIn(0f, 1f) else 0f
-    val topBarColor = if (!isLiquidGlass) {
-        if (listScrollY < 50) MiuixTheme.colorScheme.surface
-        else {
-            val surface = MiuixTheme.colorScheme.surface
-            val target = if (isDark) ComposeColor.Black.copy(alpha = 0.7f) else ComposeColor.White.copy(alpha = 0.7f)
-            lerp(surface, target, topBarColorProgress)
-        }
-    } else MiuixTheme.colorScheme.surface
-    val topAppBarColors = if (!isLiquidGlass) {
-        BlurDefaults.blurColors(
-            blendColors = listOf(
-                if (isDark) BlendColorEntry(ComposeColor.Black.copy(alpha = blurAlpha), BlurBlendMode.SrcOver)
-                else BlendColorEntry(ComposeColor.White.copy(alpha = blurAlpha), BlurBlendMode.SrcOver)
-            ),
-            brightness = 0f, contrast = 1f, saturation = 1.2f
-        )
-    } else null
 
     fun refreshList() {
         configIds = repository.getTimeConfigIds()
@@ -171,39 +132,7 @@ fun CourseTimeSettingsScreen(
 
     Box(modifier = Modifier.fillMaxSize()) {
         Scaffold(
-            topBar = {
-                if (!isLiquidGlass) {
-                    val topBarModifier = if (blurAlpha > 0f) {
-                        Modifier.textureBlur(backdrop = backdrop, shape = RectangleShape, colors = topAppBarColors!!)
-                    } else Modifier
-                    val navIcon: @Composable () -> Unit = {
-                        IconButton(onClick = { onBack() }) {
-                            Icon(MiuixIcons.Back,
-                                contentDescription = "返回",
-                                modifier = Modifier.size(28.dp))
-                        }
-                    }
-                    if (isTablet) {
-                        SmallTopAppBar(
-                            modifier = topBarModifier,
-                            color = topBarColor,
-                            title = "课程节数与时间",
-                            scrollBehavior = scrollBehavior,
-                            navigationIconPadding = 20.dp,
-                            navigationIcon = navIcon
-                        )
-                    } else {
-                        TopAppBar(
-                            modifier = topBarModifier,
-                            color = topBarColor,
-                            title = "课程节数与时间",
-                            scrollBehavior = scrollBehavior,
-                            navigationIconPadding = 20.dp,
-                            navigationIcon = navIcon
-                        )
-                    }
-                }
-            }
+            topBar = {}
         ) { paddingValues ->
             Box(
                 modifier = Modifier
@@ -211,6 +140,10 @@ fun CourseTimeSettingsScreen(
                     .layerBackdrop(backdrop)
             ) {
                 val listState = rememberLazyListState()
+                val density = LocalDensity.current
+                val topBarHeightDp = with(density) {
+                    (scrollBehavior?.currentHeightPx ?: 0f).toDp()
+                }
                 LazyColumn(
                     state = listState,
                     modifier = Modifier.fillMaxSize()
@@ -219,11 +152,11 @@ fun CourseTimeSettingsScreen(
                             hapticFeedbackType = HapticFeedbackType.TextHandleMove
                         )
                         .then(
-                            if (!isLiquidGlass) Modifier.nestedScroll(scrollBehavior.nestedScrollConnection) else Modifier
+                            scrollBehavior?.let { Modifier.nestedScroll(it.nestedScrollConnection) } ?: Modifier
                         ),
                     contentPadding = PaddingValues(
                         start = tabletHorizontalPadding,
-                        top = if (isLiquidGlass) paddingValues.calculateTopPadding() + 64.dp else paddingValues.calculateTopPadding() + 8.dp,
+                        top = paddingValues.calculateTopPadding() + topBarHeightDp + 12.dp,
                         end = tabletHorizontalPadding,
                         bottom = 60.dp
                     ),
@@ -436,7 +369,7 @@ fun CourseTimeSettingsScreen(
             ) {
                 Icon(
                     imageVector = MiuixIcons.Add,
-                    tint = ComposeColor.White,
+                    tint = Color.White,
                     contentDescription = "新建"
                 )
             }
