@@ -1,4 +1,4 @@
-﻿package com.haooz.chedule.ui.components
+package com.haooz.chedule.ui.components
 
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.AnimationSpec
@@ -43,18 +43,14 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Constraints
 import androidx.compose.ui.unit.Dp
-import androidx.compose.ui.unit.DpOffset
 import androidx.compose.ui.unit.Velocity
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.util.fastFirst
 import androidx.compose.ui.util.lerp
 import androidx.compose.ui.zIndex
-import com.haooz.chedule.ui.effects.liquidglass.LiquidTopBarButton
 import kotlinx.coroutines.launch
 import top.yukonga.miuix.kmp.anim.folmeSpring
-import top.yukonga.miuix.kmp.icon.MiuixIcons
-import top.yukonga.miuix.kmp.icon.extended.ChevronBackward
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 import top.yukonga.miuix.kmp.utils.LocalOverScrollState
 import kotlin.math.abs
@@ -136,7 +132,9 @@ class SharedScrollBehavior(
                 connection = object : NestedScrollConnection {
                     override fun onPreScroll(available: Offset, source: NestedScrollSource): Offset {
                         if (available.y > 0) {
-                            postCollapseScrollOffset = 0f
+                            if (state.heightOffset > state.heightOffsetLimit) {
+                                postCollapseScrollOffset = 0f
+                            }
                             return Offset.Zero
                         }
 
@@ -243,11 +241,7 @@ fun rememberSharedScrollBehavior(
 
 object CollapsibleTopAppBarDefaults {
     val CollapsedHeight = 52.dp
-    val LargeTitleBottomPadding = 4.dp
-    val SubtitleBottomPadding = 8.dp
     val TitlePadding = 26.dp
-    val NavigationIconPadding = 16.dp
-    val ActionIconPadding = 16.dp
     val TitleWidthFraction = 0.9f
     val MaxLargeTitleBlur = 6.dp
     val MaxSmallTitleBlur = 6.dp
@@ -260,15 +254,15 @@ fun CollapsibleTopAppBar(
     title: String,
     modifier: Modifier = Modifier,
     largeTitle: String = title,
+    showLargeTitle: Boolean = true,
+    showSmallTitle: Boolean? = null,
+    showShadow: Boolean? = null,
     scrollBehavior: SharedScrollBehavior? = null,
     contentPadding: (Dp) -> Unit = {},
-    // 快捷参数：液态玻璃返回按钮
-    onBack: (() -> Unit)? = null,
-    backdrop: com.kyant.backdrop.Backdrop? = null,
-    // 左侧自定义 Composable
-    startAction: @Composable (() -> Unit)? = null,
-    // 右侧自定义 Composable
-    endAction: @Composable (() -> Unit)? = null,
+    // 左侧自定义 Composable（接收 backdropAlpha、shadowAlpha 用于液态玻璃按钮动画）
+    startAction: @Composable ((backdropAlpha: Float, shadowAlpha: Float) -> Unit)? = null,
+    // 右侧自定义 Composable（接收 backdropAlpha、shadowAlpha 用于液态玻璃按钮动画）
+    endAction: @Composable ((backdropAlpha: Float, shadowAlpha: Float) -> Unit)? = null,
 ) {
     val state = scrollBehavior?.state
     val density = LocalDensity.current
@@ -311,14 +305,29 @@ fun CollapsibleTopAppBar(
         }
     }
 
-    val smallTitleVisible by remember(state) {
-        derivedStateOf {
-            (state?.collapsedFraction ?: 0f) >= 0.45f
+    // 没有大标题时，设置 heightOffsetLimit = -1 表示 bar 已完全折叠，不消费滚动
+    // 设为 -1 而非 0，确保 onPreScroll 中 heightOffset(0) > heightOffsetLimit(-1) 为 true，
+    // 这样向上滚动时能正确重置 postCollapseScrollOffset
+    LaunchedEffect(showLargeTitle, scrollBehavior) {
+        if (!showLargeTitle) {
+            scrollBehavior?.state?.heightOffsetLimit = -1f
         }
     }
-    val showButtonShadow = remember(scrollBehavior) {
+
+    val smallTitleVisible by remember(state, showLargeTitle, showSmallTitle) {
         derivedStateOf {
-            (scrollBehavior?.postCollapseScrollOffset ?: 0f) > 10f
+            // 外部显式控制时使用外部值
+            if (showSmallTitle != null) showSmallTitle
+            // 没有大标题时，小标题始终显示
+            else if (!showLargeTitle) true
+            // 默认：折叠到一定程度时显示
+            else (state?.collapsedFraction ?: 0f) >= 0.45f
+        }
+    }
+    val showButtonShadow = remember(scrollBehavior, showShadow) {
+        derivedStateOf {
+            if (showShadow != null) showShadow
+            else (scrollBehavior?.postCollapseScrollOffset ?: 0f) > 10f
         }
     }
     val shadowAlpha = remember { Animatable(if (showButtonShadow.value) 1f else 0f) }
@@ -326,7 +335,7 @@ fun CollapsibleTopAppBar(
     LaunchedEffect(showButtonShadow.value) {
         val target = if (showButtonShadow.value) 1f else 0f
         val spec = if (showButtonShadow.value) {
-            folmeSpring<Float>(damping = 1.0f, response = 0.6f)
+            folmeSpring(damping = 1.0f, response = 0.6f)
         } else {
             folmeSpring<Float>(damping = 1.0f, response = 0.4f)
         }
@@ -354,29 +363,8 @@ fun CollapsibleTopAppBar(
         }
     }
 
-    val finalModifier = modifier
-
     Layout(
         {
-            // 液态玻璃返回按钮（快捷参数）
-            if (onBack != null && backdrop != null) {
-                Box(
-                    Modifier
-                        .layoutId("backButton")
-                        .zIndex(2f),
-                ) {
-                    LiquidTopBarButton(
-                        onClick = onBack,
-                        backdrop = backdrop,
-                        icon = MiuixIcons.ChevronBackward,
-                        contentDescription = "返回",
-                        iconSize = 24.dp,
-                        iconOffset = DpOffset(x = (-2).dp, y = 0.dp),
-                        backdropAlpha = backdropAlpha.value,
-                        shadowAlpha = shadowAlpha.value,
-                    )
-                }
-            }
             // 左侧自定义 Composable
             if (startAction != null) {
                 Box(
@@ -384,7 +372,7 @@ fun CollapsibleTopAppBar(
                         .layoutId("startAction")
                         .zIndex(2f),
                 ) {
-                    startAction()
+                    startAction(backdropAlpha.value, shadowAlpha.value)
                 }
             }
             Box(
@@ -413,30 +401,32 @@ fun CollapsibleTopAppBar(
                         .layoutId("endAction")
                         .zIndex(2f),
                 ) {
-                    endAction()
+                    endAction(backdropAlpha.value, shadowAlpha.value)
                 }
             }
-            Box(
-                Modifier
-                    .layoutId("largeTitle")
-                    .padding(top = CollapsibleTopAppBarDefaults.CollapsedHeight)
-                    .padding(horizontal = CollapsibleTopAppBarDefaults.TitlePadding)
-                    .graphicsLayer { alpha = largeTitleAlpha() }
-                    .blur(largeTitleBlur()),
-            ) {
-                Column(
-                    modifier = Modifier.onSizeChanged { updateHeightOffsetLimit(it.height) },
+            if (showLargeTitle) {
+                Box(
+                    Modifier
+                        .layoutId("largeTitle")
+                        .padding(top = CollapsibleTopAppBarDefaults.CollapsedHeight)
+                        .padding(horizontal = CollapsibleTopAppBarDefaults.TitlePadding)
+                        .graphicsLayer { alpha = largeTitleAlpha() }
+                        .blur(largeTitleBlur()),
                 ) {
-                    Text(
-                        text = largeTitle,
-                        color = MiuixTheme.colorScheme.onSurface,
-                        fontSize = 30.sp,
-                        fontWeight = FontWeight.Normal,
-                    )
+                    Column(
+                        modifier = Modifier.onSizeChanged { updateHeightOffsetLimit(it.height) },
+                    ) {
+                        Text(
+                            text = largeTitle,
+                            color = MiuixTheme.colorScheme.onSurface,
+                            fontSize = 30.sp,
+                            fontWeight = FontWeight.Normal,
+                        )
+                    }
                 }
             }
         },
-        modifier = finalModifier
+        modifier = modifier
             .windowInsetsPadding(WindowInsets.systemBars.only(WindowInsetsSides.Top))
             .onSizeChanged { size ->
                 scrollBehavior?.currentHeightPx = size.height.toFloat()
@@ -470,18 +460,20 @@ fun CollapsibleTopAppBar(
             .fastFirst { it.layoutId == "title" }
             .measure(constraints.copy(minWidth = 0, maxWidth = titleMaxWidth, minHeight = 0))
 
-        val largeTitlePlaceable = measurables
-            .fastFirst { it.layoutId == "largeTitle" }
-            .measure(
-                constraints.copy(
-                    minWidth = 0,
-                    minHeight = 0,
-                    maxHeight = Constraints.Infinity,
-                ),
-            )
+        val largeTitlePlaceable = if (showLargeTitle) {
+            measurables
+                .firstOrNull { it.layoutId == "largeTitle" }
+                ?.measure(
+                    constraints.copy(
+                        minWidth = 0,
+                        minHeight = 0,
+                        maxHeight = Constraints.Infinity,
+                    ),
+                )
+        } else null
 
         val collapsedHeightPx = CollapsibleTopAppBarDefaults.CollapsedHeight.roundToPx()
-        val expansion = (largeTitlePlaceable.height - collapsedHeightPx).coerceAtLeast(0)
+        val expansion = ((largeTitlePlaceable?.height ?: 0) - collapsedHeightPx).coerceAtLeast(0)
 
         val offset = scrolledOffset()
         val collapseFraction = if (expansion > 0 && !offset.isNaN()) {
@@ -519,7 +511,7 @@ fun CollapsibleTopAppBar(
             )
 
             val largeTitleY = if (offset.isNaN()) 0 else offset.roundToInt()
-            largeTitlePlaceable.placeRelative(x = 0, y = largeTitleY)
+            largeTitlePlaceable?.placeRelative(x = 0, y = largeTitleY)
         }
     }
 }

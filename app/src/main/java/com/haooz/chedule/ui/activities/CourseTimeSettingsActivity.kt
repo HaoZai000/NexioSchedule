@@ -30,11 +30,13 @@ import androidx.compose.ui.graphics.drawscope.clipPath
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.rememberGraphicsLayer
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.unit.DpOffset
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.zIndex
 import com.haooz.chedule.data.CourseRepository
 import com.haooz.chedule.data.TimeConfig
 import com.haooz.chedule.ui.components.CollapsibleTopAppBar
+import com.haooz.chedule.ui.effects.liquidglass.LiquidTopBarButton
 import com.haooz.chedule.ui.effects.liquidglass.ProgressiveBlurTopBar
 import com.haooz.chedule.ui.effects.motion.OobeCubicOutEasing
 import com.haooz.chedule.ui.effects.motion.OobeQuartOutEasing
@@ -46,6 +48,8 @@ import kotlinx.coroutines.launch
 import top.yukonga.miuix.kmp.basic.Scaffold
 import top.yukonga.miuix.kmp.blur.layerBackdrop
 import top.yukonga.miuix.kmp.blur.rememberLayerBackdrop
+import top.yukonga.miuix.kmp.icon.MiuixIcons
+import top.yukonga.miuix.kmp.icon.extended.ChevronBackward
 import top.yukonga.miuix.kmp.squircle.addSquircleRect
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 import kotlin.math.abs
@@ -192,8 +196,18 @@ class CourseTimeSettingsActivity : ComponentActivity() {
                                             modifier = Modifier.zIndex(1f),
                                             scrollBehavior = scrollBehavior,
                                             contentPadding = { height -> topBarHeight = height },
-                                            onBack = { finish() },
-                                            backdrop = liquidGlassBackdrop,
+                                            startAction = { backdropAlpha, shadowAlpha ->
+                                                LiquidTopBarButton(
+                                                    onClick = { finish() },
+                                                    backdrop = liquidGlassBackdrop,
+                                                    icon = MiuixIcons.ChevronBackward,
+                                                    contentDescription = "返回",
+                                                    iconSize = 25.dp,
+                                                    iconOffset = DpOffset(x = (-2).dp, y = 0.dp),
+                                                    backdropAlpha = backdropAlpha,
+                                                    shadowAlpha = shadowAlpha,
+                                                )
+                                            },
                                         )
                                     }
                                 }

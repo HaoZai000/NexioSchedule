@@ -21,7 +21,6 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
@@ -51,8 +50,8 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.haooz.chedule.data.CourseRepository
+import com.haooz.chedule.ui.components.SharedScrollBehavior
 import com.haooz.chedule.ui.utils.isAppDarkTheme
-import com.haooz.chedule.ui.utils.rememberAppStyle
 import com.haooz.chedule.viewmodel.CourseViewModel
 import com.haooz.chedule.viewmodel.ScheduleViewModel
 import com.haooz.chedule.viewmodel.SettingsViewModel
@@ -64,16 +63,9 @@ import top.yukonga.miuix.kmp.basic.ButtonDefaults
 import top.yukonga.miuix.kmp.basic.Card
 import top.yukonga.miuix.kmp.basic.DropdownEntry
 import top.yukonga.miuix.kmp.basic.DropdownItem
-import top.yukonga.miuix.kmp.basic.Icon
-import top.yukonga.miuix.kmp.basic.IconButton
-import top.yukonga.miuix.kmp.basic.MiuixScrollBehavior
 import top.yukonga.miuix.kmp.basic.Scaffold
 import top.yukonga.miuix.kmp.basic.SmallTitle
-import top.yukonga.miuix.kmp.basic.SmallTopAppBar
 import top.yukonga.miuix.kmp.basic.TextButton
-import top.yukonga.miuix.kmp.basic.TopAppBar
-import top.yukonga.miuix.kmp.icon.MiuixIcons
-import top.yukonga.miuix.kmp.icon.extended.Back
 import top.yukonga.miuix.kmp.overlay.OverlayDialog
 import top.yukonga.miuix.kmp.preference.ArrowPreference
 import top.yukonga.miuix.kmp.preference.OverlayDropdownPreference
@@ -167,11 +159,12 @@ private fun scanBackupFiles(): List<BackupFileInfo> {
 
 @SuppressLint("ConfigurationScreenWidthHeight")
 @Composable
-fun LocalBackupScreen(onBack: () -> Unit) {
+fun LocalBackupScreen(
+    scrollBehavior: SharedScrollBehavior? = null,
+) {
     val context = LocalContext.current
     val hapticFeedback = LocalHapticFeedback.current
     val coroutineScope = rememberCoroutineScope()
-    val scrollBehavior = MiuixScrollBehavior()
     var listScrollY by remember { mutableIntStateOf(0) }
 
     var backupMode by remember { mutableStateOf("all") }
@@ -205,8 +198,6 @@ fun LocalBackupScreen(onBack: () -> Unit) {
         backupHistory = scanBackupFiles()
     }
 
-    val appStyleValue = rememberAppStyle()
-    val isLiquidGlass = appStyleValue == "liquidglass"
     val isTablet = LocalConfiguration.current.screenWidthDp >= 600
     val tabletHorizontalPadding = if (isTablet) {
         val screenWidthDp = LocalConfiguration.current.screenWidthDp
@@ -214,40 +205,16 @@ fun LocalBackupScreen(onBack: () -> Unit) {
     } else 16.dp
 
     Scaffold(
-        topBar = {
-            if (!isLiquidGlass) {
-                val navIcon: @Composable () -> Unit = {
-                    IconButton(
-                        onClick = { onBack() },
-                        modifier = Modifier.padding(start = 4.dp)
-                    ) {
-                        Icon(
-                            imageVector = MiuixIcons.Back,
-                            contentDescription = "返回",
-                            modifier = Modifier.size(28.dp)
-                        )
-                    }
-                }
-                if (isTablet) {
-                    SmallTopAppBar(
-                        title = "本地备份",
-                        scrollBehavior = scrollBehavior,
-                        navigationIcon = navIcon
-                    )
-                } else {
-                    TopAppBar(
-                        title = "本地备份",
-                        scrollBehavior = scrollBehavior,
-                        navigationIcon = navIcon
-                    )
-                }
-            }
-        }
+        topBar = {}
     ) { paddingValues ->
         val listState = rememberLazyListState()
         LaunchedEffect(listState) {
             snapshotFlow { listState.firstVisibleItemScrollOffset }
                 .collect { offset -> listScrollY = offset }
+        }
+        val density = androidx.compose.ui.platform.LocalDensity.current
+        val topBarHeightDp = with(density) {
+            (scrollBehavior?.currentHeightPx ?: 0f).toDp()
         }
         LazyColumn(
             state = listState,
@@ -255,12 +222,12 @@ fun LocalBackupScreen(onBack: () -> Unit) {
                 .overScrollVertical()
                 .scrollEndHaptic(hapticFeedbackType = HapticFeedbackType.TextHandleMove)
                 .then(
-                    if (!isLiquidGlass) Modifier.nestedScroll(scrollBehavior.nestedScrollConnection) else Modifier
+                    scrollBehavior?.let { Modifier.nestedScroll(it.nestedScrollConnection) } ?: Modifier
                 ),
             contentPadding = PaddingValues(
                 start = tabletHorizontalPadding,
                 end = tabletHorizontalPadding,
-                top = if (isLiquidGlass) paddingValues.calculateTopPadding() + 64.dp else paddingValues.calculateTopPadding() + 8.dp,
+                top = paddingValues.calculateTopPadding() + topBarHeightDp + 12.dp,
                 bottom = 120.dp
             ),
         ) {

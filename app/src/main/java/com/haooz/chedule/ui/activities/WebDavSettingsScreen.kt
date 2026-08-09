@@ -14,7 +14,6 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.material3.Text
@@ -46,7 +45,7 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import com.haooz.chedule.data.SyncManager
 import com.haooz.chedule.data.WebDavManager
 import com.haooz.chedule.ui.components.NativeTextField
-import com.haooz.chedule.ui.utils.rememberAppStyle
+import com.haooz.chedule.ui.components.SharedScrollBehavior
 import com.haooz.chedule.viewmodel.CourseViewModel
 import com.haooz.chedule.viewmodel.ScheduleViewModel
 import com.haooz.chedule.viewmodel.SettingsViewModel
@@ -54,20 +53,11 @@ import kotlinx.coroutines.launch
 import top.yukonga.miuix.kmp.basic.ButtonDefaults
 import top.yukonga.miuix.kmp.basic.Card
 import top.yukonga.miuix.kmp.basic.CardDefaults
-import top.yukonga.miuix.kmp.basic.Icon
-import top.yukonga.miuix.kmp.basic.IconButton
-import top.yukonga.miuix.kmp.basic.MiuixScrollBehavior
 import top.yukonga.miuix.kmp.basic.Scaffold
 import top.yukonga.miuix.kmp.basic.SmallTitle
-import top.yukonga.miuix.kmp.basic.SmallTopAppBar
 import top.yukonga.miuix.kmp.basic.TextButton
-import top.yukonga.miuix.kmp.basic.TopAppBar
 import top.yukonga.miuix.kmp.blur.layerBackdrop
 import top.yukonga.miuix.kmp.blur.rememberLayerBackdrop
-import top.yukonga.miuix.kmp.icon.MiuixIcons
-import top.yukonga.miuix.kmp.icon.extended.Back
-import top.yukonga.miuix.kmp.icon.extended.Ok
-import top.yukonga.miuix.kmp.icon.extended.Play
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 import top.yukonga.miuix.kmp.utils.overScrollVertical
 import top.yukonga.miuix.kmp.utils.scrollEndHaptic
@@ -75,12 +65,15 @@ import androidx.compose.ui.graphics.Color as ComposeColor
 
 @SuppressLint("ConfigurationScreenWidthHeight")
 @Composable
-fun WebDavSettingsScreen(onBack: () -> Unit, onConnectedChange: (Boolean) -> Unit = {}, onTestConnectionReady: (() -> Unit) -> Unit = {}) {
+fun WebDavSettingsScreen(
+    scrollBehavior: SharedScrollBehavior? = null,
+    onConnectedChange: (Boolean) -> Unit = {},
+    onTestConnectionReady: (() -> Unit) -> Unit = {}
+) {
     val context = LocalContext.current
     val hapticFeedback = LocalHapticFeedback.current
     val webDavManager = remember { WebDavManager(context) }
     val coroutineScope = rememberCoroutineScope()
-    val scrollBehavior = MiuixScrollBehavior()
     var listScrollY by remember { mutableIntStateOf(0) }
 
     // ViewModel 用于恢复后刷新 UI
@@ -119,7 +112,6 @@ fun WebDavSettingsScreen(onBack: () -> Unit, onConnectedChange: (Boolean) -> Uni
             "上次操作: ${sdf.format(java.util.Date(lastSyncTimeMs))}"
         } else ""
     }
-    val canTest = serverUrl.isNotBlank() && username.isNotBlank() && password.isNotBlank()
 
     val syncManager = remember { SyncManager.getInstance(context) }
     val syncState by syncManager.syncState.collectAsState()
@@ -160,8 +152,6 @@ fun WebDavSettingsScreen(onBack: () -> Unit, onConnectedChange: (Boolean) -> Uni
         drawRect(backdropColor)
         drawContent()
     }
-    val appStyleValue = rememberAppStyle()
-    val isLiquidGlass = appStyleValue == "liquidglass"
     val isTablet = LocalConfiguration.current.screenWidthDp >= 600
     val tabletHorizontalPadding = if (isTablet) {
         val screenWidthDp = LocalConfiguration.current.screenWidthDp
@@ -196,74 +186,7 @@ fun WebDavSettingsScreen(onBack: () -> Unit, onConnectedChange: (Boolean) -> Uni
     }
 
     Scaffold(
-        topBar = {
-            if (!isLiquidGlass) {
-                val navIcon: @Composable () -> Unit = {
-                    IconButton(
-                        onClick = { onBack()
-                            saveConfig()},
-                        modifier = Modifier.padding(start = 4.dp)
-                    ) {
-                        Icon(
-                            imageVector = MiuixIcons.Back,
-                            contentDescription = "返回",
-                            modifier = Modifier.size(28.dp)
-                        )
-                    }
-                }
-                val actionsContent: @Composable androidx.compose.foundation.layout.RowScope.() -> Unit = {
-                    IconButton(
-                        onClick = {
-                            hapticFeedback.performHapticFeedback(HapticFeedbackType.Confirm)
-                            if (!testing) {
-                                testing = true
-                                statusText = ""
-                                connected = false
-                                coroutineScope.launch {
-                                    webDavManager.serverUrl = serverUrl
-                                    webDavManager.username = username
-                                    webDavManager.password = password
-                                    val result = webDavManager.testConnection()
-                                    if (result.isSuccess) {
-                                        statusText = result.getOrThrow()
-                                        statusIsError = false
-                                        connected = true
-                                    } else {
-                                        statusText = result.exceptionOrNull()?.message ?: "连接失败"
-                                        statusIsError = true
-                                        connected = false
-                                    }
-                                    testing = false
-                                }
-                            }
-                        },
-                        enabled = canTest && !testing && !connected
-                    ) {
-                        Icon(
-                            imageVector = if (connected) MiuixIcons.Ok else MiuixIcons.Play,
-                            contentDescription = if (connected) "连接成功" else "测试连接",
-                            modifier = Modifier.size(26.dp),
-                            tint = if (connected) ComposeColor(0xFF4CAF50) else MiuixTheme.colorScheme.onSurface.copy(alpha = if (canTest) 1f else 0.3f)
-                        )
-                    }
-                }
-                if (isTablet) {
-                    SmallTopAppBar(
-                        title = "WebDAV 云备份",
-                        scrollBehavior = scrollBehavior,
-                        navigationIcon = navIcon,
-                        actions = actionsContent
-                    )
-                } else {
-                    TopAppBar(
-                        title = "WebDAV 云备份",
-                        scrollBehavior = scrollBehavior,
-                        navigationIcon = navIcon,
-                        actions = actionsContent
-                    )
-                }
-            }
-        }
+        topBar = {}
     ) { paddingValues ->
         Box(
             modifier = Modifier
@@ -277,6 +200,10 @@ fun WebDavSettingsScreen(onBack: () -> Unit, onConnectedChange: (Boolean) -> Uni
                         listScrollY = offset
                     }
             }
+            val density = androidx.compose.ui.platform.LocalDensity.current
+            val topBarHeightDp = with(density) {
+                (scrollBehavior?.currentHeightPx ?: 0f).toDp()
+            }
             LazyColumn(
                 state = listState,
                 modifier = Modifier.fillMaxSize()
@@ -285,12 +212,12 @@ fun WebDavSettingsScreen(onBack: () -> Unit, onConnectedChange: (Boolean) -> Uni
                         hapticFeedbackType = HapticFeedbackType.TextHandleMove
                     )
                     .then(
-                        if (!isLiquidGlass) Modifier.nestedScroll(scrollBehavior.nestedScrollConnection) else Modifier
+                        scrollBehavior?.let { Modifier.nestedScroll(it.nestedScrollConnection) } ?: Modifier
                     ),
                 contentPadding = PaddingValues(
                     start = tabletHorizontalPadding,
                     end = tabletHorizontalPadding,
-                    top = if (isLiquidGlass) paddingValues.calculateTopPadding() + 64.dp else paddingValues.calculateTopPadding(),
+                    top = paddingValues.calculateTopPadding() + topBarHeightDp,
                     bottom = 120.dp
                 ),
                 verticalArrangement = Arrangement.spacedBy(12.dp)

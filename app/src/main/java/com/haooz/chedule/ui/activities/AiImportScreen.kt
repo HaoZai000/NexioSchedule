@@ -60,6 +60,7 @@ import androidx.compose.ui.unit.sp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.haooz.chedule.data.Course
 import com.haooz.chedule.ui.components.NativeMiuixTextField
+import com.haooz.chedule.ui.components.SharedScrollBehavior
 import com.haooz.chedule.ui.screens.AddCourseDialog
 import com.haooz.chedule.viewmodel.CourseViewModel
 import com.haooz.chedule.viewmodel.SettingsViewModel
@@ -67,16 +68,11 @@ import kotlinx.coroutines.launch
 import top.yukonga.miuix.kmp.basic.ButtonDefaults
 import top.yukonga.miuix.kmp.basic.Card
 import top.yukonga.miuix.kmp.basic.Icon
-import top.yukonga.miuix.kmp.basic.IconButton
-import top.yukonga.miuix.kmp.basic.MiuixScrollBehavior
 import top.yukonga.miuix.kmp.basic.Scaffold
 import top.yukonga.miuix.kmp.basic.SmallTitle
-import top.yukonga.miuix.kmp.basic.SmallTopAppBar
 import top.yukonga.miuix.kmp.basic.TextButton
-import top.yukonga.miuix.kmp.basic.TopAppBar
 import top.yukonga.miuix.kmp.icon.MiuixIcons
 import top.yukonga.miuix.kmp.icon.basic.ArrowRight
-import top.yukonga.miuix.kmp.icon.extended.Back
 import top.yukonga.miuix.kmp.overlay.OverlayDialog
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 import top.yukonga.miuix.kmp.utils.overScrollVertical
@@ -87,6 +83,7 @@ import java.util.UUID
 @Composable
 fun AiImportScreen(
     onBack: () -> Unit,
+    scrollBehavior: SharedScrollBehavior? = null,
     viewModel: CourseViewModel = viewModel(),
     settingsViewModel: SettingsViewModel = viewModel(),
     backdrop: top.yukonga.miuix.kmp.blur.LayerBackdrop? = null,
@@ -94,7 +91,6 @@ fun AiImportScreen(
 ) {
     val context = LocalContext.current
     val hapticFeedback = LocalHapticFeedback.current
-    val scrollBehavior = MiuixScrollBehavior()
 
     val morningSections by settingsViewModel.morningSections.collectAsState()
     val afternoonSections by settingsViewModel.afternoonSections.collectAsState()
@@ -181,7 +177,6 @@ fun AiImportScreen(
 请严格按此格式返回，不要添加其他说明文字。"""
     }
 
-    val isLiquidGlass = liquidGlassBackdrop != null
     val isTablet = LocalConfiguration.current.screenWidthDp >= 600
     val tabletHorizontalPadding = if (isTablet) {
         val screenWidthDp = LocalConfiguration.current.screenWidthDp
@@ -189,35 +184,7 @@ fun AiImportScreen(
     } else 16.dp
 
     Scaffold(
-        topBar = {
-            if (!isLiquidGlass) {
-                val navIcon: @Composable () -> Unit = {
-                    IconButton(
-                        onClick = { onBack() },
-                        modifier = Modifier.padding(start = 4.dp)
-                    ) {
-                        Icon(
-                            imageVector = MiuixIcons.Back,
-                            contentDescription = "返回",
-                            modifier = Modifier.size(28.dp)
-                        )
-                    }
-                }
-                if (isTablet) {
-                    SmallTopAppBar(
-                        title = "AI 文本导入",
-                        scrollBehavior = scrollBehavior,
-                        navigationIcon = navIcon
-                    )
-                } else {
-                    TopAppBar(
-                        title = "AI 文本导入",
-                        scrollBehavior = scrollBehavior,
-                        navigationIcon = navIcon
-                    )
-                }
-            }
-        }
+        topBar = {}
     ) { paddingValues ->
         val listState = rememberLazyListState()
         var listScrollY by remember { mutableIntStateOf(0) }
@@ -225,18 +192,22 @@ fun AiImportScreen(
             snapshotFlow { listState.firstVisibleItemScrollOffset }
                 .collect { offset -> listScrollY = offset }
         }
+        val density = androidx.compose.ui.platform.LocalDensity.current
+        val topBarHeightDp = with(density) {
+            (scrollBehavior?.currentHeightPx ?: 0f).toDp()
+        }
         LazyColumn(
             state = listState,
             modifier = Modifier.fillMaxSize()
                 .overScrollVertical()
                 .scrollEndHaptic(hapticFeedbackType = HapticFeedbackType.TextHandleMove)
                 .then(
-                    if (!isLiquidGlass) Modifier.nestedScroll(scrollBehavior.nestedScrollConnection) else Modifier
+                    scrollBehavior?.let { Modifier.nestedScroll(it.nestedScrollConnection) } ?: Modifier
                 ),
             contentPadding = PaddingValues(
                 start = tabletHorizontalPadding,
                 end = tabletHorizontalPadding,
-                top = if (isLiquidGlass) paddingValues.calculateTopPadding() + 56.dp else paddingValues.calculateTopPadding(),
+                top = paddingValues.calculateTopPadding() + topBarHeightDp,
                 bottom = 120.dp
             ),
             verticalArrangement = Arrangement.spacedBy(12.dp)

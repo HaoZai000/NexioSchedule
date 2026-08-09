@@ -18,7 +18,6 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.material3.Text
@@ -44,8 +43,8 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.core.content.FileProvider
 import androidx.core.content.edit
+import com.haooz.chedule.ui.components.SharedScrollBehavior
 import com.haooz.chedule.ui.utils.isAppDarkTheme
-import com.haooz.chedule.ui.utils.rememberAppStyle
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -53,20 +52,13 @@ import top.yukonga.miuix.kmp.basic.Button
 import top.yukonga.miuix.kmp.basic.Card
 import top.yukonga.miuix.kmp.basic.DropdownEntry
 import top.yukonga.miuix.kmp.basic.DropdownItem
-import top.yukonga.miuix.kmp.basic.Icon
-import top.yukonga.miuix.kmp.basic.IconButton
 import top.yukonga.miuix.kmp.basic.LinearProgressIndicator
-import top.yukonga.miuix.kmp.basic.MiuixScrollBehavior
 import top.yukonga.miuix.kmp.basic.Scaffold
 import top.yukonga.miuix.kmp.basic.SmallTitle
-import top.yukonga.miuix.kmp.basic.SmallTopAppBar
 import top.yukonga.miuix.kmp.basic.Switch
 import top.yukonga.miuix.kmp.basic.TextButton
-import top.yukonga.miuix.kmp.basic.TopAppBar
 import top.yukonga.miuix.kmp.blur.layerBackdrop
 import top.yukonga.miuix.kmp.blur.rememberLayerBackdrop
-import top.yukonga.miuix.kmp.icon.MiuixIcons
-import top.yukonga.miuix.kmp.icon.extended.Back
 import top.yukonga.miuix.kmp.overlay.OverlayDialog
 import top.yukonga.miuix.kmp.preference.ArrowPreference
 import top.yukonga.miuix.kmp.preference.OverlayDropdownPreference
@@ -164,9 +156,10 @@ private fun checkForUpdate(context: Context, source: String = "gitee"): Pair<Boo
 
 @SuppressLint("ConfigurationScreenWidthHeight")
 @Composable
-fun UpdateSettingsScreen(onBack: () -> Unit) {
+fun UpdateSettingsScreen(
+    scrollBehavior: SharedScrollBehavior? = null,
+) {
     val hapticFeedback = LocalHapticFeedback.current
-    val scrollBehavior = MiuixScrollBehavior()
     var listScrollY by remember { mutableIntStateOf(0) }
     val context = LocalContext.current
     val coroutineScope = rememberCoroutineScope()
@@ -239,8 +232,6 @@ fun UpdateSettingsScreen(onBack: () -> Unit) {
         drawRect(backdropColor)
         drawContent()
     }
-    val appStyleValue = rememberAppStyle()
-    val isLiquidGlass = appStyleValue == "liquidglass"
     val isTablet = LocalConfiguration.current.screenWidthDp >= 600
     val tabletHorizontalPadding = if (isTablet) {
         val screenWidthDp = LocalConfiguration.current.screenWidthDp
@@ -248,35 +239,7 @@ fun UpdateSettingsScreen(onBack: () -> Unit) {
     } else 16.dp
 
     Scaffold(
-        topBar = {
-            if (!isLiquidGlass) {
-                val navIcon: @Composable () -> Unit = {
-                    IconButton(
-                        onClick = { onBack() },
-                        modifier = Modifier.padding(start = 4.dp)
-                    ) {
-                        Icon(
-                            imageVector = MiuixIcons.Back,
-                            contentDescription = "返回",
-                            modifier = Modifier.size(28.dp)
-                        )
-                    }
-                }
-                if (isTablet) {
-                    SmallTopAppBar(
-                        title = "更新设置",
-                        scrollBehavior = scrollBehavior,
-                        navigationIcon = navIcon
-                    )
-                } else {
-                    TopAppBar(
-                        title = "更新设置",
-                        scrollBehavior = scrollBehavior,
-                        navigationIcon = navIcon
-                    )
-                }
-            }
-        }
+        topBar = {}
     ) { paddingValues ->
         Box(
             modifier = Modifier
@@ -290,6 +253,10 @@ fun UpdateSettingsScreen(onBack: () -> Unit) {
                         listScrollY = offset
                     }
             }
+            val density = androidx.compose.ui.platform.LocalDensity.current
+            val topBarHeightDp = with(density) {
+                (scrollBehavior?.currentHeightPx ?: 0f).toDp()
+            }
             LazyColumn(
                 state = listState,
                 modifier = Modifier
@@ -299,12 +266,12 @@ fun UpdateSettingsScreen(onBack: () -> Unit) {
                         hapticFeedbackType = HapticFeedbackType.TextHandleMove
                     )
                     .then(
-                        if (!isLiquidGlass) Modifier.nestedScroll(scrollBehavior.nestedScrollConnection) else Modifier
+                        scrollBehavior?.let { Modifier.nestedScroll(it.nestedScrollConnection) } ?: Modifier
                     ),
                 contentPadding = PaddingValues(
                     start = tabletHorizontalPadding,
                     end = tabletHorizontalPadding,
-                    top = if (isLiquidGlass) paddingValues.calculateTopPadding() + 64.dp else paddingValues.calculateTopPadding() + 8.dp,
+                    top = paddingValues.calculateTopPadding() + topBarHeightDp + 12.dp,
                     bottom = 60.dp
                 ),
                 verticalArrangement = Arrangement.spacedBy(12.dp)

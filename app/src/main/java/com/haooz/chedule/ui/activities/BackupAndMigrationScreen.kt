@@ -14,7 +14,6 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.runtime.Composable
@@ -38,27 +37,20 @@ import com.google.gson.GsonBuilder
 import com.haooz.chedule.data.CourseRepository
 import com.haooz.chedule.data.WebDavManager
 import com.haooz.chedule.ui.components.NativeMiuixTextField
+import com.haooz.chedule.ui.components.SharedScrollBehavior
 import com.haooz.chedule.ui.screens.applyScheduleData
 import com.haooz.chedule.ui.screens.parseFullScheduleJson
 import com.haooz.chedule.ui.screens.parseIcsFile
 import com.haooz.chedule.viewmodel.CourseViewModel
 import com.haooz.chedule.viewmodel.ScheduleViewModel
 import com.haooz.chedule.viewmodel.SettingsViewModel
-import com.kyant.backdrop.backdrops.LayerBackdrop
 import top.yukonga.miuix.kmp.basic.ButtonDefaults
 import top.yukonga.miuix.kmp.basic.Card
 import top.yukonga.miuix.kmp.basic.DropdownEntry
 import top.yukonga.miuix.kmp.basic.DropdownItem
-import top.yukonga.miuix.kmp.basic.Icon
-import top.yukonga.miuix.kmp.basic.IconButton
-import top.yukonga.miuix.kmp.basic.MiuixScrollBehavior
 import top.yukonga.miuix.kmp.basic.Scaffold
 import top.yukonga.miuix.kmp.basic.SmallTitle
-import top.yukonga.miuix.kmp.basic.SmallTopAppBar
 import top.yukonga.miuix.kmp.basic.TextButton
-import top.yukonga.miuix.kmp.basic.TopAppBar
-import top.yukonga.miuix.kmp.icon.MiuixIcons
-import top.yukonga.miuix.kmp.icon.extended.Back
 import top.yukonga.miuix.kmp.overlay.OverlayDialog
 import top.yukonga.miuix.kmp.preference.ArrowPreference
 import top.yukonga.miuix.kmp.preference.OverlayDropdownPreference
@@ -72,22 +64,19 @@ import java.util.Locale
 @SuppressLint("ConfigurationScreenWidthHeight")
 @Composable
 fun BackupAndMigrationScreen(
-    onBack: () -> Unit,
+    scrollBehavior: SharedScrollBehavior? = null,
     courseViewModel: CourseViewModel,
     scheduleViewModel: ScheduleViewModel,
-    settingsViewModel: SettingsViewModel,
-    liquidGlassBackdrop: LayerBackdrop? = null
+    settingsViewModel: SettingsViewModel
 ) {
     val context = LocalContext.current
     val hapticFeedback = LocalHapticFeedback.current
 
-    val isLiquidGlass = liquidGlassBackdrop != null
     val isTablet = LocalConfiguration.current.screenWidthDp >= 600
     val tabletHorizontalPadding = if (isTablet) {
         val screenWidthDp = LocalConfiguration.current.screenWidthDp
         ((screenWidthDp - 600).coerceIn(0, 600) / 600f * 112 + 16).dp
     } else 16.dp
-    val scrollBehavior = MiuixScrollBehavior()
 
     val webDavManager = remember { WebDavManager(context) }
     val lastSyncTimeMs = webDavManager.lastSyncTime
@@ -204,35 +193,7 @@ fun BackupAndMigrationScreen(
     }
 
     Scaffold(
-        topBar = {
-            if (!isLiquidGlass) {
-                val navIcon: @Composable () -> Unit = {
-                    IconButton(
-                        onClick = { onBack() },
-                        modifier = Modifier.padding(start = 4.dp)
-                    ) {
-                        Icon(
-                            imageVector = MiuixIcons.Back,
-                            contentDescription = "返回",
-                            modifier = Modifier.size(28.dp)
-                        )
-                    }
-                }
-                if (isTablet) {
-                    SmallTopAppBar(
-                        title = "备份与迁移",
-                        scrollBehavior = scrollBehavior,
-                        navigationIcon = navIcon
-                    )
-                } else {
-                    TopAppBar(
-                        title = "备份与迁移",
-                        scrollBehavior = scrollBehavior,
-                        navigationIcon = navIcon
-                    )
-                }
-            }
-        }
+        topBar = {}
     ) { paddingValues ->
         val listState = rememberLazyListState()
         var listScrollY by remember { mutableIntStateOf(0) }
@@ -240,18 +201,22 @@ fun BackupAndMigrationScreen(
             snapshotFlow { listState.firstVisibleItemScrollOffset }
                 .collect { offset -> listScrollY = offset }
         }
+        val density = androidx.compose.ui.platform.LocalDensity.current
+        val topBarHeightDp = with(density) {
+            (scrollBehavior?.currentHeightPx ?: 0f).toDp()
+        }
         LazyColumn(
             state = listState,
             modifier = Modifier.fillMaxSize()
                 .overScrollVertical()
                 .scrollEndHaptic(hapticFeedbackType = HapticFeedbackType.TextHandleMove)
                 .then(
-                    if (!isLiquidGlass) Modifier.nestedScroll(scrollBehavior.nestedScrollConnection) else Modifier
+                    scrollBehavior?.let { Modifier.nestedScroll(it.nestedScrollConnection) } ?: Modifier
                 ),
             contentPadding = PaddingValues(
                 start = tabletHorizontalPadding,
                 end = tabletHorizontalPadding,
-                top = if (isLiquidGlass) paddingValues.calculateTopPadding() + 56.dp else paddingValues.calculateTopPadding(),
+                top = paddingValues.calculateTopPadding() + topBarHeightDp,
                 bottom = 60.dp
             ),
             verticalArrangement = Arrangement.spacedBy(12.dp)

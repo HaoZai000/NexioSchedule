@@ -26,30 +26,28 @@ import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.platform.LocalConfiguration
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.haooz.chedule.ui.components.SharedScrollBehavior
 import com.haooz.chedule.ui.data.changelogData
-import com.haooz.chedule.ui.utils.rememberAppStyle
 import top.yukonga.miuix.kmp.basic.Card
 import top.yukonga.miuix.kmp.basic.Icon
-import top.yukonga.miuix.kmp.basic.IconButton
-import top.yukonga.miuix.kmp.basic.MiuixScrollBehavior
 import top.yukonga.miuix.kmp.basic.Scaffold
-import top.yukonga.miuix.kmp.basic.SmallTopAppBar
-import top.yukonga.miuix.kmp.basic.TopAppBar
 import top.yukonga.miuix.kmp.blur.layerBackdrop
 import top.yukonga.miuix.kmp.blur.rememberLayerBackdrop
 import top.yukonga.miuix.kmp.icon.MiuixIcons
-import top.yukonga.miuix.kmp.icon.extended.Back
 import top.yukonga.miuix.kmp.icon.extended.ChevronForward
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 import top.yukonga.miuix.kmp.utils.overScrollVertical
@@ -59,17 +57,16 @@ import top.yukonga.miuix.kmp.utils.scrollEndHaptic
 @Composable
 fun ChangelogScreen(
     onBack: () -> Unit,
+    scrollBehavior: SharedScrollBehavior? = null,
     initialExpandCount: Int = 3
 ) {
-    val scrollBehavior = MiuixScrollBehavior()
+    var listScrollY by remember { mutableIntStateOf(0) }
 
     val backdropColor = MiuixTheme.colorScheme.surface
     val backdrop = rememberLayerBackdrop {
         drawRect(backdropColor)
         drawContent()
     }
-    val appStyleValue = rememberAppStyle()
-    val isLiquidGlass = appStyleValue == "liquidglass"
     val isTablet = LocalConfiguration.current.screenWidthDp >= 600
     val tabletHorizontalPadding = if (isTablet) {
         val screenWidthDp = LocalConfiguration.current.screenWidthDp
@@ -94,35 +91,7 @@ fun ChangelogScreen(
     }
 
     Scaffold(
-        topBar = {
-            if (!isLiquidGlass) {
-                val navIcon: @Composable () -> Unit = {
-                    IconButton(
-                        onClick = { onBack() },
-                        modifier = Modifier.padding(start = 4.dp)
-                    ) {
-                        Icon(
-                            imageVector = MiuixIcons.Back,
-                            contentDescription = "返回",
-                            modifier = Modifier.size(28.dp)
-                        )
-                    }
-                }
-                if (isTablet) {
-                    SmallTopAppBar(
-                        title = "更新日志",
-                        scrollBehavior = scrollBehavior,
-                        navigationIcon = navIcon
-                    )
-                } else {
-                    TopAppBar(
-                        title = "更新日志",
-                        scrollBehavior = scrollBehavior,
-                        navigationIcon = navIcon
-                    )
-                }
-            }
-        }
+        topBar = {}
     ) { paddingValues ->
         Box(
             modifier = Modifier
@@ -130,6 +99,10 @@ fun ChangelogScreen(
                 .layerBackdrop(backdrop)
         ) {
             val listState = rememberLazyListState()
+            val density = LocalDensity.current
+            val topBarHeightDp = with(density) {
+                (scrollBehavior?.currentHeightPx ?: 0f).toDp()
+            }
 
             LazyColumn(
                 state = listState,
@@ -140,12 +113,12 @@ fun ChangelogScreen(
                         hapticFeedbackType = HapticFeedbackType.TextHandleMove
                     )
                     .then(
-                        if (!isLiquidGlass) Modifier.nestedScroll(scrollBehavior.nestedScrollConnection) else Modifier
+                        scrollBehavior?.let { Modifier.nestedScroll(it.nestedScrollConnection) } ?: Modifier
                     ),
                 contentPadding = PaddingValues(
                     start = tabletHorizontalPadding,
                     end = tabletHorizontalPadding,
-                    top = if (isLiquidGlass) paddingValues.calculateTopPadding() + 64.dp else paddingValues.calculateTopPadding() + 8.dp,
+                    top = paddingValues.calculateTopPadding() + topBarHeightDp + 12.dp,
                     bottom = 60.dp
                 )
             ) {

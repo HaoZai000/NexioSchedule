@@ -34,26 +34,20 @@ import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.platform.LocalConfiguration
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.haooz.chedule.R
+import com.haooz.chedule.ui.components.SharedScrollBehavior
 import com.haooz.chedule.ui.utils.isAppDarkTheme
-import com.haooz.chedule.ui.utils.rememberAppStyle
 import top.yukonga.miuix.kmp.basic.Card
-import top.yukonga.miuix.kmp.basic.Icon
-import top.yukonga.miuix.kmp.basic.IconButton
-import top.yukonga.miuix.kmp.basic.MiuixScrollBehavior
 import top.yukonga.miuix.kmp.basic.Scaffold
-import top.yukonga.miuix.kmp.basic.SmallTopAppBar
 import top.yukonga.miuix.kmp.basic.TextButton
-import top.yukonga.miuix.kmp.basic.TopAppBar
 import top.yukonga.miuix.kmp.blur.layerBackdrop
 import top.yukonga.miuix.kmp.blur.rememberLayerBackdrop
-import top.yukonga.miuix.kmp.icon.MiuixIcons
-import top.yukonga.miuix.kmp.icon.extended.Back
 import top.yukonga.miuix.kmp.overlay.OverlayDialog
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 import top.yukonga.miuix.kmp.utils.overScrollVertical
@@ -61,17 +55,16 @@ import androidx.compose.ui.graphics.Color as ComposeColor
 
 @SuppressLint("ConfigurationScreenWidthHeight")
 @Composable
-fun WidgetIntroScreen(onBack: () -> Unit) {
+fun WidgetIntroScreen(
+    scrollBehavior: SharedScrollBehavior? = null,
+) {
     val hapticFeedback = LocalHapticFeedback.current
     var showGuideDialog by remember { mutableStateOf(false) }
-    val appStyle = rememberAppStyle()
-    val isLiquidGlass = appStyle == "liquidglass"
     val isTablet = LocalConfiguration.current.screenWidthDp >= 600
     val tabletHorizontalPadding = if (isTablet) {
         val screenWidthDp = LocalConfiguration.current.screenWidthDp
         ((screenWidthDp - 600).coerceIn(0, 600) / 600f * 112 + 16).dp
     } else 16.dp
-    val scrollBehavior = MiuixScrollBehavior()
     val backdropColor = MiuixTheme.colorScheme.surface
     val backdrop = rememberLayerBackdrop {
         drawRect(backdropColor)
@@ -79,60 +72,30 @@ fun WidgetIntroScreen(onBack: () -> Unit) {
     }
 
     Scaffold(
-        topBar = {
-            if (!isLiquidGlass) {
-                val navIcon: @Composable () -> Unit = {
-                    IconButton(
-                        onClick = { onBack() },
-                        modifier = Modifier.padding(start = 4.dp)
-                    ) {
-                        Icon(
-                            imageVector = MiuixIcons.Back,
-                            contentDescription = "返回",
-                            modifier = Modifier.size(28.dp)
-                        )
-                    }
-                }
-                if (isTablet) {
-                    SmallTopAppBar(
-                        title = "桌面小部件",
-                        scrollBehavior = scrollBehavior,
-                        navigationIcon = navIcon
-                    )
-                } else {
-                    TopAppBar(
-                        title = "桌面小部件",
-                        scrollBehavior = scrollBehavior,
-                        navigationIcon = navIcon
-                    )
-                }
-            }
-        }
+        topBar = {}
     ) { paddingValues ->
         Box(
             modifier = Modifier
                 .fillMaxSize()
                 .layerBackdrop(backdrop)
         ) {
+            val density = LocalDensity.current
+            val topBarHeightDp = with(density) {
+                (scrollBehavior?.currentHeightPx ?: 0f).toDp()
+            }
+
             Column(
                 modifier = Modifier
                     .fillMaxSize()
-                    .then(
-                        if (isLiquidGlass) Modifier
-                        else Modifier.padding(top = paddingValues.calculateTopPadding())
-                    )
                     .padding(horizontal = tabletHorizontalPadding)
                     .overScrollVertical()
                     .then(
-                        if (!isLiquidGlass) Modifier.nestedScroll(scrollBehavior.nestedScrollConnection) else Modifier
+                        scrollBehavior?.let { Modifier.nestedScroll(it.nestedScrollConnection) } ?: Modifier
                     )
                     .verticalScroll(rememberScrollState()),
                 horizontalAlignment = Alignment.CenterHorizontally
             ) {
-                val topPadding = if (isLiquidGlass) {
-                    paddingValues.calculateTopPadding() + 64.dp
-                } else 8.dp
-                Spacer(modifier = Modifier.height(topPadding))
+                Spacer(modifier = Modifier.height(paddingValues.calculateTopPadding() + topBarHeightDp + 12.dp))
 
                 val pagerState = rememberPagerState(pageCount = { 2 })
 

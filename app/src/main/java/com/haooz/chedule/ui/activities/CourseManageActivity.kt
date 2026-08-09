@@ -1,4 +1,4 @@
-﻿/** 课程管理页面 */
+/** 课程管理页面 */
 package com.haooz.chedule.ui.activities
 
 import android.annotation.SuppressLint
@@ -14,12 +14,9 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.WindowInsets
-import androidx.compose.foundation.layout.asPaddingValues
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.statusBars
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -44,9 +41,10 @@ import androidx.compose.ui.unit.DpOffset
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.zIndex
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.haooz.chedule.data.Course
+import com.haooz.chedule.ui.components.CollapsibleTopAppBar
+import com.haooz.chedule.ui.components.rememberSharedScrollBehavior
 import com.haooz.chedule.ui.effects.liquidglass.LiquidTopBarButton
 import com.haooz.chedule.ui.effects.liquidglass.ProgressiveBlurTopBar
 import com.haooz.chedule.ui.effects.motion.OobeCubicOutEasing
@@ -54,12 +52,10 @@ import com.haooz.chedule.ui.effects.motion.OobeQuartOutEasing
 import com.haooz.chedule.ui.screens.CourseEditScreen
 import com.haooz.chedule.ui.theme.CourseScheduleTheme
 import com.haooz.chedule.ui.utils.applyThemeAwareSystemBars
-import com.haooz.chedule.ui.utils.rememberAppStyle
 import com.haooz.chedule.viewmodel.CourseViewModel
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import top.yukonga.miuix.kmp.basic.Scaffold
-import top.yukonga.miuix.kmp.basic.SmallTopAppBar
 import top.yukonga.miuix.kmp.blur.layerBackdrop
 import top.yukonga.miuix.kmp.blur.rememberLayerBackdrop
 import top.yukonga.miuix.kmp.icon.MiuixIcons
@@ -99,15 +95,10 @@ class CourseManageActivity : ComponentActivity() {
                     drawRect(backgroundColor)
                     drawContent()
                 }
-                val appStyle = rememberAppStyle()
-                val liquidGlassBackdrop = if (appStyle == "liquidglass") {
-                    com.kyant.backdrop.backdrops.rememberLayerBackdrop()
-                } else null
-                val editLiquidGlassBackdrop = if (appStyle == "liquidglass") {
-                    com.kyant.backdrop.backdrops.rememberLayerBackdrop()
-                } else null
+                val liquidGlassBackdrop = com.kyant.backdrop.backdrops.rememberLayerBackdrop()
+                val editLiquidGlassBackdrop = com.kyant.backdrop.backdrops.rememberLayerBackdrop()
                 val shortcutMenuBackdrop = com.kyant.backdrop.backdrops.rememberLayerBackdrop()
-                val isLiquidGlass = liquidGlassBackdrop != null
+                val scrollBehavior = rememberSharedScrollBehavior()
                 val courseViewModel: CourseViewModel = viewModel()
 
                 // Edit screen state
@@ -249,29 +240,28 @@ class CourseManageActivity : ComponentActivity() {
                         ) {
                             Scaffold(
                                 topBar = {
-                                    if (isLiquidGlass) {
-                                        val statusBarPadding = WindowInsets.statusBars.asPaddingValues().calculateTopPadding()
-                                        ProgressiveBlurTopBar(
-                                            backdrop = liquidGlassBackdrop,
-                                        ) {
-                                            SmallTopAppBar(
-                                                color = Color.Transparent,
-                                                title = "课程管理",
-                                                modifier = Modifier.zIndex(1f),
-                                                navigationIcon = {}
-                                            )
-                                            LiquidTopBarButton(
-                                                onClick = { finish() },
-                                                backdrop = shortcutMenuBackdrop,
-                                                icon = MiuixIcons.Medium.ChevronBackward,
-                                                contentDescription = "返回",
-                                                modifier = Modifier
-                                                    .zIndex(2f)
-                                                    .offset(x = 20.dp, y = if (statusBarPadding > 0.dp) statusBarPadding + 5.dp else 42.dp),
-                                                iconSize = 22.dp,
-                                                iconOffset = DpOffset(x = (-2).dp, y = 0.dp),
-                                            )
-                                        }
+                                    ProgressiveBlurTopBar(
+                                        backdrop = liquidGlassBackdrop,
+                                    ) {
+                                        CollapsibleTopAppBar(
+                                            title = "课程管理",
+                                            largeTitle = "课程管理",
+                                            modifier = Modifier,
+                                            scrollBehavior = scrollBehavior,
+                                            contentPadding = {},
+                                            startAction = { backdropAlpha, shadowAlpha ->
+                                                LiquidTopBarButton(
+                                                    onClick = { finish() },
+                                                    backdrop = liquidGlassBackdrop,
+                                                    icon = MiuixIcons.ChevronBackward,
+                                                    contentDescription = "返回",
+                                                    iconSize = 25.dp,
+                                                    iconOffset = DpOffset(x = (-2).dp, y = 0.dp),
+                                                    backdropAlpha = backdropAlpha,
+                                                    shadowAlpha = shadowAlpha,
+                                                )
+                                            },
+                                        )
                                     }
                                 }
                             ) { _ ->
@@ -282,13 +272,11 @@ class CourseManageActivity : ComponentActivity() {
                                 ) {
                                     Box(
                                         modifier = Modifier.fillMaxSize().then(
-                                            if (liquidGlassBackdrop != null) Modifier.liquidGlassLayerBackdrop(liquidGlassBackdrop)
-                                            else Modifier
+                                            Modifier.liquidGlassLayerBackdrop(liquidGlassBackdrop)
                                         )
                                     ) {
                                         CourseManageScreen(
-                                            onBack = { finish() },
-                                            liquidGlassBackdrop = liquidGlassBackdrop,
+                                            scrollBehavior = scrollBehavior,
                                             hiddenCourseIds = hiddenCourseIds,
                                             shrinkingCourseIds = shrinkingCourseIds,
                                             onNewCourseCreated = { course ->

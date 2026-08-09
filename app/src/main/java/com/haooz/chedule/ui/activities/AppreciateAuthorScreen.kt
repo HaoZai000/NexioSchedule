@@ -42,30 +42,25 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.haooz.chedule.R
+import com.haooz.chedule.ui.components.SharedScrollBehavior
 import com.haooz.chedule.ui.data.AppreciationItem
 import com.haooz.chedule.ui.data.sampleAppreciations
-import com.haooz.chedule.ui.utils.rememberAppStyle
 import com.kyant.shapes.RoundedRectangle
 import top.yukonga.miuix.kmp.basic.Card
 import top.yukonga.miuix.kmp.basic.Icon
-import top.yukonga.miuix.kmp.basic.IconButton
-import top.yukonga.miuix.kmp.basic.MiuixScrollBehavior
 import top.yukonga.miuix.kmp.basic.Scaffold
 import top.yukonga.miuix.kmp.basic.SmallTitle
-import top.yukonga.miuix.kmp.basic.SmallTopAppBar
-import top.yukonga.miuix.kmp.basic.TopAppBar
 import top.yukonga.miuix.kmp.blur.layerBackdrop
 import top.yukonga.miuix.kmp.blur.rememberLayerBackdrop
-import top.yukonga.miuix.kmp.icon.MiuixIcons
-import top.yukonga.miuix.kmp.icon.extended.Back
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 import top.yukonga.miuix.kmp.utils.overScrollVertical
 import top.yukonga.miuix.kmp.utils.scrollEndHaptic
 
 @SuppressLint("ConfigurationScreenWidthHeight")
 @Composable
-fun AppreciateAuthorScreen(onBack: () -> Unit) {
-    val scrollBehavior = MiuixScrollBehavior()
+fun AppreciateAuthorScreen(
+    scrollBehavior: SharedScrollBehavior? = null,
+) {
     var listScrollY by remember { mutableIntStateOf(0) }
 
     val backdropColor = MiuixTheme.colorScheme.surface
@@ -73,8 +68,6 @@ fun AppreciateAuthorScreen(onBack: () -> Unit) {
         drawRect(backdropColor)
         drawContent()
     }
-    val appStyleValue = rememberAppStyle()
-    val isLiquidGlass = appStyleValue == "liquidglass"
     val isTablet = LocalConfiguration.current.screenWidthDp >= 600
     val tabletHorizontalPadding = if (isTablet) {
         val screenWidthDp = LocalConfiguration.current.screenWidthDp
@@ -82,41 +75,17 @@ fun AppreciateAuthorScreen(onBack: () -> Unit) {
     } else 16.dp
 
     Scaffold(
-        topBar = {
-            if (!isLiquidGlass) {
-                val navIcon: @Composable () -> Unit = {
-                    IconButton(
-                        onClick = { onBack() },
-                        modifier = Modifier.padding(start = 4.dp)
-                    ) {
-                        Icon(
-                            imageVector = MiuixIcons.Back,
-                            contentDescription = "返回",
-                            modifier = Modifier.size(28.dp)
-                        )
-                    }
-                }
-                if (isTablet) {
-                    SmallTopAppBar(
-                        title = "捐赠支持",
-                        scrollBehavior = scrollBehavior,
-                        navigationIcon = navIcon
-                    )
-                } else {
-                    TopAppBar(
-                        title = "捐赠支持",
-                        scrollBehavior = scrollBehavior,
-                        navigationIcon = navIcon
-                    )
-                }
-            }
-        }
+        topBar = {}
     ) { paddingValues ->
         Box(
             modifier = Modifier
                 .fillMaxSize()
                 .layerBackdrop(backdrop)
         ) {
+            val density = androidx.compose.ui.platform.LocalDensity.current
+            val topBarHeightDp = with(density) {
+                (scrollBehavior?.currentHeightPx ?: 0f).toDp()
+            }
             if (isTablet) {
                 // 平板：左侧固定图片 + 右侧独立滚动列表
                 Row(
@@ -134,7 +103,7 @@ fun AppreciateAuthorScreen(onBack: () -> Unit) {
                         modifier = Modifier
                             .weight(1f)
                             .padding(
-                                top = if (isLiquidGlass) paddingValues.calculateTopPadding() + 64.dp else paddingValues.calculateTopPadding() + 8.dp,
+                                top = paddingValues.calculateTopPadding() + topBarHeightDp + 12.dp,
                                 bottom = 60.dp
                             )
                             .aspectRatio(1f),
@@ -161,10 +130,10 @@ fun AppreciateAuthorScreen(onBack: () -> Unit) {
                                     hapticFeedbackType = androidx.compose.ui.hapticfeedback.HapticFeedbackType.TextHandleMove
                                 )
                                 .then(
-                                    if (!isLiquidGlass) Modifier.nestedScroll(scrollBehavior.nestedScrollConnection) else Modifier
+                                    scrollBehavior?.let { Modifier.nestedScroll(it.nestedScrollConnection) } ?: Modifier
                                 ),
                             contentPadding = PaddingValues(
-                                top = if (isLiquidGlass) paddingValues.calculateTopPadding() + 56.dp else paddingValues.calculateTopPadding(),
+                                top = paddingValues.calculateTopPadding() + topBarHeightDp + 12.dp,
                                 bottom = 60.dp
                             ),
                             verticalArrangement = Arrangement.spacedBy(0.dp)
@@ -218,12 +187,12 @@ fun AppreciateAuthorScreen(onBack: () -> Unit) {
                             hapticFeedbackType = androidx.compose.ui.hapticfeedback.HapticFeedbackType.TextHandleMove
                         )
                         .then(
-                            if (!isLiquidGlass) Modifier.nestedScroll(scrollBehavior.nestedScrollConnection) else Modifier
+                            scrollBehavior?.let { Modifier.nestedScroll(it.nestedScrollConnection) } ?: Modifier
                         ),
                     contentPadding = PaddingValues(
                         start = tabletHorizontalPadding,
                         end = tabletHorizontalPadding,
-                        top = if (isLiquidGlass) paddingValues.calculateTopPadding() + 64.dp else paddingValues.calculateTopPadding() + 8.dp,
+                        top = paddingValues.calculateTopPadding() + topBarHeightDp + 12.dp,
                         bottom = 60.dp
                     ),
                     verticalArrangement = Arrangement.spacedBy(12.dp)
