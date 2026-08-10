@@ -18,8 +18,6 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.WindowInsets
-import androidx.compose.foundation.layout.asPaddingValues
 import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -27,7 +25,6 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.statusBars
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.staggeredgrid.LazyVerticalStaggeredGrid
 import androidx.compose.foundation.lazy.staggeredgrid.StaggeredGridCells
@@ -50,11 +47,9 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.RectangleShape
 import androidx.compose.ui.graphics.TransformOrigin
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.graphics.graphicsLayer
-import androidx.compose.ui.graphics.lerp
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.input.pointer.pointerInput
@@ -67,9 +62,10 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.DpOffset
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import androidx.compose.ui.zIndex
 import com.haooz.chedule.data.Course
 import com.haooz.chedule.ui.components.AddEditCourseBottomSheet
+import com.haooz.chedule.ui.components.CollapsibleTopAppBar
+import com.haooz.chedule.ui.components.rememberSharedScrollBehavior
 import com.haooz.chedule.ui.effects.liquidglass.LiquidTopBarButton
 import com.haooz.chedule.ui.effects.liquidglass.ProgressiveBlurTopBar
 import com.haooz.chedule.ui.effects.motion.OobeCubicOutEasing
@@ -77,7 +73,6 @@ import com.haooz.chedule.ui.effects.motion.OobeFifthpowerOutEasing
 import com.haooz.chedule.ui.effects.motion.OobeQuadraticOutEasing
 import com.haooz.chedule.ui.effects.motion.OobeQuartOutEasing
 import com.haooz.chedule.ui.utils.isAppDarkTheme
-import com.haooz.chedule.ui.utils.rememberAppStyle
 import com.kyant.shapes.RoundedRectangle
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.delay
@@ -89,22 +84,13 @@ import top.yukonga.miuix.kmp.basic.CardDefaults
 import top.yukonga.miuix.kmp.basic.ColorPalette
 import top.yukonga.miuix.kmp.basic.FloatingActionButton
 import top.yukonga.miuix.kmp.basic.Icon
-import top.yukonga.miuix.kmp.basic.IconButton
-import top.yukonga.miuix.kmp.basic.MiuixScrollBehavior
 import top.yukonga.miuix.kmp.basic.Scaffold
 import top.yukonga.miuix.kmp.basic.SmallTitle
-import top.yukonga.miuix.kmp.basic.SmallTopAppBar
 import top.yukonga.miuix.kmp.basic.TextButton
-import top.yukonga.miuix.kmp.basic.TopAppBar
-import top.yukonga.miuix.kmp.blur.BlendColorEntry
-import top.yukonga.miuix.kmp.blur.BlurBlendMode
-import top.yukonga.miuix.kmp.blur.BlurDefaults
 import top.yukonga.miuix.kmp.blur.layerBackdrop
 import top.yukonga.miuix.kmp.blur.rememberLayerBackdrop
-import top.yukonga.miuix.kmp.blur.textureBlur
 import top.yukonga.miuix.kmp.icon.MiuixIcons
 import top.yukonga.miuix.kmp.icon.extended.Add
-import top.yukonga.miuix.kmp.icon.extended.Back
 import top.yukonga.miuix.kmp.icon.extended.ChevronBackward
 import top.yukonga.miuix.kmp.icon.extended.Delete
 import top.yukonga.miuix.kmp.overlay.OverlayDialog
@@ -200,12 +186,14 @@ fun CourseEditScreen(
 ) {
     val courseName = courses.firstOrNull()?.name ?: ""
     // 课程颜色状态（所有同名课程共享，仅保存时生效）
-    var selectedColor by remember { mutableLongStateOf(courses.firstOrNull()?.colorRes ?: Course.courseColors.first()) }
+    var selectedColor by remember {
+        mutableLongStateOf(
+            courses.firstOrNull()?.colorRes ?: Course.courseColors.first()
+        )
+    }
     var showColorDialog by remember { mutableStateOf(false) }
     var customColor by remember { mutableStateOf(Color(selectedColor)) }
 
-    val appStyle = rememberAppStyle()
-    val isLiquidGlass = appStyle == "liquidglass" && liquidGlassBackdrop != null
     val isTablet = LocalConfiguration.current.screenWidthDp >= 600
     val tabletHorizontalPadding = if (isTablet) {
         val screenWidthDp = LocalConfiguration.current.screenWidthDp
@@ -297,12 +285,22 @@ fun CourseEditScreen(
             val curveT = ty  // 直接用 ty 作为曲线参数
             val targetCenter = cardCenter + (screenCenter - cardCenter) * curveT
             // 从 targetCenter 反推 translationY
-            val translationY = targetCenter - screenHeight / 2f * (1f - scale) - (cardHeight + (screenHeight - cardHeight) * p) / 2f
+            val translationY =
+                targetCenter - screenHeight / 2f * (1f - scale) - (cardHeight + (screenHeight - cardHeight) * p) / 2f
             // translationX 保持不变
             val translationX = cardLeft * (1f - p) - screenWidth / 2f * (1f - scale)
             val rawClipBottom = cardHeight + (screenHeight - cardHeight) * p
             val clipBottom = rawClipBottom / scale
-            EditAnimState(bgAlpha, snapAlpha, contAlpha, translationX, translationY, scale, clipBottom, p)
+            EditAnimState(
+                bgAlpha,
+                snapAlpha,
+                contAlpha,
+                translationX,
+                translationY,
+                scale,
+                clipBottom,
+                p
+            )
         }
     }
 
@@ -314,7 +312,7 @@ fun CourseEditScreen(
         drawContent()
     }
     var listScrollY by remember { mutableIntStateOf(0) }
-    val scrollBehavior = MiuixScrollBehavior()
+    val scrollBehavior = rememberSharedScrollBehavior()
 
     // 删除动画状态
     var deletingGroupId by remember { mutableStateOf<String?>(null) }
@@ -371,7 +369,12 @@ fun CourseEditScreen(
         if (selectedColor != courses.firstOrNull()?.colorRes) {
             onColorChanged(selectedColor)
             courses.forEach { course ->
-                onCourseUpdated(course.copy(colorRes = selectedColor, lastModified = System.currentTimeMillis()))
+                onCourseUpdated(
+                    course.copy(
+                        colorRes = selectedColor,
+                        lastModified = System.currentTimeMillis()
+                    )
+                )
             }
         }
     }
@@ -386,26 +389,6 @@ fun CourseEditScreen(
         }
     }
 
-    // 仅在阈值变化时重算模糊相关值，减少 recomposition
-    val blurAlpha = if (listScrollY < 50) 0f else ((listScrollY - 50) / 50f).coerceIn(0f, 0.7f)
-    val surface = MiuixTheme.colorScheme.surface
-    val topBarColor = if (listScrollY < 50) {
-        surface
-    } else {
-        val topBarColorProgress = ((listScrollY - 50) / 50f).coerceIn(0f, 1f)
-        val target = if (isDark) ComposeColor.Black.copy(alpha = 0.7f) else ComposeColor.White.copy(alpha = 0.7f)
-        lerp(surface, target, topBarColorProgress)
-    }
-    val topAppBarColors = BlurDefaults.blurColors(
-        blendColors = listOf(
-            if (isDark) BlendColorEntry(ComposeColor.Black.copy(alpha = blurAlpha), BlurBlendMode.SrcOver)
-            else BlendColorEntry(ComposeColor.White.copy(alpha = blurAlpha), BlurBlendMode.SrcOver)
-        ),
-        brightness = 0f,
-        contrast = 1f,
-        saturation = 1.2f
-    )
-
     // ---- Morphing container (identical to CourseDetailScreen) ----
     Box(
         modifier = Modifier
@@ -419,7 +402,14 @@ fun CourseEditScreen(
             }
     ) {
         val s = animState.value
-        val clipShape = remember { EditAnimClipShape(screenWidth, screenCornerRadius, startCornerRadiusPx, animState) }
+        val clipShape = remember {
+            EditAnimClipShape(
+                screenWidth,
+                screenCornerRadius,
+                startCornerRadiusPx,
+                animState
+            )
+        }
 
         Box(
             modifier = Modifier
@@ -459,18 +449,17 @@ fun CourseEditScreen(
             ) {
                 Scaffold(
                     topBar = {
-                        if (isLiquidGlass) {
-                            val statusBarPadding = WindowInsets.statusBars.asPaddingValues().calculateTopPadding()
-                            ProgressiveBlurTopBar(
-                                    backdrop = liquidGlassBackdrop,
-                                ) {
-                                    SmallTopAppBar(
-                                        color = Color.Transparent,
-                                        title = courseName,
-                                        modifier = Modifier.zIndex(1f),
-                                        scrollBehavior = scrollBehavior,
-                                        navigationIcon = {}
-                                    )
+
+                        ProgressiveBlurTopBar(
+                            backdrop = liquidGlassBackdrop!!,
+                        ) {
+                            CollapsibleTopAppBar(
+                                title = courseName,
+                                largeTitle = courseName,
+                                modifier = Modifier,
+                                scrollBehavior = scrollBehavior,
+                                contentPadding = {},
+                                startAction = { backdropAlpha, shadowAlpha ->
                                     LiquidTopBarButton(
                                         onClick = {
                                             hapticFeedback.performHapticFeedback(HapticFeedbackType.Confirm)
@@ -500,565 +489,619 @@ fun CourseEditScreen(
                                             }
                                         },
                                         backdrop = liquidGlassBackdrop,
-                                        icon = MiuixIcons.Medium.ChevronBackward,
+                                        icon = MiuixIcons.ChevronBackward,
                                         contentDescription = "返回",
-                                        modifier = Modifier
-                                            .zIndex(2f)
-                                            .offset(x = 20.dp, y = if (statusBarPadding > 0.dp) statusBarPadding + 5.dp else 42.dp),
-                                        iconSize = 22.dp,
+                                        iconSize = 25.dp,
                                         iconOffset = DpOffset(x = (-2).dp, y = 0.dp),
+                                        backdropAlpha = backdropAlpha,
+                                        shadowAlpha = shadowAlpha,
                                     )
-                            }
-                        }else {
-                            val topBarModifier = if (blurAlpha > 0f) {
-                                Modifier.textureBlur(
-                                    backdrop = backdrop,
-                                    shape = RectangleShape,
-                                    colors = topAppBarColors
-                                )
-                            } else Modifier
-                            val navIcon: @Composable () -> Unit = {
-                                IconButton(
-                                    onClick = {
-                                        hapticFeedback.performHapticFeedback(HapticFeedbackType.Confirm)
-                                        onBackStart()
-                                        scope.launch {
-                                            coroutineScope {
-                                                launch {
-                                                    animProgress.animateTo(
-                                                        targetValue = 0f,
-                                                        animationSpec = tween(
-                                                            durationMillis = 350,
-                                                            easing = morphExitEase
-                                                        )
-                                                    )
-                                                }
-                                                launch {
-                                                    animTransY.animateTo(
-                                                        targetValue = 0f,
-                                                        animationSpec = tween(
-                                                            durationMillis = transExitMillis,
-                                                            easing = transExitEase
-                                                        )
-                                                    )
-                                                }
-                                            }
-                                            onBack()
-                                        }
-                                    },
-                                    modifier = Modifier.padding(start = 4.dp)
-                                ) {
-                                    Icon(
-                                        imageVector = MiuixIcons.Back,
-                                        contentDescription = "返回",
-                                        modifier = Modifier.size(28.dp)
-                                    )
-                                }
-                            }
-                            if (isTablet) {
-                                SmallTopAppBar(
-                                    modifier = topBarModifier,
-                                    color = topBarColor,
-                                    title = courseName,
-                                    scrollBehavior = scrollBehavior,
-                                    navigationIcon = navIcon
-                                )
-                            } else {
-                                TopAppBar(
-                                    modifier = topBarModifier,
-                                    color = topBarColor,
-                                    title = courseName,
-                                    scrollBehavior = scrollBehavior,
-                                    navigationIcon = navIcon
-                                )
-                            }
+                                },
+                            )
                         }
-                    }
-                    ) { paddingValues ->
-                        Box(
+
+                    },
+                ) { paddingValues ->
+                    Box(
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .layerBackdrop(backdrop)
+                            .liquidGlassLayerBackdrop(liquidGlassBackdrop!!)
+                    ) {
+                        Card(
                             modifier = Modifier
                                 .fillMaxSize()
-                                .layerBackdrop(backdrop)
-                                .then(
-                                    if (isLiquidGlass) Modifier.liquidGlassLayerBackdrop(liquidGlassBackdrop)
-                                    else Modifier
-                                )
+                                .background(MiuixTheme.colorScheme.surface),
+                            insideMargin = PaddingValues(0.dp),
+                            colors = CardDefaults.defaultColors(
+                                color = MiuixTheme.colorScheme.surface,
+                                contentColor = MiuixTheme.colorScheme.onSurface
+                            )
                         ) {
-                            Card(
-                                modifier = Modifier.fillMaxSize().background(MiuixTheme.colorScheme.surface),
-                                insideMargin = PaddingValues(0.dp),
-                                colors = CardDefaults.defaultColors(
-                                    color = MiuixTheme.colorScheme.surface,
-                                    contentColor = MiuixTheme.colorScheme.onSurface
-                                )
-                            ) {
-                                // Group courses by day/section/week configuration
-                                val courseGroups = remember(courses) {
-                                    courses.groupBy { course ->
-                                        CourseGroupKey(
-                                            dayOfWeek = course.dayOfWeek,
-                                            startSection = course.startSection,
-                                            endSection = course.endSection,
-                                            weekType = course.weekType,
-                                            startWeek = course.startWeek,
-                                            endWeek = course.endWeek,
-                                            selectedWeeks = course.selectedWeeks
-                                        )
-                                    }.map { (key, groupCourses) ->
-                                        CourseGroup(key = key, courses = groupCourses)
-                                    }
+                            // Group courses by day/section/week configuration
+                            val courseGroups = remember(courses) {
+                                courses.groupBy { course ->
+                                    CourseGroupKey(
+                                        dayOfWeek = course.dayOfWeek,
+                                        startSection = course.startSection,
+                                        endSection = course.endSection,
+                                        weekType = course.weekType,
+                                        startWeek = course.startWeek,
+                                        endWeek = course.endWeek,
+                                        selectedWeeks = course.selectedWeeks
+                                    )
+                                }.map { (key, groupCourses) ->
+                                    CourseGroup(key = key, courses = groupCourses)
                                 }
+                            }
 
-                                val gridState = rememberLazyStaggeredGridState()
-                                LaunchedEffect(gridState) {
-                                    snapshotFlow { gridState.firstVisibleItemScrollOffset }
-                                        .collect { offset ->
-                                            listScrollY = offset
-                                        }
-                                }
-                                LazyVerticalStaggeredGrid(
-                                    state = gridState,
-                                    columns = if (isTablet) StaggeredGridCells.Fixed(2) else StaggeredGridCells.Fixed(1),
-                                    modifier = Modifier
-                                        .fillMaxSize()
-                                        .overScrollVertical()
-                                        .scrollEndHaptic(
-                                            hapticFeedbackType = HapticFeedbackType.TextHandleMove
-                                        )
-                                        .nestedScroll(scrollBehavior.nestedScrollConnection),
-                                    contentPadding = PaddingValues(
-                                        start = tabletHorizontalPadding,
-                                        top = if (isLiquidGlass) paddingValues.calculateTopPadding() + (-8).dp else paddingValues.calculateTopPadding() + 8.dp,
-                                        end = tabletHorizontalPadding,
-                                        bottom = 120.dp
-                                    ),
-                                    verticalItemSpacing = 12.dp,
-                                    horizontalArrangement = Arrangement.spacedBy(24.dp)
-                                ) {
-                                    // 课程颜色选择器（与添加课程弹窗样式一致）
-                                    item(key = "color_picker", span = StaggeredGridItemSpan.FullLine) {
-                                        val allColors = remember { Course.courseColors }
-                                        val colorColumns = if (isTablet) allColors.size + 1 else 6
-                                        val totalItems = remember(allColors) { allColors.size + 1 } // +1 for custom color button
-                                        val colorRows = remember(totalItems, colorColumns) { (totalItems + colorColumns - 1) / colorColumns }
-                                        Card(
-                                            cornerRadius = 20.dp,
-                                            modifier = Modifier.fillMaxWidth(),
-                                            insideMargin = PaddingValues(top = 14.dp),
-                                        ) {
-                                            Column(modifier = Modifier.fillMaxWidth()) {
-                                                Text(
-                                                    text = "课程颜色",
-                                                    fontSize = 17.sp,
-                                                    fontWeight = FontWeight.Medium,
-                                                    color = MiuixTheme.colorScheme.onSurface,
-                                                    modifier = Modifier.padding(start = 16.dp, bottom = 10.dp)
+                            val gridState = rememberLazyStaggeredGridState()
+                            LaunchedEffect(gridState) {
+                                snapshotFlow { gridState.firstVisibleItemScrollOffset }
+                                    .collect { offset ->
+                                        listScrollY = offset
+                                    }
+                            }
+                            val topBarHeightDp = with(density) {
+                                scrollBehavior.currentHeightPx.toDp()
+                            }
+                            LazyVerticalStaggeredGrid(
+                                state = gridState,
+                                columns = if (isTablet) StaggeredGridCells.Fixed(2) else StaggeredGridCells.Fixed(
+                                    1
+                                ),
+                                modifier = Modifier
+                                    .fillMaxSize()
+                                    .overScrollVertical()
+                                    .scrollEndHaptic(
+                                        hapticFeedbackType = HapticFeedbackType.TextHandleMove
+                                    )
+                                    .nestedScroll(scrollBehavior.nestedScrollConnection),
+                                contentPadding = PaddingValues(
+                                    start = tabletHorizontalPadding,
+                                    top = paddingValues.calculateTopPadding() + topBarHeightDp - 74.dp,
+                                    end = tabletHorizontalPadding,
+                                    bottom = 120.dp
+                                ),
+                                verticalItemSpacing = 12.dp,
+                                horizontalArrangement = Arrangement.spacedBy(24.dp)
+                            ) {
+                                // 课程颜色选择器（与添加课程弹窗样式一致）
+                                item(key = "color_picker", span = StaggeredGridItemSpan.FullLine) {
+                                    val allColors = remember { Course.courseColors }
+                                    val colorColumns = if (isTablet) allColors.size + 1 else 6
+                                    val totalItems =
+                                        remember(allColors) { allColors.size + 1 } // +1 for custom color button
+                                    val colorRows = remember(
+                                        totalItems,
+                                        colorColumns
+                                    ) { (totalItems + colorColumns - 1) / colorColumns }
+                                    Card(
+                                        cornerRadius = 20.dp,
+                                        modifier = Modifier.fillMaxWidth(),
+                                        insideMargin = PaddingValues(top = 14.dp),
+                                    ) {
+                                        Column(modifier = Modifier.fillMaxWidth()) {
+                                            Text(
+                                                text = "课程颜色",
+                                                fontSize = 17.sp,
+                                                fontWeight = FontWeight.Medium,
+                                                color = MiuixTheme.colorScheme.onSurface,
+                                                modifier = Modifier.padding(
+                                                    start = 16.dp,
+                                                    bottom = 10.dp
                                                 )
-                                                for (row in 0 until colorRows) {
-                                                    Row(
-                                                        modifier = Modifier.fillMaxWidth().padding(start = 12.dp, end = 12.dp, bottom = 12.dp),
-                                                        horizontalArrangement = Arrangement.spacedBy(12.dp)
-                                                    ) {
-                                                        for (col in 0 until colorColumns) {
-                                                            val colorIndex = row * colorColumns + col
-                                                            if (colorIndex < allColors.size) {
-                                                                val color = allColors[colorIndex]
-                                                                val isSelected = color == selectedColor
-                                                                var isPressed by remember { mutableStateOf(false) }
-                                                                val primaryColor = MiuixTheme.colorScheme.primary
-                                                                val scale = remember { Animatable(1f) }
-                                                                val borderAlpha by animateFloatAsState(
-                                                                    targetValue = if (isSelected) 1f else 0f,
-                                                                    animationSpec = tween(durationMillis = 200),
-                                                                    label = "borderAlpha"
+                                            )
+                                            for (row in 0 until colorRows) {
+                                                Row(
+                                                    modifier = Modifier
+                                                        .fillMaxWidth()
+                                                        .padding(
+                                                            start = 12.dp,
+                                                            end = 12.dp,
+                                                            bottom = 12.dp
+                                                        ),
+                                                    horizontalArrangement = Arrangement.spacedBy(12.dp)
+                                                ) {
+                                                    for (col in 0 until colorColumns) {
+                                                        val colorIndex = row * colorColumns + col
+                                                        if (colorIndex < allColors.size) {
+                                                            val color = allColors[colorIndex]
+                                                            val isSelected = color == selectedColor
+                                                            var isPressed by remember {
+                                                                mutableStateOf(
+                                                                    false
                                                                 )
-                                                                LaunchedEffect(isPressed) {
-                                                                    if (isPressed) {
-                                                                        scale.animateTo(
-                                                                            targetValue = 0.94f,
-                                                                            animationSpec = tween(durationMillis = 100)
-                                                                        )
-                                                                    } else {
-                                                                        scale.animateTo(
-                                                                            targetValue = 1f,
-                                                                            animationSpec = tween(durationMillis = 180)
-                                                                        )
-                                                                    }
-                                                                }
-                                                                Box(
-                                                                    modifier = Modifier
-                                                                        .weight(1f)
-                                                                        .aspectRatio(1f)
-                                                                        .graphicsLayer {
-                                                                            scaleX = scale.value
-                                                                            scaleY = scale.value
-                                                                        }
-                                                                        .pointerInput(Unit) {
-                                                                            awaitPointerEventScope {
-                                                                                while (true) {
-                                                                                    val event = awaitPointerEvent()
-                                                                                    val anyPressed = event.changes.any { it.pressed }
-                                                                                    isPressed = anyPressed
-                                                                                    if (!anyPressed) {
-                                                                                        selectedColor = color
-                                                                                    }
-                                                                                }
-                                                                            }
-                                                                        },
-                                                                    contentAlignment = Alignment.Center
-                                                                ) {
-                                                                    Box(
-                                                                        modifier = Modifier
-                                                                            .fillMaxSize()
-                                                                            .graphicsLayer { alpha = borderAlpha }
-                                                                            .clip(RoundedRectangle(12.dp))
-                                                                            .background(primaryColor)
-                                                                    )
-                                                                    Box(
-                                                                        modifier = Modifier
-                                                                            .fillMaxSize()
-                                                                            .padding(if (isSelected) 2.dp else 0.dp)
-                                                                            .clip(RoundedRectangle(10.dp))
-                                                                            .background(if (isDark) Color(0xFF242424) else Color(0xFFFFFFFF))
-                                                                    )
-                                                                    Box(
-                                                                        modifier = Modifier
-                                                                            .fillMaxSize()
-                                                                            .padding(4.dp),
-                                                                        contentAlignment = Alignment.Center
-                                                                    ) {
-                                                                        Card(
-                                                                            modifier = Modifier.fillMaxSize(),
-                                                                            cornerRadius = 8.dp,
-                                                                            insideMargin = PaddingValues(0.dp),
-                                                                            colors = CardDefaults.defaultColors(
-                                                                                color = Color(color).copy(alpha = if (isDark) 0.22f else 0.16f),
-                                                                                contentColor = Color.White
-                                                                            ),
-                                                                            onClick = { selectedColor = color }
-                                                                        ) {}
-                                                                    }
-                                                                }
-                                                            } else if (colorIndex == allColors.size) {
-                                                                // 自定义颜色按钮
-                                                                val isCustomColor = selectedColor !in allColors
-                                                                val bgColor = if (isDark) Color(0xFF505050) else Color(0xFFF7F7F7)
-                                                                val hintColor = MiuixTheme.colorScheme.onSurfaceVariantSummary
-                                                                val primaryColor = MiuixTheme.colorScheme.primary
-                                                                var isCustomPressed by remember { mutableStateOf(false) }
-                                                                val customScale = remember { Animatable(1f) }
-                                                                val customBorderAlpha by animateFloatAsState(
-                                                                    targetValue = if (isCustomColor) 1f else 0f,
-                                                                    animationSpec = tween(durationMillis = 200),
-                                                                    label = "customBorderAlpha"
-                                                                )
-                                                                LaunchedEffect(isCustomPressed) {
-                                                                    if (isCustomPressed) {
-                                                                        customScale.animateTo(
-                                                                            targetValue = 0.94f,
-                                                                            animationSpec = tween(durationMillis = 100)
-                                                                        )
-                                                                    } else {
-                                                                        customScale.animateTo(
-                                                                            targetValue = 1f,
-                                                                            animationSpec = tween(durationMillis = 180)
-                                                                        )
-                                                                    }
-                                                                }
-                                                                Box(
-                                                                    modifier = Modifier
-                                                                        .weight(1f)
-                                                                        .aspectRatio(1f)
-                                                                        .graphicsLayer {
-                                                                            scaleX = customScale.value
-                                                                            scaleY = customScale.value
-                                                                        }
-                                                                        .pointerInput(Unit) {
-                                                                            awaitPointerEventScope {
-                                                                                while (true) {
-                                                                                    val event = awaitPointerEvent()
-                                                                                    val anyPressed = event.changes.any { it.pressed }
-                                                                                    isCustomPressed = anyPressed
-                                                                                    if (!anyPressed) {
-                                                                                        customColor = Color(selectedColor)
-                                                                                        showColorDialog = true
-                                                                                    }
-                                                                                }
-                                                                            }
-                                                                        },
-                                                                    contentAlignment = Alignment.Center
-                                                                ) {
-                                                                    Box(
-                                                                        modifier = Modifier
-                                                                            .fillMaxSize()
-                                                                            .graphicsLayer { alpha = customBorderAlpha }
-                                                                            .clip(RoundedRectangle(12.dp))
-                                                                            .background(primaryColor)
-                                                                    )
-                                                                    Box(
-                                                                        modifier = Modifier
-                                                                            .fillMaxSize()
-                                                                            .padding(if (isCustomColor) 2.dp else 0.dp)
-                                                                            .clip(RoundedRectangle(10.dp))
-                                                                            .background(if (isDark) Color(0xFF242424) else Color(0xFFFFFFFF))
-                                                                    )
-                                                                    Box(
-                                                                        modifier = Modifier
-                                                                            .fillMaxSize()
-                                                                            .padding(4.dp),
-                                                                        contentAlignment = Alignment.Center
-                                                                    ) {
-                                                                        Card(
-                                                                            modifier = Modifier.fillMaxSize(),
-                                                                            cornerRadius = 8.dp,
-                                                                            insideMargin = PaddingValues(0.dp),
-                                                                            colors = CardDefaults.defaultColors(
-                                                                                color = bgColor,
-                                                                                contentColor = hintColor
-                                                                            ),
-                                                                            onClick = {
-                                                                                customColor = Color(selectedColor)
-                                                                                showColorDialog = true
-                                                                            }
-                                                                        ) {
-                                                                            Box(
-                                                                                modifier = Modifier.fillMaxSize(),
-                                                                                contentAlignment = Alignment.Center
-                                                                            ) {
-                                                                                if (isCustomColor) {
-                                                                                    Box(
-                                                                                        modifier = Modifier
-                                                                                            .fillMaxSize(0.7f)
-                                                                                            .clip(RoundedRectangle(4.dp))
-                                                                                            .background(Color(selectedColor).copy(alpha = if (isDark) 0.22f else 0.16f))
-                                                                                    )
-                                                                                } else {
-                                                                                    Icon(
-                                                                                        imageVector = MiuixIcons.Add,
-                                                                                        contentDescription = "自定义颜色",
-                                                                                        modifier = Modifier.size(18.dp),
-                                                                                        tint = hintColor
-                                                                                    )
-                                                                                }
-                                                                            }
-                                                                        }
-                                                                    }
-                                                                }
-                                                            } else {
-                                                                Spacer(modifier = Modifier.weight(1f))
                                                             }
+                                                            val primaryColor =
+                                                                MiuixTheme.colorScheme.primary
+                                                            val scale = remember { Animatable(1f) }
+                                                            val borderAlpha by animateFloatAsState(
+                                                                targetValue = if (isSelected) 1f else 0f,
+                                                                animationSpec = tween(durationMillis = 200),
+                                                                label = "borderAlpha"
+                                                            )
+                                                            LaunchedEffect(isPressed) {
+                                                                if (isPressed) {
+                                                                    scale.animateTo(
+                                                                        targetValue = 0.94f,
+                                                                        animationSpec = tween(
+                                                                            durationMillis = 100
+                                                                        )
+                                                                    )
+                                                                } else {
+                                                                    scale.animateTo(
+                                                                        targetValue = 1f,
+                                                                        animationSpec = tween(
+                                                                            durationMillis = 180
+                                                                        )
+                                                                    )
+                                                                }
+                                                            }
+                                                            Box(
+                                                                modifier = Modifier
+                                                                    .weight(1f)
+                                                                    .aspectRatio(1f)
+                                                                    .graphicsLayer {
+                                                                        scaleX = scale.value
+                                                                        scaleY = scale.value
+                                                                    }
+                                                                    .pointerInput(Unit) {
+                                                                        awaitPointerEventScope {
+                                                                            while (true) {
+                                                                                val event =
+                                                                                    awaitPointerEvent()
+                                                                                val anyPressed =
+                                                                                    event.changes.any { it.pressed }
+                                                                                isPressed =
+                                                                                    anyPressed
+                                                                                if (!anyPressed) {
+                                                                                    selectedColor =
+                                                                                        color
+                                                                                }
+                                                                            }
+                                                                        }
+                                                                    },
+                                                                contentAlignment = Alignment.Center
+                                                            ) {
+                                                                Box(
+                                                                    modifier = Modifier
+                                                                        .fillMaxSize()
+                                                                        .graphicsLayer {
+                                                                            alpha = borderAlpha
+                                                                        }
+                                                                        .clip(RoundedRectangle(12.dp))
+                                                                        .background(primaryColor)
+                                                                )
+                                                                Box(
+                                                                    modifier = Modifier
+                                                                        .fillMaxSize()
+                                                                        .padding(if (isSelected) 2.dp else 0.dp)
+                                                                        .clip(RoundedRectangle(10.dp))
+                                                                        .background(
+                                                                            if (isDark) Color(
+                                                                                0xFF242424
+                                                                            ) else Color(0xFFFFFFFF)
+                                                                        )
+                                                                )
+                                                                Box(
+                                                                    modifier = Modifier
+                                                                        .fillMaxSize()
+                                                                        .padding(4.dp),
+                                                                    contentAlignment = Alignment.Center
+                                                                ) {
+                                                                    Card(
+                                                                        modifier = Modifier.fillMaxSize(),
+                                                                        cornerRadius = 8.dp,
+                                                                        insideMargin = PaddingValues(
+                                                                            0.dp
+                                                                        ),
+                                                                        colors = CardDefaults.defaultColors(
+                                                                            color = Color(color).copy(
+                                                                                alpha = if (isDark) 0.22f else 0.16f
+                                                                            ),
+                                                                            contentColor = Color.White
+                                                                        ),
+                                                                        onClick = {
+                                                                            selectedColor = color
+                                                                        }
+                                                                    ) {}
+                                                                }
+                                                            }
+                                                        } else if (colorIndex == allColors.size) {
+                                                            // 自定义颜色按钮
+                                                            val isCustomColor =
+                                                                selectedColor !in allColors
+                                                            val bgColor =
+                                                                if (isDark) Color(0xFF505050) else Color(
+                                                                    0xFFF7F7F7
+                                                                )
+                                                            val hintColor =
+                                                                MiuixTheme.colorScheme.onSurfaceVariantSummary
+                                                            val primaryColor =
+                                                                MiuixTheme.colorScheme.primary
+                                                            var isCustomPressed by remember {
+                                                                mutableStateOf(
+                                                                    false
+                                                                )
+                                                            }
+                                                            val customScale =
+                                                                remember { Animatable(1f) }
+                                                            val customBorderAlpha by animateFloatAsState(
+                                                                targetValue = if (isCustomColor) 1f else 0f,
+                                                                animationSpec = tween(durationMillis = 200),
+                                                                label = "customBorderAlpha"
+                                                            )
+                                                            LaunchedEffect(isCustomPressed) {
+                                                                if (isCustomPressed) {
+                                                                    customScale.animateTo(
+                                                                        targetValue = 0.94f,
+                                                                        animationSpec = tween(
+                                                                            durationMillis = 100
+                                                                        )
+                                                                    )
+                                                                } else {
+                                                                    customScale.animateTo(
+                                                                        targetValue = 1f,
+                                                                        animationSpec = tween(
+                                                                            durationMillis = 180
+                                                                        )
+                                                                    )
+                                                                }
+                                                            }
+                                                            Box(
+                                                                modifier = Modifier
+                                                                    .weight(1f)
+                                                                    .aspectRatio(1f)
+                                                                    .graphicsLayer {
+                                                                        scaleX = customScale.value
+                                                                        scaleY = customScale.value
+                                                                    }
+                                                                    .pointerInput(Unit) {
+                                                                        awaitPointerEventScope {
+                                                                            while (true) {
+                                                                                val event =
+                                                                                    awaitPointerEvent()
+                                                                                val anyPressed =
+                                                                                    event.changes.any { it.pressed }
+                                                                                isCustomPressed =
+                                                                                    anyPressed
+                                                                                if (!anyPressed) {
+                                                                                    customColor =
+                                                                                        Color(
+                                                                                            selectedColor
+                                                                                        )
+                                                                                    showColorDialog =
+                                                                                        true
+                                                                                }
+                                                                            }
+                                                                        }
+                                                                    },
+                                                                contentAlignment = Alignment.Center
+                                                            ) {
+                                                                Box(
+                                                                    modifier = Modifier
+                                                                        .fillMaxSize()
+                                                                        .graphicsLayer {
+                                                                            alpha =
+                                                                                customBorderAlpha
+                                                                        }
+                                                                        .clip(RoundedRectangle(12.dp))
+                                                                        .background(primaryColor)
+                                                                )
+                                                                Box(
+                                                                    modifier = Modifier
+                                                                        .fillMaxSize()
+                                                                        .padding(if (isCustomColor) 2.dp else 0.dp)
+                                                                        .clip(RoundedRectangle(10.dp))
+                                                                        .background(
+                                                                            if (isDark) Color(
+                                                                                0xFF242424
+                                                                            ) else Color(0xFFFFFFFF)
+                                                                        )
+                                                                )
+                                                                Box(
+                                                                    modifier = Modifier
+                                                                        .fillMaxSize()
+                                                                        .padding(4.dp),
+                                                                    contentAlignment = Alignment.Center
+                                                                ) {
+                                                                    Card(
+                                                                        modifier = Modifier.fillMaxSize(),
+                                                                        cornerRadius = 8.dp,
+                                                                        insideMargin = PaddingValues(
+                                                                            0.dp
+                                                                        ),
+                                                                        colors = CardDefaults.defaultColors(
+                                                                            color = bgColor,
+                                                                            contentColor = hintColor
+                                                                        ),
+                                                                        onClick = {
+                                                                            customColor =
+                                                                                Color(selectedColor)
+                                                                            showColorDialog = true
+                                                                        }
+                                                                    ) {
+                                                                        Box(
+                                                                            modifier = Modifier.fillMaxSize(),
+                                                                            contentAlignment = Alignment.Center
+                                                                        ) {
+                                                                            if (isCustomColor) {
+                                                                                Box(
+                                                                                    modifier = Modifier
+                                                                                        .fillMaxSize(
+                                                                                            0.7f
+                                                                                        )
+                                                                                        .clip(
+                                                                                            RoundedRectangle(
+                                                                                                4.dp
+                                                                                            )
+                                                                                        )
+                                                                                        .background(
+                                                                                            Color(
+                                                                                                selectedColor
+                                                                                            ).copy(
+                                                                                                alpha = if (isDark) 0.22f else 0.16f
+                                                                                            )
+                                                                                        )
+                                                                                )
+                                                                            } else {
+                                                                                Icon(
+                                                                                    imageVector = MiuixIcons.Add,
+                                                                                    contentDescription = "自定义颜色",
+                                                                                    modifier = Modifier.size(
+                                                                                        18.dp
+                                                                                    ),
+                                                                                    tint = hintColor
+                                                                                )
+                                                                            }
+                                                                        }
+                                                                    }
+                                                                }
+                                                            }
+                                                        } else {
+                                                            Spacer(modifier = Modifier.weight(1f))
                                                         }
                                                     }
                                                 }
                                             }
                                         }
                                     }
+                                }
 
-                                    items(
-                                        items = courseGroups,
-                                        key = { "${it.key.dayOfWeek}_${it.key.startSection}_${it.key.startWeek}" },
-                                        contentType = { "CourseGroupCard" }
-                                    ) { group ->
-                                        val groupKey = "${group.key.dayOfWeek}_${group.key.startSection}_${group.key.startWeek}"
-                                        val isDeleting = deletingGroupId == groupKey
+                                items(
+                                    items = courseGroups,
+                                    key = { "${it.key.dayOfWeek}_${it.key.startSection}_${it.key.startWeek}" },
+                                    contentType = { "CourseGroupCard" }
+                                ) { group ->
+                                    val groupKey =
+                                        "${group.key.dayOfWeek}_${group.key.startSection}_${group.key.startWeek}"
+                                    val isDeleting = deletingGroupId == groupKey
 
-                                        AnimatedVisibility(
-                                            visible = !isDeleting,
-                                            exit = shrinkVertically(tween(300)) + fadeOut(tween(300))
-                                        ) {
-                                            val cardAlpha = remember { Animatable(0f) }
-                                            val cardScale = remember { Animatable(0.8f) }
-                                            LaunchedEffect(Unit) {
-                                                launch {
-                                                    cardAlpha.animateTo(1f, tween(400))
-                                                }
-                                                launch {
-                                                    cardScale.animateTo(1f, tween(400, easing = OobeQuartOutEasing))
-                                                }
+                                    AnimatedVisibility(
+                                        visible = !isDeleting,
+                                        exit = shrinkVertically(tween(300)) + fadeOut(tween(300))
+                                    ) {
+                                        val cardAlpha = remember { Animatable(0f) }
+                                        val cardScale = remember { Animatable(0.8f) }
+                                        LaunchedEffect(Unit) {
+                                            launch {
+                                                cardAlpha.animateTo(1f, tween(400))
                                             }
-                                            Column(
+                                            launch {
+                                                cardScale.animateTo(
+                                                    1f,
+                                                    tween(400, easing = OobeQuartOutEasing)
+                                                )
+                                            }
+                                        }
+                                        Column(
+                                            modifier = Modifier
+                                                .fillMaxWidth()
+                                                .graphicsLayer {
+                                                    alpha = cardAlpha.value
+                                                    scaleX = cardScale.value
+                                                    scaleY = cardScale.value
+                                                }
+                                        ) {
+                                            CourseGroupCard(
+                                                group = group,
+                                                onEdit = { g ->
+                                                    editingGroup = g
+                                                    showEditCourseSheet = true
+                                                }
+                                            )
+                                            // 删除按钮
+                                            Button(
                                                 modifier = Modifier
                                                     .fillMaxWidth()
-                                                    .graphicsLayer {
-                                                        alpha = cardAlpha.value
-                                                        scaleX = cardScale.value
-                                                        scaleY = cardScale.value
-                                                    }
-                                            ) {
-                                                CourseGroupCard(
-                                                    group = group,
-                                                    onEdit = { g ->
-                                                        editingGroup = g
-                                                        showEditCourseSheet = true
-                                                    }
-                                                )
-                                                // 删除按钮
-                                                Button(
-                                                    modifier = Modifier
-                                                        .fillMaxWidth()
-                                                        .padding(top = 12.dp)
-                                                        .height(50.dp),
-                                                    onClick = {
-                                                        hapticFeedback.performHapticFeedback(HapticFeedbackType.Confirm)
-                                                        pendingDeleteGroup = group
-                                                        showDeleteDialog = true
-                                                    },
-                                                    colors = if (isDark) ButtonDefaults.buttonColors(color = Color(0xFF2A2A2A))
-                                                    else ButtonDefaults.buttonColors(),
-                                                ) {
-                                                    Icon(
-                                                        imageVector = MiuixIcons.Delete,
-                                                        contentDescription = null,
-                                                        modifier = Modifier.size(20.dp),
-                                                        tint = Color(0xFFF44336)
+                                                    .padding(top = 12.dp)
+                                                    .height(50.dp),
+                                                onClick = {
+                                                    hapticFeedback.performHapticFeedback(
+                                                        HapticFeedbackType.Confirm
                                                     )
-                                                    Spacer(modifier = Modifier.width(4.dp))
-                                                    Text("删除", fontSize = 17.sp, fontWeight = FontWeight.Medium, color = Color(0xFFF44336))
-                                                }
+                                                    pendingDeleteGroup = group
+                                                    showDeleteDialog = true
+                                                },
+                                                colors = if (isDark) ButtonDefaults.buttonColors(
+                                                    color = Color(0xFF2A2A2A)
+                                                )
+                                                else ButtonDefaults.buttonColors(),
+                                            ) {
+                                                Icon(
+                                                    imageVector = MiuixIcons.Delete,
+                                                    contentDescription = null,
+                                                    modifier = Modifier.size(20.dp),
+                                                    tint = Color(0xFFF44336)
+                                                )
+                                                Spacer(modifier = Modifier.width(4.dp))
+                                                Text(
+                                                    "删除",
+                                                    fontSize = 17.sp,
+                                                    fontWeight = FontWeight.Medium,
+                                                    color = Color(0xFFF44336)
+                                                )
                                             }
                                         }
                                     }
                                 }
                             }
                         }
+                    }
 
-                        // 自定义颜色选择弹窗
-                        OverlayDialog(
-                            title = "选择颜色",
-                            show = showColorDialog,
-                            onDismissRequest = { showColorDialog = false }
+                    // 自定义颜色选择弹窗
+                    OverlayDialog(
+                        title = "选择颜色",
+                        show = showColorDialog,
+                        onDismissRequest = { showColorDialog = false }
+                    ) {
+                        Column(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalAlignment = Alignment.CenterHorizontally
                         ) {
-                            Column(
-                                modifier = Modifier.fillMaxWidth(),
-                                horizontalAlignment = Alignment.CenterHorizontally
-                            ) {
-                                ColorPalette(
-                                    color = customColor,
-                                    onColorChanged = { customColor = it },
-                                    cornerRadius = 20.dp,
-                                    indicatorRadius = 12.dp
-                                )
-                                Row(
-                                    modifier = Modifier
-                                        .fillMaxWidth()
-                                        .padding(top = 16.dp),
-                                    horizontalArrangement = Arrangement.spacedBy(12.dp)
-                                ) {
-                                    TextButton(
-                                        text = "取消",
-                                        onClick = {
-                                            hapticFeedback.performHapticFeedback(HapticFeedbackType.Confirm)
-                                            showColorDialog = false
-                                        },
-                                        modifier = Modifier.weight(1f)
-                                    )
-                                    TextButton(
-                                        text = "确定",
-                                        onClick = {
-                                            hapticFeedback.performHapticFeedback(HapticFeedbackType.Confirm)
-                                            selectedColor = (customColor.alpha * 255).toInt().toLong() shl 24 or
-                                                    ((customColor.red * 255).toInt().toLong() shl 16) or
-                                                    ((customColor.green * 255).toInt().toLong() shl 8) or
-                                                    (customColor.blue * 255).toInt().toLong()
-                                            showColorDialog = false
-                                        },
-                                        colors = ButtonDefaults.textButtonColorsPrimary(),
-                                        modifier = Modifier.weight(1f)
-                                    )
-                                }
-                            }
-                        }
-
-                        // 删除确认弹窗
-                        OverlayDialog(
-                            title = "删除课程",
-                            summary = "确定要删除课程「${pendingDeleteGroup?.courses?.firstOrNull()?.name ?: ""}」吗？\n此操作不可撤销。",
-                            show = showDeleteDialog,
-                            onDismissRequest = { showDeleteDialog = false }
-                        ) {
+                            ColorPalette(
+                                color = customColor,
+                                onColorChanged = { customColor = it },
+                                cornerRadius = 20.dp,
+                                indicatorRadius = 12.dp
+                            )
                             Row(
                                 modifier = Modifier
                                     .fillMaxWidth()
                                     .padding(top = 16.dp),
                                 horizontalArrangement = Arrangement.spacedBy(12.dp)
                             ) {
-                                Button(
-                                    modifier = Modifier.weight(1f),
+                                TextButton(
+                                    text = "取消",
                                     onClick = {
                                         hapticFeedback.performHapticFeedback(HapticFeedbackType.Confirm)
-                                        showDeleteDialog = false
+                                        showColorDialog = false
                                     },
-                                ) {
-                                    Text("取消", fontSize = 17.sp, fontWeight = FontWeight.Medium, color = MiuixTheme.colorScheme.onSurface)
-                                }
-                                Button(
-                                    modifier = Modifier.weight(1f),
+                                    modifier = Modifier.weight(1f)
+                                )
+                                TextButton(
+                                    text = "确定",
                                     onClick = {
                                         hapticFeedback.performHapticFeedback(HapticFeedbackType.Confirm)
-                                        showDeleteDialog = false
-                                        pendingDeleteGroup?.let { group ->
-                                            pendingDeleteCourseIds = group.courses.map { it.id }
-                                            deletingGroupId = "${group.key.dayOfWeek}_${group.key.startSection}_${group.key.startWeek}"
-                                        }
+                                        selectedColor =
+                                            (customColor.alpha * 255).toInt().toLong() shl 24 or
+                                                    ((customColor.red * 255).toInt()
+                                                        .toLong() shl 16) or
+                                                    ((customColor.green * 255).toInt()
+                                                        .toLong() shl 8) or
+                                                    (customColor.blue * 255).toInt().toLong()
+                                        showColorDialog = false
                                     },
-                                ) {
-                                    Text("删除", fontSize = 17.sp, fontWeight = FontWeight.Medium, color = Color(0xFFF44336))
-                                }
-                            }
-                        }
-
-                        // FAB
-                        Box(
-                            modifier = Modifier
-                                .fillMaxSize()
-                                .padding(end = 32.dp, bottom = 48.dp),
-                            contentAlignment = Alignment.BottomEnd
-                        ) {
-                            FloatingActionButton(
-                                onClick = {
-                                    hapticFeedback.performHapticFeedback(HapticFeedbackType.Confirm)
-                                    showAddCourseSheet = true
-                                },
-                                shadowElevation = 0.dp,
-                            ) {
-                                Icon(
-                                    imageVector = MiuixIcons.Add,
-                                    contentDescription = "添加课程",
-                                    tint = ComposeColor.White,
-                                    modifier = Modifier.size(24.dp)
+                                    colors = ButtonDefaults.textButtonColorsPrimary(),
+                                    modifier = Modifier.weight(1f)
                                 )
                             }
                         }
+                    }
 
-                        // 添加课程底部弹窗
-                        AddEditCourseBottomSheet(
-                            show = showAddCourseSheet,
-                            courses = courses,
-                            backdrop = backdrop,
-                            liquidGlassBackdrop = if (isLiquidGlass) liquidGlassBackdrop else null,
-                            onDismissRequest = { showAddCourseSheet = false },
-                            onConfirm = { newCourse ->
-                                pendingAddCourse = newCourse
-                            },
-                            getOccupiedWeeks = { dow, ss, es, excludeIds ->
-                                getOccupiedWeeks(dow, ss, es, excludeIds)
+                    // 删除确认弹窗
+                    OverlayDialog(
+                        title = "删除课程",
+                        summary = "确定要删除课程「${pendingDeleteGroup?.courses?.firstOrNull()?.name ?: ""}」吗？\n此操作不可撤销。",
+                        show = showDeleteDialog,
+                        onDismissRequest = { showDeleteDialog = false }
+                    ) {
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(top = 16.dp),
+                            horizontalArrangement = Arrangement.spacedBy(12.dp)
+                        ) {
+                            Button(
+                                modifier = Modifier.weight(1f),
+                                onClick = {
+                                    hapticFeedback.performHapticFeedback(HapticFeedbackType.Confirm)
+                                    showDeleteDialog = false
+                                },
+                            ) {
+                                Text(
+                                    "取消",
+                                    fontSize = 17.sp,
+                                    fontWeight = FontWeight.Medium,
+                                    color = MiuixTheme.colorScheme.onSurface
+                                )
                             }
-                        )
+                            Button(
+                                modifier = Modifier.weight(1f),
+                                onClick = {
+                                    hapticFeedback.performHapticFeedback(HapticFeedbackType.Confirm)
+                                    showDeleteDialog = false
+                                    pendingDeleteGroup?.let { group ->
+                                        pendingDeleteCourseIds = group.courses.map { it.id }
+                                        deletingGroupId =
+                                            "${group.key.dayOfWeek}_${group.key.startSection}_${group.key.startWeek}"
+                                    }
+                                },
+                            ) {
+                                Text(
+                                    "删除",
+                                    fontSize = 17.sp,
+                                    fontWeight = FontWeight.Medium,
+                                    color = Color(0xFFF44336)
+                                )
+                            }
+                        }
+                    }
 
-                        // 编辑课程底部弹窗
-                        AddEditCourseBottomSheet(
-                            show = showEditCourseSheet,
-                            courses = editingGroup?.courses ?: emptyList(),
-                            backdrop = backdrop,
-                            liquidGlassBackdrop = if (isLiquidGlass) liquidGlassBackdrop else null,
-                            editCourse = editingGroup?.courses?.first(),
-                            onDismissRequest = {
-                                showEditCourseSheet = false
-                                editingGroup = null
+                    // FAB
+                    Box(
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .padding(end = 32.dp, bottom = 48.dp),
+                        contentAlignment = Alignment.BottomEnd
+                    ) {
+                        FloatingActionButton(
+                            onClick = {
+                                hapticFeedback.performHapticFeedback(HapticFeedbackType.Confirm)
+                                showAddCourseSheet = true
                             },
-                            onConfirm = { updatedCourse ->
-                                editingGroup?.courses?.forEach { old ->
-                                    onCourseUpdated(old.copy(
+                            shadowElevation = 0.dp,
+                        ) {
+                            Icon(
+                                imageVector = MiuixIcons.Add,
+                                contentDescription = "添加课程",
+                                tint = ComposeColor.White,
+                                modifier = Modifier.size(24.dp)
+                            )
+                        }
+                    }
+
+                    // 添加课程底部弹窗
+                    AddEditCourseBottomSheet(
+                        show = showAddCourseSheet,
+                        courses = courses,
+                        backdrop = backdrop,
+                        liquidGlassBackdrop = liquidGlassBackdrop,
+                        onDismissRequest = { showAddCourseSheet = false },
+                        onConfirm = { newCourse ->
+                            pendingAddCourse = newCourse
+                        },
+                        getOccupiedWeeks = { dow, ss, es, excludeIds ->
+                            getOccupiedWeeks(dow, ss, es, excludeIds)
+                        }
+                    )
+
+                    // 编辑课程底部弹窗
+                    AddEditCourseBottomSheet(
+                        show = showEditCourseSheet,
+                        courses = editingGroup?.courses ?: emptyList(),
+                        backdrop = backdrop,
+                        liquidGlassBackdrop = liquidGlassBackdrop,
+                        editCourse = editingGroup?.courses?.first(),
+                        onDismissRequest = {
+                            showEditCourseSheet = false
+                            editingGroup = null
+                        },
+                        onConfirm = { updatedCourse ->
+                            editingGroup?.courses?.forEach { old ->
+                                onCourseUpdated(
+                                    old.copy(
                                         classroom = updatedCourse.classroom,
                                         teacher = updatedCourse.teacher,
                                         dayOfWeek = updatedCourse.dayOfWeek,
@@ -1069,20 +1112,21 @@ fun CourseEditScreen(
                                         weekType = updatedCourse.weekType,
                                         selectedWeeks = updatedCourse.selectedWeeks,
                                         lastModified = System.currentTimeMillis()
-                                    ))
-                                }
-                                showEditCourseSheet = false
-                                editingGroup = null
-                            },
-                            getOccupiedWeeks = { dow, ss, es, excludeIds ->
-                                getOccupiedWeeks(dow, ss, es, excludeIds)
+                                    )
+                                )
                             }
-                        )
-                    }
+                            showEditCourseSheet = false
+                            editingGroup = null
+                        },
+                        getOccupiedWeeks = { dow, ss, es, excludeIds ->
+                            getOccupiedWeeks(dow, ss, es, excludeIds)
+                        }
+                    )
                 }
             }
         }
     }
+}
 
 // ===================== Course Group Card =====================
 
@@ -1223,61 +1267,5 @@ private fun CourseGroupCard(
 }
 
 // ===================== Course Group Card + Delete (Tablet) =====================
-
-@Composable
-private fun CourseGroupCardWithDelete(
-    group: CourseGroup,
-    isDark: Boolean,
-    deletingGroupId: String?,
-    onEdit: (CourseGroup) -> Unit,
-    onDelete: (CourseGroup) -> Unit
-) {
-    val groupKey = "${group.key.dayOfWeek}_${group.key.startSection}_${group.key.startWeek}"
-    val isDeleting = deletingGroupId == groupKey
-
-    AnimatedVisibility(
-        visible = !isDeleting,
-        exit = shrinkVertically(tween(300)) + fadeOut(tween(300))
-    ) {
-        val cardAlpha = remember { Animatable(0f) }
-        val cardScale = remember { Animatable(0.8f) }
-        LaunchedEffect(Unit) {
-            launch { cardAlpha.animateTo(1f, tween(400)) }
-            launch { cardScale.animateTo(1f, tween(400, easing = OobeQuartOutEasing)) }
-        }
-        Column(
-            modifier = Modifier
-                .fillMaxWidth()
-                .graphicsLayer {
-                    alpha = cardAlpha.value
-                    scaleX = cardScale.value
-                    scaleY = cardScale.value
-                }
-        ) {
-            CourseGroupCard(
-                group = group,
-                onEdit = onEdit
-            )
-            Button(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(top = 12.dp)
-                    .height(50.dp),
-                onClick = { onDelete(group) },
-                colors = if (isDark) ButtonDefaults.buttonColors(color = Color(0xFF2A2A2A))
-                else ButtonDefaults.buttonColors(),
-            ) {
-                Icon(
-                    imageVector = MiuixIcons.Delete,
-                    contentDescription = null,
-                    modifier = Modifier.size(20.dp),
-                    tint = Color(0xFFF44336)
-                )
-                Spacer(modifier = Modifier.width(4.dp))
-                Text("删除", fontSize = 17.sp, fontWeight = FontWeight.Medium, color = Color(0xFFF44336))
-            }
-        }
-    }
-}
 
 

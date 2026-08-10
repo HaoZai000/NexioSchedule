@@ -276,7 +276,50 @@ fun SwitchScheduleScreen(
 
     Box(modifier = Modifier.fillMaxSize()) {
         Scaffold(
-            topBar = {},
+            topBar = {
+                ProgressiveBlurTopBar(
+                    backdrop = liquidGlassBackdrop,
+                ) {
+                    CollapsibleTopAppBar(
+                        title = displayTitle,
+                        largeTitle = displayTitle,
+                        modifier = Modifier,
+                        scrollBehavior = scrollBehavior,
+                        contentPadding = {},
+                        startAction = { backdropAlpha, shadowAlpha ->
+                            LiquidTopBarButton(
+                                onClick = {
+                                    if (isEditMode) {
+                                        isEditMode = false
+                                        editMode = ""
+                                        checkboxStates.clear()
+                                    } else {
+                                        switchToCurrentSchedule()
+                                    }
+                                },
+                                backdrop = liquidGlassBackdrop,
+                                icon = if (isEditMode) MiuixIcons.Normal.Close else MiuixIcons.ChevronBackward,
+                                contentDescription = if (isEditMode) "关闭" else "返回",
+                                iconSize = if (isEditMode) 24.dp else 25.dp,
+                                iconOffset = if (isEditMode) DpOffset.Zero else DpOffset(x = (-2).dp, y = 0.dp),
+                                backdropAlpha = backdropAlpha,
+                                shadowAlpha = shadowAlpha,
+                            )
+                        },
+                        endAction = if (!isEditMode) { backdropAlpha, shadowAlpha ->
+                            LiquidTopBarButton(
+                                onClick = { isEditMode = true },
+                                backdrop = liquidGlassBackdrop,
+                                icon = MiuixIcons.Normal.Edit,
+                                contentDescription = "编辑",
+                                iconSize = 26.dp,
+                                backdropAlpha = backdropAlpha,
+                                shadowAlpha = shadowAlpha,
+                            )
+                        } else null,
+                    )
+                }
+            },
             bottomBar = {
                 var navBarVisible by remember { mutableStateOf(false) }
                 LaunchedEffect(isEditMode) {
@@ -451,7 +494,7 @@ fun SwitchScheduleScreen(
                         contentPadding = PaddingValues(
                             start = tabletHorizontalPadding,
                             end = tabletHorizontalPadding,
-                            top = paddingValues.calculateTopPadding() + topBarHeightDp,
+                            top = paddingValues.calculateTopPadding() + topBarHeightDp - 82.dp,
                             bottom = 60.dp
                         ),
                         verticalArrangement = Arrangement.spacedBy(12.dp)
@@ -932,48 +975,6 @@ fun SwitchScheduleScreen(
                     }
                 }
             }
-        }
-        ProgressiveBlurTopBar(
-            backdrop = liquidGlassBackdrop,
-        ) {
-            CollapsibleTopAppBar(
-                title = displayTitle,
-                largeTitle = displayTitle,
-                modifier = Modifier,
-                scrollBehavior = scrollBehavior,
-                contentPadding = {},
-                startAction = { backdropAlpha, shadowAlpha ->
-                    LiquidTopBarButton(
-                        onClick = {
-                            if (isEditMode) {
-                                isEditMode = false
-                                editMode = ""
-                                checkboxStates.clear()
-                            } else {
-                                switchToCurrentSchedule()
-                            }
-                        },
-                        backdrop = liquidGlassBackdrop,
-                        icon = if (isEditMode) MiuixIcons.Normal.Close else MiuixIcons.ChevronBackward,
-                        contentDescription = if (isEditMode) "关闭" else "返回",
-                        iconSize = if (isEditMode) 24.dp else 25.dp,
-                        iconOffset = if (isEditMode) DpOffset.Zero else DpOffset(x = (-2).dp, y = 0.dp),
-                        backdropAlpha = backdropAlpha,
-                        shadowAlpha = shadowAlpha,
-                    )
-                },
-                endAction = if (!isEditMode) { backdropAlpha, shadowAlpha ->
-                    LiquidTopBarButton(
-                        onClick = { isEditMode = true },
-                        backdrop = liquidGlassBackdrop,
-                        icon = MiuixIcons.Normal.Edit,
-                        contentDescription = "编辑",
-                        iconSize = 26.dp,
-                        backdropAlpha = backdropAlpha,
-                        shadowAlpha = shadowAlpha,
-                    )
-                } else null,
-            )
         }
     }
 }

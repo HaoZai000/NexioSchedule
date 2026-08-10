@@ -14,15 +14,11 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.WindowInsets
-import androidx.compose.foundation.layout.asPaddingValues
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.statusBars
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.material3.Text
@@ -38,12 +34,9 @@ import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.RectangleShape
 import androidx.compose.ui.graphics.TransformOrigin
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.graphics.graphicsLayer
-import androidx.compose.ui.graphics.lerp
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.input.pointer.pointerInput
@@ -55,8 +48,9 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.DpOffset
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import androidx.compose.ui.zIndex
 import com.haooz.chedule.data.Course
+import com.haooz.chedule.ui.components.CollapsibleTopAppBar
+import com.haooz.chedule.ui.components.rememberSharedScrollBehavior
 import com.haooz.chedule.ui.effects.liquidglass.LiquidTopBarButton
 import com.haooz.chedule.ui.effects.liquidglass.ProgressiveBlurTopBar
 import com.haooz.chedule.ui.effects.motion.OobeCubicOutEasing
@@ -70,21 +64,11 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import top.yukonga.miuix.kmp.basic.Card
 import top.yukonga.miuix.kmp.basic.CardDefaults
-import top.yukonga.miuix.kmp.basic.Icon
-import top.yukonga.miuix.kmp.basic.IconButton
-import top.yukonga.miuix.kmp.basic.MiuixScrollBehavior
 import top.yukonga.miuix.kmp.basic.Scaffold
 import top.yukonga.miuix.kmp.basic.SmallTitle
-import top.yukonga.miuix.kmp.basic.SmallTopAppBar
-import top.yukonga.miuix.kmp.basic.TopAppBar
-import top.yukonga.miuix.kmp.blur.BlendColorEntry
-import top.yukonga.miuix.kmp.blur.BlurBlendMode
-import top.yukonga.miuix.kmp.blur.BlurDefaults
 import top.yukonga.miuix.kmp.blur.layerBackdrop
 import top.yukonga.miuix.kmp.blur.rememberLayerBackdrop
-import top.yukonga.miuix.kmp.blur.textureBlur
 import top.yukonga.miuix.kmp.icon.MiuixIcons
-import top.yukonga.miuix.kmp.icon.extended.Back
 import top.yukonga.miuix.kmp.icon.extended.ChevronBackward
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 import top.yukonga.miuix.kmp.utils.overScrollVertical
@@ -283,25 +267,7 @@ fun CourseDetailScreen(
         drawContent()
     }
     var listScrollY by remember { mutableIntStateOf(0) }
-    val scrollBehavior = MiuixScrollBehavior()
-    val blurAlpha = if (listScrollY < 50) 0f else ((listScrollY - 50) / 50f).coerceIn(0f, 0.7f)
-    val topBarColor = if (listScrollY < 50) {
-        MiuixTheme.colorScheme.surface
-    } else {
-        val topBarColorProgress = ((listScrollY - 50) / 50f).coerceIn(0f, 1f)
-        val surface = MiuixTheme.colorScheme.surface
-        val target = if (isDark) ComposeColor.Black.copy(alpha = 0.7f) else ComposeColor.White.copy(alpha = 0.7f)
-        lerp(surface, target, topBarColorProgress)
-    }
-    val topAppBarColors = BlurDefaults.blurColors(
-        blendColors = listOf(
-            if (isDark) BlendColorEntry(ComposeColor.Black.copy(alpha = blurAlpha), BlurBlendMode.SrcOver)
-            else BlendColorEntry(ComposeColor.White.copy(alpha = blurAlpha), BlurBlendMode.SrcOver)
-        ),
-        brightness = 0f,
-        contrast = 1f,
-        saturation = 1.2f
-    )
+    val scrollBehavior = rememberSharedScrollBehavior()
 
     Box(
         modifier = Modifier
@@ -351,18 +317,16 @@ fun CourseDetailScreen(
             ) {
                 Scaffold(
                     topBar = {
-                            if (isLiquidGlass) {
-                                val statusBarPadding = WindowInsets.statusBars.asPaddingValues().calculateTopPadding()
-                                ProgressiveBlurTopBar(
-                                    backdrop = liquidGlassBackdrop,
-                                ) {
-                                    SmallTopAppBar(
-                                        color = Color.Transparent,
-                                        title = courseName,
-                                        modifier = Modifier.zIndex(1f),
-                                        scrollBehavior = scrollBehavior,
-                                        navigationIcon = {}
-                                    )
+                        ProgressiveBlurTopBar(
+                            backdrop = liquidGlassBackdrop!!,
+                        ) {
+                            CollapsibleTopAppBar(
+                                title = courseName,
+                                largeTitle = courseName,
+                                modifier = Modifier,
+                                scrollBehavior = scrollBehavior,
+                                contentPadding = {},
+                                startAction = { backdropAlpha, shadowAlpha ->
                                     LiquidTopBarButton(
                                         onClick = {
                                             hapticFeedback.performHapticFeedback(HapticFeedbackType.Confirm)
@@ -392,81 +356,17 @@ fun CourseDetailScreen(
                                             }
                                         },
                                         backdrop = liquidGlassBackdrop,
-                                        icon = MiuixIcons.Medium.ChevronBackward,
+                                        icon = MiuixIcons.ChevronBackward,
                                         contentDescription = "返回",
-                                        modifier = Modifier
-                                            .zIndex(2f)
-                                            .offset(x = 20.dp, y = if (statusBarPadding > 0.dp) statusBarPadding + 5.dp else 42.dp),
-                                        iconSize = 22.dp,
+                                        iconSize = 25.dp,
                                         iconOffset = DpOffset(x = (-2).dp, y = 0.dp),
+                                        backdropAlpha = backdropAlpha,
+                                        shadowAlpha = shadowAlpha,
                                     )
-                                }
-                            } else {
-                                val topBarModifier = if (blurAlpha > 0f) {
-                                    Modifier.textureBlur(
-                                        backdrop = backdrop,
-                                        shape = RectangleShape,
-                                        colors = topAppBarColors
-                                    )
-                                } else {
-                                    Modifier
-                                }
-                                val navIcon: @Composable () -> Unit = {
-                                    IconButton(onClick = {
-                                        hapticFeedback.performHapticFeedback(HapticFeedbackType.Confirm)
-                                        onBackStart()
-                                        scope.launch {
-                                            coroutineScope {
-                                                launch {
-                                                    animProgress.animateTo(
-                                                        targetValue = 0f,
-                                                        animationSpec = tween(
-                                                            durationMillis = 350,
-                                                            easing = morphExitEase
-                                                        )
-                                                    )
-                                                }
-                                                launch {
-                                                    animTransY.animateTo(
-                                                        targetValue = 0f,
-                                                        animationSpec = tween(
-                                                            durationMillis = transExitMillis,
-                                                            easing = transExitEase
-                                                        )
-                                                    )
-                                                }
-                                            }
-                                            onBack()
-                                        }
-                                    },
-                                        modifier = Modifier.padding(start = 4.dp)
-                                    ) {
-                                        Icon(
-                                            imageVector = MiuixIcons.Back,
-                                            contentDescription = "返回",
-                                            modifier = Modifier.size(28.dp)
-                                        )
-                                    }
-                                }
-                                if (isTablet) {
-                                    SmallTopAppBar(
-                                        modifier = topBarModifier,
-                                        color = topBarColor,
-                                        title = courseName,
-                                        scrollBehavior = scrollBehavior,
-                                        navigationIcon = navIcon
-                                    )
-                                } else {
-                                    TopAppBar(
-                                        modifier = topBarModifier,
-                                        color = topBarColor,
-                                        title = courseName,
-                                        scrollBehavior = scrollBehavior,
-                                        navigationIcon = navIcon
-                                    )
-                                }
-                            }
+                                },
+                            )
                         }
+                    },
                     ) { paddingValues ->
                         Box(
                             modifier = Modifier
@@ -493,6 +393,9 @@ fun CourseDetailScreen(
                                     color = MiuixTheme.colorScheme.surface,
                                     contentColor = MiuixTheme.colorScheme.onSurface)
                             ) {
+                                val topBarHeightDp = with(density) {
+                                    scrollBehavior.currentHeightPx.toDp()
+                                }
                                 LazyColumn(
                                     state = listState,
                                     modifier = Modifier
@@ -504,7 +407,7 @@ fun CourseDetailScreen(
                                         .nestedScroll(scrollBehavior.nestedScrollConnection),
                                     contentPadding = PaddingValues(
                                         start = tabletHorizontalPadding,
-                                        top = if (isLiquidGlass) paddingValues.calculateTopPadding() + (-16).dp else paddingValues.calculateTopPadding(),
+                                        top = paddingValues.calculateTopPadding() + topBarHeightDp - 82.dp,
                                         end = tabletHorizontalPadding,
                                         bottom = 120.dp
                                     ),

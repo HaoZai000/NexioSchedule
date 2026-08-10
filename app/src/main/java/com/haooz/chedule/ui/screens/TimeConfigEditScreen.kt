@@ -20,15 +20,11 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.WindowInsets
-import androidx.compose.foundation.layout.asPaddingValues
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.statusBars
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.material3.Text
@@ -47,14 +43,11 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.geometry.Size
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Outline
-import androidx.compose.ui.graphics.RectangleShape
 import androidx.compose.ui.graphics.Shape
 import androidx.compose.ui.graphics.TransformOrigin
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.graphics.graphicsLayer
-import androidx.compose.ui.graphics.lerp
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.input.pointer.pointerInput
@@ -70,11 +63,12 @@ import androidx.compose.ui.unit.Density
 import androidx.compose.ui.unit.LayoutDirection
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import androidx.compose.ui.zIndex
 import com.haooz.chedule.data.Course
 import com.haooz.chedule.data.CourseRepository
 import com.haooz.chedule.data.TimeConfig
+import com.haooz.chedule.ui.components.CollapsibleTopAppBar
 import com.haooz.chedule.ui.components.NativeMiuixTextField
+import com.haooz.chedule.ui.components.rememberSharedScrollBehavior
 import com.haooz.chedule.ui.effects.liquidglass.LiquidTopBarButton
 import com.haooz.chedule.ui.effects.liquidglass.ProgressiveBlurTopBar
 import com.haooz.chedule.ui.effects.motion.OobeCubicOutEasing
@@ -91,22 +85,13 @@ import kotlinx.coroutines.launch
 import top.yukonga.miuix.kmp.basic.ButtonDefaults
 import top.yukonga.miuix.kmp.basic.Card
 import top.yukonga.miuix.kmp.basic.CardDefaults
-import top.yukonga.miuix.kmp.basic.Icon
-import top.yukonga.miuix.kmp.basic.IconButton
-import top.yukonga.miuix.kmp.basic.MiuixScrollBehavior
 import top.yukonga.miuix.kmp.basic.NumberPicker
 import top.yukonga.miuix.kmp.basic.Scaffold
 import top.yukonga.miuix.kmp.basic.SmallTitle
-import top.yukonga.miuix.kmp.basic.SmallTopAppBar
 import top.yukonga.miuix.kmp.basic.Switch
 import top.yukonga.miuix.kmp.basic.TextButton
-import top.yukonga.miuix.kmp.basic.TopAppBar
-import top.yukonga.miuix.kmp.blur.BlendColorEntry
-import top.yukonga.miuix.kmp.blur.BlurBlendMode
-import top.yukonga.miuix.kmp.blur.BlurDefaults
 import top.yukonga.miuix.kmp.blur.layerBackdrop
 import top.yukonga.miuix.kmp.blur.rememberLayerBackdrop
-import top.yukonga.miuix.kmp.blur.textureBlur
 import top.yukonga.miuix.kmp.icon.MiuixIcons
 import top.yukonga.miuix.kmp.icon.extended.Close
 import top.yukonga.miuix.kmp.icon.extended.Ok
@@ -197,7 +182,7 @@ fun TimeConfigEditScreen(
     val hapticFeedback = LocalHapticFeedback.current
     val focusManager = LocalFocusManager.current
     val keyboardController = LocalSoftwareKeyboardController.current
-    val scrollBehavior = MiuixScrollBehavior()
+    val scrollBehavior = rememberSharedScrollBehavior()
     var listScrollY by remember { mutableIntStateOf(0) }
 
     // 配置名称
@@ -470,26 +455,6 @@ fun TimeConfigEditScreen(
         val screenWidthDp = LocalConfiguration.current.screenWidthDp
         ((screenWidthDp - 600).coerceIn(0, 600) / 600f * 112 + 16).dp
     } else 16.dp
-    val blurAlpha = if (listScrollY < 50) 0f else ((listScrollY - 50) / 50f).coerceIn(0f, 0.7f)
-    val surface = MiuixTheme.colorScheme.surface
-    val topBarColor = if (listScrollY < 50) {
-        surface
-    } else {
-        val topBarColorProgress = ((listScrollY - 50) / 50f).coerceIn(0f, 1f)
-        val target =
-            if (isDark) ComposeColor.Black.copy(alpha = 0.7f) else ComposeColor.White.copy(alpha = 0.7f)
-        lerp(surface, target, topBarColorProgress)
-    }
-    val topAppBarColors = BlurDefaults.blurColors(
-        blendColors = listOf(
-            if (isDark) BlendColorEntry(
-                ComposeColor.Black.copy(alpha = blurAlpha),
-                BlurBlendMode.SrcOver
-            )
-            else BlendColorEntry(ComposeColor.White.copy(alpha = blurAlpha), BlurBlendMode.SrcOver)
-        ),
-        brightness = 0f, contrast = 1f, saturation = 1.2f
-    )
 
     // Morph动画背景遮罩 + 裁剪容器
     val s = animState.value
@@ -550,226 +515,99 @@ fun TimeConfigEditScreen(
             ) {
                 Scaffold(
                     topBar = {
-                        if (isLiquidGlass) {
-                            val statusBarPadding =
-                                WindowInsets.statusBars.asPaddingValues().calculateTopPadding()
-                            ProgressiveBlurTopBar(
-                                backdrop = liquidGlassBackdrop,
-                            ) {
-                                SmallTopAppBar(
-                                    color = Color.Transparent,
-                                    title = screenTitle,
-                                    modifier = Modifier.zIndex(1f),
-                                    navigationIcon = {}
-                                )
-                                LiquidTopBarButton(
-                                    onClick = {
-                                        hapticFeedback.performHapticFeedback(HapticFeedbackType.Confirm)
-                                        triggerExitAndBack()
-                                    },
-                                    backdrop = liquidGlassBackdrop,
-                                    icon = MiuixIcons.Normal.Close,
-                                    contentDescription = "返回",
-                                    modifier = Modifier
-                                        .zIndex(2f)
-                                        .offset(
-                                            x = 20.dp,
-                                            y = if (statusBarPadding > 0.dp) statusBarPadding + 5.dp else 42.dp
-                                        ),
-                                    iconSize = 22.dp,
-                                )
-                                LiquidTopBarButton(
-                                    onClick = {
-                                        hapticFeedback.performHapticFeedback(HapticFeedbackType.Confirm)
-                                        if (configName.isBlank()) {
-                                            Toast.makeText(
-                                                context,
-                                                "请输入配置名称",
-                                                Toast.LENGTH_SHORT
-                                            ).show()
-                                            return@LiquidTopBarButton
-                                        }
-                                        val existingNames = repository.getTimeConfigIds()
-                                            .filter { id -> id != timeConfig.id }
-                                            .map { id -> repository.getTimeConfig(id).name }
-                                        if (existingNames.contains(configName)) {
-                                            Toast.makeText(
-                                                context,
-                                                "已存在同名配置",
-                                                Toast.LENGTH_SHORT
-                                            ).show()
-                                            return@LiquidTopBarButton
-                                        }
-                                        val overlapMsg = checkTimeOverlap()
-                                        if (overlapMsg != null) {
-                                            overlapMessage = overlapMsg
-                                            showOverlapDialog = true
-                                            return@LiquidTopBarButton
-                                        }
-                                        val finalSectionTimes = mutableMapOf<String, String>()
-                                        for ((k, v) in morningTimes) if (k <= morningSections) finalSectionTimes["morning_$k"] =
-                                            v
-                                        for ((k, v) in afternoonTimes) if (k <= afternoonSections) finalSectionTimes["afternoon_$k"] =
-                                            v
-                                        for ((k, v) in eveningTimes) if (k <= eveningSections) finalSectionTimes["evening_$k"] =
-                                            v
-
-                                        val newConfig = timeConfig.copy(
-                                            name = configName,
-                                            morningSections = morningSections,
-                                            afternoonSections = afternoonSections,
-                                            eveningSections = eveningSections,
-                                            quickTimeEnabled = quickTimeEnabled,
-                                            classDuration = classDuration,
-                                            shortBreak = shortBreak,
-                                            longBreakEnabled = longBreakEnabled,
-                                            longBreakMorning = longBreakMorning,
-                                            longBreakAfternoon = longBreakAfternoon,
-                                            longBreakEvening = longBreakEvening,
-                                            longBreakMorningSection = longBreakMorningSection,
-                                            longBreakAfternoonSection = longBreakAfternoonSection,
-                                            longBreakEveningSection = longBreakEveningSection,
-                                            morningStartHour = morningStartHour,
-                                            morningStartMinute = morningStartMinute,
-                                            afternoonStartHour = afternoonStartHour,
-                                            afternoonStartMinute = afternoonStartMinute,
-                                            eveningStartHour = eveningStartHour,
-                                            eveningStartMinute = eveningStartMinute,
-                                            sectionTimes = finalSectionTimes
-                                        )
-                                        triggerExitAndBack(onSavePending = { onSave(newConfig) })
-                                    },
-                                    backdrop = liquidGlassBackdrop,
-                                    icon = MiuixIcons.Ok,
-                                    contentDescription = "保存并关闭",
-                                    modifier = Modifier
-                                        .zIndex(2f)
-                                        .align(Alignment.TopEnd)
-                                        .offset(
-                                            x = (-20).dp,
-                                            y = if (statusBarPadding > 0.dp) statusBarPadding + 5.dp else 42.dp
-                                        ),
-                                    iconSize = 23.dp,
-                                    iconTint = Color.White,
-                                    containerColor = if (isAppDarkTheme()) MiuixTheme.colorScheme.primary.copy(
-                                        alpha = 0.8f
-                                    ) else MiuixTheme.colorScheme.primary.copy(alpha = 0.9f)
-                                )
-                            }
-                        } else {
-                            val topBarModifier = if (blurAlpha > 0f) {
-                                Modifier.textureBlur(
-                                    backdrop = backdrop,
-                                    shape = RectangleShape,
-                                    colors = topAppBarColors
-                                )
-                            } else Modifier
-                            val navIcon: @Composable () -> Unit = {
-                                IconButton(onClick = {
-                                    hapticFeedback.performHapticFeedback(HapticFeedbackType.Confirm)
-                                    triggerExitAndBack()
-                                }) {
-                                    Icon(
-                                        MiuixIcons.Normal.Close,
-                                        contentDescription = "返回",
-                                        modifier = Modifier.size(24.dp)
+                        ProgressiveBlurTopBar(
+                            backdrop = liquidGlassBackdrop!!,
+                        ) {
+                            CollapsibleTopAppBar(
+                                title = screenTitle,
+                                largeTitle = screenTitle,
+                                modifier = Modifier,
+                                scrollBehavior = scrollBehavior,
+                                contentPadding = {},
+                                startAction = { backdropAlpha, shadowAlpha ->
+                                    LiquidTopBarButton(
+                                        onClick = {
+                                            hapticFeedback.performHapticFeedback(HapticFeedbackType.Confirm)
+                                            triggerExitAndBack()
+                                        },
+                                        backdrop = liquidGlassBackdrop,
+                                        icon = MiuixIcons.Normal.Close,
+                                        contentDescription = "取消",
+                                        iconSize = 24.dp,
+                                        backdropAlpha = backdropAlpha,
+                                        shadowAlpha = shadowAlpha,
                                     )
-                                }
-                            }
-                            val actionsSlot: @Composable androidx.compose.foundation.layout.RowScope.() -> Unit = {
-                                IconButton(
-                                    onClick = {
-                                        hapticFeedback.performHapticFeedback(HapticFeedbackType.Confirm)
-                                        if (configName.isBlank()) {
-                                            Toast.makeText(
-                                                context,
-                                                "请输入配置名称",
-                                                Toast.LENGTH_SHORT
-                                            ).show()
-                                            return@IconButton
-                                        }
-                                        val existingNames = repository.getTimeConfigIds()
-                                            .filter { id -> id != timeConfig.id }
-                                            .map { id -> repository.getTimeConfig(id).name }
-                                        if (existingNames.contains(configName)) {
-                                            Toast.makeText(
-                                                context,
-                                                "已存在同名配置",
-                                                Toast.LENGTH_SHORT
-                                            ).show()
-                                            return@IconButton
-                                        }
-                                        val overlapMsg = checkTimeOverlap()
-                                        if (overlapMsg != null) {
-                                            overlapMessage = overlapMsg
-                                            showOverlapDialog = true
-                                            return@IconButton
-                                        }
-                                        val finalSectionTimes = mutableMapOf<String, String>()
-                                        for ((k, v) in morningTimes) if (k <= morningSections) finalSectionTimes["morning_$k"] =
-                                            v
-                                        for ((k, v) in afternoonTimes) if (k <= afternoonSections) finalSectionTimes["afternoon_$k"] =
-                                            v
-                                        for ((k, v) in eveningTimes) if (k <= eveningSections) finalSectionTimes["evening_$k"] =
-                                            v
+                                },
+                                endAction = { backdropAlpha, shadowAlpha ->
+                                    LiquidTopBarButton(
+                                        onClick = {
+                                            hapticFeedback.performHapticFeedback(HapticFeedbackType.Confirm)
+                                            if (configName.isBlank()) {
+                                                Toast.makeText(
+                                                    context,
+                                                    "请输入配置名称",
+                                                    Toast.LENGTH_SHORT
+                                                ).show()
+                                                return@LiquidTopBarButton
+                                            }
+                                            val existingNames = repository.getTimeConfigIds()
+                                                .filter { id -> id != timeConfig.id }
+                                                .map { id -> repository.getTimeConfig(id).name }
+                                            if (existingNames.contains(configName)) {
+                                                Toast.makeText(
+                                                    context,
+                                                    "已存在同名配置",
+                                                    Toast.LENGTH_SHORT
+                                                ).show()
+                                                return@LiquidTopBarButton
+                                            }
+                                            val overlapMsg = checkTimeOverlap()
+                                            if (overlapMsg != null) {
+                                                overlapMessage = overlapMsg
+                                                showOverlapDialog = true
+                                                return@LiquidTopBarButton
+                                            }
+                                            val finalSectionTimes = mutableMapOf<String, String>()
+                                            for ((k, v) in morningTimes) if (k <= morningSections) finalSectionTimes["morning_$k"] = v
+                                            for ((k, v) in afternoonTimes) if (k <= afternoonSections) finalSectionTimes["afternoon_$k"] = v
+                                            for ((k, v) in eveningTimes) if (k <= eveningSections) finalSectionTimes["evening_$k"] = v
 
-                                        val newConfig = timeConfig.copy(
-                                            name = configName,
-                                            morningSections = morningSections,
-                                            afternoonSections = afternoonSections,
-                                            eveningSections = eveningSections,
-                                            quickTimeEnabled = quickTimeEnabled,
-                                            classDuration = classDuration,
-                                            shortBreak = shortBreak,
-                                            longBreakEnabled = longBreakEnabled,
-                                            longBreakMorning = longBreakMorning,
-                                            longBreakAfternoon = longBreakAfternoon,
-                                            longBreakEvening = longBreakEvening,
-                                            longBreakMorningSection = longBreakMorningSection,
-                                            longBreakAfternoonSection = longBreakAfternoonSection,
-                                            longBreakEveningSection = longBreakEveningSection,
-                                            morningStartHour = morningStartHour,
-                                            morningStartMinute = morningStartMinute,
-                                            afternoonStartHour = afternoonStartHour,
-                                            afternoonStartMinute = afternoonStartMinute,
-                                            eveningStartHour = eveningStartHour,
-                                            eveningStartMinute = eveningStartMinute,
-                                            sectionTimes = finalSectionTimes
-                                        )
-                                        triggerExitAndBack(onSavePending = { onSave(newConfig) })
-                                    },
-                                    modifier = Modifier.padding(end = 4.dp)
-                                ) {
-                                    Icon(
-                                        imageVector = MiuixIcons.Ok,
+                                            val newConfig = timeConfig.copy(
+                                                name = configName,
+                                                morningSections = morningSections,
+                                                afternoonSections = afternoonSections,
+                                                eveningSections = eveningSections,
+                                                quickTimeEnabled = quickTimeEnabled,
+                                                classDuration = classDuration,
+                                                shortBreak = shortBreak,
+                                                longBreakEnabled = longBreakEnabled,
+                                                longBreakMorning = longBreakMorning,
+                                                longBreakAfternoon = longBreakAfternoon,
+                                                longBreakEvening = longBreakEvening,
+                                                longBreakMorningSection = longBreakMorningSection,
+                                                longBreakAfternoonSection = longBreakAfternoonSection,
+                                                longBreakEveningSection = longBreakEveningSection,
+                                                morningStartHour = morningStartHour,
+                                                morningStartMinute = morningStartMinute,
+                                                afternoonStartHour = afternoonStartHour,
+                                                afternoonStartMinute = afternoonStartMinute,
+                                                eveningStartHour = eveningStartHour,
+                                                eveningStartMinute = eveningStartMinute,
+                                                sectionTimes = finalSectionTimes
+                                            )
+                                            triggerExitAndBack(onSavePending = { onSave(newConfig) })
+                                        },
+                                        backdrop = liquidGlassBackdrop,
+                                        icon = MiuixIcons.Ok,
                                         contentDescription = "保存并关闭",
-                                        modifier = Modifier.size(26.dp)
+                                        iconSize = 25.dp,
+                                        backdropAlpha = backdropAlpha,
+                                        shadowAlpha = shadowAlpha,
                                     )
-                                }
-                            }
-                            if (isTablet) {
-                                SmallTopAppBar(
-                                    modifier = topBarModifier,
-                                    color = topBarColor,
-                                    title = screenTitle,
-                                    scrollBehavior = scrollBehavior,
-                                    navigationIconPadding = 20.dp,
-                                    navigationIcon = navIcon,
-                                    actions = actionsSlot
-                                )
-                            } else {
-                                TopAppBar(
-                                    modifier = topBarModifier,
-                                    color = topBarColor,
-                                    title = screenTitle, largeTitle = screenTitle,
-                                    scrollBehavior = scrollBehavior,
-                                    navigationIconPadding = 20.dp,
-                                    navigationIcon = navIcon,
-                                    actions = actionsSlot
-                                )
-                            }
+                                },
+                            )
                         }
-                    }
+                    },
                 ) { paddingValues ->
                     Box(
                         modifier = Modifier
@@ -799,6 +637,9 @@ fun TimeConfigEditScreen(
                                 contentColor = MiuixTheme.colorScheme.onSurface
                             )
                         ) {
+                            val topBarHeightDp = with(density) {
+                                scrollBehavior.currentHeightPx.toDp()
+                            }
                             LazyColumn(
                                 state = listState,
                                 modifier = Modifier.fillMaxSize()
@@ -806,12 +647,10 @@ fun TimeConfigEditScreen(
                                     .scrollEndHaptic(
                                         hapticFeedbackType = HapticFeedbackType.TextHandleMove
                                     )
-                                    .then(
-                                        if (!isLiquidGlass) Modifier.nestedScroll(scrollBehavior.nestedScrollConnection) else Modifier
-                                    ),
+                                    .nestedScroll(scrollBehavior.nestedScrollConnection),
                                 contentPadding = PaddingValues(
                                     start = tabletHorizontalPadding,
-                                    top = if (isLiquidGlass) paddingValues.calculateTopPadding() + (-16).dp else paddingValues.calculateTopPadding(),
+                                    top = paddingValues.calculateTopPadding() + topBarHeightDp - 82.dp,
                                     end = tabletHorizontalPadding,
                                     bottom = 120.dp
                                 ),
