@@ -24,13 +24,11 @@ import androidx.compose.runtime.Stable
 import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
-import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.Saver
 import androidx.compose.runtime.saveable.listSaver
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
-import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.blur
 import androidx.compose.ui.draw.drawBehind
@@ -54,11 +52,11 @@ import androidx.compose.ui.unit.sp
 import androidx.compose.ui.util.fastFirst
 import androidx.compose.ui.util.lerp
 import androidx.compose.ui.zIndex
+import com.haooz.chedule.ui.utils.LocalOverScrollState
 import com.haooz.chedule.ui.utils.isAppDarkTheme
 import kotlinx.coroutines.launch
 import top.yukonga.miuix.kmp.anim.folmeSpring
 import top.yukonga.miuix.kmp.theme.MiuixTheme
-import top.yukonga.miuix.kmp.utils.LocalOverScrollState
 import kotlin.math.abs
 import kotlin.math.roundToInt
 
@@ -286,16 +284,6 @@ fun CollapsibleTopAppBar(
     val state = scrollBehavior?.state
 
     val overScrollState = LocalOverScrollState.current
-    val lastOverScrollActive = remember { mutableStateOf(overScrollState.isOverScrollActive) }
-    LaunchedEffect(overScrollState) {
-        snapshotFlow { overScrollState.isOverScrollActive }
-            .collect { isActive ->
-                if (lastOverScrollActive.value && !isActive) {
-                    scrollBehavior?.postCollapseScrollOffset = 0f
-                }
-                lastOverScrollActive.value = isActive
-            }
-    }
 
 
     val scrolledOffset = remember(scrollBehavior) {
@@ -343,18 +331,17 @@ fun CollapsibleTopAppBar(
         }
     }
     val density = LocalDensity.current
-    val showButtonShadow = remember(scrollBehavior, showShadow, showLargeTitle) {
+    val collapsedHeightPx = with(density) { CollapsibleTopAppBarDefaults.CollapsedHeight.toPx() }
+    val showButtonShadow = remember(scrollBehavior, showShadow, showLargeTitle, overScrollState.offset) {
         derivedStateOf {
             if (showShadow != null) return@derivedStateOf showShadow
-            if (showLargeTitle) {
-                // 大标题模式：使用 postCollapseScrollOffset 检测
-                val offset = scrollBehavior?.postCollapseScrollOffset ?: 0f
-                offset > 10f
-            } else {
-                // 小标题模式：原方案
-                val postCollapseScrollOffset = scrollBehavior?.postCollapseScrollOffset ?: 0f
-                postCollapseScrollOffset > 10f
-            }
+            val contentOffset = scrollBehavior?.state?.contentOffset ?: 0f
+            val overscrollOffset = overScrollState.offset
+            // 正常滚动检测：内容滚动超过按钮高度
+            if (contentOffset < -collapsedHeightPx) return@derivedStateOf true
+            // 向下回弹检测：内容在顶部且向下回弹（overscrollOffset < 0）
+            if (contentOffset >= 0f && overscrollOffset < 0f) return@derivedStateOf true
+            false
         }
     }
     val shadowAlpha = remember { Animatable(if (showButtonShadow.value) 1f else 0f) }

@@ -1,4 +1,4 @@
-﻿/** 学校选择页面 - 用于教务系统导入时选择学校 */
+/** 学校选择页面 - 用于教务系统导入时选择学校 */
 package com.haooz.chedule.ui.screens
 
 import android.annotation.SuppressLint
@@ -75,7 +75,7 @@ import top.yukonga.miuix.kmp.icon.extended.ChevronBackward
 import top.yukonga.miuix.kmp.icon.extended.Update
 import top.yukonga.miuix.kmp.overlay.OverlayDialog
 import top.yukonga.miuix.kmp.theme.MiuixTheme
-import top.yukonga.miuix.kmp.utils.overScrollVertical
+import com.haooz.chedule.ui.utils.overScrollVertical
 import top.yukonga.miuix.kmp.utils.scrollEndHaptic
 
 @SuppressLint("ConfigurationScreenWidthHeight")

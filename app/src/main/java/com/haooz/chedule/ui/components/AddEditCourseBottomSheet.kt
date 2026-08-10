@@ -1,4 +1,4 @@
-﻿/** 添加课程底部弹窗 */
+/** 添加课程底部弹窗 */
 package com.haooz.chedule.ui.components
 
 import android.annotation.SuppressLint
@@ -59,7 +59,7 @@ import top.yukonga.miuix.kmp.overlay.OverlayDialog
 import top.yukonga.miuix.kmp.preference.ArrowPreference
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 import top.yukonga.miuix.kmp.utils.PressFeedbackType
-import top.yukonga.miuix.kmp.utils.overScrollVertical
+import com.haooz.chedule.ui.utils.overScrollVertical
 import top.yukonga.miuix.kmp.utils.scrollEndHaptic
 import java.util.UUID
 

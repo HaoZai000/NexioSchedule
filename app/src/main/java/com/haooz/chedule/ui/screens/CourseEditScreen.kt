@@ -1,4 +1,4 @@
-﻿/** 课程编辑页面 - 修改课程时段/周次 */
+/** 课程编辑页面 - 修改课程时段/周次 */
 package com.haooz.chedule.ui.screens
 
 import android.annotation.SuppressLint
@@ -95,7 +95,7 @@ import top.yukonga.miuix.kmp.icon.extended.ChevronBackward
 import top.yukonga.miuix.kmp.icon.extended.Delete
 import top.yukonga.miuix.kmp.overlay.OverlayDialog
 import top.yukonga.miuix.kmp.theme.MiuixTheme
-import top.yukonga.miuix.kmp.utils.overScrollVertical
+import com.haooz.chedule.ui.utils.overScrollVertical
 import top.yukonga.miuix.kmp.utils.scrollEndHaptic
 import kotlin.time.Duration.Companion.milliseconds
 import androidx.compose.ui.graphics.Color as ComposeColor

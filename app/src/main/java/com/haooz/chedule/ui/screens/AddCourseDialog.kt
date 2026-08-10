@@ -1,4 +1,4 @@
-﻿/** 添加/编辑课程对话框 - Blur版本 */
+/** 添加/编辑课程对话框 - Blur版本 */
 package com.haooz.chedule.ui.screens
 
 import android.annotation.SuppressLint
@@ -81,7 +81,7 @@ import top.yukonga.miuix.kmp.overlay.OverlayDialog
 import top.yukonga.miuix.kmp.preference.ArrowPreference
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 import top.yukonga.miuix.kmp.utils.PressFeedbackType
-import top.yukonga.miuix.kmp.utils.overScrollVertical
+import com.haooz.chedule.ui.utils.overScrollVertical
 import top.yukonga.miuix.kmp.utils.scrollEndHaptic
 import java.util.UUID
 
