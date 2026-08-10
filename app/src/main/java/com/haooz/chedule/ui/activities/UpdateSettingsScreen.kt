@@ -93,7 +93,10 @@ private fun isNewerVersion(remote: String, local: String): Boolean {
     return false
 }
 
-private fun checkForUpdate(context: Context, source: String = "gitee"): Pair<Boolean, GiteeRelease?> {
+private fun checkForUpdate(
+    context: Context,
+    source: String = "gitee"
+): Pair<Boolean, GiteeRelease?> {
     return try {
         val client = okhttp3.OkHttpClient.Builder()
             .connectTimeout(10, java.util.concurrent.TimeUnit.SECONDS)
@@ -142,7 +145,9 @@ private fun checkForUpdate(context: Context, source: String = "gitee"): Pair<Boo
 
         val currentVersion = try {
             context.packageManager.getPackageInfo(context.packageName, 0).versionName ?: ""
-        } catch (_: Exception) { "" }
+        } catch (_: Exception) {
+            ""
+        }
 
         val tagVersion = tagName.removePrefix("v").substringBefore("-")
         val appVersion = currentVersion.removePrefix("v").substringBefore("-")
@@ -167,12 +172,18 @@ fun UpdateSettingsScreen(
 
     var autoCheckUpdate by remember { mutableStateOf(prefs.getBoolean("auto_check_update", true)) }
     var updateReminder by remember { mutableStateOf(prefs.getBoolean("update_reminder", true)) }
-    var downloadSource by remember { mutableStateOf(prefs.getString("download_source", "gitee") ?: "gitee") }
+    var downloadSource by remember {
+        mutableStateOf(
+            prefs.getString("download_source", "gitee") ?: "gitee"
+        )
+    }
 
     val currentVersion = remember {
         try {
             context.packageManager.getPackageInfo(context.packageName, 0).versionName ?: "未知"
-        } catch (_: Exception) { "未知" }
+        } catch (_: Exception) {
+            "未知"
+        }
     }
 
     var isChecking by remember { mutableStateOf(false) }
@@ -185,7 +196,14 @@ fun UpdateSettingsScreen(
         val savedBody = prefs.getString("latest_body", null)
         val savedDate = prefs.getString("latest_date", null)
         mutableStateOf(
-            if (savedUrl != null && savedTag != null) GiteeRelease(savedTag, savedName ?: "", savedBody ?: "", savedUrl, savedApkUrl ?: "", savedDate ?: "")
+            if (savedUrl != null && savedTag != null) GiteeRelease(
+                savedTag,
+                savedName ?: "",
+                savedBody ?: "",
+                savedUrl,
+                savedApkUrl ?: "",
+                savedDate ?: ""
+            )
             else null
         )
     }
@@ -200,7 +218,8 @@ fun UpdateSettingsScreen(
     LaunchedEffect(Unit) {
         if (autoCheckUpdate) {
             val lastCheckDate = prefs.getString("last_check_date", "")
-            val today = java.text.SimpleDateFormat("yyyy-MM-dd", java.util.Locale.getDefault()).format(java.util.Date())
+            val today = java.text.SimpleDateFormat("yyyy-MM-dd", java.util.Locale.getDefault())
+                .format(java.util.Date())
             if (lastCheckDate != today) {
                 isChecking = true
                 val (update, release) = withContext(Dispatchers.IO) {
@@ -266,7 +285,8 @@ fun UpdateSettingsScreen(
                         hapticFeedbackType = HapticFeedbackType.TextHandleMove
                     )
                     .then(
-                        scrollBehavior?.let { Modifier.nestedScroll(it.nestedScrollConnection) } ?: Modifier
+                        scrollBehavior?.let { Modifier.nestedScroll(it.nestedScrollConnection) }
+                            ?: Modifier
                     ),
                 contentPadding = PaddingValues(
                     start = tabletHorizontalPadding,
@@ -338,7 +358,10 @@ fun UpdateSettingsScreen(
                                 onClick = {
                                     hapticFeedback.performHapticFeedback(HapticFeedbackType.VirtualKey)
                                     if (hasUpdate && latestRelease != null) {
-                                        val apkFile = File(context.filesDir, "update-${latestRelease!!.tagName}.apk")
+                                        val apkFile = File(
+                                            context.filesDir,
+                                            "update-${latestRelease!!.tagName}.apk"
+                                        )
                                         if (apkFile.exists() && apkFile.length() > 0) {
                                             downloadedFile = apkFile
                                             downloadComplete = true
@@ -377,7 +400,10 @@ fun UpdateSettingsScreen(
                                                         .putString("latest_body", release.body)
                                                         .putString("latest_date", release.createdAt)
                                                 }
-                                                val apkFile = File(context.filesDir, "update-${release.tagName}.apk")
+                                                val apkFile = File(
+                                                    context.filesDir,
+                                                    "update-${release.tagName}.apk"
+                                                )
                                                 if (apkFile.exists() && apkFile.length() > 0) {
                                                     downloadedFile = apkFile
                                                     downloadComplete = true
@@ -390,9 +416,17 @@ fun UpdateSettingsScreen(
                                                 isInstalling = false
                                             } else if (!update) {
                                                 if (release == null) {
-                                                    Toast.makeText(context, "检查更新失败，请检查网络连接", Toast.LENGTH_SHORT).show()
+                                                    Toast.makeText(
+                                                        context,
+                                                        "检查更新失败，请检查网络连接",
+                                                        Toast.LENGTH_SHORT
+                                                    ).show()
                                                 } else {
-                                                    Toast.makeText(context, "当前已是最新版本", Toast.LENGTH_SHORT).show()
+                                                    Toast.makeText(
+                                                        context,
+                                                        "当前已是最新版本",
+                                                        Toast.LENGTH_SHORT
+                                                    ).show()
                                                 }
                                             }
                                         }
@@ -503,23 +537,35 @@ fun UpdateSettingsScreen(
                         Spacer(modifier = Modifier.height(8.dp))
                         LinearProgressIndicator(modifier = Modifier.fillMaxWidth())
                     } else if (isDownloading) {
-                        LinearProgressIndicator(progress = downloadProgress, modifier = Modifier.fillMaxWidth())
+                        LinearProgressIndicator(
+                            progress = downloadProgress,
+                            modifier = Modifier.fillMaxWidth()
+                        )
                         Spacer(modifier = Modifier.height(8.dp))
-                        Text(text = "${(downloadProgress * 100).toInt()}%", fontSize = 14.sp, color = MiuixTheme.colorScheme.onSurfaceVariantActions)
+                        Text(
+                            text = "${(downloadProgress * 100).toInt()}%",
+                            fontSize = 14.sp,
+                            color = MiuixTheme.colorScheme.onSurfaceVariantActions
+                        )
                     } else if (downloadComplete) {
                         Spacer(modifier = Modifier.height(0.dp))
                     }
                     Spacer(modifier = Modifier.height(16.dp))
-                    Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(12.dp)
+                    ) {
                         if (!isInstalling) {
-                            TextButton(text = "取消",
+                            TextButton(
+                                text = "取消",
                                 onClick = {
                                     hapticFeedback.performHapticFeedback(HapticFeedbackType.Confirm)
                                     showDownloadDialog = false
                                     downloadComplete = false
                                     downloadProgress = 0f
                                     isDownloading = false
-                                }, modifier = Modifier.weight(1f))
+                                }, modifier = Modifier.weight(1f)
+                            )
                         }
                         if (downloadComplete && !isInstalling) {
                             Button(
@@ -530,49 +576,103 @@ fun UpdateSettingsScreen(
                                     downloadedFile?.let { installApk(context, it) }
                                 },
                                 colors = top.yukonga.miuix.kmp.basic.ButtonDefaults.buttonColorsPrimary()
-                            ) { Text(text = "安装", fontSize = 17.sp, fontWeight = FontWeight.Medium, color = ComposeColor.White) }
+                            ) {
+                                Text(
+                                    text = "安装",
+                                    fontSize = 17.sp,
+                                    fontWeight = FontWeight.Medium,
+                                    color = ComposeColor.White
+                                )
+                            }
                         } else if (!isInstalling && !isDownloading) {
                             Button(
                                 modifier = Modifier.weight(1f),
                                 onClick = {
                                     hapticFeedback.performHapticFeedback(HapticFeedbackType.Confirm)
-                                    isDownloading = true; downloadProgress = 0f; downloadComplete = false
+                                    isDownloading = true; downloadProgress = 0f; downloadComplete =
+                                    false
                                     coroutineScope.launch {
                                         withContext(Dispatchers.IO) {
                                             try {
                                                 val apkUrl = latestRelease?.apkUrl
                                                 if (apkUrl.isNullOrBlank()) {
-                                                    withContext(Dispatchers.Main) { Toast.makeText(context, "未找到下载链接", Toast.LENGTH_SHORT).show(); isDownloading = false; showDownloadDialog = false }
+                                                    withContext(Dispatchers.Main) {
+                                                        Toast.makeText(
+                                                            context,
+                                                            "未找到下载链接",
+                                                            Toast.LENGTH_SHORT
+                                                        ).show(); isDownloading =
+                                                        false; showDownloadDialog = false
+                                                    }
                                                     return@withContext
                                                 }
                                                 val url = URL(apkUrl)
-                                            val connection = url.openConnection() as HttpURLConnection
-                                            connection.connectTimeout = 30000; connection.readTimeout = 30000; connection.connect()
-                                            val fileSize = connection.contentLength.toLong()
-                                            val fileName = "update-${latestRelease?.tagName}.apk"
-                                            val file = File(context.filesDir, fileName)
-                                            connection.inputStream.use { input ->
-                                                FileOutputStream(file).use { output ->
-                                                    val buffer = ByteArray(8192); var bytesRead: Int; var totalRead = 0L
-                                                    while (input.read(buffer).also { bytesRead = it } != -1) {
-                                                        output.write(buffer, 0, bytesRead); totalRead += bytesRead
-                                                        if (fileSize > 0) downloadProgress = (totalRead.toFloat() / fileSize).coerceIn(0f, 1f)
+                                                val connection =
+                                                    url.openConnection() as HttpURLConnection
+                                                connection.connectTimeout =
+                                                    30000; connection.readTimeout =
+                                                    30000; connection.connect()
+                                                val fileSize = connection.contentLength.toLong()
+                                                val fileName =
+                                                    "update-${latestRelease?.tagName}.apk"
+                                                val file = File(context.filesDir, fileName)
+                                                connection.inputStream.use { input ->
+                                                    FileOutputStream(file).use { output ->
+                                                        val buffer = ByteArray(8192)
+                                                        var bytesRead: Int
+                                                        var totalRead = 0L
+                                                        while (input.read(buffer)
+                                                                .also { bytesRead = it } != -1
+                                                        ) {
+                                                            output.write(
+                                                                buffer,
+                                                                0,
+                                                                bytesRead
+                                                            ); totalRead += bytesRead
+                                                            if (fileSize > 0) downloadProgress =
+                                                                (totalRead.toFloat() / fileSize).coerceIn(
+                                                                    0f,
+                                                                    1f
+                                                                )
+                                                        }
                                                     }
                                                 }
+                                                downloadedFile = file; downloadComplete =
+                                                    true; isDownloading = false
+                                            } catch (e: Exception) {
+                                                withContext(Dispatchers.Main) {
+                                                    Toast.makeText(
+                                                        context,
+                                                        "下载失败: ${e.message}",
+                                                        Toast.LENGTH_SHORT
+                                                    ).show(); isDownloading =
+                                                    false; showDownloadDialog = false
+                                                }
                                             }
-                                            downloadedFile = file; downloadComplete = true; isDownloading = false
-                                        } catch (e: Exception) {
-                                            withContext(Dispatchers.Main) { Toast.makeText(context, "下载失败: ${e.message}", Toast.LENGTH_SHORT).show(); isDownloading = false; showDownloadDialog = false }
                                         }
                                     }
-                                }
-                            },
-                            colors = top.yukonga.miuix.kmp.basic.ButtonDefaults.buttonColorsPrimary()
-                        ) {
-                            Text(text = "开始下载", fontSize = 17.sp, fontWeight = FontWeight.Medium, color = ComposeColor.White)
+                                },
+                                colors = top.yukonga.miuix.kmp.basic.ButtonDefaults.buttonColorsPrimary()
+                            ) {
+                                Text(
+                                    text = "开始下载",
+                                    fontSize = 17.sp,
+                                    fontWeight = FontWeight.Medium,
+                                    color = ComposeColor.White
+                                )
                             }
                         } else if (isDownloading) {
-                            Button(modifier = Modifier.weight(1f), enabled = false, onClick = {}) { Text(text = "正在下载", fontSize = 16.sp, fontWeight = FontWeight.Medium, color = if (isAppDarkTheme()) ComposeColor.White else ComposeColor.Black) }
+                            Button(
+                                modifier = Modifier.weight(1f),
+                                enabled = false,
+                                onClick = {}) {
+                                Text(
+                                    text = "正在下载",
+                                    fontSize = 16.sp,
+                                    fontWeight = FontWeight.Medium,
+                                    color = if (isAppDarkTheme()) ComposeColor.White else ComposeColor.Black
+                                )
+                            }
                         }
                     }
                 }

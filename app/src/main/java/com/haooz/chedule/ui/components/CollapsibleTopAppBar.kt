@@ -130,7 +130,10 @@ class SharedScrollBehavior(
         get() {
             if (connection == null) {
                 connection = object : NestedScrollConnection {
-                    override fun onPreScroll(available: Offset, source: NestedScrollSource): Offset {
+                    override fun onPreScroll(
+                        available: Offset,
+                        source: NestedScrollSource
+                    ): Offset {
                         if (available.y > 0) {
                             if (state.heightOffset > state.heightOffsetLimit) {
                                 postCollapseScrollOffset = 0f
@@ -171,11 +174,19 @@ class SharedScrollBehavior(
                         return Offset.Zero
                     }
 
-                    override suspend fun onPostFling(consumed: Velocity, available: Velocity): Velocity {
+                    override suspend fun onPostFling(
+                        consumed: Velocity,
+                        available: Velocity
+                    ): Velocity {
                         if (available.y > 0) {
                             state.contentOffset = 0f
                         }
-                        return settleAppBar(state, available.y, flingAnimationSpec, snapAnimationSpec)
+                        return settleAppBar(
+                            state,
+                            available.y,
+                            flingAnimationSpec,
+                            snapAnimationSpec
+                        )
                     }
                 }
             }
@@ -278,7 +289,7 @@ fun CollapsibleTopAppBar(
                 lastOverScrollActive.value = isActive
             }
     }
-    
+
 
     val scrolledOffset = remember(scrollBehavior) {
         { scrollBehavior?.state?.heightOffset ?: 0f }
@@ -317,17 +328,16 @@ fun CollapsibleTopAppBar(
     val smallTitleVisible by remember(state, showLargeTitle, showSmallTitle) {
         derivedStateOf {
             // 外部显式控制时使用外部值
-            if (showSmallTitle != null) showSmallTitle
+            showSmallTitle
             // 没有大标题时，小标题始终显示
-            else if (!showLargeTitle) true
-            // 默认：折叠到一定程度时显示
-            else (state?.collapsedFraction ?: 0f) >= 0.45f
+                ?: if (!showLargeTitle) true
+                // 默认：折叠到一定程度时显示
+                else (state?.collapsedFraction ?: 0f) >= 0.45f
         }
     }
     val showButtonShadow = remember(scrollBehavior, showShadow) {
         derivedStateOf {
-            if (showShadow != null) showShadow
-            else (scrollBehavior?.postCollapseScrollOffset ?: 0f) > 10f
+            showShadow ?: ((scrollBehavior?.postCollapseScrollOffset ?: 0f) > 10f)
         }
     }
     val shadowAlpha = remember { Animatable(if (showButtonShadow.value) 1f else 0f) }
@@ -347,7 +357,8 @@ fun CollapsibleTopAppBar(
     }
     val smallTitleAlpha = remember { Animatable(if (smallTitleVisible) 1f else 0f) }
     val smallTitleTranslationY = remember { Animatable(if (smallTitleVisible) 0f else 20f) }
-    val smallTitleBlur = remember { Animatable(if (smallTitleVisible) 0f else CollapsibleTopAppBarDefaults.MaxSmallTitleBlur.value) }
+    val smallTitleBlur =
+        remember { Animatable(if (smallTitleVisible) 0f else CollapsibleTopAppBarDefaults.MaxSmallTitleBlur.value) }
 
     LaunchedEffect(smallTitleVisible) {
         if (smallTitleVisible) {
@@ -359,7 +370,12 @@ fun CollapsibleTopAppBar(
             val hideSpec = folmeSpring<Float>(damping = 1.0f, response = 0.15f)
             launch { smallTitleAlpha.animateTo(0f, hideSpec) }
             launch { smallTitleTranslationY.animateTo(20f, hideSpec) }
-            launch { smallTitleBlur.animateTo(CollapsibleTopAppBarDefaults.MaxSmallTitleBlur.value, hideSpec) }
+            launch {
+                smallTitleBlur.animateTo(
+                    CollapsibleTopAppBarDefaults.MaxSmallTitleBlur.value,
+                    hideSpec
+                )
+            }
         }
     }
 

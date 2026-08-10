@@ -79,9 +79,11 @@ class UpdateSettingsActivity : ComponentActivity() {
                             .layerBackdrop(backdrop)
                     ) {
                         Box(
-                            modifier = Modifier.fillMaxSize().then(
-                                Modifier.liquidGlassLayerBackdrop(liquidGlassBackdrop)
-                            )
+                            modifier = Modifier
+                                .fillMaxSize()
+                                .then(
+                                    Modifier.liquidGlassLayerBackdrop(liquidGlassBackdrop)
+                                )
                         ) {
                             UpdateSettingsScreen(
                                 scrollBehavior = scrollBehavior,

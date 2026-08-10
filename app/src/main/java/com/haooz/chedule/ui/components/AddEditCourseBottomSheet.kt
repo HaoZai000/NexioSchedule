@@ -39,6 +39,8 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.haooz.chedule.data.Course
+import com.haooz.chedule.ui.effects.blur.BlurBottomSheet
+import com.haooz.chedule.ui.effects.blur.BlurBottomSheetTablet
 import com.haooz.chedule.ui.utils.isAppDarkTheme
 import top.yukonga.miuix.kmp.basic.ButtonDefaults
 import top.yukonga.miuix.kmp.basic.Card
@@ -60,8 +62,6 @@ import top.yukonga.miuix.kmp.utils.PressFeedbackType
 import top.yukonga.miuix.kmp.utils.overScrollVertical
 import top.yukonga.miuix.kmp.utils.scrollEndHaptic
 import java.util.UUID
-import com.haooz.chedule.ui.effects.blur.BlurBottomSheet
-import com.haooz.chedule.ui.effects.blur.BlurBottomSheetTablet
 
 /**
  * 添加课程底部弹窗
@@ -102,8 +102,16 @@ fun AddEditCourseBottomSheet(
     var classroom by remember(show) { mutableStateOf(editCourse?.classroom ?: defaultClassroom) }
     var teacher by remember(show) { mutableStateOf(editCourse?.teacher ?: defaultTeacher) }
     var dayOfWeek by remember(show) { mutableIntStateOf(editCourse?.dayOfWeek ?: 0) }
-    var startSection by remember(show) { mutableIntStateOf(editCourse?.startSection ?: latestCourse?.startSection ?: 0) }
-    var endSection by remember(show) { mutableIntStateOf(editCourse?.endSection ?: latestCourse?.endSection ?: 0) }
+    var startSection by remember(show) {
+        mutableIntStateOf(
+            editCourse?.startSection ?: latestCourse?.startSection ?: 0
+        )
+    }
+    var endSection by remember(show) {
+        mutableIntStateOf(
+            editCourse?.endSection ?: latestCourse?.endSection ?: 0
+        )
+    }
 
     // 节次选择弹窗状态
     var showSectionDialog by remember(show) { mutableStateOf(false) }
@@ -112,7 +120,11 @@ fun AddEditCourseBottomSheet(
 
     // 根据当前选择的星期和节次动态计算已占用的周次（排除自身）
     val currentOccupiedWeeks = remember(dayOfWeek, startSection, endSection) {
-        getOccupiedWeeks(dayOfWeek, startSection, endSection, editCourse?.let { listOf(it.id) } ?: emptyList())
+        getOccupiedWeeks(
+            dayOfWeek,
+            startSection,
+            endSection,
+            editCourse?.let { listOf(it.id) } ?: emptyList())
     }
 
     // 周次选择状态（编辑模式预填已选周次，每次弹窗打开时重置）
@@ -142,11 +154,13 @@ fun AddEditCourseBottomSheet(
     val oddWeeks = remember(allWeeks) { allWeeks.filter { it % 2 == 1 } }
     val evenWeeks = remember(allWeeks) { allWeeks.filter { it % 2 == 0 } }
 
-    val selectableWeeks = remember(allWeeks, currentOccupiedWeeks) { allWeeks.filter { it !in currentOccupiedWeeks } }
+    val selectableWeeks =
+        remember(allWeeks, currentOccupiedWeeks) { allWeeks.filter { it !in currentOccupiedWeeks } }
     val selectableOddWeeks = remember(selectableWeeks) { selectableWeeks.filter { it % 2 == 1 } }
     val selectableEvenWeeks = remember(selectableWeeks) { selectableWeeks.filter { it % 2 == 0 } }
 
-    val allSelectableSelected = selectableWeeks.isNotEmpty() && selectableWeeks.all { it in selectedWeeks }
+    val allSelectableSelected =
+        selectableWeeks.isNotEmpty() && selectableWeeks.all { it in selectedWeeks }
     val allSelectableOddSelected = selectableOddWeeks.all { it in selectedWeeks }
     val allSelectableEvenSelected = selectableEvenWeeks.all { it in selectedWeeks }
     val someSelectableOddSelected = selectableOddWeeks.any { it in selectedWeeks }
@@ -154,8 +168,10 @@ fun AddEditCourseBottomSheet(
     val isDark = isAppDarkTheme()
     val isTablet = LocalConfiguration.current.screenWidthDp >= 600
 
-    val hasOccupiedOddWeeks = remember(selectableOddWeeks, oddWeeks) { selectableOddWeeks.size != oddWeeks.size }
-    val hasOccupiedEvenWeeks = remember(selectableEvenWeeks, evenWeeks) { selectableEvenWeeks.size != evenWeeks.size }
+    val hasOccupiedOddWeeks =
+        remember(selectableOddWeeks, oddWeeks) { selectableOddWeeks.size != oddWeeks.size }
+    val hasOccupiedEvenWeeks =
+        remember(selectableEvenWeeks, evenWeeks) { selectableEvenWeeks.size != evenWeeks.size }
 
     val onConfirmClick: () -> Unit = {
         hapticFeedback.performHapticFeedback(HapticFeedbackType.Confirm)
@@ -188,7 +204,8 @@ fun AddEditCourseBottomSheet(
                 startWeek = minWeek,
                 endWeek = maxWeek,
                 weekType = weekType,
-                colorRes = editCourse?.colorRes ?: courses.firstOrNull()?.colorRes ?: Course.courseColors.first(),
+                colorRes = editCourse?.colorRes ?: courses.firstOrNull()?.colorRes
+                ?: Course.courseColors.first(),
                 selectedWeeks = weeksToSave,
                 lastModified = System.currentTimeMillis()
             )
@@ -237,7 +254,9 @@ fun AddEditCourseBottomSheet(
                 modifier = Modifier.padding(end = 20.dp),
                 iconSize = 23.dp,
                 iconTint = Color.White,
-                containerColor = if (isAppDarkTheme()) MiuixTheme.colorScheme.primary.copy(alpha = 0.8f) else MiuixTheme.colorScheme.primary.copy(alpha = 0.9f)
+                containerColor = if (isAppDarkTheme()) MiuixTheme.colorScheme.primary.copy(alpha = 0.8f) else MiuixTheme.colorScheme.primary.copy(
+                    alpha = 0.9f
+                )
             )
         } else {
             IconButton(
@@ -271,7 +290,9 @@ fun AddEditCourseBottomSheet(
                 cornerRadius = 20.dp,
                 modifier = Modifier.fillMaxWidth(),
                 colors = CardDefaults.defaultColors(
-                    color = if (isAppDarkTheme()) Color(0xFF363636).copy(alpha = 0.62f) else Color(0xFFFFFFFF).copy(alpha = 0.7f),
+                    color = if (isAppDarkTheme()) Color(0xFF363636).copy(alpha = 0.62f) else Color(
+                        0xFFFFFFFF
+                    ).copy(alpha = 0.7f),
                     contentColor = MiuixTheme.colorScheme.onSurface
                 ),
             ) {
@@ -334,7 +355,9 @@ fun AddEditCourseBottomSheet(
                 cornerRadius = 20.dp,
                 modifier = Modifier.fillMaxWidth(),
                 colors = CardDefaults.defaultColors(
-                    color = if (isAppDarkTheme()) Color(0xFF363636).copy(alpha = 0.62f) else Color(0xFFFFFFFF).copy(alpha = 0.7f),
+                    color = if (isAppDarkTheme()) Color(0xFF363636).copy(alpha = 0.62f) else Color(
+                        0xFFFFFFFF
+                    ).copy(alpha = 0.7f),
                     contentColor = MiuixTheme.colorScheme.onSurface
                 ),
             ) {
@@ -355,7 +378,8 @@ fun AddEditCourseBottomSheet(
                         modifier = Modifier.fillMaxWidth(),
                         horizontalArrangement = Arrangement.spacedBy(6.dp)
                     ) {
-                        val dayLabels = remember { listOf("一", "二", "三", "四", "五", "六", "日") }
+                        val dayLabels =
+                            remember { listOf("一", "二", "三", "四", "五", "六", "日") }
                         for (day in 1..7) {
                             val isSelected = day == dayOfWeek
                             Card(
@@ -395,7 +419,9 @@ fun AddEditCourseBottomSheet(
                 cornerRadius = 20.dp,
                 modifier = Modifier.fillMaxWidth(),
                 colors = CardDefaults.defaultColors(
-                    color = if (isAppDarkTheme()) Color(0xFF363636).copy(alpha = 0.62f) else Color(0xFFFFFFFF).copy(alpha = 0.7f),
+                    color = if (isAppDarkTheme()) Color(0xFF363636).copy(alpha = 0.62f) else Color(
+                        0xFFFFFFFF
+                    ).copy(alpha = 0.7f),
                     contentColor = MiuixTheme.colorScheme.onSurface
                 ),
             ) {
@@ -421,9 +447,13 @@ fun AddEditCourseBottomSheet(
             val noDaySelected = dayOfWeek == 0
             Card(
                 cornerRadius = 20.dp,
-                modifier = Modifier.fillMaxWidth().alpha(if (noDaySelected) 0.5f else 1f),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .alpha(if (noDaySelected) 0.5f else 1f),
                 colors = CardDefaults.defaultColors(
-                    color = if (isAppDarkTheme()) Color(0xFF363636).copy(alpha = 0.62f) else Color(0xFFFFFFFF).copy(alpha = 0.7f),
+                    color = if (isAppDarkTheme()) Color(0xFF363636).copy(alpha = 0.62f) else Color(
+                        0xFFFFFFFF
+                    ).copy(alpha = 0.7f),
                     contentColor = MiuixTheme.colorScheme.onSurface
                 ),
             ) {
@@ -466,11 +496,17 @@ fun AddEditCourseBottomSheet(
                                         }
                                     },
                                     colors = CheckboxDefaults.checkboxColors(
-                                        uncheckedBackgroundColor = if (isDark) Color(0xFF505050) else Color(0xFFF7F7F7)
+                                        uncheckedBackgroundColor = if (isDark) Color(0xFF505050) else Color(
+                                            0xFFF7F7F7
+                                        )
                                     )
                                 )
                                 Spacer(modifier = Modifier.width(4.dp))
-                                Text(text = "全部", style = MiuixTheme.textStyles.body2, color = MiuixTheme.colorScheme.onSurfaceVariantSummary)
+                                Text(
+                                    text = "全部",
+                                    style = MiuixTheme.textStyles.body2,
+                                    color = MiuixTheme.colorScheme.onSurfaceVariantSummary
+                                )
                             }
 
                             // 单周
@@ -498,11 +534,17 @@ fun AddEditCourseBottomSheet(
                                         }
                                     },
                                     colors = CheckboxDefaults.checkboxColors(
-                                        uncheckedBackgroundColor = if (isDark) Color(0xFF505050) else Color(0xFFF7F7F7)
+                                        uncheckedBackgroundColor = if (isDark) Color(0xFF505050) else Color(
+                                            0xFFF7F7F7
+                                        )
                                     )
                                 )
                                 Spacer(modifier = Modifier.width(4.dp))
-                                Text(text = "单周", style = MiuixTheme.textStyles.body2, color = MiuixTheme.colorScheme.onSurfaceVariantSummary)
+                                Text(
+                                    text = "单周",
+                                    style = MiuixTheme.textStyles.body2,
+                                    color = MiuixTheme.colorScheme.onSurfaceVariantSummary
+                                )
                             }
 
                             // 双周
@@ -530,11 +572,17 @@ fun AddEditCourseBottomSheet(
                                         }
                                     },
                                     colors = CheckboxDefaults.checkboxColors(
-                                        uncheckedBackgroundColor = if (isDark) Color(0xFF505050) else Color(0xFFF7F7F7)
+                                        uncheckedBackgroundColor = if (isDark) Color(0xFF505050) else Color(
+                                            0xFFF7F7F7
+                                        )
                                     )
                                 )
                                 Spacer(modifier = Modifier.width(4.dp))
-                                Text(text = "双周", style = MiuixTheme.textStyles.body2, color = MiuixTheme.colorScheme.onSurfaceVariantSummary)
+                                Text(
+                                    text = "双周",
+                                    style = MiuixTheme.textStyles.body2,
+                                    color = MiuixTheme.colorScheme.onSurfaceVariantSummary
+                                )
                             }
                         }
                     }
@@ -543,7 +591,8 @@ fun AddEditCourseBottomSheet(
 
                     // 周次网格
                     val columns = 6
-                    val rows = remember(totalWeeks, columns) { (totalWeeks + columns - 1) / columns }
+                    val rows =
+                        remember(totalWeeks, columns) { (totalWeeks + columns - 1) / columns }
                     val primaryColor = MiuixTheme.colorScheme.primary
                     val outlineColor = MiuixTheme.colorScheme.outline
                     val onSurfaceSummaryColor = MiuixTheme.colorScheme.onSurfaceVariantSummary
