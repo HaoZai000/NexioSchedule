@@ -82,6 +82,7 @@ import androidx.window.embedding.SplitController
 import com.haooz.chedule.data.Course
 import com.haooz.chedule.reminder.CourseReminderHelper
 import com.haooz.chedule.reminder.IslandNotificationHelper
+import com.haooz.chedule.ui.components.CollapsibleTopAppBar
 import com.haooz.chedule.ui.components.CourseCard
 import com.haooz.chedule.ui.components.LongPressCustomizeButton
 import com.haooz.chedule.ui.components.ScheduleBottomBar
@@ -90,6 +91,7 @@ import com.haooz.chedule.ui.components.ShareImportDialog
 import com.haooz.chedule.ui.components.ShortcutMenu
 import com.haooz.chedule.ui.components.ShortcutMenuItem
 import com.haooz.chedule.ui.components.UpdateDialog
+import com.haooz.chedule.ui.components.rememberSharedScrollBehavior
 import com.haooz.chedule.ui.effects.liquidglass.LiquidAddButton
 import com.haooz.chedule.ui.effects.liquidglass.LiquidGlassDropdownMenu
 import com.haooz.chedule.ui.effects.liquidglass.LiquidGlassDropdownMenuItem
@@ -318,9 +320,9 @@ fun CourseScheduleApp() {
     var isExitingShift by remember { mutableStateOf(false) }
     var shiftModeInitialized by remember { mutableStateOf(false) }
     var settingsScrollY by remember { mutableIntStateOf(0) }
-    val settingsScrollBehavior = MiuixScrollBehavior()
+    val settingsScrollBehavior = rememberSharedScrollBehavior()
     var todayScrollY by remember { mutableIntStateOf(0) }
-    val todayScrollBehavior = MiuixScrollBehavior()
+    val todayScrollBehavior = rememberSharedScrollBehavior()
 
     // 初始化 SyncManager
     LaunchedEffect(Unit) {
@@ -1378,6 +1380,7 @@ fun CourseScheduleApp() {
                         SettingsTopBar(
                             liquidGlassBackdrop = liquidGlassBackdrop,
                             navBarStyle = navBarStyle,
+                            scrollBehavior = settingsScrollBehavior,
                         )
                     }
                     // 今日页标题栏（液态玻璃模式下在 Activity 层级渲染）
@@ -1388,7 +1391,8 @@ fun CourseScheduleApp() {
                             currentDayOfWeek = todaySelectedDayOfWeek,
                             isToday = todayIsToday,
                             onBackToToday = { scrollToTodayTrigger++ },
-                            onMoreClick = { showTodayMorePopup = true }
+                            onMoreClick = { showTodayMorePopup = true },
+                            scrollBehavior = todayScrollBehavior,
                         )
                     }
                 }
@@ -3179,6 +3183,7 @@ fun CourseScheduleApp() {
 private fun SettingsTopBar(
     liquidGlassBackdrop: com.kyant.backdrop.Backdrop?,
     navBarStyle: String,
+    scrollBehavior: com.haooz.chedule.ui.components.SharedScrollBehavior? = null,
 ) {
     if (liquidGlassBackdrop == null) return
     val appStyle = rememberAppStyle()
@@ -3188,12 +3193,13 @@ private fun SettingsTopBar(
     ProgressiveBlurTopBar(
         backdrop = liquidGlassBackdrop,
     ) {
-        SmallTopAppBar(
-            color = Color.Transparent,
-            title = if (isTabletLiquidGlass) "" else "我的",
+        CollapsibleTopAppBar(
+            title = "我的",
+            largeTitle = "我的",
             modifier = Modifier.zIndex(1f),
-            navigationIcon = if (isTabletLiquidGlass) {
-                {
+            scrollBehavior = scrollBehavior,
+            startAction = if (isTabletLiquidGlass) {
+                { _, _ ->
                     Text(
                         text = "我的",
                         fontSize = 21.sp,
@@ -3202,9 +3208,7 @@ private fun SettingsTopBar(
                         modifier = Modifier.padding(start = 12.dp)
                     )
                 }
-            } else {
-                {}
-            },
+            } else null,
         )
     }
 }
@@ -3217,6 +3221,7 @@ private fun TodayTopBar(
     isToday: Boolean = true,
     onBackToToday: () -> Unit = {},
     onMoreClick: () -> Unit = {},
+    scrollBehavior: com.haooz.chedule.ui.components.SharedScrollBehavior? = null,
 ) {
     if (liquidGlassBackdrop == null) return
     val appStyle = rememberAppStyle()
@@ -3229,12 +3234,13 @@ private fun TodayTopBar(
     ProgressiveBlurTopBar(
         backdrop = liquidGlassBackdrop,
     ) {
-        SmallTopAppBar(
-            color = Color.Transparent,
-            title = if (isTabletLiquidGlass) "" else titleText,
+        CollapsibleTopAppBar(
+            title = titleText,
+            largeTitle = titleText,
             modifier = Modifier.zIndex(1f),
-            navigationIcon = {
-                if (isTabletLiquidGlass) {
+            scrollBehavior = scrollBehavior,
+            startAction = if (isTabletLiquidGlass) {
+                { _, _ ->
                     Text(
                         text = titleText,
                         fontSize = 21.sp,
@@ -3242,7 +3248,9 @@ private fun TodayTopBar(
                         color = MiuixTheme.colorScheme.onSurface,
                         modifier = Modifier.padding(start = 12.dp)
                     )
-                } else {
+                }
+            } else {
+                { backdropAlpha, shadowAlpha ->
                     AnimatedVisibility(
                         visible = !isToday,
                         enter = fadeIn(animationSpec = tween(180)),
@@ -3254,21 +3262,25 @@ private fun TodayTopBar(
                             icon = MiuixIcons.Medium.Reset,
                             contentDescription = "返回今天",
                             iconSize = 22.dp,
-                            modifier = Modifier.padding(start = 4.dp)
+                            modifier = Modifier.padding(start = 4.dp),
+                            backdropAlpha = backdropAlpha,
+                            shadowAlpha = shadowAlpha,
                         )
                     }
                 }
             },
-            actions = {
+            endAction = { backdropAlpha, shadowAlpha ->
                 LiquidTopBarButton(
                     onClick = onMoreClick,
                     backdrop = liquidGlassBackdrop,
                     icon = MiuixIcons.More,
                     contentDescription = "更多",
                     iconSize = 20.dp,
-                    modifier = Modifier.padding(end = 4.dp)
+                    modifier = Modifier.padding(end = 4.dp),
+                    backdropAlpha = backdropAlpha,
+                    shadowAlpha = shadowAlpha,
                 )
-            }
+            },
         )
     }
 }

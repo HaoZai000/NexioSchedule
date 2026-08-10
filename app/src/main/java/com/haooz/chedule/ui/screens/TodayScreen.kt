@@ -40,10 +40,8 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.RectangleShape
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.graphics.graphicsLayer
-import androidx.compose.ui.graphics.lerp
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.layout.ContentScale
@@ -63,7 +61,6 @@ import com.haooz.chedule.ui.effects.edgelight.edgeLight
 import com.haooz.chedule.ui.effects.edgelight.rememberCardEdgeLight
 import com.haooz.chedule.ui.effects.edgelight.rememberDefaultEdgeLight
 import com.haooz.chedule.ui.utils.isAppDarkTheme
-import com.haooz.chedule.ui.utils.rememberAppStyle
 import com.haooz.chedule.viewmodel.CourseViewModel
 import com.haooz.chedule.viewmodel.SettingsViewModel
 import com.kyant.backdrop.Backdrop
@@ -75,26 +72,15 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import top.yukonga.miuix.kmp.basic.Card
 import top.yukonga.miuix.kmp.basic.DropdownImpl
-import top.yukonga.miuix.kmp.basic.Icon
-import top.yukonga.miuix.kmp.basic.IconButton
 import top.yukonga.miuix.kmp.basic.ListPopupColumn
+import top.yukonga.miuix.kmp.overlay.OverlayDialog
 import top.yukonga.miuix.kmp.basic.NumberPicker
 import top.yukonga.miuix.kmp.basic.PopupPositionProvider
 import top.yukonga.miuix.kmp.basic.Scaffold
 import top.yukonga.miuix.kmp.basic.SmallTitle
-import top.yukonga.miuix.kmp.basic.SmallTopAppBar
 import top.yukonga.miuix.kmp.basic.TextButton
-import top.yukonga.miuix.kmp.basic.TopAppBar
-import top.yukonga.miuix.kmp.blur.BlendColorEntry
-import top.yukonga.miuix.kmp.blur.BlurBlendMode
-import top.yukonga.miuix.kmp.blur.BlurDefaults
 import top.yukonga.miuix.kmp.blur.layerBackdrop
 import top.yukonga.miuix.kmp.blur.rememberLayerBackdrop
-import top.yukonga.miuix.kmp.blur.textureBlur
-import top.yukonga.miuix.kmp.icon.MiuixIcons
-import top.yukonga.miuix.kmp.icon.extended.More
-import top.yukonga.miuix.kmp.icon.extended.Reset
-import top.yukonga.miuix.kmp.overlay.OverlayDialog
 import top.yukonga.miuix.kmp.overlay.OverlayListPopup
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 import top.yukonga.miuix.kmp.utils.overScrollVertical
@@ -324,7 +310,7 @@ fun TodayScreen(
     navBarStyle: String = "standard",
     liquidGlassBackdrop: com.kyant.backdrop.Backdrop? = null,
     onScrollYChanged: (Int) -> Unit = {},
-    settingsScrollBehavior: top.yukonga.miuix.kmp.basic.ScrollBehavior? = null,
+    settingsScrollBehavior: com.haooz.chedule.ui.components.SharedScrollBehavior? = null,
     onSelectedDayChanged: (Int) -> Unit = {},
     onSelectedDateChanged: (Boolean) -> Unit = {},
     scrollToTodayTrigger: Int = 0,
@@ -407,7 +393,6 @@ fun TodayScreen(
 
 
     val hapticFeedback = LocalHapticFeedback.current
-    var listScrollY by remember { mutableIntStateOf(0) }
 
     val isDark = isAppDarkTheme()
     val backgroundColor = MiuixTheme.colorScheme.surface
@@ -425,145 +410,15 @@ fun TodayScreen(
     val dayOfWeekName = if (selectedDayOfWeek in 1..7) dayOfWeekNames[selectedDayOfWeek - 1] else ""
 
 
-    val appStyle = rememberAppStyle()
-    val isLiquidGlass = appStyle == "liquidglass" && liquidGlassBackdrop != null
     val isTablet = navBarStyle == "rail"
     val tabletHorizontalPadding = if (isTablet) {
         val screenWidthDp = LocalConfiguration.current.screenWidthDp
         ((screenWidthDp - 600).coerceIn(0, 600) / 600f * 112 + 16).dp
     } else 16.dp
-
-    // HyperOS 模式需要的变量
-    val scrollBehavior = if (!isLiquidGlass) settingsScrollBehavior else null
-    val blurAlpha = if (!isLiquidGlass) {
-        if (listScrollY < 50) 0f else ((listScrollY - 50) / 50f).coerceIn(0f, 0.7f)
-    } else 0f
-    val topBarColorProgress =
-        if (!isLiquidGlass) ((listScrollY - 50) / 50f).coerceIn(0f, 1f) else 0f
-    val topBarColor = if (!isLiquidGlass) {
-        if (listScrollY < 50) MiuixTheme.colorScheme.surface
-        else {
-            val surface = MiuixTheme.colorScheme.surface
-            val target =
-                if (isDark) ComposeColor.Black.copy(alpha = 0.7f) else ComposeColor.White.copy(alpha = 0.7f)
-            lerp(surface, target, topBarColorProgress)
-        }
-    } else MiuixTheme.colorScheme.surface
-    val topAppBarColors = if (!isLiquidGlass) {
-        BlurDefaults.blurColors(
-            blendColors = listOf(
-                if (isDark) BlendColorEntry(
-                    ComposeColor.Black.copy(alpha = blurAlpha),
-                    BlurBlendMode.SrcOver
-                )
-                else BlendColorEntry(
-                    ComposeColor.White.copy(alpha = blurAlpha),
-                    BlurBlendMode.SrcOver
-                )
-            ),
-            brightness = 0f, contrast = 1f, saturation = 1.2f
-        )
-    } else null
+    val topBarHeightDp = with(density) { (settingsScrollBehavior?.currentHeightPx ?: 0f).toDp() }
 
     Scaffold(
-        topBar = {
-            if (!isLiquidGlass) {
-                val topBarModifier = if (blurAlpha > 0f) {
-                    Modifier.textureBlur(
-                        backdrop = backdrop,
-                        shape = RectangleShape,
-                        colors = topAppBarColors!!
-                    )
-                } else Modifier
-                val titleText = if (isToday) "今天是$dayOfWeekName" else dayOfWeekName
-                val navIcon: @Composable () -> Unit = {
-                    AnimatedVisibility(
-                        visible = !isToday,
-                        enter = fadeIn(animationSpec = tween(180)),
-                        exit = fadeOut(animationSpec = tween(120))
-                    ) {
-                        IconButton(
-                            onClick = {
-                                scope.launch { pagerState.animateScrollToPage(MAX_DATE_OFFSET) }
-                            },
-                            modifier = Modifier.padding(start = 4.dp, bottom = 4.dp)
-                        ) {
-                            Icon(
-                                imageVector = MiuixIcons.Medium.Reset,
-                                contentDescription = "返回今天",
-                                modifier = Modifier.size(24.dp)
-                            )
-                        }
-                    }
-                }
-                val actionsSlot: @Composable androidx.compose.foundation.layout.RowScope.() -> Unit = {
-                    Box(modifier = Modifier.padding(end = 4.dp)) {
-                        IconButton(onClick = {
-                            hapticFeedback.performHapticFeedback(HapticFeedbackType.VirtualKey)
-                            onShowMorePopupChange(true)
-                        }) {
-                            Icon(
-                                imageVector = MiuixIcons.More,
-                                contentDescription = "更多",
-                                modifier = Modifier.size(22.dp)
-                            )
-                        }
-                        OverlayListPopup(
-                            show = showMorePopup,
-                            alignment = PopupPositionProvider.Align.End,
-                            onDismissRequest = { onShowMorePopupChange(false) }
-                        ) {
-                            ListPopupColumn {
-                                DropdownImpl(
-                                    text = "跳转日期",
-                                    optionSize = 2,
-                                    isSelected = false,
-                                    index = 0,
-                                    onSelectedIndexChange = {
-                                        onShowMorePopupChange(false)
-                                        val now = LocalDate.now()
-                                        datePickerYear = now.year
-                                        datePickerMonth = now.monthValue - 1
-                                        datePickerDay = now.dayOfMonth
-                                        showDatePicker = true
-                                    }
-                                )
-                                DropdownImpl(
-                                    text = "课程管理",
-                                    optionSize = 2,
-                                    isSelected = false,
-                                    index = 1,
-                                    onSelectedIndexChange = {
-                                        onShowMorePopupChange(false)
-                                        onCourseManage()
-                                    }
-                                )
-                            }
-                        }
-                    }
-                }
-                if (isTablet) {
-                    SmallTopAppBar(
-                        modifier = topBarModifier,
-                        color = topBarColor,
-                        title = titleText,
-                        scrollBehavior = scrollBehavior,
-                        navigationIcon = navIcon,
-                        actions = actionsSlot
-                    )
-                } else {
-                    TopAppBar(
-                        modifier = topBarModifier,
-                        color = topBarColor,
-                        title = titleText,
-                        largeTitle = titleText,
-                        scrollBehavior = scrollBehavior,
-                        navigationIcon = navIcon,
-                        actions = actionsSlot
-                    )
-                }
-            }
-        }
+        topBar = {}
     ) { paddingValues ->
         Box(
             modifier = Modifier
@@ -651,7 +506,6 @@ fun TodayScreen(
                 LaunchedEffect(listState) {
                     snapshotFlow { listState.firstVisibleItemScrollOffset }
                         .collect { offset ->
-                            listScrollY = offset
                             onScrollYChanged(offset)
                         }
                 }
@@ -672,7 +526,7 @@ fun TodayScreen(
                             modifier = Modifier
                                 .weight(1f)
                                 .padding(
-                                    top = if (isLiquidGlass) paddingValues.calculateTopPadding() + 56.dp else paddingValues.calculateTopPadding(),
+                                    top = paddingValues.calculateTopPadding() + topBarHeightDp,
                                     bottom = 60.dp
                                 )
                         ) {
@@ -708,10 +562,10 @@ fun TodayScreen(
                                     hapticFeedbackType = HapticFeedbackType.TextHandleMove
                                 )
                                 .then(
-                                    if (scrollBehavior != null) Modifier.nestedScroll(scrollBehavior.nestedScrollConnection) else Modifier
+                                    if (settingsScrollBehavior != null) Modifier.nestedScroll(settingsScrollBehavior.nestedScrollConnection) else Modifier
                                 ),
                             contentPadding = PaddingValues(
-                                top = if (isLiquidGlass) paddingValues.calculateTopPadding() + 70.dp else paddingValues.calculateTopPadding() + 14.dp,
+                                top = paddingValues.calculateTopPadding() + topBarHeightDp,
                                 bottom = 120.dp
                             ),
                             verticalArrangement = Arrangement.spacedBy(12.dp)
@@ -730,11 +584,11 @@ fun TodayScreen(
                                 hapticFeedbackType = HapticFeedbackType.TextHandleMove
                             )
                             .then(
-                                if (scrollBehavior != null) Modifier.nestedScroll(scrollBehavior.nestedScrollConnection) else Modifier
+                                if (settingsScrollBehavior != null) Modifier.nestedScroll(settingsScrollBehavior.nestedScrollConnection) else Modifier
                             ),
                         contentPadding = PaddingValues(
                             start = tabletHorizontalPadding,
-                            top = if (isLiquidGlass) paddingValues.calculateTopPadding() + 56.dp else paddingValues.calculateTopPadding(),
+                                top = paddingValues.calculateTopPadding() + topBarHeightDp,
                             end = tabletHorizontalPadding,
                             bottom = 120.dp
                         ),

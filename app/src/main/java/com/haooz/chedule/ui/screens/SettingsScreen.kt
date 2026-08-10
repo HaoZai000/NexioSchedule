@@ -35,11 +35,10 @@ import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.RectangleShape
-import androidx.compose.ui.graphics.lerp
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.platform.LocalConfiguration
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -52,7 +51,6 @@ import com.haooz.chedule.ui.activities.CourseTimeSettingsActivity
 import com.haooz.chedule.ui.activities.PreferenceSettingsActivity
 import com.haooz.chedule.ui.activities.WidgetIntroActivity
 import com.haooz.chedule.ui.utils.isAppDarkTheme
-import com.haooz.chedule.ui.utils.rememberAppStyle
 import com.haooz.chedule.viewmodel.CourseViewModel
 import com.haooz.chedule.viewmodel.ScheduleViewModel
 import com.haooz.chedule.viewmodel.SettingsViewModel
@@ -65,14 +63,8 @@ import top.yukonga.miuix.kmp.basic.Scaffold
 import top.yukonga.miuix.kmp.basic.SmallTitle
 import top.yukonga.miuix.kmp.basic.TextButton
 import com.haooz.chedule.ui.components.NativeMiuixTextField
-import top.yukonga.miuix.kmp.basic.SmallTopAppBar
-import top.yukonga.miuix.kmp.basic.TopAppBar
-import top.yukonga.miuix.kmp.blur.BlendColorEntry
-import top.yukonga.miuix.kmp.blur.BlurBlendMode
-import top.yukonga.miuix.kmp.blur.BlurDefaults
 import top.yukonga.miuix.kmp.blur.layerBackdrop
 import top.yukonga.miuix.kmp.blur.rememberLayerBackdrop
-import top.yukonga.miuix.kmp.blur.textureBlur
 import top.yukonga.miuix.kmp.overlay.OverlayDialog
 import top.yukonga.miuix.kmp.preference.ArrowPreference
 import top.yukonga.miuix.kmp.preference.CheckboxLocation
@@ -127,7 +119,7 @@ fun SettingsScreen(
     navBarStyle: String = "standard",
     liquidGlassBackdrop: com.kyant.backdrop.Backdrop? = null,
     onScrollYChanged: (Int) -> Unit = {},
-    settingsScrollBehavior: top.yukonga.miuix.kmp.basic.ScrollBehavior? = null,
+    settingsScrollBehavior: com.haooz.chedule.ui.components.SharedScrollBehavior? = null,
     activeSecondaryActivity: String? = null
 ) {
     val totalWeeks by viewModel.totalWeeks.collectAsState()
@@ -144,7 +136,6 @@ fun SettingsScreen(
     val shiftSelectedSchedules by shiftViewModel.shiftSelectedSchedules.collectAsState()
     val context = androidx.compose.ui.platform.LocalContext.current
     val hapticFeedback = LocalHapticFeedback.current
-    var listScrollY by remember { mutableIntStateOf(0) }
     var showShiftModeConfirmDialog by remember { mutableStateOf(false) }
     var showNewSemesterDialog by remember { mutableStateOf(false) }
     var newSemesterName by remember { mutableStateOf("") }
@@ -190,59 +181,12 @@ fun SettingsScreen(
         val screenWidthDp = LocalConfiguration.current.screenWidthDp
         ((screenWidthDp - 600).coerceIn(0, 600) / 600f * 112 + 16).dp
     } else 16.dp
-
-    val appStyle = rememberAppStyle()
-    val isLiquidGlass = appStyle == "liquidglass" && liquidGlassBackdrop != null
-
-    // HyperOS 模式需要的变量
-    val scrollBehavior = if (!isLiquidGlass) settingsScrollBehavior else null
-    val blurAlpha = if (!isLiquidGlass) {
-        if (listScrollY < 50) 0f else ((listScrollY - 50) / 50f).coerceIn(0f, 0.7f)
-    } else 0f
-    val topBarColorProgress = if (!isLiquidGlass) ((listScrollY - 50) / 50f).coerceIn(0f, 1f) else 0f
-    val topBarColor = if (!isLiquidGlass) {
-        if (listScrollY < 50) MiuixTheme.colorScheme.surface
-        else {
-            val surface = MiuixTheme.colorScheme.surface
-            val target = if (isDark) ComposeColor.Black.copy(alpha = 0.7f) else ComposeColor.White.copy(alpha = 0.7f)
-            lerp(surface, target, topBarColorProgress)
-        }
-    } else MiuixTheme.colorScheme.surface
-    val topAppBarColors = if (!isLiquidGlass) {
-        BlurDefaults.blurColors(
-            blendColors = listOf(
-                if (isDark) BlendColorEntry(ComposeColor.Black.copy(alpha = blurAlpha), BlurBlendMode.SrcOver)
-                else BlendColorEntry(ComposeColor.White.copy(alpha = blurAlpha), BlurBlendMode.SrcOver)
-            ),
-            brightness = 0f, contrast = 1f, saturation = 1.2f
-        )
-    } else null
+    val density = LocalDensity.current
+    val topBarHeightDp = with(density) { (settingsScrollBehavior?.currentHeightPx ?: 0f).toDp() }
 
     Box(modifier = Modifier.fillMaxSize()) {
         Scaffold(
-        topBar = {
-            if (!isLiquidGlass) {
-                val topBarModifier = if (blurAlpha > 0f) {
-                    Modifier.textureBlur(backdrop = backdrop, shape = RectangleShape, colors = topAppBarColors!!)
-                } else Modifier
-                if (navBarStyle == "rail") {
-                    SmallTopAppBar(
-                        modifier = topBarModifier,
-                        color = topBarColor,
-                        title = "我的",
-                        scrollBehavior = scrollBehavior,
-                    )
-                } else {
-                    TopAppBar(
-                        modifier = topBarModifier,
-                        color = topBarColor,
-                        title = "我的",
-                        largeTitle = "我的",
-                        scrollBehavior = scrollBehavior,
-                    )
-                }
-            }
-        }
+        topBar = {}
     ) { paddingValues ->
         Box(
             modifier = Modifier
@@ -253,7 +197,6 @@ fun SettingsScreen(
             LaunchedEffect(listState) {
                 snapshotFlow { listState.firstVisibleItemScrollOffset }
                     .collect { offset ->
-                        listScrollY = offset
                         onScrollYChanged(offset)
                     }
             }
@@ -265,11 +208,11 @@ fun SettingsScreen(
                     .scrollEndHaptic(
                         hapticFeedbackType = HapticFeedbackType.TextHandleMove
                     ).then(
-                        if (scrollBehavior != null) Modifier.nestedScroll(scrollBehavior.nestedScrollConnection) else Modifier
+                        settingsScrollBehavior?.let { Modifier.nestedScroll(it.nestedScrollConnection) } ?: Modifier
                     ),
                 contentPadding = PaddingValues(
                     start = tabletHorizontalPadding,
-                    top = if (isLiquidGlass) paddingValues.calculateTopPadding() + 56.dp else paddingValues.calculateTopPadding(),
+                    top = paddingValues.calculateTopPadding() + topBarHeightDp,
                     end = tabletHorizontalPadding,
                     bottom = 120.dp
                 ),
