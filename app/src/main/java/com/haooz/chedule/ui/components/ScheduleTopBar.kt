@@ -85,7 +85,7 @@ internal fun ScheduleTopBar(
                             LiquidTopBarButton(
                                 onClick = onBackToCurrentWeek,
                                 backdrop = liquidGlassBackdrop,
-                                icon = MiuixIcons.Medium.Reset,
+                                icon = MiuixIcons.Reset,
                                 contentDescription = "返回本周",
                                 iconSize = 25.dp,
                                 modifier = Modifier.padding(start = 4.dp),

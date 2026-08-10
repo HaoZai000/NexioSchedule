@@ -122,9 +122,6 @@ import top.yukonga.miuix.kmp.basic.Button
 import top.yukonga.miuix.kmp.basic.NavigationRailDefaults
 import top.yukonga.miuix.kmp.basic.Scaffold
 import top.yukonga.miuix.kmp.basic.rememberNavigationRailState
-import top.yukonga.miuix.kmp.blur.BlendColorEntry
-import top.yukonga.miuix.kmp.blur.BlurBlendMode
-import top.yukonga.miuix.kmp.blur.BlurDefaults
 import top.yukonga.miuix.kmp.blur.layerBackdrop
 import top.yukonga.miuix.kmp.blur.rememberLayerBackdrop
 import top.yukonga.miuix.kmp.icon.MiuixIcons
@@ -343,18 +340,6 @@ fun CourseScheduleApp() {
     }
     val isDark = isAppDarkTheme()
     val liquidGlassBackdrop = com.kyant.backdrop.backdrops.rememberLayerBackdrop()
-    val blurColors = BlurDefaults.blurColors(
-        blendColors = listOf(
-            if (isDark) BlendColorEntry(
-                ComposeColor.Black.copy(alpha = 0.7f),
-                BlurBlendMode.Multiply
-            )
-            else BlendColorEntry(ComposeColor.White.copy(alpha = 0.8f), BlurBlendMode.Screen)
-        ),
-        brightness = 0f,
-        contrast = 1f,
-        saturation = 1.2f
-    )
 
     val totalWeeks by viewModel.totalWeeks.collectAsState()
     val currentWeek by viewModel.currentWeek.collectAsState()
@@ -3203,7 +3188,7 @@ private fun TodayTopBar(
                         LiquidTopBarButton(
                             onClick = onBackToToday,
                             backdrop = liquidGlassBackdrop,
-                            icon = MiuixIcons.Medium.Reset,
+                            icon = MiuixIcons.Reset,
                             contentDescription = "返回今天",
                             iconSize = 25.dp,
                             modifier = Modifier.padding(start = 4.dp),

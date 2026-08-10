@@ -139,7 +139,7 @@ fun LiquidTopBarButton(
                     }
                 )
                 .then(interactiveHighlight.modifier)
-                .then(if (draggable) interactiveHighlight.gestureModifier else Modifier)
+                .then(if (draggable) interactiveHighlight.gestureModifier else interactiveHighlight.pressOnlyModifier)
                 .zIndex(0f)
         )
         Icon(
