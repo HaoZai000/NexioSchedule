@@ -58,6 +58,7 @@ import com.haooz.chedule.ui.effects.motion.OobeFifthpowerOutEasing
 import com.haooz.chedule.ui.effects.motion.OobeQuadraticOutEasing
 import com.haooz.chedule.ui.effects.motion.OobeQuartOutEasing
 import com.haooz.chedule.ui.utils.isAppDarkTheme
+import com.haooz.chedule.ui.utils.overScrollVertical
 import com.kyant.shapes.RoundedRectangle
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.delay
@@ -71,7 +72,6 @@ import top.yukonga.miuix.kmp.blur.rememberLayerBackdrop
 import top.yukonga.miuix.kmp.icon.MiuixIcons
 import top.yukonga.miuix.kmp.icon.extended.ChevronBackward
 import top.yukonga.miuix.kmp.theme.MiuixTheme
-import com.haooz.chedule.ui.utils.overScrollVertical
 import top.yukonga.miuix.kmp.utils.scrollEndHaptic
 import kotlin.time.Duration.Companion.milliseconds
 import androidx.compose.ui.graphics.Color as ComposeColor
@@ -314,7 +314,7 @@ fun CourseDetailScreen(
                 Scaffold(
                     topBar = {
                         ProgressiveBlurTopBar(
-                            backdrop = liquidGlassBackdrop!!,
+                            backdrop = liquidGlassBackdrop,
                         ) {
                             CollapsibleTopAppBar(
                                 title = courseName,

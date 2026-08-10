@@ -12,7 +12,6 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
@@ -41,14 +40,14 @@ import androidx.compose.ui.unit.sp
 import com.haooz.chedule.data.Course
 import com.haooz.chedule.ui.effects.blur.BlurBottomSheet
 import com.haooz.chedule.ui.effects.blur.BlurBottomSheetTablet
+import com.haooz.chedule.ui.effects.blur.LocalSheetTopBarMaterial
 import com.haooz.chedule.ui.utils.isAppDarkTheme
+import com.haooz.chedule.ui.utils.overScrollVertical
 import top.yukonga.miuix.kmp.basic.ButtonDefaults
 import top.yukonga.miuix.kmp.basic.Card
 import top.yukonga.miuix.kmp.basic.CardDefaults
 import top.yukonga.miuix.kmp.basic.Checkbox
 import top.yukonga.miuix.kmp.basic.CheckboxDefaults
-import top.yukonga.miuix.kmp.basic.Icon
-import top.yukonga.miuix.kmp.basic.IconButton
 import top.yukonga.miuix.kmp.basic.NumberPicker
 import top.yukonga.miuix.kmp.basic.TextButton
 import top.yukonga.miuix.kmp.blur.LayerBackdrop
@@ -59,7 +58,6 @@ import top.yukonga.miuix.kmp.overlay.OverlayDialog
 import top.yukonga.miuix.kmp.preference.ArrowPreference
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 import top.yukonga.miuix.kmp.utils.PressFeedbackType
-import com.haooz.chedule.ui.utils.overScrollVertical
 import top.yukonga.miuix.kmp.utils.scrollEndHaptic
 import java.util.UUID
 
@@ -215,61 +213,34 @@ fun AddEditCourseBottomSheet(
     }
 
     val startAction: @Composable () -> Unit = {
-        if (liquidGlassBackdrop != null) {
-            com.haooz.chedule.ui.effects.liquidglass.LiquidTopBarButton(
-                onClick = {
-                    hapticFeedback.performHapticFeedback(HapticFeedbackType.Confirm)
-                    onDismissRequest()
-                },
-                backdrop = sheetContentBackdrop ?: liquidGlassBackdrop,
-                icon = MiuixIcons.Normal.Close,
-                contentDescription = "关闭",
-                modifier = Modifier.padding(start = 20.dp),
-                iconSize = 22.dp,
-            )
-        } else {
-            IconButton(
-                onClick = {
-                    hapticFeedback.performHapticFeedback(HapticFeedbackType.Confirm)
-                    onDismissRequest()
-                },
-                modifier = Modifier.padding(horizontal = 20.dp)
-            ) {
-                Icon(
-                    imageVector = MiuixIcons.Normal.Close,
-                    contentDescription = "关闭",
-                    modifier = Modifier.size(24.dp)
-                )
-            }
-        }
+        val material = LocalSheetTopBarMaterial.current
+        com.haooz.chedule.ui.effects.liquidglass.LiquidTopBarButton(
+            onClick = {
+                hapticFeedback.performHapticFeedback(HapticFeedbackType.Confirm)
+                onDismissRequest()
+            },
+            backdrop = sheetContentBackdrop ?: liquidGlassBackdrop!!,
+            icon = MiuixIcons.Normal.Close,
+            contentDescription = "关闭",
+            modifier = Modifier.padding(start = 20.dp),
+            iconSize = 24.dp,
+            backdropAlpha = material.backdropAlpha,
+            shadowAlpha = material.shadowAlpha,
+        )
     }
 
     val endAction: @Composable () -> Unit = {
-        if (liquidGlassBackdrop != null) {
-            com.haooz.chedule.ui.effects.liquidglass.LiquidTopBarButton(
-                onClick = onConfirmClick,
-                backdrop = sheetContentBackdrop ?: liquidGlassBackdrop,
-                icon = MiuixIcons.Ok,
-                contentDescription = "确定",
-                modifier = Modifier.padding(end = 20.dp),
-                iconSize = 23.dp,
-                iconTint = Color.White,
-                containerColor = if (isAppDarkTheme()) MiuixTheme.colorScheme.primary.copy(alpha = 0.8f) else MiuixTheme.colorScheme.primary.copy(
-                    alpha = 0.9f
-                )
-            )
-        } else {
-            IconButton(
-                onClick = onConfirmClick,
-                modifier = Modifier.padding(end = 20.dp)
-            ) {
-                Icon(
-                    imageVector = MiuixIcons.Ok,
-                    contentDescription = "确定",
-                    modifier = Modifier.size(26.dp),
-                )
-            }
-        }
+        val material = LocalSheetTopBarMaterial.current
+        com.haooz.chedule.ui.effects.liquidglass.LiquidTopBarButton(
+            onClick = onConfirmClick,
+            backdrop = sheetContentBackdrop ?: liquidGlassBackdrop!!,
+            icon = MiuixIcons.Ok,
+            contentDescription = "确定",
+            modifier = Modifier.padding(end = 20.dp),
+            iconSize = 25.dp,
+            backdropAlpha = material.backdropAlpha,
+            shadowAlpha = material.shadowAlpha,
+        )
     }
 
     val sheetContent: @Composable () -> Unit = {

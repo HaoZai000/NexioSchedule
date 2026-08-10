@@ -48,6 +48,7 @@ internal fun ScheduleTopBar(
     weekDates: List<LocalDate>,
     onBackToCurrentWeek: () -> Unit,
     onOpenSwitchSchedule: () -> Unit,
+    onMoreClick: () -> Unit = {},
     isTablet: Boolean = false,
     liquidGlassBackdrop: com.kyant.backdrop.Backdrop?,
     scrollBehavior: SharedScrollBehavior? = null
@@ -126,6 +127,7 @@ internal fun ScheduleTopBar(
                         },
                         onRightClick = {
                             hapticFeedback.performHapticFeedback(HapticFeedbackType.VirtualKey)
+                            onMoreClick()
                         },
                         backdrop = liquidGlassBackdrop,
                         buttonHeight = 40.dp,

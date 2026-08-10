@@ -1316,6 +1316,7 @@ fun CourseScheduleApp() {
                                 }
                             }
                         },
+                        onMoreClick = { showMorePopup = true },
                         isTablet = isTablet,
                         liquidGlassBackdrop = liquidGlassBackdrop,
                         scrollBehavior = scheduleScrollBehavior

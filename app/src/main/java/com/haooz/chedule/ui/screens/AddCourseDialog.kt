@@ -37,12 +37,13 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.alpha
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.state.ToggleableState
@@ -51,13 +52,14 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import androidx.compose.ui.platform.LocalConfiguration
 import com.haooz.chedule.data.Course
+import com.haooz.chedule.ui.components.NativeTextField
 import com.haooz.chedule.ui.effects.blur.BlurBottomSheet
 import com.haooz.chedule.ui.effects.blur.BlurBottomSheetTablet
-import com.haooz.chedule.ui.components.NativeTextField
+import com.haooz.chedule.ui.effects.blur.LocalSheetTopBarMaterial
 import com.haooz.chedule.ui.effects.liquidglass.LiquidTopBarButton
 import com.haooz.chedule.ui.utils.isAppDarkTheme
+import com.haooz.chedule.ui.utils.overScrollVertical
 import com.kyant.backdrop.Backdrop
 import com.kyant.shapes.RoundedRectangle
 import top.yukonga.miuix.kmp.basic.Button
@@ -68,7 +70,6 @@ import top.yukonga.miuix.kmp.basic.Checkbox
 import top.yukonga.miuix.kmp.basic.CheckboxDefaults
 import top.yukonga.miuix.kmp.basic.ColorPalette
 import top.yukonga.miuix.kmp.basic.Icon
-import top.yukonga.miuix.kmp.basic.IconButton
 import top.yukonga.miuix.kmp.basic.NumberPicker
 import top.yukonga.miuix.kmp.basic.TextButton
 import top.yukonga.miuix.kmp.blur.LayerBackdrop
@@ -81,7 +82,6 @@ import top.yukonga.miuix.kmp.overlay.OverlayDialog
 import top.yukonga.miuix.kmp.preference.ArrowPreference
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 import top.yukonga.miuix.kmp.utils.PressFeedbackType
-import com.haooz.chedule.ui.utils.overScrollVertical
 import top.yukonga.miuix.kmp.utils.scrollEndHaptic
 import java.util.UUID
 
@@ -223,58 +223,27 @@ fun AddCourseDialog(
             liquidGlassBackdrop = liquidGlassBackdrop,
             onSheetContentBackdropCreated = { sheetContentBackdrop = it },
             startAction = {
-                if (liquidGlassBackdrop != null) {
-                    LiquidTopBarButton(
-                        onClick = {
-                            hapticFeedback.performHapticFeedback(HapticFeedbackType.Confirm)
-                            onDismiss()
-                        },
-                        backdrop = sheetContentBackdrop ?: liquidGlassBackdrop,
-                        icon = MiuixIcons.Normal.Close,
-                        contentDescription = "关闭",
-                        modifier = Modifier.padding(start = 20.dp),
-                        iconSize = 22.dp,
-                    )
-                } else {
-                    IconButton(
-                        onClick = {
-                            hapticFeedback.performHapticFeedback(HapticFeedbackType.Confirm)
-                            onDismiss()
-                        },
-                        modifier = Modifier.padding(horizontal = 20.dp)
-                    ) {
-                        Icon(
-                            imageVector = MiuixIcons.Normal.Close,
-                            contentDescription = "关闭",
-                            modifier = Modifier.size(24.dp)
-                        )
-                    }
-                }
+                LiquidTopBarButton(
+                    onClick = {
+                        hapticFeedback.performHapticFeedback(HapticFeedbackType.Confirm)
+                        onDismiss()
+                    },
+                    backdrop = sheetContentBackdrop ?: liquidGlassBackdrop!!,
+                    icon = MiuixIcons.Normal.Close,
+                    contentDescription = "关闭",
+                    modifier = Modifier.padding(start = 20.dp),
+                    iconSize = 24.dp
+                )
             },
             endAction = {
-                if (liquidGlassBackdrop != null) {
-                    LiquidTopBarButton(
-                        onClick = onConfirmClick,
-                        backdrop = sheetContentBackdrop ?: liquidGlassBackdrop,
-                        icon = MiuixIcons.Ok,
-                        contentDescription = "确定",
-                        modifier = Modifier.padding(end = 20.dp),
-                        iconSize = 23.dp,
-                        iconTint = Color.White,
-                        containerColor = if (isDark) MiuixTheme.colorScheme.primary.copy(alpha = 0.8f) else MiuixTheme.colorScheme.primary.copy(alpha = 0.9f)
-                    )
-                } else {
-                    IconButton(
-                        onClick = onConfirmClick,
-                        modifier = Modifier.padding(end = 20.dp)
-                    ) {
-                        Icon(
-                            imageVector = MiuixIcons.Ok,
-                            contentDescription = "确定",
-                            modifier = Modifier.size(26.dp)
-                        )
-                    }
-                }
+                LiquidTopBarButton(
+                    onClick = onConfirmClick,
+                    backdrop = sheetContentBackdrop ?: liquidGlassBackdrop!!,
+                    icon = MiuixIcons.Ok,
+                    contentDescription = "确定",
+                    modifier = Modifier.padding(end = 20.dp),
+                    iconSize = 25.dp
+                )
             },
         ) {
             AddCourseDialogContent(
@@ -329,58 +298,33 @@ fun AddCourseDialog(
         onDismissRequest = onDismiss,
         onSheetContentBackdropCreated = { sheetContentBackdrop = it },
         startAction = {
-            if (liquidGlassBackdrop != null) {
-                LiquidTopBarButton(
-                    onClick = {
-                        hapticFeedback.performHapticFeedback(HapticFeedbackType.Confirm)
-                        onDismiss()
-                    },
-                    backdrop = sheetContentBackdrop ?: liquidGlassBackdrop,
-                    icon = MiuixIcons.Normal.Close,
-                    contentDescription = "关闭",
-                    modifier = Modifier.padding(start = 20.dp),
-                    iconSize = 22.dp,
-                )
-            } else {
-                IconButton(
-                    onClick = {
-                        hapticFeedback.performHapticFeedback(HapticFeedbackType.Confirm)
-                        onDismiss()
-                    },
-                    modifier = Modifier.padding(horizontal = 20.dp)
-                ) {
-                    Icon(
-                        imageVector = MiuixIcons.Normal.Close,
-                        contentDescription = "关闭",
-                        modifier = Modifier.size(24.dp)
-                    )
-                }
-            }
+            val material = LocalSheetTopBarMaterial.current
+            LiquidTopBarButton(
+                onClick = {
+                    hapticFeedback.performHapticFeedback(HapticFeedbackType.Confirm)
+                    onDismiss()
+                },
+                backdrop = sheetContentBackdrop ?: liquidGlassBackdrop!!,
+                icon = MiuixIcons.Normal.Close,
+                contentDescription = "关闭",
+                modifier = Modifier.padding(start = 20.dp),
+                iconSize = 24.dp,
+                backdropAlpha = material.backdropAlpha,
+                shadowAlpha = material.shadowAlpha,
+            )
         },
         endAction = {
-            if (liquidGlassBackdrop != null) {
-                LiquidTopBarButton(
-                    onClick = onConfirmClick,
-                    backdrop = sheetContentBackdrop ?: liquidGlassBackdrop,
-                    icon = MiuixIcons.Ok,
-                    contentDescription = "确定",
-                    modifier = Modifier.padding(end = 20.dp),
-                    iconSize = 23.dp,
-                    iconTint = Color.White,
-                    containerColor = if (isDark) MiuixTheme.colorScheme.primary.copy(alpha = 0.8f) else MiuixTheme.colorScheme.primary.copy(alpha = 0.9f)
-                )
-            } else {
-                IconButton(
-                    onClick = onConfirmClick,
-                    modifier = Modifier.padding(end = 20.dp)
-                ) {
-                    Icon(
-                        imageVector = MiuixIcons.Ok,
-                        contentDescription = "确定",
-                        modifier = Modifier.size(26.dp)
-                    )
-                }
-            }
+            val material = LocalSheetTopBarMaterial.current
+            LiquidTopBarButton(
+                onClick = onConfirmClick,
+                backdrop = sheetContentBackdrop ?: liquidGlassBackdrop!!,
+                icon = MiuixIcons.Ok,
+                contentDescription = "确定",
+                modifier = Modifier.padding(end = 20.dp),
+                iconSize = 25.dp,
+                backdropAlpha = material.backdropAlpha,
+                shadowAlpha = material.shadowAlpha,
+            )
         },
     ) {
         AddCourseDialogContent(

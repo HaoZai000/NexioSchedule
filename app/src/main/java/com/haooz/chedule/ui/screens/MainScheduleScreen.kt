@@ -2,7 +2,6 @@
 package com.haooz.chedule.ui.screens
 
 import android.annotation.SuppressLint
-import androidx.activity.ComponentActivity
 import androidx.compose.animation.core.CubicBezierEasing
 import androidx.compose.animation.core.animate
 import androidx.compose.animation.core.tween
@@ -23,7 +22,6 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.pager.HorizontalPager
 import androidx.compose.foundation.pager.PagerState
 import androidx.compose.foundation.rememberScrollState
@@ -55,7 +53,6 @@ import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.layout.positionInRoot
 import androidx.compose.ui.platform.LocalConfiguration
-import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.text.font.FontWeight
@@ -66,6 +63,7 @@ import com.haooz.chedule.ui.components.DayColumn
 import com.haooz.chedule.ui.components.SectionColumn
 import com.haooz.chedule.ui.effects.blur.BlurBottomSheet
 import com.haooz.chedule.ui.effects.blur.BlurBottomSheetTablet
+import com.haooz.chedule.ui.effects.blur.LocalSheetTopBarMaterial
 import com.haooz.chedule.ui.utils.isAppDarkTheme
 import com.haooz.chedule.ui.utils.overScrollVertical
 import com.haooz.chedule.viewmodel.CourseViewModel
@@ -74,8 +72,6 @@ import com.kyant.shapes.RoundedRectangle
 import kotlinx.coroutines.launch
 import top.yukonga.miuix.kmp.basic.Card
 import top.yukonga.miuix.kmp.basic.CardDefaults
-import top.yukonga.miuix.kmp.basic.Icon
-import top.yukonga.miuix.kmp.basic.IconButton
 import top.yukonga.miuix.kmp.basic.NumberPicker
 import top.yukonga.miuix.kmp.basic.TextButton
 import top.yukonga.miuix.kmp.blur.BlendColorEntry
@@ -147,7 +143,7 @@ fun MainScheduleScreen(
     animateInCourseIds: Set<String> = emptySet(),
     onGridGeometryChange: (ScheduleGridGeometry) -> Unit = {},
     scheduleScrollBehavior: com.haooz.chedule.ui.components.SharedScrollBehavior? = null,
-    paddingValues: androidx.compose.foundation.layout.PaddingValues = androidx.compose.foundation.layout.PaddingValues()
+    paddingValues: PaddingValues = androidx.compose.foundation.layout.PaddingValues()
 ) {
     val courses by viewModel.courses.collectAsState()
     val currentWeek by viewModel.currentWeek.collectAsState()
@@ -233,12 +229,6 @@ fun MainScheduleScreen(
             jumpWeekTemp = pagerState.currentPage + 1
         }
     }
-
-    val context = LocalContext.current
-    val activity = context as? ComponentActivity as? com.haooz.chedule.ui.activities.MainActivity
-
-    @Suppress("RedundantInitializer")
-    val isInFreeformWindow = activity?.isInFreeformWindow == true
 
     // 预计算每天的课程，避免在 HorizontalPager 内部重复过滤
     val allDays = (1..7).toList()
@@ -629,32 +619,9 @@ fun MainScheduleScreen(
         }
 
         val detailEndAction: @Composable () -> Unit = {
-            if (liquidGlassBackdrop != null) {
-                com.haooz.chedule.ui.effects.liquidglass.LiquidTopBarButton(
-                    onClick = {
-                        hapticFeedback.performHapticFeedback(HapticFeedbackType.Confirm)
-                        val course = selectedCourse ?: selectedCourses.firstOrNull()
-                        showCourseDetail = false
-                        if (course != null) {
-                            viewModel.showAddDialog(
-                                course.dayOfWeek,
-                                course.startSection,
-                                course.endSection
-                            )
-                        } else {
-                            viewModel.showAddDialog()
-                        }
-                    },
-                    backdrop = sheetContentBackdrop ?: liquidGlassBackdrop,
-                    icon = MiuixIcons.Normal.Add,
-                    contentDescription = "添加课程",
-                    modifier = Modifier.padding(end = 20.dp),
-                    iconSize = 23.dp,
-                    containerColor =if (isAppDarkTheme()) Color(0xFF363636).copy(0.4f)
-                    else Color(0xFFFFFFFF).copy(0.6f),
-                )
-            } else {
-                IconButton(onClick = {
+            val material = LocalSheetTopBarMaterial.current
+            com.haooz.chedule.ui.effects.liquidglass.LiquidTopBarButton(
+                onClick = {
                     hapticFeedback.performHapticFeedback(HapticFeedbackType.Confirm)
                     val course = selectedCourse ?: selectedCourses.firstOrNull()
                     showCourseDetail = false
@@ -667,14 +634,17 @@ fun MainScheduleScreen(
                     } else {
                         viewModel.showAddDialog()
                     }
-                }, modifier = Modifier.padding(horizontal = 20.dp)) {
-                    Icon(
-                        imageVector = MiuixIcons.Normal.Add,
-                        contentDescription = "添加课程",
-                        modifier = Modifier.size(25.dp)
-                    )
-                }
-            }
+                },
+                backdrop = sheetContentBackdrop ?: liquidGlassBackdrop!!,
+                icon = MiuixIcons.Normal.Add,
+                contentDescription = "添加课程",
+                modifier = Modifier.padding(end = 20.dp),
+                iconSize = 23.dp,
+                containerColor =if (isAppDarkTheme()) Color(0xFF363636).copy(0.4f)
+                else Color(0xFFFFFFFF).copy(0.6f),
+                backdropAlpha = material.backdropAlpha,
+                shadowAlpha = material.shadowAlpha,
+            )
         }
         val detailContent: @Composable () -> Unit = {
             val coursesToShow =

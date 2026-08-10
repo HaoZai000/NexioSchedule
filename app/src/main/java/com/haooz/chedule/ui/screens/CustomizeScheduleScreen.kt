@@ -1,4 +1,4 @@
-﻿/** 自定义课表页面 - 课表外观选择 */
+/** 自定义课表页面 - 课表外观选择 */
 package com.haooz.chedule.ui.screens
 
 import android.annotation.SuppressLint
@@ -86,6 +86,7 @@ import androidx.compose.ui.zIndex
 import com.haooz.chedule.data.Combination
 import com.haooz.chedule.ui.effects.blur.BlurBottomSheet
 import com.haooz.chedule.ui.effects.blur.BlurBottomSheetTablet
+import com.haooz.chedule.ui.effects.blur.LocalSheetTopBarMaterial
 import com.haooz.chedule.ui.effects.edgelight.edgeLight
 import com.haooz.chedule.ui.effects.edgelight.rememberDefaultEdgeLight
 import com.haooz.chedule.ui.effects.liquidglass.InteractiveHighlight
@@ -1473,7 +1474,7 @@ fun CustomizeScheduleScreen(
                             icon = MiuixIcons.Normal.Close,
                             contentDescription = "关闭",
                             modifier = Modifier.padding(start = 20.dp),
-                            iconSize = 22.dp,
+                            iconSize = 24.dp,
                             containerColor = if (isAppDarkTheme()) Color(0xFF363636).copy(0.4f)
                             else Color(0xFFFFFFFF).copy(0.6f),
                         )
@@ -1598,16 +1599,18 @@ fun CustomizeScheduleScreen(
                     onDismissRequest = { showEffectSheet = false },
                     onSheetContentBackdropCreated = { sheetContentBackdrop = it },
                     startAction = {
-
+                        val material = LocalSheetTopBarMaterial.current
                         LiquidTopBarButton(
                             onClick = { showEffectSheet = false },
                             backdrop = sheetContentBackdrop ?: liquidGlassBackdrop,
                             icon = MiuixIcons.Normal.Close,
                             contentDescription = "关闭",
                             modifier = Modifier.padding(start = 20.dp),
-                            iconSize = 22.dp,
+                            iconSize = 24.dp,
                             containerColor = if (isAppDarkTheme()) Color(0xFF363636).copy(0.4f)
                             else Color(0xFFFFFFFF).copy(0.6f),
+                            backdropAlpha = material.backdropAlpha,
+                            shadowAlpha = material.shadowAlpha,
                         )
 
                     }
@@ -1745,7 +1748,7 @@ fun CustomizeScheduleScreen(
                             modifier = Modifier.padding(start = 20.dp),
                             containerColor = if (isAppDarkTheme()) Color(0xFF363636).copy(0.4f)
                             else Color(0xFFFFFFFF).copy(0.6f),
-                            iconSize = 22.dp,
+                            iconSize = 24.dp,
                         )
 
                     }
@@ -1894,6 +1897,7 @@ fun CustomizeScheduleScreen(
                     onDismissRequest = { showCustomizeSheet = false },
                     onSheetContentBackdropCreated = { sheetContentBackdrop = it },
                     startAction = {
+                        val material = LocalSheetTopBarMaterial.current
                         LiquidTopBarButton(
                             onClick = { showCustomizeSheet = false },
                             backdrop = sheetContentBackdrop ?: liquidGlassBackdrop,
@@ -1902,7 +1906,9 @@ fun CustomizeScheduleScreen(
                             modifier = Modifier.padding(start = 20.dp),
                             containerColor = if (isAppDarkTheme()) Color(0xFF363636).copy(0.4f)
                             else Color(0xFFFFFFFF).copy(0.6f),
-                            iconSize = 22.dp,
+                            iconSize = 24.dp,
+                            backdropAlpha = material.backdropAlpha,
+                            shadowAlpha = material.shadowAlpha,
                         )
                     }
                 ) {

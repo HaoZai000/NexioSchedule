@@ -226,9 +226,9 @@ private fun BlurBottomSheetTabletContent(
                 }
                 .clip(RoundedRectangle(38.dp))
                 .then(
-                    if (liquidGlassBackdrop != null && Build.VERSION.SDK_INT >= 33) {
+                    if (Build.VERSION.SDK_INT >= 33) {
                         Modifier.drawBackdrop(
-                            backdrop = liquidGlassBackdrop,
+                            backdrop = liquidGlassBackdrop!!,
                             shape = { RoundedRectangle(38.dp) },
                             effects = {
                                 vibrancy()
@@ -236,7 +236,7 @@ private fun BlurBottomSheetTabletContent(
                             },
                             highlight = null
                         )
-                    } else if (liquidGlassBackdrop != null) {
+                    } else {
                         // API < 33 降级：渐变遮罩
                         Modifier.background(
                             Brush.verticalGradient(
@@ -248,12 +248,10 @@ private fun BlurBottomSheetTabletContent(
                                 )
                             )
                         )
-                    } else Modifier
+                    }
                 )
                 .edgeLight(shape = RoundedRectangle(38.dp), edgeLight = rememberDefaultEdgeLight())
-                .background(sheetBgColor.copy(alpha = sheetBackgroundAlpha ?: if (liquidGlassBackdrop != null)
-                    if (isDark) 0.92f else 0.9f
-                    else 1f))
+                .background(sheetBgColor.copy(alpha = sheetBackgroundAlpha ?: if (isDark) 0.92f else 0.9f))
                 .pointerInput(Unit) {
                     detectTapGestures { /* consume clicks */ }
                 }
