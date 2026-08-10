@@ -57,7 +57,6 @@ fun PreferenceSettingsScreen(
 
     val themePrefs = remember { context.getSharedPreferences("app_theme_prefs", Context.MODE_PRIVATE) }
     var themeMode by remember { mutableStateOf(themePrefs.getString("theme_mode", "system") ?: "system") }
-    var appStyle by remember { mutableStateOf(themePrefs.getString("app_style", "hyperos3") ?: "hyperos3") }
 
     val settingsViewModel = remember { SettingsViewModel(context.applicationContext as android.app.Application) }
     val defaultHomepage by settingsViewModel.defaultHomepage.collectAsState()
@@ -158,32 +157,6 @@ fun PreferenceSettingsScreen(
                         insideMargin = PaddingValues(0.dp)
                     ) {
                         Column(modifier = Modifier.fillMaxWidth()) {
-                            val appStyleEntry = DropdownEntry(
-                                items = listOf(
-                                    DropdownItem(
-                                        text = "HyperOS3",
-                                        selected = appStyle == "hyperos3",
-                                        onClick = {
-                                            appStyle = "hyperos3"
-                                            themePrefs.edit { putString("app_style", "hyperos3") }
-                                        }
-                                    ),
-                                    DropdownItem(
-                                        text = "LiquidGlass",
-                                        selected = appStyle == "liquidglass",
-                                        onClick = {
-                                            appStyle = "liquidglass"
-                                            themePrefs.edit { putString("app_style", "liquidglass") }
-                                        }
-                                    ),
-                                )
-                            )
-
-                            OverlayDropdownPreference(
-                                title = "应用风格",
-                                entry = appStyleEntry,
-                                collapseOnSelection = true
-                            )
 
                             SwitchPreference(
                                 title = "今日页显示壁纸",

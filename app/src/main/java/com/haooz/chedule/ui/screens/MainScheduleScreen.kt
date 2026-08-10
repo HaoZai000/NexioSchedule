@@ -52,6 +52,7 @@ import androidx.compose.ui.graphics.RectangleShape
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
+import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.layout.onGloballyPositioned
@@ -147,7 +148,8 @@ fun MainScheduleScreen(
     dropHighlight: Pair<Int, IntRange>? = null,
     // 调课后需要淡入放大的课程ID集合
     animateInCourseIds: Set<String> = emptySet(),
-    onGridGeometryChange: (ScheduleGridGeometry) -> Unit = {}
+    onGridGeometryChange: (ScheduleGridGeometry) -> Unit = {},
+    scheduleScrollBehavior: com.haooz.chedule.ui.components.SharedScrollBehavior? = null
 ) {
     val courses by viewModel.courses.collectAsState()
     val currentWeek by viewModel.currentWeek.collectAsState()
@@ -364,6 +366,10 @@ fun MainScheduleScreen(
             Column(
                 modifier = Modifier
                     .fillMaxSize()
+                    .then(
+                        if (scheduleScrollBehavior != null) Modifier.nestedScroll(scheduleScrollBehavior.nestedScrollConnection)
+                        else Modifier
+                    )
                     .overScrollVertical()
                     .scrollEndHaptic(
                         hapticFeedbackType = HapticFeedbackType.TextHandleMove

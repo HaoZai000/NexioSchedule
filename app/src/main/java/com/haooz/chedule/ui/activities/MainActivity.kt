@@ -109,7 +109,6 @@ import com.haooz.chedule.ui.screens.TodayScreen
 import com.haooz.chedule.ui.theme.CourseScheduleTheme
 import com.haooz.chedule.ui.utils.applyThemeAwareSystemBars
 import com.haooz.chedule.ui.utils.isAppDarkTheme
-import com.haooz.chedule.ui.utils.rememberAppStyle
 import com.haooz.chedule.viewmodel.CourseViewModel
 import com.haooz.chedule.viewmodel.ScheduleViewModel
 import com.haooz.chedule.viewmodel.SettingsViewModel
@@ -120,10 +119,8 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import top.yukonga.miuix.kmp.basic.Button
-import top.yukonga.miuix.kmp.basic.MiuixScrollBehavior
 import top.yukonga.miuix.kmp.basic.NavigationRailDefaults
 import top.yukonga.miuix.kmp.basic.Scaffold
-import top.yukonga.miuix.kmp.basic.SmallTopAppBar
 import top.yukonga.miuix.kmp.basic.rememberNavigationRailState
 import top.yukonga.miuix.kmp.blur.BlendColorEntry
 import top.yukonga.miuix.kmp.blur.BlurBlendMode
@@ -323,6 +320,7 @@ fun CourseScheduleApp() {
     val settingsScrollBehavior = rememberSharedScrollBehavior()
     var todayScrollY by remember { mutableIntStateOf(0) }
     val todayScrollBehavior = rememberSharedScrollBehavior()
+    val scheduleScrollBehavior = rememberSharedScrollBehavior()
 
     // 初始化 SyncManager
     LaunchedEffect(Unit) {
@@ -344,8 +342,6 @@ fun CourseScheduleApp() {
         drawContent()
     }
     val isDark = isAppDarkTheme()
-    val appStyle = rememberAppStyle()
-    // 始终创建液态玻璃 backdrop，供长按卡片菜单等组件采样（不受 appStyle 限制）
     val liquidGlassBackdrop = com.kyant.backdrop.backdrops.rememberLayerBackdrop()
     val blurColors = BlurDefaults.blurColors(
         blendColors = listOf(
@@ -387,7 +383,7 @@ fun CourseScheduleApp() {
     val screenHPx = with(density) { config.screenHeightDp.dp.toPx() }
     val railState = if (navBarStyle == "rail") rememberNavigationRailState() else null
     val railPaddingStart by animateDpAsState(
-        targetValue = if (appStyle == "liquidglass" && navBarStyle == "rail") {
+        targetValue = if (navBarStyle == "rail") {
             0.dp
         } else if (railState != null && railState.isExpanded) {
             NavigationRailDefaults.ExpandedWidth
@@ -707,18 +703,6 @@ fun CourseScheduleApp() {
         }
         shiftModeInitialized = true
     }
-
-    val topAppBarColors = BlurDefaults.blurColors(
-        blendColors = listOf(
-            BlendColorEntry(
-                MiuixTheme.colorScheme.surface.copy(alpha = 0.7f),
-                BlurBlendMode.SrcOver
-            )
-        ),
-        brightness = 0f,
-        contrast = 1f,
-        saturation = 1.2f
-    )
 
 
 
@@ -1314,10 +1298,6 @@ fun CourseScheduleApp() {
                         isShiftMode = isShiftMode,
                         selectedTab = selectedTab,
                         onTabSelected = { selectedTab = it },
-                        railState = railState,
-                        backdrop = backdrop,
-                        blurColors = blurColors,
-                        isDark = isDark,
                         liquidGlassBackdrop = liquidGlassBackdrop
                     )
                 },
@@ -1325,15 +1305,11 @@ fun CourseScheduleApp() {
                     ScheduleTopBar(
                         visible = (!isShiftMode && selectedTab == 1) || (isShiftMode && selectedTab == 0),
                         navBarStyle = navBarStyle,
-                        railState = railState,
                         pagerCurrentPage = pagerState.currentPage,
                         currentWeek = currentWeek,
                         totalWeeks = totalWeeks,
                         isHoliday = viewingIsHoliday,
                         isViewingCurrentWeek = isViewingCurrentWeek,
-                        titleBarHeight = activity?.titleBarHeight ?: 56.dp,
-                        topAppBarColors = topAppBarColors,
-                        backdrop = backdrop,
                         dayRange = dayRange,
                         currentDayOfWeek = currentDayOfWeek,
                         isCurrentWeek = pagerState.currentPage + 1 == currentWeek && currentWeek in 1..totalWeeks,
@@ -1356,24 +1332,9 @@ fun CourseScheduleApp() {
                                 }
                             }
                         },
-                        onJumpWeek = { viewModel.showJumpWeekDialog() },
-                        onOpenCustomize = {
-                            coroutineScope.launch {
-                                // 等待弹窗菜单收回后再截屏
-                                delay(200.milliseconds)
-                                enterCustomizePage()
-                            }
-                        },
-                        onCourseManage = {
-                            val intent =
-                                android.content.Intent(context, CourseManageActivity::class.java)
-                            context.startActivity(intent)
-                        },
-                        onTitleBarMeasured = { activity?.titleBarHeight = it },
                         isTablet = isTablet,
                         liquidGlassBackdrop = liquidGlassBackdrop,
-                        showMorePopup = showMorePopup,
-                        onShowMorePopupChange = { showMorePopup = it }
+                        scrollBehavior = scheduleScrollBehavior
                     )
                     // 设置页标题栏（Activity 层级渲染，避免 drawPlainBackdrop native crash）
                     if (selectedTab == 2 || (isShiftMode && selectedTab == 1)) {
@@ -1411,10 +1372,9 @@ fun CourseScheduleApp() {
                         modifier = Modifier
                             .fillMaxSize()
                             .then(
-                                if (appStyle == "liquidglass") Modifier.liquidGlassLayerBackdrop(
+                                Modifier.liquidGlassLayerBackdrop(
                                     liquidGlassBackdrop
                                 )
-                                else Modifier
                             )
                     ) {
                         if (!isShiftMode) {
@@ -1436,23 +1396,13 @@ fun CourseScheduleApp() {
                                     },
                                     pagerState = todayPagerState,
                                     navBarStyle = navBarStyle,
-                                    liquidGlassBackdrop = liquidGlassBackdrop,
                                     onScrollYChanged = { todayScrollY = it },
                                     settingsScrollBehavior = todayScrollBehavior,
                                     onSelectedDayChanged = { todaySelectedDayOfWeek = it },
                                     onSelectedDateChanged = { todayIsToday = it },
                                     scrollToTodayTrigger = scrollToTodayTrigger,
-                                    showMorePopup = showTodayMorePopup,
-                                    onShowMorePopupChange = { showTodayMorePopup = it },
                                     jumpToDateTrigger = todayJumpToDateTrigger,
                                     onJumpToDateProcessed = { todayJumpToDateTrigger = 0 },
-                                    onCourseManage = {
-                                        val intent = android.content.Intent(
-                                            context,
-                                            CourseManageActivity::class.java
-                                        )
-                                        context.startActivity(intent)
-                                    },
                                     wallpaperBitmap = if (showCustomizePage && !isWindowCutoutActive) originalWallpaperBitmap else wallpaperBitmap,
                                     wallpaperOffset = if (showCustomizePage && !isWindowCutoutActive) originalWallpaperOffset else wallpaperOffset,
                                     wallpaperScale = if (showCustomizePage && !isWindowCutoutActive) originalWallpaperScale else wallpaperScale,
@@ -1643,7 +1593,8 @@ fun CourseScheduleApp() {
                                                 target.first to (target.second..(target.second + sectionSpan))
                                             } else null
                                         },
-                                        animateInCourseIds = animateInCourseIds
+                                        animateInCourseIds = animateInCourseIds,
+                                        scheduleScrollBehavior = scheduleScrollBehavior
                                     )
                                 }
 
@@ -1657,7 +1608,6 @@ fun CourseScheduleApp() {
                                         isExitingShift = false
                                     },
                                     navBarStyle = navBarStyle,
-                                    liquidGlassBackdrop = liquidGlassBackdrop,
                                     onScrollYChanged = { settingsScrollY = it },
                                     settingsScrollBehavior = settingsScrollBehavior,
                                     activeSecondaryActivity = activeSecondaryActivity
@@ -1687,7 +1637,6 @@ fun CourseScheduleApp() {
                                         isExitingShift = false
                                     },
                                     navBarStyle = navBarStyle,
-                                    liquidGlassBackdrop = liquidGlassBackdrop,
                                     onScrollYChanged = { settingsScrollY = it },
                                     settingsScrollBehavior = settingsScrollBehavior,
                                     activeSecondaryActivity = activeSecondaryActivity
@@ -1725,7 +1674,7 @@ fun CourseScheduleApp() {
                 UpdateDialog()
 
                 // LiquidGlass 添加课程浮动按钮
-                if (appStyle == "liquidglass" && !isShiftMode) {
+                if (!isShiftMode) {
                     Box(
                         modifier = Modifier
                             .fillMaxSize()
@@ -2109,90 +2058,88 @@ fun CourseScheduleApp() {
             )
         }
         // LiquidGlass 更多菜单（Scaffold 外层，显示在最上方）
-        if (appStyle == "liquidglass") {
-            if (showMorePopup) {
-                Box(
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .clickable(
-                            interactionSource = remember { MutableInteractionSource() },
-                            indication = null
-                        ) { showMorePopup = false }
-                )
-            }
-            if (showTodayMorePopup) {
-                Box(
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .clickable(
-                            interactionSource = remember { MutableInteractionSource() },
-                            indication = null
-                        ) { showTodayMorePopup = false }
-                )
-            }
-            val statusBarHeight = WindowInsets.statusBars.asPaddingValues().calculateTopPadding()
+        if (showMorePopup) {
             Box(
                 modifier = Modifier
                     .fillMaxSize()
-                    .graphicsLayer { clip = false }
-                    .padding(
-                        top = if (statusBarHeight > 0.dp) statusBarHeight + 32.dp else 70.dp,
-                        end = 2.dp
-                    ),
-                contentAlignment = Alignment.TopEnd
+                    .clickable(
+                        interactionSource = remember { MutableInteractionSource() },
+                        indication = null
+                    ) { showMorePopup = false }
+            )
+        }
+        if (showTodayMorePopup) {
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .clickable(
+                        interactionSource = remember { MutableInteractionSource() },
+                        indication = null
+                    ) { showTodayMorePopup = false }
+            )
+        }
+        val statusBarHeight = WindowInsets.statusBars.asPaddingValues().calculateTopPadding()
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .graphicsLayer { clip = false }
+                .padding(
+                    top = if (statusBarHeight > 0.dp) statusBarHeight + 32.dp else 70.dp,
+                    end = 2.dp
+                ),
+            contentAlignment = Alignment.TopEnd
+        ) {
+            LiquidGlassDropdownMenu(
+                show = showMorePopup,
+                backdrop = liquidGlassBackdrop,
             ) {
-                LiquidGlassDropdownMenu(
-                    show = showMorePopup,
-                    backdrop = liquidGlassBackdrop,
-                ) {
-                    LiquidGlassDropdownMenuItem(
-                        text = "跳转周数",
-                        onClick = {
-                            showMorePopup = false
-                            viewModel.showJumpWeekDialog()
+                LiquidGlassDropdownMenuItem(
+                    text = "跳转周数",
+                    onClick = {
+                        showMorePopup = false
+                        viewModel.showJumpWeekDialog()
+                    }
+                )
+                LiquidGlassDropdownMenuItem(
+                    text = "课程管理",
+                    onClick = {
+                        showMorePopup = false
+                        val intent =
+                            android.content.Intent(context, CourseManageActivity::class.java)
+                        context.startActivity(intent)
+                    }
+                )
+                LiquidGlassDropdownMenuItem(
+                    text = "课表外观",
+                    onClick = {
+                        showMorePopup = false
+                        coroutineScope.launch {
+                            delay(200.milliseconds)
+                            enterCustomizePage()
                         }
-                    )
-                    LiquidGlassDropdownMenuItem(
-                        text = "课程管理",
-                        onClick = {
-                            showMorePopup = false
-                            val intent =
-                                android.content.Intent(context, CourseManageActivity::class.java)
-                            context.startActivity(intent)
-                        }
-                    )
-                    LiquidGlassDropdownMenuItem(
-                        text = "课表外观",
-                        onClick = {
-                            showMorePopup = false
-                            coroutineScope.launch {
-                                delay(200.milliseconds)
-                                enterCustomizePage()
-                            }
-                        }
-                    )
-                }
-                LiquidGlassDropdownMenu(
-                    show = showTodayMorePopup,
-                    backdrop = liquidGlassBackdrop
-                ) {
-                    LiquidGlassDropdownMenuItem(
-                        text = "跳转日期",
-                        onClick = {
-                            showTodayMorePopup = false
-                            todayJumpToDateTrigger++
-                        }
-                    )
-                    LiquidGlassDropdownMenuItem(
-                        text = "课程管理",
-                        onClick = {
-                            showTodayMorePopup = false
-                            val intent =
-                                android.content.Intent(context, CourseManageActivity::class.java)
-                            context.startActivity(intent)
-                        }
-                    )
-                }
+                    }
+                )
+            }
+            LiquidGlassDropdownMenu(
+                show = showTodayMorePopup,
+                backdrop = liquidGlassBackdrop
+            ) {
+                LiquidGlassDropdownMenuItem(
+                    text = "跳转日期",
+                    onClick = {
+                        showTodayMorePopup = false
+                        todayJumpToDateTrigger++
+                    }
+                )
+                LiquidGlassDropdownMenuItem(
+                    text = "课程管理",
+                    onClick = {
+                        showTodayMorePopup = false
+                        val intent =
+                            android.content.Intent(context, CourseManageActivity::class.java)
+                        context.startActivity(intent)
+                    }
+                )
             }
         }
         // 进入动画遮罩（仅颜色渐变，模糊由 SwitchScheduleScreen 自身承担）
@@ -3186,8 +3133,6 @@ private fun SettingsTopBar(
     scrollBehavior: com.haooz.chedule.ui.components.SharedScrollBehavior? = null,
 ) {
     if (liquidGlassBackdrop == null) return
-    val appStyle = rememberAppStyle()
-    if (appStyle != "liquidglass") return
     val isTabletLiquidGlass = navBarStyle == "rail"
 
     ProgressiveBlurTopBar(
@@ -3224,8 +3169,6 @@ private fun TodayTopBar(
     scrollBehavior: com.haooz.chedule.ui.components.SharedScrollBehavior? = null,
 ) {
     if (liquidGlassBackdrop == null) return
-    val appStyle = rememberAppStyle()
-    if (appStyle != "liquidglass") return
     val isTabletLiquidGlass = navBarStyle == "rail"
     val dayOfWeekNames = listOf("周一", "周二", "周三", "周四", "周五", "周六", "周日")
     val dayOfWeekName = if (currentDayOfWeek in 1..7) dayOfWeekNames[currentDayOfWeek - 1] else ""

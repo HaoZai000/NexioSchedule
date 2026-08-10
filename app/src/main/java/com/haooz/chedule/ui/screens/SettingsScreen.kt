@@ -1,6 +1,7 @@
 /** 设置页面 - 应用全局设置 */
 package com.haooz.chedule.ui.screens
 
+import android.annotation.SuppressLint
 import android.app.Activity
 import android.content.Context
 import android.content.ContextWrapper
@@ -50,6 +51,7 @@ import com.haooz.chedule.ui.activities.CourseReminderActivity
 import com.haooz.chedule.ui.activities.CourseTimeSettingsActivity
 import com.haooz.chedule.ui.activities.PreferenceSettingsActivity
 import com.haooz.chedule.ui.activities.WidgetIntroActivity
+import com.haooz.chedule.ui.components.NativeMiuixTextField
 import com.haooz.chedule.ui.utils.isAppDarkTheme
 import com.haooz.chedule.viewmodel.CourseViewModel
 import com.haooz.chedule.viewmodel.ScheduleViewModel
@@ -62,7 +64,6 @@ import top.yukonga.miuix.kmp.basic.NumberPicker
 import top.yukonga.miuix.kmp.basic.Scaffold
 import top.yukonga.miuix.kmp.basic.SmallTitle
 import top.yukonga.miuix.kmp.basic.TextButton
-import com.haooz.chedule.ui.components.NativeMiuixTextField
 import top.yukonga.miuix.kmp.blur.layerBackdrop
 import top.yukonga.miuix.kmp.blur.rememberLayerBackdrop
 import top.yukonga.miuix.kmp.overlay.OverlayDialog
@@ -107,6 +108,7 @@ private fun getDaysInMonth(year: Int, month: Int): Int {
 /**
  * 设置页面
  */
+@SuppressLint("ConfigurationScreenWidthHeight")
 @Composable
 fun SettingsScreen(
     viewModel: CourseViewModel,
@@ -117,21 +119,16 @@ fun SettingsScreen(
     onExitShiftMode: () -> Unit = {},
     onEnterShiftMode: () -> Unit = {},
     navBarStyle: String = "standard",
-    liquidGlassBackdrop: com.kyant.backdrop.Backdrop? = null,
     onScrollYChanged: (Int) -> Unit = {},
     settingsScrollBehavior: com.haooz.chedule.ui.components.SharedScrollBehavior? = null,
     activeSecondaryActivity: String? = null
 ) {
     val totalWeeks by viewModel.totalWeeks.collectAsState()
     val currentWeek by viewModel.currentWeek.collectAsState()
-    val isHoliday by viewModel.isHoliday.collectAsState()
     val isSemesterStarted by viewModel.isSemesterStarted.collectAsState()
     val classStartTime by viewModel.classStartTime.collectAsState()
     val smartWeekend by settingsViewModel.smartWeekend.collectAsState()
     val showNonCurrentWeek by settingsViewModel.showNonCurrentWeek.collectAsState()
-    val morningSections by settingsViewModel.morningSections.collectAsState()
-    val afternoonSections by settingsViewModel.afternoonSections.collectAsState()
-    val eveningSections by settingsViewModel.eveningSections.collectAsState()
     val scheduleNames by scheduleViewModel.scheduleNames.collectAsState()
     val shiftSelectedSchedules by shiftViewModel.shiftSelectedSchedules.collectAsState()
     val context = androidx.compose.ui.platform.LocalContext.current

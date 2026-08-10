@@ -150,11 +150,7 @@ fun CourseDetailScreen(
         weekEntries.groupBy { it.first }
     }
 
-    val appStyle = com.haooz.chedule.ui.utils.rememberAppStyle()
-    val liquidGlassBackdrop = if (appStyle == "liquidglass") {
-        com.kyant.backdrop.backdrops.rememberLayerBackdrop()
-    } else null
-    val isLiquidGlass = liquidGlassBackdrop != null
+    val liquidGlassBackdrop = com.kyant.backdrop.backdrops.rememberLayerBackdrop()
     val isTablet = LocalConfiguration.current.screenWidthDp >= 600
     val tabletHorizontalPadding = if (isTablet) {
         val screenWidthDp = LocalConfiguration.current.screenWidthDp
@@ -373,10 +369,9 @@ fun CourseDetailScreen(
                                 .fillMaxSize()
                                 .layerBackdrop(backdrop)
                                 .then(
-                                    if (isLiquidGlass) Modifier.liquidGlassLayerBackdrop(
+                                    Modifier.liquidGlassLayerBackdrop(
                                         liquidGlassBackdrop
                                     )
-                                    else Modifier
                                 )
                         ) {
                             val listState = rememberLazyListState()

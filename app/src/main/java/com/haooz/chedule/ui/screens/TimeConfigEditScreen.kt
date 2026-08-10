@@ -76,7 +76,6 @@ import com.haooz.chedule.ui.effects.motion.OobeFifthpowerOutEasing
 import com.haooz.chedule.ui.effects.motion.OobeQuadraticOutEasing
 import com.haooz.chedule.ui.effects.motion.OobeQuartOutEasing
 import com.haooz.chedule.ui.utils.isAppDarkTheme
-import com.haooz.chedule.ui.utils.rememberAppStyle
 import com.kyant.backdrop.backdrops.LayerBackdrop
 import com.kyant.shapes.RoundedRectangle
 import kotlinx.coroutines.coroutineScope
@@ -448,8 +447,7 @@ fun TimeConfigEditScreen(
         drawContent()
     }
     val isDark = isAppDarkTheme()
-    val appStyle = rememberAppStyle()
-    val isLiquidGlass = appStyle == "liquidglass" && liquidGlassBackdrop != null
+    val isLiquidGlass = liquidGlassBackdrop != null
     val isTablet = LocalConfiguration.current.screenWidthDp >= 600
     val tabletHorizontalPadding = if (isTablet) {
         val screenWidthDp = LocalConfiguration.current.screenWidthDp

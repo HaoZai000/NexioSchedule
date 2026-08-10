@@ -26,7 +26,6 @@ import com.haooz.chedule.data.school.ScriptRepository
 import com.haooz.chedule.ui.screens.WebViewScreen
 import com.haooz.chedule.ui.screens.SchoolSelectionScreen
 import com.haooz.chedule.ui.utils.applyThemeAwareSystemBars
-import com.haooz.chedule.ui.utils.rememberAppStyle
 import com.haooz.chedule.ui.theme.CourseScheduleTheme
 import com.haooz.chedule.viewmodel.CourseViewModel
 import com.haooz.chedule.viewmodel.ScheduleViewModel
@@ -178,11 +177,7 @@ class EducationalImportActivity : ComponentActivity() {
         val scheduleViewModel: ScheduleViewModel = viewModel()
         val settingsViewModel: SettingsViewModel = viewModel()
 
-        val currentAppStyle = rememberAppStyle()
-        val liquidGlassBackdrop: LayerBackdrop? = if (currentAppStyle == "liquidglass") {
-            com.kyant.backdrop.backdrops.rememberLayerBackdrop()
-        } else null
-        val isLiquidGlass = currentAppStyle == "liquidglass"
+        val liquidGlassBackdrop: LayerBackdrop = com.kyant.backdrop.backdrops.rememberLayerBackdrop()
 
         var currentScreen by remember { mutableStateOf("selection") }
         var selectedSchool by remember { mutableStateOf<SchoolData?>(null) }
@@ -201,7 +196,7 @@ class EducationalImportActivity : ComponentActivity() {
                     updateProgress = updateProgress,
                     dataVersion = dataVersion,
                     isInFreeformWindow = isInFreeformWindow,
-                    isLiquidGlass = isLiquidGlass,
+                    isLiquidGlass = true,
                     liquidGlassBackdrop = liquidGlassBackdrop,
                     onRefresh = { forceUpdate(this@EducationalImportActivity) },
                     onSchoolSelected = { school, adapter ->
@@ -222,7 +217,7 @@ class EducationalImportActivity : ComponentActivity() {
                             adapterId = adapter.adapterId,
                             importUrl = adapter.importUrl,
                             assetJsPath = adapter.assetJsPath,
-                            isLiquidGlass = isLiquidGlass,
+                            isLiquidGlass = true,
                             liquidGlassBackdrop = liquidGlassBackdrop,
                             onBack = { currentScreen = "selection" },
                             onImportComplete = { courses ->

@@ -3,10 +3,6 @@ package com.haooz.chedule.ui.screens
 
 import android.annotation.SuppressLint
 import android.content.Context
-import androidx.compose.animation.AnimatedVisibility
-import androidx.compose.animation.core.tween
-import androidx.compose.animation.fadeIn
-import androidx.compose.animation.fadeOut
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -21,7 +17,6 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.pager.HorizontalPager
@@ -71,17 +66,13 @@ import com.kyant.shapes.RoundedRectangle
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import top.yukonga.miuix.kmp.basic.Card
-import top.yukonga.miuix.kmp.basic.DropdownImpl
-import top.yukonga.miuix.kmp.basic.ListPopupColumn
-import top.yukonga.miuix.kmp.overlay.OverlayDialog
 import top.yukonga.miuix.kmp.basic.NumberPicker
-import top.yukonga.miuix.kmp.basic.PopupPositionProvider
 import top.yukonga.miuix.kmp.basic.Scaffold
 import top.yukonga.miuix.kmp.basic.SmallTitle
 import top.yukonga.miuix.kmp.basic.TextButton
 import top.yukonga.miuix.kmp.blur.layerBackdrop
 import top.yukonga.miuix.kmp.blur.rememberLayerBackdrop
-import top.yukonga.miuix.kmp.overlay.OverlayListPopup
+import top.yukonga.miuix.kmp.overlay.OverlayDialog
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 import top.yukonga.miuix.kmp.utils.overScrollVertical
 import top.yukonga.miuix.kmp.utils.scrollEndHaptic
@@ -90,7 +81,6 @@ import java.time.LocalTime
 import java.time.format.DateTimeFormatter
 import java.time.temporal.ChronoUnit
 import kotlin.time.Duration.Companion.milliseconds
-import androidx.compose.ui.graphics.Color as ComposeColor
 import com.kyant.backdrop.backdrops.layerBackdrop as kyantLayerBackdrop
 import com.kyant.backdrop.backdrops.rememberLayerBackdrop as rememberKyantLayerBackdrop
 
@@ -109,7 +99,7 @@ fun BlurCard(
     lightAlpha: Float = 0.64f,
     darkAlpha: Float = 0.64f,
     showEdgeLight: Boolean = false,
-    modifier: Modifier = Modifier,
+    @SuppressLint("ModifierParameter") modifier: Modifier = Modifier,
     content: @Composable () -> Unit
 ) {
     val hasBlur = blurRadius > 0f && wallpaperBackdrop != null
@@ -308,17 +298,13 @@ fun TodayScreen(
     onCourseClick: (courses: List<Course>, cardLeft: Float, cardTop: Float, cardWidth: Float, cardHeight: Float, snapshot: android.graphics.Bitmap?, courseIdToHide: String) -> Unit = { _, _, _, _, _, _, _ -> },
     pagerState: androidx.compose.foundation.pager.PagerState,
     navBarStyle: String = "standard",
-    liquidGlassBackdrop: com.kyant.backdrop.Backdrop? = null,
     onScrollYChanged: (Int) -> Unit = {},
     settingsScrollBehavior: com.haooz.chedule.ui.components.SharedScrollBehavior? = null,
     onSelectedDayChanged: (Int) -> Unit = {},
     onSelectedDateChanged: (Boolean) -> Unit = {},
     scrollToTodayTrigger: Int = 0,
-    showMorePopup: Boolean = false,
-    onShowMorePopupChange: (Boolean) -> Unit = {},
     jumpToDateTrigger: Int = 0,
     onJumpToDateProcessed: () -> Unit = {},
-    onCourseManage: () -> Unit = {},
     wallpaperBitmap: android.graphics.Bitmap? = null,
     wallpaperOffset: androidx.compose.ui.geometry.Offset = androidx.compose.ui.geometry.Offset.Zero,
     wallpaperScale: Float = 1f,
@@ -387,14 +373,9 @@ fun TodayScreen(
         onSelectedDayChanged(newDayOfWeek)
     }
 
-    val selectedDayOfWeek = selectedDate.dayOfWeek.value.let {
-        if (it == 7) 7 else it
-    }
-
 
     val hapticFeedback = LocalHapticFeedback.current
 
-    val isDark = isAppDarkTheme()
     val backgroundColor = MiuixTheme.colorScheme.surface
     val backdrop = rememberLayerBackdrop {
         drawRect(backgroundColor)
@@ -406,8 +387,6 @@ fun TodayScreen(
         drawContent()
     }
     val hasWallpaper = todayShowWallpaper && wallpaperBitmap != null
-    val dayOfWeekNames = listOf("周一", "周二", "周三", "周四", "周五", "周六", "周日")
-    val dayOfWeekName = if (selectedDayOfWeek in 1..7) dayOfWeekNames[selectedDayOfWeek - 1] else ""
 
 
     val isTablet = navBarStyle == "rail"
