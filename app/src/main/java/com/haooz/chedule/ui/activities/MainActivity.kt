@@ -1357,7 +1357,7 @@ fun CourseScheduleApp() {
                         )
                     }
                 }
-            ) { _ ->
+            ) { paddingValues ->
                 // 不再用 combinations.isEmpty() 门控整个内容区：
                 // 课程网格（TodayScreen/MainScheduleScreen）只依赖 viewModel，与壁纸加载解耦。
                 // 壁纸未就绪时 wallpaperBitmap=null，MainScheduleScreen 内部显示主题底色，课程方块照常渲染。
@@ -1594,7 +1594,8 @@ fun CourseScheduleApp() {
                                             } else null
                                         },
                                         animateInCourseIds = animateInCourseIds,
-                                        scheduleScrollBehavior = scheduleScrollBehavior
+                                        scheduleScrollBehavior = scheduleScrollBehavior,
+                                        paddingValues = paddingValues
                                     )
                                 }
 
@@ -3204,7 +3205,7 @@ private fun TodayTopBar(
                             backdrop = liquidGlassBackdrop,
                             icon = MiuixIcons.Medium.Reset,
                             contentDescription = "返回今天",
-                            iconSize = 22.dp,
+                            iconSize = 25.dp,
                             modifier = Modifier.padding(start = 4.dp),
                             backdropAlpha = backdropAlpha,
                             shadowAlpha = shadowAlpha,
@@ -3218,7 +3219,7 @@ private fun TodayTopBar(
                     backdrop = liquidGlassBackdrop,
                     icon = MiuixIcons.More,
                     contentDescription = "更多",
-                    iconSize = 20.dp,
+                    iconSize = 24.dp,
                     modifier = Modifier.padding(end = 4.dp),
                     backdropAlpha = backdropAlpha,
                     shadowAlpha = shadowAlpha,

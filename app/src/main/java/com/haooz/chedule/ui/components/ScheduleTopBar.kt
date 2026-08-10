@@ -67,7 +67,7 @@ internal fun ScheduleTopBar(
                 showLargeTitle = false,
                 modifier = Modifier.zIndex(1f),
                 scrollBehavior = scrollBehavior,
-                startAction = { _, _ ->
+                startAction = { backdropAlpha, shadowAlpha ->
                     if (navBarStyle == "rail") {
                         Text(
                             text = titleText,
@@ -87,13 +87,15 @@ internal fun ScheduleTopBar(
                                 backdrop = liquidGlassBackdrop,
                                 icon = MiuixIcons.Medium.Reset,
                                 contentDescription = "返回本周",
-                                iconSize = 22.dp,
-                                modifier = Modifier.padding(start = 4.dp)
+                                iconSize = 25.dp,
+                                modifier = Modifier.padding(start = 4.dp),
+                                backdropAlpha = backdropAlpha,
+                                shadowAlpha = shadowAlpha
                             )
                         }
                     }
                 },
-                endAction = { _, _ ->
+                endAction = { backdropAlpha, shadowAlpha ->
                     if (navBarStyle == "rail") {
                         AnimatedVisibility(
                             visible = !isViewingCurrentWeek,
@@ -106,7 +108,9 @@ internal fun ScheduleTopBar(
                                 icon = MiuixIcons.Medium.Reset,
                                 contentDescription = "返回本周",
                                 iconSize = 22.dp,
-                                modifier = Modifier.padding(end = 8.dp)
+                                modifier = Modifier.padding(end = 8.dp),
+                                backdropAlpha = backdropAlpha,
+                                shadowAlpha = shadowAlpha
                             )
                         }
                     }

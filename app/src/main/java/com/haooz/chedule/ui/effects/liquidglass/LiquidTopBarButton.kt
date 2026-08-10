@@ -1,4 +1,4 @@
-﻿package com.haooz.chedule.ui.effects.liquidglass
+package com.haooz.chedule.ui.effects.liquidglass
 
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Box
@@ -47,7 +47,8 @@ fun LiquidTopBarButton(
     backdropAlpha: Float = 1f,
     shadowAlpha: Float = 1f,
     iconTint: Color = Color.Unspecified,
-    containerColor: Color = Color.Unspecified
+    containerColor: Color = Color.Unspecified,
+    draggable: Boolean = false
 ) {
     val animationScope = rememberCoroutineScope()
     val hapticFeedback = LocalHapticFeedback.current
@@ -138,7 +139,7 @@ fun LiquidTopBarButton(
                     }
                 )
                 .then(interactiveHighlight.modifier)
-                .then(interactiveHighlight.gestureModifier)
+                .then(if (draggable) interactiveHighlight.gestureModifier else Modifier)
                 .zIndex(0f)
         )
         Icon(

@@ -135,7 +135,10 @@ class SharedScrollBehavior(
                         source: NestedScrollSource
                     ): Offset {
                         if (available.y > 0) {
-                            if (state.heightOffset > state.heightOffsetLimit) {
+                            // 向上滚动时，只有当 postCollapseScrollOffset 足够大时才重置
+                            // 这样可以避免微微上滑就导致阴影消失
+                            // 阈值设为 30f，确保用户确实滚动了较远距离
+                            if (state.heightOffset > state.heightOffsetLimit && postCollapseScrollOffset > 30f) {
                                 postCollapseScrollOffset = 0f
                             }
                             return Offset.Zero
@@ -144,7 +147,9 @@ class SharedScrollBehavior(
                         val currentHeightOffset = state.heightOffset
                         val heightOffsetLimit = state.heightOffsetLimit
 
-                        if (currentHeightOffset <= heightOffsetLimit) {
+                        // 当没有大标题时（heightOffsetLimit == -1f），或者 bar 已完全折叠时，
+                        // 更新 postCollapseScrollOffset 用于按钮材质/阴影动画
+                        if (currentHeightOffset <= heightOffsetLimit || heightOffsetLimit == -1f) {
                             postCollapseScrollOffset += -available.y
                             return Offset.Zero
                         }
@@ -276,7 +281,6 @@ fun CollapsibleTopAppBar(
     endAction: @Composable ((backdropAlpha: Float, shadowAlpha: Float) -> Unit)? = null,
 ) {
     val state = scrollBehavior?.state
-    val density = LocalDensity.current
 
     val overScrollState = LocalOverScrollState.current
     val lastOverScrollActive = remember { mutableStateOf(overScrollState.isOverScrollActive) }
@@ -335,9 +339,25 @@ fun CollapsibleTopAppBar(
                 else (state?.collapsedFraction ?: 0f) >= 0.45f
         }
     }
-    val showButtonShadow = remember(scrollBehavior, showShadow) {
+    val density = LocalDensity.current
+    val collapsedHeightPx = with(density) { (CollapsibleTopAppBarDefaults.CollapsedHeight - 8.dp).toPx() }
+    val showButtonShadow = remember(scrollBehavior, showShadow, showLargeTitle) {
         derivedStateOf {
-            showShadow ?: ((scrollBehavior?.postCollapseScrollOffset ?: 0f) > 10f)
+            if (showShadow != null) return@derivedStateOf showShadow
+            val state = scrollBehavior?.state
+            if (showLargeTitle) {
+                // 大标题模式：当栏完全折叠时显示阴影
+                // heightOffset <= heightOffsetLimit 表示栏已完全折叠
+                val heightOffset = state?.heightOffset ?: 0f
+                val heightOffsetLimit = state?.heightOffsetLimit ?: -Float.MAX_VALUE
+                heightOffset <= heightOffsetLimit
+            } else {
+                // 小标题模式：使用 contentOffset 检测内容是否已经划出按钮底部
+                // contentOffset 是内容的滚动位置，当内容向下滚动时，contentOffset 会减小
+                // CollapsedHeight - 8.dp 是调整后的阈值，让阴影更早出现
+                val contentOffset = state?.contentOffset ?: 0f
+                contentOffset < -collapsedHeightPx
+            }
         }
     }
     val shadowAlpha = remember { Animatable(if (showButtonShadow.value) 1f else 0f) }

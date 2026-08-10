@@ -1,4 +1,4 @@
-﻿/** 主课程表页面 - 显示周视图课程表 */
+/** 主课程表页面 - 显示周视图课程表 */
 package com.haooz.chedule.ui.screens
 
 import android.annotation.SuppressLint
@@ -18,15 +18,12 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.WindowInsets
-import androidx.compose.foundation.layout.asPaddingValues
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.statusBars
 import androidx.compose.foundation.pager.HorizontalPager
 import androidx.compose.foundation.pager.PagerState
 import androidx.compose.foundation.rememberScrollState
@@ -34,16 +31,16 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.mutableStateMapOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
-import androidx.compose.runtime.SideEffect
-import androidx.compose.runtime.mutableStateMapOf
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -149,7 +146,8 @@ fun MainScheduleScreen(
     // 调课后需要淡入放大的课程ID集合
     animateInCourseIds: Set<String> = emptySet(),
     onGridGeometryChange: (ScheduleGridGeometry) -> Unit = {},
-    scheduleScrollBehavior: com.haooz.chedule.ui.components.SharedScrollBehavior? = null
+    scheduleScrollBehavior: com.haooz.chedule.ui.components.SharedScrollBehavior? = null,
+    paddingValues: androidx.compose.foundation.layout.PaddingValues = androidx.compose.foundation.layout.PaddingValues()
 ) {
     val courses by viewModel.courses.collectAsState()
     val currentWeek by viewModel.currentWeek.collectAsState()
@@ -168,6 +166,8 @@ fun MainScheduleScreen(
     val density = LocalDensity.current
     val screenWidthPx = with(density) { configuration.screenWidthDp.dp.toPx() }
     val screenHeightPx = with(density) { configuration.screenHeightDp.dp.toPx() }
+    val scrollState = rememberScrollState()
+    val topBarHeightDp = with(density) { (scheduleScrollBehavior?.currentHeightPx ?: 0f).toDp() }
 
     // 计算壁纸最小缩放比例（填满短边，确保不露出底部背景）
     // ContentScale.Fit 的基础缩放 = min(screenW/bitmapW, screenH/bitmapH)
@@ -361,7 +361,8 @@ fun MainScheduleScreen(
             userScrollEnabled = !isWallpaperEditing
         ) { page ->
             val week = page + 1
-            val scrollState = rememberScrollState()
+
+
 
             Column(
                 modifier = Modifier
@@ -376,8 +377,7 @@ fun MainScheduleScreen(
                     )
                     .verticalScroll(scrollState)
                     .padding(
-                        top = WindowInsets.statusBars.asPaddingValues()
-                            .calculateTopPadding() + if (isInFreeformWindow) activity.titleBarHeight + 40.dp else 96.dp,
+                        top = paddingValues.calculateTopPadding() + topBarHeightDp - 52.dp,
                         bottom = 140.dp
                     )
             ) {
