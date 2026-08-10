@@ -135,12 +135,8 @@ class SharedScrollBehavior(
                         source: NestedScrollSource
                     ): Offset {
                         if (available.y > 0) {
-                            // 向上滚动时，只有当 postCollapseScrollOffset 足够大时才重置
-                            // 这样可以避免微微上滑就导致阴影消失
-                            // 阈值设为 30f，确保用户确实滚动了较远距离
-                            if (state.heightOffset > state.heightOffsetLimit && postCollapseScrollOffset > 30f) {
-                                postCollapseScrollOffset = 0f
-                            }
+                            // 向上滚动时不重置 postCollapseScrollOffset
+                            // 只在回弹结束时由 LaunchedEffect 重置
                             return Offset.Zero
                         }
 
@@ -344,19 +340,14 @@ fun CollapsibleTopAppBar(
     val showButtonShadow = remember(scrollBehavior, showShadow, showLargeTitle) {
         derivedStateOf {
             if (showShadow != null) return@derivedStateOf showShadow
-            val state = scrollBehavior?.state
             if (showLargeTitle) {
-                // 大标题模式：当栏完全折叠时显示阴影
-                // heightOffset <= heightOffsetLimit 表示栏已完全折叠
-                val heightOffset = state?.heightOffset ?: 0f
-                val heightOffsetLimit = state?.heightOffsetLimit ?: -Float.MAX_VALUE
-                heightOffset <= heightOffsetLimit
+                // 大标题模式：使用 postCollapseScrollOffset 检测
+                val offset = scrollBehavior?.postCollapseScrollOffset ?: 0f
+                offset > 10f
             } else {
-                // 小标题模式：使用 contentOffset 检测内容是否已经划出按钮底部
-                // contentOffset 是内容的滚动位置，当内容向下滚动时，contentOffset 会减小
-                // CollapsedHeight - 8.dp 是调整后的阈值，让阴影更早出现
-                val contentOffset = state?.contentOffset ?: 0f
-                contentOffset < -collapsedHeightPx
+                // 小标题模式：原方案
+                val postCollapseScrollOffset = scrollBehavior?.postCollapseScrollOffset ?: 0f
+                postCollapseScrollOffset > 10f
             }
         }
     }
