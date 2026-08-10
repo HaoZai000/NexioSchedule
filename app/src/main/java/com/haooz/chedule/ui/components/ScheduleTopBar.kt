@@ -65,6 +65,7 @@ internal fun ScheduleTopBar(
             CollapsibleTopAppBar(
                 title = if (navBarStyle == "rail") "" else titleText,
                 showLargeTitle = false,
+                showGradientOverlay = false,
                 modifier = Modifier.zIndex(1f),
                 scrollBehavior = scrollBehavior,
                 startAction = { backdropAlpha, shadowAlpha ->

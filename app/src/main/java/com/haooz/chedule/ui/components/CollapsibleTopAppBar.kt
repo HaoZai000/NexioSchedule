@@ -11,6 +11,8 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.WindowInsetsSides
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.only
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.systemBars
@@ -31,7 +33,10 @@ import androidx.compose.runtime.setValue
 import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.blur
+import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.nestedscroll.NestedScrollConnection
 import androidx.compose.ui.input.nestedscroll.NestedScrollSource
@@ -49,6 +54,7 @@ import androidx.compose.ui.unit.sp
 import androidx.compose.ui.util.fastFirst
 import androidx.compose.ui.util.lerp
 import androidx.compose.ui.zIndex
+import com.haooz.chedule.ui.utils.isAppDarkTheme
 import kotlinx.coroutines.launch
 import top.yukonga.miuix.kmp.anim.folmeSpring
 import top.yukonga.miuix.kmp.theme.MiuixTheme
@@ -269,6 +275,7 @@ fun CollapsibleTopAppBar(
     showLargeTitle: Boolean = true,
     showSmallTitle: Boolean? = null,
     showShadow: Boolean? = null,
+    showGradientOverlay: Boolean = true,
     scrollBehavior: SharedScrollBehavior? = null,
     contentPadding: (Dp) -> Unit = {},
     // 左侧自定义 Composable（接收 backdropAlpha、shadowAlpha 用于液态玻璃按钮动画）
@@ -336,7 +343,6 @@ fun CollapsibleTopAppBar(
         }
     }
     val density = LocalDensity.current
-    val collapsedHeightPx = with(density) { (CollapsibleTopAppBarDefaults.CollapsedHeight - 8.dp).toPx() }
     val showButtonShadow = remember(scrollBehavior, showShadow, showLargeTitle) {
         derivedStateOf {
             if (showShadow != null) return@derivedStateOf showShadow
@@ -390,155 +396,191 @@ fun CollapsibleTopAppBar(
         }
     }
 
-    Layout(
-        {
-            // 左侧自定义 Composable
-            if (startAction != null) {
-                Box(
-                    Modifier
-                        .layoutId("startAction")
-                        .zIndex(2f),
-                ) {
-                    startAction(backdropAlpha.value, shadowAlpha.value)
-                }
-            }
+    // 渐变遮罩动画
+    val gradientAlpha = remember { Animatable(0f) }
+    LaunchedEffect(showButtonShadow.value) {
+        val target = if (showButtonShadow.value) 1f else 0f
+        val spec = if (showButtonShadow.value) {
+            folmeSpring(damping = 1.0f, response = 0.6f)
+        } else {
+            folmeSpring<Float>(damping = 1.0f, response = 0.4f)
+        }
+        gradientAlpha.animateTo(target, spec)
+    }
+    val gradientColor = if (isAppDarkTheme()) Color.Black else Color.White
+
+    Box {
+        // 渐变遮罩（超出顶栏范围）
+        if (showGradientOverlay) {
             Box(
                 Modifier
-                    .layoutId("title")
-                    .padding(horizontal = CollapsibleTopAppBarDefaults.TitlePadding)
-                    .graphicsLayer {
-                        alpha = smallTitleAlpha.value
-                        translationY = smallTitleTranslationY.value
-                    }
-                    .blur(Dp(smallTitleBlur.value)),
-            ) {
-                Text(
-                    text = title,
-                    color = MiuixTheme.colorScheme.onSurface,
-                    fontSize = 19.sp,
-                    fontWeight = FontWeight.Medium,
-                    overflow = TextOverflow.Ellipsis,
-                    softWrap = false,
-                )
-            }
-            // 右侧自定义 Composable
-            if (endAction != null) {
-                Box(
-                    Modifier
-                        .layoutId("endAction")
-                        .zIndex(2f),
-                ) {
-                    endAction(backdropAlpha.value, shadowAlpha.value)
-                }
-            }
-            if (showLargeTitle) {
-                Box(
-                    Modifier
-                        .layoutId("largeTitle")
-                        .padding(top = CollapsibleTopAppBarDefaults.CollapsedHeight)
-                        .padding(horizontal = CollapsibleTopAppBarDefaults.TitlePadding)
-                        .graphicsLayer { alpha = largeTitleAlpha() }
-                        .blur(largeTitleBlur()),
-                ) {
-                    Column(
-                        modifier = Modifier.onSizeChanged { updateHeightOffsetLimit(it.height) },
-                    ) {
-                        Text(
-                            text = largeTitle,
-                            color = MiuixTheme.colorScheme.onSurface,
-                            fontSize = 30.sp,
-                            fontWeight = FontWeight.Normal,
+                    .fillMaxWidth()
+                    .height(CollapsibleTopAppBarDefaults.CollapsedHeight + 70.dp)
+                    .graphicsLayer { alpha = gradientAlpha.value }
+                    .drawBehind {
+                        drawRect(
+                            brush = Brush.verticalGradient(
+                                0f to gradientColor.copy(alpha = 0.8f),
+                                0.7f to gradientColor.copy(alpha = 0.4f),
+                                0.9f to gradientColor.copy(alpha = 0.15f),
+                                1f to Color.Transparent
+                            )
                         )
                     }
+            )
+        }
+
+        Layout(
+            {
+                // 左侧自定义 Composable
+                if (startAction != null) {
+                    Box(
+                        Modifier
+                            .layoutId("startAction")
+                            .zIndex(2f),
+                    ) {
+                        startAction(backdropAlpha.value, shadowAlpha.value)
+                    }
                 }
-            }
-        },
-        modifier = modifier
-            .windowInsetsPadding(WindowInsets.systemBars.only(WindowInsetsSides.Top))
-            .onSizeChanged { size ->
-                scrollBehavior?.currentHeightPx = size.height.toFloat()
-                contentPadding(with(density) { size.height.toDp() })
+                Box(
+                    Modifier
+                        .layoutId("title")
+                        .padding(horizontal = CollapsibleTopAppBarDefaults.TitlePadding)
+                        .graphicsLayer {
+                            alpha = smallTitleAlpha.value
+                            translationY = smallTitleTranslationY.value
+                        }
+                        .blur(Dp(smallTitleBlur.value)),
+                ) {
+                    Text(
+                        text = title,
+                        color = MiuixTheme.colorScheme.onSurface,
+                        fontSize = 19.sp,
+                        fontWeight = FontWeight.Medium,
+                        overflow = TextOverflow.Ellipsis,
+                        softWrap = false,
+                    )
+                }
+                // 右侧自定义 Composable
+                if (endAction != null) {
+                    Box(
+                        Modifier
+                            .layoutId("endAction")
+                            .zIndex(2f),
+                    ) {
+                        endAction(backdropAlpha.value, shadowAlpha.value)
+                    }
+                }
+                if (showLargeTitle) {
+                    Box(
+                        Modifier
+                            .layoutId("largeTitle")
+                            .padding(top = CollapsibleTopAppBarDefaults.CollapsedHeight)
+                            .padding(horizontal = CollapsibleTopAppBarDefaults.TitlePadding)
+                            .graphicsLayer { alpha = largeTitleAlpha() }
+                            .blur(largeTitleBlur()),
+                    ) {
+                        Column(
+                            modifier = Modifier.onSizeChanged { updateHeightOffsetLimit(it.height) },
+                        ) {
+                            Text(
+                                text = largeTitle,
+                                color = MiuixTheme.colorScheme.onSurface,
+                                fontSize = 30.sp,
+                                fontWeight = FontWeight.Normal,
+                            )
+                        }
+                    }
+                }
             },
-    ) { measurables, constraints ->
-        val backButtonPlaceable = measurables
-            .firstOrNull { it.layoutId == "backButton" }
-            ?.measure(constraints.copy(minWidth = 0, minHeight = 0))
+            modifier = modifier
+                .windowInsetsPadding(WindowInsets.systemBars.only(WindowInsetsSides.Top))
+                .onSizeChanged { size ->
+                    scrollBehavior?.currentHeightPx = size.height.toFloat()
+                    contentPadding(with(density) { size.height.toDp() })
+                },
+        ) { measurables, constraints ->
+            val backButtonPlaceable = measurables
+                .firstOrNull { it.layoutId == "backButton" }
+                ?.measure(constraints.copy(minWidth = 0, minHeight = 0))
 
-        val startActionPlaceable = measurables
-            .firstOrNull { it.layoutId == "startAction" }
-            ?.measure(constraints.copy(minWidth = 0, minHeight = 0))
+            val startActionPlaceable = measurables
+                .firstOrNull { it.layoutId == "startAction" }
+                ?.measure(constraints.copy(minWidth = 0, minHeight = 0))
 
-        val endActionPlaceable = measurables
-            .firstOrNull { it.layoutId == "endAction" }
-            ?.measure(constraints.copy(minWidth = 0, minHeight = 0))
+            val endActionPlaceable = measurables
+                .firstOrNull { it.layoutId == "endAction" }
+                ?.measure(constraints.copy(minWidth = 0, minHeight = 0))
 
-        val maxTitleWidth = if (constraints.maxWidth == Constraints.Infinity) {
-            constraints.maxWidth
-        } else {
-            constraints.maxWidth
-        }
-        val titleMaxWidth = if (maxTitleWidth == Constraints.Infinity) {
-            maxTitleWidth
-        } else {
-            (maxTitleWidth * CollapsibleTopAppBarDefaults.TitleWidthFraction).roundToInt()
-        }
+            val maxTitleWidth = if (constraints.maxWidth == Constraints.Infinity) {
+                constraints.maxWidth
+            } else {
+                constraints.maxWidth
+            }
+            val titleMaxWidth = if (maxTitleWidth == Constraints.Infinity) {
+                maxTitleWidth
+            } else {
+                (maxTitleWidth * CollapsibleTopAppBarDefaults.TitleWidthFraction).roundToInt()
+            }
 
-        val titlePlaceable = measurables
-            .fastFirst { it.layoutId == "title" }
-            .measure(constraints.copy(minWidth = 0, maxWidth = titleMaxWidth, minHeight = 0))
+            val titlePlaceable = measurables
+                .fastFirst { it.layoutId == "title" }
+                .measure(constraints.copy(minWidth = 0, maxWidth = titleMaxWidth, minHeight = 0))
 
-        val largeTitlePlaceable = if (showLargeTitle) {
-            measurables
-                .firstOrNull { it.layoutId == "largeTitle" }
-                ?.measure(
-                    constraints.copy(
-                        minWidth = 0,
-                        minHeight = 0,
-                        maxHeight = Constraints.Infinity,
-                    ),
+            val largeTitlePlaceable = if (showLargeTitle) {
+                measurables
+                    .firstOrNull { it.layoutId == "largeTitle" }
+                    ?.measure(
+                        constraints.copy(
+                            minWidth = 0,
+                            minHeight = 0,
+                            maxHeight = Constraints.Infinity,
+                        ),
+                    )
+            } else null
+
+            val collapsedHeightPx = CollapsibleTopAppBarDefaults.CollapsedHeight.roundToPx()
+            val expansion =
+                ((largeTitlePlaceable?.height ?: 0) - collapsedHeightPx).coerceAtLeast(0)
+
+            val offset = scrolledOffset()
+            val collapseFraction = if (expansion > 0 && !offset.isNaN()) {
+                (abs(offset) / expansion.toFloat()).coerceIn(0f, 1f)
+            } else {
+                0f
+            }
+            val barHeight = lerp(
+                start = collapsedHeightPx.toFloat(),
+                stop = (collapsedHeightPx + expansion).toFloat(),
+                fraction = 1f - collapseFraction,
+            ).roundToInt()
+
+            val verticalCenter = collapsedHeightPx / 2
+
+            layout(constraints.maxWidth, barHeight) {
+                backButtonPlaceable?.placeRelative(
+                    x = with(density) { 18.dp.roundToPx() },
+                    y = verticalCenter - backButtonPlaceable.height / 2,
                 )
-        } else null
 
-        val collapsedHeightPx = CollapsibleTopAppBarDefaults.CollapsedHeight.roundToPx()
-        val expansion = ((largeTitlePlaceable?.height ?: 0) - collapsedHeightPx).coerceAtLeast(0)
+                startActionPlaceable?.placeRelative(
+                    x = with(density) { 18.dp.roundToPx() },
+                    y = verticalCenter - startActionPlaceable.height / 2,
+                )
 
-        val offset = scrolledOffset()
-        val collapseFraction = if (expansion > 0 && !offset.isNaN()) {
-            (abs(offset) / expansion.toFloat()).coerceIn(0f, 1f)
-        } else {
-            0f
-        }
-        val barHeight = lerp(
-            start = collapsedHeightPx.toFloat(),
-            stop = (collapsedHeightPx + expansion).toFloat(),
-            fraction = 1f - collapseFraction,
-        ).roundToInt()
+                titlePlaceable.placeRelative(
+                    x = (constraints.maxWidth - titlePlaceable.width) / 2,
+                    y = verticalCenter - titlePlaceable.height / 2,
+                )
 
-        val verticalCenter = collapsedHeightPx / 2
+                endActionPlaceable?.placeRelative(
+                    x = constraints.maxWidth - with(density) { 18.dp.roundToPx() } - endActionPlaceable.width,
+                    y = verticalCenter - endActionPlaceable.height / 2,
+                )
 
-        layout(constraints.maxWidth, barHeight) {
-            backButtonPlaceable?.placeRelative(
-                x = with(density) { 18.dp.roundToPx() },
-                y = verticalCenter - backButtonPlaceable.height / 2,
-            )
-
-            startActionPlaceable?.placeRelative(
-                x = with(density) { 18.dp.roundToPx() },
-                y = verticalCenter - startActionPlaceable.height / 2,
-            )
-
-            titlePlaceable.placeRelative(
-                x = (constraints.maxWidth - titlePlaceable.width) / 2,
-                y = verticalCenter - titlePlaceable.height / 2,
-            )
-
-            endActionPlaceable?.placeRelative(
-                x = constraints.maxWidth - with(density) { 18.dp.roundToPx() } - endActionPlaceable.width,
-                y = verticalCenter - endActionPlaceable.height / 2,
-            )
-
-            val largeTitleY = if (offset.isNaN()) 0 else offset.roundToInt()
-            largeTitlePlaceable?.placeRelative(x = 0, y = largeTitleY)
+                val largeTitleY = if (offset.isNaN()) 0 else offset.roundToInt()
+                largeTitlePlaceable?.placeRelative(x = 0, y = largeTitleY)
+            }
         }
     }
 }
