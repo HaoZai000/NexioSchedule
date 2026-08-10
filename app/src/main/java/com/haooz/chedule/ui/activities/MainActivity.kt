@@ -1292,7 +1292,6 @@ fun CourseScheduleApp() {
                         navBarStyle = navBarStyle,
                         pagerCurrentPage = pagerState.currentPage,
                         currentWeek = currentWeek,
-                        totalWeeks = totalWeeks,
                         isHoliday = viewingIsHoliday,
                         isViewingCurrentWeek = isViewingCurrentWeek,
                         dayRange = dayRange,

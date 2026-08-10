@@ -377,7 +377,7 @@ fun MainScheduleScreen(
                     )
                     .verticalScroll(scrollState)
                     .padding(
-                        top = paddingValues.calculateTopPadding() + topBarHeightDp - 52.dp,
+                        top = paddingValues.calculateTopPadding() + topBarHeightDp - 78.dp,
                         bottom = 140.dp
                     )
             ) {

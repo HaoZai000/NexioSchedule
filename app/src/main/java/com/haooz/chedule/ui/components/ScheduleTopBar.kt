@@ -8,9 +8,12 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.asPaddingValues
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.statusBars
 import androidx.compose.foundation.layout.width
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
@@ -37,7 +40,6 @@ internal fun ScheduleTopBar(
     navBarStyle: String,
     pagerCurrentPage: Int,
     currentWeek: Int,
-    totalWeeks: Int,
     isHoliday: Boolean,
     isViewingCurrentWeek: Boolean,
     dayRange: List<Int>,
@@ -60,7 +62,9 @@ internal fun ScheduleTopBar(
         else -> "第${pagerCurrentPage + 1}周"
     }
 
-    ProgressiveBlurTopBar(backdrop = liquidGlassBackdrop) {
+    val statusBarHeight = WindowInsets.statusBars.asPaddingValues().calculateTopPadding()
+    val topBarHeight = if (statusBarHeight > 0.dp) 120.dp + statusBarHeight else 160.dp
+    ProgressiveBlurTopBar(backdrop = liquidGlassBackdrop, height = topBarHeight) {
         Column {
             CollapsibleTopAppBar(
                 title = if (navBarStyle == "rail") "" else titleText,
