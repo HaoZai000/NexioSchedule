@@ -240,8 +240,10 @@ class CourseManageActivity : ComponentActivity() {
                         ) {
                             Scaffold(
                                 topBar = {
+                                    var topBarBlurAlpha by remember { mutableStateOf(0f) }
                                     ProgressiveBlurTopBar(
                                         backdrop = liquidGlassBackdrop,
+                                        blurAlpha = topBarBlurAlpha,
                                     ) {
                                         CollapsibleTopAppBar(
                                             title = "课程管理",
@@ -249,6 +251,7 @@ class CourseManageActivity : ComponentActivity() {
                                             modifier = Modifier,
                                             scrollBehavior = scrollBehavior,
                                             contentPadding = {},
+                                            onAlphaChanged = { bd, _ -> topBarBlurAlpha = bd },
                                             startAction = { backdropAlpha, shadowAlpha ->
                                                 LiquidTopBarButton(
                                                     onClick = { finish() },

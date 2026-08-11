@@ -202,9 +202,11 @@ private fun AboutScreen(onBack: () -> Unit) {
 
     Scaffold(
         topBar = {
+            var topBarBlurAlpha by remember { mutableStateOf(0f) }
             ProgressiveBlurTopBar(
                 backdrop = liquidGlassBackdrop,
                 tintIntensity = scrollProgress * 0.2f,
+                blurAlpha = topBarBlurAlpha,
             ) {
                 CollapsibleTopAppBar(
                     title = "关于应用",
@@ -215,6 +217,7 @@ private fun AboutScreen(onBack: () -> Unit) {
                     modifier = Modifier,
                     scrollBehavior = scrollBehavior,
                     contentPadding = {},
+                    onAlphaChanged = { bd, _ -> topBarBlurAlpha = bd },
                     startAction = { backdropAlpha, shadowAlpha ->
                         LiquidTopBarButton(
                             onClick = { onBack() },

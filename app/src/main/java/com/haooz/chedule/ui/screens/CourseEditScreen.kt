@@ -450,8 +450,10 @@ fun CourseEditScreen(
                 Scaffold(
                     topBar = {
 
+                        var topBarBlurAlpha by remember { mutableStateOf(0f) }
                         ProgressiveBlurTopBar(
                             backdrop = liquidGlassBackdrop!!,
+                            blurAlpha = topBarBlurAlpha,
                         ) {
                             CollapsibleTopAppBar(
                                 title = courseName,
@@ -459,6 +461,7 @@ fun CourseEditScreen(
                                 modifier = Modifier,
                                 scrollBehavior = scrollBehavior,
                                 contentPadding = {},
+                                onAlphaChanged = { bd, _ -> topBarBlurAlpha = bd },
                                 startAction = { backdropAlpha, shadowAlpha ->
                                     LiquidTopBarButton(
                                         onClick = {

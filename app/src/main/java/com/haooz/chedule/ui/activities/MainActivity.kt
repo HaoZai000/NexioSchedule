@@ -3121,14 +3121,17 @@ private fun SettingsTopBar(
     if (liquidGlassBackdrop == null) return
     val isTabletLiquidGlass = navBarStyle == "rail"
 
+    var topBarBlurAlpha by remember { mutableStateOf(0f) }
     ProgressiveBlurTopBar(
         backdrop = liquidGlassBackdrop,
+        blurAlpha = topBarBlurAlpha,
     ) {
         CollapsibleTopAppBar(
             title = "我的",
             largeTitle = "我的",
             modifier = Modifier.zIndex(1f),
             scrollBehavior = scrollBehavior,
+            onAlphaChanged = { bd, _ -> topBarBlurAlpha = bd },
             startAction = if (isTabletLiquidGlass) {
                 { _, _ ->
                     Text(

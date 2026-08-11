@@ -277,8 +277,10 @@ fun SwitchScheduleScreen(
     Box(modifier = Modifier.fillMaxSize()) {
         Scaffold(
             topBar = {
+                var topBarBlurAlpha by remember { mutableStateOf(0f) }
                 ProgressiveBlurTopBar(
                     backdrop = liquidGlassBackdrop,
+                    blurAlpha = topBarBlurAlpha,
                 ) {
                     CollapsibleTopAppBar(
                         title = displayTitle,
@@ -286,6 +288,7 @@ fun SwitchScheduleScreen(
                         modifier = Modifier,
                         scrollBehavior = scrollBehavior,
                         contentPadding = {},
+                        onAlphaChanged = { bd, _ -> topBarBlurAlpha = bd },
                         startAction = { backdropAlpha, shadowAlpha ->
                             LiquidTopBarButton(
                                 onClick = {

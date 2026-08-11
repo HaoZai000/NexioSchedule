@@ -513,8 +513,10 @@ fun TimeConfigEditScreen(
             ) {
                 Scaffold(
                     topBar = {
+                        var topBarBlurAlpha by remember { mutableStateOf(0f) }
                         ProgressiveBlurTopBar(
                             backdrop = liquidGlassBackdrop!!,
+                            blurAlpha = topBarBlurAlpha,
                         ) {
                             CollapsibleTopAppBar(
                                 title = screenTitle,
@@ -522,6 +524,7 @@ fun TimeConfigEditScreen(
                                 modifier = Modifier,
                                 scrollBehavior = scrollBehavior,
                                 contentPadding = {},
+                                onAlphaChanged = { bd, _ -> topBarBlurAlpha = bd },
                                 startAction = { backdropAlpha, shadowAlpha ->
                                     LiquidTopBarButton(
                                         onClick = {
