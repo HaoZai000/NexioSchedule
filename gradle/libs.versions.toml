@@ -30,6 +30,7 @@ slf4j_android = "1.7.36"             # SLF4J Android 实现
 
 # Shizuku
 shizuku = "13.1.5"                    # Shizuku 免 Root 高权限框架
+navigationevent = "1.1.2"             # AndroidX NavigationEvent（SearchBar 返回处理）
 
 [libraries]
 # ===== AndroidX 基础 =====
@@ -69,6 +70,9 @@ slf4j-android = { group = "org.slf4j", name = "slf4j-android", version.ref = "sl
 # Shizuku
 shizuku-api = { group = "dev.rikka.shizuku", name = "api", version.ref = "shizuku" }                              # Shizuku 运行时 API
 shizuku-provider = { group = "dev.rikka.shizuku", name = "provider", version.ref = "shizuku" }                   # Shizuku IPC 接入
+
+# NavigationEvent
+navigationevent-compose = { group = "androidx.navigationevent", name = "navigationevent-compose", version.ref = "navigationevent" }  # SearchBar 返回处理
 
 # Shapes
 shapes = { group = "io.github.kyant0", name = "shapes", version.ref = "shapes" }                                   # 自定义形状（卡片装饰）

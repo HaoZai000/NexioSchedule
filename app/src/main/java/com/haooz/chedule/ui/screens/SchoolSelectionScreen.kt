@@ -41,8 +41,8 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.input.pointer.pointerInput
-import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalConfiguration
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.DpOffset
@@ -52,8 +52,12 @@ import androidx.compose.ui.zIndex
 import com.haooz.chedule.data.school.AdapterData
 import com.haooz.chedule.data.school.SchoolData
 import com.haooz.chedule.data.school.SchoolRepository
+import com.haooz.chedule.ui.components.InputField
+import com.haooz.chedule.ui.components.NativeMiuixTextField
+import com.haooz.chedule.ui.components.SearchBar
 import com.haooz.chedule.ui.effects.liquidglass.LiquidTopBarButton
 import com.haooz.chedule.ui.effects.liquidglass.ProgressiveBlurTopBar
+import com.haooz.chedule.ui.utils.overScrollVertical
 import com.kyant.backdrop.backdrops.LayerBackdrop
 import com.kyant.shapes.RoundedRectangle
 import kotlinx.coroutines.launch
@@ -61,21 +65,18 @@ import top.yukonga.miuix.kmp.basic.ButtonDefaults
 import top.yukonga.miuix.kmp.basic.CircularProgressIndicator
 import top.yukonga.miuix.kmp.basic.Icon
 import top.yukonga.miuix.kmp.basic.IconButton
-import top.yukonga.miuix.kmp.basic.InputField
 import top.yukonga.miuix.kmp.basic.MiuixScrollBehavior
 import top.yukonga.miuix.kmp.basic.Scaffold
-import top.yukonga.miuix.kmp.basic.SearchBar
 import top.yukonga.miuix.kmp.basic.SmallTopAppBar
 import top.yukonga.miuix.kmp.basic.Surface
 import top.yukonga.miuix.kmp.basic.TextButton
-import com.haooz.chedule.ui.components.NativeMiuixTextField
 import top.yukonga.miuix.kmp.icon.MiuixIcons
 import top.yukonga.miuix.kmp.icon.extended.Back
 import top.yukonga.miuix.kmp.icon.extended.ChevronBackward
+import top.yukonga.miuix.kmp.icon.extended.Close
 import top.yukonga.miuix.kmp.icon.extended.Update
 import top.yukonga.miuix.kmp.overlay.OverlayDialog
 import top.yukonga.miuix.kmp.theme.MiuixTheme
-import com.haooz.chedule.ui.utils.overScrollVertical
 import top.yukonga.miuix.kmp.utils.scrollEndHaptic
 
 @SuppressLint("ConfigurationScreenWidthHeight")
@@ -254,22 +255,10 @@ fun SchoolSelectionScreen(
                 },
                 expanded = searchExpanded,
                 onExpandedChange = { searchExpanded = it },
-                outsideEndAction = {
-                    Text(
-                        modifier = Modifier
-                            .padding(end = 18.dp)
-                            .clickable(
-                                interactionSource = null,
-                                indication = null
-                            ) {
-                                searchExpanded = false
-                                searchQuery = ""
-                            },
-                        text = "取消",
-                        fontSize = 17.sp,
-                        fontWeight = FontWeight.Medium,
-                        color = MiuixTheme.colorScheme.primary
-                    )
+                actionIcon = MiuixIcons.Normal.Close,
+                onActionClick = {
+                    searchExpanded = false
+                    searchQuery = ""
                 }
             ) {
                 // 搜索结果内容 - 与主列表样式一致

@@ -83,7 +83,7 @@ fun LiquidTopBarButton(
                     }
                     val paint = android.graphics.Paint().apply {
                         color = android.graphics.Color.argb(
-                            (android.graphics.Color.alpha(shadowColor) * 4.0f).coerceAtMost(255f).toInt(),
+                            (android.graphics.Color.alpha(shadowColor) * 3.2f).coerceAtMost(255f).toInt(),
                             android.graphics.Color.red(shadowColor),
                             android.graphics.Color.green(shadowColor),
                             android.graphics.Color.blue(shadowColor)

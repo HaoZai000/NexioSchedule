@@ -93,6 +93,10 @@ dependencies {
     // Navigation3 导航组件
     implementation(libs.miuix.navigation3)
 
+    // ===== NavigationEvent =====
+    // SearchBar 返回键处理
+    implementation(libs.navigationevent.compose)
+
     // ===== 形状库 =====
     // Kyant0形状支持
     implementation(libs.shapes)
