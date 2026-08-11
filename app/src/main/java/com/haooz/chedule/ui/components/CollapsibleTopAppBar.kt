@@ -130,6 +130,24 @@ class SharedScrollBehavior(
 
     private var connection: NestedScrollConnection? = null
 
+    /** 带动画收起标题栏 */
+    suspend fun collapse() {
+        val target = state.heightOffsetLimit
+        if (target == 0f) return
+        val animatable = Animatable(state.heightOffset)
+        animatable.animateTo(target, snapAnimationSpec) {
+            state.heightOffset = value
+        }
+    }
+
+    /** 带动画展开标题栏 */
+    suspend fun expand() {
+        val animatable = Animatable(state.heightOffset)
+        animatable.animateTo(0f, snapAnimationSpec) {
+            state.heightOffset = value
+        }
+    }
+
     val nestedScrollConnection: NestedScrollConnection
         get() {
             if (connection == null) {

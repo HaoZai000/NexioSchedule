@@ -30,6 +30,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -38,6 +39,7 @@ import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.Dp
@@ -95,6 +97,32 @@ fun SchoolSelectionScreen(
     }
 
     val listState = rememberLazyListState()
+    var isProgrammaticScroll by remember { mutableStateOf(false) }
+
+    // 程序化滚动（字母条/搜索）不经过 nestedScroll，需监听 listState 同步 contentOffset 和标题栏收起
+    val scrollThresholdPx = with(LocalDensity.current) { 10.dp.toPx() }
+    var lastCollapsed by remember { mutableStateOf(false) }
+    LaunchedEffect(listState) {
+        snapshotFlow {
+            listState.firstVisibleItemIndex to listState.firstVisibleItemScrollOffset
+        }.collect { (index, offset) ->
+            val state = scrollBehavior?.state ?: return@collect
+            val shouldShow = index > 0 || offset > scrollThresholdPx
+            // 同步 contentOffset 用于按钮阴影
+            if (shouldShow && state.contentOffset >= -scrollThresholdPx) {
+                state.contentOffset = -scrollThresholdPx - 1f
+            } else if (!shouldShow && state.contentOffset < 0f) {
+                state.contentOffset = 0f
+            }
+            // 仅程序化滚动时收起/展开标题栏，手动 fling 由 nestedScroll 处理避免冲突
+            if (isProgrammaticScroll && shouldShow != lastCollapsed) {
+                lastCollapsed = shouldShow
+                if (shouldShow) scrollBehavior?.collapse() else scrollBehavior?.expand()
+            } else if (!isProgrammaticScroll) {
+                lastCollapsed = shouldShow
+            }
+        }
+    }
 
     val isTablet = LocalConfiguration.current.screenWidthDp >= 600
     val tabletHorizontalPadding = if (isTablet) {
@@ -165,7 +193,9 @@ fun SchoolSelectionScreen(
                                 it.initial.contains(searchQuery, ignoreCase = true)
                         }
                         if (matchIndex >= 0) {
+                            isProgrammaticScroll = true
                             listState.animateScrollToItem(matchIndex)
+                            isProgrammaticScroll = false
                         }
                     }
                 }
@@ -353,9 +383,11 @@ fun SchoolSelectionScreen(
                                             )
                                             letterIndexMap[letter]?.let { idx ->
                                                 coroutineScope.launch {
+                                                    isProgrammaticScroll = true
                                                     listState.animateScrollToItem(
                                                         idx
                                                     )
+                                                    isProgrammaticScroll = false
                                                 }
                                             }
                                         }
@@ -373,9 +405,11 @@ fun SchoolSelectionScreen(
                                             )
                                             letterIndexMap[letter]?.let { idx ->
                                                 coroutineScope.launch {
+                                                    isProgrammaticScroll = true
                                                     listState.animateScrollToItem(
                                                         idx
                                                     )
+                                                    isProgrammaticScroll = false
                                                 }
                                             }
                                         }
@@ -409,9 +443,11 @@ fun SchoolSelectionScreen(
                                                 )
                                                 letterIndexMap[letter]?.let { idx ->
                                                     coroutineScope.launch {
+                                                        isProgrammaticScroll = true
                                                         listState.animateScrollToItem(
                                                             idx
                                                         )
+                                                        isProgrammaticScroll = false
                                                     }
                                                 }
                                             } else Modifier

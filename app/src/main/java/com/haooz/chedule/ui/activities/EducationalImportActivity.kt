@@ -22,6 +22,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.statusBars
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
@@ -226,6 +227,13 @@ class EducationalImportActivity : ComponentActivity() {
         var searchExpanded by remember { mutableStateOf(false) }
         var selectedTab by remember { mutableIntStateOf(0) }
 
+        // 点击搜索框时收起标题栏
+        LaunchedEffect(searchExpanded) {
+            if (searchExpanded) {
+                scrollBehavior.collapse()
+            }
+        }
+
         var isDesktopMode by remember { mutableStateOf(false) }
         var currentAssetJsPath by remember { mutableStateOf<String?>(null) }
         var executeImportAction by remember { mutableStateOf<(() -> Unit)?>(null) }
@@ -322,7 +330,7 @@ class EducationalImportActivity : ComponentActivity() {
                                             backdrop = liquidGlassBackdrop,
                                             icon = MiuixIcons.Normal.Update,
                                             contentDescription = "更新",
-                                            iconSize = 25.dp,
+                                            iconSize = 28.dp,
                                             backdropAlpha = backdropAlpha,
                                             shadowAlpha = shadowAlpha,
                                         )
