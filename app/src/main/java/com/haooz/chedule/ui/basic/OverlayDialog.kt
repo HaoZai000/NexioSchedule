@@ -11,8 +11,8 @@ import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.DpSize
-import com.haooz.chedule.ui.overlay.DialogContentLayout
-import com.haooz.chedule.ui.overlay.DialogDefaults
+import com.haooz.chedule.ui.effects.miuix.DialogContentLayout
+import com.haooz.chedule.ui.effects.miuix.DialogDefaults
 import top.yukonga.miuix.kmp.utils.MiuixPopupUtils.Companion.DialogLayout
 
 /**

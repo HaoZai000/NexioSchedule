@@ -1,7 +1,7 @@
 // Copyright 2025, compose-miuix-ui contributors
 // SPDX-License-Identifier: Apache-2.0
 
-package com.haooz.chedule.ui.overlay
+package com.haooz.chedule.ui.effects.miuix
 
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.animate
