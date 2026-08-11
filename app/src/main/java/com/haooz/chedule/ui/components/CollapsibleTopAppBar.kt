@@ -280,6 +280,7 @@ fun CollapsibleTopAppBar(
     startAction: @Composable ((backdropAlpha: Float, shadowAlpha: Float) -> Unit)? = null,
     // 右侧自定义 Composable（接收 backdropAlpha、shadowAlpha 用于液态玻璃按钮动画）
     endAction: @Composable ((backdropAlpha: Float, shadowAlpha: Float) -> Unit)? = null,
+    gradientMaskHeight: Dp = CollapsibleTopAppBarDefaults.CollapsedHeight + 70.dp,
 ) {
     val state = scrollBehavior?.state
 
@@ -403,7 +404,7 @@ fun CollapsibleTopAppBar(
             Box(
                 Modifier
                     .fillMaxWidth()
-                    .height(CollapsibleTopAppBarDefaults.CollapsedHeight + 70.dp)
+                    .height(gradientMaskHeight)
                     .graphicsLayer { alpha = gradientAlpha.value }
                     .drawBehind {
                         drawRect(

@@ -9,17 +9,40 @@ import androidx.activity.ComponentActivity
 import androidx.activity.SystemBarStyle
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.asPaddingValues
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.statusBars
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
+import androidx.compose.material3.HorizontalDivider
+import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.hapticfeedback.HapticFeedbackType
+import androidx.compose.ui.platform.LocalConfiguration
+import androidx.compose.ui.platform.LocalHapticFeedback
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.DpOffset
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
+import androidx.core.content.edit
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.google.gson.Gson
 import com.google.gson.reflect.TypeToken
@@ -27,6 +50,9 @@ import com.haooz.chedule.data.school.AdapterData
 import com.haooz.chedule.data.school.SchoolData
 import com.haooz.chedule.data.school.ScriptRepository
 import com.haooz.chedule.ui.components.CollapsibleTopAppBar
+import com.haooz.chedule.ui.components.CollapsibleTopAppBarDefaults.CollapsedHeight
+import com.haooz.chedule.ui.components.InputField
+import com.haooz.chedule.ui.components.SearchBar
 import com.haooz.chedule.ui.components.rememberSharedScrollBehavior
 import com.haooz.chedule.ui.effects.liquidglass.LiquidTopBarButton
 import com.haooz.chedule.ui.effects.liquidglass.ProgressiveBlurTopBar
@@ -38,6 +64,7 @@ import com.haooz.chedule.viewmodel.CourseViewModel
 import com.haooz.chedule.viewmodel.ScheduleViewModel
 import com.haooz.chedule.viewmodel.SettingsViewModel
 import com.kyant.backdrop.backdrops.LayerBackdrop
+import com.kyant.shapes.RoundedRectangle
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -45,10 +72,12 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import top.yukonga.miuix.kmp.basic.Scaffold
+import top.yukonga.miuix.kmp.basic.Surface
 import top.yukonga.miuix.kmp.blur.layerBackdrop
 import top.yukonga.miuix.kmp.blur.rememberLayerBackdrop
 import top.yukonga.miuix.kmp.icon.MiuixIcons
 import top.yukonga.miuix.kmp.icon.extended.ChevronBackward
+import top.yukonga.miuix.kmp.icon.extended.Close
 import top.yukonga.miuix.kmp.icon.extended.Update
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 import com.kyant.backdrop.backdrops.layerBackdrop as liquidGlassLayerBackdrop
@@ -139,7 +168,7 @@ class EducationalImportActivity : ComponentActivity() {
                     }
                     if (result >= 0) {
                         val prefs = context.getSharedPreferences(PREFS_NAME, MODE_PRIVATE)
-                        prefs.edit().putLong(KEY_LAST_UPDATE_TIME, System.currentTimeMillis()).apply()
+                        prefs.edit { putLong(KEY_LAST_UPDATE_TIME, System.currentTimeMillis()) }
                     }
                 } catch (e: Exception) {
                     Log.e(TAG, "手动更新失败: ${e.message}")
@@ -173,6 +202,7 @@ class EducationalImportActivity : ComponentActivity() {
         }
     }
 
+    @SuppressLint("ConfigurationScreenWidthHeight")
     @Composable
     private fun EducationalImportApp() {
         val isUpdating by _isUpdating.collectAsState()
@@ -196,6 +226,10 @@ class EducationalImportActivity : ComponentActivity() {
         var selectedSchool by remember { mutableStateOf<SchoolData?>(null) }
         var selectedAdapter by remember { mutableStateOf<AdapterData?>(null) }
 
+        var searchQuery by remember { mutableStateOf("") }
+        var searchExpanded by remember { mutableStateOf(false) }
+        var selectedTab by remember { mutableIntStateOf(0) }
+
         var isDesktopMode by remember { mutableStateOf(false) }
         var currentAssetJsPath by remember { mutableStateOf<String?>(null) }
         var executeImportAction by remember { mutableStateOf<(() -> Unit)?>(null) }
@@ -203,10 +237,74 @@ class EducationalImportActivity : ComponentActivity() {
 
         when (currentScreen) {
             "selection" -> {
-                Scaffold(
-                    topBar = {
+                val isTablet = LocalConfiguration.current.screenWidthDp >= 600
+                val tabletHorizontalPadding = if (isTablet) {
+                    val screenWidthDp = LocalConfiguration.current.screenWidthDp
+                    ((screenWidthDp - 600).coerceIn(0, 600) / 600f * 112 + 16).dp
+                } else 0.dp
+                val hapticFeedback = LocalHapticFeedback.current
+                val allSchools = remember(dataVersion) {
+                    com.haooz.chedule.data.school.SchoolRepository(
+                        this@EducationalImportActivity
+                    ).getSchools()
+                }
+                val filteredForSearch = remember(allSchools, searchQuery, selectedTab) {
+                    allSchools.filter { school ->
+                        when (selectedTab) {
+                            0 -> school.adapters.any { it.category == AdapterData.CATEGORY_BACHELOR || it.category == AdapterData.CATEGORY_POSTGRADUATE }
+                            1 -> school.adapters.any { it.category == AdapterData.CATEGORY_GENERAL_TOOL }
+                            else -> false
+                        }
+                    }.filter { school ->
+                        searchQuery.isBlank() ||
+                                school.name.contains(searchQuery, ignoreCase = true) ||
+                                school.initial.contains(searchQuery, ignoreCase = true)
+                    }.sortedBy { it.initial.uppercase() + it.name }
+                }
+                val displayTabs = listOf("学校导入", "通用工具")
+
+                Scaffold { paddingValues ->
+                    val topBarHeightDp = with(androidx.compose.ui.platform.LocalDensity.current) {
+                        (scrollBehavior.currentHeightPx).toDp()
+                    }
+                    val statusBarHeight = WindowInsets.statusBars
+                        .asPaddingValues().calculateTopPadding()
+                    val blurHeight = 80.dp + statusBarHeight + 120.dp
+
+                    Box(modifier = Modifier.fillMaxSize()) {
+                        Box(
+                            modifier = Modifier
+                                .fillMaxSize()
+                                .layerBackdrop(backdrop)
+                        ) {
+                            Box(
+                                modifier = Modifier.fillMaxSize().then(
+                                    Modifier.liquidGlassLayerBackdrop(liquidGlassBackdrop)
+                                )
+                            ) {
+                                SchoolSelectionScreen(
+                                    modifier = Modifier.fillMaxSize(),
+                                    isUpdating = isUpdating,
+                                    isChecking = isChecking,
+                                    updateProgress = updateProgress,
+                                    dataVersion = dataVersion,
+                                    isInFreeformWindow = isInFreeformWindow,
+                                    scrollBehavior = scrollBehavior,
+                                    searchQuery = searchQuery,
+                                    selectedTab = selectedTab,
+                                    topContentPadding = paddingValues.calculateTopPadding() + topBarHeightDp + 100.dp,
+                                    onSchoolSelected = { school, adapter ->
+                                        selectedSchool = school
+                                        selectedAdapter = adapter
+                                        currentScreen = "webview"
+                                    }
+                                )
+                            }
+                        }
+
                         ProgressiveBlurTopBar(
                             backdrop = liquidGlassBackdrop,
+                            height = blurHeight,
                         ) {
                             CollapsibleTopAppBar(
                                 title = "选择学校",
@@ -214,6 +312,7 @@ class EducationalImportActivity : ComponentActivity() {
                                 modifier = Modifier,
                                 scrollBehavior = scrollBehavior,
                                 contentPadding = {},
+                                gradientMaskHeight = CollapsedHeight + 190.dp,
                                 startAction = { backdropAlpha, shadowAlpha ->
                                     LiquidTopBarButton(
                                         onClick = { finish() },
@@ -243,31 +342,143 @@ class EducationalImportActivity : ComponentActivity() {
                                 },
                             )
                         }
-                    }
-                ) { _ ->
-                    Box(
-                        modifier = Modifier
-                            .fillMaxSize()
-                            .layerBackdrop(backdrop)
-                    ) {
-                        Box(
-                            modifier = Modifier.fillMaxSize().then(
-                                Modifier.liquidGlassLayerBackdrop(liquidGlassBackdrop)
-                            )
+
+                        Column(
+                            modifier = Modifier
+                                .padding(top = paddingValues.calculateTopPadding() + topBarHeightDp)
+                                .fillMaxWidth()
                         ) {
-                            SchoolSelectionScreen(
-                                isUpdating = isUpdating,
-                                isChecking = isChecking,
-                                updateProgress = updateProgress,
-                                dataVersion = dataVersion,
-                                isInFreeformWindow = isInFreeformWindow,
-                                scrollBehavior = scrollBehavior,
-                                onSchoolSelected = { school, adapter ->
-                                    selectedSchool = school
-                                    selectedAdapter = adapter
-                                    currentScreen = "webview"
+                            SearchBar(
+                                modifier = Modifier.padding(
+                                    top = 8.dp,
+                                    bottom = 6.dp,
+                                    start = 4.dp + tabletHorizontalPadding,
+                                    end = 4.dp + tabletHorizontalPadding
+                                ),
+                                inputField = {
+                                    InputField(
+                                        query = searchQuery,
+                                        onQueryChange = { searchQuery = it },
+                                        onSearch = { searchExpanded = false },
+                                        expanded = searchExpanded,
+                                        onExpandedChange = { searchExpanded = it },
+                                        label = "搜索学校"
+                                    )
+                                },
+                                expanded = searchExpanded,
+                                onExpandedChange = { searchExpanded = it },
+                                actionIcon = MiuixIcons.Normal.Close,
+                                onActionClick = {
+                                    searchExpanded = false
+                                    searchQuery = ""
                                 }
-                            )
+                            ) {
+                                val groupedSearchResults = remember(filteredForSearch) {
+                                    filteredForSearch.groupBy { it.initial.uppercase() }
+                                }
+                                val searchGroupedEntries = groupedSearchResults.entries.toList()
+                                LazyColumn(
+                                    modifier = Modifier.fillMaxSize(),
+                                    contentPadding = PaddingValues(
+                                        top = 8.dp,
+                                        bottom = 60.dp,
+                                        start = tabletHorizontalPadding,
+                                        end = tabletHorizontalPadding
+                                    )
+                                ) {
+                                    searchGroupedEntries.forEachIndexed { index, (letter, schools) ->
+                                        if (index > 0) {
+                                            item(key = "search_divider_$letter") {
+                                                HorizontalDivider(
+                                                    modifier = Modifier.padding(horizontal = 26.dp, vertical = 12.dp),
+                                                    color = MiuixTheme.colorScheme.outline,
+                                                    thickness = 0.5.dp
+                                                )
+                                            }
+                                        }
+                                        item(key = "search_header_$letter") {
+                                            Text(
+                                                text = letter,
+                                                fontSize = 15.sp,
+                                                fontWeight = FontWeight.Normal,
+                                                color = MiuixTheme.colorScheme.onSurfaceVariantActions,
+                                                modifier = Modifier.padding(start = 26.dp, top = 16.dp, bottom = 4.dp)
+                                            )
+                                        }
+                                        items(schools, key = { it.id }) { school ->
+                                            val isPostgrad = school.adapters.any { it.category == AdapterData.CATEGORY_POSTGRADUATE }
+                                            Box(
+                                                modifier = Modifier.fillMaxWidth()
+                                                    .then(if (isTablet) Modifier.clip(RoundedRectangle(20.dp)) else Modifier)
+                                                    .clickable {
+                                                        hapticFeedback.performHapticFeedback(HapticFeedbackType.VirtualKey)
+                                                        val schoolRepo = com.haooz.chedule.data.school.SchoolRepository(this@EducationalImportActivity)
+                                                        val adapters = schoolRepo.getAdaptersForSchool(school.id, AdapterData.CATEGORY_BACHELOR)
+                                                            .ifEmpty { schoolRepo.getAdaptersForSchool(school.id, AdapterData.CATEGORY_POSTGRADUATE) }
+                                                            .ifEmpty { schoolRepo.getAdaptersForSchool(school.id, AdapterData.CATEGORY_GENERAL_TOOL) }
+                                                        if (adapters.isNotEmpty()) {
+                                                            selectedSchool = school
+                                                            selectedAdapter = adapters.first()
+                                                            currentScreen = "webview"
+                                                        }
+                                                        searchExpanded = false
+                                                    }
+                                                    .padding(vertical = 24.dp)
+                                            ) {
+                                                Row(
+                                                    modifier = Modifier.padding(horizontal = 26.dp),
+                                                    verticalAlignment = Alignment.CenterVertically,
+                                                    horizontalArrangement = Arrangement.spacedBy(6.dp)
+                                                ) {
+                                                    Text(
+                                                        text = school.name,
+                                                        fontSize = 17.sp,
+                                                        fontWeight = FontWeight.Medium,
+                                                        color = MiuixTheme.colorScheme.onSurface
+                                                    )
+                                                    if (isPostgrad) {
+                                                        Text(
+                                                            text = "研究生",
+                                                            fontSize = 12.sp,
+                                                            color = MiuixTheme.colorScheme.onSurfaceVariantActions
+                                                        )
+                                                    }
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                            Row(
+                                modifier = Modifier.fillMaxWidth()
+                                    .padding(horizontal = 16.dp + tabletHorizontalPadding, vertical = 4.dp),
+                                horizontalArrangement = Arrangement.spacedBy(8.dp)
+                            ) {
+                                displayTabs.forEachIndexed { index, tabName ->
+                                    val isSelected = selectedTab == index
+                                    Surface(
+                                        modifier = Modifier
+                                            .clip(RoundedRectangle(20.dp))
+                                            .clickable {
+                                                hapticFeedback.performHapticFeedback(HapticFeedbackType.VirtualKey)
+                                                selectedTab = index
+                                            },
+                                        shape = RoundedRectangle(20.dp),
+                                        color = if (isSelected) MiuixTheme.colorScheme.primary else MiuixTheme.colorScheme.surfaceVariant
+                                    ) {
+                                        Box(
+                                            modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
+                                            contentAlignment = Alignment.Center
+                                        ) {
+                                            Text(
+                                                text = tabName,
+                                                fontSize = 14.sp,
+                                                color = if (isSelected) MiuixTheme.colorScheme.onPrimary else MiuixTheme.colorScheme.onSurfaceVariantActions
+                                            )
+                                        }
+                                    }
+                                }
+                            }
                         }
                     }
                 }
@@ -337,7 +548,7 @@ class EducationalImportActivity : ComponentActivity() {
             if (afternoonTimes.isNotEmpty()) settingsViewModel.saveAfternoonTimes(afternoonTimes)
             if (eveningTimes.isNotEmpty()) settingsViewModel.saveEveningTimes(eveningTimes)
 
-            prefs.edit().remove("preset_time_slots").apply()
+            prefs.edit {remove("preset_time_slots")}
             Log.d("EduImport", "预设时间段应用成功: 上午${morningTimes.size}节, 下午${afternoonTimes.size}节, 晚上${eveningTimes.size}节")
         } catch (e: Exception) {
             Log.e("EduImport", "应用预设时间段失败: ${e.message}")
