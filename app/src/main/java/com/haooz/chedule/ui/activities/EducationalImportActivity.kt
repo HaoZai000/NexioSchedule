@@ -28,6 +28,7 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -271,6 +272,9 @@ class EducationalImportActivity : ComponentActivity() {
                         .asPaddingValues().calculateTopPadding()
                     val blurHeight = 80.dp + statusBarHeight + 120.dp
 
+                    var searchBackdropAlpha by remember { mutableFloatStateOf(0f) }
+                    var searchShadowAlpha by remember { mutableFloatStateOf(0f) }
+
                     Box(modifier = Modifier.fillMaxSize()) {
                         Box(
                             modifier = Modifier
@@ -313,6 +317,10 @@ class EducationalImportActivity : ComponentActivity() {
                                 scrollBehavior = scrollBehavior,
                                 contentPadding = {},
                                 gradientMaskHeight = CollapsedHeight + 190.dp,
+                                onAlphaChanged = { bd, sh ->
+                                    searchBackdropAlpha = bd
+                                    searchShadowAlpha = sh
+                                },
                                 startAction = { backdropAlpha, shadowAlpha ->
                                     LiquidTopBarButton(
                                         onClick = { finish() },
@@ -362,7 +370,10 @@ class EducationalImportActivity : ComponentActivity() {
                                         onSearch = { searchExpanded = false },
                                         expanded = searchExpanded,
                                         onExpandedChange = { searchExpanded = it },
-                                        label = "搜索学校"
+                                        label = "搜索学校",
+                                        backdrop = liquidGlassBackdrop,
+                                        backdropAlpha = searchBackdropAlpha,
+                                        shadowAlpha = searchShadowAlpha,
                                     )
                                 },
                                 expanded = searchExpanded,
@@ -371,7 +382,9 @@ class EducationalImportActivity : ComponentActivity() {
                                 onActionClick = {
                                     searchExpanded = false
                                     searchQuery = ""
-                                }
+                                },
+                                backdrop = liquidGlassBackdrop,
+                                backdropAlpha = searchBackdropAlpha,
                             ) {
                                 val groupedSearchResults = remember(filteredForSearch) {
                                     filteredForSearch.groupBy { it.initial.uppercase() }

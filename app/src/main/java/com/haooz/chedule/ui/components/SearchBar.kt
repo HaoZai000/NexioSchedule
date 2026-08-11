@@ -3,6 +3,7 @@
 
 package com.haooz.chedule.ui.components
 
+import android.annotation.SuppressLint
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.EnterExitState
 import androidx.compose.animation.core.Animatable
@@ -42,11 +43,16 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.blur
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.focus.onFocusChanged
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
+import androidx.compose.ui.graphics.asAndroidPath
+import androidx.compose.ui.graphics.drawscope.drawIntoCanvas
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.graphics.nativeCanvas
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalFocusManager
@@ -62,6 +68,14 @@ import androidx.compose.ui.unit.sp
 import androidx.navigationevent.NavigationEventInfo
 import androidx.navigationevent.compose.NavigationBackHandler
 import androidx.navigationevent.compose.rememberNavigationEventState
+import com.haooz.chedule.ui.effects.edgelight.edgeLight
+import com.haooz.chedule.ui.effects.edgelight.rememberLiquidTopBarButtonEdgeLight
+import com.haooz.chedule.ui.utils.isAppDarkTheme
+import com.kyant.backdrop.Backdrop
+import com.kyant.backdrop.drawBackdrop
+import com.kyant.backdrop.effects.blur
+import com.kyant.backdrop.effects.lens
+import com.kyant.backdrop.effects.vibrancy
 import com.kyant.shapes.Capsule
 import kotlinx.coroutines.delay
 import top.yukonga.miuix.kmp.basic.Icon
@@ -97,6 +111,8 @@ fun SearchBar(
     actionIcon: ImageVector? = null,
     actionIconSize: Dp = 23.dp,
     onActionClick: (() -> Unit)? = null,
+    backdrop: Backdrop? = null,
+    backdropAlpha: Float = 0f,
     content: @Composable ColumnScope.() -> Unit,
 ) {
     val currentOnExpandedChange by rememberUpdatedState(onExpandedChange)
@@ -135,6 +151,10 @@ fun SearchBar(
                 }
 
                 if (actionIcon != null && onActionClick != null) {
+                    val isLightTheme = !isAppDarkTheme()
+                    val actionContainerColor = if (isLightTheme) Color(0xFFFFFFFF).copy(0.8f)
+                        else Color(0xFF242424).copy(0.9f)
+
                     Box(
                         modifier = Modifier
                             .padding(end = 12.dp)
@@ -146,19 +166,46 @@ fun SearchBar(
                                 alpha = scale
                             }
                             .clip(CircleShape)
-                            .background(MiuixTheme.colorScheme.surfaceContainerHigh)
-                            .clickable(
-                                interactionSource = null,
-                                indication = null
-                            ) { onActionClick() },
+                            .clickable { onActionClick() },
                         contentAlignment = Alignment.Center
                     ) {
-                        Icon(
-                            imageVector = actionIcon,
-                            contentDescription = null,
-                            modifier = Modifier.size(actionIconSize),
-                            tint = androidx.compose.ui.graphics.Color.Black
-                        )
+                        if (backdrop != null) {
+                            Box(
+                                modifier = Modifier
+                                    .matchParentSize()
+                                    .drawBackdrop(
+                                        backdrop = backdrop,
+                                        shape = { CircleShape },
+                                        effects = {
+                                            vibrancy()
+                                            blur(2f.dp.toPx())
+                                            lens(12f.dp.toPx(), 12f.dp.toPx())
+                                        },
+                                        highlight = null,
+                                        shadow = null,
+                                        layerBlock = { alpha = backdropAlpha },
+                                        onDrawSurface = {}
+                                    )
+                                    .edgeLight(shape = CircleShape, edgeLight = rememberLiquidTopBarButtonEdgeLight())
+                            )
+                        }
+                        Box(
+                            modifier = Modifier
+                                .matchParentSize()
+                                .background(
+                                    color = if (backdrop != null) {
+                                        MiuixTheme.colorScheme.surfaceContainerHigh.copy(alpha = 0.6f)
+                                    } else MiuixTheme.colorScheme.surfaceContainerHigh,
+                                    shape = CircleShape,
+                                ),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Icon(
+                                imageVector = actionIcon,
+                                contentDescription = null,
+                                modifier = Modifier.size(actionIconSize),
+                            )
+                        }
                     }
                 }
             }
@@ -196,6 +243,7 @@ fun SearchBar(
  * @param trailingIcon 后置图标
  * @param interactionSource 交互源
  */
+@SuppressLint("UseKtx")
 @Composable
 fun InputField(
     query: String,
@@ -210,6 +258,9 @@ fun InputField(
     leadingIcon: @Composable (() -> Unit)? = null,
     trailingIcon: @Composable (() -> Unit)? = null,
     interactionSource: MutableInteractionSource? = null,
+    backdrop: Backdrop? = null,
+    backdropAlpha: Float = 1f,
+    shadowAlpha: Float = 0f,
 ) {
     val currentOnQueryChange by rememberUpdatedState(onQueryChange)
     val currentOnSearch by rememberUpdatedState(onSearch)
@@ -297,16 +348,85 @@ fun InputField(
         keyboardActions = KeyboardActions(onSearch = { currentOnSearch(query) }),
         interactionSource = internalInteractionSource,
         decorationBox = { innerTextField ->
+            val isLightTheme = !isAppDarkTheme()
+            val containerColor = if (isLightTheme) Color(0xFFFFFFFF).copy(0.8f)
+                else Color(0xFF242424).copy(0.9f)
+            val shadowColor = if (isLightTheme) android.graphics.Color.parseColor("#12000000")
+                else android.graphics.Color.parseColor("#20000000")
+
             Box(
                 modifier = Modifier
-                    .background(
-                        color = MiuixTheme.colorScheme.surfaceContainerHigh,
-                        shape = capsuleShape,
+                    .then(
+                        if (backdrop != null) {
+                            Modifier.drawBehind {
+                                if (shadowAlpha > 0.01f) {
+                                    val maxBlurRadius = 10f * density
+                                    val blurRadius = maxBlurRadius * shadowAlpha
+                                    val composePath = androidx.compose.ui.graphics.Path().apply {
+                                        val outline = capsuleShape.createOutline(size, layoutDirection, this@drawBehind)
+                                        when (outline) {
+                                            is androidx.compose.ui.graphics.Outline.Rounded -> addRoundRect(outline.roundRect)
+                                            is androidx.compose.ui.graphics.Outline.Generic -> addPath(outline.path)
+                                            is androidx.compose.ui.graphics.Outline.Rectangle -> addRect(outline.rect)
+                                        }
+                                    }
+                                    val path = composePath.asAndroidPath()
+                                    val paint = android.graphics.Paint().apply {
+                                        color = android.graphics.Color.argb(
+                                            (android.graphics.Color.alpha(shadowColor) * 1f).coerceAtMost(255f).toInt(),
+                                            android.graphics.Color.red(shadowColor),
+                                            android.graphics.Color.green(shadowColor),
+                                            android.graphics.Color.blue(shadowColor)
+                                        )
+                                        maskFilter = android.graphics.BlurMaskFilter(
+                                            blurRadius.coerceAtLeast(0.1f),
+                                            android.graphics.BlurMaskFilter.Blur.NORMAL
+                                        )
+                                    }
+                                    drawIntoCanvas { canvas ->
+                                        canvas.nativeCanvas.drawPath(path, paint)
+                                    }
+                                }
+                            }
+                        } else Modifier
                     ),
                 contentAlignment = Alignment.CenterStart,
             ) {
+                if (backdrop != null) {
+                    Box(
+                        modifier = Modifier
+                            .matchParentSize()
+                            .drawBackdrop(
+                                backdrop = backdrop,
+                                shape = { capsuleShape },
+                                effects = {
+                                    vibrancy()
+                                    blur(2f.dp.toPx())
+                                    lens(12f.dp.toPx(), 12f.dp.toPx())
+                                },
+                                highlight = null,
+                                shadow = null,
+                                layerBlock = {
+                                    alpha = backdropAlpha
+                                },
+                                onDrawSurface = {}
+                            )
+                            .edgeLight(shape = capsuleShape, edgeLight = rememberLiquidTopBarButtonEdgeLight())
+                    )
+                }
                 Row(
-                    modifier = Modifier.fillMaxWidth(),
+                    modifier = Modifier
+                        .background(
+                            color = if (backdrop != null) {
+                                androidx.compose.ui.graphics.lerp(
+                                    MiuixTheme.colorScheme.surfaceContainerHigh,
+                                    containerColor,
+                                    backdropAlpha
+                                )
+                            } else MiuixTheme.colorScheme.surfaceContainerHigh,
+                            shape = capsuleShape,
+                        )
+                        .fillMaxWidth(),
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
                     actualLeadingIcon()
