@@ -10,16 +10,11 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.WindowInsets
-import androidx.compose.foundation.layout.asPaddingValues
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.statusBars
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -37,7 +32,6 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.input.pointer.pointerInput
@@ -45,36 +39,25 @@ import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.unit.DpOffset
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import androidx.compose.ui.zIndex
 import com.haooz.chedule.data.school.AdapterData
 import com.haooz.chedule.data.school.SchoolData
 import com.haooz.chedule.data.school.SchoolRepository
 import com.haooz.chedule.ui.components.InputField
 import com.haooz.chedule.ui.components.NativeMiuixTextField
 import com.haooz.chedule.ui.components.SearchBar
-import com.haooz.chedule.ui.effects.liquidglass.LiquidTopBarButton
-import com.haooz.chedule.ui.effects.liquidglass.ProgressiveBlurTopBar
+import com.haooz.chedule.ui.components.SharedScrollBehavior
 import com.haooz.chedule.ui.utils.overScrollVertical
-import com.kyant.backdrop.backdrops.LayerBackdrop
 import com.kyant.shapes.RoundedRectangle
 import kotlinx.coroutines.launch
 import top.yukonga.miuix.kmp.basic.ButtonDefaults
 import top.yukonga.miuix.kmp.basic.CircularProgressIndicator
-import top.yukonga.miuix.kmp.basic.Icon
-import top.yukonga.miuix.kmp.basic.IconButton
-import top.yukonga.miuix.kmp.basic.MiuixScrollBehavior
 import top.yukonga.miuix.kmp.basic.Scaffold
-import top.yukonga.miuix.kmp.basic.SmallTopAppBar
 import top.yukonga.miuix.kmp.basic.Surface
 import top.yukonga.miuix.kmp.basic.TextButton
 import top.yukonga.miuix.kmp.icon.MiuixIcons
-import top.yukonga.miuix.kmp.icon.extended.Back
-import top.yukonga.miuix.kmp.icon.extended.ChevronBackward
 import top.yukonga.miuix.kmp.icon.extended.Close
-import top.yukonga.miuix.kmp.icon.extended.Update
 import top.yukonga.miuix.kmp.overlay.OverlayDialog
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 import top.yukonga.miuix.kmp.utils.scrollEndHaptic
@@ -87,25 +70,19 @@ fun SchoolSelectionScreen(
     updateProgress: Float = 0f,
     dataVersion: Int = 0,
     isInFreeformWindow: Boolean = false,
-    isLiquidGlass: Boolean = false,
-    liquidGlassBackdrop: LayerBackdrop? = null,
-    onRefresh: () -> Unit = {},
-    onSchoolSelected: (SchoolData, AdapterData) -> Unit,
-    onBack: () -> Unit
+    scrollBehavior: SharedScrollBehavior? = null,
+    onSchoolSelected: (SchoolData, AdapterData) -> Unit
 ) {
     val context = LocalContext.current
     val hapticFeedback = LocalHapticFeedback.current
     val schoolRepository = remember { SchoolRepository(context) }
-    val scrollBehavior = MiuixScrollBehavior()
 
     var searchQuery by remember { mutableStateOf("") }
     var searchExpanded by remember { mutableStateOf(false) }
     val allSchools = remember(dataVersion) { schoolRepository.getSchools() }
 
-    // 0=学校导入(本科+研究生), 1=通用工具
     var selectedTab by remember { mutableIntStateOf(0) }
 
-    // 通用工具网址输入弹窗状态
     var showUrlDialog by remember { mutableStateOf(false) }
     var pendingSchool by remember { mutableStateOf<SchoolData?>(null) }
     var pendingAdapter by remember { mutableStateOf<AdapterData?>(null) }
@@ -126,106 +103,10 @@ fun SchoolSelectionScreen(
     }
 
     val displayTabs = listOf("学校导入", "通用工具")
-
     val listState = rememberLazyListState()
 
     Scaffold(
-        topBar = {
-            if (isLiquidGlass && liquidGlassBackdrop != null) {
-                val statusBarPadding = WindowInsets.statusBars.asPaddingValues().calculateTopPadding()
-                ProgressiveBlurTopBar(
-                    backdrop = liquidGlassBackdrop,
-                ) {
-                    SmallTopAppBar(
-                        color = Color.Transparent,
-                        title = "选择学校",
-                        modifier = Modifier.zIndex(1f),
-                        navigationIcon = {}
-                    )
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .zIndex(2f)
-                            .offset(y = if (statusBarPadding > 0.dp) statusBarPadding + 5.dp else 42.dp),
-                        horizontalArrangement = Arrangement.SpaceBetween
-                    ) {
-                        LiquidTopBarButton(
-                            onClick = { onBack() },
-                            backdrop = liquidGlassBackdrop,
-                            icon = MiuixIcons.Medium.ChevronBackward,
-                            contentDescription = "返回",
-                            modifier = Modifier.offset(x = 20.dp),
-                            iconSize = 22.dp,
-                            iconOffset = DpOffset(x = (-2).dp, y = 0.dp),
-                        )
-                        if (!isUpdating) {
-                            LiquidTopBarButton(
-                                onClick = {
-                                    hapticFeedback.performHapticFeedback(HapticFeedbackType.VirtualKey)
-                                    onRefresh()
-                                },
-                                backdrop = liquidGlassBackdrop,
-                                icon = MiuixIcons.Normal.Update,
-                                contentDescription = "更新",
-                                modifier = Modifier.offset(x = (-20).dp),
-                                iconSize = 25.dp,
-                            )
-                        } else {
-                            Box(
-                                modifier = Modifier
-                                    .offset(x = (-24).dp, y = (-4).dp)
-                                    .size(40.dp),
-                                contentAlignment = Alignment.Center
-                            ) {
-                                if (isChecking) {
-                                    CircularProgressIndicator(
-                                        modifier = Modifier.size(22.dp)
-                                    )
-                                } else {
-                                    CircularProgressIndicator(
-                                        progress = updateProgress,
-                                        modifier = Modifier.size(22.dp)
-                                    )
-                                }
-                            }
-                        }
-                    }
-                }
-            } else {
-                SmallTopAppBar(
-                    title = "选择学校",
-                    scrollBehavior = scrollBehavior,
-                    navigationIcon = {
-                        IconButton(onClick = onBack, modifier = Modifier.padding(start = 4.dp)) {
-                            Icon(MiuixIcons.Back, contentDescription = "返回", modifier = Modifier.size(28.dp))
-                        }
-                    },
-                    actions = {
-                        if (isUpdating) {
-                            Row(
-                                verticalAlignment = Alignment.CenterVertically,
-                                modifier = Modifier.padding(end = 8.dp)
-                            ) {
-                                if (isChecking) {
-                                    CircularProgressIndicator()
-                                } else {
-                                    CircularProgressIndicator(
-                                        progress = updateProgress
-                                    )
-                                }
-                            }
-                        } else {
-                            IconButton(onClick = {
-                                hapticFeedback.performHapticFeedback(HapticFeedbackType.VirtualKey)
-                                onRefresh()
-                            }, modifier = Modifier.padding(end = 4.dp)) {
-                                Icon(MiuixIcons.Normal.Update, contentDescription = "更新", modifier = Modifier.size(28.dp))
-                            }
-                        }
-                    }
-                )
-            }
-        }
+        topBar = {}
     ) { paddingValues ->
         val isTablet = LocalConfiguration.current.screenWidthDp >= 600
         val tabletHorizontalPadding = if (isTablet) {
@@ -233,16 +114,22 @@ fun SchoolSelectionScreen(
             ((screenWidthDp - 600).coerceIn(0, 600) / 600f * 112 + 16).dp
         } else 0.dp
 
+        val topBarHeightDp = with(androidx.compose.ui.platform.LocalDensity.current) {
+            (scrollBehavior?.currentHeightPx ?: 0f).toDp()
+        }
+
         Column(
             modifier = Modifier
-                .padding(top = paddingValues.calculateTopPadding() +
-                        if (isLiquidGlass) {
-                            if (WindowInsets.statusBars.asPaddingValues().calculateTopPadding() > 0.dp) (-20).dp else (-32).dp
-                        } else 0.dp)
+                .padding(top = paddingValues.calculateTopPadding() + topBarHeightDp)
                 .fillMaxSize()
         ) {
             SearchBar(
-                modifier = Modifier.padding(top = 12.dp, bottom = 6.dp, start = 4.dp + tabletHorizontalPadding, end = 4.dp + tabletHorizontalPadding),
+                modifier = Modifier.padding(
+                    top = 12.dp,
+                    bottom = 6.dp,
+                    start = 4.dp + tabletHorizontalPadding,
+                    end = 4.dp + tabletHorizontalPadding
+                ),
                 inputField = {
                     InputField(
                         query = searchQuery,
@@ -261,7 +148,6 @@ fun SchoolSelectionScreen(
                     searchQuery = ""
                 }
             ) {
-                // 搜索结果内容 - 与主列表样式一致
                 val groupedSearchResults = remember(filteredSchools) {
                     filteredSchools.groupBy { it.initial.uppercase() }
                 }
@@ -269,40 +155,63 @@ fun SchoolSelectionScreen(
 
                 LazyColumn(
                     modifier = Modifier.fillMaxSize(),
-                    contentPadding = PaddingValues(top = 8.dp, bottom = 60.dp, start = tabletHorizontalPadding, end = tabletHorizontalPadding)
+                    contentPadding = PaddingValues(
+                        top = 8.dp,
+                        bottom = 60.dp,
+                        start = tabletHorizontalPadding,
+                        end = tabletHorizontalPadding
+                    )
                 ) {
                     searchGroupedEntries.forEachIndexed { index, (letter, schools) ->
-                        // 分割线
                         if (index > 0) {
                             item(key = "search_divider_$letter") {
                                 HorizontalDivider(
-                                    modifier = Modifier.padding(horizontal = 26.dp, vertical = 12.dp),
+                                    modifier = Modifier.padding(
+                                        horizontal = 26.dp,
+                                        vertical = 12.dp
+                                    ),
                                     color = MiuixTheme.colorScheme.outline,
                                     thickness = 0.5.dp
                                 )
                             }
                         }
-                        // 字母标题
                         item(key = "search_header_$letter") {
                             Text(
                                 text = letter,
                                 fontSize = 15.sp,
                                 fontWeight = FontWeight.Normal,
                                 color = MiuixTheme.colorScheme.onSurfaceVariantActions,
-                                modifier = Modifier.padding(start = 26.dp, top = 16.dp, bottom = 4.dp)
+                                modifier = Modifier.padding(
+                                    start = 26.dp,
+                                    top = 16.dp,
+                                    bottom = 4.dp
+                                )
                             )
                         }
-                        // 学校列表
                         items(schools, key = { it.id }) { school ->
-                            val isPostgrad = school.adapters.any { it.category == AdapterData.CATEGORY_POSTGRADUATE }
+                            val isPostgrad =
+                                school.adapters.any { it.category == AdapterData.CATEGORY_POSTGRADUATE }
                             Box(
                                 modifier = Modifier.fillMaxWidth()
                                     .then(if (isTablet) Modifier.clip(RoundedRectangle(20.dp)) else Modifier)
                                     .clickable {
                                         hapticFeedback.performHapticFeedback(HapticFeedbackType.VirtualKey)
-                                        val adapters = schoolRepository.getAdaptersForSchool(school.id, AdapterData.CATEGORY_BACHELOR)
-                                            .ifEmpty { schoolRepository.getAdaptersForSchool(school.id, AdapterData.CATEGORY_POSTGRADUATE) }
-                                            .ifEmpty { schoolRepository.getAdaptersForSchool(school.id, AdapterData.CATEGORY_GENERAL_TOOL) }
+                                        val adapters = schoolRepository.getAdaptersForSchool(
+                                            school.id,
+                                            AdapterData.CATEGORY_BACHELOR
+                                        )
+                                            .ifEmpty {
+                                                schoolRepository.getAdaptersForSchool(
+                                                    school.id,
+                                                    AdapterData.CATEGORY_POSTGRADUATE
+                                                )
+                                            }
+                                            .ifEmpty {
+                                                schoolRepository.getAdaptersForSchool(
+                                                    school.id,
+                                                    AdapterData.CATEGORY_GENERAL_TOOL
+                                                )
+                                            }
                                         if (adapters.isNotEmpty()) {
                                             val adapter = adapters.first()
                                             if (adapter.category == AdapterData.CATEGORY_GENERAL_TOOL) {
@@ -344,7 +253,8 @@ fun SchoolSelectionScreen(
             }
 
             Row(
-                modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp + tabletHorizontalPadding, vertical = 4.dp),
+                modifier = Modifier.fillMaxWidth()
+                    .padding(horizontal = 16.dp + tabletHorizontalPadding, vertical = 4.dp),
                 horizontalArrangement = Arrangement.spacedBy(8.dp)
             ) {
                 displayTabs.forEachIndexed { index, tabName ->
@@ -359,7 +269,10 @@ fun SchoolSelectionScreen(
                         shape = RoundedRectangle(20.dp),
                         color = if (isSelected) MiuixTheme.colorScheme.primary else MiuixTheme.colorScheme.surfaceVariant
                     ) {
-                        Box(modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp), contentAlignment = Alignment.Center) {
+                        Box(
+                            modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
+                            contentAlignment = Alignment.Center
+                        ) {
                             Text(
                                 text = tabName,
                                 fontSize = 14.sp,
@@ -382,6 +295,7 @@ fun SchoolSelectionScreen(
                         )
                     }
                 }
+
                 isUpdating && filteredSchools.isEmpty() -> {
                     Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                         Column(
@@ -404,35 +318,33 @@ fun SchoolSelectionScreen(
                         }
                     }
                 }
+
                 else -> {
-                    // 按首字母分组
                     val groupedSchools = remember(filteredSchools) {
                         filteredSchools.groupBy { it.initial.uppercase() }
                     }
                     val allLetters = remember { ('A'..'Z').map { it.toString() } }
                     val availableLetters = remember(groupedSchools) { groupedSchools.keys.toSet() }
 
-                    // 构建字母到LazyColumn item index的映射
                     val letterIndexMap = remember(groupedSchools) {
                         val map = mutableMapOf<String, Int>()
                         var itemIndex = 0
                         groupedSchools.entries.forEachIndexed { index, (letter, schools) ->
-                            if (index > 0) itemIndex++ // divider
-                            map[letter] = itemIndex // header
-                            itemIndex++ // header
-                            itemIndex += schools.size // schools
+                            if (index > 0) itemIndex++
+                            map[letter] = itemIndex
+                            itemIndex++
+                            itemIndex += schools.size
                         }
                         map
                     }
 
-                    // 构建item index到字母的反向映射
                     val indexToLetterMap = remember(groupedSchools) {
                         val map = mutableMapOf<Int, String>()
                         var itemIndex = 0
                         groupedSchools.entries.forEachIndexed { index, (letter, schools) ->
-                            if (index > 0) itemIndex++ // divider
-                            map[itemIndex] = letter // header
-                            itemIndex++ // header
+                            if (index > 0) itemIndex++
+                            map[itemIndex] = letter
+                            itemIndex++
                             for (i in 0 until schools.size) {
                                 map[itemIndex] = letter
                                 itemIndex++
@@ -450,7 +362,8 @@ fun SchoolSelectionScreen(
                                     hapticFeedbackType = HapticFeedbackType.TextHandleMove
                                 )
                                 .then(
-                                    if (!isLiquidGlass) Modifier.nestedScroll(scrollBehavior.nestedScrollConnection) else Modifier
+                                    scrollBehavior?.let { Modifier.nestedScroll(it.nestedScrollConnection) }
+                                        ?: Modifier
                                 ),
                             contentPadding = PaddingValues(
                                 start = tabletHorizontalPadding,
@@ -460,37 +373,58 @@ fun SchoolSelectionScreen(
                         ) {
                             val groupedEntries = groupedSchools.entries.toList()
                             groupedEntries.forEachIndexed { index, (letter, schools) ->
-                                // 分割线（第一个分组不显示）
                                 if (index > 0) {
                                     item(key = "divider_$letter") {
                                         HorizontalDivider(
-                                            modifier = Modifier.padding(horizontal = 26.dp, vertical = 12.dp),
+                                            modifier = Modifier.padding(
+                                                horizontal = 26.dp,
+                                                vertical = 12.dp
+                                            ),
                                             color = MiuixTheme.colorScheme.outline,
                                             thickness = 0.5.dp
                                         )
                                     }
                                 }
-                                // 字母分组标题
                                 item(key = "header_$letter") {
                                     Text(
                                         text = letter,
                                         fontSize = 15.sp,
                                         fontWeight = FontWeight.Normal,
                                         color = MiuixTheme.colorScheme.onSurfaceVariantActions,
-                                        modifier = Modifier.padding(start = 26.dp, top = 16.dp, bottom = 4.dp)
+                                        modifier = Modifier.padding(
+                                            start = 26.dp,
+                                            top = 16.dp,
+                                            bottom = 4.dp
+                                        )
                                     )
                                 }
-                                // 该字母下的学校列表
                                 items(schools, key = { it.id }) { school ->
-                                    val isPostgrad = school.adapters.any { it.category == AdapterData.CATEGORY_POSTGRADUATE }
+                                    val isPostgrad =
+                                        school.adapters.any { it.category == AdapterData.CATEGORY_POSTGRADUATE }
                                     Box(
                                         modifier = Modifier.fillMaxWidth()
                                             .then(if (isTablet) Modifier.clip(RoundedRectangle(20.dp)) else Modifier)
                                             .clickable {
-                                                hapticFeedback.performHapticFeedback(HapticFeedbackType.VirtualKey)
-                                                val adapters = schoolRepository.getAdaptersForSchool(school.id, AdapterData.CATEGORY_BACHELOR)
-                                                    .ifEmpty { schoolRepository.getAdaptersForSchool(school.id, AdapterData.CATEGORY_POSTGRADUATE) }
-                                                    .ifEmpty { schoolRepository.getAdaptersForSchool(school.id, AdapterData.CATEGORY_GENERAL_TOOL) }
+                                                hapticFeedback.performHapticFeedback(
+                                                    HapticFeedbackType.VirtualKey
+                                                )
+                                                val adapters =
+                                                    schoolRepository.getAdaptersForSchool(
+                                                        school.id,
+                                                        AdapterData.CATEGORY_BACHELOR
+                                                    )
+                                                        .ifEmpty {
+                                                            schoolRepository.getAdaptersForSchool(
+                                                                school.id,
+                                                                AdapterData.CATEGORY_POSTGRADUATE
+                                                            )
+                                                        }
+                                                        .ifEmpty {
+                                                            schoolRepository.getAdaptersForSchool(
+                                                                school.id,
+                                                                AdapterData.CATEGORY_GENERAL_TOOL
+                                                            )
+                                                        }
                                                 if (adapters.isNotEmpty()) {
                                                     val adapter = adapters.first()
                                                     if (adapter.category == AdapterData.CATEGORY_GENERAL_TOOL) {
@@ -530,11 +464,9 @@ fun SchoolSelectionScreen(
                             }
                         }
 
-                        // 右侧字母索引条
                         var dragHighlight by remember { mutableStateOf<String?>(null) }
                         val coroutineScope = rememberCoroutineScope()
 
-                        // 根据滚动位置计算当前可见字母
                         val scrollHighlight by remember {
                             derivedStateOf {
                                 val visibleItems = listState.layoutInfo.visibleItemsInfo
@@ -555,7 +487,7 @@ fun SchoolSelectionScreen(
                                     }
                                 }
                                 firstHeader ?: lastDivider
-                                    ?: indexToLetterMap[visibleItems.firstOrNull()?.index]
+                                ?: indexToLetterMap[visibleItems.firstOrNull()?.index]
                             }
                         }
 
@@ -567,66 +499,92 @@ fun SchoolSelectionScreen(
                         Box(
                             modifier = Modifier
                                 .align(Alignment.CenterEnd)
-                                .padding(end = 2.dp + if (isTablet) 12.dp else 0.dp, top = indexBarPaddingTop, bottom = indexBarPaddingBottom)
+                                .padding(
+                                    end = 2.dp + if (isTablet) 12.dp else 0.dp,
+                                    top = indexBarPaddingTop,
+                                    bottom = indexBarPaddingBottom
+                                )
                                 .width(20.dp)
                                 .fillMaxHeight()
-                                    .pointerInput(Unit) {
-                                        detectVerticalDragGestures(
-                                            onDragStart = { offset ->
-                                                val index = ((offset.y / size.height) * allLetters.size).toInt().coerceIn(0, allLetters.lastIndex)
-                                                val letter = allLetters[index]
-                                                if (letter in availableLetters) {
-                                                    dragHighlight = letter
-                                                    hapticFeedback.performHapticFeedback(HapticFeedbackType.VirtualKey)
-                                                    letterIndexMap[letter]?.let { idx ->
-                                                        coroutineScope.launch { listState.animateScrollToItem(idx) }
+                                .pointerInput(Unit) {
+                                    detectVerticalDragGestures(
+                                        onDragStart = { offset ->
+                                            val index =
+                                                ((offset.y / size.height) * allLetters.size).toInt()
+                                                    .coerceIn(0, allLetters.lastIndex)
+                                            val letter = allLetters[index]
+                                            if (letter in availableLetters) {
+                                                dragHighlight = letter
+                                                hapticFeedback.performHapticFeedback(
+                                                    HapticFeedbackType.VirtualKey
+                                                )
+                                                letterIndexMap[letter]?.let { idx ->
+                                                    coroutineScope.launch {
+                                                        listState.animateScrollToItem(
+                                                            idx
+                                                        )
                                                     }
                                                 }
-                                            },
-                                            onVerticalDrag = { change, _ ->
-                                                change.consume()
-                                                val index = ((change.position.y / size.height) * allLetters.size).toInt().coerceIn(0, allLetters.lastIndex)
-                                                val letter = allLetters[index]
-                                                if (letter in availableLetters && letter != dragHighlight) {
-                                                    dragHighlight = letter
-                                                    hapticFeedback.performHapticFeedback(HapticFeedbackType.VirtualKey)
-                                                    letterIndexMap[letter]?.let { idx ->
-                                                        coroutineScope.launch { listState.animateScrollToItem(idx) }
+                                            }
+                                        },
+                                        onVerticalDrag = { change, _ ->
+                                            change.consume()
+                                            val index =
+                                                ((change.position.y / size.height) * allLetters.size).toInt()
+                                                    .coerceIn(0, allLetters.lastIndex)
+                                            val letter = allLetters[index]
+                                            if (letter in availableLetters && letter != dragHighlight) {
+                                                dragHighlight = letter
+                                                hapticFeedback.performHapticFeedback(
+                                                    HapticFeedbackType.VirtualKey
+                                                )
+                                                letterIndexMap[letter]?.let { idx ->
+                                                    coroutineScope.launch {
+                                                        listState.animateScrollToItem(
+                                                            idx
+                                                        )
                                                     }
                                                 }
-                                            },
-                                            onDragEnd = { dragHighlight = null },
-                                            onDragCancel = { dragHighlight = null }
-                                        )
-                                    }
-                            ) {
-                                Column(modifier = Modifier.fillMaxSize()) {
-                                    allLetters.forEach { letter ->
-                                        val isAvailable = letter in availableLetters
-                                        val isSelected = letter == activeHighlight && isAvailable
-                                        Text(
-                                            text = letter,
-                                            fontSize = 10.sp,
-                                            fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal,
-                                            color = if (isSelected) MiuixTheme.colorScheme.primary
-                                            else if (isAvailable) MiuixTheme.colorScheme.onSurfaceVariantActions
-                                            else MiuixTheme.colorScheme.outline,
-                                            modifier = Modifier
-                                                .fillMaxWidth()
-                                                .weight(1f)
-                                                .then(
-                                                    if (isAvailable) Modifier.clickable(
-                                                        interactionSource = null,
-                                                        indication = null
-                                                    ) {
-                                                        hapticFeedback.performHapticFeedback(HapticFeedbackType.VirtualKey)
-                                                        letterIndexMap[letter]?.let { idx ->
-                                                            coroutineScope.launch { listState.animateScrollToItem(idx) }
+                                            }
+                                        },
+                                        onDragEnd = { dragHighlight = null },
+                                        onDragCancel = { dragHighlight = null }
+                                    )
+                                }
+                        ) {
+                            Column(modifier = Modifier.fillMaxSize()) {
+                                allLetters.forEach { letter ->
+                                    val isAvailable = letter in availableLetters
+                                    val isSelected = letter == activeHighlight && isAvailable
+                                    Text(
+                                        text = letter,
+                                        fontSize = 10.sp,
+                                        fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal,
+                                        color = if (isSelected) MiuixTheme.colorScheme.primary
+                                        else if (isAvailable) MiuixTheme.colorScheme.onSurfaceVariantActions
+                                        else MiuixTheme.colorScheme.outline,
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .weight(1f)
+                                            .then(
+                                                if (isAvailable) Modifier.clickable(
+                                                    interactionSource = null,
+                                                    indication = null
+                                                ) {
+                                                    hapticFeedback.performHapticFeedback(
+                                                        HapticFeedbackType.VirtualKey
+                                                    )
+                                                    letterIndexMap[letter]?.let { idx ->
+                                                        coroutineScope.launch {
+                                                            listState.animateScrollToItem(
+                                                                idx
+                                                            )
                                                         }
-                                                    } else Modifier
-                                                ),
-                                            textAlign = androidx.compose.ui.text.style.TextAlign.Center
-                                        )
+                                                    }
+                                                } else Modifier
+                                            ),
+                                        textAlign = androidx.compose.ui.text.style.TextAlign.Center
+                                    )
                                 }
                             }
                         }
@@ -634,53 +592,51 @@ fun SchoolSelectionScreen(
                 }
             }
         }
+    }
 
-        // 通用工具网址输入弹窗
-        OverlayDialog(
-            title = "输入网址",
-            summary = "请输入要访问的教务系统网址",
-            show = showUrlDialog,
-
-            onDismissRequest = { showUrlDialog = false }
+    OverlayDialog(
+        title = "输入网址",
+        summary = "请输入要访问的教务系统网址",
+        show = showUrlDialog,
+        onDismissRequest = { showUrlDialog = false }
+    ) {
+        Column(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalAlignment = Alignment.CenterHorizontally
         ) {
-            Column(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalAlignment = Alignment.CenterHorizontally
+            NativeMiuixTextField(
+                value = customUrl,
+                onValueChange = { customUrl = it },
+                label = "网址",
+                modifier = Modifier.fillMaxWidth()
+            )
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(top = 16.dp),
+                horizontalArrangement = Arrangement.spacedBy(12.dp)
             ) {
-                NativeMiuixTextField(
-                    value = customUrl,
-                    onValueChange = { customUrl = it },
-                    label = "网址",
-                    modifier = Modifier.fillMaxWidth()
+                TextButton(
+                    text = "取消",
+                    onClick = { showUrlDialog = false },
+                    modifier = Modifier.weight(1f)
                 )
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(top = 16.dp),
-                    horizontalArrangement = Arrangement.spacedBy(12.dp)
-                ) {
-                    TextButton(
-                        text = "取消",
-                        onClick = { showUrlDialog = false },
-                        modifier = Modifier.weight(1f)
-                    )
-                    TextButton(
-                        text = "确定",
-                        onClick = {
-                            if (customUrl.isNotBlank()) {
-                                pendingAdapter?.let { adapter ->
-                                    onSchoolSelected(
-                                        pendingSchool!!,
-                                        adapter.copy(importUrl = customUrl)
-                                    )
-                                }
-                                showUrlDialog = false
+                TextButton(
+                    text = "确定",
+                    onClick = {
+                        if (customUrl.isNotBlank()) {
+                            pendingAdapter?.let { adapter ->
+                                onSchoolSelected(
+                                    pendingSchool!!,
+                                    adapter.copy(importUrl = customUrl)
+                                )
                             }
-                        },
-                        colors = ButtonDefaults.textButtonColorsPrimary(),
-                        modifier = Modifier.weight(1f)
-                    )
-                }
+                            showUrlDialog = false
+                        }
+                    },
+                    colors = ButtonDefaults.textButtonColorsPrimary(),
+                    modifier = Modifier.weight(1f)
+                )
             }
         }
     }

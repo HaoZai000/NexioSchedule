@@ -1,6 +1,7 @@
 /** 教务系统导入页面 */
 package com.haooz.chedule.ui.activities
 
+import android.annotation.SuppressLint
 import android.os.Bundle
 import android.util.Log
 import android.widget.Toast
@@ -17,16 +18,22 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.unit.DpOffset
+import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.google.gson.Gson
 import com.google.gson.reflect.TypeToken
 import com.haooz.chedule.data.school.AdapterData
 import com.haooz.chedule.data.school.SchoolData
 import com.haooz.chedule.data.school.ScriptRepository
-import com.haooz.chedule.ui.screens.WebViewScreen
+import com.haooz.chedule.ui.components.CollapsibleTopAppBar
+import com.haooz.chedule.ui.components.rememberSharedScrollBehavior
+import com.haooz.chedule.ui.effects.liquidglass.LiquidTopBarButton
+import com.haooz.chedule.ui.effects.liquidglass.ProgressiveBlurTopBar
 import com.haooz.chedule.ui.screens.SchoolSelectionScreen
-import com.haooz.chedule.ui.utils.applyThemeAwareSystemBars
+import com.haooz.chedule.ui.screens.WebViewScreen
 import com.haooz.chedule.ui.theme.CourseScheduleTheme
+import com.haooz.chedule.ui.utils.applyThemeAwareSystemBars
 import com.haooz.chedule.viewmodel.CourseViewModel
 import com.haooz.chedule.viewmodel.ScheduleViewModel
 import com.haooz.chedule.viewmodel.SettingsViewModel
@@ -35,9 +42,16 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.flow.MutableStateFlow
-import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import top.yukonga.miuix.kmp.basic.Scaffold
+import top.yukonga.miuix.kmp.blur.layerBackdrop
+import top.yukonga.miuix.kmp.blur.rememberLayerBackdrop
+import top.yukonga.miuix.kmp.icon.MiuixIcons
+import top.yukonga.miuix.kmp.icon.extended.ChevronBackward
+import top.yukonga.miuix.kmp.icon.extended.Update
+import top.yukonga.miuix.kmp.theme.MiuixTheme
+import com.kyant.backdrop.backdrops.layerBackdrop as liquidGlassLayerBackdrop
 
 class EducationalImportActivity : ComponentActivity() {
 
@@ -61,14 +75,8 @@ class EducationalImportActivity : ComponentActivity() {
         private val _updateProgress = MutableStateFlow(0f)
         private val _dataVersion = MutableStateFlow(0)
         private val _initialLoadDone = MutableStateFlow(false)
-        private val _updateMessage = MutableStateFlow<String?>(null)
 
-        fun isUpdating() = _isUpdating.asStateFlow()
-        fun isChecking() = _isChecking.asStateFlow()
-        fun updateProgress() = _updateProgress.asStateFlow()
-        fun dataVersion() = _dataVersion.asStateFlow()
-        fun initialLoadDone() = _initialLoadDone.asStateFlow()
-
+        @SuppressLint("UseKtx")
         fun startUpdate(context: android.content.Context) {
             if (_isUpdating.value || _isChecking.value) return
 
@@ -118,7 +126,6 @@ class EducationalImportActivity : ComponentActivity() {
                         onLog = { },
                         onProgress = { progress ->
                             _updateProgress.value = progress
-                            if (progress > 0.05f) _isChecking.value = false
                         }
                     )
                     val msg = when (result) {
@@ -177,7 +184,13 @@ class EducationalImportActivity : ComponentActivity() {
         val scheduleViewModel: ScheduleViewModel = viewModel()
         val settingsViewModel: SettingsViewModel = viewModel()
 
+        val backgroundColor = MiuixTheme.colorScheme.surface
+        val backdrop = rememberLayerBackdrop {
+            drawRect(backgroundColor)
+            drawContent()
+        }
         val liquidGlassBackdrop: LayerBackdrop = com.kyant.backdrop.backdrops.rememberLayerBackdrop()
+        val scrollBehavior = rememberSharedScrollBehavior()
 
         var currentScreen by remember { mutableStateOf("selection") }
         var selectedSchool by remember { mutableStateOf<SchoolData?>(null) }
@@ -190,22 +203,74 @@ class EducationalImportActivity : ComponentActivity() {
 
         when (currentScreen) {
             "selection" -> {
-                SchoolSelectionScreen(
-                    isUpdating = isUpdating,
-                    isChecking = isChecking,
-                    updateProgress = updateProgress,
-                    dataVersion = dataVersion,
-                    isInFreeformWindow = isInFreeformWindow,
-                    isLiquidGlass = true,
-                    liquidGlassBackdrop = liquidGlassBackdrop,
-                    onRefresh = { forceUpdate(this@EducationalImportActivity) },
-                    onSchoolSelected = { school, adapter ->
-                        selectedSchool = school
-                        selectedAdapter = adapter
-                        currentScreen = "webview"
-                    },
-                    onBack = { finish() }
-                )
+                Scaffold(
+                    topBar = {
+                        ProgressiveBlurTopBar(
+                            backdrop = liquidGlassBackdrop,
+                        ) {
+                            CollapsibleTopAppBar(
+                                title = "选择学校",
+                                largeTitle = "选择学校",
+                                modifier = Modifier,
+                                scrollBehavior = scrollBehavior,
+                                contentPadding = {},
+                                startAction = { backdropAlpha, shadowAlpha ->
+                                    LiquidTopBarButton(
+                                        onClick = { finish() },
+                                        backdrop = liquidGlassBackdrop,
+                                        icon = MiuixIcons.ChevronBackward,
+                                        contentDescription = "返回",
+                                        iconSize = 25.dp,
+                                        iconOffset = DpOffset(x = (-2).dp, y = 0.dp),
+                                        backdropAlpha = backdropAlpha,
+                                        shadowAlpha = shadowAlpha,
+                                    )
+                                },
+                                endAction = { backdropAlpha, shadowAlpha ->
+                                    if (!isUpdating) {
+                                        LiquidTopBarButton(
+                                            onClick = {
+                                                forceUpdate(this@EducationalImportActivity)
+                                            },
+                                            backdrop = liquidGlassBackdrop,
+                                            icon = MiuixIcons.Normal.Update,
+                                            contentDescription = "更新",
+                                            iconSize = 25.dp,
+                                            backdropAlpha = backdropAlpha,
+                                            shadowAlpha = shadowAlpha,
+                                        )
+                                    }
+                                },
+                            )
+                        }
+                    }
+                ) { _ ->
+                    Box(
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .layerBackdrop(backdrop)
+                    ) {
+                        Box(
+                            modifier = Modifier.fillMaxSize().then(
+                                Modifier.liquidGlassLayerBackdrop(liquidGlassBackdrop)
+                            )
+                        ) {
+                            SchoolSelectionScreen(
+                                isUpdating = isUpdating,
+                                isChecking = isChecking,
+                                updateProgress = updateProgress,
+                                dataVersion = dataVersion,
+                                isInFreeformWindow = isInFreeformWindow,
+                                scrollBehavior = scrollBehavior,
+                                onSchoolSelected = { school, adapter ->
+                                    selectedSchool = school
+                                    selectedAdapter = adapter
+                                    currentScreen = "webview"
+                                }
+                            )
+                        }
+                    }
+                }
             }
             "webview" -> {
                 val school = selectedSchool
@@ -221,10 +286,8 @@ class EducationalImportActivity : ComponentActivity() {
                             liquidGlassBackdrop = liquidGlassBackdrop,
                             onBack = { currentScreen = "selection" },
                             onImportComplete = { courses ->
-                                // 使用 CourseViewModel 保存课程，确保内存和 UI 同步更新
                                 courseViewModel.replaceCourses(courses)
                                 scheduleViewModel.refreshScheduleList()
-                                // 应用脚本中的预设时间段
                                 applyPresetTimeSlots(settingsViewModel)
                                 Toast.makeText(this@EducationalImportActivity, "课程已保存，共 ${courses.size} 门课程", Toast.LENGTH_SHORT).show()
                             },
@@ -239,10 +302,6 @@ class EducationalImportActivity : ComponentActivity() {
         }
     }
 
-    /**
-     * 读取并应用脚本中的预设时间段到 SettingsViewModel
-     * 将绝对节次编号按上午/下午/晚上拆分为相对编号后保存
-     */
     private fun applyPresetTimeSlots(settingsViewModel: SettingsViewModel) {
         val prefs = getSharedPreferences("edu_import_prefs", MODE_PRIVATE)
         val timeSlotsJson = prefs.getString("preset_time_slots", null) ?: return
@@ -278,7 +337,6 @@ class EducationalImportActivity : ComponentActivity() {
             if (afternoonTimes.isNotEmpty()) settingsViewModel.saveAfternoonTimes(afternoonTimes)
             if (eveningTimes.isNotEmpty()) settingsViewModel.saveEveningTimes(eveningTimes)
 
-            // 清除已应用的预设时间段
             prefs.edit().remove("preset_time_slots").apply()
             Log.d("EduImport", "预设时间段应用成功: 上午${morningTimes.size}节, 下午${afternoonTimes.size}节, 晚上${eveningTimes.size}节")
         } catch (e: Exception) {
