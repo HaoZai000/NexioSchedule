@@ -2,10 +2,6 @@ package com.haooz.chedule.ui.utils
 
 import android.content.Context
 import android.util.Log
-import java.io.File
-import java.text.SimpleDateFormat
-import java.util.Date
-import java.util.Locale
 
 /**
  * 应用更新检查工具
