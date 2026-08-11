@@ -38,6 +38,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.snapshotFlow
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
@@ -54,6 +55,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.viewmodel.compose.viewModel
+import com.haooz.chedule.data.Course
 import com.haooz.chedule.ui.components.NativeMiuixTextField
 import com.haooz.chedule.ui.components.SharedScrollBehavior
 import com.haooz.chedule.ui.utils.isAppDarkTheme
@@ -72,10 +74,11 @@ import top.yukonga.miuix.kmp.blur.layerBackdrop
 import top.yukonga.miuix.kmp.blur.rememberLayerBackdrop
 import top.yukonga.miuix.kmp.icon.MiuixIcons
 import top.yukonga.miuix.kmp.icon.extended.Add
-import com.haooz.chedule.ui.overlay.OverlayDialog
+import com.haooz.chedule.ui.basic.OverlayDialog
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 import com.haooz.chedule.ui.utils.overScrollVertical
 import top.yukonga.miuix.kmp.utils.scrollEndHaptic
+import java.util.UUID
 import kotlin.time.Duration.Companion.milliseconds
 import androidx.compose.ui.graphics.Color as ComposeColor
 
@@ -319,13 +322,13 @@ fun CourseManageScreen(
             showNewCourseDialog = false
             editingCourse = null
             newCourseName = ""
-            newCourseColor = com.haooz.chedule.data.Course.courseColors.first()
+            newCourseColor = Course.courseColors.first()
             onEditDismiss()
         }
     ) {
         Column(
             modifier = Modifier.fillMaxWidth(),
-            horizontalAlignment = androidx.compose.ui.Alignment.CenterHorizontally
+            horizontalAlignment = Alignment.CenterHorizontally
         ) {
             // 课程名称输入
             NativeMiuixTextField(
@@ -341,7 +344,7 @@ fun CourseManageScreen(
 
             // 课程颜色选择
             Column(modifier = Modifier.fillMaxWidth()) {
-                val allColors = remember { com.haooz.chedule.data.Course.courseColors }
+                val allColors = remember { Course.courseColors }
                 val colorColumns = 6
                 val totalItems = remember(allColors) { allColors.size + 1 }
                 val colorRows = remember(totalItems, colorColumns) { (totalItems + colorColumns - 1) / colorColumns }
@@ -403,7 +406,7 @@ fun CourseManageScreen(
                                                 }
                                             }
                                         },
-                                    contentAlignment = androidx.compose.ui.Alignment.Center
+                                    contentAlignment = Alignment.Center
                                 ) {
                                     Box(
                                         modifier = Modifier
@@ -423,7 +426,7 @@ fun CourseManageScreen(
                                         modifier = Modifier
                                             .fillMaxSize()
                                             .padding(4.dp),
-                                        contentAlignment = androidx.compose.ui.Alignment.Center
+                                        contentAlignment = Alignment.Center
                                     ) {
                                         Card(
                                             modifier = Modifier.fillMaxSize(),
@@ -484,7 +487,7 @@ fun CourseManageScreen(
                                                 }
                                             }
                                         },
-                                    contentAlignment = androidx.compose.ui.Alignment.Center
+                                    contentAlignment = Alignment.Center
                                 ) {
                                     Box(
                                         modifier = Modifier
@@ -504,7 +507,7 @@ fun CourseManageScreen(
                                         modifier = Modifier
                                             .fillMaxSize()
                                             .padding(4.dp),
-                                        contentAlignment = androidx.compose.ui.Alignment.Center
+                                        contentAlignment = Alignment.Center
                                     ) {
                                         Card(
                                             modifier = Modifier.fillMaxSize(),
@@ -521,7 +524,7 @@ fun CourseManageScreen(
                                         ) {
                                             Box(
                                                 modifier = Modifier.fillMaxSize(),
-                                                contentAlignment = androidx.compose.ui.Alignment.Center
+                                                contentAlignment = Alignment.Center
                                             ) {
                                                 if (isCustomColor) {
                                                     Box(
@@ -564,7 +567,7 @@ fun CourseManageScreen(
                         showNewCourseDialog = false
                         editingCourse = null
                         newCourseName = ""
-                        newCourseColor = com.haooz.chedule.data.Course.courseColors.first()
+                        newCourseColor = Course.courseColors.first()
                         onEditDismiss()
                     },
                     modifier = Modifier.weight(1f)
@@ -585,14 +588,14 @@ fun CourseManageScreen(
                                 showNewCourseDialog = false
                                 editingCourse = null
                                 newCourseName = ""
-                                newCourseColor = com.haooz.chedule.data.Course.courseColors.first()
+                                newCourseColor = Course.courseColors.first()
                                 onEditDismiss()
                             } else {
                                 if (courses.any { it.name == newCourseName.trim() }) {
                                     Toast.makeText(context, "已存在同名课程", Toast.LENGTH_SHORT).show()
                                 } else {
-                                    val course = com.haooz.chedule.data.Course(
-                                        id = java.util.UUID.randomUUID().toString(),
+                                    val course = Course(
+                                        id = UUID.randomUUID().toString(),
                                         name = newCourseName.trim(),
                                         classroom = "",
                                         teacher = "",
@@ -601,7 +604,7 @@ fun CourseManageScreen(
                                         endSection = 0,
                                         startWeek = 0,
                                         endWeek = 0,
-                                        weekType = com.haooz.chedule.data.Course.WEEK_TYPE_ALL,
+                                        weekType = Course.WEEK_TYPE_ALL,
                                         colorRes = newCourseColor
                                     )
                                     pendingNewCourse = course
@@ -625,7 +628,7 @@ fun CourseManageScreen(
     ) {
         Column(
             modifier = Modifier.fillMaxWidth(),
-            horizontalAlignment = androidx.compose.ui.Alignment.CenterHorizontally
+            horizontalAlignment = Alignment.CenterHorizontally
         ) {
             ColorPalette(
                 color = customColor,

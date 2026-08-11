@@ -65,11 +65,12 @@ import top.yukonga.miuix.kmp.basic.Scaffold
 import top.yukonga.miuix.kmp.basic.TextButton
 import top.yukonga.miuix.kmp.blur.layerBackdrop
 import top.yukonga.miuix.kmp.blur.rememberLayerBackdrop
-import com.haooz.chedule.ui.overlay.OverlayDialog
+import com.haooz.chedule.ui.basic.OverlayDialog
 import top.yukonga.miuix.kmp.preference.ArrowPreference
 import top.yukonga.miuix.kmp.preference.SwitchPreference
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 import com.haooz.chedule.ui.utils.overScrollVertical
+import top.yukonga.miuix.kmp.basic.ButtonDefaults
 import top.yukonga.miuix.kmp.utils.scrollEndHaptic
 import androidx.compose.ui.graphics.Color as ComposeColor
 
@@ -741,7 +742,7 @@ fun CourseReminderScreen(
                                 showMinutesDialog = false
                                 CourseReminderHelper.startReminderService(context)
                             },
-                            colors = top.yukonga.miuix.kmp.basic.ButtonDefaults.textButtonColorsPrimary(),
+                            colors = ButtonDefaults.textButtonColorsPrimary(),
                             modifier = Modifier.weight(1f)
                         )
                     }
@@ -813,7 +814,7 @@ fun CourseReminderScreen(
                                 showTimeDialog = false
                                 CourseReminderHelper.startReminderService(context)
                             },
-                            colors = top.yukonga.miuix.kmp.basic.ButtonDefaults.textButtonColorsPrimary(),
+                            colors = ButtonDefaults.textButtonColorsPrimary(),
                             modifier = Modifier.weight(1f)
                         )
                     }

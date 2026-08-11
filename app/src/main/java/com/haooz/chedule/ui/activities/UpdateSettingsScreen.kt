@@ -59,11 +59,12 @@ import top.yukonga.miuix.kmp.basic.Switch
 import top.yukonga.miuix.kmp.basic.TextButton
 import top.yukonga.miuix.kmp.blur.layerBackdrop
 import top.yukonga.miuix.kmp.blur.rememberLayerBackdrop
-import com.haooz.chedule.ui.overlay.OverlayDialog
+import com.haooz.chedule.ui.basic.OverlayDialog
 import top.yukonga.miuix.kmp.preference.ArrowPreference
 import top.yukonga.miuix.kmp.preference.OverlayDropdownPreference
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 import com.haooz.chedule.ui.utils.overScrollVertical
+import top.yukonga.miuix.kmp.basic.ButtonDefaults
 import top.yukonga.miuix.kmp.utils.scrollEndHaptic
 import java.io.File
 import java.io.FileOutputStream
@@ -575,7 +576,7 @@ fun UpdateSettingsScreen(
                                     isInstalling = true
                                     downloadedFile?.let { installApk(context, it) }
                                 },
-                                colors = top.yukonga.miuix.kmp.basic.ButtonDefaults.buttonColorsPrimary()
+                                colors = ButtonDefaults.buttonColorsPrimary()
                             ) {
                                 Text(
                                     text = "安装",
@@ -652,7 +653,7 @@ fun UpdateSettingsScreen(
                                         }
                                     }
                                 },
-                                colors = top.yukonga.miuix.kmp.basic.ButtonDefaults.buttonColorsPrimary()
+                                colors = ButtonDefaults.buttonColorsPrimary()
                             ) {
                                 Text(
                                     text = "开始下载",

@@ -66,13 +66,14 @@ import top.yukonga.miuix.kmp.basic.SmallTitle
 import top.yukonga.miuix.kmp.basic.TextButton
 import top.yukonga.miuix.kmp.blur.layerBackdrop
 import top.yukonga.miuix.kmp.blur.rememberLayerBackdrop
-import com.haooz.chedule.ui.overlay.OverlayDialog
+import com.haooz.chedule.ui.basic.OverlayDialog
 import top.yukonga.miuix.kmp.preference.ArrowPreference
 import top.yukonga.miuix.kmp.preference.CheckboxLocation
 import top.yukonga.miuix.kmp.preference.CheckboxPreference
 import top.yukonga.miuix.kmp.preference.SwitchPreference
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 import com.haooz.chedule.ui.utils.overScrollVertical
+import kotlinx.coroutines.delay
 import top.yukonga.miuix.kmp.utils.scrollEndHaptic
 import java.time.LocalDate
 import java.time.temporal.ChronoUnit
@@ -575,7 +576,7 @@ fun SettingsScreen(
                             hapticFeedback.performHapticFeedback(HapticFeedbackType.Confirm)
                             showShiftModeConfirmDialog = false
                             coroutineScope.launch {
-                                kotlinx.coroutines.delay(100.milliseconds)
+                                delay(100.milliseconds)
                                 onEnterShiftMode()
                             }
                         },

@@ -2,6 +2,7 @@
 package com.haooz.chedule.ui.activities
 
 import android.annotation.SuppressLint
+import android.app.Application
 import android.net.Uri
 import android.os.Environment
 import android.widget.Toast
@@ -49,6 +50,8 @@ import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.google.gson.Gson
+import com.google.gson.reflect.TypeToken
 import com.haooz.chedule.data.CourseRepository
 import com.haooz.chedule.ui.components.SharedScrollBehavior
 import com.haooz.chedule.ui.utils.isAppDarkTheme
@@ -66,11 +69,12 @@ import top.yukonga.miuix.kmp.basic.DropdownItem
 import top.yukonga.miuix.kmp.basic.Scaffold
 import top.yukonga.miuix.kmp.basic.SmallTitle
 import top.yukonga.miuix.kmp.basic.TextButton
-import com.haooz.chedule.ui.overlay.OverlayDialog
+import com.haooz.chedule.ui.basic.OverlayDialog
 import top.yukonga.miuix.kmp.preference.ArrowPreference
 import top.yukonga.miuix.kmp.preference.OverlayDropdownPreference
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 import com.haooz.chedule.ui.utils.overScrollVertical
+import kotlinx.coroutines.delay
 import top.yukonga.miuix.kmp.utils.scrollEndHaptic
 import java.io.File
 import java.text.SimpleDateFormat
@@ -562,10 +566,10 @@ fun LocalBackupScreen(
                             val result = withContext(Dispatchers.IO) {
                                 try {
                                     val json = file.readText(Charsets.UTF_8)
-                                    val type = object : com.google.gson.reflect.TypeToken<Map<String, Any>>() {}.type
-                                    val data: Map<String, Any> = com.google.gson.Gson().fromJson(json, type)
+                                    val type = object : TypeToken<Map<String, Any>>() {}.type
+                                    val data: Map<String, Any> = Gson().fromJson(json, type)
 
-                                    val repository = CourseRepository(context.applicationContext as android.app.Application)
+                                    val repository = CourseRepository(context.applicationContext as Application)
 
                                     if (data.containsKey("courses") && data.containsKey("schedule_name")) {
                                         val originalName = data["schedule_name"] as String
@@ -651,7 +655,7 @@ fun LocalBackupScreen(
                         deletingFileName = pendingDeleteFile?.name
                         showDeleteDialog = false
                         coroutineScope.launch {
-                            kotlinx.coroutines.delay(300.milliseconds)
+                            delay(300.milliseconds)
                             try {
                                 pendingDeleteFile?.delete()
                                 Toast.makeText(context, "删除成功", Toast.LENGTH_SHORT).show()
@@ -714,10 +718,10 @@ fun LocalBackupScreen(
                                         ?: throw Exception("无法读取文件")
                                     inputStream.close()
 
-                                    val type = object : com.google.gson.reflect.TypeToken<Map<String, Any>>() {}.type
-                                    val data: Map<String, Any> = com.google.gson.Gson().fromJson(json, type)
+                                    val type = object : TypeToken<Map<String, Any>>() {}.type
+                                    val data: Map<String, Any> = Gson().fromJson(json, type)
 
-                                    val repository = CourseRepository(context.applicationContext as android.app.Application)
+                                    val repository = CourseRepository(context.applicationContext as Application)
 
                                     if (data.containsKey("courses") && data.containsKey("schedule_name")) {
                                         val originalName = data["schedule_name"] as String

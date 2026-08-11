@@ -3,6 +3,7 @@ package com.haooz.chedule.ui.activities
 
 import android.annotation.SuppressLint
 import android.os.Bundle
+import android.widget.Toast
 import androidx.activity.ComponentActivity
 import androidx.activity.SystemBarStyle
 import androidx.activity.compose.BackHandler
@@ -93,12 +94,13 @@ import top.yukonga.miuix.kmp.icon.extended.Close
 import top.yukonga.miuix.kmp.icon.extended.Delete
 import top.yukonga.miuix.kmp.icon.extended.Edit
 import top.yukonga.miuix.kmp.icon.extended.Forward
-import com.haooz.chedule.ui.overlay.OverlayDialog
+import com.haooz.chedule.ui.basic.OverlayDialog
 import top.yukonga.miuix.kmp.preference.CheckboxLocation
 import top.yukonga.miuix.kmp.preference.CheckboxPreference
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 import top.yukonga.miuix.kmp.utils.PressFeedbackType
 import com.haooz.chedule.ui.utils.overScrollVertical
+import kotlinx.coroutines.delay
 import top.yukonga.miuix.kmp.utils.scrollEndHaptic
 import kotlin.time.Duration.Companion.milliseconds
 import androidx.compose.ui.graphics.Color as ComposeColor
@@ -796,18 +798,18 @@ fun SwitchScheduleScreen(
                             onClick = {
                                 hapticFeedback.performHapticFeedback(HapticFeedbackType.Confirm)
                                 if (newScheduleName.isBlank()) {
-                                    android.widget.Toast.makeText(
+                                    Toast.makeText(
                                         context,
                                         "请输入课表名称",
-                                        android.widget.Toast.LENGTH_SHORT
+                                        Toast.LENGTH_SHORT
                                     ).show()
                                     return@TextButton
                                 }
                                 if (scheduleNames.contains(newScheduleName)) {
-                                    android.widget.Toast.makeText(
+                                    Toast.makeText(
                                         context,
                                         "已存在同名课表",
-                                        android.widget.Toast.LENGTH_SHORT
+                                        Toast.LENGTH_SHORT
                                     ).show()
                                     return@TextButton
                                 }
@@ -866,10 +868,10 @@ fun SwitchScheduleScreen(
                             onClick = {
                                 hapticFeedback.performHapticFeedback(HapticFeedbackType.Confirm)
                                 if (editScheduleName.isBlank()) {
-                                    android.widget.Toast.makeText(
+                                    Toast.makeText(
                                         context,
                                         "请输入课表名称",
-                                        android.widget.Toast.LENGTH_SHORT
+                                        Toast.LENGTH_SHORT
                                     ).show()
                                     return@TextButton
                                 }
@@ -879,10 +881,10 @@ fun SwitchScheduleScreen(
                                     return@TextButton
                                 }
                                 if (scheduleNames.contains(editScheduleName)) {
-                                    android.widget.Toast.makeText(
+                                    Toast.makeText(
                                         context,
                                         "已存在同名课表",
-                                        android.widget.Toast.LENGTH_SHORT
+                                        Toast.LENGTH_SHORT
                                     ).show()
                                     return@TextButton
                                 }
@@ -955,7 +957,7 @@ fun SwitchScheduleScreen(
                                 scope.launch {
                                     selectedNames.forEach { name ->
                                         deletingScheduleName = name
-                                        kotlinx.coroutines.delay(300.milliseconds)
+                                        delay(300.milliseconds)
                                         scheduleNames = repository.deleteSchedule(name)
                                         if (currentScheduleId == name && scheduleNames.isNotEmpty()) {
                                             currentScheduleId = scheduleNames.first()
