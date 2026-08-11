@@ -57,8 +57,10 @@ import androidx.compose.ui.unit.sp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.haooz.chedule.data.Course
 import com.haooz.chedule.ui.basic.NativeMiuixTextField
+import com.haooz.chedule.ui.basic.OverlayDialog
 import com.haooz.chedule.ui.basic.SharedScrollBehavior
 import com.haooz.chedule.ui.utils.isAppDarkTheme
+import com.haooz.chedule.ui.utils.overScrollVertical
 import com.haooz.chedule.viewmodel.CourseViewModel
 import com.kyant.shapes.RoundedRectangle
 import kotlinx.coroutines.delay
@@ -74,9 +76,7 @@ import top.yukonga.miuix.kmp.blur.layerBackdrop
 import top.yukonga.miuix.kmp.blur.rememberLayerBackdrop
 import top.yukonga.miuix.kmp.icon.MiuixIcons
 import top.yukonga.miuix.kmp.icon.extended.Add
-import com.haooz.chedule.ui.basic.OverlayDialog
 import top.yukonga.miuix.kmp.theme.MiuixTheme
-import com.haooz.chedule.ui.utils.overScrollVertical
 import top.yukonga.miuix.kmp.utils.scrollEndHaptic
 import java.util.UUID
 import kotlin.time.Duration.Companion.milliseconds
@@ -90,7 +90,7 @@ fun CourseManageScreen(
     hiddenCourseIds: Set<String> = emptySet(),
     shrinkingCourseIds: Set<String> = emptySet(),
     onCourseClick: (
-        courses: List<com.haooz.chedule.data.Course>,
+        courses: List<Course>,
         left: Float,
         top: Float,
         width: Float,
@@ -99,11 +99,11 @@ fun CourseManageScreen(
         cardColor: Color,
         cardAlpha: Float
     ) -> Unit = { _, _, _, _, _, _, _, _ -> },
-    onNewCourseCreated: (com.haooz.chedule.data.Course) -> Unit = {},
-    onCourseUpdated: (oldName: String, updated: com.haooz.chedule.data.Course) -> Unit = { _, _ -> },
+    onNewCourseCreated: (Course) -> Unit = {},
+    onCourseUpdated: (oldName: String, updated: Course) -> Unit = { _, _ -> },
     onEditDismiss: () -> Unit = {},
-    pendingEditCourse: com.haooz.chedule.data.Course? = null,
-    onCourseLongPress: (courses: List<com.haooz.chedule.data.Course>, left: Float, top: Float, width: Float, height: Float) -> Unit = { _, _, _, _, _ -> },
+    pendingEditCourse: Course? = null,
+    onCourseLongPress: (courses: List<Course>, left: Float, top: Float, width: Float, height: Float) -> Unit = { _, _, _, _, _ -> },
     liquidGlassBackdrop: com.kyant.backdrop.Backdrop? = null
 ) {
     val hapticFeedback = LocalHapticFeedback.current
@@ -128,10 +128,10 @@ fun CourseManageScreen(
     // 新建课程弹窗状态
     var showNewCourseDialog by remember { mutableStateOf(false) }
     var newCourseName by remember { mutableStateOf("") }
-    var newCourseColor by remember { mutableLongStateOf(com.haooz.chedule.data.Course.courseColors.first()) }
+    var newCourseColor by remember { mutableLongStateOf(Course.courseColors.first()) }
     var showCustomColorDialog by remember { mutableStateOf(false) }
-    var customColor by remember { mutableStateOf(ComposeColor(com.haooz.chedule.data.Course.courseColors.first())) }
-    var editingCourse by remember { mutableStateOf<com.haooz.chedule.data.Course?>(null) }
+    var customColor by remember { mutableStateOf(ComposeColor(Course.courseColors.first())) }
+    var editingCourse by remember { mutableStateOf<Course?>(null) }
 
     // 接收外部传入的编辑课程
     LaunchedEffect(pendingEditCourse) {
@@ -145,7 +145,7 @@ fun CourseManageScreen(
 
     // 新课程入场动画跟踪
     var newlyAddedCourseNames by remember { mutableStateOf(setOf<String>()) }
-    var pendingNewCourse by remember { mutableStateOf<com.haooz.chedule.data.Course?>(null) }
+    var pendingNewCourse by remember { mutableStateOf<Course?>(null) }
 
     // dialog 关闭后延迟写入数据库并触发动画
     LaunchedEffect(showNewCourseDialog) {
@@ -189,7 +189,7 @@ fun CourseManageScreen(
                         modifier = Modifier
                             .fillMaxSize()
                             .padding(top = paddingValues.calculateTopPadding() + topBarHeightDp + 12.dp),
-                        horizontalAlignment = androidx.compose.ui.Alignment.CenterHorizontally,
+                        horizontalAlignment = Alignment.CenterHorizontally,
                         verticalArrangement = Arrangement.Center
                     ) {
                         Text(
@@ -303,7 +303,7 @@ fun CourseManageScreen(
                                     onClick = {
                                         hapticFeedback.performHapticFeedback(HapticFeedbackType.Confirm)
                                         newCourseName = ""
-                                        newCourseColor = com.haooz.chedule.data.Course.courseColors.first()
+                                        newCourseColor = Course.courseColors.first()
                                         showNewCourseDialog = true
                                     }
                                 )
@@ -787,7 +787,7 @@ private fun NewCourseCard(
     ) {
         Column(
             modifier = Modifier.fillMaxWidth().fillMaxSize(),
-            horizontalAlignment = androidx.compose.ui.Alignment.CenterHorizontally,
+            horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.Center
         ) {
             Icon(

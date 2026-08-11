@@ -3,7 +3,7 @@
 [versions]
 # 构建工具
 agp = "9.2.1"                          # Android Gradle Plugin
-kotlin = "2.4.0"                       # Kotlin 编译器（含 Compose 编译插件）
+kotlin = "2.4.10"                       # Kotlin 编译器（含 Compose 编译插件）
 
 # AndroidX 基础
 coreKtx = "1.18.0"                     # AndroidX Core KTX

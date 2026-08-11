@@ -91,7 +91,6 @@ class ChangelogActivity : ComponentActivity() {
                             )
                         ) {
                             ChangelogScreen(
-                                onBack = { finish() },
                                 scrollBehavior = scrollBehavior,
                             )
                         }

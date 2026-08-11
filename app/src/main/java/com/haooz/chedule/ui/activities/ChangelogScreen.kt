@@ -26,10 +26,8 @@ import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.graphicsLayer
@@ -42,6 +40,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.haooz.chedule.ui.basic.SharedScrollBehavior
 import com.haooz.chedule.ui.data.changelogData
+import com.haooz.chedule.ui.utils.overScrollVertical
 import top.yukonga.miuix.kmp.basic.Card
 import top.yukonga.miuix.kmp.basic.Icon
 import top.yukonga.miuix.kmp.basic.Scaffold
@@ -50,17 +49,14 @@ import top.yukonga.miuix.kmp.blur.rememberLayerBackdrop
 import top.yukonga.miuix.kmp.icon.MiuixIcons
 import top.yukonga.miuix.kmp.icon.extended.ChevronForward
 import top.yukonga.miuix.kmp.theme.MiuixTheme
-import com.haooz.chedule.ui.utils.overScrollVertical
 import top.yukonga.miuix.kmp.utils.scrollEndHaptic
 
 @SuppressLint("ConfigurationScreenWidthHeight")
 @Composable
 fun ChangelogScreen(
-    onBack: () -> Unit,
     scrollBehavior: SharedScrollBehavior? = null,
     initialExpandCount: Int = 3
 ) {
-    var listScrollY by remember { mutableIntStateOf(0) }
 
     val backdropColor = MiuixTheme.colorScheme.surface
     val backdrop = rememberLayerBackdrop {

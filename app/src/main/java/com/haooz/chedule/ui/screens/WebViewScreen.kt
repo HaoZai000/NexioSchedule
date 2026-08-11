@@ -74,8 +74,8 @@ import androidx.compose.ui.zIndex
 import androidx.core.net.toUri
 import com.haooz.chedule.data.Course
 import com.haooz.chedule.data.school.SchoolData
-import com.haooz.chedule.ui.basic.NativeMiuixTextField
 import com.haooz.chedule.ui.basic.LiquidTopBarButton
+import com.haooz.chedule.ui.basic.NativeMiuixTextField
 import com.haooz.chedule.ui.basic.ProgressiveBlurTopBar
 import com.haooz.chedule.ui.web.AndroidBridge
 import com.haooz.chedule.ui.web.WebCompatDelegate
@@ -164,7 +164,7 @@ fun WebViewScreen(
                 ViewGroup.LayoutParams.MATCH_PARENT,
                 ViewGroup.LayoutParams.MATCH_PARENT
             )
-            setBackgroundColor(androidx.compose.ui.graphics.Color.Transparent.toArgb())
+            setBackgroundColor(Color.Transparent.toArgb())
         }
     }
 
@@ -523,7 +523,7 @@ fun WebViewScreen(
                             color = if (isDesktopMode)
                                 MiuixTheme.colorScheme.primary.copy(alpha = 0.12f)
                             else
-                                androidx.compose.ui.graphics.Color(0xFF66BB6A).copy(alpha = 0.15f),
+                                Color(0xFF66BB6A).copy(alpha = 0.15f),
                             modifier = Modifier
                                 .clip(RoundedRectangle(4.dp))
                                 .clickable {
@@ -538,7 +538,7 @@ fun WebViewScreen(
                                 color = if (isDesktopMode)
                                     MiuixTheme.colorScheme.primary
                                 else
-                                    androidx.compose.ui.graphics.Color(0xFF66BB6A),
+                                    Color(0xFF66BB6A),
                                 modifier = Modifier.padding(horizontal = 4.dp, vertical = 2.dp)
                             )
                         }
@@ -753,7 +753,7 @@ private fun WebSelectionDialog(
                             color = if (isSelected)
                                 MiuixTheme.colorScheme.primary.copy(alpha = 0.12f)
                             else
-                                androidx.compose.ui.graphics.Color.Transparent,
+                                Color.Transparent,
                             modifier = Modifier
                                 .fillMaxWidth()
                                 .clip(RoundedRectangle(12.dp))

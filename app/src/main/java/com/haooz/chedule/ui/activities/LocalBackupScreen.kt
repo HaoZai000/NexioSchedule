@@ -53,12 +53,15 @@ import androidx.compose.ui.unit.sp
 import com.google.gson.Gson
 import com.google.gson.reflect.TypeToken
 import com.haooz.chedule.data.CourseRepository
+import com.haooz.chedule.ui.basic.OverlayDialog
 import com.haooz.chedule.ui.basic.SharedScrollBehavior
 import com.haooz.chedule.ui.utils.isAppDarkTheme
+import com.haooz.chedule.ui.utils.overScrollVertical
 import com.haooz.chedule.viewmodel.CourseViewModel
 import com.haooz.chedule.viewmodel.ScheduleViewModel
 import com.haooz.chedule.viewmodel.SettingsViewModel
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import top.yukonga.miuix.kmp.basic.Button
@@ -69,12 +72,9 @@ import top.yukonga.miuix.kmp.basic.DropdownItem
 import top.yukonga.miuix.kmp.basic.Scaffold
 import top.yukonga.miuix.kmp.basic.SmallTitle
 import top.yukonga.miuix.kmp.basic.TextButton
-import com.haooz.chedule.ui.basic.OverlayDialog
 import top.yukonga.miuix.kmp.preference.ArrowPreference
 import top.yukonga.miuix.kmp.preference.OverlayDropdownPreference
 import top.yukonga.miuix.kmp.theme.MiuixTheme
-import com.haooz.chedule.ui.utils.overScrollVertical
-import kotlinx.coroutines.delay
 import top.yukonga.miuix.kmp.utils.scrollEndHaptic
 import java.io.File
 import java.text.SimpleDateFormat
@@ -110,7 +110,7 @@ private fun generateBackupFileName(mode: String, scheduleName: String?): String 
 private fun countSchedulesInBackup(file: File): Int {
     return try {
         val json = file.readText(Charsets.UTF_8)
-        val data: Map<String, Any> = com.google.gson.Gson().fromJson(json, object : com.google.gson.reflect.TypeToken<Map<String, Any>>() {}.type)
+        val data: Map<String, Any> = Gson().fromJson(json, object : TypeToken<Map<String, Any>>() {}.type)
         if (data.containsKey("schedule_name") && data.containsKey("courses")) {
             1
         } else {
@@ -175,9 +175,9 @@ fun LocalBackupScreen(
     var backupMode by remember { mutableStateOf("all") }
     var selectedSchedule by remember { mutableStateOf("") }
 
-    val courseViewModel = remember { CourseViewModel(context.applicationContext as android.app.Application) }
-    val scheduleViewModel = remember { ScheduleViewModel(context.applicationContext as android.app.Application) }
-    val settingsViewModel = remember { SettingsViewModel(context.applicationContext as android.app.Application) }
+    val courseViewModel = remember { CourseViewModel(context.applicationContext as Application) }
+    val scheduleViewModel = remember { ScheduleViewModel(context.applicationContext as Application) }
+    val settingsViewModel = remember { SettingsViewModel(context.applicationContext as Application) }
     val scheduleNames by scheduleViewModel.scheduleNames.collectAsState()
 
     var backupHistory by remember { mutableStateOf(scanBackupFiles()) }
@@ -315,7 +315,7 @@ fun LocalBackupScreen(
                                 coroutineScope.launch {
                                     val result = withContext(Dispatchers.IO) {
                                         try {
-                                            val repository = CourseRepository(context.applicationContext as android.app.Application)
+                                            val repository = CourseRepository(context.applicationContext as Application)
                                             val dir = getBackupDir()
                                             if (!dir.exists()) dir.mkdirs()
 

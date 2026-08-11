@@ -56,21 +56,21 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import com.haooz.chedule.reminder.CourseReminderHelper
 import com.haooz.chedule.reminder.IslandNotificationHelper
 import com.haooz.chedule.shizuku.ShizukuManager
+import com.haooz.chedule.ui.basic.OverlayDialog
 import com.haooz.chedule.ui.basic.SharedScrollBehavior
+import com.haooz.chedule.ui.utils.overScrollVertical
 import com.haooz.chedule.viewmodel.SettingsViewModel
 import kotlinx.coroutines.launch
+import top.yukonga.miuix.kmp.basic.ButtonDefaults
 import top.yukonga.miuix.kmp.basic.Card
 import top.yukonga.miuix.kmp.basic.NumberPicker
 import top.yukonga.miuix.kmp.basic.Scaffold
 import top.yukonga.miuix.kmp.basic.TextButton
 import top.yukonga.miuix.kmp.blur.layerBackdrop
 import top.yukonga.miuix.kmp.blur.rememberLayerBackdrop
-import com.haooz.chedule.ui.basic.OverlayDialog
 import top.yukonga.miuix.kmp.preference.ArrowPreference
 import top.yukonga.miuix.kmp.preference.SwitchPreference
 import top.yukonga.miuix.kmp.theme.MiuixTheme
-import com.haooz.chedule.ui.utils.overScrollVertical
-import top.yukonga.miuix.kmp.basic.ButtonDefaults
 import top.yukonga.miuix.kmp.utils.scrollEndHaptic
 import androidx.compose.ui.graphics.Color as ComposeColor
 
@@ -637,7 +637,7 @@ fun CourseReminderScreen(
                                                 promotedSettingsLauncher.launch(intent)
                                             }
                                         },
-                                        colors = top.yukonga.miuix.kmp.basic.ButtonDefaults.textButtonColorsPrimary(),
+                                        colors = ButtonDefaults.textButtonColorsPrimary(),
                                         modifier = Modifier.fillMaxWidth()
                                     )
                                 }
@@ -692,7 +692,7 @@ fun CourseReminderScreen(
                             Toast.makeText(context, "已发送: $courseName (模拟30秒后上课)", Toast.LENGTH_SHORT).show()
                         }
                     },
-                    colors = top.yukonga.miuix.kmp.basic.ButtonDefaults.textButtonColorsPrimary(),
+                    colors = ButtonDefaults.textButtonColorsPrimary(),
                     modifier = Modifier
                         .align(Alignment.BottomCenter)
                         .fillMaxWidth()

@@ -87,11 +87,11 @@ import com.haooz.chedule.data.CardContentAlignment
 import com.haooz.chedule.data.Combination
 import com.haooz.chedule.ui.basic.BlurBottomSheet
 import com.haooz.chedule.ui.basic.BlurBottomSheetTablet
+import com.haooz.chedule.ui.basic.LiquidTopBarButton
 import com.haooz.chedule.ui.basic.LocalSheetTopBarMaterial
 import com.haooz.chedule.ui.effects.edgelight.edgeLight
 import com.haooz.chedule.ui.effects.edgelight.rememberDefaultEdgeLight
 import com.haooz.chedule.ui.effects.liquidglass.InteractiveHighlight
-import com.haooz.chedule.ui.basic.LiquidTopBarButton
 import com.haooz.chedule.ui.utils.isAppDarkTheme
 import com.kyant.backdrop.Backdrop
 import com.kyant.backdrop.drawBackdrop
@@ -178,8 +178,8 @@ fun CustomizeScheduleScreen(
     initialCardCornerRadius: Float = 10f,
     onShowBreakDividersChange: (Boolean) -> Unit = {},
     initialShowBreakDividers: Boolean = true,
-    onCardContentAlignmentChange: (com.haooz.chedule.data.CardContentAlignment) -> Unit = {},
-    initialCardContentAlignment: com.haooz.chedule.data.CardContentAlignment = com.haooz.chedule.data.CardContentAlignment.CENTER_CENTER,
+    onCardContentAlignmentChange: (CardContentAlignment) -> Unit = {},
+    initialCardContentAlignment: CardContentAlignment = CardContentAlignment.CENTER_CENTER,
     hasWallpaper: Boolean = false,
 ) {
     // ================================================================

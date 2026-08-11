@@ -44,11 +44,11 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.haooz.chedule.data.Course
 import com.haooz.chedule.ui.basic.CollapsibleTopAppBar
-import com.haooz.chedule.ui.basic.rememberSharedScrollBehavior
 import com.haooz.chedule.ui.basic.LiquidTopBarButton
 import com.haooz.chedule.ui.basic.ProgressiveBlurTopBar
 import com.haooz.chedule.ui.basic.ShortcutMenu
 import com.haooz.chedule.ui.basic.ShortcutMenuItem
+import com.haooz.chedule.ui.basic.rememberSharedScrollBehavior
 import com.haooz.chedule.ui.effects.motion.OobeCubicOutEasing
 import com.haooz.chedule.ui.effects.motion.OobeQuartOutEasing
 import com.haooz.chedule.ui.screens.CourseEditScreen
@@ -79,6 +79,7 @@ class CourseManageActivity : ComponentActivity() {
         _isInFreeformWindow.value = isInMultiWindowMode
     }
 
+    @SuppressLint("UseOfNonLambdaOffsetOverload")
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge(
@@ -242,7 +243,7 @@ class CourseManageActivity : ComponentActivity() {
                         ) {
                             Scaffold(
                                 topBar = {
-                                    var topBarBlurAlpha by remember { mutableStateOf(0f) }
+                                    var topBarBlurAlpha by remember { mutableFloatStateOf(0f) }
                                     ProgressiveBlurTopBar(
                                         backdrop = liquidGlassBackdrop,
                                         blurAlpha = topBarBlurAlpha,

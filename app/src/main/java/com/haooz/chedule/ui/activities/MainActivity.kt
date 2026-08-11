@@ -84,20 +84,22 @@ import com.haooz.chedule.data.Course
 import com.haooz.chedule.reminder.CourseReminderHelper
 import com.haooz.chedule.reminder.IslandNotificationHelper
 import com.haooz.chedule.ui.basic.CollapsibleTopAppBar
+import com.haooz.chedule.ui.basic.LiquidGlassDropdownMenu
+import com.haooz.chedule.ui.basic.LiquidGlassDropdownMenuItem
+import com.haooz.chedule.ui.basic.LiquidTopBarButton
+import com.haooz.chedule.ui.basic.OverlayDialog
+import com.haooz.chedule.ui.basic.ProgressiveBlurTopBar
+import com.haooz.chedule.ui.basic.SharedScrollBehavior
+import com.haooz.chedule.ui.basic.ShortcutMenu
+import com.haooz.chedule.ui.basic.ShortcutMenuItem
+import com.haooz.chedule.ui.basic.rememberSharedScrollBehavior
 import com.haooz.chedule.ui.components.CourseCard
+import com.haooz.chedule.ui.components.LiquidAddButton
 import com.haooz.chedule.ui.components.LongPressCustomizeButton
 import com.haooz.chedule.ui.components.ScheduleBottomBar
 import com.haooz.chedule.ui.components.ScheduleTopBar
 import com.haooz.chedule.ui.components.ShareImportDialog
-import com.haooz.chedule.ui.basic.ShortcutMenu
-import com.haooz.chedule.ui.basic.ShortcutMenuItem
 import com.haooz.chedule.ui.components.UpdateDialog
-import com.haooz.chedule.ui.basic.rememberSharedScrollBehavior
-import com.haooz.chedule.ui.components.LiquidAddButton
-import com.haooz.chedule.ui.basic.LiquidGlassDropdownMenu
-import com.haooz.chedule.ui.basic.LiquidGlassDropdownMenuItem
-import com.haooz.chedule.ui.basic.LiquidTopBarButton
-import com.haooz.chedule.ui.basic.ProgressiveBlurTopBar
 import com.haooz.chedule.ui.effects.motion.OobeCubicOutEasing
 import com.haooz.chedule.ui.effects.motion.OobeQuartOutEasing
 import com.haooz.chedule.ui.screens.AddCourseDialog
@@ -130,8 +132,6 @@ import top.yukonga.miuix.kmp.icon.extended.Delete
 import top.yukonga.miuix.kmp.icon.extended.Edit
 import top.yukonga.miuix.kmp.icon.extended.More
 import top.yukonga.miuix.kmp.icon.extended.Reset
-import com.haooz.chedule.ui.basic.OverlayDialog
-import com.haooz.chedule.ui.basic.SharedScrollBehavior
 import top.yukonga.miuix.kmp.squircle.addSquircleRect
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 import java.time.LocalDate
@@ -261,7 +261,7 @@ class MainActivity : ComponentActivity() {
         resumeCount++
     }
 
-    override fun onNewIntent(intent: android.content.Intent) {
+    override fun onNewIntent(intent: Intent) {
         super.onNewIntent(intent)
         setIntent(intent)
         extractIntentData(intent)
@@ -270,31 +270,31 @@ class MainActivity : ComponentActivity() {
         shareIntentVersion++
     }
 
-    private fun handleReminderSettingsIntent(intent: android.content.Intent?) {
+    private fun handleReminderSettingsIntent(intent: Intent?) {
         if (intent?.getBooleanExtra(
                 CourseReminderHelper.EXTRA_OPEN_REMINDER_SETTINGS,
                 false
             ) == true
         ) {
             intent.removeExtra(CourseReminderHelper.EXTRA_OPEN_REMINDER_SETTINGS)
-            startActivity(android.content.Intent(this, CourseReminderActivity::class.java))
+            startActivity(Intent(this, CourseReminderActivity::class.java))
         }
     }
 
     @SuppressLint("NewApi")
-    private fun extractIntentData(intent: android.content.Intent?) {
+    private fun extractIntentData(intent: Intent?) {
         when (intent?.action) {
-            android.content.Intent.ACTION_VIEW -> {
+            Intent.ACTION_VIEW -> {
                 shareIntentUri = intent.data
-                shareIntentAction = android.content.Intent.ACTION_VIEW
+                shareIntentAction = Intent.ACTION_VIEW
             }
 
-            android.content.Intent.ACTION_SEND -> {
+            Intent.ACTION_SEND -> {
                 shareIntentUri = intent.getParcelableExtra(
-                    android.content.Intent.EXTRA_STREAM,
+                    Intent.EXTRA_STREAM,
                     android.net.Uri::class.java
                 )
-                shareIntentAction = android.content.Intent.ACTION_SEND
+                shareIntentAction = Intent.ACTION_SEND
             }
         }
     }
@@ -3120,6 +3120,7 @@ fun CourseScheduleApp() {
     }
 }
 
+@SuppressLint("AutoboxingStateCreation")
 @Composable
 private fun SettingsTopBar(
     liquidGlassBackdrop: com.kyant.backdrop.Backdrop?,
@@ -3129,7 +3130,7 @@ private fun SettingsTopBar(
     if (liquidGlassBackdrop == null) return
     val isTabletLiquidGlass = navBarStyle == "rail"
 
-    var topBarBlurAlpha by remember { mutableStateOf(0f) }
+    var topBarBlurAlpha by remember { mutableFloatStateOf(0f) }
     ProgressiveBlurTopBar(
         backdrop = liquidGlassBackdrop,
         blurAlpha = topBarBlurAlpha,

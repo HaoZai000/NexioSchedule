@@ -49,6 +49,7 @@ import com.haooz.chedule.data.school.AdapterData
 import com.haooz.chedule.data.school.SchoolData
 import com.haooz.chedule.data.school.SchoolRepository
 import com.haooz.chedule.ui.basic.NativeMiuixTextField
+import com.haooz.chedule.ui.basic.OverlayDialog
 import com.haooz.chedule.ui.basic.SharedScrollBehavior
 import com.haooz.chedule.ui.utils.overScrollVertical
 import com.kyant.shapes.RoundedRectangle
@@ -56,7 +57,6 @@ import kotlinx.coroutines.launch
 import top.yukonga.miuix.kmp.basic.ButtonDefaults
 import top.yukonga.miuix.kmp.basic.CircularProgressIndicator
 import top.yukonga.miuix.kmp.basic.TextButton
-import com.haooz.chedule.ui.basic.OverlayDialog
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 import top.yukonga.miuix.kmp.utils.scrollEndHaptic
 
@@ -118,7 +118,7 @@ fun SchoolSelectionScreen(
             // 仅程序化滚动时收起/展开标题栏，手动 fling 由 nestedScroll 处理避免冲突
             if (isProgrammaticScroll && shouldShow != lastCollapsed) {
                 lastCollapsed = shouldShow
-                if (shouldShow) scrollBehavior?.collapse() else scrollBehavior?.expand()
+                if (shouldShow) scrollBehavior.collapse() else scrollBehavior.expand()
             } else if (!isProgrammaticScroll) {
                 lastCollapsed = shouldShow
             }

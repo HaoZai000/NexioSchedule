@@ -60,13 +60,16 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.haooz.chedule.data.CourseRepository
 import com.haooz.chedule.ui.basic.CollapsibleTopAppBar
-import com.haooz.chedule.ui.basic.NativeMiuixTextField
-import com.haooz.chedule.ui.basic.rememberSharedScrollBehavior
 import com.haooz.chedule.ui.basic.LiquidTopBarButton
+import com.haooz.chedule.ui.basic.NativeMiuixTextField
+import com.haooz.chedule.ui.basic.OverlayDialog
 import com.haooz.chedule.ui.basic.ProgressiveBlurTopBar
+import com.haooz.chedule.ui.basic.rememberSharedScrollBehavior
 import com.haooz.chedule.ui.theme.CourseScheduleTheme
 import com.haooz.chedule.ui.utils.applyThemeAwareSystemBars
 import com.haooz.chedule.ui.utils.isAppDarkTheme
+import com.haooz.chedule.ui.utils.overScrollVertical
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.launch
 import top.yukonga.miuix.kmp.basic.Button
@@ -94,13 +97,10 @@ import top.yukonga.miuix.kmp.icon.extended.Close
 import top.yukonga.miuix.kmp.icon.extended.Delete
 import top.yukonga.miuix.kmp.icon.extended.Edit
 import top.yukonga.miuix.kmp.icon.extended.Forward
-import com.haooz.chedule.ui.basic.OverlayDialog
 import top.yukonga.miuix.kmp.preference.CheckboxLocation
 import top.yukonga.miuix.kmp.preference.CheckboxPreference
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 import top.yukonga.miuix.kmp.utils.PressFeedbackType
-import com.haooz.chedule.ui.utils.overScrollVertical
-import kotlinx.coroutines.delay
 import top.yukonga.miuix.kmp.utils.scrollEndHaptic
 import kotlin.time.Duration.Companion.milliseconds
 import androidx.compose.ui.graphics.Color as ComposeColor
@@ -146,8 +146,7 @@ fun SwitchScheduleScreen(
     pageScale: Float = 1f,
     initialScheduleNames: List<String>? = null,
     initialCurrentScheduleId: String? = null,
-    initialScheduleSummaries: Map<String, String>? = null,
-    liquidGlassBackdrop: com.kyant.backdrop.Backdrop? = null
+    initialScheduleSummaries: Map<String, String>? = null
 ) {
     val context = androidx.compose.ui.platform.LocalContext.current
     val repository = remember { CourseRepository(context) }
@@ -240,14 +239,14 @@ fun SwitchScheduleScreen(
 
     LaunchedEffect(showAddDialog) {
         if (showAddDialog) {
-            kotlinx.coroutines.delay(180.milliseconds)
+            delay(180.milliseconds)
             focusRequester.requestFocus()
         }
     }
 
     LaunchedEffect(showEditDialog) {
         if (showEditDialog) {
-            kotlinx.coroutines.delay(180.milliseconds)
+            delay(180.milliseconds)
             editFocusRequester.requestFocus()
         }
     }
@@ -280,7 +279,7 @@ fun SwitchScheduleScreen(
     Box(modifier = Modifier.fillMaxSize()) {
         Scaffold(
             topBar = {
-                var topBarBlurAlpha by remember { mutableStateOf(0f) }
+                var topBarBlurAlpha by remember { mutableFloatStateOf(0f) }
                 ProgressiveBlurTopBar(
                     backdrop = liquidGlassBackdrop,
                     blurAlpha = topBarBlurAlpha,
@@ -330,7 +329,7 @@ fun SwitchScheduleScreen(
                 var navBarVisible by remember { mutableStateOf(false) }
                 LaunchedEffect(isEditMode) {
                     if (isEditMode) {
-                        kotlinx.coroutines.delay(100.milliseconds)
+                        delay(100.milliseconds)
                         navBarVisible = true
                     } else {
                         navBarVisible = false
@@ -406,7 +405,7 @@ fun SwitchScheduleScreen(
                         fabAlpha = 0f
                         fabScaleTarget = 0.8f
                     } else {
-                        kotlinx.coroutines.delay(180.milliseconds)
+                        delay(180.milliseconds)
                         fabAlpha = 1f
                         fabScaleTarget = 1f
                     }

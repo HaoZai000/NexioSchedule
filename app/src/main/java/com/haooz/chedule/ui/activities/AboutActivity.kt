@@ -40,6 +40,7 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
@@ -202,7 +203,7 @@ private fun AboutScreen(onBack: () -> Unit, liquidGlassBackdrop: com.kyant.backd
 
     Scaffold(
         topBar = {
-            var topBarBlurAlpha by remember { mutableStateOf(0f) }
+            var topBarBlurAlpha by remember { mutableFloatStateOf(0f) }
             ProgressiveBlurTopBar(
                 backdrop = liquidGlassBackdrop,
                 tintIntensity = scrollProgress * 0.2f,
