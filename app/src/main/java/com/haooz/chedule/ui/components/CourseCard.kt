@@ -159,7 +159,7 @@ fun CourseCard(
                         shape = { RoundedRectangle(effectiveCornerRadius.dp) },
                         effects = {
                             blur(cardBlurRadius.dp.toPx())
-                            lens(8f.dp.toPx(), 8f.dp.toPx())
+                            lens(10f.dp.toPx(), 10f.dp.toPx())
                         },
                         highlight = null,
                         onDrawSurface = {

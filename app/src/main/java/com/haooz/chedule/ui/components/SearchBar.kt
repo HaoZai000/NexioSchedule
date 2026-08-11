@@ -176,8 +176,8 @@ fun SearchBar(
                                         shape = { CircleShape },
                                         effects = {
                                             vibrancy()
-                                            blur(2f.dp.toPx())
-                                            lens(12f.dp.toPx(), 12f.dp.toPx())
+                                            blur(4f.dp.toPx())
+                                            lens(15f.dp.toPx(), 15f.dp.toPx())
                                         },
                                         highlight = null,
                                         shadow = null,
@@ -353,8 +353,8 @@ fun InputField(
         interactionSource = internalInteractionSource,
         decorationBox = { innerTextField ->
             val isLightTheme = !isAppDarkTheme()
-            val containerColor = if (isLightTheme) Color(0xFFFFFFFF).copy(0.8f)
-                else Color(0xFF242424).copy(0.9f)
+            val containerColor = if (isLightTheme) Color(0xFFFFFFFF).copy(0.85f)
+                else Color(0xFF242424).copy(0.85f)
             val shadowColor = if (isLightTheme) android.graphics.Color.parseColor("#12000000")
                 else android.graphics.Color.parseColor("#20000000")
 
@@ -405,8 +405,8 @@ fun InputField(
                                 shape = { capsuleShape },
                                 effects = {
                                     vibrancy()
-                                    blur(2f.dp.toPx())
-                                    lens(12f.dp.toPx(), 12f.dp.toPx())
+                                    blur(4f.dp.toPx())
+                                    lens(15f.dp.toPx(), 15f.dp.toPx())
                                 },
                                 highlight = null,
                                 shadow = null,

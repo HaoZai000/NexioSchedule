@@ -108,8 +108,8 @@ fun LiquidTopBarButton(
                     shape = { CircleShape },
                     effects = {
                         vibrancy()
-                        blur(2f.dp.toPx())
-                        lens(12f.dp.toPx(), 12f.dp.toPx())
+                        blur(4.dp.toPx())
+                        lens(15f.dp.toPx(), 15f.dp.toPx())
                     },
                     highlight = null,
                     shadow = null,
@@ -149,7 +149,7 @@ fun LiquidTopBarButton(
                 .size(iconSize)
                 .offset(iconOffset.x, iconOffset.y)
                 .zIndex(1f),
-            tint = if (iconTint != Color.Unspecified) iconTint else if (isLightTheme) Color.Black.copy(alpha = 0.8f) else Color.White.copy(alpha = 0.8f)
+            tint = if (iconTint != Color.Unspecified) iconTint else if (isLightTheme) Color.Black.copy(alpha = 0.85f) else Color.White.copy(alpha = 0.85f)
         )
     }
 }
