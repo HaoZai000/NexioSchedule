@@ -28,7 +28,7 @@ import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import androidx.core.content.edit
-import com.haooz.chedule.ui.components.SharedScrollBehavior
+import com.haooz.chedule.ui.basic.SharedScrollBehavior
 import com.haooz.chedule.viewmodel.SettingsViewModel
 import top.yukonga.miuix.kmp.basic.Card
 import top.yukonga.miuix.kmp.basic.DropdownEntry

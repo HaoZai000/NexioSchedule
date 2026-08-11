@@ -1,5 +1,7 @@
-﻿package com.haooz.chedule.ui.effects.liquidglass
+﻿package com.haooz.chedule.ui.basic
 
+import android.graphics.BlurMaskFilter
+import android.graphics.Paint
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.CubicBezierEasing
 import androidx.compose.animation.core.FastOutSlowInEasing
@@ -90,11 +92,11 @@ fun LiquidGlassDropdownMenu(
             .drawBehind {
                 val blurRadius = 18f * density
                 val cornerRadiusPx = 26f * density
-                val paint = android.graphics.Paint().apply {
+                val paint = Paint().apply {
                     color = "#0A000000".toColorInt()
-                    maskFilter = android.graphics.BlurMaskFilter(
+                    maskFilter = BlurMaskFilter(
                         blurRadius,
-                        android.graphics.BlurMaskFilter.Blur.NORMAL
+                        BlurMaskFilter.Blur.NORMAL
                     )
                 }
                 drawIntoCanvas { canvas ->

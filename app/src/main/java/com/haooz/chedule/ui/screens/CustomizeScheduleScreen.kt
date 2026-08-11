@@ -83,14 +83,15 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.zIndex
+import com.haooz.chedule.data.CardContentAlignment
 import com.haooz.chedule.data.Combination
-import com.haooz.chedule.ui.effects.blur.BlurBottomSheet
-import com.haooz.chedule.ui.effects.blur.BlurBottomSheetTablet
-import com.haooz.chedule.ui.effects.blur.LocalSheetTopBarMaterial
+import com.haooz.chedule.ui.basic.BlurBottomSheet
+import com.haooz.chedule.ui.basic.BlurBottomSheetTablet
+import com.haooz.chedule.ui.basic.LocalSheetTopBarMaterial
 import com.haooz.chedule.ui.effects.edgelight.edgeLight
 import com.haooz.chedule.ui.effects.edgelight.rememberDefaultEdgeLight
 import com.haooz.chedule.ui.effects.liquidglass.InteractiveHighlight
-import com.haooz.chedule.ui.effects.liquidglass.LiquidTopBarButton
+import com.haooz.chedule.ui.basic.LiquidTopBarButton
 import com.haooz.chedule.ui.utils.isAppDarkTheme
 import com.kyant.backdrop.Backdrop
 import com.kyant.backdrop.drawBackdrop
@@ -109,6 +110,8 @@ import top.yukonga.miuix.kmp.basic.Button
 import top.yukonga.miuix.kmp.basic.ButtonDefaults
 import top.yukonga.miuix.kmp.basic.Card
 import top.yukonga.miuix.kmp.basic.CardDefaults
+import top.yukonga.miuix.kmp.basic.DropdownEntry
+import top.yukonga.miuix.kmp.basic.DropdownItem
 import top.yukonga.miuix.kmp.basic.InfiniteProgressIndicator
 import top.yukonga.miuix.kmp.basic.Scaffold
 import top.yukonga.miuix.kmp.basic.Slider
@@ -124,6 +127,7 @@ import top.yukonga.miuix.kmp.icon.extended.Close
 import top.yukonga.miuix.kmp.icon.extended.Delete
 import top.yukonga.miuix.kmp.icon.extended.GridView
 import top.yukonga.miuix.kmp.icon.extended.Image
+import top.yukonga.miuix.kmp.preference.OverlayDropdownPreference
 import top.yukonga.miuix.kmp.shader.isRuntimeShaderSupported
 import top.yukonga.miuix.kmp.squircle.addSquircleRect
 import top.yukonga.miuix.kmp.theme.MiuixTheme
@@ -1870,16 +1874,16 @@ fun CustomizeScheduleScreen(
                                 contentColor = MiuixTheme.colorScheme.onSurface
                             ),
                         ) {
-                            val contentAlignmentEntry = top.yukonga.miuix.kmp.basic.DropdownEntry(
-                                items = com.haooz.chedule.data.CardContentAlignment.entries.map { alignment ->
-                                    top.yukonga.miuix.kmp.basic.DropdownItem(
+                            val contentAlignmentEntry = DropdownEntry(
+                                items = CardContentAlignment.entries.map { alignment ->
+                                    DropdownItem(
                                         text = alignment.label,
                                         selected = cardContentAlignmentValue == alignment,
                                         onClick = { cardContentAlignmentValue = alignment }
                                     )
                                 }
                             )
-                            top.yukonga.miuix.kmp.preference.OverlayDropdownPreference(
+                            OverlayDropdownPreference(
                                 title = "卡片内容对齐",
                                 entry = contentAlignmentEntry,
                                 collapseOnSelection = true
@@ -2029,16 +2033,16 @@ fun CustomizeScheduleScreen(
                                 contentColor = MiuixTheme.colorScheme.onSurface
                             ),
                         ) {
-                            val contentAlignmentEntry = top.yukonga.miuix.kmp.basic.DropdownEntry(
-                                items = com.haooz.chedule.data.CardContentAlignment.entries.map { alignment ->
-                                    top.yukonga.miuix.kmp.basic.DropdownItem(
+                            val contentAlignmentEntry = DropdownEntry(
+                                items = CardContentAlignment.entries.map { alignment ->
+                                    DropdownItem(
                                         text = alignment.label,
                                         selected = cardContentAlignmentValue == alignment,
                                         onClick = { cardContentAlignmentValue = alignment }
                                     )
                                 }
                             )
-                            top.yukonga.miuix.kmp.preference.OverlayDropdownPreference(
+                            OverlayDropdownPreference(
                                 title = "卡片内容对齐",
                                 entry = contentAlignmentEntry,
                                 collapseOnSelection = true

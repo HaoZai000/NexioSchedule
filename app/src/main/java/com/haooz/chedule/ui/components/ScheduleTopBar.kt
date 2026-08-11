@@ -26,9 +26,11 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.zIndex
-import com.haooz.chedule.ui.components.CollapsibleTopAppBarDefaults.CollapsedHeight
-import com.haooz.chedule.ui.effects.liquidglass.LiquidTopBarButton
-import com.haooz.chedule.ui.effects.liquidglass.ProgressiveBlurTopBar
+import com.haooz.chedule.ui.basic.CollapsibleTopAppBar
+import com.haooz.chedule.ui.basic.CollapsibleTopAppBarDefaults.CollapsedHeight
+import com.haooz.chedule.ui.basic.SharedScrollBehavior
+import com.haooz.chedule.ui.basic.LiquidTopBarButton
+import com.haooz.chedule.ui.basic.ProgressiveBlurTopBar
 import top.yukonga.miuix.kmp.basic.Text
 import top.yukonga.miuix.kmp.icon.MiuixIcons
 import top.yukonga.miuix.kmp.icon.extended.ConvertFile

@@ -1,5 +1,5 @@
 /** 自定义模糊底部弹窗 - 支持全区域模糊背景 */
-package com.haooz.chedule.ui.effects.blur
+package com.haooz.chedule.ui.basic
 
 import android.os.Build
 import androidx.activity.compose.BackHandler
@@ -64,15 +64,13 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.Velocity
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.zIndex
-import com.haooz.chedule.ui.components.rememberCollapsibleTopAppBarState
-import com.haooz.chedule.ui.components.rememberSharedScrollBehavior
 import com.haooz.chedule.ui.effects.edgelight.edgeLight
 import com.haooz.chedule.ui.effects.edgelight.rememberDefaultEdgeLight
-import com.haooz.chedule.ui.effects.liquidglass.ProgressiveBlurTopBar
 import com.haooz.chedule.ui.utils.LocalOverScrollState
 import com.haooz.chedule.ui.utils.OverScrollState
 import com.kyant.backdrop.Backdrop
 import com.kyant.backdrop.backdrops.layerBackdrop
+import com.kyant.backdrop.backdrops.rememberLayerBackdrop
 import com.kyant.shapes.RoundedRectangle
 import kotlinx.coroutines.launch
 import top.yukonga.miuix.kmp.anim.folmeSpring
@@ -83,6 +81,7 @@ import top.yukonga.miuix.kmp.blur.LayerBackdrop
 import top.yukonga.miuix.kmp.blur.textureBlur
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 import top.yukonga.miuix.kmp.utils.MiuixPopupUtils.Companion.DialogLayout
+import kotlin.math.abs
 
 /**
  * 顶栏材质动画值载体：由 BlurBottomSheet 顶栏机制下发，供 startAction/endAction
@@ -318,7 +317,7 @@ private fun BlurBottomSheetContent(
                             val newOffset = dragOffsetY.value + dragAmount
                             // 往上拖时加阻尼，越往上越难拖
                             val dampedOffset = if (newOffset < 0f) {
-                                val resistance = 1f / (1f + kotlin.math.abs(newOffset) / 30f)
+                                val resistance = 1f / (1f + abs(newOffset) / 30f)
                                 dragOffsetY.value + dragAmount * resistance
                             } else {
                                 newOffset
@@ -411,7 +410,7 @@ private fun BlurBottomSheetContent(
 
                     // 捕获弹窗内容的 backdrop（先画不透明背景，再画内容，确保采样到不透明像素）
                     val sheetBackdropColor = if (isDark) Color(0xFF1E1E1E) else Color(0xFFF4F4F4)
-                    val sheetContentBackdrop = com.kyant.backdrop.backdrops.rememberLayerBackdrop {
+                    val sheetContentBackdrop = rememberLayerBackdrop {
                         drawRect(sheetBackdropColor)
                         drawContent()
                     }

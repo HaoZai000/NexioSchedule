@@ -1,5 +1,5 @@
 /** 模糊工具类 - 提供高斯模糊效果 */
-package com.haooz.chedule.ui.effects.blur
+package com.haooz.chedule.ui.effects.miuix
 
 import androidx.compose.runtime.Composable
 import top.yukonga.miuix.kmp.blur.LayerBackdrop

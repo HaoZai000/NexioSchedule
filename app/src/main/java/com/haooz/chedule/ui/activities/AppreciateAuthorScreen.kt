@@ -42,7 +42,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.haooz.chedule.R
-import com.haooz.chedule.ui.components.SharedScrollBehavior
+import com.haooz.chedule.ui.basic.SharedScrollBehavior
 import com.haooz.chedule.ui.data.AppreciationItem
 import com.haooz.chedule.ui.data.sampleAppreciations
 import com.kyant.shapes.RoundedRectangle

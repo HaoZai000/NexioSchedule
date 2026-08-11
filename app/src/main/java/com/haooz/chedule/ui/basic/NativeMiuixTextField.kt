@@ -1,10 +1,12 @@
 /** 仿 Miuix 样式的原生 EditText，使用系统原生选择控件 */
 @file:Suppress("DEPRECATION")
 
-package com.haooz.chedule.ui.components
+package com.haooz.chedule.ui.basic
 
 import android.content.Context
 import android.graphics.Typeface
+import android.text.Editable
+import android.text.InputType
 import android.text.TextWatcher
 import android.view.inputmethod.EditorInfo
 import android.view.inputmethod.InputMethodManager
@@ -16,6 +18,7 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
+import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
@@ -33,12 +36,15 @@ import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.TextFieldValue
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.Dp
+import androidx.compose.ui.unit.DpSize
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.viewinterop.AndroidView
+import kotlinx.coroutines.delay
 import top.yukonga.miuix.kmp.squircle.squircleBackground
 import top.yukonga.miuix.kmp.squircle.squircleBorder
 import top.yukonga.miuix.kmp.theme.MiuixTheme
@@ -49,7 +55,7 @@ fun NativeMiuixTextField(
     value: String,
     onValueChange: (String) -> Unit,
     modifier: Modifier = Modifier,
-    insideMargin: androidx.compose.ui.unit.DpSize = androidx.compose.ui.unit.DpSize(16.dp, 16.dp),
+    insideMargin: DpSize = DpSize(16.dp, 16.dp),
     cornerRadius: Dp = 20.dp,
     label: String = "",
     useLabelAsPlaceholder: Boolean = false,
@@ -76,7 +82,7 @@ fun NativeMiuixTextField(
         if (requestFocus) {
             focusRequester.requestFocus()
             // 延迟显示键盘，确保 EditText 已创建
-            kotlinx.coroutines.delay(150.milliseconds)
+            delay(150.milliseconds)
             editTextHolder.value?.let { editText ->
                 val imm = context.getSystemService(Context.INPUT_METHOD_SERVICE) as InputMethodManager
                 imm.showSoftInput(editText, InputMethodManager.SHOW_IMPLICIT)
@@ -137,7 +143,7 @@ fun NativeMiuixTextField(
         object : TextWatcher {
             override fun beforeTextChanged(s: CharSequence?, start: Int, count: Int, after: Int) {}
             override fun onTextChanged(s: CharSequence?, start: Int, before: Int, count: Int) {}
-            override fun afterTextChanged(s: android.text.Editable?) {
+            override fun afterTextChanged(s: Editable?) {
                 s?.toString()?.let { onValueChange(it) }
             }
         }
@@ -153,7 +159,7 @@ fun NativeMiuixTextField(
         if (requestFocus) {
             focusRequester.requestFocus()
             // 延迟显示键盘，确保 EditText 已创建
-            kotlinx.coroutines.delay(150.milliseconds)
+            delay(150.milliseconds)
             editTextHolder.value?.let { editText ->
                 val imm = context.getSystemService(Context.INPUT_METHOD_SERVICE) as InputMethodManager
                 imm.showSoftInput(editText, InputMethodManager.SHOW_IMPLICIT)
@@ -199,7 +205,7 @@ fun NativeMiuixTextField(
                 contentAlignment = Alignment.TopStart,
             ) {
                 if (labelState == LabelAnimState.Floating || (labelState == LabelAnimState.Normal && !useLabelAsPlaceholder)) {
-                    androidx.compose.material3.Text(
+                    Text(
                         text = label,
                         fontSize = labelFontSize.value.sp,
                         color = labelColor,
@@ -227,7 +233,7 @@ fun NativeMiuixTextField(
                                 textSize = textStyle.fontSize.value
                                 typeface = Typeface.create(typeface, weight, false)
 
-                                inputType = android.text.InputType.TYPE_CLASS_TEXT
+                                inputType = InputType.TYPE_CLASS_TEXT
                                 imeOptions = EditorInfo.IME_ACTION_DONE
 
                                 background = null
@@ -280,10 +286,10 @@ fun NativeMiuixTextField(
  */
 @Composable
 fun NativeMiuixTextField(
-    value: androidx.compose.ui.text.input.TextFieldValue,
-    onValueChange: (androidx.compose.ui.text.input.TextFieldValue) -> Unit,
+    value: TextFieldValue,
+    onValueChange: (TextFieldValue) -> Unit,
     modifier: Modifier = Modifier,
-    insideMargin: androidx.compose.ui.unit.DpSize = androidx.compose.ui.unit.DpSize(16.dp, 16.dp),
+    insideMargin: DpSize = DpSize(16.dp, 16.dp),
     cornerRadius: Dp = 20.dp,
     label: String = "",
     useLabelAsPlaceholder: Boolean = false,
@@ -310,7 +316,7 @@ fun NativeMiuixTextField(
         if (requestFocus) {
             focusRequester.requestFocus()
             // 延迟显示键盘，确保 EditText 已创建
-            kotlinx.coroutines.delay(150.milliseconds)
+            delay(150.milliseconds)
             editTextHolder.value?.let { editText ->
                 val imm = context.getSystemService(Context.INPUT_METHOD_SERVICE) as InputMethodManager
                 imm.showSoftInput(editText, InputMethodManager.SHOW_IMPLICIT)
@@ -377,7 +383,7 @@ fun NativeMiuixTextField(
         if (requestFocus) {
             focusRequester.requestFocus()
             // 延迟显示键盘，确保 EditText 已创建
-            kotlinx.coroutines.delay(150.milliseconds)
+            delay(150.milliseconds)
             editTextHolder.value?.let { editText ->
                 val imm = context.getSystemService(Context.INPUT_METHOD_SERVICE) as InputMethodManager
                 imm.showSoftInput(editText, InputMethodManager.SHOW_IMPLICIT)
@@ -423,7 +429,7 @@ fun NativeMiuixTextField(
                 contentAlignment = Alignment.TopStart,
             ) {
                 if (labelState == LabelAnimState.Floating || (labelState == LabelAnimState.Normal && !useLabelAsPlaceholder)) {
-                    androidx.compose.material3.Text(
+                    Text(
                         text = label,
                         fontSize = labelFontSize.value.sp,
                         color = labelColor,
@@ -451,7 +457,7 @@ fun NativeMiuixTextField(
                                 textSize = textStyle.fontSize.value
                                 typeface = Typeface.create(typeface, weight, false)
 
-                                inputType = android.text.InputType.TYPE_CLASS_TEXT
+                                inputType = InputType.TYPE_CLASS_TEXT
                                 imeOptions = EditorInfo.IME_ACTION_DONE
 
                                 background = null
@@ -470,7 +476,7 @@ fun NativeMiuixTextField(
                                 addTextChangedListener(object : TextWatcher {
                                     override fun beforeTextChanged(s: CharSequence?, start: Int, count: Int, after: Int) {}
                                     override fun onTextChanged(s: CharSequence?, start: Int, before: Int, count: Int) {}
-                                    override fun afterTextChanged(s: android.text.Editable?) {
+                                    override fun afterTextChanged(s: Editable?) {
                                         s?.toString()?.let { newText ->
                                             if (newText != value.text) {
                                                 onValueChange(value.copy(text = newText))

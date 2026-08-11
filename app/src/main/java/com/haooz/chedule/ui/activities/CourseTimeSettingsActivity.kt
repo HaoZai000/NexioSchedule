@@ -35,9 +35,10 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.zIndex
 import com.haooz.chedule.data.CourseRepository
 import com.haooz.chedule.data.TimeConfig
-import com.haooz.chedule.ui.components.CollapsibleTopAppBar
-import com.haooz.chedule.ui.effects.liquidglass.LiquidTopBarButton
-import com.haooz.chedule.ui.effects.liquidglass.ProgressiveBlurTopBar
+import com.haooz.chedule.ui.basic.CollapsibleTopAppBar
+import com.haooz.chedule.ui.basic.rememberSharedScrollBehavior
+import com.haooz.chedule.ui.basic.LiquidTopBarButton
+import com.haooz.chedule.ui.basic.ProgressiveBlurTopBar
 import com.haooz.chedule.ui.effects.motion.OobeCubicOutEasing
 import com.haooz.chedule.ui.effects.motion.OobeQuartOutEasing
 import com.haooz.chedule.ui.screens.TimeConfigEditScreen
@@ -86,7 +87,7 @@ class CourseTimeSettingsActivity : ComponentActivity() {
                 }
                 val liquidGlassBackdrop = com.kyant.backdrop.backdrops.rememberLayerBackdrop()
                 val editLiquidGlassBackdrop = com.kyant.backdrop.backdrops.rememberLayerBackdrop()
-                val scrollBehavior = com.haooz.chedule.ui.components.rememberSharedScrollBehavior()
+                val scrollBehavior = rememberSharedScrollBehavior()
                 val repository = remember { CourseRepository(this@CourseTimeSettingsActivity) }
                 val context = androidx.compose.ui.platform.LocalContext.current
                 val activity = context as? CourseTimeSettingsActivity

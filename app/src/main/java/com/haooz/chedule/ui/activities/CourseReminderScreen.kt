@@ -56,7 +56,7 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import com.haooz.chedule.reminder.CourseReminderHelper
 import com.haooz.chedule.reminder.IslandNotificationHelper
 import com.haooz.chedule.shizuku.ShizukuManager
-import com.haooz.chedule.ui.components.SharedScrollBehavior
+import com.haooz.chedule.ui.basic.SharedScrollBehavior
 import com.haooz.chedule.viewmodel.SettingsViewModel
 import kotlinx.coroutines.launch
 import top.yukonga.miuix.kmp.basic.Card

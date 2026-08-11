@@ -1,5 +1,5 @@
 /** 自定义模糊底部弹窗 - 平板版本：居中悬浮矩形，从底部滑入 */
-package com.haooz.chedule.ui.effects.blur
+package com.haooz.chedule.ui.basic
 
 import android.os.Build
 import androidx.activity.compose.BackHandler
@@ -45,7 +45,6 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.zIndex
 import com.haooz.chedule.ui.effects.edgelight.edgeLight
 import com.haooz.chedule.ui.effects.edgelight.rememberDefaultEdgeLight
-import com.haooz.chedule.ui.effects.liquidglass.ProgressiveBlurTopBar
 import com.kyant.backdrop.Backdrop
 import com.kyant.backdrop.backdrops.layerBackdrop
 import com.kyant.backdrop.backdrops.rememberLayerBackdrop

@@ -1,4 +1,4 @@
-package com.haooz.chedule.ui.effects.liquidglass
+package com.haooz.chedule.ui.basic
 
 import android.os.Build
 import androidx.compose.foundation.background

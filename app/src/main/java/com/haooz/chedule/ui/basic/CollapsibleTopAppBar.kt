@@ -1,4 +1,4 @@
-package com.haooz.chedule.ui.components
+package com.haooz.chedule.ui.basic
 
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.AnimationSpec

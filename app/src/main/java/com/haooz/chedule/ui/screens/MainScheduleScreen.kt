@@ -61,9 +61,10 @@ import androidx.compose.ui.unit.sp
 import com.haooz.chedule.data.Course
 import com.haooz.chedule.ui.components.DayColumn
 import com.haooz.chedule.ui.components.SectionColumn
-import com.haooz.chedule.ui.effects.blur.BlurBottomSheet
-import com.haooz.chedule.ui.effects.blur.BlurBottomSheetTablet
-import com.haooz.chedule.ui.effects.blur.LocalSheetTopBarMaterial
+import com.haooz.chedule.ui.basic.BlurBottomSheet
+import com.haooz.chedule.ui.basic.BlurBottomSheetTablet
+import com.haooz.chedule.ui.basic.LiquidTopBarButton
+import com.haooz.chedule.ui.basic.LocalSheetTopBarMaterial
 import com.haooz.chedule.ui.utils.isAppDarkTheme
 import com.haooz.chedule.ui.utils.overScrollVertical
 import com.haooz.chedule.viewmodel.CourseViewModel
@@ -83,6 +84,7 @@ import top.yukonga.miuix.kmp.blur.textureBlur
 import top.yukonga.miuix.kmp.icon.MiuixIcons
 import top.yukonga.miuix.kmp.icon.extended.Add
 import com.haooz.chedule.ui.basic.OverlayDialog
+import com.haooz.chedule.ui.basic.SharedScrollBehavior
 import top.yukonga.miuix.kmp.basic.ButtonDefaults
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 import top.yukonga.miuix.kmp.utils.PressFeedbackType
@@ -143,7 +145,7 @@ fun MainScheduleScreen(
     // 调课后需要淡入放大的课程ID集合
     animateInCourseIds: Set<String> = emptySet(),
     onGridGeometryChange: (ScheduleGridGeometry) -> Unit = {},
-    scheduleScrollBehavior: com.haooz.chedule.ui.components.SharedScrollBehavior? = null,
+    scheduleScrollBehavior: SharedScrollBehavior? = null,
     paddingValues: PaddingValues = androidx.compose.foundation.layout.PaddingValues()
 ) {
     val courses by viewModel.courses.collectAsState()
@@ -621,7 +623,7 @@ fun MainScheduleScreen(
 
         val detailEndAction: @Composable () -> Unit = {
             val material = LocalSheetTopBarMaterial.current
-            com.haooz.chedule.ui.effects.liquidglass.LiquidTopBarButton(
+            LiquidTopBarButton(
                 onClick = {
                     hapticFeedback.performHapticFeedback(HapticFeedbackType.Confirm)
                     val course = selectedCourse ?: selectedCourses.firstOrNull()
@@ -641,7 +643,7 @@ fun MainScheduleScreen(
                 contentDescription = "添加课程",
                 modifier = Modifier.padding(end = 20.dp),
                 iconSize = 23.dp,
-                containerColor =if (isAppDarkTheme()) Color(0xFF363636).copy(0.4f)
+                containerColor = if (isAppDarkTheme()) Color(0xFF363636).copy(0.4f)
                 else Color(0xFFFFFFFF).copy(0.6f),
                 backdropAlpha = material.backdropAlpha,
                 shadowAlpha = material.shadowAlpha,

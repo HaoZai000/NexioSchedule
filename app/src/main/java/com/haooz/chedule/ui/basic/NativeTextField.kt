@@ -1,7 +1,8 @@
 /** 原生 EditText 包装，使用系统原生长按菜单样式 */
-package com.haooz.chedule.ui.components
+package com.haooz.chedule.ui.basic
 
 import android.graphics.Typeface
+import android.text.Editable
 import android.text.InputFilter
 import android.text.InputType
 import android.text.TextWatcher
@@ -10,6 +11,7 @@ import android.widget.EditText
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
@@ -30,7 +32,7 @@ fun NativeTextField(
     textAlign: TextAlign = TextAlign.Start,
     enabled: Boolean = true
 ) {
-    val textColor = textStyle.color.takeIf { it != androidx.compose.ui.graphics.Color.Unspecified }
+    val textColor = textStyle.color.takeIf { it != Color.Unspecified }
         ?: MiuixTheme.colorScheme.onSurface
     val hintColor = MiuixTheme.colorScheme.onSurfaceVariantActions
     val themeColor = MiuixTheme.colorScheme.primary
@@ -39,7 +41,7 @@ fun NativeTextField(
         object : TextWatcher {
             override fun beforeTextChanged(s: CharSequence?, start: Int, count: Int, after: Int) {}
             override fun onTextChanged(s: CharSequence?, start: Int, before: Int, count: Int) {}
-            override fun afterTextChanged(s: android.text.Editable?) {
+            override fun afterTextChanged(s: Editable?) {
                 s?.toString()?.let { onValueChange(it) }
             }
         }

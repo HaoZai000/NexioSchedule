@@ -1,4 +1,4 @@
-package com.haooz.chedule.ui.effects.liquidglass
+package com.haooz.chedule.ui.components
 
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.WindowInsets
@@ -59,20 +59,45 @@ fun LiquidNavigationRail(
         ) {
             if (!isShiftMode) {
                 LiquidBottomTab({ onTabSelected(0) }) {
-                    Text("今日", fontSize = 15.sp, fontWeight = FontWeight.Medium, color = textColor)
+                    Text(
+                        "今日",
+                        fontSize = 15.sp,
+                        fontWeight = FontWeight.Medium,
+                        color = textColor
+                    )
                 }
                 LiquidBottomTab({ onTabSelected(1) }) {
-                    Text("课程表", fontSize = 15.sp, fontWeight = FontWeight.Medium, color = textColor)
+                    Text(
+                        "课程表",
+                        fontSize = 15.sp,
+                        fontWeight = FontWeight.Medium,
+                        color = textColor
+                    )
                 }
                 LiquidBottomTab({ onTabSelected(2) }) {
-                    Text("我的", fontSize = 15.sp, fontWeight = FontWeight.Medium, color = textColor)
+                    Text(
+                        "我的",
+                        fontSize = 15.sp,
+                        fontWeight = FontWeight.Medium,
+                        color = textColor
+                    )
                 }
             } else {
                 LiquidBottomTab({ onTabSelected(0) }) {
-                    Text("排班课表", fontSize = 15.sp, fontWeight = FontWeight.Medium, color = textColor)
+                    Text(
+                        "排班课表",
+                        fontSize = 15.sp,
+                        fontWeight = FontWeight.Medium,
+                        color = textColor
+                    )
                 }
                 LiquidBottomTab({ onTabSelected(1) }) {
-                    Text("设置", fontSize = 15.sp, fontWeight = FontWeight.Medium, color = textColor)
+                    Text(
+                        "设置",
+                        fontSize = 15.sp,
+                        fontWeight = FontWeight.Medium,
+                        color = textColor
+                    )
                 }
             }
         }

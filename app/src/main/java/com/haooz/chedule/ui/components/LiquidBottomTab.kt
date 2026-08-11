@@ -1,4 +1,4 @@
-package com.haooz.chedule.ui.effects.liquidglass
+package com.haooz.chedule.ui.components
 
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement

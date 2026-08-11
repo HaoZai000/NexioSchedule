@@ -1,6 +1,7 @@
-﻿package com.haooz.chedule.ui.effects.liquidglass
+﻿package com.haooz.chedule.ui.components
 
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material3.Icon
@@ -16,6 +17,7 @@ import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.unit.dp
 import com.haooz.chedule.ui.effects.edgelight.edgeLight
 import com.haooz.chedule.ui.effects.edgelight.rememberDefaultEdgeLight
+import com.haooz.chedule.ui.effects.liquidglass.InteractiveHighlight
 import com.haooz.chedule.ui.utils.isAppDarkTheme
 import com.kyant.backdrop.Backdrop
 import com.kyant.backdrop.drawBackdrop
@@ -44,7 +46,7 @@ fun LiquidAddButton(
         )
     }
 
-    androidx.compose.foundation.layout.Box(
+    Box(
         modifier = modifier
             .size(56.dp)
             .drawBackdrop(

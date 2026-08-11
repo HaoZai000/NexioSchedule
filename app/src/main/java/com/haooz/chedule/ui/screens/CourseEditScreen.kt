@@ -64,10 +64,10 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.haooz.chedule.data.Course
 import com.haooz.chedule.ui.components.AddEditCourseBottomSheet
-import com.haooz.chedule.ui.components.CollapsibleTopAppBar
-import com.haooz.chedule.ui.components.rememberSharedScrollBehavior
-import com.haooz.chedule.ui.effects.liquidglass.LiquidTopBarButton
-import com.haooz.chedule.ui.effects.liquidglass.ProgressiveBlurTopBar
+import com.haooz.chedule.ui.basic.CollapsibleTopAppBar
+import com.haooz.chedule.ui.basic.rememberSharedScrollBehavior
+import com.haooz.chedule.ui.basic.LiquidTopBarButton
+import com.haooz.chedule.ui.basic.ProgressiveBlurTopBar
 import com.haooz.chedule.ui.effects.motion.OobeCubicOutEasing
 import com.haooz.chedule.ui.effects.motion.OobeFifthpowerOutEasing
 import com.haooz.chedule.ui.effects.motion.OobeQuadraticOutEasing

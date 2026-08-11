@@ -36,8 +36,8 @@ import androidx.compose.ui.unit.dp
 import com.google.gson.GsonBuilder
 import com.haooz.chedule.data.CourseRepository
 import com.haooz.chedule.data.WebDavManager
-import com.haooz.chedule.ui.components.NativeMiuixTextField
-import com.haooz.chedule.ui.components.SharedScrollBehavior
+import com.haooz.chedule.ui.basic.NativeMiuixTextField
+import com.haooz.chedule.ui.basic.SharedScrollBehavior
 import com.haooz.chedule.ui.screens.applyScheduleData
 import com.haooz.chedule.ui.screens.parseFullScheduleJson
 import com.haooz.chedule.ui.screens.parseIcsFile

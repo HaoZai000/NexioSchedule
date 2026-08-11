@@ -38,9 +38,11 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.haooz.chedule.data.Course
-import com.haooz.chedule.ui.effects.blur.BlurBottomSheet
-import com.haooz.chedule.ui.effects.blur.BlurBottomSheetTablet
-import com.haooz.chedule.ui.effects.blur.LocalSheetTopBarMaterial
+import com.haooz.chedule.ui.basic.BlurBottomSheet
+import com.haooz.chedule.ui.basic.BlurBottomSheetTablet
+import com.haooz.chedule.ui.basic.LiquidTopBarButton
+import com.haooz.chedule.ui.basic.LocalSheetTopBarMaterial
+import com.haooz.chedule.ui.basic.NativeTextField
 import com.haooz.chedule.ui.basic.OverlayDialog
 import com.haooz.chedule.ui.utils.isAppDarkTheme
 import com.haooz.chedule.ui.utils.overScrollVertical
@@ -214,7 +216,7 @@ fun AddEditCourseBottomSheet(
 
     val startAction: @Composable () -> Unit = {
         val material = LocalSheetTopBarMaterial.current
-        com.haooz.chedule.ui.effects.liquidglass.LiquidTopBarButton(
+        LiquidTopBarButton(
             onClick = {
                 hapticFeedback.performHapticFeedback(HapticFeedbackType.Confirm)
                 onDismissRequest()
@@ -231,7 +233,7 @@ fun AddEditCourseBottomSheet(
 
     val endAction: @Composable () -> Unit = {
         val material = LocalSheetTopBarMaterial.current
-        com.haooz.chedule.ui.effects.liquidglass.LiquidTopBarButton(
+        LiquidTopBarButton(
             onClick = onConfirmClick,
             backdrop = sheetContentBackdrop ?: liquidGlassBackdrop!!,
             icon = MiuixIcons.Ok,

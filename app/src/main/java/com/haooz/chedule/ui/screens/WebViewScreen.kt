@@ -55,6 +55,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.platform.LocalConfiguration
@@ -73,9 +74,9 @@ import androidx.compose.ui.zIndex
 import androidx.core.net.toUri
 import com.haooz.chedule.data.Course
 import com.haooz.chedule.data.school.SchoolData
-import com.haooz.chedule.ui.components.NativeMiuixTextField
-import com.haooz.chedule.ui.effects.liquidglass.LiquidTopBarButton
-import com.haooz.chedule.ui.effects.liquidglass.ProgressiveBlurTopBar
+import com.haooz.chedule.ui.basic.NativeMiuixTextField
+import com.haooz.chedule.ui.basic.LiquidTopBarButton
+import com.haooz.chedule.ui.basic.ProgressiveBlurTopBar
 import com.haooz.chedule.ui.web.AndroidBridge
 import com.haooz.chedule.ui.web.WebCompatDelegate
 import com.haooz.chedule.ui.web.WebPostBridge
@@ -399,7 +400,7 @@ fun WebViewScreen(
                         backdrop = liquidGlassBackdrop,
                     ) {
                         SmallTopAppBar(
-                            color = androidx.compose.ui.graphics.Color.Transparent,
+                            color = Color.Transparent,
                             title = pageTitle,
                             modifier = Modifier.zIndex(1f),
                             navigationIcon = {}

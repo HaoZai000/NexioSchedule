@@ -3,6 +3,7 @@ package com.haooz.chedule.ui.activities
 
 import android.annotation.SuppressLint
 import android.content.Context
+import android.content.Intent
 import android.content.res.Configuration
 import android.os.Bundle
 import androidx.activity.ComponentActivity
@@ -82,21 +83,21 @@ import androidx.window.embedding.SplitController
 import com.haooz.chedule.data.Course
 import com.haooz.chedule.reminder.CourseReminderHelper
 import com.haooz.chedule.reminder.IslandNotificationHelper
-import com.haooz.chedule.ui.components.CollapsibleTopAppBar
+import com.haooz.chedule.ui.basic.CollapsibleTopAppBar
 import com.haooz.chedule.ui.components.CourseCard
 import com.haooz.chedule.ui.components.LongPressCustomizeButton
 import com.haooz.chedule.ui.components.ScheduleBottomBar
 import com.haooz.chedule.ui.components.ScheduleTopBar
 import com.haooz.chedule.ui.components.ShareImportDialog
-import com.haooz.chedule.ui.components.ShortcutMenu
-import com.haooz.chedule.ui.components.ShortcutMenuItem
+import com.haooz.chedule.ui.basic.ShortcutMenu
+import com.haooz.chedule.ui.basic.ShortcutMenuItem
 import com.haooz.chedule.ui.components.UpdateDialog
-import com.haooz.chedule.ui.components.rememberSharedScrollBehavior
-import com.haooz.chedule.ui.effects.liquidglass.LiquidAddButton
-import com.haooz.chedule.ui.effects.liquidglass.LiquidGlassDropdownMenu
-import com.haooz.chedule.ui.effects.liquidglass.LiquidGlassDropdownMenuItem
-import com.haooz.chedule.ui.effects.liquidglass.LiquidTopBarButton
-import com.haooz.chedule.ui.effects.liquidglass.ProgressiveBlurTopBar
+import com.haooz.chedule.ui.basic.rememberSharedScrollBehavior
+import com.haooz.chedule.ui.components.LiquidAddButton
+import com.haooz.chedule.ui.basic.LiquidGlassDropdownMenu
+import com.haooz.chedule.ui.basic.LiquidGlassDropdownMenuItem
+import com.haooz.chedule.ui.basic.LiquidTopBarButton
+import com.haooz.chedule.ui.basic.ProgressiveBlurTopBar
 import com.haooz.chedule.ui.effects.motion.OobeCubicOutEasing
 import com.haooz.chedule.ui.effects.motion.OobeQuartOutEasing
 import com.haooz.chedule.ui.screens.AddCourseDialog
@@ -130,6 +131,7 @@ import top.yukonga.miuix.kmp.icon.extended.Edit
 import top.yukonga.miuix.kmp.icon.extended.More
 import top.yukonga.miuix.kmp.icon.extended.Reset
 import com.haooz.chedule.ui.basic.OverlayDialog
+import com.haooz.chedule.ui.basic.SharedScrollBehavior
 import top.yukonga.miuix.kmp.squircle.addSquircleRect
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 import java.time.LocalDate
@@ -2091,7 +2093,7 @@ fun CourseScheduleApp() {
                     onClick = {
                         showMorePopup = false
                         val intent =
-                            android.content.Intent(context, CourseManageActivity::class.java)
+                            Intent(context, CourseManageActivity::class.java)
                         context.startActivity(intent)
                     }
                 )
@@ -2122,7 +2124,7 @@ fun CourseScheduleApp() {
                     onClick = {
                         showTodayMorePopup = false
                         val intent =
-                            android.content.Intent(context, CourseManageActivity::class.java)
+                            Intent(context, CourseManageActivity::class.java)
                         context.startActivity(intent)
                     }
                 )
@@ -3116,7 +3118,7 @@ fun CourseScheduleApp() {
 private fun SettingsTopBar(
     liquidGlassBackdrop: com.kyant.backdrop.Backdrop?,
     navBarStyle: String,
-    scrollBehavior: com.haooz.chedule.ui.components.SharedScrollBehavior? = null,
+    scrollBehavior: SharedScrollBehavior? = null,
 ) {
     if (liquidGlassBackdrop == null) return
     val isTabletLiquidGlass = navBarStyle == "rail"
@@ -3155,7 +3157,7 @@ private fun TodayTopBar(
     isToday: Boolean = true,
     onBackToToday: () -> Unit = {},
     onMoreClick: () -> Unit = {},
-    scrollBehavior: com.haooz.chedule.ui.components.SharedScrollBehavior? = null,
+    scrollBehavior: SharedScrollBehavior? = null,
 ) {
     if (liquidGlassBackdrop == null) return
     val isTabletLiquidGlass = navBarStyle == "rail"

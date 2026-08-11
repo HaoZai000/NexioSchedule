@@ -43,10 +43,12 @@ import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.haooz.chedule.data.Course
-import com.haooz.chedule.ui.components.CollapsibleTopAppBar
-import com.haooz.chedule.ui.components.rememberSharedScrollBehavior
-import com.haooz.chedule.ui.effects.liquidglass.LiquidTopBarButton
-import com.haooz.chedule.ui.effects.liquidglass.ProgressiveBlurTopBar
+import com.haooz.chedule.ui.basic.CollapsibleTopAppBar
+import com.haooz.chedule.ui.basic.rememberSharedScrollBehavior
+import com.haooz.chedule.ui.basic.LiquidTopBarButton
+import com.haooz.chedule.ui.basic.ProgressiveBlurTopBar
+import com.haooz.chedule.ui.basic.ShortcutMenu
+import com.haooz.chedule.ui.basic.ShortcutMenuItem
 import com.haooz.chedule.ui.effects.motion.OobeCubicOutEasing
 import com.haooz.chedule.ui.effects.motion.OobeQuartOutEasing
 import com.haooz.chedule.ui.screens.CourseEditScreen
@@ -493,10 +495,10 @@ class CourseManageActivity : ComponentActivity() {
 
                     // Shortcut菜单
                     val shortcutMenuDensity = density
-                    com.haooz.chedule.ui.components.ShortcutMenu(
+                    ShortcutMenu(
                         show = showShortcutMenu,
                         items = listOf(
-                            com.haooz.chedule.ui.components.ShortcutMenuItem(
+                            ShortcutMenuItem(
                                 icon = MiuixIcons.Edit,
                                 label = "编辑",
                                 onClick = {
@@ -510,7 +512,7 @@ class CourseManageActivity : ComponentActivity() {
                                     }
                                 }
                             ),
-                            com.haooz.chedule.ui.components.ShortcutMenuItem(
+                            ShortcutMenuItem(
                                 icon = MiuixIcons.Delete,
                                 label = "删除",
                                 onClick = {

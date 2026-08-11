@@ -1,9 +1,11 @@
 // Copyright 2025, compose-miuix-ui contributors
 // SPDX-License-Identifier: Apache-2.0
 
-package com.haooz.chedule.ui.components
+package com.haooz.chedule.ui.basic
 
 import android.annotation.SuppressLint
+import android.graphics.BlurMaskFilter
+import android.graphics.Paint
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.EnterExitState
 import androidx.compose.animation.core.Animatable
@@ -48,10 +50,13 @@ import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.Outline
+import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.graphics.asAndroidPath
 import androidx.compose.ui.graphics.drawscope.drawIntoCanvas
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.graphics.lerp
 import androidx.compose.ui.graphics.nativeCanvas
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.input.pointer.pointerInput
@@ -366,25 +371,25 @@ fun InputField(
                                 if (shadowAlpha > 0.01f) {
                                     val maxBlurRadius = 10f * density
                                     val blurRadius = maxBlurRadius * shadowAlpha
-                                    val composePath = androidx.compose.ui.graphics.Path().apply {
+                                    val composePath = Path().apply {
                                         val outline = capsuleShape.createOutline(size, layoutDirection, this@drawBehind)
                                         when (outline) {
-                                            is androidx.compose.ui.graphics.Outline.Rounded -> addRoundRect(outline.roundRect)
-                                            is androidx.compose.ui.graphics.Outline.Generic -> addPath(outline.path)
-                                            is androidx.compose.ui.graphics.Outline.Rectangle -> addRect(outline.rect)
+                                            is Outline.Rounded -> addRoundRect(outline.roundRect)
+                                            is Outline.Generic -> addPath(outline.path)
+                                            is Outline.Rectangle -> addRect(outline.rect)
                                         }
                                     }
                                     val path = composePath.asAndroidPath()
-                                    val paint = android.graphics.Paint().apply {
+                                    val paint = Paint().apply {
                                         color = android.graphics.Color.argb(
                                             (android.graphics.Color.alpha(shadowColor) * 1f).coerceAtMost(255f).toInt(),
                                             android.graphics.Color.red(shadowColor),
                                             android.graphics.Color.green(shadowColor),
                                             android.graphics.Color.blue(shadowColor)
                                         )
-                                        maskFilter = android.graphics.BlurMaskFilter(
+                                        maskFilter = BlurMaskFilter(
                                             blurRadius.coerceAtLeast(0.1f),
-                                            android.graphics.BlurMaskFilter.Blur.NORMAL
+                                            BlurMaskFilter.Blur.NORMAL
                                         )
                                     }
                                     drawIntoCanvas { canvas ->
@@ -422,7 +427,7 @@ fun InputField(
                     modifier = Modifier
                         .background(
                             color = if (backdrop != null) {
-                                androidx.compose.ui.graphics.lerp(
+                                lerp(
                                     MiuixTheme.colorScheme.surfaceContainerHigh,
                                     containerColor,
                                     backdropAlpha

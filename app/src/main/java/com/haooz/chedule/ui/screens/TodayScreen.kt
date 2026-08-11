@@ -73,6 +73,7 @@ import top.yukonga.miuix.kmp.basic.TextButton
 import top.yukonga.miuix.kmp.blur.layerBackdrop
 import top.yukonga.miuix.kmp.blur.rememberLayerBackdrop
 import com.haooz.chedule.ui.basic.OverlayDialog
+import com.haooz.chedule.ui.basic.SharedScrollBehavior
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 import com.haooz.chedule.ui.utils.overScrollVertical
 import top.yukonga.miuix.kmp.basic.ButtonDefaults
@@ -300,7 +301,7 @@ fun TodayScreen(
     pagerState: androidx.compose.foundation.pager.PagerState,
     navBarStyle: String = "standard",
     onScrollYChanged: (Int) -> Unit = {},
-    settingsScrollBehavior: com.haooz.chedule.ui.components.SharedScrollBehavior? = null,
+    settingsScrollBehavior: SharedScrollBehavior? = null,
     onSelectedDayChanged: (Int) -> Unit = {},
     onSelectedDateChanged: (Boolean) -> Unit = {},
     scrollToTodayTrigger: Int = 0,
