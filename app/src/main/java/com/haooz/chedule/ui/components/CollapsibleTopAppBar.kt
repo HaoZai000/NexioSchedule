@@ -332,13 +332,14 @@ fun CollapsibleTopAppBar(
     }
     val density = LocalDensity.current
     val collapsedHeightPx = with(density) { CollapsibleTopAppBarDefaults.CollapsedHeight.toPx() }
+    val scrollShadowThresholdPx = with(density) { 10.dp.toPx() }
     val showButtonShadow = remember(scrollBehavior, showShadow, showLargeTitle, overScrollState.offset) {
         derivedStateOf {
             if (showShadow != null) return@derivedStateOf showShadow
             val contentOffset = scrollBehavior?.state?.contentOffset ?: 0f
             val overscrollOffset = overScrollState.offset
-            // 正常滚动检测：内容滚动超过按钮高度
-            if (contentOffset < -collapsedHeightPx) return@derivedStateOf true
+            // 正常滚动检测：内容滚动超过 10dp 即触发（阈值调低，更易触发）
+            if (contentOffset < -scrollShadowThresholdPx) return@derivedStateOf true
             // 向下回弹检测：内容在顶部且向下回弹（overscrollOffset < 0）
             if (contentOffset >= 0f && overscrollOffset < 0f) return@derivedStateOf true
             false
