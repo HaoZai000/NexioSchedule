@@ -334,7 +334,6 @@ fun CollapsibleTopAppBar(
         }
     }
     val density = LocalDensity.current
-    val collapsedHeightPx = with(density) { CollapsibleTopAppBarDefaults.CollapsedHeight.toPx() }
     val scrollShadowThresholdPx = with(density) { 10.dp.toPx() }
     val showButtonShadow = remember(scrollBehavior, showShadow, showLargeTitle, overScrollState.offset) {
         derivedStateOf {
@@ -554,12 +553,12 @@ fun CollapsibleTopAppBar(
 
             layout(constraints.maxWidth, barHeight) {
                 backButtonPlaceable?.placeRelative(
-                    x = with(density) { 18.dp.roundToPx() },
+                    x = with(density) { 16.dp.roundToPx() },
                     y = verticalCenter - backButtonPlaceable.height / 2,
                 )
 
                 startActionPlaceable?.placeRelative(
-                    x = with(density) { 18.dp.roundToPx() },
+                    x = with(density) { 16.dp.roundToPx() },
                     y = verticalCenter - startActionPlaceable.height / 2,
                 )
 
@@ -569,7 +568,7 @@ fun CollapsibleTopAppBar(
                 )
 
                 endActionPlaceable?.placeRelative(
-                    x = constraints.maxWidth - with(density) { 18.dp.roundToPx() } - endActionPlaceable.width,
+                    x = constraints.maxWidth - with(density) { 16.dp.roundToPx() } - endActionPlaceable.width,
                     y = verticalCenter - endActionPlaceable.height / 2,
                 )
 

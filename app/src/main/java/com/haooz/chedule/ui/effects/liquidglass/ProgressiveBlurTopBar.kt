@@ -14,6 +14,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.RectangleShape
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
@@ -42,6 +43,7 @@ fun ProgressiveBlurTopBar(
     height: Dp = Dp.Unspecified,
     tintIntensity: Float = 0.2f,
     tintColor: Color = MiuixTheme.colorScheme.surface,
+    blurAlpha: Float = 1f,
     content: @Composable BoxScope.() -> Unit
 ) {
     val density = LocalDensity.current
@@ -60,6 +62,7 @@ fun ProgressiveBlurTopBar(
                 modifier = Modifier
                     .fillMaxWidth()
                     .height(totalHeight)
+                    .graphicsLayer { alpha = blurAlpha }
                     .drawPlainBackdrop(
                         backdrop = backdrop,
                         shape = { RectangleShape },
@@ -95,6 +98,7 @@ fun ProgressiveBlurTopBar(
                 modifier = Modifier
                     .fillMaxWidth()
                     .height(totalHeight)
+                    .graphicsLayer { alpha = blurAlpha }
                     .background(
                         Brush.verticalGradient(
                             colorStops = arrayOf(

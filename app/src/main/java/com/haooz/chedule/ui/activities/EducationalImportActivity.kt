@@ -13,7 +13,6 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.asPaddingValues
@@ -21,9 +20,6 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.statusBars
-import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
-import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
@@ -39,7 +35,6 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalHapticFeedback
-import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.DpOffset
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -244,24 +239,6 @@ class EducationalImportActivity : ComponentActivity() {
                     ((screenWidthDp - 600).coerceIn(0, 600) / 600f * 112 + 16).dp
                 } else 0.dp
                 val hapticFeedback = LocalHapticFeedback.current
-                val allSchools = remember(dataVersion) {
-                    com.haooz.chedule.data.school.SchoolRepository(
-                        this@EducationalImportActivity
-                    ).getSchools()
-                }
-                val filteredForSearch = remember(allSchools, searchQuery, selectedTab) {
-                    allSchools.filter { school ->
-                        when (selectedTab) {
-                            0 -> school.adapters.any { it.category == AdapterData.CATEGORY_BACHELOR || it.category == AdapterData.CATEGORY_POSTGRADUATE }
-                            1 -> school.adapters.any { it.category == AdapterData.CATEGORY_GENERAL_TOOL }
-                            else -> false
-                        }
-                    }.filter { school ->
-                        searchQuery.isBlank() ||
-                                school.name.contains(searchQuery, ignoreCase = true) ||
-                                school.initial.contains(searchQuery, ignoreCase = true)
-                    }.sortedBy { it.initial.uppercase() + it.name }
-                }
                 val displayTabs = listOf("学校导入", "通用工具")
 
                 Scaffold { paddingValues ->
@@ -360,8 +337,8 @@ class EducationalImportActivity : ComponentActivity() {
                                 modifier = Modifier.padding(
                                     top = 8.dp,
                                     bottom = 6.dp,
-                                    start = 4.dp + tabletHorizontalPadding,
-                                    end = 4.dp + tabletHorizontalPadding
+                                    start = 6.dp + tabletHorizontalPadding,
+                                    end = 6.dp + tabletHorizontalPadding
                                 ),
                                 inputField = {
                                     InputField(
@@ -385,86 +362,10 @@ class EducationalImportActivity : ComponentActivity() {
                                 },
                                 backdrop = liquidGlassBackdrop,
                                 backdropAlpha = searchBackdropAlpha,
-                            ) {
-                                val groupedSearchResults = remember(filteredForSearch) {
-                                    filteredForSearch.groupBy { it.initial.uppercase() }
-                                }
-                                val searchGroupedEntries = groupedSearchResults.entries.toList()
-                                LazyColumn(
-                                    modifier = Modifier.fillMaxSize(),
-                                    contentPadding = PaddingValues(
-                                        top = 8.dp,
-                                        bottom = 60.dp,
-                                        start = tabletHorizontalPadding,
-                                        end = tabletHorizontalPadding
-                                    )
-                                ) {
-                                    searchGroupedEntries.forEachIndexed { index, (letter, schools) ->
-                                        if (index > 0) {
-                                            item(key = "search_divider_$letter") {
-                                                HorizontalDivider(
-                                                    modifier = Modifier.padding(horizontal = 26.dp, vertical = 12.dp),
-                                                    color = MiuixTheme.colorScheme.outline,
-                                                    thickness = 0.5.dp
-                                                )
-                                            }
-                                        }
-                                        item(key = "search_header_$letter") {
-                                            Text(
-                                                text = letter,
-                                                fontSize = 15.sp,
-                                                fontWeight = FontWeight.Normal,
-                                                color = MiuixTheme.colorScheme.onSurfaceVariantActions,
-                                                modifier = Modifier.padding(start = 26.dp, top = 16.dp, bottom = 4.dp)
-                                            )
-                                        }
-                                        items(schools, key = { it.id }) { school ->
-                                            val isPostgrad = school.adapters.any { it.category == AdapterData.CATEGORY_POSTGRADUATE }
-                                            Box(
-                                                modifier = Modifier.fillMaxWidth()
-                                                    .then(if (isTablet) Modifier.clip(RoundedRectangle(20.dp)) else Modifier)
-                                                    .clickable {
-                                                        hapticFeedback.performHapticFeedback(HapticFeedbackType.VirtualKey)
-                                                        val schoolRepo = com.haooz.chedule.data.school.SchoolRepository(this@EducationalImportActivity)
-                                                        val adapters = schoolRepo.getAdaptersForSchool(school.id, AdapterData.CATEGORY_BACHELOR)
-                                                            .ifEmpty { schoolRepo.getAdaptersForSchool(school.id, AdapterData.CATEGORY_POSTGRADUATE) }
-                                                            .ifEmpty { schoolRepo.getAdaptersForSchool(school.id, AdapterData.CATEGORY_GENERAL_TOOL) }
-                                                        if (adapters.isNotEmpty()) {
-                                                            selectedSchool = school
-                                                            selectedAdapter = adapters.first()
-                                                            currentScreen = "webview"
-                                                        }
-                                                        searchExpanded = false
-                                                    }
-                                                    .padding(vertical = 24.dp)
-                                            ) {
-                                                Row(
-                                                    modifier = Modifier.padding(horizontal = 26.dp),
-                                                    verticalAlignment = Alignment.CenterVertically,
-                                                    horizontalArrangement = Arrangement.spacedBy(6.dp)
-                                                ) {
-                                                    Text(
-                                                        text = school.name,
-                                                        fontSize = 17.sp,
-                                                        fontWeight = FontWeight.Medium,
-                                                        color = MiuixTheme.colorScheme.onSurface
-                                                    )
-                                                    if (isPostgrad) {
-                                                        Text(
-                                                            text = "研究生",
-                                                            fontSize = 12.sp,
-                                                            color = MiuixTheme.colorScheme.onSurfaceVariantActions
-                                                        )
-                                                    }
-                                                }
-                                            }
-                                        }
-                                    }
-                                }
-                            }
+                            )
                             Row(
                                 modifier = Modifier.fillMaxWidth()
-                                    .padding(horizontal = 16.dp + tabletHorizontalPadding, vertical = 4.dp),
+                                    .padding(horizontal = 20.dp + tabletHorizontalPadding, vertical = 4.dp),
                                 horizontalArrangement = Arrangement.spacedBy(8.dp)
                             ) {
                                 displayTabs.forEachIndexed { index, tabName ->

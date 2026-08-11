@@ -77,6 +77,7 @@ import com.kyant.backdrop.effects.blur
 import com.kyant.backdrop.effects.lens
 import com.kyant.backdrop.effects.vibrancy
 import com.kyant.shapes.Capsule
+import com.kyant.shapes.RoundedRectangle
 import kotlinx.coroutines.delay
 import top.yukonga.miuix.kmp.basic.Icon
 import top.yukonga.miuix.kmp.basic.Text
@@ -113,7 +114,7 @@ fun SearchBar(
     onActionClick: (() -> Unit)? = null,
     backdrop: Backdrop? = null,
     backdropAlpha: Float = 0f,
-    content: @Composable ColumnScope.() -> Unit,
+    content: @Composable ColumnScope.() -> Unit = {},
 ) {
     val currentOnExpandedChange by rememberUpdatedState(onExpandedChange)
     val navigationEventState = rememberNavigationEventState(currentInfo = NavigationEventInfo.None)
@@ -151,9 +152,6 @@ fun SearchBar(
                 }
 
                 if (actionIcon != null && onActionClick != null) {
-                    val isLightTheme = !isAppDarkTheme()
-                    val actionContainerColor = if (isLightTheme) Color(0xFFFFFFFF).copy(0.8f)
-                        else Color(0xFF242424).copy(0.9f)
 
                     Box(
                         modifier = Modifier
@@ -213,6 +211,12 @@ fun SearchBar(
 
         AnimatedVisibility(
             visible = expanded,
+            modifier = Modifier
+                .fillMaxWidth()
+                .background(
+                    color = MiuixTheme.colorScheme.surface,
+                )
+                .clip(RoundedRectangle(20.dp))
         ) {
             content()
         }

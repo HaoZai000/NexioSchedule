@@ -3191,7 +3191,6 @@ private fun TodayTopBar(
                             icon = MiuixIcons.Reset,
                             contentDescription = "返回今天",
                             iconSize = 25.dp,
-                            modifier = Modifier.padding(start = 4.dp),
                             backdropAlpha = backdropAlpha,
                             shadowAlpha = shadowAlpha,
                         )
@@ -3204,8 +3203,7 @@ private fun TodayTopBar(
                     backdrop = liquidGlassBackdrop,
                     icon = MiuixIcons.More,
                     contentDescription = "更多",
-                    iconSize = 24.dp,
-                    modifier = Modifier.padding(end = 4.dp),
+                    iconSize = 23.dp,
                     backdropAlpha = backdropAlpha,
                     shadowAlpha = shadowAlpha,
                 )

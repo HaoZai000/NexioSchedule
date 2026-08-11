@@ -23,6 +23,7 @@ import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -83,17 +84,13 @@ fun SchoolSelectionScreen(
     var pendingAdapter by remember { mutableStateOf<AdapterData?>(null) }
     var customUrl by remember { mutableStateOf("") }
 
-    val filteredSchools = remember(allSchools, searchQuery, selectedTab) {
+    val filteredSchools = remember(allSchools, selectedTab) {
         allSchools.filter { school ->
             when (selectedTab) {
                 0 -> school.adapters.any { it.category == AdapterData.CATEGORY_BACHELOR || it.category == AdapterData.CATEGORY_POSTGRADUATE }
                 1 -> school.adapters.any { it.category == AdapterData.CATEGORY_GENERAL_TOOL }
                 else -> false
             }
-        }.filter { school ->
-            searchQuery.isBlank() ||
-                    school.name.contains(searchQuery, ignoreCase = true) ||
-                    school.initial.contains(searchQuery, ignoreCase = true)
         }.sortedBy { it.initial.uppercase() + it.name }
     }
 
@@ -159,6 +156,18 @@ fun SchoolSelectionScreen(
                         itemIndex += schools.size
                     }
                     map
+                }
+
+                LaunchedEffect(searchQuery) {
+                    if (searchQuery.isNotBlank()) {
+                        val matchIndex = filteredSchools.indexOfFirst {
+                            it.name.contains(searchQuery, ignoreCase = true) ||
+                                it.initial.contains(searchQuery, ignoreCase = true)
+                        }
+                        if (matchIndex >= 0) {
+                            listState.animateScrollToItem(matchIndex)
+                        }
+                    }
                 }
 
                 val indexToLetterMap = remember(groupedSchools) {
@@ -317,8 +326,8 @@ fun SchoolSelectionScreen(
 
                     val activeHighlight = dragHighlight ?: scrollHighlight
 
-                    val indexBarPaddingTop = if (isInFreeformWindow) 10.dp else 60.dp
-                    val indexBarPaddingBottom = if (isInFreeformWindow) 30.dp else 140.dp
+                    val indexBarPaddingTop = if (isInFreeformWindow) 210.dp else 240.dp
+                    val indexBarPaddingBottom = if (isInFreeformWindow) 40.dp else 120.dp
 
                     Box(
                         modifier = Modifier

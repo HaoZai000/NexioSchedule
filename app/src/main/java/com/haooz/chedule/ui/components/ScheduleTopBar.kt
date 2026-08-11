@@ -4,6 +4,7 @@ import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -19,16 +20,19 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.zIndex
+import com.haooz.chedule.ui.components.CollapsibleTopAppBarDefaults.CollapsedHeight
 import com.haooz.chedule.ui.effects.liquidglass.LiquidTopBarButton
-import com.haooz.chedule.ui.effects.liquidglass.LiquidTopBarCapsuleButton
 import com.haooz.chedule.ui.effects.liquidglass.ProgressiveBlurTopBar
 import top.yukonga.miuix.kmp.basic.Text
 import top.yukonga.miuix.kmp.icon.MiuixIcons
+import top.yukonga.miuix.kmp.icon.extended.ConvertFile
+import top.yukonga.miuix.kmp.icon.extended.More
 import top.yukonga.miuix.kmp.icon.extended.Reset
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 import java.time.LocalDate
@@ -65,13 +69,17 @@ internal fun ScheduleTopBar(
 
     val statusBarHeight = WindowInsets.statusBars.asPaddingValues().calculateTopPadding()
     val topBarHeight = if (statusBarHeight > 0.dp) 120.dp + statusBarHeight else 160.dp
+    val topBarHeightDp = with(LocalDensity.current) {
+        (scrollBehavior?.currentHeightPx ?: 0f).toDp() + if (statusBarHeight > 0.dp) 0.dp else 40.dp
+    }
     ProgressiveBlurTopBar(backdrop = liquidGlassBackdrop, height = topBarHeight) {
-        Column {
+        Box {
             CollapsibleTopAppBar(
                 title = if (navBarStyle == "rail") "" else titleText,
                 showLargeTitle = false,
-                showGradientOverlay = false,
+                showGradientOverlay = true,
                 modifier = Modifier.zIndex(1f),
+                gradientMaskHeight = CollapsedHeight + 110.dp,
                 scrollBehavior = scrollBehavior,
                 startAction = { backdropAlpha, shadowAlpha ->
                     if (navBarStyle == "rail") {
@@ -94,7 +102,6 @@ internal fun ScheduleTopBar(
                                 icon = MiuixIcons.Reset,
                                 contentDescription = "返回本周",
                                 iconSize = 25.dp,
-                                modifier = Modifier.padding(start = 4.dp),
                                 backdropAlpha = backdropAlpha,
                                 shadowAlpha = shadowAlpha
                             )
@@ -120,27 +127,45 @@ internal fun ScheduleTopBar(
                             )
                         }
                     }
-                    LiquidTopBarCapsuleButton(
-                        onLeftClick = {
-                            hapticFeedback.performHapticFeedback(HapticFeedbackType.VirtualKey)
-                            onOpenSwitchSchedule()
-                        },
-                        onRightClick = {
-                            hapticFeedback.performHapticFeedback(HapticFeedbackType.VirtualKey)
-                            onMoreClick()
-                        },
-                        backdrop = liquidGlassBackdrop,
-                        buttonHeight = 40.dp,
-                        modifier = Modifier
-                    )
+                    Row(
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        LiquidTopBarButton(
+                            onClick = {
+                                hapticFeedback.performHapticFeedback(HapticFeedbackType.VirtualKey)
+                                onOpenSwitchSchedule()
+                            },
+                            backdrop = liquidGlassBackdrop,
+                            icon = MiuixIcons.Normal.ConvertFile,
+                            contentDescription = "课表切换",
+                            iconSize = 27.dp,
+                            backdropAlpha = backdropAlpha,
+                            shadowAlpha = shadowAlpha
+                        )
+                        LiquidTopBarButton(
+                            onClick = {
+                                hapticFeedback.performHapticFeedback(HapticFeedbackType.VirtualKey)
+                                onMoreClick()
+                            },
+                            backdrop = liquidGlassBackdrop,
+                            icon = MiuixIcons.More,
+                            contentDescription = "更多",
+                            iconSize = 23.dp,
+                            backdropAlpha = backdropAlpha,
+                            shadowAlpha = shadowAlpha
+                        )
+                    }
                 }
             )
+            // 星期行绘制在顶栏下方，不受 CollapsibleTopAppBar 折叠影响
             DayOfWeekRow(
                 dayRange = dayRange,
                 currentDayOfWeek = currentDayOfWeek,
                 isCurrentWeek = isCurrentWeek,
                 weekDates = weekDates,
-                isTablet = isTablet
+                isTablet = isTablet,
+                modifier = Modifier.padding(top = statusBarHeight + topBarHeightDp)
             )
         }
     }
@@ -152,10 +177,11 @@ private fun DayOfWeekRow(
     currentDayOfWeek: Int,
     isCurrentWeek: Boolean,
     weekDates: List<LocalDate>,
-    isTablet: Boolean
+    isTablet: Boolean,
+    modifier: Modifier = Modifier
 ) {
     Row(
-        modifier = Modifier
+        modifier = modifier
             .fillMaxWidth()
             .height(40.dp)
             .then(
