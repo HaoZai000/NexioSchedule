@@ -458,7 +458,7 @@ fun AiImportScreen(
             }
         },
         show = showConfirmDialog,
-
+        liquidGlassBackdrop = liquidGlassBackdrop,
         onDismissRequest = { showConfirmDialog = false }
     ) {
         Column(modifier = Modifier.fillMaxWidth()) {

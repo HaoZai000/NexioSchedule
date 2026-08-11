@@ -57,6 +57,7 @@ import androidx.compose.ui.graphics.Color as ComposeColor
 @Composable
 fun WidgetIntroScreen(
     scrollBehavior: SharedScrollBehavior? = null,
+    liquidGlassBackdrop: com.kyant.backdrop.Backdrop? = null,
 ) {
     val hapticFeedback = LocalHapticFeedback.current
     var showGuideDialog by remember { mutableStateOf(false) }
@@ -184,7 +185,7 @@ fun WidgetIntroScreen(
             OverlayDialog(
                 title = "添加桌面小部件",
                 show = showGuideDialog,
-
+                liquidGlassBackdrop = liquidGlassBackdrop,
                 onDismissRequest = { showGuideDialog = false }
             ) {
                 Column(

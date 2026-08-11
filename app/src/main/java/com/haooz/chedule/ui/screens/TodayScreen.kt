@@ -311,7 +311,8 @@ fun TodayScreen(
     wallpaperOffset: androidx.compose.ui.geometry.Offset = androidx.compose.ui.geometry.Offset.Zero,
     wallpaperScale: Float = 1f,
     wallpaperBrightness: Float = 0f,
-    cardBlurRadius: Float = 0f
+    cardBlurRadius: Float = 0f,
+    liquidGlassBackdrop: Backdrop? = null,
 ) {
     val courses by viewModel.courses.collectAsState()
     val classStartTime by viewModel.classStartTime.collectAsState()
@@ -612,6 +613,7 @@ fun TodayScreen(
         OverlayDialog(
             title = "跳转日期",
             show = showDatePicker,
+            liquidGlassBackdrop = liquidGlassBackdrop,
             onDismissRequest = { showDatePicker = false }
         ) {
             Column(

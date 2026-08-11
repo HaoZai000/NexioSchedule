@@ -79,6 +79,7 @@ import androidx.compose.ui.graphics.Color as ComposeColor
 fun CourseReminderScreen(
     settingsViewModel: SettingsViewModel = viewModel(),
     scrollBehavior: SharedScrollBehavior? = null,
+    liquidGlassBackdrop: com.kyant.backdrop.Backdrop? = null,
 ) {
     val preClassReminder by settingsViewModel.preClassReminder.collectAsState()
     val preClassReminderMinutes by settingsViewModel.preClassReminderMinutes.collectAsState()
@@ -703,7 +704,7 @@ fun CourseReminderScreen(
             OverlayDialog(
                 title = "提前提醒时间",
                 show = showMinutesDialog,
-
+                liquidGlassBackdrop = liquidGlassBackdrop,
                 onDismissRequest = { showMinutesDialog = false }
             ) {
                 Column(
@@ -753,7 +754,7 @@ fun CourseReminderScreen(
             OverlayDialog(
                 title = "提醒时间",
                 show = showTimeDialog,
-
+                liquidGlassBackdrop = liquidGlassBackdrop,
                 onDismissRequest = { showTimeDialog = false }
             ) {
                 Column(

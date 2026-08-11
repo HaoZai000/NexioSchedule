@@ -90,6 +90,7 @@ fun CourseTimeSettingsScreen(
     newlyAddedConfigId: Long? = null,
     onNewConfigAnimDone: () -> Unit = {},
     scrollBehavior: SharedScrollBehavior? = null,
+    liquidGlassBackdrop: com.kyant.backdrop.Backdrop? = null,
 ) {
     val context = androidx.compose.ui.platform.LocalContext.current
     val hapticFeedback = androidx.compose.ui.platform.LocalHapticFeedback.current
@@ -380,6 +381,7 @@ fun CourseTimeSettingsScreen(
     OverlayDialog(
         title = "删除时间配置",
         show = showDeleteDialog,
+        liquidGlassBackdrop = liquidGlassBackdrop,
         onDismissRequest = {
             showDeleteDialog = false
             deletingConfig = null

@@ -92,6 +92,7 @@ class LocalBackupActivity : ComponentActivity() {
                         ) {
                             LocalBackupScreen(
                                 scrollBehavior = scrollBehavior,
+                                liquidGlassBackdrop = liquidGlassBackdrop,
                             )
                         }
                     }

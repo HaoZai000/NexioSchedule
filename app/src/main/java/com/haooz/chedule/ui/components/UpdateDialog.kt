@@ -46,7 +46,7 @@ import kotlin.time.Duration.Companion.milliseconds
  * 检查和弹窗逻辑统一在此处完成，避免竞态条件。
  */
 @Composable
-internal fun UpdateDialog() {
+internal fun UpdateDialog(liquidGlassBackdrop: com.kyant.backdrop.Backdrop? = null) {
     val context = LocalContext.current
     val hapticFeedback = LocalHapticFeedback.current
 
@@ -128,7 +128,7 @@ internal fun UpdateDialog() {
         title = "发现新版本",
         summary = "最新版本: $updateTagName",
         show = true,
-
+        liquidGlassBackdrop = liquidGlassBackdrop,
         onDismissRequest = { showUpdateDialog = false }
     ) {
         Column(

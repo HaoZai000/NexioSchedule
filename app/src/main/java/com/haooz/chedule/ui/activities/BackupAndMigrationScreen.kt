@@ -67,7 +67,8 @@ fun BackupAndMigrationScreen(
     scrollBehavior: SharedScrollBehavior? = null,
     courseViewModel: CourseViewModel,
     scheduleViewModel: ScheduleViewModel,
-    settingsViewModel: SettingsViewModel
+    settingsViewModel: SettingsViewModel,
+    liquidGlassBackdrop: com.kyant.backdrop.Backdrop? = null
 ) {
     val context = LocalContext.current
     val hapticFeedback = LocalHapticFeedback.current
@@ -359,6 +360,7 @@ fun BackupAndMigrationScreen(
             title = "导入课表",
             summary = "是否导入课表「$pendingImportScheduleName」？\n确定导入将创建一个新的课表",
             show = true,
+            liquidGlassBackdrop = liquidGlassBackdrop,
             onDismissRequest = {
                 showImportConfirmDialog = false
                 pendingImportData = null

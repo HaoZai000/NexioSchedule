@@ -204,13 +204,13 @@ private fun BlurBottomSheetContent(
             animationProgress.animateTo(
                 targetValue = 1f,
                 animationSpec = tween(
-                    durationMillis = 520,
-                    easing = CubicBezierEasing(0.34f, 1.15f, 0.3f, 1f)
+                    durationMillis = 480,
+                    easing = CubicBezierEasing(0.34f, 1.12f, 0.3f, 1f)
                 )
             )
         } else {
             // 退出动画
-            animationProgress.animateTo(0f, animationSpec = tween(400, easing = CubicBezierEasing(0.34f, 1f, 0.3f, 1f)))
+            animationProgress.animateTo(0f, animationSpec = tween(320, easing = CubicBezierEasing(0.34f, 1f, 0.3f, 1f)))
             visibleState.value = false
         }
     }

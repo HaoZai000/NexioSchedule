@@ -146,7 +146,8 @@ fun SwitchScheduleScreen(
     pageScale: Float = 1f,
     initialScheduleNames: List<String>? = null,
     initialCurrentScheduleId: String? = null,
-    initialScheduleSummaries: Map<String, String>? = null
+    initialScheduleSummaries: Map<String, String>? = null,
+    liquidGlassBackdrop: com.kyant.backdrop.Backdrop? = null
 ) {
     val context = androidx.compose.ui.platform.LocalContext.current
     val repository = remember { CourseRepository(context) }
@@ -761,7 +762,7 @@ fun SwitchScheduleScreen(
             OverlayDialog(
                 title = "新建课表",
                 show = showAddDialog,
-
+                liquidGlassBackdrop = liquidGlassBackdrop,
                 onDismissRequest = {
                     showAddDialog = false
                     newScheduleName = ""
@@ -831,7 +832,7 @@ fun SwitchScheduleScreen(
             OverlayDialog(
                 title = "编辑课表",
                 show = showEditDialog,
-
+                liquidGlassBackdrop = liquidGlassBackdrop,
                 onDismissRequest = {
                     showEditDialog = false
                     editScheduleName = ""
@@ -914,7 +915,7 @@ fun SwitchScheduleScreen(
             OverlayDialog(
                 title = "删除课表",
                 show = showDeleteDialog,
-
+                liquidGlassBackdrop = liquidGlassBackdrop,
                 onDismissRequest = { showDeleteDialog = false }
             ) {
                 Column(

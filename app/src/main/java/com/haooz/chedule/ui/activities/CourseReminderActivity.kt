@@ -92,6 +92,7 @@ class CourseReminderActivity : ComponentActivity() {
                         ) {
                             CourseReminderScreen(
                                 scrollBehavior = scrollBehavior,
+                                liquidGlassBackdrop = liquidGlassBackdrop,
                             )
                         }
                     }

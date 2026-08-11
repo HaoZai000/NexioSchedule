@@ -13,6 +13,8 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.DpSize
 import com.haooz.chedule.ui.effects.miuix.DialogContentLayout
 import com.haooz.chedule.ui.effects.miuix.DialogDefaults
+import com.kyant.backdrop.Backdrop
+import top.yukonga.miuix.kmp.theme.MiuixTheme
 import top.yukonga.miuix.kmp.utils.MiuixPopupUtils.Companion.DialogLayout
 
 /**
@@ -25,6 +27,7 @@ import top.yukonga.miuix.kmp.utils.MiuixPopupUtils.Companion.DialogLayout
  * @param summary The summary of the [OverlayDialog].
  * @param summaryColor The color of the summary.
  * @param backgroundColor The background color of the [OverlayDialog].
+ * @param liquidGlassBackdrop The [Backdrop] for liquidGlass blur effect. When non-null, enables blur + edge light.
  * @param enableWindowDim Whether to enable window dimming when the [OverlayDialog] is shown.
  * @param onDismissRequest Will called when the user tries to dismiss the Dialog by clicking outside or pressing the back button.
  * @param onDismissFinished The callback when the [OverlayDialog] is completely dismissed.
@@ -45,6 +48,7 @@ fun OverlayDialog(
     summary: String? = null,
     summaryColor: Color = DialogDefaults.summaryColor(),
     backgroundColor: Color = DialogDefaults.backgroundColor(),
+    liquidGlassBackdrop: Backdrop? = null,
     enableWindowDim: Boolean = true,
     onDismissRequest: (() -> Unit)? = null,
     onDismissFinished: (() -> Unit)? = null,
@@ -54,11 +58,15 @@ fun OverlayDialog(
     renderInRootScaffold: Boolean = true,
     content: @Composable () -> Unit,
 ) {
+    val isDark = MiuixTheme.colorScheme.background.luminance() < 0.5f
+
     DialogContentLayout(
         show = show,
         titleColor = titleColor,
         summaryColor = summaryColor,
         backgroundColor = backgroundColor,
+        liquidGlassBackdrop = liquidGlassBackdrop,
+        isDark = isDark,
         outsideMargin = outsideMargin,
         insideMargin = insideMargin,
         popupHost = { visible, hostContent ->
@@ -84,4 +92,8 @@ fun OverlayDialog(
         defaultWindowInsetsPadding = defaultWindowInsetsPadding,
         content = content,
     )
+}
+
+private fun Color.luminance(): Float {
+    return 0.299f * red + 0.587f * green + 0.114f * blue
 }

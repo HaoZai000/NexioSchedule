@@ -282,6 +282,7 @@ class EducationalImportActivity : ComponentActivity() {
                                     searchQuery = searchQuery,
                                     selectedTab = selectedTab,
                                     topContentPadding = paddingValues.calculateTopPadding() + topBarHeightDp + 100.dp,
+                                    liquidGlassBackdrop = liquidGlassBackdrop,
                                     onSchoolSelected = { school, adapter ->
                                         selectedSchool = school
                                         selectedAdapter = adapter

@@ -303,6 +303,7 @@ class CourseTimeSettingsActivity : ComponentActivity() {
                                 newlyAddedConfigId = newlyAddedConfigId,
                                 onNewConfigAnimDone = { newlyAddedConfigId = null },
                                 scrollBehavior = scrollBehavior,
+                                liquidGlassBackdrop = liquidGlassBackdrop,
                                         )
                                     }
                                 }

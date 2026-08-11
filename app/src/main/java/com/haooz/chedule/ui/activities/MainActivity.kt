@@ -1394,7 +1394,8 @@ fun CourseScheduleApp() {
                                     wallpaperOffset = if (showCustomizePage && !isWindowCutoutActive) originalWallpaperOffset else wallpaperOffset,
                                     wallpaperScale = if (showCustomizePage && !isWindowCutoutActive) originalWallpaperScale else wallpaperScale,
                                     wallpaperBrightness = displayAppearance.wallpaperBrightness,
-                                    cardBlurRadius = displayAppearance.cardBlurRadius
+                                    cardBlurRadius = displayAppearance.cardBlurRadius,
+                                    liquidGlassBackdrop = liquidGlassBackdrop,
                                 )
 
                                 1 -> {
@@ -1598,7 +1599,8 @@ fun CourseScheduleApp() {
                                     navBarStyle = navBarStyle,
                                     onScrollYChanged = { settingsScrollY = it },
                                     settingsScrollBehavior = settingsScrollBehavior,
-                                    activeSecondaryActivity = activeSecondaryActivity
+                                    activeSecondaryActivity = activeSecondaryActivity,
+                                    liquidGlassBackdrop = liquidGlassBackdrop,
                                 )
                             }
                         } else {
@@ -1627,7 +1629,8 @@ fun CourseScheduleApp() {
                                     navBarStyle = navBarStyle,
                                     onScrollYChanged = { settingsScrollY = it },
                                     settingsScrollBehavior = settingsScrollBehavior,
-                                    activeSecondaryActivity = activeSecondaryActivity
+                                    activeSecondaryActivity = activeSecondaryActivity,
+                                    liquidGlassBackdrop = liquidGlassBackdrop,
                                 )
                             }
                         }
@@ -1655,11 +1658,12 @@ fun CourseScheduleApp() {
                     shareIntentVersion = activity?.shareIntentVersion ?: 0,
                     courseViewModel = viewModel,
                     scheduleViewModel = scheduleViewModel,
-                    settingsViewModel = settingsViewModel
+                    settingsViewModel = settingsViewModel,
+                    liquidGlassBackdrop = liquidGlassBackdrop,
                 )
 
                 // 更新弹窗
-                UpdateDialog()
+                UpdateDialog(liquidGlassBackdrop = liquidGlassBackdrop)
 
                 // LiquidGlass 添加课程浮动按钮
                 if (!isShiftMode) {
@@ -1721,6 +1725,7 @@ fun CourseScheduleApp() {
                     title = "删除本周课程",
                     summary = "确定要删除「${deleteConfirmCourse?.name}」在第${draggedWeek}周的课程吗？\n此操作不可撤销。",
                     show = showDeleteConfirmDialog,
+                    liquidGlassBackdrop = liquidGlassBackdrop,
                     onDismissRequest = { showDeleteConfirmDialog = false }
                 ) {
                     Row(
@@ -1776,6 +1781,7 @@ fun CourseScheduleApp() {
                         "该位置已有课程，要如何处理？"
                     },
                     show = showRescheduleConflictDialog,
+                    liquidGlassBackdrop = liquidGlassBackdrop,
                     onDismissRequest = {
                         // 取消：仅清空状态，不做调课
                         showRescheduleConflictDialog = false

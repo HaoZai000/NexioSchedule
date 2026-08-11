@@ -162,12 +162,12 @@ private fun BlurBottomSheetTabletContent(
             animationProgress.animateTo(
                 targetValue = 1f,
                 animationSpec = tween(
-                    durationMillis = 520,
-                    easing = CubicBezierEasing(0.34f, 1.15f, 0.3f, 1f)
+                    durationMillis = 500,
+                    easing = CubicBezierEasing(0.34f, 1.12f, 0.3f, 1f)
                 )
             )
         } else {
-            animationProgress.animateTo(0f, animationSpec = tween(400, easing = CubicBezierEasing(0.34f, 1f, 0.3f, 1f)))
+            animationProgress.animateTo(0f, animationSpec = tween(380, easing = CubicBezierEasing(0.34f, 1f, 0.3f, 1f)))
             visibleState.value = false
         }
     }

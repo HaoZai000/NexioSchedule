@@ -123,7 +123,8 @@ fun SettingsScreen(
     navBarStyle: String = "standard",
     onScrollYChanged: (Int) -> Unit = {},
     settingsScrollBehavior: SharedScrollBehavior? = null,
-    activeSecondaryActivity: String? = null
+    activeSecondaryActivity: String? = null,
+    liquidGlassBackdrop: com.kyant.backdrop.Backdrop? = null,
 ) {
     val totalWeeks by viewModel.totalWeeks.collectAsState()
     val currentWeek by viewModel.currentWeek.collectAsState()
@@ -550,6 +551,7 @@ fun SettingsScreen(
             title = "进入排班模式",
             summary = "将切换到排班课表模式，可同时对比多个课表的排班情况。确定进入？",
             show = showShiftModeConfirmDialog,
+            liquidGlassBackdrop = liquidGlassBackdrop,
             onDismissRequest = { showShiftModeConfirmDialog = false },
 
         ) {
@@ -593,7 +595,7 @@ fun SettingsScreen(
             title = "开启新学期",
             summary = "将复用当前课表的所有设置数据，创建一个清空课程的新课表",
             show = showNewSemesterDialog,
-
+            liquidGlassBackdrop = liquidGlassBackdrop,
             onDismissRequest = {
                 showNewSemesterDialog = false
                 newSemesterName = ""
@@ -652,7 +654,7 @@ fun SettingsScreen(
         OverlayDialog(
             title = "开始上课日期",
             show = showStartDateDialog,
-
+            liquidGlassBackdrop = liquidGlassBackdrop,
             onDismissRequest = { showStartDateDialog = false }
         ) {
             Column(
@@ -739,7 +741,7 @@ fun SettingsScreen(
         OverlayDialog(
             title = "选择当前周次",
             show = showCurrentWeekDialog,
-
+            liquidGlassBackdrop = liquidGlassBackdrop,
             onDismissRequest = { showCurrentWeekDialog = false }
         ) {
             Column(
@@ -786,7 +788,7 @@ fun SettingsScreen(
         OverlayDialog(
             title = "选择学期总周数",
             show = showTotalWeeksDialog,
-
+            liquidGlassBackdrop = liquidGlassBackdrop,
             onDismissRequest = { showTotalWeeksDialog = false }
         ) {
             Column(

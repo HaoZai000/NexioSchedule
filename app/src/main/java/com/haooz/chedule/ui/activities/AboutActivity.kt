@@ -66,15 +66,17 @@ import androidx.compose.ui.unit.sp
 import androidx.core.graphics.createBitmap
 import com.haooz.chedule.R
 import com.haooz.chedule.ui.basic.CollapsibleTopAppBar
+import com.haooz.chedule.ui.basic.LiquidTopBarButton
+import com.haooz.chedule.ui.basic.OverlayDialog
+import com.haooz.chedule.ui.basic.ProgressiveBlurTopBar
 import com.haooz.chedule.ui.basic.rememberSharedScrollBehavior
 import com.haooz.chedule.ui.data.changelogData
 import com.haooz.chedule.ui.effects.background.BgEffectBackground
 import com.haooz.chedule.ui.effects.miuix.rememberBlurBackdrop
-import com.haooz.chedule.ui.basic.LiquidTopBarButton
-import com.haooz.chedule.ui.basic.ProgressiveBlurTopBar
 import com.haooz.chedule.ui.theme.CourseScheduleTheme
 import com.haooz.chedule.ui.utils.applyThemeAwareSystemBars
 import com.haooz.chedule.ui.utils.isAppDarkTheme
+import com.haooz.chedule.ui.utils.overScrollVertical
 import com.kyant.shapes.RoundedRectangle
 import top.yukonga.miuix.kmp.basic.Card
 import top.yukonga.miuix.kmp.basic.CardDefaults
@@ -90,10 +92,8 @@ import top.yukonga.miuix.kmp.icon.MiuixIcons
 import top.yukonga.miuix.kmp.icon.basic.ArrowRight
 import top.yukonga.miuix.kmp.icon.extended.ChevronBackward
 import top.yukonga.miuix.kmp.icon.extended.ChevronForward
-import com.haooz.chedule.ui.basic.OverlayDialog
 import top.yukonga.miuix.kmp.preference.ArrowPreference
 import top.yukonga.miuix.kmp.theme.MiuixTheme
-import com.haooz.chedule.ui.utils.overScrollVertical
 import top.yukonga.miuix.kmp.utils.scrollEndHaptic
 import androidx.compose.ui.graphics.BlendMode as ComposeBlendMode
 import com.kyant.backdrop.backdrops.layerBackdrop as liquidGlassLayerBackdrop
@@ -111,7 +111,8 @@ class AboutActivity : ComponentActivity() {
         applyThemeAwareSystemBars()
         setContent {
             CourseScheduleTheme {
-                AboutScreen(onBack = { finish() })
+                val liquidGlassBackdrop = com.kyant.backdrop.backdrops.rememberLayerBackdrop()
+                AboutScreen(onBack = { finish() }, liquidGlassBackdrop = liquidGlassBackdrop)
             }
         }
     }
@@ -119,7 +120,7 @@ class AboutActivity : ComponentActivity() {
 
 @SuppressLint("LocalContextGetResourceValueCall", "ConfigurationScreenWidthHeight")
 @Composable
-private fun AboutScreen(onBack: () -> Unit) {
+private fun AboutScreen(onBack: () -> Unit, liquidGlassBackdrop: com.kyant.backdrop.backdrops.LayerBackdrop) {
     val hapticFeedback = LocalHapticFeedback.current
     val scrollBehavior = rememberSharedScrollBehavior()
     val context = LocalContext.current
@@ -130,7 +131,6 @@ private fun AboutScreen(onBack: () -> Unit) {
         val screenWidthDp = LocalConfiguration.current.screenWidthDp
         ((screenWidthDp - 600).coerceIn(0, 600) / 600f * 128).dp
     } else 0.dp
-    val liquidGlassBackdrop = com.kyant.backdrop.backdrops.rememberLayerBackdrop()
 
     val packageInfo = remember {
         try {
@@ -237,6 +237,7 @@ private fun AboutScreen(onBack: () -> Unit) {
         Box(
             modifier = Modifier
                 .fillMaxSize()
+                .background(MiuixTheme.colorScheme.background)
                 .then(
                     Modifier.liquidGlassLayerBackdrop(liquidGlassBackdrop)
                 )
@@ -875,7 +876,7 @@ private fun AboutScreen(onBack: () -> Unit) {
         OverlayDialog(
             title = "项目仓库",
             show = showRepoDialog,
-
+            liquidGlassBackdrop = liquidGlassBackdrop,
             onDismissRequest = { showRepoDialog = false }
         ) {
             Column(

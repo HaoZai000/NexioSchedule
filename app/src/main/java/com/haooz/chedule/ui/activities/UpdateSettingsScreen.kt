@@ -164,6 +164,7 @@ private fun checkForUpdate(
 @Composable
 fun UpdateSettingsScreen(
     scrollBehavior: SharedScrollBehavior? = null,
+    liquidGlassBackdrop: com.kyant.backdrop.Backdrop? = null,
 ) {
     val hapticFeedback = LocalHapticFeedback.current
     var listScrollY by remember { mutableIntStateOf(0) }
@@ -521,6 +522,7 @@ fun UpdateSettingsScreen(
                     else -> "最新版本: ${latestRelease?.tagName ?: ""}"
                 },
                 show = showDownloadDialog,
+                liquidGlassBackdrop = liquidGlassBackdrop,
 
                 onDismissRequest = {
                     if (!isDownloading && !isInstalling) {

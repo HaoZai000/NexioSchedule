@@ -92,6 +92,7 @@ class WidgetIntroActivity : ComponentActivity() {
                         ) {
                             WidgetIntroScreen(
                                 scrollBehavior = scrollBehavior,
+                                liquidGlassBackdrop = liquidGlassBackdrop,
                             )
                         }
                     }

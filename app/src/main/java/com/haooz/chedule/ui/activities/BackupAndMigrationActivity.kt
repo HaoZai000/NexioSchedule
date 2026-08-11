@@ -102,7 +102,8 @@ class BackupAndMigrationActivity : ComponentActivity() {
                                 scrollBehavior = scrollBehavior,
                                 courseViewModel = courseViewModel,
                                 scheduleViewModel = scheduleViewModel,
-                                settingsViewModel = settingsViewModel
+                                settingsViewModel = settingsViewModel,
+                                liquidGlassBackdrop = liquidGlassBackdrop,
                             )
                         }
                     }

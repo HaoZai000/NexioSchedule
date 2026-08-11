@@ -3,10 +3,12 @@
 
 package com.haooz.chedule.ui.effects.miuix
 
+import android.os.Build
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.animate
 import androidx.compose.animation.core.spring
 import androidx.compose.animation.core.tween
+import androidx.compose.foundation.background
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -39,6 +41,7 @@ import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
@@ -58,14 +61,19 @@ import androidx.navigationevent.NavigationEventInfo
 import androidx.navigationevent.NavigationEventTransitionState
 import androidx.navigationevent.compose.NavigationBackHandler
 import androidx.navigationevent.compose.rememberNavigationEventState
+import com.haooz.chedule.ui.effects.edgelight.edgeLight
+import com.haooz.chedule.ui.effects.edgelight.rememberDefaultEdgeLight
+import com.kyant.backdrop.Backdrop
+import com.kyant.backdrop.drawBackdrop
+import com.kyant.backdrop.effects.blur
+import com.kyant.backdrop.effects.vibrancy
+import com.kyant.shapes.RoundedRectangle
 import kotlinx.coroutines.launch
 import top.yukonga.miuix.kmp.anim.DecelerateEasing
 import top.yukonga.miuix.kmp.anim.folmeSpring
 import top.yukonga.miuix.kmp.basic.Text
-import top.yukonga.miuix.kmp.squircle.squircleSurface
 import top.yukonga.miuix.kmp.theme.LocalDismissState
 import top.yukonga.miuix.kmp.theme.MiuixTheme
-import top.yukonga.miuix.kmp.utils.getRoundedCorner
 
 @Suppress("ktlint:compose:modifier-not-used-at-root")
 @Composable
@@ -80,6 +88,8 @@ internal fun DialogContentLayout(
     modifier: Modifier = Modifier,
     title: String? = null,
     summary: String? = null,
+    liquidGlassBackdrop: Backdrop? = null,
+    isDark: Boolean = false,
     enableWindowDim: Boolean = true,
     onDismissRequest: (() -> Unit)? = null,
     onDismissFinished: (() -> Unit)? = null,
@@ -102,7 +112,7 @@ internal fun DialogContentLayout(
         if (show) {
             internalVisible.value = true
             if (enableWindowDim) {
-                launch { dimProgress.animateTo(1f, tween(300, easing = DecelerateEasing(1.5f))) }
+                launch { dimProgress.animateTo(1f, tween(340, easing = DecelerateEasing(1.5f))) }
             }
             animationProgress.animateTo(
                 targetValue = 1f,
@@ -118,11 +128,11 @@ internal fun DialogContentLayout(
                 keyboardController?.hide()
             }
             if (enableWindowDim) {
-                launch { dimProgress.animateTo(0f, tween(250, easing = DecelerateEasing(1.5f))) }
+                launch { dimProgress.animateTo(0f, tween(340, easing = DecelerateEasing(1.5f))) }
             }
             animationProgress.animateTo(
                 targetValue = 0f,
-                animationSpec = tween(durationMillis = 260, easing = DecelerateEasing(1.5f)),
+                animationSpec = tween(durationMillis = 340, easing = DecelerateEasing(1.5f)),
             )
             dimProgress.snapTo(0f)
             internalVisible.value = false
@@ -184,7 +194,7 @@ internal fun DialogContentLayout(
                 modifier = Modifier
                     .fillMaxSize()
                     .drawBehind {
-                        drawRect(baseColor.copy(alpha = baseColor.alpha * dimAlpha.floatValue * dimProgress.value))
+                        drawRect(baseColor.copy(alpha = baseColor.alpha * 0.6f * dimAlpha.floatValue * dimProgress.value))
                     },
             )
         }
@@ -208,6 +218,8 @@ internal fun DialogContentLayout(
             summary = summary,
             summaryColor = summaryColor,
             backgroundColor = backgroundColor,
+            liquidGlassBackdrop = liquidGlassBackdrop,
+            isDark = isDark,
             outsideMargin = outsideMargin,
             insideMargin = insideMargin,
             defaultWindowInsetsPadding = defaultWindowInsetsPadding,
@@ -233,6 +245,8 @@ internal fun DialogContent(
     summary: String?,
     summaryColor: Color,
     backgroundColor: Color,
+    liquidGlassBackdrop: Backdrop?,
+    isDark: Boolean,
     outsideMargin: DpSize,
     insideMargin: DpSize,
     defaultWindowInsetsPadding: Boolean,
@@ -250,11 +264,7 @@ internal fun DialogContent(
     val contentAlignment = remember(isLargeScreen) {
         if (isLargeScreen) Alignment.Center else Alignment.BottomCenter
     }
-    val roundedCorner = getRoundedCorner()
-    val bottomCornerRadius = remember(roundedCorner, outsideMargin.width, isLargeScreen) {
-        val offset = if (isLargeScreen) 0.dp else outsideMargin.width
-        (roundedCorner - offset).coerceAtLeast(32.dp)
-    }
+    val bottomCornerRadius = 40.dp
     val currentOnDismiss by rememberUpdatedState(onDismissRequest)
 
     val calculatedTopInset = if (topInset != null) {
@@ -299,7 +309,29 @@ internal fun DialogContent(
         .pointerInput(Unit) {
             detectTapGestures { /* Consume click */ }
         }
-        .squircleSurface(color = backgroundColor, cornerRadius = bottomCornerRadius)
+        .clip(RoundedRectangle(bottomCornerRadius))
+        .then(
+            if (liquidGlassBackdrop != null && Build.VERSION.SDK_INT >= 33) {
+                Modifier.drawBackdrop(
+                    backdrop = liquidGlassBackdrop,
+                    shape = { RoundedRectangle(bottomCornerRadius) },
+                    effects = {
+                        vibrancy()
+                        blur(24.dp.toPx())
+                    },
+                    highlight = null,
+                )
+            } else Modifier
+        )
+        .edgeLight(shape = RoundedRectangle(bottomCornerRadius), edgeLight = rememberDefaultEdgeLight())
+        .background(
+            color = if (liquidGlassBackdrop != null && Build.VERSION.SDK_INT >= 33) {
+                backgroundColor.copy(alpha = if (isDark) 0.87f else 0.82f)
+            } else {
+                backgroundColor
+            },
+            shape = RoundedRectangle(bottomCornerRadius),
+        )
         .padding(horizontal = insideMargin.width, vertical = insideMargin.height)
 
     Box(

@@ -411,7 +411,7 @@ fun InputField(
                                 effects = {
                                     vibrancy()
                                     blur(4f.dp.toPx())
-                                    lens(15f.dp.toPx(), 15f.dp.toPx())
+                                    lens(8f.dp.toPx(), 24f.dp.toPx())
                                 },
                                 highlight = null,
                                 shadow = null,

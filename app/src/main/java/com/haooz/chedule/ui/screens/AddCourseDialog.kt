@@ -376,7 +376,8 @@ fun AddCourseDialog(
         title = "删除课程",
         summary = "确定要删除课程「${course?.name}」吗？\n此操作不可撤销。",
         show = showDeleteDialog,
-        onDismissRequest = { showDeleteDialog = false }
+        onDismissRequest = { showDeleteDialog = false },
+        liquidGlassBackdrop = liquidGlassBackdrop
     ) {
         Row(
             modifier = Modifier
@@ -411,7 +412,8 @@ fun AddCourseDialog(
     OverlayDialog(
         title = "选择上课节次",
         show = showSectionDialog,
-        onDismissRequest = { showSectionDialog = false }
+        onDismissRequest = { showSectionDialog = false },
+        liquidGlassBackdrop = liquidGlassBackdrop
     ) {
         Column(
             modifier = Modifier.fillMaxWidth(),
@@ -501,7 +503,8 @@ fun AddCourseDialog(
     OverlayDialog(
         title = "选择颜色",
         show = showColorDialog,
-        onDismissRequest = { showColorDialog = false }
+        onDismissRequest = { showColorDialog = false },
+        liquidGlassBackdrop = liquidGlassBackdrop
     ) {
         Column(
             modifier = Modifier.fillMaxWidth(),

@@ -349,7 +349,8 @@ class CourseManageActivity : ComponentActivity() {
                                                         }
                                                     }
                                                 }
-                                            }
+                                            },
+                                            liquidGlassBackdrop = liquidGlassBackdrop,
                                         )
                                     }
                                 }

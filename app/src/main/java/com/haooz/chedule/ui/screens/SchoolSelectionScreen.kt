@@ -73,6 +73,7 @@ fun SchoolSelectionScreen(
     searchQuery: String = "",
     selectedTab: Int = 0,
     topContentPadding: Dp = 0.dp,
+    liquidGlassBackdrop: com.kyant.backdrop.Backdrop? = null,
     onSchoolSelected: (SchoolData, AdapterData) -> Unit
 ) {
     val context = LocalContext.current
@@ -466,7 +467,8 @@ fun SchoolSelectionScreen(
         title = "输入网址",
         summary = "请输入要访问的教务系统网址",
         show = showUrlDialog,
-        onDismissRequest = { showUrlDialog = false }
+        onDismissRequest = { showUrlDialog = false },
+        liquidGlassBackdrop = liquidGlassBackdrop
     ) {
         Column(
             modifier = Modifier.fillMaxWidth(),

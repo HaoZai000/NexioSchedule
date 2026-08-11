@@ -957,6 +957,7 @@ fun CourseEditScreen(
                     OverlayDialog(
                         title = "选择颜色",
                         show = showColorDialog,
+                        liquidGlassBackdrop = liquidGlassBackdrop,
                         onDismissRequest = { showColorDialog = false }
                     ) {
                         Column(
@@ -1008,6 +1009,7 @@ fun CourseEditScreen(
                         title = "删除课程",
                         summary = "确定要删除课程「${pendingDeleteGroup?.courses?.firstOrNull()?.name ?: ""}」吗？\n此操作不可撤销。",
                         show = showDeleteDialog,
+                        liquidGlassBackdrop = liquidGlassBackdrop,
                         onDismissRequest = { showDeleteDialog = false }
                     ) {
                         Row(

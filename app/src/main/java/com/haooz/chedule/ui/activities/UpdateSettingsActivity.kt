@@ -94,6 +94,7 @@ class UpdateSettingsActivity : ComponentActivity() {
                         ) {
                             UpdateSettingsScreen(
                                 scrollBehavior = scrollBehavior,
+                                liquidGlassBackdrop = liquidGlassBackdrop,
                             )
                         }
                     }

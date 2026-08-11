@@ -41,7 +41,8 @@ internal fun ShareImportDialog(
     shareIntentVersion: Int,
     courseViewModel: CourseViewModel,
     scheduleViewModel: ScheduleViewModel,
-    settingsViewModel: SettingsViewModel
+    settingsViewModel: SettingsViewModel,
+    liquidGlassBackdrop: com.kyant.backdrop.Backdrop? = null
 ) {
     val context = LocalContext.current
     var showShareImportDialog by remember { mutableStateOf(false) }
@@ -96,7 +97,7 @@ internal fun ShareImportDialog(
         title = "导入课表",
         summary = "是否导入课表「$shareImportScheduleName」？\n确定导入将创建一个新的课表",
         show = showShareImportDialog,
-
+        liquidGlassBackdrop = liquidGlassBackdrop,
         onDismissRequest = {
             showShareImportDialog = false
             shareImportData = null

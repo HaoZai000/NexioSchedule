@@ -103,7 +103,8 @@ fun CourseManageScreen(
     onCourseUpdated: (oldName: String, updated: com.haooz.chedule.data.Course) -> Unit = { _, _ -> },
     onEditDismiss: () -> Unit = {},
     pendingEditCourse: com.haooz.chedule.data.Course? = null,
-    onCourseLongPress: (courses: List<com.haooz.chedule.data.Course>, left: Float, top: Float, width: Float, height: Float) -> Unit = { _, _, _, _, _ -> }
+    onCourseLongPress: (courses: List<com.haooz.chedule.data.Course>, left: Float, top: Float, width: Float, height: Float) -> Unit = { _, _, _, _, _ -> },
+    liquidGlassBackdrop: com.kyant.backdrop.Backdrop? = null
 ) {
     val hapticFeedback = LocalHapticFeedback.current
     val context = LocalContext.current
@@ -324,7 +325,8 @@ fun CourseManageScreen(
             newCourseName = ""
             newCourseColor = Course.courseColors.first()
             onEditDismiss()
-        }
+        },
+        liquidGlassBackdrop = liquidGlassBackdrop
     ) {
         Column(
             modifier = Modifier.fillMaxWidth(),
@@ -624,7 +626,8 @@ fun CourseManageScreen(
     OverlayDialog(
         title = "选择颜色",
         show = showCustomColorDialog,
-        onDismissRequest = { showCustomColorDialog = false }
+        onDismissRequest = { showCustomColorDialog = false },
+        liquidGlassBackdrop = liquidGlassBackdrop
     ) {
         Column(
             modifier = Modifier.fillMaxWidth(),

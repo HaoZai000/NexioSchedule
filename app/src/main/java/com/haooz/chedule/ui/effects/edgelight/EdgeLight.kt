@@ -38,8 +38,8 @@ data class EdgeLight(
         @Stable
         fun Uniform(
             color: Color = Color.White.copy(alpha = 0.5f),
-            width: Dp = 0.32.dp,
-            blurRadius: Dp = 1.24.dp,
+            width: Dp = 0.3.dp,
+            blurRadius: Dp = 1.dp,
             intensity: Float = 1f
         ): EdgeLight = EdgeLight(
             width = width,
@@ -108,8 +108,8 @@ data class EdgeLight(
 @Composable
 fun rememberDefaultEdgeLight(): EdgeLight {
     val isLightTheme = !isAppDarkTheme()
-    val color = if (isLightTheme) Color.White.copy(alpha = 0.5f)
-                else Color.White.copy(alpha = 0.8f)
+    val color = if (isLightTheme) Color.White.copy(alpha = 0.7f)
+                else Color.White.copy(alpha = 0.4f)
     return remember(isLightTheme) { EdgeLight.Uniform(color = color) }
 }
 

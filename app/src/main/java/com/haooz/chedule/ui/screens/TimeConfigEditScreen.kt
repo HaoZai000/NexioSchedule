@@ -1144,7 +1144,8 @@ fun TimeConfigEditScreen(
                                 else -> ""
                             },
                             show = showQuickItemDialog,
-                            onDismissRequest = { showQuickItemDialog = false }
+                            onDismissRequest = { showQuickItemDialog = false },
+                            liquidGlassBackdrop = liquidGlassBackdrop
                         ) {
                             Column(
                                 modifier = Modifier.fillMaxWidth(),
@@ -1322,7 +1323,8 @@ fun TimeConfigEditScreen(
                         OverlayDialog(
                             title = "课表节数设置",
                             show = showSectionCountDialog,
-                            onDismissRequest = { showSectionCountDialog = false }
+                            onDismissRequest = { showSectionCountDialog = false },
+                            liquidGlassBackdrop = liquidGlassBackdrop
                         ) {
                             Column(
                                 modifier = Modifier.fillMaxWidth(),
@@ -1427,7 +1429,8 @@ fun TimeConfigEditScreen(
                                 else -> "时间设置"
                             },
                             show = showTimeDialog,
-                            onDismissRequest = { showTimeDialog = false }
+                            onDismissRequest = { showTimeDialog = false },
+                            liquidGlassBackdrop = liquidGlassBackdrop
                         ) {
                             Column(
                                 modifier = Modifier.fillMaxWidth(),
@@ -1575,7 +1578,8 @@ fun TimeConfigEditScreen(
                         OverlayDialog(
                             title = "时间重叠",
                             show = showOverlapDialog,
-                            onDismissRequest = { showOverlapDialog = false }
+                            onDismissRequest = { showOverlapDialog = false },
+                            liquidGlassBackdrop = liquidGlassBackdrop
                         ) {
                             Column(
                                 modifier = Modifier.fillMaxWidth(),

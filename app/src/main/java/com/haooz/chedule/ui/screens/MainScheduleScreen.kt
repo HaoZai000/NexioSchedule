@@ -59,18 +59,21 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.haooz.chedule.data.Course
-import com.haooz.chedule.ui.components.DayColumn
-import com.haooz.chedule.ui.components.SectionColumn
 import com.haooz.chedule.ui.basic.BlurBottomSheet
 import com.haooz.chedule.ui.basic.BlurBottomSheetTablet
 import com.haooz.chedule.ui.basic.LiquidTopBarButton
 import com.haooz.chedule.ui.basic.LocalSheetTopBarMaterial
+import com.haooz.chedule.ui.basic.OverlayDialog
+import com.haooz.chedule.ui.basic.SharedScrollBehavior
+import com.haooz.chedule.ui.components.DayColumn
+import com.haooz.chedule.ui.components.SectionColumn
 import com.haooz.chedule.ui.utils.isAppDarkTheme
 import com.haooz.chedule.ui.utils.overScrollVertical
 import com.haooz.chedule.viewmodel.CourseViewModel
 import com.haooz.chedule.viewmodel.SettingsViewModel
 import com.kyant.shapes.RoundedRectangle
 import kotlinx.coroutines.launch
+import top.yukonga.miuix.kmp.basic.ButtonDefaults
 import top.yukonga.miuix.kmp.basic.Card
 import top.yukonga.miuix.kmp.basic.CardDefaults
 import top.yukonga.miuix.kmp.basic.NumberPicker
@@ -83,9 +86,6 @@ import top.yukonga.miuix.kmp.blur.rememberLayerBackdrop
 import top.yukonga.miuix.kmp.blur.textureBlur
 import top.yukonga.miuix.kmp.icon.MiuixIcons
 import top.yukonga.miuix.kmp.icon.extended.Add
-import com.haooz.chedule.ui.basic.OverlayDialog
-import com.haooz.chedule.ui.basic.SharedScrollBehavior
-import top.yukonga.miuix.kmp.basic.ButtonDefaults
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 import top.yukonga.miuix.kmp.utils.PressFeedbackType
 import top.yukonga.miuix.kmp.utils.scrollEndHaptic
@@ -812,7 +812,7 @@ fun MainScheduleScreen(
         OverlayDialog(
             title = "跳转周数",
             show = showJumpWeekDialog,
-
+            liquidGlassBackdrop = liquidGlassBackdrop,
             onDismissRequest = { viewModel.hideJumpWeekDialog() }
         ) {
             Column(

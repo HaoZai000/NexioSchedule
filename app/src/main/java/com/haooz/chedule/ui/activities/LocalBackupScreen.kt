@@ -165,6 +165,7 @@ private fun scanBackupFiles(): List<BackupFileInfo> {
 @Composable
 fun LocalBackupScreen(
     scrollBehavior: SharedScrollBehavior? = null,
+    liquidGlassBackdrop: com.kyant.backdrop.Backdrop? = null
 ) {
     val context = LocalContext.current
     val hapticFeedback = LocalHapticFeedback.current
@@ -531,6 +532,7 @@ fun LocalBackupScreen(
         title = "恢复备份",
         summary = if (restoreDialogFile != null) "确定要恢复备份「${restoreDialogFile.name}」吗？\n将创建一个新的课表（重名时自动编号）" else "",
         show = showRestoreDialog,
+        liquidGlassBackdrop = liquidGlassBackdrop,
         onDismissRequest = {
             showRestoreDialog = false
             pendingRestoreFile = null
@@ -623,6 +625,7 @@ fun LocalBackupScreen(
         title = "删除备份",
         summary = if (deleteDialogFile != null) "确定要删除备份「${deleteDialogFile.name}」吗？\n此操作不可恢复" else "",
         show = showDeleteDialog,
+        liquidGlassBackdrop = liquidGlassBackdrop,
         onDismissRequest = {
             showDeleteDialog = false
             pendingDeleteFile = null
@@ -679,6 +682,7 @@ fun LocalBackupScreen(
         title = "恢复外部备份",
         summary = if (externalRestoreUri != null) "确定要恢复从外部选择的备份文件吗？\n将创建一个新的课表（重名时自动编号）" else "",
         show = showExternalRestoreDialog,
+        liquidGlassBackdrop = liquidGlassBackdrop,
         onDismissRequest = {
             showExternalRestoreDialog = false
             pendingExternalUri = null
