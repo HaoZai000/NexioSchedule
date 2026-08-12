@@ -417,6 +417,20 @@ private fun AboutScreen(onBack: () -> Unit, liquidGlassBackdrop: com.kyant.backd
                                 )
                                 ArrowPreference(
                                     title = "项目仓库",
+                                    endActions = {
+                                        Text(
+                                            text = "反馈与建议",
+                                            fontSize = 14.sp,
+                                            color = MiuixTheme.colorScheme.primary,
+                                            modifier = Modifier.clickable(
+                                                interactionSource = null,
+                                                indication = null
+                                            ) {
+                                                hapticFeedback.performHapticFeedback(HapticFeedbackType.VirtualKey)
+                                                uriHandler.openUri("https://github.com/HaoZai000/NexioSchedule/issues")
+                                            }
+                                        )
+                                    },
                                     onClick = {
                                         showRepoDialog = true
                                     }

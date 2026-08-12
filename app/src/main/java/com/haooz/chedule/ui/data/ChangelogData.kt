@@ -7,6 +7,16 @@ data class ChangelogEntry(
 )
 val changelogData = listOf(
     ChangelogEntry(
+        version = "v1.4.0-0812",
+        date = "2026-08-12",
+        changes = listOf(
+            "应用风格彻底重构为HyperOS4风格",
+            "全新视觉体验，全新操",
+            "Pad端全面焕新，更好用更易用",
+            "修复切换外观后状态栏反色异常的问题"
+        )
+    ),
+    ChangelogEntry(
         version = "v1.3.8-0811",
         date = "2026-08-11",
         changes = listOf(

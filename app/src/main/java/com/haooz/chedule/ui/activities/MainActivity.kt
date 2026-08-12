@@ -352,6 +352,10 @@ fun CourseScheduleApp() {
     val totalSections = morningSections + afternoonSections + eveningSections
     val activity = LocalActivity.current as? MainActivity
     val resumeCount = activity?.resumeCount ?: 0
+    // 主题模式变化时实时更新状态栏外观（修复应用内切换深色模式后状态栏不反色）
+    LaunchedEffect(isDark) {
+        activity?.applyThemeAwareSystemBars()
+    }
     // 从其他 Activity 返回时刷新设置（如教务导入应用了预设时间段）
     LaunchedEffect(resumeCount) {
         if (resumeCount > 0) {

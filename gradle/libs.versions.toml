@@ -8,7 +8,7 @@ kotlin = "2.4.10"                       # Kotlin 编译器（含 Compose 编译�
 # AndroidX 基础
 coreKtx = "1.18.0"                     # AndroidX Core KTX
 lifecycleRuntimeKtx = "2.9.1"         # 生命周期运行时 KTX
-activityCompose = "1.10.1"            # Activity 与 Compose 集成
+activityCompose = "1.13.0"            # Activity 与 Compose 集成
 composeBom = "2026.05.01"             # Compose BOM 版本对齐
 material3 = "1.5.0-alpha19"           # Material3 (MotionScheme 公开 API 需要此版本)
 window = "1.5.1"                        # Jetpack WindowManager（Activity 嵌入，最新稳定版）

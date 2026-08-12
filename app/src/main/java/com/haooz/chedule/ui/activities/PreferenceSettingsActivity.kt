@@ -8,6 +8,7 @@ import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -21,6 +22,7 @@ import com.haooz.chedule.ui.basic.LiquidTopBarButton
 import com.haooz.chedule.ui.basic.ProgressiveBlurTopBar
 import com.haooz.chedule.ui.theme.CourseScheduleTheme
 import com.haooz.chedule.ui.utils.applyThemeAwareSystemBars
+import com.haooz.chedule.ui.utils.isAppDarkTheme
 import top.yukonga.miuix.kmp.basic.Scaffold
 import top.yukonga.miuix.kmp.blur.layerBackdrop
 import top.yukonga.miuix.kmp.blur.rememberLayerBackdrop
@@ -42,6 +44,10 @@ class PreferenceSettingsActivity : ComponentActivity() {
         applyThemeAwareSystemBars()
         setContent {
             CourseScheduleTheme {
+                val isDark = isAppDarkTheme()
+                LaunchedEffect(isDark) {
+                    applyThemeAwareSystemBars()
+                }
                 val backgroundColor = MiuixTheme.colorScheme.surface
                 val backdrop = rememberLayerBackdrop {
                     drawRect(backgroundColor)
