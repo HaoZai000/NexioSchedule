@@ -109,7 +109,7 @@ fun LiquidGlassDropdownMenu(
             }
     }
 
-    val cornerRadius = 24.dp
+    val cornerRadius = 25.dp
 
     // 裁剪 Shape：fraction=0 时裁为小正方形（对齐右上角），fraction=1 时完整尺寸。
     // 正方形 + 反向放大的圆角（24dp / 0.24f = 100dp > 半边长）→ 视觉圆形。
@@ -249,9 +249,9 @@ fun LiquidGlassDropdownMenuItem(
         modifier = modifier
             .fillMaxWidth()
             .padding(horizontal = 8.dp)
-            .clip(RoundedRectangle(16.dp))
+            .clip(RoundedRectangle(17.dp))
             .clickable(onClick = onClick)
-            .padding(horizontal = 15.dp, vertical = 12.dp)
+            .padding(horizontal = 14.dp, vertical = 12.dp)
     ) {
         Text(
             text = text,

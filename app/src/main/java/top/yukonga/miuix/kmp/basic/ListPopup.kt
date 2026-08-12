@@ -330,8 +330,8 @@ object ListPopupDefaults {
             popupMargin: IntRect,
             alignment: PopupPositionProvider.Align,
         ): IntOffset {
-            val offsetXDelta = 82  // 24dp @ 3x density
-            val offsetYDelta = 94  // 24dp @ 3x density
+            val offsetXDelta = 82  //@ 3x density
+            val offsetYDelta = 94  //@ 3x density
 
             // 计算X偏移（左对齐或右对齐，往右偏移）
             val offsetX = if (alignment.resolve(layoutDirection) == PopupPositionProvider.Align.End) {
@@ -698,7 +698,7 @@ fun ListPopupContent(
     // ============================================
     // 圆角值 - 修改这里可以改变弹窗的圆角
     // ============================================
-    val cornerRadius = 24.dp
+    val cornerRadius = 25.dp
     val backgroundColor = MiuixTheme.colorScheme.surfaceContainer
     val isDark = MiuixTheme.colorScheme.background.luminance() < 0.5f
 
