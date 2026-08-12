@@ -2096,7 +2096,8 @@ fun CourseScheduleApp() {
                     onClick = {
                         showMorePopup = false
                         viewModel.showJumpWeekDialog()
-                    }
+                    },
+                    isFirst = true,
                 )
                 LiquidGlassDropdownMenuItem(
                     text = "课程管理",
@@ -2115,7 +2116,8 @@ fun CourseScheduleApp() {
                             delay(200.milliseconds)
                             enterCustomizePage()
                         }
-                    }
+                    },
+                    isLast = true,
                 )
             }
             LiquidGlassDropdownMenu(
@@ -2127,7 +2129,8 @@ fun CourseScheduleApp() {
                     onClick = {
                         showTodayMorePopup = false
                         todayJumpToDateTrigger++
-                    }
+                    },
+                    isFirst = true,
                 )
                 LiquidGlassDropdownMenuItem(
                     text = "课程管理",
@@ -2136,7 +2139,8 @@ fun CourseScheduleApp() {
                         val intent =
                             Intent(context, CourseManageActivity::class.java)
                         context.startActivity(intent)
-                    }
+                    },
+                    isLast = true,
                 )
             }
         }

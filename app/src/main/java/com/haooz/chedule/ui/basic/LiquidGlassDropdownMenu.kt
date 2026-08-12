@@ -9,6 +9,7 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ColumnScope
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
@@ -18,6 +19,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.snapshotFlow
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.blur
 import androidx.compose.ui.draw.clip
@@ -33,12 +35,13 @@ import androidx.compose.ui.graphics.TransformOrigin
 import androidx.compose.ui.graphics.drawscope.drawIntoCanvas
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.nativeCanvas
+import androidx.compose.ui.hapticfeedback.HapticFeedbackType
+import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.Density
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.LayoutDirection
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 import com.haooz.chedule.ui.effects.edgelight.edgeLight
 import com.haooz.chedule.ui.effects.edgelight.rememberDefaultEdgeLight
 import com.haooz.chedule.ui.utils.isAppDarkTheme
@@ -49,7 +52,9 @@ import com.kyant.backdrop.effects.vibrancy
 import com.kyant.shapes.RoundedRectangle
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.launch
+import top.yukonga.miuix.kmp.basic.DropdownDefaults
 import top.yukonga.miuix.kmp.basic.rememberDynamicCornerRadiusShape
+import top.yukonga.miuix.kmp.theme.MiuixTheme
 
 private val ShadowPadding = 24.dp
 
@@ -153,7 +158,7 @@ fun LiquidGlassDropdownMenu(
     // offset 随 fraction 渐变：fraction=0 时偏移到按钮中心，fraction=1 时归零
     Box(
         modifier = modifier
-            .width(192.dp + ShadowPadding * 2)
+            .width(200.dp + ShadowPadding * 2)
             .wrapContentHeight()
             .padding(ShadowPadding)
             .drawBehind {
@@ -229,7 +234,7 @@ fun LiquidGlassDropdownMenu(
                     edgeLight = rememberDefaultEdgeLight()
                 )
         ) {
-            Column(modifier = Modifier.padding(vertical = 6.dp)) {
+            Column(modifier = Modifier) {
                 content()
             }
         }
@@ -240,24 +245,33 @@ fun LiquidGlassDropdownMenu(
 fun LiquidGlassDropdownMenuItem(
     text: String,
     onClick: () -> Unit,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    isFirst: Boolean = false,
+    isLast: Boolean = false,
 ) {
-    val isLightTheme = !isAppDarkTheme()
-    val textColor = if (isLightTheme) Color(0xFF1A1A1A) else Color(0xFFE8E4DE)
+    // 与 DropdownImpl 完全一致的 padding：首/末行 20dp，中间行 12dp；水平 20dp
+    val topPadding = if (isFirst) DropdownDefaults.FirstLastVerticalPadding else DropdownDefaults.MiddleVerticalPadding
+    val bottomPadding = if (isLast) DropdownDefaults.FirstLastVerticalPadding else DropdownDefaults.MiddleVerticalPadding
 
-    Box(
+    val hapticFeedback = LocalHapticFeedback.current
+    val textColor = MiuixTheme.colorScheme.onSurfaceContainer
+
+    Row(
+        verticalAlignment = Alignment.CenterVertically,
         modifier = modifier
             .fillMaxWidth()
-            .padding(horizontal = 6.dp)
-            .clip(RoundedRectangle(16.dp))
-            .clickable(onClick = onClick)
-            .padding(horizontal = 14.dp, vertical = 12.dp)
+            .clickable {
+                hapticFeedback.performHapticFeedback(HapticFeedbackType.Confirm)
+                onClick()
+            }
+            .padding(horizontal = DropdownDefaults.InsideHorizontalPadding)
+            .padding(top = topPadding, bottom = bottomPadding),
     ) {
         Text(
             text = text,
-            fontSize = 15.sp,
+            fontSize = MiuixTheme.textStyles.body1.fontSize,
             fontWeight = FontWeight.Medium,
-            color = textColor
+            color = textColor,
         )
     }
 }
@@ -295,7 +309,6 @@ private class DropdownClipShape(
         val left = size.width - clipWidth
         val top = 0f
         val right = size.width
-        val bottom = clipHeight
 
         // 圆角反向放大（与 rememberDynamicCornerRadiusShape 一致）
         val cornerRadiusPx = with(density) { (cornerRadius / scale).toPx() }
@@ -306,7 +319,7 @@ private class DropdownClipShape(
                     left = left,
                     top = top,
                     right = right,
-                    bottom = bottom,
+                    bottom = clipHeight,
                     cornerRadius = CornerRadius(cornerRadiusPx, cornerRadiusPx),
                 )
             )

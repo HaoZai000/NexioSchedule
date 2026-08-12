@@ -135,7 +135,6 @@ internal fun ScheduleTopBar(
                     ) {
                         LiquidTopBarButton(
                             onClick = {
-                                hapticFeedback.performHapticFeedback(HapticFeedbackType.VirtualKey)
                                 onOpenSwitchSchedule()
                             },
                             backdrop = liquidGlassBackdrop,
@@ -147,7 +146,6 @@ internal fun ScheduleTopBar(
                         )
                         LiquidTopBarButton(
                             onClick = {
-                                hapticFeedback.performHapticFeedback(HapticFeedbackType.VirtualKey)
                                 onMoreClick()
                             },
                             backdrop = liquidGlassBackdrop,
