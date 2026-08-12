@@ -819,7 +819,7 @@ fun ListPopupContent(
                             highlight = null,
                             shadow = null,
                             onDrawSurface = {
-                                drawRect(color = backgroundColor.copy(alpha = if (isDark) 0.74f else 0.4f))
+                                drawRect(color = backgroundColor.copy(alpha = if (isDark) 0.8f else 0.72f))
                             }
                         )
                     } else Modifier
@@ -850,7 +850,7 @@ fun ListPopupContent(
  * @param cornerRadius 基准圆角
  */
 @Composable
-internal fun rememberDynamicCornerRadiusShape(
+fun rememberDynamicCornerRadiusShape(
     fractionProgress: () -> Float,
     cornerRadius: Dp,
 ): Shape = remember {
@@ -883,7 +883,7 @@ internal fun rememberDynamicCornerRadiusShape(
  * 使用squircle（超椭圆）形状来保持四角与周围的squircle修饰符对齐。
  * 当squircleEnabled为false时，会退化为普通的圆角矩形。
  */
-internal fun Modifier.popupClipReveal(
+fun Modifier.popupClipReveal(
     fractionProgress: () -> Float,
     popupLayoutPosition: PopupLayoutPosition,
     cornerRadius: Dp,

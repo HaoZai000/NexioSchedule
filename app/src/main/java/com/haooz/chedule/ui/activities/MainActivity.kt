@@ -2082,9 +2082,9 @@ fun CourseScheduleApp() {
                 .fillMaxSize()
                 .graphicsLayer { clip = false }
                 .padding(
-                    top = if (statusBarHeight > 0.dp) statusBarHeight + 32.dp else 70.dp,
-                    end = 2.dp
-                ),
+                    top = if (statusBarHeight > 0.dp) statusBarHeight - 20.dp else 17.dp,
+                )
+                .offset(x = (9).dp),
             contentAlignment = Alignment.TopEnd
         ) {
             LiquidGlassDropdownMenu(

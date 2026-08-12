@@ -58,8 +58,8 @@ fun LiquidTopBarButton(
     val hapticFeedback = LocalHapticFeedback.current
     val isLightTheme = !isAppDarkTheme()
     val resolvedContainerColor = if (containerColor != Color.Unspecified) containerColor
-        else if (isLightTheme) Color(0xFFFFFFFF).copy(0.85f)
-        else Color(0xFF242424).copy(0.85f)
+        else if (isLightTheme) Color(0xFFFFFFFF).copy(0.76f)
+        else Color(0xFF242424).copy(0.84f)
 
     val interactiveHighlight = remember(animationScope) {
         InteractiveHighlight(
