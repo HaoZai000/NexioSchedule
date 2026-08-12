@@ -3,9 +3,10 @@
 
 package top.yukonga.miuix.kmp.basic
 
+import android.graphics.BlurMaskFilter
+import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.spring
 import androidx.compose.animation.core.tween
-import androidx.compose.foundation.background
 import androidx.compose.foundation.focusGroup
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.IntrinsicSize
@@ -15,22 +16,30 @@ import androidx.compose.foundation.layout.captionBar
 import androidx.compose.foundation.layout.displayCutout
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.navigationBars
+import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.statusBars
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.Immutable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.Stable
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.blur
+import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.draw.drawWithCache
 import androidx.compose.ui.geometry.Size
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Outline
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.TransformOrigin
 import androidx.compose.ui.graphics.drawscope.clipPath
+import androidx.compose.ui.graphics.drawscope.drawIntoCanvas
 import androidx.compose.ui.graphics.drawscope.translate
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.graphics.nativeCanvas
 import androidx.compose.ui.layout.IntrinsicMeasurable
 import androidx.compose.ui.layout.IntrinsicMeasureScope
 import androidx.compose.ui.layout.Layout
@@ -50,6 +59,11 @@ import androidx.compose.ui.unit.IntRect
 import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.unit.LayoutDirection
 import androidx.compose.ui.unit.dp
+import com.haooz.chedule.ui.effects.edgelight.edgeLight
+import com.haooz.chedule.ui.effects.edgelight.rememberDefaultEdgeLight
+import com.kyant.backdrop.drawBackdrop
+import com.kyant.backdrop.effects.blur
+import com.kyant.backdrop.effects.vibrancy
 import com.kyant.shapes.RoundedRectangle
 import top.yukonga.miuix.kmp.anim.SinOutEasing
 import top.yukonga.miuix.kmp.squircle.isSquircleEnabled
@@ -267,10 +281,10 @@ object ListPopupDefaults {
     val FractionExitAnimationSpec = spring(dampingRatio = 0.78f, stiffness = 400f, visibilityThreshold = 0.0001f)
 
     /** 进入时的透明度动画（150ms渐入） */
-    val AlphaEnterAnimationSpec = tween<Float>(durationMillis = 150)
+    val AlphaEnterAnimationSpec = tween<Float>(durationMillis = 120)
 
     /** 退出时的透明度动画（300ms渐出） */
-    val AlphaExitAnimationSpec = tween<Float>(durationMillis = 300)
+    val AlphaExitAnimationSpec = tween<Float>(durationMillis = 380)
 
     /** 背景变暗的进入动画（200ms，使用SinOut缓动） */
     val DimEnterAnimationSpec = tween<Float>(durationMillis = 200, easing = SinOutEasing)
@@ -312,9 +326,8 @@ object ListPopupDefaults {
             popupMargin: IntRect,
             alignment: PopupPositionProvider.Align,
         ): IntOffset {
-            // 固定偏移量（约2dp和4dp，基于屏幕密度约3x）
-            val offsetXDelta = 6  // 约2dp
-            val offsetYDelta = 12 // 约4dp
+            val offsetXDelta = 82  // 24dp @ 3x density
+            val offsetYDelta = 94  // 24dp @ 3x density
 
             // 计算X偏移（左对齐或右对齐，往右偏移）
             val offsetX = if (alignment.resolve(layoutDirection) == PopupPositionProvider.Align.End) {
@@ -674,6 +687,7 @@ fun ListPopupContent(
     popupLayoutPosition: PopupLayoutPosition,
     localTransformOrigin: TransformOrigin,
     modifier: Modifier = Modifier,
+    liquidGlassBackdrop: com.kyant.backdrop.Backdrop? = null,
     content: @Composable () -> Unit,
 ) {
     // ============================================
@@ -681,35 +695,111 @@ fun ListPopupContent(
     // ============================================
     val cornerRadius = 24.dp
     val backgroundColor = MiuixTheme.colorScheme.surfaceContainer
+    val isDark = MiuixTheme.colorScheme.background.luminance() < 0.5f
+
+    val shadowPadding = 24.dp
+
+    // 阴影渐变动画：进入时升到 0.92 显示，退出时降到 0.98 消失，均用 50ms 渐变
+    val shadowAlphaState = remember { Animatable(0f) }
+    LaunchedEffect(Unit) {
+        var prevFraction = fractionProgress()
+        var shadowVisible = false
+        snapshotFlow { fractionProgress() }
+            .collect { current ->
+                val isEntering = current >= prevFraction
+                prevFraction = current
+                val newVisible = if (isEntering) {
+                    current >= 0.78f
+                } else {
+                    current >= 0.99f
+                }
+                if (newVisible != shadowVisible) {
+                    shadowVisible = newVisible
+                    shadowAlphaState.animateTo(
+                        targetValue = if (newVisible) 1f else 0f,
+                        animationSpec = if (isEntering) tween(200) else tween(50)
+                    )
+                }
+            }
+    }
 
     Box(
         modifier = modifier
-            .onGloballyPositioned { coordinates ->
-                val size = coordinates.size
-                if (popupContentSize != size) onPopupContentSizeChange(size)
+            .padding(shadowPadding)
+            .drawBehind {
+                val shadowAlpha = shadowAlphaState.value
+                if (shadowAlpha <= 0f) return@drawBehind
+                val baseAlpha = (40 * shadowAlpha).toInt().coerceIn(0, 255)
+                val shadowColor = android.graphics.Color.argb(baseAlpha, 0, 0, 0)
+                val blurRadius = 16f * density
+                val cornerRadiusPx = cornerRadius.toPx()
+                val nativePath = android.graphics.Path().apply {
+                    addRoundRect(
+                        0f, 0f, size.width, size.height,
+                        cornerRadiusPx, cornerRadiusPx,
+                        android.graphics.Path.Direction.CW
+                    )
+                }
+                val paint = android.graphics.Paint().apply {
+                    color = shadowColor
+                    maskFilter = BlurMaskFilter(
+                        blurRadius.coerceAtLeast(0.1f),
+                        BlurMaskFilter.Blur.NORMAL
+                    )
+                }
+                drawIntoCanvas { canvas ->
+                    canvas.nativeCanvas.drawPath(nativePath, paint)
+                }
             }
-            .graphicsLayer {
-                // 缩放动画：先快后慢的曲线效果
-                val fraction = fractionProgress()
-                // X轴：从0.18倍缩放到1.0倍
-                val scaleXL = 0.18f + 0.82f * fraction
-                // Y轴：从0.18倍缩放到1.0倍
-                val scaleXY = 0.18f + 0.82f * fraction
-                scaleX = scaleXL
-                scaleY = scaleXY
-                alpha = alphaProgress()
-                // 缩放中心点：从原位置移动到弹窗中心，先快后慢
-                val targetOrigin = TransformOrigin(0.5f, 0.5f)
-                transformOrigin = TransformOrigin(
-                    pivotFractionX = localTransformOrigin.pivotFractionX + (targetOrigin.pivotFractionX - localTransformOrigin.pivotFractionX) * fraction,
-                    pivotFractionY = localTransformOrigin.pivotFractionY + (targetOrigin.pivotFractionY - localTransformOrigin.pivotFractionY) * fraction
-                )
-            }
-            // 方向性裁剪揭示效果
-            .popupClipReveal(fractionProgress, popupLayoutPosition, cornerRadius, isSquircleEnabled())
-            .background(color = backgroundColor),
     ) {
-        content()
+        Box(
+            modifier = Modifier
+                .onGloballyPositioned { coordinates ->
+                    val size = coordinates.size
+                    if (popupContentSize != size) onPopupContentSizeChange(size)
+                }
+                .graphicsLayer {
+                    // 缩放动画：先快后慢的曲线效果
+                    val fraction = fractionProgress()
+                    // X轴：从0.2倍缩放到1.0倍
+                    val scaleXL = 0.24f + 0.76f * fraction
+                    // Y轴：从0.2倍缩放到1.0倍
+                    val scaleXY = 0.24f + 0.76f * fraction
+                    scaleX = scaleXL
+                    scaleY = scaleXY
+                    alpha = alphaProgress()
+                    // 缩放中心点：从原位置移动到弹窗中心，先快后慢
+                    val targetOrigin = TransformOrigin(0.5f, 0.5f)
+                    transformOrigin = TransformOrigin(
+                        pivotFractionX = localTransformOrigin.pivotFractionX + (targetOrigin.pivotFractionX - localTransformOrigin.pivotFractionX) * fraction,
+                        pivotFractionY = localTransformOrigin.pivotFractionY + (targetOrigin.pivotFractionY - localTransformOrigin.pivotFractionY) * fraction
+                    )
+                }
+                // 模糊效果：进入时从7dp变小到0，退出时从0变大到7dp
+                .blur(radius = (8f * (1f - fractionProgress())).dp)
+                // 方向性裁剪揭示效果
+                .popupClipReveal(fractionProgress, popupLayoutPosition, cornerRadius, isSquircleEnabled())
+                .then(
+                    if (liquidGlassBackdrop != null && android.os.Build.VERSION.SDK_INT >= 33) {
+                        Modifier.drawBackdrop(
+                            backdrop = liquidGlassBackdrop,
+                            shape = { RoundedRectangle(cornerRadius) },
+                            effects = {
+                                vibrancy()
+                                blur(24.dp.toPx())
+                            },
+                            highlight = null,
+                            shadow = null,
+                            onDrawSurface = {
+                                drawRect(color = backgroundColor.copy(alpha = if (isDark) 0.74f else 0.4f))
+                            }
+                        )
+                    } else Modifier
+                )
+                .edgeLight(shape = RoundedRectangle(cornerRadius), edgeLight = rememberDefaultEdgeLight()),
+        ) {
+            content()
+        }
     }
 }
 
@@ -747,18 +837,19 @@ internal fun Modifier.popupClipReveal(
         if (visibleHeight <= 0f) return@onDrawWithContent
 
         // 计算裁剪起始位置
+        // 朝上/朝下均不做方向性揭示，保持与整体缩放动画一致
         val clipStart = when {
-            showBelow -> 0f                    // 从顶部开始
-            showAbove -> height * (1f - progress) // 从底部开始
-            else -> height * (0.5f - 0.5f * progress) // 从中心开始
+            showBelow -> 0f                        // 朝下：无偏移
+            showAbove -> 0f                        // 朝上：与朝下一致，无偏移
+            else -> height * (0.5f - 0.5f * progress) // 居中：从中心向两侧展开
         }
 
         path.rewind()
         // 使用kyant库的RoundedRectangle创建圆角矩形路径
         // 圆角在动画过程中保持不变：当弹窗缩小时，圆角需要放大以抵消缩放
         val fraction = fractionProgress().coerceIn(0f, 1f)
-        val scaleXL = 0.15f + 0.80f * fraction
-        val scaleXY = 0.15f + 0.90f * fraction
+        val scaleXL = 0.24f + 0.76f * fraction
+        val scaleXY = 0.24f + 0.76f * fraction
         // 使用两个轴缩放的平均值来计算圆角，保持圆角不变
         val avgScale = (scaleXL + scaleXY) / 2f
         val scaledCornerRadius = cornerRadius / avgScale
@@ -787,4 +878,8 @@ internal fun Modifier.popupClipReveal(
             }
         }
     }
+}
+
+private fun Color.luminance(): Float {
+    return 0.299f * red + 0.587f * green + 0.114f * blue
 }

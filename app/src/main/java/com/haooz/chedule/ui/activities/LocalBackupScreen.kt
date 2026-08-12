@@ -68,6 +68,8 @@ import top.yukonga.miuix.kmp.basic.Button
 import top.yukonga.miuix.kmp.basic.ButtonDefaults
 import top.yukonga.miuix.kmp.basic.Card
 import top.yukonga.miuix.kmp.basic.DropdownEntry
+import top.yukonga.miuix.kmp.basic.DropdownColors
+import top.yukonga.miuix.kmp.basic.DropdownDefaults
 import top.yukonga.miuix.kmp.basic.DropdownItem
 import top.yukonga.miuix.kmp.basic.Scaffold
 import top.yukonga.miuix.kmp.basic.SmallTitle
@@ -171,6 +173,11 @@ fun LocalBackupScreen(
     val hapticFeedback = LocalHapticFeedback.current
     val coroutineScope = rememberCoroutineScope()
     var listScrollY by remember { mutableIntStateOf(0) }
+    // 液态玻璃效果的透明下拉颜色
+    val liquidGlassDropdownColors = DropdownDefaults.dropdownColors(
+        containerColor = androidx.compose.ui.graphics.Color.Transparent,
+        selectedContainerColor = androidx.compose.ui.graphics.Color.Transparent,
+    )
 
     var backupMode by remember { mutableStateOf("all") }
     var selectedSchedule by remember { mutableStateOf("") }
@@ -260,7 +267,9 @@ fun LocalBackupScreen(
                         OverlayDropdownMenu(
                             title = "备份模式",
                             entry = modeEntry,
-                            collapseOnSelection = true
+                            collapseOnSelection = true,
+                            liquidGlassBackdrop = liquidGlassBackdrop,
+                            dropdownColors = liquidGlassDropdownColors,
                         )
 
                         if (scheduleNames.isNotEmpty()) {
@@ -280,7 +289,9 @@ fun LocalBackupScreen(
                                 } else "全部备份模式下无需选择",
                                 entry = scheduleEntry,
                                 collapseOnSelection = true,
-                                enabled = backupMode == "single"
+                                enabled = backupMode == "single",
+                                liquidGlassBackdrop = liquidGlassBackdrop,
+                                dropdownColors = liquidGlassDropdownColors,
                             )
                         } else {
                             Text(

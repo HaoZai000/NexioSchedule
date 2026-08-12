@@ -682,7 +682,7 @@ fun AddEditCourseBottomSheet(
     OverlayDialog(
         title = "选择上课节次",
         show = showSectionDialog,
-        liquidGlassBackdrop = liquidGlassBackdrop,
+        liquidGlassBackdrop = sheetContentBackdrop ?: liquidGlassBackdrop,
         onDismissRequest = { showSectionDialog = false }
     ) {
         Column(

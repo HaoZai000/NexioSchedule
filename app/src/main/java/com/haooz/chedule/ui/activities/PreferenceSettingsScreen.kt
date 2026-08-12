@@ -28,26 +28,30 @@ import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import androidx.core.content.edit
+import com.haooz.chedule.ui.basic.OverlayDropdownMenu
 import com.haooz.chedule.ui.basic.SharedScrollBehavior
+import com.haooz.chedule.ui.utils.overScrollVertical
 import com.haooz.chedule.viewmodel.SettingsViewModel
 import top.yukonga.miuix.kmp.basic.Card
 import top.yukonga.miuix.kmp.basic.DropdownEntry
 import top.yukonga.miuix.kmp.basic.DropdownItem
+import top.yukonga.miuix.kmp.basic.DropdownColors
+import top.yukonga.miuix.kmp.basic.DropdownDefaults
 import top.yukonga.miuix.kmp.basic.Scaffold
 import top.yukonga.miuix.kmp.basic.SmallTitle
 import top.yukonga.miuix.kmp.blur.layerBackdrop
 import top.yukonga.miuix.kmp.blur.rememberLayerBackdrop
-import com.haooz.chedule.ui.basic.OverlayDropdownMenu
 import top.yukonga.miuix.kmp.preference.RadioButtonPreference
 import top.yukonga.miuix.kmp.preference.SwitchPreference
 import top.yukonga.miuix.kmp.theme.MiuixTheme
-import com.haooz.chedule.ui.utils.overScrollVertical
 import top.yukonga.miuix.kmp.utils.scrollEndHaptic
+import com.kyant.backdrop.backdrops.rememberLayerBackdrop as rememberLiquidGlassBackdrop
 
 @SuppressLint("ConfigurationScreenWidthHeight")
 @Composable
 fun PreferenceSettingsScreen(
     scrollBehavior: SharedScrollBehavior? = null,
+    liquidGlassBackdrop: com.kyant.backdrop.Backdrop? = null,
 ) {
     var listScrollY by remember { mutableIntStateOf(0) }
     val context = LocalContext.current
@@ -71,6 +75,11 @@ fun PreferenceSettingsScreen(
         drawRect(backdropColor)
         drawContent()
     }
+    // 液态玻璃效果的透明下拉颜色
+    val liquidGlassDropdownColors = DropdownDefaults.dropdownColors(
+        containerColor = androidx.compose.ui.graphics.Color.Transparent,
+        selectedContainerColor = androidx.compose.ui.graphics.Color.Transparent,
+    )
 
     Scaffold(
         topBar = {}
@@ -202,7 +211,9 @@ fun PreferenceSettingsScreen(
                                 title = "默认首页",
                                 summary = "首次启动时默认显示的页面",
                                 entry = homepageEntry,
-                                collapseOnSelection = true
+                                collapseOnSelection = true,
+                                liquidGlassBackdrop = liquidGlassBackdrop,
+                                dropdownColors = liquidGlassDropdownColors,
                             )
                         }
                     }
@@ -244,7 +255,9 @@ fun PreferenceSettingsScreen(
                                 title = "数据仓库源",
                                 summary = "更新教务系统数据源的仓库",
                                 entry = repoEntry,
-                                collapseOnSelection = true
+                                collapseOnSelection = true,
+                                liquidGlassBackdrop = liquidGlassBackdrop,
+                                dropdownColors = liquidGlassDropdownColors,
                             )
                         }
                     }

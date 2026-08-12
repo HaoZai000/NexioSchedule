@@ -4,7 +4,6 @@
 package top.yukonga.miuix.kmp.layout
 
 import androidx.compose.animation.core.Animatable
-import androidx.compose.foundation.background
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Spacer
@@ -21,7 +20,6 @@ import androidx.compose.runtime.setValue
 import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
-import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.layout
 import androidx.compose.ui.layout.onGloballyPositioned
@@ -34,6 +32,7 @@ import androidx.navigationevent.NavigationEventInfo
 import androidx.navigationevent.NavigationEventTransitionState
 import androidx.navigationevent.compose.NavigationBackHandler
 import androidx.navigationevent.compose.rememberNavigationEventState
+import com.kyant.backdrop.Backdrop
 import kotlinx.coroutines.joinAll
 import kotlinx.coroutines.launch
 import top.yukonga.miuix.kmp.basic.ListPopupContent
@@ -41,7 +40,6 @@ import top.yukonga.miuix.kmp.basic.ListPopupDefaults
 import top.yukonga.miuix.kmp.basic.PopupPositionProvider
 import top.yukonga.miuix.kmp.basic.rememberListPopupLayoutInfo
 import top.yukonga.miuix.kmp.theme.LocalDismissState
-import top.yukonga.miuix.kmp.theme.MiuixTheme
 
 /**
  * 弹窗布局的核心逻辑。
@@ -70,6 +68,7 @@ internal fun ListPopupLayout(
     onDismissFinished: (() -> Unit)? = null,
     maxHeight: Dp? = null,
     minWidth: Dp = ListPopupDefaults.MinWidth,
+    liquidGlassBackdrop: Backdrop? = null,
     content: @Composable () -> Unit,
 ) {
     val fractionProgress = remember { Animatable(0f) }
@@ -176,16 +175,6 @@ internal fun ListPopupLayout(
         Box(
             modifier = Modifier.fillMaxSize(),
         ) {
-            if (enableWindowDim) {
-                Box(
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .graphicsLayer {
-                            alpha = dimProgress.value
-                        }
-                        .background(MiuixTheme.colorScheme.windowDimming),
-                )
-            }
             Box(
                 modifier = popupModifier
                     .fillMaxSize()
@@ -239,6 +228,7 @@ internal fun ListPopupLayout(
                     alphaProgress = { alphaProgress.value },
                     popupLayoutPosition = layoutInfo.popupLayoutPosition,
                     localTransformOrigin = layoutInfo.localTransformOrigin,
+                    liquidGlassBackdrop = liquidGlassBackdrop,
                     content = {
                         CompositionLocalProvider(LocalDismissState provides requestDismiss) {
                             content()

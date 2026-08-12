@@ -51,6 +51,8 @@ import kotlinx.coroutines.withContext
 import top.yukonga.miuix.kmp.basic.Button
 import top.yukonga.miuix.kmp.basic.Card
 import top.yukonga.miuix.kmp.basic.DropdownEntry
+import top.yukonga.miuix.kmp.basic.DropdownColors
+import top.yukonga.miuix.kmp.basic.DropdownDefaults
 import top.yukonga.miuix.kmp.basic.DropdownItem
 import top.yukonga.miuix.kmp.basic.LinearProgressIndicator
 import top.yukonga.miuix.kmp.basic.Scaffold
@@ -171,6 +173,11 @@ fun UpdateSettingsScreen(
     val context = LocalContext.current
     val coroutineScope = rememberCoroutineScope()
     val prefs = remember { context.getSharedPreferences("update_settings", Context.MODE_PRIVATE) }
+    // 液态玻璃效果的透明下拉颜色
+    val liquidGlassDropdownColors = DropdownDefaults.dropdownColors(
+        containerColor = androidx.compose.ui.graphics.Color.Transparent,
+        selectedContainerColor = androidx.compose.ui.graphics.Color.Transparent,
+    )
 
     var autoCheckUpdate by remember { mutableStateOf(prefs.getBoolean("auto_check_update", true)) }
     var updateReminder by remember { mutableStateOf(prefs.getBoolean("update_reminder", true)) }
@@ -474,7 +481,9 @@ fun UpdateSettingsScreen(
                                 title = "下载源",
                                 summary = "选择应用更新的下载仓库",
                                 entry = downloadSourceEntry,
-                                collapseOnSelection = true
+                                collapseOnSelection = true,
+                                liquidGlassBackdrop = liquidGlassBackdrop,
+                                dropdownColors = liquidGlassDropdownColors,
                             )
                         }
                     }

@@ -111,6 +111,7 @@ import top.yukonga.miuix.kmp.basic.Button
 import top.yukonga.miuix.kmp.basic.ButtonDefaults
 import top.yukonga.miuix.kmp.basic.Card
 import top.yukonga.miuix.kmp.basic.CardDefaults
+import top.yukonga.miuix.kmp.basic.DropdownDefaults
 import top.yukonga.miuix.kmp.basic.DropdownEntry
 import top.yukonga.miuix.kmp.basic.DropdownItem
 import top.yukonga.miuix.kmp.basic.InfiniteProgressIndicator
@@ -216,6 +217,11 @@ fun CustomizeScheduleScreen(
 
     // 液态玻璃支持
     val liquidGlassBackdrop = com.kyant.backdrop.backdrops.rememberLayerBackdrop()
+    // 液态玻璃效果的透明下拉颜色
+    val liquidGlassDropdownColors = DropdownDefaults.dropdownColors(
+        containerColor = androidx.compose.ui.graphics.Color.Transparent,
+        selectedContainerColor = androidx.compose.ui.graphics.Color.Transparent,
+    )
 
     // 弹窗模糊 backdrop
     val sheetBackdropColor = MiuixTheme.colorScheme.surface
@@ -1886,7 +1892,9 @@ fun CustomizeScheduleScreen(
                             OverlayDropdownMenu(
                                 title = "卡片内容对齐",
                                 entry = contentAlignmentEntry,
-                                collapseOnSelection = true
+                                collapseOnSelection = true,
+                                liquidGlassBackdrop = sheetContentBackdrop ?: liquidGlassBackdrop,
+                                dropdownColors = liquidGlassDropdownColors,
                             )
                         }
                         Spacer(Modifier.height(4.dp))
@@ -2045,7 +2053,9 @@ fun CustomizeScheduleScreen(
                             OverlayDropdownMenu(
                                 title = "卡片内容对齐",
                                 entry = contentAlignmentEntry,
-                                collapseOnSelection = true
+                                collapseOnSelection = true,
+                                liquidGlassBackdrop = sheetContentBackdrop ?: liquidGlassBackdrop,
+                                dropdownColors = liquidGlassDropdownColors,
                             )
                         }
                         Spacer(Modifier.height(240.dp))

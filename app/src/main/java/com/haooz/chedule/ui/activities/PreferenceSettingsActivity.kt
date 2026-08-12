@@ -98,6 +98,7 @@ class PreferenceSettingsActivity : ComponentActivity() {
                         ) {
                             PreferenceSettingsScreen(
                                 scrollBehavior = scrollBehavior,
+                                liquidGlassBackdrop = liquidGlassBackdrop,
                             )
                         }
                     }

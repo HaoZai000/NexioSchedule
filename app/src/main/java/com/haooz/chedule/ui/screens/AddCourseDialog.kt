@@ -53,11 +53,11 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.haooz.chedule.data.Course
-import com.haooz.chedule.ui.basic.NativeTextField
 import com.haooz.chedule.ui.basic.BlurBottomSheet
 import com.haooz.chedule.ui.basic.BlurBottomSheetTablet
-import com.haooz.chedule.ui.basic.LocalSheetTopBarMaterial
 import com.haooz.chedule.ui.basic.LiquidTopBarButton
+import com.haooz.chedule.ui.basic.LocalSheetTopBarMaterial
+import com.haooz.chedule.ui.basic.NativeTextField
 import com.haooz.chedule.ui.basic.OverlayDialog
 import com.haooz.chedule.ui.utils.isAppDarkTheme
 import com.haooz.chedule.ui.utils.overScrollVertical
@@ -413,7 +413,7 @@ fun AddCourseDialog(
         title = "选择上课节次",
         show = showSectionDialog,
         onDismissRequest = { showSectionDialog = false },
-        liquidGlassBackdrop = liquidGlassBackdrop
+        liquidGlassBackdrop = sheetContentBackdrop ?: liquidGlassBackdrop,
     ) {
         Column(
             modifier = Modifier.fillMaxWidth(),

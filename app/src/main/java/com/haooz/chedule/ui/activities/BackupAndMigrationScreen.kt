@@ -47,6 +47,8 @@ import com.haooz.chedule.viewmodel.SettingsViewModel
 import top.yukonga.miuix.kmp.basic.ButtonDefaults
 import top.yukonga.miuix.kmp.basic.Card
 import top.yukonga.miuix.kmp.basic.DropdownEntry
+import top.yukonga.miuix.kmp.basic.DropdownColors
+import top.yukonga.miuix.kmp.basic.DropdownDefaults
 import top.yukonga.miuix.kmp.basic.DropdownItem
 import top.yukonga.miuix.kmp.basic.Scaffold
 import top.yukonga.miuix.kmp.basic.SmallTitle
@@ -72,6 +74,11 @@ fun BackupAndMigrationScreen(
 ) {
     val context = LocalContext.current
     val hapticFeedback = LocalHapticFeedback.current
+    // 液态玻璃效果的透明下拉颜色
+    val liquidGlassDropdownColors = DropdownDefaults.dropdownColors(
+        containerColor = androidx.compose.ui.graphics.Color.Transparent,
+        selectedContainerColor = androidx.compose.ui.graphics.Color.Transparent,
+    )
 
     val isTablet = LocalConfiguration.current.screenWidthDp >= 600
     val tabletHorizontalPadding = if (isTablet) {
@@ -280,7 +287,9 @@ fun BackupAndMigrationScreen(
                                         }
                                     )
                                 ),
-                                collapseOnSelection = true
+                                collapseOnSelection = true,
+                                liquidGlassBackdrop = liquidGlassBackdrop,
+                                dropdownColors = liquidGlassDropdownColors,
                             )
                         }
                     }
