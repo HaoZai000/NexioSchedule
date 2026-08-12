@@ -50,6 +50,8 @@ fun OverlayDropdownPopup(
     renderInRootScaffold: Boolean,
     collapseOnSelection: Boolean = true,
     liquidGlassBackdrop: Backdrop? = null,
+    onFractionProgress: ((Float) -> Unit)? = null,
+    revealLimitHeight: Dp = 0.dp,
 ) {
     val entries = remember(entry) { listOf(entry) }
     OverlayDropdownPopup(
@@ -62,6 +64,8 @@ fun OverlayDropdownPopup(
         renderInRootScaffold = renderInRootScaffold,
         collapseOnSelection = collapseOnSelection,
         liquidGlassBackdrop = liquidGlassBackdrop,
+        onFractionProgress = onFractionProgress,
+        revealLimitHeight = revealLimitHeight,
     )
 }
 
@@ -89,6 +93,8 @@ fun OverlayDropdownPopup(
     renderInRootScaffold: Boolean,
     collapseOnSelection: Boolean = entries.size <= 1,
     liquidGlassBackdrop: Backdrop? = null,
+    onFractionProgress: ((Float) -> Unit)? = null,
+    revealLimitHeight: Dp = 0.dp,
 ) {
     val hapticFeedback = LocalHapticFeedback.current
     val currentEntries by rememberUpdatedState(entries)
@@ -114,6 +120,8 @@ fun OverlayDropdownPopup(
         maxHeight = maxHeight,
         renderInRootScaffold = renderInRootScaffold,
         liquidGlassBackdrop = liquidGlassBackdrop,
+        onFractionProgress = onFractionProgress,
+        revealLimitHeight = revealLimitHeight,
     ) {
         ListPopupColumn {
             DropdownEntriesPopupContent(

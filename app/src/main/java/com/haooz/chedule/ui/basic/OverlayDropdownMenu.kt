@@ -1,21 +1,28 @@
 package com.haooz.chedule.ui.basic
 
+import androidx.compose.animation.core.Animatable
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberUpdatedState
+import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.launch
 import top.yukonga.miuix.kmp.basic.BasicComponent
 import top.yukonga.miuix.kmp.basic.BasicComponentColors
 import top.yukonga.miuix.kmp.basic.BasicComponentDefaults
@@ -118,8 +125,37 @@ fun OverlayDropdownMenu(
         }
     }
 
+    // 弹窗动画进度，用于驱动选项文字与箭头的淡入淡出
+    val fractionState = remember { mutableStateOf(0f) }
+    val contentAlpha = remember { Animatable(1f) }
+    LaunchedEffect(Unit) {
+        var prevFraction = 0f
+        var contentVisible = true
+        var animJob: Job? = null
+        snapshotFlow { fractionState.value }
+            .collect { current ->
+                val isEntering = current >= prevFraction
+                prevFraction = current
+                // 出现时到 0.6 消失，关闭时到 0.5 出现
+                val newVisible = if (isEntering) current < 0.15f else current < 0.2f
+                if (newVisible != contentVisible) {
+                    contentVisible = newVisible
+                    animJob?.cancel()
+                    animJob = launch {
+                        contentAlpha.animateTo(
+                            targetValue = if (newVisible) 1f else 0f,
+                            animationSpec = tween(180)
+                        )
+                    }
+                }
+            }
+    }
+
     val nonEmptyEntries = entries.filter { it.items.isNotEmpty() }
     val hasEntries = nonEmptyEntries.isNotEmpty()
+    // 总条目数超过 2 时，揭示裁剪到两行高度
+    val totalItemCount = nonEmptyEntries.sumOf { it.items.size }
+    val revealLimitHeight = if (totalItemCount > 2) (56.dp * 2) else 0.dp
     val actualEnabled = enabled && hasEntries
     val selectedText = resolveSelectedText(nonEmptyEntries)
     val actionColor = if (actualEnabled) {
@@ -156,10 +192,15 @@ fun OverlayDropdownMenu(
                     fontSize = 14.2.sp,
                     color = MiuixTheme.colorScheme.onSurfaceVariantActions,
                     maxLines = 1,
-                    modifier = Modifier.padding(end = 8.dp)
+                    modifier = Modifier
+                        .padding(end = 8.dp)
+                        .graphicsLayer { alpha = contentAlpha.value }
                 )
             }
-            DropdownArrowEndAction(actionColor = actionColor)
+            DropdownArrowEndAction(
+                actionColor = actionColor,
+                modifier = Modifier.graphicsLayer { alpha = contentAlpha.value }
+            )
             if (hasEntries) {
                 OverlayDropdownPopup(
                     entries = nonEmptyEntries,
@@ -171,6 +212,8 @@ fun OverlayDropdownMenu(
                     renderInRootScaffold = renderInRootScaffold,
                     collapseOnSelection = collapseOnSelection,
                     liquidGlassBackdrop = liquidGlassBackdrop,
+                    onFractionProgress = { fraction -> fractionState.value = fraction },
+                    revealLimitHeight = revealLimitHeight,
                 )
             }
         },

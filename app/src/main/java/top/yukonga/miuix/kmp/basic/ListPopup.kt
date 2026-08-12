@@ -288,7 +288,7 @@ object ListPopupDefaults {
     val AlphaEnterAnimationSpec = tween<Float>(durationMillis = 120)
 
     /** 退出时的透明度动画（300ms渐出） */
-    val AlphaExitAnimationSpec = tween<Float>(durationMillis = 380)
+    val AlphaExitAnimationSpec = tween<Float>(durationMillis = 320)
 
     /** 背景变暗的进入动画（200ms，使用SinOut缓动） */
     val DimEnterAnimationSpec = tween<Float>(durationMillis = 200, easing = SinOutEasing)
@@ -692,6 +692,7 @@ fun ListPopupContent(
     localTransformOrigin: TransformOrigin,
     modifier: Modifier = Modifier,
     liquidGlassBackdrop: com.kyant.backdrop.Backdrop? = null,
+    revealLimitHeight: Dp = 0.dp,
     content: @Composable () -> Unit,
 ) {
     // ============================================
@@ -791,7 +792,13 @@ fun ListPopupContent(
                     )
                 }
                 // 方向性裁剪揭示效果（位于 blur 外层，裁掉模糊产生的圆角溢出）
-                .popupClipReveal(fractionProgress, popupLayoutPosition, cornerRadius, isSquircleEnabled())
+                .popupClipReveal(
+                    fractionProgress = fractionProgress,
+                    popupLayoutPosition = popupLayoutPosition,
+                    cornerRadius = cornerRadius,
+                    squircleEnabled = isSquircleEnabled(),
+                    revealLimitHeightPx = with(LocalDensity.current) { revealLimitHeight.toPx() },
+                )
                 // 模糊效果：进入时从7dp变小到0，退出时从0变大到7dp
                 .blur(radius = (8f * (1f - fractionProgress())).dp)
                 .then(
@@ -881,6 +888,7 @@ internal fun Modifier.popupClipReveal(
     popupLayoutPosition: PopupLayoutPosition,
     cornerRadius: Dp,
     squircleEnabled: Boolean,
+    revealLimitHeightPx: Float = 0f,
 ): Modifier = drawWithCache {
     val path = Path()
     val showBelow = popupLayoutPosition.showBelow
@@ -891,14 +899,20 @@ internal fun Modifier.popupClipReveal(
         if (progress <= 0f) return@onDrawWithContent
 
         val height = size.height
-        val visibleHeight = height
+        // 当设置了 revealLimitHeightPx 且朝上/朝下时，从限制高度展开到完整高度
+        val visibleHeight = if (revealLimitHeightPx > 0f && (showBelow || showAbove)) {
+            (revealLimitHeightPx + (height - revealLimitHeightPx) * progress).coerceIn(0f, height)
+        } else {
+            height
+        }
         if (visibleHeight <= 0f) return@onDrawWithContent
 
         // 计算裁剪起始位置
-        // 朝上/朝下均不做方向性揭示，保持与整体缩放动画一致
+        // 朝上/朝下：从锚点一侧向另一侧展开（配合 visibleHeight 限制）
+        // 居中：从中心向两侧展开
         val clipStart = when {
-            showBelow -> 0f                        // 朝下：无偏移
-            showAbove -> 0f                        // 朝上：与朝下一致，无偏移
+            showBelow -> 0f                        // 朝下：从顶部向下展开
+            showAbove -> height - visibleHeight   // 朝上：从底部向上展开
             else -> height * (0.5f - 0.5f * progress) // 居中：从中心向两侧展开
         }
 

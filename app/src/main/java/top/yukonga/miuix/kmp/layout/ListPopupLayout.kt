@@ -17,6 +17,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.input.pointer.pointerInput
@@ -25,6 +26,7 @@ import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.layout.positionInWindow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.IntOffset
+import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.IntRect
 import androidx.compose.ui.unit.IntSize
 import com.kyant.backdrop.Backdrop
@@ -63,6 +65,8 @@ internal fun ListPopupLayout(
     maxHeight: Dp? = null,
     minWidth: Dp = ListPopupDefaults.MinWidth,
     liquidGlassBackdrop: Backdrop? = null,
+    onFractionProgress: ((Float) -> Unit)? = null,
+    revealLimitHeight: Dp = 0.dp,
     content: @Composable () -> Unit,
 ) {
     val fractionProgress = remember { Animatable(0f) }
@@ -98,6 +102,15 @@ internal fun ListPopupLayout(
             dimProgress.snapTo(0f)
             internalVisible.value = false
             currentOnDismissFinished?.invoke()
+        }
+    }
+
+    // 透传弹窗动画进度给外部
+    val currentOnFractionProgress by rememberUpdatedState(onFractionProgress)
+    LaunchedEffect(Unit) {
+        currentOnFractionProgress?.let { callback ->
+            snapshotFlow { fractionProgress.value }
+                .collect { callback(it) }
         }
     }
 
@@ -195,6 +208,7 @@ internal fun ListPopupLayout(
                     popupLayoutPosition = layoutInfo.popupLayoutPosition,
                     localTransformOrigin = layoutInfo.localTransformOrigin,
                     liquidGlassBackdrop = liquidGlassBackdrop,
+                    revealLimitHeight = revealLimitHeight,
                     content = {
                         CompositionLocalProvider(LocalDismissState provides requestDismiss) {
                             content()

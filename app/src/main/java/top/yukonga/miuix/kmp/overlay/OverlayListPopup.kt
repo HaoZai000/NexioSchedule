@@ -10,6 +10,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.Dp
+import androidx.compose.ui.unit.dp
 import com.kyant.backdrop.Backdrop
 import top.yukonga.miuix.kmp.basic.ListPopupDefaults
 import top.yukonga.miuix.kmp.basic.PopupPositionProvider
@@ -45,6 +46,8 @@ fun OverlayListPopup(
     minWidth: Dp = ListPopupDefaults.MinWidth,
     renderInRootScaffold: Boolean = true,
     liquidGlassBackdrop: Backdrop? = null,
+    onFractionProgress: ((Float) -> Unit)? = null,
+    revealLimitHeight: Dp = 0.dp,
     content: @Composable () -> Unit,
 ) {
     ListPopupLayout(
@@ -72,6 +75,8 @@ fun OverlayListPopup(
         maxHeight = maxHeight,
         minWidth = minWidth,
         liquidGlassBackdrop = liquidGlassBackdrop,
+        onFractionProgress = onFractionProgress,
+        revealLimitHeight = revealLimitHeight,
         content = content,
     )
 }
