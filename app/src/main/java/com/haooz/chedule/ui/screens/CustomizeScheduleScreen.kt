@@ -89,6 +89,7 @@ import com.haooz.chedule.ui.basic.BlurBottomSheet
 import com.haooz.chedule.ui.basic.BlurBottomSheetTablet
 import com.haooz.chedule.ui.basic.LiquidTopBarButton
 import com.haooz.chedule.ui.basic.LocalSheetTopBarMaterial
+import com.haooz.chedule.ui.basic.OverlayDropdownMenu
 import com.haooz.chedule.ui.effects.edgelight.edgeLight
 import com.haooz.chedule.ui.effects.edgelight.rememberDefaultEdgeLight
 import com.haooz.chedule.ui.effects.liquidglass.InteractiveHighlight
@@ -127,7 +128,6 @@ import top.yukonga.miuix.kmp.icon.extended.Close
 import top.yukonga.miuix.kmp.icon.extended.Delete
 import top.yukonga.miuix.kmp.icon.extended.GridView
 import top.yukonga.miuix.kmp.icon.extended.Image
-import top.yukonga.miuix.kmp.preference.OverlayDropdownPreference
 import top.yukonga.miuix.kmp.shader.isRuntimeShaderSupported
 import top.yukonga.miuix.kmp.squircle.addSquircleRect
 import top.yukonga.miuix.kmp.theme.MiuixTheme
@@ -1883,7 +1883,7 @@ fun CustomizeScheduleScreen(
                                     )
                                 }
                             )
-                            OverlayDropdownPreference(
+                            OverlayDropdownMenu(
                                 title = "卡片内容对齐",
                                 entry = contentAlignmentEntry,
                                 collapseOnSelection = true
@@ -2042,7 +2042,7 @@ fun CustomizeScheduleScreen(
                                     )
                                 }
                             )
-                            OverlayDropdownPreference(
+                            OverlayDropdownMenu(
                                 title = "卡片内容对齐",
                                 entry = contentAlignmentEntry,
                                 collapseOnSelection = true

@@ -37,7 +37,7 @@ import top.yukonga.miuix.kmp.basic.Scaffold
 import top.yukonga.miuix.kmp.basic.SmallTitle
 import top.yukonga.miuix.kmp.blur.layerBackdrop
 import top.yukonga.miuix.kmp.blur.rememberLayerBackdrop
-import top.yukonga.miuix.kmp.preference.OverlayDropdownPreference
+import com.haooz.chedule.ui.basic.OverlayDropdownMenu
 import top.yukonga.miuix.kmp.preference.RadioButtonPreference
 import top.yukonga.miuix.kmp.preference.SwitchPreference
 import top.yukonga.miuix.kmp.theme.MiuixTheme
@@ -198,7 +198,7 @@ fun PreferenceSettingsScreen(
                                 )
                             )
 
-                            OverlayDropdownPreference(
+                            OverlayDropdownMenu(
                                 title = "默认首页",
                                 summary = "首次启动时默认显示的页面",
                                 entry = homepageEntry,
@@ -240,7 +240,7 @@ fun PreferenceSettingsScreen(
                                 )
                             )
 
-                            OverlayDropdownPreference(
+                            OverlayDropdownMenu(
                                 title = "数据仓库源",
                                 summary = "更新教务系统数据源的仓库",
                                 entry = repoEntry,

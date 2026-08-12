@@ -73,7 +73,7 @@ import top.yukonga.miuix.kmp.basic.Scaffold
 import top.yukonga.miuix.kmp.basic.SmallTitle
 import top.yukonga.miuix.kmp.basic.TextButton
 import top.yukonga.miuix.kmp.preference.ArrowPreference
-import top.yukonga.miuix.kmp.preference.OverlayDropdownPreference
+import com.haooz.chedule.ui.basic.OverlayDropdownMenu
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 import top.yukonga.miuix.kmp.utils.scrollEndHaptic
 import java.io.File
@@ -257,7 +257,7 @@ fun LocalBackupScreen(
                                 ),
                             )
                         )
-                        OverlayDropdownPreference(
+                        OverlayDropdownMenu(
                             title = "备份模式",
                             entry = modeEntry,
                             collapseOnSelection = true
@@ -273,7 +273,7 @@ fun LocalBackupScreen(
                                     )
                                 }
                             )
-                            OverlayDropdownPreference(
+                            OverlayDropdownMenu(
                                 title = "选择课表",
                                 summary = if (backupMode == "single") {
                                     if (selectedSchedule.isNotEmpty()) null else "请选择要备份的课表"

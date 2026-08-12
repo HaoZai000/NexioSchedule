@@ -53,7 +53,7 @@ import top.yukonga.miuix.kmp.basic.SmallTitle
 import top.yukonga.miuix.kmp.basic.TextButton
 import com.haooz.chedule.ui.basic.OverlayDialog
 import top.yukonga.miuix.kmp.preference.ArrowPreference
-import top.yukonga.miuix.kmp.preference.OverlayDropdownPreference
+import com.haooz.chedule.ui.basic.OverlayDropdownMenu
 import com.haooz.chedule.ui.utils.overScrollVertical
 import top.yukonga.miuix.kmp.utils.scrollEndHaptic
 import java.text.SimpleDateFormat
@@ -267,7 +267,7 @@ fun BackupAndMigrationScreen(
                 ) {
                     Column(modifier = Modifier.fillMaxWidth()) {
                         if (scheduleNames.isNotEmpty()) {
-                            OverlayDropdownPreference(
+                            OverlayDropdownMenu(
                                 title = "导出课表",
                                 entries = listOf(
                                     DropdownEntry(

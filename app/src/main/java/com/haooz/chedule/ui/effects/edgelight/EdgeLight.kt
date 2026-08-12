@@ -38,8 +38,8 @@ data class EdgeLight(
         @Stable
         fun Uniform(
             color: Color = Color.White.copy(alpha = 0.5f),
-            width: Dp = 0.3.dp,
-            blurRadius: Dp = 1.dp,
+            width: Dp = 0.28.dp,
+            blurRadius: Dp = 0.8.dp,
             intensity: Float = 1f
         ): EdgeLight = EdgeLight(
             width = width,

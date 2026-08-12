@@ -61,7 +61,7 @@ import top.yukonga.miuix.kmp.blur.layerBackdrop
 import top.yukonga.miuix.kmp.blur.rememberLayerBackdrop
 import com.haooz.chedule.ui.basic.OverlayDialog
 import top.yukonga.miuix.kmp.preference.ArrowPreference
-import top.yukonga.miuix.kmp.preference.OverlayDropdownPreference
+import com.haooz.chedule.ui.basic.OverlayDropdownMenu
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 import com.haooz.chedule.ui.utils.overScrollVertical
 import top.yukonga.miuix.kmp.basic.ButtonDefaults
@@ -470,7 +470,7 @@ fun UpdateSettingsScreen(
                                     ),
                                 )
                             )
-                            OverlayDropdownPreference(
+                            OverlayDropdownMenu(
                                 title = "下载源",
                                 summary = "选择应用更新的下载仓库",
                                 entry = downloadSourceEntry,

@@ -1,0 +1,179 @@
+package com.haooz.chedule.ui.basic
+
+import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.padding
+import androidx.compose.material3.Text
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberUpdatedState
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.hapticfeedback.HapticFeedbackType
+import androidx.compose.ui.platform.LocalHapticFeedback
+import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.unit.Dp
+import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
+import top.yukonga.miuix.kmp.basic.BasicComponent
+import top.yukonga.miuix.kmp.basic.BasicComponentColors
+import top.yukonga.miuix.kmp.basic.BasicComponentDefaults
+import top.yukonga.miuix.kmp.basic.DropdownArrowEndAction
+import top.yukonga.miuix.kmp.basic.DropdownColors
+import top.yukonga.miuix.kmp.basic.DropdownDefaults
+import top.yukonga.miuix.kmp.basic.DropdownEntry
+import top.yukonga.miuix.kmp.popup.OverlayDropdownPopup
+import top.yukonga.miuix.kmp.theme.MiuixTheme
+
+private fun resolveSelectedText(entries: List<DropdownEntry>): String? {
+    for (entry in entries) {
+        for (item in entry.items) {
+            if (item.selected) return item.text
+        }
+    }
+    return null
+}
+
+/**
+ * A [BasicComponent] wrapper that opens an [OverlayDropdownPopup] for a single [DropdownEntry].
+ *
+ * When [summary] is null, the text of the currently selected [top.yukonga.miuix.kmp.basic.DropdownItem]
+ * is shown automatically.
+ */
+@Composable
+fun OverlayDropdownMenu(
+    entry: DropdownEntry,
+    title: String,
+    modifier: Modifier = Modifier,
+    titleColor: BasicComponentColors = BasicComponentDefaults.titleColor(),
+    summary: String? = null,
+    summaryColor: BasicComponentColors = BasicComponentDefaults.summaryColor(),
+    dropdownColors: DropdownColors = DropdownDefaults.dropdownColors(),
+    startAction: @Composable (() -> Unit)? = null,
+    bottomAction: (@Composable () -> Unit)? = null,
+    insideMargin: PaddingValues = BasicComponentDefaults.InsideMargin,
+    maxHeight: Dp? = null,
+    enabled: Boolean = true,
+    renderInRootScaffold: Boolean = true,
+    collapseOnSelection: Boolean = true,
+    onExpandedChange: ((Boolean) -> Unit)? = null,
+) {
+    val entries = remember(entry) { listOf(entry) }
+    OverlayDropdownMenu(
+        entries = entries,
+        title = title,
+        modifier = modifier,
+        titleColor = titleColor,
+        summary = summary,
+        summaryColor = summaryColor,
+        dropdownColors = dropdownColors,
+        startAction = startAction,
+        bottomAction = bottomAction,
+        insideMargin = insideMargin,
+        maxHeight = maxHeight,
+        enabled = enabled,
+        renderInRootScaffold = renderInRootScaffold,
+        collapseOnSelection = collapseOnSelection,
+        onExpandedChange = onExpandedChange,
+    )
+}
+
+/**
+ * A [BasicComponent] wrapper that opens an [OverlayDropdownPopup] for one or more [DropdownEntry] groups.
+ */
+@Composable
+fun OverlayDropdownMenu(
+    entries: List<DropdownEntry>,
+    title: String,
+    modifier: Modifier = Modifier,
+    titleColor: BasicComponentColors = BasicComponentDefaults.titleColor(),
+    summary: String? = null,
+    summaryColor: BasicComponentColors = BasicComponentDefaults.summaryColor(),
+    dropdownColors: DropdownColors = DropdownDefaults.dropdownColors(),
+    startAction: @Composable (() -> Unit)? = null,
+    bottomAction: (@Composable () -> Unit)? = null,
+    insideMargin: PaddingValues = BasicComponentDefaults.InsideMargin,
+    maxHeight: Dp? = null,
+    enabled: Boolean = true,
+    renderInRootScaffold: Boolean = true,
+    collapseOnSelection: Boolean = entries.size <= 1,
+    onExpandedChange: ((Boolean) -> Unit)? = null,
+) {
+    val interactionSource = remember { MutableInteractionSource() }
+    val isDropdownExpanded = remember { mutableStateOf(false) }
+    val isHoldDown = remember { mutableStateOf(false) }
+    val hapticFeedback = LocalHapticFeedback.current
+    val currentHapticFeedback by rememberUpdatedState(hapticFeedback)
+    val currentOnExpandedChange = rememberUpdatedState(onExpandedChange)
+    val setExpanded: (Boolean) -> Unit = remember {
+        { expanded ->
+            if (isDropdownExpanded.value != expanded) {
+                isDropdownExpanded.value = expanded
+                currentOnExpandedChange.value?.invoke(expanded)
+            }
+        }
+    }
+
+    val nonEmptyEntries = entries.filter { it.items.isNotEmpty() }
+    val hasEntries = nonEmptyEntries.isNotEmpty()
+    val actualEnabled = enabled && hasEntries
+    val selectedText = resolveSelectedText(nonEmptyEntries)
+    val actionColor = if (actualEnabled) {
+        MiuixTheme.colorScheme.onSurfaceVariantActions
+    } else {
+        MiuixTheme.colorScheme.disabledOnSecondaryVariant
+    }
+
+    val handleClick = remember(actualEnabled) {
+        {
+            if (actualEnabled) {
+                setExpanded(!isDropdownExpanded.value)
+                if (isDropdownExpanded.value) {
+                    isHoldDown.value = true
+                    currentHapticFeedback.performHapticFeedback(HapticFeedbackType.ContextClick)
+                }
+            }
+        }
+    }
+
+    BasicComponent(
+        modifier = modifier,
+        interactionSource = interactionSource,
+        insideMargin = insideMargin,
+        title = title,
+        titleColor = titleColor,
+        summary = summary,
+        summaryColor = summaryColor,
+        startAction = startAction,
+        endActions = {
+            if (selectedText != null) {
+                Text(
+                    text = selectedText,
+                    fontSize = 14.2.sp,
+                    color = MiuixTheme.colorScheme.onSurfaceVariantActions,
+                    maxLines = 1,
+                    modifier = Modifier.padding(end = 8.dp)
+                )
+            }
+            DropdownArrowEndAction(actionColor = actionColor)
+            if (hasEntries) {
+                OverlayDropdownPopup(
+                    entries = nonEmptyEntries,
+                    show = isDropdownExpanded.value,
+                    onDismiss = { setExpanded(false) },
+                    onDismissFinished = { isHoldDown.value = false },
+                    maxHeight = maxHeight,
+                    dropdownColors = dropdownColors,
+                    renderInRootScaffold = renderInRootScaffold,
+                    collapseOnSelection = collapseOnSelection,
+                )
+            }
+        },
+        bottomAction = bottomAction,
+        onClick = handleClick,
+        role = Role.DropdownList,
+        holdDownState = isHoldDown.value,
+        enabled = actualEnabled,
+    )
+}
