@@ -218,7 +218,6 @@ fun AddEditCourseBottomSheet(
         val material = LocalSheetTopBarMaterial.current
         LiquidTopBarButton(
             onClick = {
-                hapticFeedback.performHapticFeedback(HapticFeedbackType.Confirm)
                 onDismissRequest()
             },
             backdrop = sheetContentBackdrop ?: liquidGlassBackdrop!!,

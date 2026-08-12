@@ -2097,7 +2097,6 @@ fun CourseScheduleApp() {
                         showMorePopup = false
                         viewModel.showJumpWeekDialog()
                     },
-                    isFirst = true,
                 )
                 LiquidGlassDropdownMenuItem(
                     text = "课程管理",
@@ -2117,7 +2116,6 @@ fun CourseScheduleApp() {
                             enterCustomizePage()
                         }
                     },
-                    isLast = true,
                 )
             }
             LiquidGlassDropdownMenu(
@@ -2130,7 +2128,6 @@ fun CourseScheduleApp() {
                         showTodayMorePopup = false
                         todayJumpToDateTrigger++
                     },
-                    isFirst = true,
                 )
                 LiquidGlassDropdownMenuItem(
                     text = "课程管理",
@@ -2140,7 +2137,6 @@ fun CourseScheduleApp() {
                             Intent(context, CourseManageActivity::class.java)
                         context.startActivity(intent)
                     },
-                    isLast = true,
                 )
             }
         }

@@ -329,7 +329,6 @@ fun CourseDetailScreen(
                                 startAction = { backdropAlpha, shadowAlpha ->
                                     LiquidTopBarButton(
                                         onClick = {
-                                            hapticFeedback.performHapticFeedback(HapticFeedbackType.Confirm)
                                             onBackStart()
                                             scope.launch {
                                                 coroutineScope {

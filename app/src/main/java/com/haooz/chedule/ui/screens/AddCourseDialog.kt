@@ -225,7 +225,6 @@ fun AddCourseDialog(
             startAction = {
                 LiquidTopBarButton(
                     onClick = {
-                        hapticFeedback.performHapticFeedback(HapticFeedbackType.Confirm)
                         onDismiss()
                     },
                     backdrop = sheetContentBackdrop ?: liquidGlassBackdrop!!,
@@ -301,7 +300,6 @@ fun AddCourseDialog(
             val material = LocalSheetTopBarMaterial.current
             LiquidTopBarButton(
                 onClick = {
-                    hapticFeedback.performHapticFeedback(HapticFeedbackType.Confirm)
                     onDismiss()
                 },
                 backdrop = sheetContentBackdrop ?: liquidGlassBackdrop!!,
