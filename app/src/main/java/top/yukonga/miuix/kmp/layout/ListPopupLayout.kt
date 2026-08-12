@@ -3,6 +3,7 @@
 
 package top.yukonga.miuix.kmp.layout
 
+import androidx.activity.compose.BackHandler
 import androidx.compose.animation.core.Animatable
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.Box
@@ -14,10 +15,8 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
-import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.input.pointer.pointerInput
@@ -28,12 +27,7 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.IntRect
 import androidx.compose.ui.unit.IntSize
-import androidx.navigationevent.NavigationEventInfo
-import androidx.navigationevent.NavigationEventTransitionState
-import androidx.navigationevent.compose.NavigationBackHandler
-import androidx.navigationevent.compose.rememberNavigationEventState
 import com.kyant.backdrop.Backdrop
-import kotlinx.coroutines.joinAll
 import kotlinx.coroutines.launch
 import top.yukonga.miuix.kmp.basic.ListPopupContent
 import top.yukonga.miuix.kmp.basic.ListPopupDefaults
@@ -76,7 +70,6 @@ internal fun ListPopupLayout(
     val dimProgress = remember { Animatable(0f) }
     val currentOnDismiss by rememberUpdatedState(onDismissRequest)
     val currentOnDismissFinished by rememberUpdatedState(onDismissFinished)
-    val coroutineScope = rememberCoroutineScope()
     val internalVisible = remember { mutableStateOf(false) }
     var popupContentSize by remember { mutableStateOf(IntSize.Zero) }
     var hostPositionInWindow by remember { mutableStateOf(Offset.Zero) }
@@ -141,35 +134,8 @@ internal fun ListPopupLayout(
     }
 
     popupHost(internalVisible.value) {
-        val navigationEventState = rememberNavigationEventState(currentInfo = NavigationEventInfo.None)
-        NavigationBackHandler(
-            state = navigationEventState,
-            isBackEnabled = show,
-            onBackCancelled = {
-                coroutineScope.launch {
-                    joinAll(
-                        launch { fractionProgress.animateTo(1f, ListPopupDefaults.ResetAnimationSpec) },
-                        launch { alphaProgress.animateTo(1f, ListPopupDefaults.AlphaEnterAnimationSpec) },
-                        launch { dimProgress.animateTo(1f, ListPopupDefaults.DimEnterAnimationSpec) },
-                    )
-                }
-            },
-            onBackCompleted = { requestDismiss() },
-        )
-
-        LaunchedEffect(Unit) {
-            snapshotFlow { navigationEventState.transitionState }
-                .collect { transitionState ->
-                    if (
-                        transitionState is NavigationEventTransitionState.InProgress &&
-                        transitionState.direction == NavigationEventTransitionState.TRANSITIONING_BACK
-                    ) {
-                        val progress = transitionState.latestEvent.progress
-                        fractionProgress.snapTo(1f - progress)
-                        alphaProgress.snapTo(1f - progress)
-                        dimProgress.snapTo(1f - progress)
-                    }
-                }
+        BackHandler(enabled = show) {
+            requestDismiss()
         }
 
         Box(

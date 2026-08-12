@@ -187,7 +187,7 @@ private fun DayOfWeekRow(
             .fillMaxWidth()
             .height(40.dp)
             .then(
-                if (isTablet) Modifier.padding(horizontal = 24.dp) else Modifier
+                if (isTablet) Modifier.padding(horizontal = 24.dp) else Modifier.padding(end = 2.dp)
             )
     ) {
         Spacer(modifier = Modifier.width(if (isTablet) 56.dp else 36.dp))

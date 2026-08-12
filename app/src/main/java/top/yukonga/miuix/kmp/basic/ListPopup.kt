@@ -34,6 +34,7 @@ import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Outline
 import androidx.compose.ui.graphics.Path
+import androidx.compose.ui.graphics.Shape
 import androidx.compose.ui.graphics.TransformOrigin
 import androidx.compose.ui.graphics.drawscope.clipPath
 import androidx.compose.ui.graphics.drawscope.drawIntoCanvas
@@ -53,6 +54,7 @@ import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalLayoutDirection
 import androidx.compose.ui.platform.LocalWindowInfo
 import androidx.compose.ui.unit.Constraints
+import androidx.compose.ui.unit.Density
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.IntRect
@@ -65,6 +67,8 @@ import com.kyant.backdrop.drawBackdrop
 import com.kyant.backdrop.effects.blur
 import com.kyant.backdrop.effects.vibrancy
 import com.kyant.shapes.RoundedRectangle
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.launch
 import top.yukonga.miuix.kmp.anim.SinOutEasing
 import top.yukonga.miuix.kmp.squircle.isSquircleEnabled
 import top.yukonga.miuix.kmp.theme.MiuixTheme
@@ -699,11 +703,12 @@ fun ListPopupContent(
 
     val shadowPadding = 24.dp
 
-    // 阴影渐变动画：进入时升到 0.92 显示，退出时降到 0.98 消失，均用 50ms 渐变
+    // 阴影渐变动画：进入时升到 0.78 显示，退出时降到 0.99 消失
     val shadowAlphaState = remember { Animatable(0f) }
     LaunchedEffect(Unit) {
         var prevFraction = fractionProgress()
         var shadowVisible = false
+        var animationJob: Job? = null
         snapshotFlow { fractionProgress() }
             .collect { current ->
                 val isEntering = current >= prevFraction
@@ -715,10 +720,20 @@ fun ListPopupContent(
                 }
                 if (newVisible != shadowVisible) {
                     shadowVisible = newVisible
-                    shadowAlphaState.animateTo(
-                        targetValue = if (newVisible) 1f else 0f,
-                        animationSpec = if (isEntering) tween(200) else tween(50)
-                    )
+                    animationJob?.cancel()
+                    animationJob = launch {
+                        if (newVisible) {
+                            // 进入：渐变出现
+                            shadowAlphaState.animateTo(1f, tween(200))
+                        } else {
+                            // 退出：若进入动画未播完则立即消失，否则快速渐出
+                            if (shadowAlphaState.value >= 1f) {
+                                shadowAlphaState.animateTo(0f, tween(50))
+                            } else {
+                                shadowAlphaState.snapTo(0f)
+                            }
+                        }
+                    }
                 }
             }
     }
@@ -729,7 +744,7 @@ fun ListPopupContent(
             .drawBehind {
                 val shadowAlpha = shadowAlphaState.value
                 if (shadowAlpha <= 0f) return@drawBehind
-                val baseAlpha = (40 * shadowAlpha).toInt().coerceIn(0, 255)
+                val baseAlpha = (32 * shadowAlpha).toInt().coerceIn(0, 255)
                 val shadowColor = android.graphics.Color.argb(baseAlpha, 0, 0, 0)
                 val blurRadius = 16f * density
                 val cornerRadiusPx = cornerRadius.toPx()
@@ -775,15 +790,21 @@ fun ListPopupContent(
                         pivotFractionY = localTransformOrigin.pivotFractionY + (targetOrigin.pivotFractionY - localTransformOrigin.pivotFractionY) * fraction
                     )
                 }
+                // 方向性裁剪揭示效果（位于 blur 外层，裁掉模糊产生的圆角溢出）
+                .popupClipReveal(fractionProgress, popupLayoutPosition, cornerRadius, isSquircleEnabled())
                 // 模糊效果：进入时从7dp变小到0，退出时从0变大到7dp
                 .blur(radius = (8f * (1f - fractionProgress())).dp)
-                // 方向性裁剪揭示效果
-                .popupClipReveal(fractionProgress, popupLayoutPosition, cornerRadius, isSquircleEnabled())
                 .then(
                     if (liquidGlassBackdrop != null && android.os.Build.VERSION.SDK_INT >= 33) {
                         Modifier.drawBackdrop(
                             backdrop = liquidGlassBackdrop,
-                            shape = { RoundedRectangle(cornerRadius) },
+                            shape = {
+                                // 圆角随缩放反向放大，保持视觉圆角不变（与 popupClipReveal 一致）
+                                val fraction = fractionProgress().coerceIn(0f, 1f)
+                                val avgScale = 0.24f + 0.76f * fraction
+                                val scaledCornerRadius = cornerRadius / avgScale
+                                RoundedRectangle(scaledCornerRadius)
+                            },
                             effects = {
                                 vibrancy()
                                 blur(24.dp.toPx())
@@ -796,9 +817,46 @@ fun ListPopupContent(
                         )
                     } else Modifier
                 )
-                .edgeLight(shape = RoundedRectangle(cornerRadius), edgeLight = rememberDefaultEdgeLight()),
+                .edgeLight(
+                    shape = rememberDynamicCornerRadiusShape(fractionProgress, cornerRadius),
+                    edgeLight = rememberDefaultEdgeLight()
+                ),
         ) {
             content()
+        }
+    }
+}
+
+// =====================================================================
+// rememberDynamicCornerRadiusShape - 动态圆角 Shape
+// =====================================================================
+
+/**
+ * 创建一个圆角随动画进度反向放大的 Shape。
+ *
+ * 在弹窗缩放过程中，为保持视觉圆角不变，圆角需要按缩放比例反向放大
+ *（与 popupClipReveal 的圆角补偿逻辑一致）。
+ *
+ * 每帧 createOutline 时都会重新读取 fractionProgress()，从而动态更新圆角。
+ *
+ * @param fractionProgress 提供当前动画进度（0→1）
+ * @param cornerRadius 基准圆角
+ */
+@Composable
+internal fun rememberDynamicCornerRadiusShape(
+    fractionProgress: () -> Float,
+    cornerRadius: Dp,
+): Shape = remember {
+    object : Shape {
+        override fun createOutline(
+            size: Size,
+            layoutDirection: LayoutDirection,
+            density: Density,
+        ): Outline {
+            val fraction = fractionProgress().coerceIn(0f, 1f)
+            val avgScale = 0.24f + 0.76f * fraction
+            val scaledCornerRadius = cornerRadius / avgScale
+            return RoundedRectangle(scaledCornerRadius).createOutline(size, layoutDirection, density)
         }
     }
 }

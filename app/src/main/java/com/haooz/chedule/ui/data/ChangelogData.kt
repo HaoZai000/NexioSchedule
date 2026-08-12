@@ -11,8 +11,9 @@ val changelogData = listOf(
         date = "2026-08-12",
         changes = listOf(
             "应用风格彻底重构为HyperOS4风格",
-            "全新视觉体验，全新操",
+            "全新视觉体验，全局高级材质",
             "Pad端全面焕新，更好用更易用",
+            "修复ShortCut菜单溢出屏幕的问题",
             "修复切换外观后状态栏反色异常的问题"
         )
     ),

@@ -381,7 +381,7 @@ fun MainScheduleScreen(
                         modifier = Modifier
                             .fillMaxWidth()
                             .then(
-                                if (isTablet) Modifier.padding(horizontal = 24.dp) else Modifier
+                                if (isTablet) Modifier.padding(horizontal = 24.dp) else Modifier.padding(end = 2.dp)
                             )
                     ) {
                         SectionColumn(

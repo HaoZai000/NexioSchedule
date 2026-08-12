@@ -17,7 +17,10 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material3.Icon
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -29,7 +32,9 @@ import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.nativeCanvas
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.layout.onGloballyPositioned
+import androidx.compose.ui.layout.positionInWindow
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.platform.LocalWindowInfo
 import androidx.compose.ui.unit.dp
 import androidx.core.graphics.toColorInt
 import com.haooz.chedule.ui.effects.edgelight.edgeLight
@@ -65,6 +70,8 @@ fun ShortcutMenu(
 ) {
     val isLightTheme = !isAppDarkTheme()
     val density = LocalDensity.current
+    val windowInfo = LocalWindowInfo.current
+    val containerWidthPx = windowInfo.containerSize.width
 
     val containerColor =
         if (isLightTheme) Color(0xFFFFFFFF).copy(0.6f)
@@ -72,6 +79,20 @@ fun ShortcutMenu(
 
     val scale = remember { Animatable(0f) }
     val alpha = remember { Animatable(0f) }
+
+    // 挨边检测：菜单右边缘距屏幕右边不足安全边距时，改为向左展开
+    var menuPositionX by remember { mutableStateOf(0f) }
+    var menuWidth by remember { mutableStateOf(0) }
+    val safetyPaddingPx = with(density) { 8.dp.toPx() }
+    val shouldExpandLeft = remember(menuPositionX, menuWidth, containerWidthPx) {
+        val rightEdge = menuPositionX + menuWidth
+        rightEdge > containerWidthPx - safetyPaddingPx
+    }
+    val shiftLeftPx = if (shouldExpandLeft) {
+        // 向左平移使右边缘贴到 (屏幕右边 - 安全边距)
+        (menuPositionX + menuWidth - (containerWidthPx - safetyPaddingPx))
+            .coerceAtLeast(0f)
+    } else 0f
 
     LaunchedEffect(show) {
         if (show) {
@@ -103,12 +124,21 @@ fun ShortcutMenu(
             .wrapContentSize()
             .onGloballyPositioned { coordinates ->
                 onMeasuredSize(coordinates.size.width, coordinates.size.height)
+                menuWidth = coordinates.size.width
+                menuPositionX = coordinates.positionInWindow().x
             }
             .graphicsLayer {
                 scaleX = scale.value
                 scaleY = scale.value
                 this.alpha = alpha.value
-                transformOrigin = TransformOrigin(0f, 1f)
+                // 挨着屏幕右边时 pivot 改为右下角(向左展开)，整体向左平移以留在屏幕内，并额外向右偏移 14dp
+                transformOrigin = TransformOrigin(
+                    if (shouldExpandLeft) 1f else 0f,
+                    1f
+                )
+                translationX = if (shouldExpandLeft) {
+                    -shiftLeftPx + with(density) { 18.dp.toPx() }
+                } else 0f
                 clip = false
             }
             .drawBehind {
