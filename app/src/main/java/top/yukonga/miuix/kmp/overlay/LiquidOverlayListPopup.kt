@@ -12,10 +12,12 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import com.kyant.backdrop.Backdrop
-import top.yukonga.miuix.kmp.basic.ListPopupDefaults
 import top.yukonga.miuix.kmp.basic.PopupPositionProvider
 import top.yukonga.miuix.kmp.layout.ListPopupLayout
+import top.yukonga.miuix.kmp.layout.liquidDropdownPositionProvider
 import top.yukonga.miuix.kmp.utils.MiuixPopupUtils.Companion.PopupLayout
+
+private val LocalMinWidth = 200.dp
 
 /**
  * 带列表的弹窗。
@@ -37,13 +39,13 @@ import top.yukonga.miuix.kmp.utils.MiuixPopupUtils.Companion.PopupLayout
 fun OverlayListPopup(
     show: Boolean,
     popupModifier: Modifier = Modifier,
-    popupPositionProvider: PopupPositionProvider = ListPopupDefaults.DropdownPositionProvider,
+    popupPositionProvider: PopupPositionProvider = liquidDropdownPositionProvider(),
     alignment: PopupPositionProvider.Align = PopupPositionProvider.Align.Start,
     enableWindowDim: Boolean = true,
     onDismissRequest: (() -> Unit)? = null,
     onDismissFinished: (() -> Unit)? = null,
     maxHeight: Dp? = null,
-    minWidth: Dp = ListPopupDefaults.MinWidth,
+    minWidth: Dp = LocalMinWidth,
     renderInRootScaffold: Boolean = true,
     liquidGlassBackdrop: Backdrop? = null,
     onFractionProgress: ((Float) -> Unit)? = null,

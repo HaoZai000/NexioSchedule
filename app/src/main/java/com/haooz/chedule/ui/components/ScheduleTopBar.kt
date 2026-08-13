@@ -73,7 +73,7 @@ internal fun ScheduleTopBar(
         if (showMorePopup) {
             buttonFraction.animateTo(
                 1f,
-                tween(280, easing = CubicBezierEasing(0.34f, 1f, 0.3f, 1f))
+                tween(340, easing = CubicBezierEasing(0.34f, 1f, 0.3f, 1f))
             )
         } else {
             buttonFraction.animateTo(

@@ -5,6 +5,8 @@ package top.yukonga.miuix.kmp.layout
 
 import androidx.activity.compose.BackHandler
 import androidx.compose.animation.core.Animatable
+import androidx.compose.animation.core.spring
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Spacer
@@ -31,11 +33,78 @@ import androidx.compose.ui.unit.IntRect
 import androidx.compose.ui.unit.IntSize
 import com.kyant.backdrop.Backdrop
 import kotlinx.coroutines.launch
+import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.ui.platform.LocalLayoutDirection
+import androidx.compose.ui.unit.LayoutDirection
 import top.yukonga.miuix.kmp.basic.ListPopupContent
 import top.yukonga.miuix.kmp.basic.ListPopupDefaults
 import top.yukonga.miuix.kmp.basic.PopupPositionProvider
 import top.yukonga.miuix.kmp.basic.rememberListPopupLayoutInfo
 import top.yukonga.miuix.kmp.theme.LocalDismissState
+import top.yukonga.miuix.kmp.anim.SinOutEasing
+
+// 本地动画参数（库版本没有这些属性）
+private val FractionEnterAnimSpec = spring<Float>(dampingRatio = 0.78f, stiffness = 232f, visibilityThreshold = 0.0001f)
+private val FractionExitAnimSpec = spring<Float>(dampingRatio = 0.78f, stiffness = 400f, visibilityThreshold = 0.0001f)
+private val AlphaEnterAnimSpec = tween<Float>(durationMillis = 120)
+private val AlphaExitAnimSpec = tween<Float>(durationMillis = 320)
+private val DimEnterAnimSpec = tween<Float>(durationMillis = 200, easing = SinOutEasing)
+private val DimExitAnimSpec = tween<Float>(durationMillis = 300, easing = SinOutEasing)
+private val LocalMinPopupHeight = 50.dp
+
+private fun PopupPositionProvider.Align.resolve(layoutDirection: LayoutDirection): PopupPositionProvider.Align {
+    if (layoutDirection == LayoutDirection.Ltr) return this
+    return when (this) {
+        PopupPositionProvider.Align.Start -> PopupPositionProvider.Align.End
+        PopupPositionProvider.Align.End -> PopupPositionProvider.Align.Start
+        PopupPositionProvider.Align.TopStart -> PopupPositionProvider.Align.TopEnd
+        PopupPositionProvider.Align.TopEnd -> PopupPositionProvider.Align.TopStart
+        PopupPositionProvider.Align.BottomStart -> PopupPositionProvider.Align.BottomEnd
+        PopupPositionProvider.Align.BottomEnd -> PopupPositionProvider.Align.BottomStart
+    }
+}
+
+// 自定义下拉定位提供者（带偏移量）
+fun liquidDropdownPositionProvider(): PopupPositionProvider = object : PopupPositionProvider {
+    private val margins = PaddingValues(horizontal = 0.dp, vertical = 0.dp)
+
+    override fun calculatePosition(
+        anchorBounds: IntRect,
+        windowBounds: IntRect,
+        layoutDirection: LayoutDirection,
+        popupContentSize: IntSize,
+        popupMargin: IntRect,
+        alignment: PopupPositionProvider.Align,
+    ): IntOffset {
+        val offsetXDelta = 82  //@ 3x density
+        val offsetYDelta = 94  //@ 3x density
+
+        val offsetX = if (alignment.resolve(layoutDirection) == PopupPositionProvider.Align.End) {
+            anchorBounds.right - popupContentSize.width - popupMargin.right + offsetXDelta
+        } else {
+            anchorBounds.left + popupMargin.left + offsetXDelta
+        }
+        val offsetY = if (windowBounds.bottom - anchorBounds.bottom > popupContentSize.height) {
+            anchorBounds.top - offsetYDelta
+        } else if (anchorBounds.top - windowBounds.top > popupContentSize.height) {
+            anchorBounds.bottom - popupContentSize.height + offsetYDelta
+        } else {
+            anchorBounds.top + anchorBounds.height / 2 - popupContentSize.height / 2
+        }
+        return IntOffset(
+            x = offsetX.coerceIn(
+                windowBounds.left,
+                (windowBounds.right - popupContentSize.width - popupMargin.right).coerceAtLeast(windowBounds.left),
+            ),
+            y = offsetY.coerceIn(
+                (windowBounds.top + popupMargin.top).coerceAtMost(windowBounds.bottom - popupContentSize.height - popupMargin.bottom),
+                windowBounds.bottom - popupContentSize.height - popupMargin.bottom,
+            ),
+        )
+    }
+
+    override fun getMargins(): PaddingValues = margins
+}
 
 /**
  * 弹窗布局的核心逻辑。
@@ -53,11 +122,11 @@ import top.yukonga.miuix.kmp.theme.LocalDismissState
  * @param content 弹窗内容
  */
 @Composable
-internal fun ListPopupLayout(
+fun ListPopupLayout(
     show: Boolean,
     popupHost: @Composable (visible: Boolean, content: @Composable () -> Unit) -> Unit,
     popupModifier: Modifier = Modifier,
-    popupPositionProvider: PopupPositionProvider = ListPopupDefaults.DropdownPositionProvider,
+    popupPositionProvider: PopupPositionProvider = liquidDropdownPositionProvider(),
     alignment: PopupPositionProvider.Align = PopupPositionProvider.Align.Start,
     enableWindowDim: Boolean = true,
     onDismissRequest: (() -> Unit)? = null,
@@ -81,22 +150,18 @@ internal fun ListPopupLayout(
     LaunchedEffect(show) {
         if (show) {
             internalVisible.value = true
-            // 进入动画：使用较慢的弹簧
-            launch { fractionProgress.animateTo(1f, ListPopupDefaults.FractionEnterAnimationSpec) }
-            launch { alphaProgress.animateTo(1f, ListPopupDefaults.AlphaEnterAnimationSpec) }
+            launch { fractionProgress.animateTo(1f, FractionEnterAnimSpec) }
+            launch { alphaProgress.animateTo(1f, AlphaEnterAnimSpec) }
             if (enableWindowDim) {
-                launch { dimProgress.animateTo(1f, ListPopupDefaults.DimEnterAnimationSpec) }
+                launch { dimProgress.animateTo(1f, DimEnterAnimSpec) }
             }
         } else {
             if (!internalVisible.value) return@LaunchedEffect
-            // 退出动画：使用较快的弹簧
-            launch { fractionProgress.animateTo(0f, ListPopupDefaults.FractionExitAnimationSpec) }
+            launch { fractionProgress.animateTo(0f, FractionExitAnimSpec) }
             if (enableWindowDim) {
-                launch { dimProgress.animateTo(0f, ListPopupDefaults.DimExitAnimationSpec) }
+                launch { dimProgress.animateTo(0f, DimExitAnimSpec) }
             }
-            // 透明度控制整体时序：淡出后立即卸载
-            alphaProgress.animateTo(0f, ListPopupDefaults.AlphaExitAnimationSpec)
-            // 强制重置所有动画状态，确保下次进入从零开始
+            alphaProgress.animateTo(0f, AlphaExitAnimSpec)
             fractionProgress.snapTo(0f)
             alphaProgress.snapTo(0f)
             dimProgress.snapTo(0f)
@@ -105,7 +170,6 @@ internal fun ListPopupLayout(
         }
     }
 
-    // 透传弹窗动画进度给外部
     val currentOnFractionProgress by rememberUpdatedState(onFractionProgress)
     LaunchedEffect(Unit) {
         currentOnFractionProgress?.let { callback ->
@@ -168,7 +232,7 @@ internal fun ListPopupLayout(
                     .layout { measurable, constraints ->
                         val windowBounds = layoutInfo.windowBounds
                         val popupMargin = layoutInfo.popupMargin
-                        val minHeightPx = ListPopupDefaults.MinPopupHeight.roundToPx()
+                        val minHeightPx = LocalMinPopupHeight.roundToPx()
                         val placeable = measurable.measure(
                             constraints.copy(
                                 maxHeight = maxHeight?.roundToPx()?.coerceAtLeast(minHeightPx)
