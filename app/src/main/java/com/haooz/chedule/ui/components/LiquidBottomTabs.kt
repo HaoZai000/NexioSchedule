@@ -1,7 +1,8 @@
 ﻿package com.haooz.chedule.ui.components
 
 import androidx.compose.animation.core.Animatable
-import androidx.compose.animation.core.spring
+import androidx.compose.animation.core.FastOutSlowInEasing
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.RowScope
@@ -10,12 +11,8 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
-import androidx.compose.runtime.setValue
-import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Size
@@ -37,7 +34,6 @@ import com.kyant.backdrop.effects.blur
 import com.kyant.backdrop.effects.lens
 import com.kyant.backdrop.effects.vibrancy
 import com.kyant.shapes.Capsule
-import kotlinx.coroutines.launch
 
 @Composable
 fun LiquidBottomTabs(
@@ -59,22 +55,13 @@ fun LiquidBottomTabs(
     val defaultEdgeLight = rememberDefaultEdgeLight()
 
     val animationScope = rememberCoroutineScope()
-    var currentIndex by remember(selectedTabIndex) {
-        mutableIntStateOf(selectedTabIndex())
-    }
-    LaunchedEffect(selectedTabIndex) {
-        snapshotFlow { selectedTabIndex() }
-            .collect { index -> currentIndex = index }
-    }
-
-    val selectorOffset = remember { Animatable(0f) }
-    LaunchedEffect(currentIndex) {
-        animationScope.launch {
-            selectorOffset.animateTo(
-                targetValue = currentIndex.toFloat(),
-                animationSpec = spring(dampingRatio = 0.7f, stiffness = 300f)
-            )
-        }
+    val currentTab = selectedTabIndex()
+    val selectorOffset = remember { Animatable(currentTab.toFloat()) }
+    LaunchedEffect(currentTab) {
+        selectorOffset.animateTo(
+            targetValue = currentTab.toFloat(),
+            animationSpec = tween(durationMillis = 300, easing = FastOutSlowInEasing)
+        )
     }
 
     val interactiveHighlight = remember(animationScope) {
