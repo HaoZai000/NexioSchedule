@@ -835,38 +835,8 @@ fun ListPopupContent(
 }
 
 // =====================================================================
-// rememberDynamicCornerRadiusShape - 动态圆角 Shape
-// =====================================================================
-
-/**
- * 创建一个圆角随动画进度反向放大的 Shape。
- *
- * 在弹窗缩放过程中，为保持视觉圆角不变，圆角需要按缩放比例反向放大
- *（与 popupClipReveal 的圆角补偿逻辑一致）。
- *
- * 每帧 createOutline 时都会重新读取 fractionProgress()，从而动态更新圆角。
- *
- * @param fractionProgress 提供当前动画进度（0→1）
- * @param cornerRadius 基准圆角
- */
-@Composable
-fun rememberDynamicCornerRadiusShape(
-    fractionProgress: () -> Float,
-    cornerRadius: Dp,
-): Shape = remember {
-    object : Shape {
-        override fun createOutline(
-            size: Size,
-            layoutDirection: LayoutDirection,
-            density: Density,
-        ): Outline {
-            val fraction = fractionProgress().coerceIn(0f, 1f)
-            val avgScale = 0.24f + 0.76f * fraction
-            val scaledCornerRadius = cornerRadius / avgScale
-            return RoundedRectangle(scaledCornerRadius).createOutline(size, layoutDirection, density)
-        }
-    }
-}
+// rememberDynamicCornerRadiusShape 已移至 DynamicCornerRadiusShape.kt，
+// 避免与 libs.miuix.ui 库中的 ListPopupKt 类冲突导致 NoSuchMethodError。
 
 // =====================================================================
 // popupClipReveal - 方向性裁剪揭示修饰符

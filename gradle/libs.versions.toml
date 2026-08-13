@@ -2,17 +2,17 @@
 
 [versions]
 # 构建工具
-agp = "9.2.1"                          # Android Gradle Plugin
-kotlin = "2.4.10"                       # Kotlin 编译器（含 Compose 编译插件）
+agp = "9.2.1"                         # Android Gradle Plugin
+kotlin = "2.4.10"                     # Kotlin 编译器（含 Compose 编译插件）
 
 # AndroidX 基础
-coreKtx = "1.18.0"                     # AndroidX Core KTX
+coreKtx = "1.18.0"                    # AndroidX Core KTX
 lifecycleRuntimeKtx = "2.9.1"         # 生命周期运行时 KTX
 activityCompose = "1.13.0"            # Activity 与 Compose 集成
 composeBom = "2026.05.01"             # Compose BOM 版本对齐
 material3 = "1.5.0-alpha19"           # Material3 (MotionScheme 公开 API 需要此版本)
-window = "1.5.1"                        # Jetpack WindowManager（Activity 嵌入，最新稳定版）
-startupRuntime = "1.2.0"               # App Startup（自动初始化 Activity 嵌入规则）
+window = "1.5.1"                      # Jetpack WindowManager（Activity 嵌入，最新稳定版）
+startupRuntime = "1.2.0"              # App Startup（自动初始化 Activity 嵌入规则）
 
 # 第三方 UI
 miuix = "0.9.3"                       # Miuix 小米风格组件库
@@ -24,9 +24,9 @@ gson = "2.11.0"                       # Gson JSON 序列化
 okhttp = "4.12.0"                     # OkHttp HTTP 客户端（版本硬编码于 libraries 段）
 
 # Git
-jgit = "5.13.5.202508271544-r"       # JGit 纯 Java Git 库
+jgit = "5.13.5.202508271544-r"        # JGit 纯 Java Git 库
 slf4j = "2.0.18"                      # SLF4J API 日志门面
-slf4j_android = "1.7.36"             # SLF4J Android 实现
+slf4j_android = "1.7.36"              # SLF4J Android 实现
 
 # Shizuku
 shizuku = "13.1.5"                    # Shizuku 免 Root 高权限框架
