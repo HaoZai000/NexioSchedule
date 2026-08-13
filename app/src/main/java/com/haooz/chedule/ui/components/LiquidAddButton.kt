@@ -26,6 +26,7 @@ import com.kyant.backdrop.effects.lens
 import com.kyant.backdrop.effects.vibrancy
 import top.yukonga.miuix.kmp.icon.MiuixIcons
 import top.yukonga.miuix.kmp.icon.extended.Add
+import top.yukonga.miuix.kmp.theme.MiuixTheme
 
 @Composable
 fun LiquidAddButton(
@@ -36,9 +37,9 @@ fun LiquidAddButton(
     val animationScope = rememberCoroutineScope()
     val hapticFeedback = LocalHapticFeedback.current
     val isLightTheme = !isAppDarkTheme()
-    val containerColor =
-        if (isLightTheme) Color(0xFFFFFFFF).copy(0.6f)
-        else Color(0xFF121212).copy(0.54f)
+    val containerColor = if (isLightTheme) MiuixTheme.colorScheme.primary.copy(0.72f) else
+        MiuixTheme.colorScheme.primary.copy(0.62f)
+
 
     val interactiveHighlight = remember(animationScope) {
         InteractiveHighlight(
@@ -54,8 +55,8 @@ fun LiquidAddButton(
                 shape = { CircleShape },
                 effects = {
                     vibrancy()
-                    blur(2f.dp.toPx())
-                    lens(20f.dp.toPx(), 20f.dp.toPx())
+                    blur(4f.dp.toPx())
+                    lens(10f.dp.toPx(), 32f.dp.toPx())
                 },
                 highlight = null,
                 layerBlock = {
@@ -68,6 +69,8 @@ fun LiquidAddButton(
                     translationY = size.minDimension * 0.05f * offset.y / size.maxDimension
                 },
                 onDrawSurface = {
+                    val overlayColor = if (isLightTheme) Color.Black.copy(alpha = 0.2f) else Color.White.copy(alpha = 0.15f)
+                    drawRect(overlayColor)
                     drawRect(containerColor)
                     drawRect(Color.Black.copy(alpha = 0.03f * interactiveHighlight.pressProgress))
                 }
@@ -90,7 +93,7 @@ fun LiquidAddButton(
             imageVector = MiuixIcons.Demibold.Add,
             contentDescription = "添加课程",
             modifier = Modifier.size(24.dp),
-            tint = if (isLightTheme) Color.Black.copy(alpha = 0.8f) else Color.White.copy(alpha = 0.8f)
+            tint = Color.White.copy(0.92f)
         )
     }
 }

@@ -1291,7 +1291,15 @@ fun CourseScheduleApp() {
                         isShiftMode = isShiftMode,
                         selectedTab = selectedTab,
                         onTabSelected = { selectedTab = it },
-                        liquidGlassBackdrop = liquidGlassBackdrop
+                        liquidGlassBackdrop = liquidGlassBackdrop,
+                        addButton = {
+                            if (!isShiftMode) {
+                                LiquidAddButton(
+                                    onClick = { viewModel.showAddDialog() },
+                                    backdrop = liquidGlassBackdrop
+                                )
+                            }
+                        }
                     )
                 },
                 topBar = {
@@ -1673,22 +1681,6 @@ fun CourseScheduleApp() {
 
                 // 更新弹窗
                 UpdateDialog(liquidGlassBackdrop = liquidGlassBackdrop)
-
-                // LiquidGlass 添加课程浮动按钮
-                if (!isShiftMode) {
-                    Box(
-                        modifier = Modifier
-                            .fillMaxSize()
-                            .padding(end = 20.dp, bottom = 28.dp)
-                            .zIndex(1f),
-                        contentAlignment = Alignment.BottomEnd
-                    ) {
-                        LiquidAddButton(
-                            onClick = { viewModel.showAddDialog() },
-                            backdrop = liquidGlassBackdrop
-                        )
-                    }
-                }
 
                 // 添加课程对话框
                 val showAddDialog by viewModel.showAddDialog.collectAsState()

@@ -72,8 +72,8 @@ fun LiquidBottomTabs(
 ) {
     val isLightTheme = !isAppDarkTheme()
     val accentColor =
-        if (isLightTheme) Color(0xFF0088FF)
-        else Color(0xFF0091FF)
+        if (isLightTheme) Color.Black
+        else Color.White
     val containerColor =
         if (isLightTheme) Color(0xFFFFFFFF).copy(0.6f)
         else Color(0xFF121212).copy(0.54f)
@@ -175,8 +175,8 @@ fun LiquidBottomTabs(
                     shape = { Capsule() },
                     effects = {
                         vibrancy()
-                        blur(2f.dp.toPx())
-                        lens(24f.dp.toPx(), 24f.dp.toPx())
+                        blur(4f.dp.toPx())
+                        lens(10f.dp.toPx(), 32f.dp.toPx())
                     },
                     highlight = null,
                     layerBlock = {

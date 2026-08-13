@@ -1,7 +1,9 @@
 package com.haooz.chedule.ui.components
 
 import androidx.compose.foundation.Image
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -45,7 +47,8 @@ internal fun ScheduleBottomBar(
     isShiftMode: Boolean,
     selectedTab: Int,
     onTabSelected: (Int) -> Unit,
-    liquidGlassBackdrop: Backdrop? = null
+    liquidGlassBackdrop: Backdrop? = null,
+    addButton: @Composable () -> Unit = {}
 ) {
     val hapticFeedback = LocalHapticFeedback.current
     val onSelect: (Int) -> Unit = { idx ->
@@ -80,7 +83,7 @@ internal fun ScheduleBottomBar(
                     backdrop = liquidGlassBackdrop,
                     tabsCount = 2,
                     modifier = Modifier
-                        .fillMaxWidth(0.46f)
+                        .fillMaxWidth(0.42f)
                         .height(56.dp)
                 ) {
                     LiquidBottomTab({ onSelect(0) }) {
@@ -104,42 +107,54 @@ internal fun ScheduleBottomBar(
                 }
             }
         } else {
-            LiquidBottomTabs(
-                selectedTabIndex = { liquidSelectedTab },
-                onTabSelected = { onSelect(it) },
-                backdrop = liquidGlassBackdrop,
-                tabsCount = 3,
+            Box(
                 modifier = Modifier
-                    .padding(start = 20.dp, end = 0.dp, bottom = 28.dp)
-                    .fillMaxWidth(0.65f)
-                    .height(56.dp)
+                    .fillMaxWidth()
+                    .padding(bottom = 28.dp),
+                contentAlignment = Alignment.Center
             ) {
-                LiquidBottomTab({ onSelect(0) }) {
-                    Image(
-                        modifier = Modifier.size(24.dp),
-                        imageVector = MiuixIcons.Album,
-                        contentDescription = null,
-                        colorFilter = ColorFilter.tint(iconTint)
-                    )
-                    Text("今日", fontSize = 11.sp, color = iconTint)
-                }
-                LiquidBottomTab({ onSelect(1) }) {
-                    Image(
-                        modifier = Modifier.size(24.dp),
-                        imageVector = MiuixIcons.Months,
-                        contentDescription = null,
-                        colorFilter = ColorFilter.tint(iconTint)
-                    )
-                    Text("课程表", fontSize = 11.sp, color = iconTint)
-                }
-                LiquidBottomTab({ onSelect(2) }) {
-                    Image(
-                        modifier = Modifier.size(24.dp),
-                        imageVector = MiuixIcons.ContactsCircle,
-                        contentDescription = null,
-                        colorFilter = ColorFilter.tint(iconTint)
-                    )
-                    Text("我的", fontSize = 11.sp, color = iconTint)
+                Row(
+                    horizontalArrangement = Arrangement.spacedBy(12.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    LiquidBottomTabs(
+                        selectedTabIndex = { liquidSelectedTab },
+                        onTabSelected = { onSelect(it) },
+                        backdrop = liquidGlassBackdrop,
+                        tabsCount = 3,
+                        modifier = Modifier
+                            .fillMaxWidth(0.63f)
+                            .height(56.dp)
+                    ) {
+                        LiquidBottomTab({ onSelect(0) }) {
+                            Image(
+                                modifier = Modifier.size(24.dp),
+                                imageVector = MiuixIcons.Album,
+                                contentDescription = null,
+                                colorFilter = ColorFilter.tint(iconTint)
+                            )
+                            Text("今日", fontSize = 11.sp, color = iconTint)
+                        }
+                        LiquidBottomTab({ onSelect(1) }) {
+                            Image(
+                                modifier = Modifier.size(24.dp),
+                                imageVector = MiuixIcons.Months,
+                                contentDescription = null,
+                                colorFilter = ColorFilter.tint(iconTint)
+                            )
+                            Text("课程表", fontSize = 11.sp, color = iconTint)
+                        }
+                        LiquidBottomTab({ onSelect(2) }) {
+                            Image(
+                                modifier = Modifier.size(24.dp),
+                                imageVector = MiuixIcons.ContactsCircle,
+                                contentDescription = null,
+                                colorFilter = ColorFilter.tint(iconTint)
+                            )
+                            Text("我的", fontSize = 11.sp, color = iconTint)
+                        }
+                    }
+                    addButton()
                 }
             }
         }
