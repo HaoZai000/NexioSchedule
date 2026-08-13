@@ -29,7 +29,7 @@ object IslandNotificationHelper {
     // business: 运营场景标识（官方必选字段）
     private const val BUSINESS_TAG = "course_reminder"
     // 通知更新序号计数器：保证课前→已上课等多次更新不乱序（官方 sequence 字段）
-    private val sequenceCounter = java.util.concurrent.atomic.AtomicLong(0)
+    private val sequenceCounter = java.util.concurrent.atomic.AtomicLong(System.currentTimeMillis() / 1000)
 
     private val scope = CoroutineScope(Dispatchers.IO)
     // 串行化 Shizuku bypass 流程，避免并发导致 XMSF 网络状态错乱
