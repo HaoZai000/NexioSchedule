@@ -53,9 +53,7 @@ fun LiquidNavigationRail(
                 .padding(top = topPadding + 4.dp)
                 .width(if (isShiftMode) 160.dp else 240.dp)
                 .height(40.dp),
-            containerHeight = 400.dp,
-            highlightHeight = 32.dp,
-            selectorHeight = 32.dp
+            containerHeight = 400.dp
         ) {
             if (!isShiftMode) {
                 LiquidBottomTab({ onTabSelected(0) }) {
