@@ -1,6 +1,8 @@
 package com.haooz.chedule.ui.components
 
 import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.core.Animatable
+import androidx.compose.animation.core.CubicBezierEasing
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
@@ -13,24 +15,27 @@ import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.asPaddingValues
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.statusBars
 import androidx.compose.foundation.layout.width
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.zIndex
 import com.haooz.chedule.ui.basic.CollapsibleTopAppBar
 import com.haooz.chedule.ui.basic.CollapsibleTopAppBarDefaults.CollapsedHeight
-import com.haooz.chedule.ui.basic.SharedScrollBehavior
 import com.haooz.chedule.ui.basic.LiquidTopBarButton
 import com.haooz.chedule.ui.basic.ProgressiveBlurTopBar
+import com.haooz.chedule.ui.basic.SharedScrollBehavior
 import top.yukonga.miuix.kmp.basic.Text
 import top.yukonga.miuix.kmp.icon.MiuixIcons
 import top.yukonga.miuix.kmp.icon.extended.ConvertFile
@@ -57,9 +62,26 @@ internal fun ScheduleTopBar(
     onMoreClick: () -> Unit = {},
     isTablet: Boolean = false,
     liquidGlassBackdrop: com.kyant.backdrop.Backdrop?,
-    scrollBehavior: SharedScrollBehavior? = null
+    scrollBehavior: SharedScrollBehavior? = null,
+    showMorePopup: Boolean = false,
+    morePopupFraction: Animatable<Float, *>? = null,
 ) {
     if (!visible || liquidGlassBackdrop == null) return
+
+    val buttonFraction = remember { Animatable(0f) }
+    LaunchedEffect(showMorePopup) {
+        if (showMorePopup) {
+            buttonFraction.animateTo(
+                1f,
+                tween(280, easing = CubicBezierEasing(0.34f, 1f, 0.3f, 1f))
+            )
+        } else {
+            buttonFraction.animateTo(
+                0f,
+                tween(420, easing = CubicBezierEasing(0.34f, 1.2f, 0.3f, 1f))
+            )
+        }
+    }
 
     val hapticFeedback = LocalHapticFeedback.current
 
@@ -153,7 +175,14 @@ internal fun ScheduleTopBar(
                             contentDescription = "更多",
                             iconSize = 23.dp,
                             backdropAlpha = backdropAlpha,
-                            shadowAlpha = shadowAlpha
+                            shadowAlpha = shadowAlpha,
+                            modifier = Modifier.offset {
+                                    val f = buttonFraction.value
+                                    IntOffset(
+                                        x = (-100 * f).dp.roundToPx(),
+                                        y = (45 * f).dp.roundToPx()
+                                    )
+                                }
                         )
                     }
                 }

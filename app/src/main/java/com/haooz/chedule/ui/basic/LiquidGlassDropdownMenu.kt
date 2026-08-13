@@ -16,7 +16,10 @@ import androidx.compose.foundation.layout.wrapContentHeight
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.blur
@@ -70,15 +73,30 @@ fun LiquidGlassDropdownMenu(
     show: Boolean,
     backdrop: Backdrop,
     modifier: Modifier = Modifier,
+    fraction: Animatable<Float,*> = remember { Animatable(0f) },
     content: @Composable ColumnScope.() -> Unit
 ) {
     val isLightTheme = !isAppDarkTheme()
     val containerColor = if (isLightTheme) Color(0xFFFFFFFF).copy(0.72f)
         else Color(0xFF242424).copy(0.8f)
 
-    // fraction 驱动整套动画（0=完全关闭，1=完全展开）
-    val fraction = remember { Animatable(0f) }
-    val alpha = remember { Animatable(0f) }
+    val menuAlpha = remember { Animatable(0f) }
+
+    // 内容透明度：进入时从 0.4f 渐显到 1.0f，退出时从 fraction=0.5f 开始消失
+    var contentAlpha by remember { mutableFloatStateOf(0f) }
+    LaunchedEffect(Unit) {
+        var prevFraction = 0f
+        snapshotFlow { fraction.value }
+            .collect { current ->
+                val isEntering = current >= prevFraction
+                prevFraction = current
+                contentAlpha = if (isEntering) {
+                    0.2f + 0.8f * current
+                } else {
+                    if (current > 0.5f) 1f else current * 2f
+                }
+            }
+    }
 
     // 阴影渐变动画：进入时升到 0.78 显示，退出时降到 0.99 消失
     val shadowAlphaState = remember { Animatable(0f) }
@@ -131,7 +149,7 @@ fun LiquidGlassDropdownMenu(
                 )
             }
             launch {
-                alpha.animateTo(1f, tween(120))
+                menuAlpha.animateTo(1f, tween(120))
             }
         } else {
             // fraction 退出动画与 alpha 退出动画并行
@@ -141,13 +159,13 @@ fun LiquidGlassDropdownMenu(
                     spring(dampingRatio = 0.78f, stiffness = 400f, visibilityThreshold = 0.0001f)
                 )
             }
-            alpha.animateTo(0f, tween(320))
+            menuAlpha.animateTo(0f, tween(380))
             fraction.snapTo(0f)
-            alpha.snapTo(0f)
+            menuAlpha.snapTo(0f)
         }
     }
 
-    if (alpha.value <= 0f && !show) return
+    if (menuAlpha.value <= 0f && !show) return
 
     // 外层 Box：padding 给阴影留空间，阴影不被缩放（与 ListPopupContent 结构一致）
     // offset 随 fraction 渐变：fraction=0 时偏移到按钮中心，fraction=1 时归零
@@ -191,7 +209,7 @@ fun LiquidGlassDropdownMenu(
                     val scale = 0.24f + 0.76f * f
                     scaleX = scale
                     scaleY = scale
-                    this.alpha = alpha.value
+                    this.alpha = menuAlpha.value
                     // 从锚点(1f, 0f)动态移动到中心(0.5f, 0.5f)
                     val startOrigin = TransformOrigin(1f, 0f)
                     val targetOrigin = TransformOrigin(0.5f, 0.5f)
@@ -229,7 +247,10 @@ fun LiquidGlassDropdownMenu(
                     edgeLight = rememberDefaultEdgeLight()
                 )
         ) {
-            Column(modifier = Modifier.padding(vertical = 8.dp)) {
+            Column(modifier = Modifier
+                .padding(vertical = 8.dp)
+                .graphicsLayer { alpha = contentAlpha }
+            ) {
                 content()
             }
         }

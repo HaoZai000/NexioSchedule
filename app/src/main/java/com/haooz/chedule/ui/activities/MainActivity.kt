@@ -74,6 +74,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -1138,6 +1139,7 @@ fun CourseScheduleApp() {
     var scheduleChanged by remember { mutableStateOf(false) }
     var showMorePopup by remember { mutableStateOf(false) }
     var showTodayMorePopup by remember { mutableStateOf(false) }
+    val morePopupFraction = remember { Animatable(0f) }
     var todayJumpToDateTrigger by remember { mutableIntStateOf(0) }
 
     val isViewingCurrentWeek = currentViewingWeek == currentWeek
@@ -1325,7 +1327,9 @@ fun CourseScheduleApp() {
                         onMoreClick = { showMorePopup = true },
                         isTablet = isTablet,
                         liquidGlassBackdrop = liquidGlassBackdrop,
-                        scrollBehavior = scheduleScrollBehavior
+                        scrollBehavior = scheduleScrollBehavior,
+                        showMorePopup = showMorePopup,
+                        morePopupFraction = morePopupFraction,
                     )
                     // 设置页标题栏（Activity 层级渲染，避免 drawPlainBackdrop native crash）
                     if (selectedTab == 2 || (isShiftMode && selectedTab == 1)) {
@@ -1345,6 +1349,7 @@ fun CourseScheduleApp() {
                             onBackToToday = { scrollToTodayTrigger++ },
                             onMoreClick = { showTodayMorePopup = true },
                             scrollBehavior = todayScrollBehavior,
+                            showMorePopup = showTodayMorePopup,
                         )
                     }
                 }
@@ -2090,6 +2095,7 @@ fun CourseScheduleApp() {
             LiquidGlassDropdownMenu(
                 show = showMorePopup,
                 backdrop = liquidGlassBackdrop,
+                fraction = morePopupFraction,
             ) {
                 LiquidGlassDropdownMenuItem(
                     text = "跳转周数",
@@ -3169,12 +3175,28 @@ private fun TodayTopBar(
     onBackToToday: () -> Unit = {},
     onMoreClick: () -> Unit = {},
     scrollBehavior: SharedScrollBehavior? = null,
+    showMorePopup: Boolean = false,
 ) {
     if (liquidGlassBackdrop == null) return
     val isTabletLiquidGlass = navBarStyle == "rail"
     val dayOfWeekNames = listOf("周一", "周二", "周三", "周四", "周五", "周六", "周日")
     val dayOfWeekName = if (currentDayOfWeek in 1..7) dayOfWeekNames[currentDayOfWeek - 1] else ""
     val titleText = if (isToday) "今天是$dayOfWeekName" else dayOfWeekName
+
+    val buttonFraction = remember { Animatable(0f) }
+    LaunchedEffect(showMorePopup) {
+        if (showMorePopup) {
+            buttonFraction.animateTo(
+                1f,
+                tween(280, easing = CubicBezierEasing(0.34f, 1f, 0.3f, 1f))
+            )
+        } else {
+            buttonFraction.animateTo(
+                0f,
+                tween(420, easing = CubicBezierEasing(0.34f, 1.2f, 0.3f, 1f))
+            )
+        }
+    }
 
     ProgressiveBlurTopBar(
         backdrop = liquidGlassBackdrop,
@@ -3222,6 +3244,13 @@ private fun TodayTopBar(
                     iconSize = 23.dp,
                     backdropAlpha = backdropAlpha,
                     shadowAlpha = shadowAlpha,
+                    modifier = Modifier.offset {
+                        val f = buttonFraction.value
+                        IntOffset(
+                            x = (-100 * f).dp.roundToPx(),
+                            y = (45 * f).dp.roundToPx()
+                        )
+                    },
                 )
             },
         )
