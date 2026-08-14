@@ -88,31 +88,35 @@ fun CourseCard(
     val scope = rememberCoroutineScope()
 
     val effectiveAlpha = if (hasBlur) cardAlpha * 1.6f else cardAlpha
-    val cardColor = if (isCurrentWeek) {
-        Color(course.colorRes).copy(alpha = effectiveAlpha)
-    } else {
-        Color(0xFF9E9E9E).copy(alpha = effectiveAlpha * 0.7f)
-    }
-    val textColor = if (isCurrentWeek) {
-        if (hasBlur) Color(course.colorRes).let { c ->
-            val hsv = FloatArray(3)
-            AndroidColor.RGBToHSV((c.red * 255).toInt(), (c.green * 255).toInt(), (c.blue * 255).toInt(), hsv)
-            if (isDark) {
-                hsv[1] = (hsv[1] * 0.5f).coerceIn(0f, 1f)
-                hsv[2] = (hsv[2] + 0.4f).coerceIn(0f, 1f)
-            } else {
-                hsv[1] = (hsv[1] * 0.84f).coerceIn(0f, 1f)
-                hsv[2] = (hsv[2] + 0.5f).coerceIn(0f, 1f)
-            }
-            val boosted = AndroidColor.HSVToColor(hsv)
-            Color(AndroidColor.red(boosted), AndroidColor.green(boosted), AndroidColor.blue(boosted))
-        }
-        else Color(course.colorRes)
-    } else {
-        if (hasBlur) {
-            if (isDark) Color.White.copy(alpha = 0.4f) else Color.Black.copy(alpha = 0.3f)
+    val cardColor = remember(course.colorRes, isCurrentWeek, effectiveAlpha) {
+        if (isCurrentWeek) {
+            Color(course.colorRes).copy(alpha = effectiveAlpha)
         } else {
-            Color(0xFF9E9E9E).copy(alpha = if (isDark) 0.28f else 0.45f)
+            Color(0xFF9E9E9E).copy(alpha = effectiveAlpha * 0.7f)
+        }
+    }
+    val textColor = remember(course.colorRes, isCurrentWeek, hasBlur, isDark) {
+        if (isCurrentWeek) {
+            if (hasBlur) Color(course.colorRes).let { c ->
+                val hsv = FloatArray(3)
+                AndroidColor.RGBToHSV((c.red * 255).toInt(), (c.green * 255).toInt(), (c.blue * 255).toInt(), hsv)
+                if (isDark) {
+                    hsv[1] = (hsv[1] * 0.5f).coerceIn(0f, 1f)
+                    hsv[2] = (hsv[2] + 0.4f).coerceIn(0f, 1f)
+                } else {
+                    hsv[1] = (hsv[1] * 0.84f).coerceIn(0f, 1f)
+                    hsv[2] = (hsv[2] + 0.5f).coerceIn(0f, 1f)
+                }
+                val boosted = AndroidColor.HSVToColor(hsv)
+                Color(AndroidColor.red(boosted), AndroidColor.green(boosted), AndroidColor.blue(boosted))
+            }
+            else Color(course.colorRes)
+        } else {
+            if (hasBlur) {
+                if (isDark) Color.White.copy(alpha = 0.4f) else Color.Black.copy(alpha = 0.3f)
+            } else {
+                Color(0xFF9E9E9E).copy(alpha = if (isDark) 0.28f else 0.45f)
+            }
         }
     }
 

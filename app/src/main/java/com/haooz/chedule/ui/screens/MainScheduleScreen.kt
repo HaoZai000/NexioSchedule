@@ -285,21 +285,24 @@ fun MainScheduleScreen(
         // 壁纸背景
         if (wallpaperBitmap != null) {
             Box(modifier = Modifier.fillMaxSize().layerBackdrop(wallpaperBackdrop).kyantLayerBackdrop(courseCardBackdrop)) {
-                val brightnessFilter = if (wallpaperBrightness != 0f) {
-                    val b = (1f + wallpaperBrightness / 50f).coerceIn(0f, 2f)
-                    androidx.compose.ui.graphics.ColorFilter.colorMatrix(
-                        androidx.compose.ui.graphics.ColorMatrix(
-                            floatArrayOf(
-                                b, 0f, 0f, 0f, 0f,
-                                0f, b, 0f, 0f, 0f,
-                                0f, 0f, b, 0f, 0f,
-                                0f, 0f, 0f, 1f, 0f
+                val brightnessFilter = remember(wallpaperBrightness) {
+                    if (wallpaperBrightness != 0f) {
+                        val b = (1f + wallpaperBrightness / 50f).coerceIn(0f, 2f)
+                        androidx.compose.ui.graphics.ColorFilter.colorMatrix(
+                            androidx.compose.ui.graphics.ColorMatrix(
+                                floatArrayOf(
+                                    b, 0f, 0f, 0f, 0f,
+                                    0f, b, 0f, 0f, 0f,
+                                    0f, 0f, b, 0f, 0f,
+                                    0f, 0f, 0f, 1f, 0f
+                                )
                             )
                         )
-                    )
-                } else null
+                    } else null
+                }
+                val imageBitmap = remember(wallpaperBitmap) { wallpaperBitmap.asImageBitmap() }
                 androidx.compose.foundation.Image(
-                    bitmap = wallpaperBitmap.asImageBitmap(),
+                    bitmap = imageBitmap,
                     contentDescription = null,
                     modifier = Modifier
                         .fillMaxSize()
@@ -508,6 +511,17 @@ fun MainScheduleScreen(
                     val dividerColor = if (wallpaperBitmap != null) Color.Transparent else MiuixTheme.colorScheme.surfaceContainer
                     val dividerShape = RoundedRectangle(12.dp)
                     val dividerHorizontalPadding = if (isTablet) 24.dp else 4.dp
+                    val dividerIsDark = isAppDarkTheme()
+                    val dividerBlendEntry = remember(dividerIsDark, cardAlpha) {
+                        BlendColorEntry(
+                            color = if (dividerIsDark) Color.Black.copy(alpha = cardAlpha)
+                            else Color.White.copy(alpha = cardAlpha * 2),
+                            mode = BlurBlendMode.SrcOver
+                        )
+                    }
+                    val dividerBlurColors = BlurDefaults.blurColors(
+                        blendColors = listOf(dividerBlendEntry)
+                    )
                     Box(
                         modifier = Modifier.fillMaxWidth().offset(y = morningHeight.dp)
                             .height(24.dp)
@@ -520,15 +534,7 @@ fun MainScheduleScreen(
                                         backdrop = wallpaperBackdrop,
                                         shape = dividerShape,
                                         blurRadius = cardBlurRadius * 2,
-                                        colors = BlurDefaults.blurColors(
-                                            blendColors = listOf(
-                                                BlendColorEntry(
-                                                    color = if (isAppDarkTheme())Color.Black.copy(alpha = cardAlpha)
-                                                    else Color.White.copy(alpha = cardAlpha * 2),
-                                                    mode = BlurBlendMode.SrcOver
-                                                )
-                                            )
-                                        )
+                                        colors = dividerBlurColors
                                     )
                                 } else Modifier
                             ),
@@ -553,15 +559,7 @@ fun MainScheduleScreen(
                                         backdrop = wallpaperBackdrop,
                                         shape = dividerShape,
                                         blurRadius = cardBlurRadius * 2,
-                                        colors = BlurDefaults.blurColors(
-                                            blendColors = listOf(
-                                                BlendColorEntry(
-                                                    color = if (isAppDarkTheme())Color.Black.copy(alpha = cardAlpha)
-                                                            else Color.White.copy(alpha = cardAlpha * 2),
-                                                    mode = BlurBlendMode.SrcOver
-                                                )
-                                            )
-                                        )
+                                        colors = dividerBlurColors
                                     )
                                 } else Modifier
                             ),
@@ -661,13 +659,14 @@ fun MainScheduleScreen(
             )
         }
         val detailContent: @Composable () -> Unit = {
-            val coursesToShow =
+            val coursesToShow = remember(selectedCourses, selectedCourse, viewingWeek) {
                 selectedCourses.ifEmpty { listOfNotNull(selectedCourse) }
                     .sortedWith(
                         compareByDescending<Course> { it.isActiveInWeek(viewingWeek) }
                             .thenByDescending { it.endWeek }
                             .thenByDescending { it.startWeek }
                     )
+            }
             Column(
                 modifier = Modifier
                     .overScrollVertical()

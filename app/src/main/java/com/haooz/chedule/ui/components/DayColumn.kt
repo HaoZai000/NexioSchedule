@@ -42,6 +42,16 @@ import top.yukonga.miuix.kmp.theme.MiuixTheme
 import top.yukonga.miuix.kmp.utils.PressFeedbackType
 
 /**
+ * 课程卡片预计算数据，包裹在 remember 中避免每次重组重复执行 groupBy/filter/分段
+ */
+private data class CourseRenderData(
+    val course: Course,
+    val isCurrentWeekCourse: Boolean,
+    val hasHiddenCourses: Boolean,
+    val segments: List<Pair<Int, Int>>
+)
+
+/**
  * 单列星期（显示该天的所有课程）
  */
 @OptIn(ExperimentalFoundationApi::class)
@@ -346,66 +356,70 @@ fun DayColumn(
                 currentOffset += cardHeightPerSection.toInt()
             }
 
-            // 课程卡片
-            // 按节次分组，优先显示本周课程
-            val coursesBySection = courses.groupBy { it.startSection }
-            val displayedCourses = mutableListOf<Course>()
-            val hiddenCoursesMap = mutableMapOf<Int, List<Course>>()
+            // 课程卡片 —— 将分组/筛选/分段计算包裹在 remember 中，避免每次重组重复执行
+            val courseRenderDataList = remember(courses, currentWeek, showBreakDividers, morningSections, afternoonSections, eveningSections) {
+                val coursesBySection = courses.groupBy { it.startSection }
+                val displayedCourses = mutableListOf<Course>()
+                val hiddenCoursesMap = mutableMapOf<Int, List<Course>>()
 
-            coursesBySection.forEach { (startSection, sectionCourses) ->
-                val currentWeekCourses = sectionCourses.filter { it.isActiveInWeek(currentWeek) }
-                val otherCourses = sectionCourses.filter { !it.isActiveInWeek(currentWeek) }
+                coursesBySection.forEach { (startSection, sectionCourses) ->
+                    val currentWeekCourses = sectionCourses.filter { it.isActiveInWeek(currentWeek) }
+                    val otherCourses = sectionCourses.filter { !it.isActiveInWeek(currentWeek) }
 
-                if (currentWeekCourses.isNotEmpty()) {
-                    // 有本周课程，显示第一个本周课程，其余隐藏
-                    displayedCourses.add(currentWeekCourses.first())
-                    val hidden = currentWeekCourses.drop(1) + otherCourses
-                    if (hidden.isNotEmpty()) {
-                        hiddenCoursesMap[startSection] = hidden
-                    }
-                } else {
-                    // 没有本周课程
-                    // 判断是否所有课程都已结课
-                    val allEnded = otherCourses.all { it.endWeek < currentWeek }
-                    val courseToShow = if (allEnded) {
-                        // 所有课程都已结课，显示最后结课的课程
-                        otherCourses.maxByOrNull { it.endWeek } ?: otherCourses.first()
+                    if (currentWeekCourses.isNotEmpty()) {
+                        displayedCourses.add(currentWeekCourses.first())
+                        val hidden = currentWeekCourses.drop(1) + otherCourses
+                        if (hidden.isNotEmpty()) {
+                            hiddenCoursesMap[startSection] = hidden
+                        }
                     } else {
-                        // 优先显示下周此处的课程（startWeek 最小且 > currentWeek）
-                        otherCourses.filter { it.startWeek > currentWeek }
-                            .minByOrNull { it.startWeek }
-                            ?: otherCourses.first()
+                        val allEnded = otherCourses.all { it.endWeek < currentWeek }
+                        val courseToShow = if (allEnded) {
+                            otherCourses.maxByOrNull { it.endWeek } ?: otherCourses.first()
+                        } else {
+                            otherCourses.filter { it.startWeek > currentWeek }
+                                .minByOrNull { it.startWeek }
+                                ?: otherCourses.first()
+                        }
+                        displayedCourses.add(courseToShow)
+                        val hidden = otherCourses - courseToShow
+                        if (hidden.isNotEmpty()) {
+                            hiddenCoursesMap[startSection] = hidden
+                        }
                     }
-                    displayedCourses.add(courseToShow)
-                    val hidden = otherCourses - courseToShow
-                    if (hidden.isNotEmpty()) {
-                        hiddenCoursesMap[startSection] = hidden
+                }
+
+                val lunchBreak = morningSections
+                val dinnerBreak = morningSections + afternoonSections
+
+                displayedCourses.map { course ->
+                    val isCurrentWeekCourse = course.isActiveInWeek(currentWeek)
+                    val hasHiddenCourses = hiddenCoursesMap.containsKey(course.startSection)
+
+                    val segments = mutableListOf<Pair<Int, Int>>()
+                    if (showBreakDividers) {
+                        var segStart = course.startSection
+                        while (segStart <= course.endSection) {
+                            var segEnd = course.endSection
+                            if (lunchBreak in segStart..<segEnd) segEnd = lunchBreak
+                            if (dinnerBreak in segStart..<segEnd) segEnd = dinnerBreak
+                            segments.add(segStart to segEnd)
+                            segStart = segEnd + 1
+                        }
+                    } else {
+                        segments.add(course.startSection to course.endSection)
                     }
+
+                    CourseRenderData(course, isCurrentWeekCourse, hasHiddenCourses, segments)
                 }
             }
 
-            displayedCourses.forEach { course ->
-                val isCurrentWeekCourse = course.isActiveInWeek(currentWeek)
-                val hasHiddenCourses = hiddenCoursesMap.containsKey(course.startSection)
+            courseRenderDataList.forEach { renderData ->
+                val course = renderData.course
+                val isCurrentWeekCourse = renderData.isCurrentWeekCourse
+                val isDragging = course.id in draggingCourseIds && isCurrentWeekCourse
 
-                // 跨分界线的课程拆分为多段，避免午休/晚休栏穿过卡片中间
-                val lunchBreak = morningSections
-                val dinnerBreak = morningSections + afternoonSections
-                val segments = mutableListOf<Pair<Int, Int>>()
-                if (showBreakDividers) {
-                    var segStart = course.startSection
-                    while (segStart <= course.endSection) {
-                        var segEnd = course.endSection
-                        if (lunchBreak in segStart..<segEnd) segEnd = lunchBreak
-                        if (dinnerBreak in segStart..<segEnd) segEnd = dinnerBreak
-                        segments.add(segStart to segEnd)
-                        segStart = segEnd + 1
-                    }
-                } else {
-                    segments.add(course.startSection to course.endSection)
-                }
-
-                segments.forEachIndexed { idx, (segStartSection, segEndSection) ->
+                renderData.segments.forEachIndexed { idx, (segStartSection, segEndSection) ->
                     val displayCourse = course.copy(startSection = segStartSection, endSection = segEndSection)
                     val dividerGap = if (showBreakDividers) 24 else 0
                     val segOffset = when {
@@ -422,7 +436,7 @@ fun DayColumn(
                         CourseCard(
                             course = displayCourse,
                             isCurrentWeek = isCurrentWeekCourse,
-                            hasMultipleCourses = idx == 0 && hasHiddenCourses,
+                            hasMultipleCourses = idx == 0 && renderData.hasHiddenCourses,
                             wallpaperBackdrop = wallpaperBackdrop,
                             cardBlurRadius = cardBlurRadius,
                             cardAlpha = cardAlpha,
@@ -430,7 +444,7 @@ fun DayColumn(
                             cardCornerRadius = cardCornerRadius,
                             isTablet = isTablet,
                             cardContentAlignment = cardContentAlignment,
-                            isDragging = displayCourse.id in draggingCourseIds && isCurrentWeekCourse,
+                            isDragging = isDragging,
                             onClick = {
                                 onPendingChange(-1, -1)
                                 onCourseClick(course)
