@@ -45,6 +45,9 @@ import top.yukonga.miuix.kmp.theme.MiuixTheme
 import java.time.LocalDate
 import java.time.format.DateTimeFormatter
 
+private val DAY_NAMES = listOf("周一", "周二", "周三", "周四", "周五", "周六", "周日")
+private val MM_DD_FORMATTER = DateTimeFormatter.ofPattern("MM/dd")
+
 @Composable
 internal fun ScheduleTopBar(
     visible: Boolean,
@@ -218,10 +221,9 @@ private fun DayOfWeekRow(
             )
     ) {
         Spacer(modifier = Modifier.width(if (isTablet) 56.dp else 36.dp))
-        val dayNames = listOf("周一", "周二", "周三", "周四", "周五", "周六", "周日")
         dayRange.forEach { dayOfWeek ->
             val index = dayOfWeek - 1
-            val name = dayNames[index]
+            val name = DAY_NAMES[index]
             val isToday = dayOfWeek == currentDayOfWeek && isCurrentWeek
             Box(
                 modifier = Modifier.weight(1f).height(40.dp),
@@ -237,9 +239,9 @@ private fun DayOfWeekRow(
                         else MiuixTheme.colorScheme.onSurface
                     )
                     if (weekDates.isNotEmpty() && index < weekDates.size) {
-                        val dateText = weekDates[index].format(
-                            DateTimeFormatter.ofPattern("MM/dd")
-                        )
+                        val dateText = remember(weekDates[index]) {
+                            weekDates[index].format(MM_DD_FORMATTER)
+                        }
                         Text(
                             text = dateText,
                             style = MiuixTheme.textStyles.footnote2,

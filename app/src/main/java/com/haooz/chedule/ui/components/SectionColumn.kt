@@ -132,12 +132,16 @@ private fun SectionItem(section: Int, startTime: String, endTime: String, yOffse
     val primaryColor = MiuixTheme.colorScheme.primary
     val onSurfaceColor = MiuixTheme.colorScheme.onSurface
     val onSurfaceVariantColor = MiuixTheme.colorScheme.onSurfaceVariantActions
+    val baseBody2 = MiuixTheme.textStyles.body2
+    val baseFootnote2 = MiuixTheme.textStyles.footnote2
 
-    val sectionStyle = MiuixTheme.textStyles.body2.copy(
-        fontWeight = if (isCurrentSection) FontWeight.Medium else FontWeight.Normal
-    )
+    val sectionStyle = remember(isCurrentSection, baseBody2) {
+        baseBody2.copy(
+            fontWeight = if (isCurrentSection) FontWeight.Medium else FontWeight.Normal
+        )
+    }
     val sectionColor = if (isCurrentSection) primaryColor else onSurfaceColor
-    val timeStyle = MiuixTheme.textStyles.footnote2.copy(fontSize = 10.sp)
+    val timeStyle = remember(baseFootnote2) { baseFootnote2.copy(fontSize = 10.sp) }
     val timeColor = if (isCurrentSection) primaryColor else onSurfaceVariantColor
 
     Box(
@@ -170,12 +174,14 @@ private fun OutlinedText(
     if (hasWallpaper) {
         val isDark = isAppDarkTheme()
         val shadowColor = if (isDark) Color.Black else Color.White
-        val shadowStyle = style.copy(
-            shadow = Shadow(
-                color = shadowColor.copy(alpha = 0.92f),
-                blurRadius = 12f
+        val shadowStyle = remember(style, isDark) {
+            style.copy(
+                shadow = Shadow(
+                    color = shadowColor.copy(alpha = 0.92f),
+                    blurRadius = 12f
+                )
             )
-        )
+        }
         Text(
             text = text,
             style = shadowStyle,

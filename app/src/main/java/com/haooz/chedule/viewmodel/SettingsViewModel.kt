@@ -124,24 +124,56 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
 
     /**
      * 从 SharedPreferences 重新加载所有设置（云同步导入后调用）
+     * 仅在值实际变化时更新 Flow，避免不必要的重组风暴
      */
     fun refreshSettings() {
-        _smartWeekend.value = repository.getSmartWeekend()
-        _showNonCurrentWeek.value = repository.getShowNonCurrentWeek()
-        _morningSections.value = repository.getMorningSections()
-        _afternoonSections.value = repository.getAfternoonSections()
-        _eveningSections.value = repository.getEveningSections()
-        _morningTimes.value = repository.getPeriodTimes("morning")
-        _afternoonTimes.value = repository.getPeriodTimes("afternoon")
-        _eveningTimes.value = repository.getPeriodTimes("evening")
-        _preClassReminder.value = repository.getPreClassReminder()
-        _preClassReminderMinutes.value = repository.getPreClassReminderMinutes()
-        _nextDayReminder.value = repository.getNextDayReminder()
-        _nextDayReminderHour.value = repository.getNextDayReminderHour()
-        _nextDayReminderMinute.value = repository.getNextDayReminderMinute()
-        _islandNotification.value = repository.getIslandNotification()
-        _todayShowWallpaper.value = repository.getTodayShowWallpaper()
-        _defaultHomepage.value = repository.getDefaultHomepage()
+        val newSmartWeekend = repository.getSmartWeekend()
+        if (_smartWeekend.value != newSmartWeekend) _smartWeekend.value = newSmartWeekend
+
+        val newShowNonCurrentWeek = repository.getShowNonCurrentWeek()
+        if (_showNonCurrentWeek.value != newShowNonCurrentWeek) _showNonCurrentWeek.value = newShowNonCurrentWeek
+
+        val newMorningSections = repository.getMorningSections()
+        if (_morningSections.value != newMorningSections) _morningSections.value = newMorningSections
+
+        val newAfternoonSections = repository.getAfternoonSections()
+        if (_afternoonSections.value != newAfternoonSections) _afternoonSections.value = newAfternoonSections
+
+        val newEveningSections = repository.getEveningSections()
+        if (_eveningSections.value != newEveningSections) _eveningSections.value = newEveningSections
+
+        val newMorningTimes = repository.getPeriodTimes("morning")
+        if (_morningTimes.value != newMorningTimes) _morningTimes.value = newMorningTimes
+
+        val newAfternoonTimes = repository.getPeriodTimes("afternoon")
+        if (_afternoonTimes.value != newAfternoonTimes) _afternoonTimes.value = newAfternoonTimes
+
+        val newEveningTimes = repository.getPeriodTimes("evening")
+        if (_eveningTimes.value != newEveningTimes) _eveningTimes.value = newEveningTimes
+
+        val newPreClassReminder = repository.getPreClassReminder()
+        if (_preClassReminder.value != newPreClassReminder) _preClassReminder.value = newPreClassReminder
+
+        val newPreClassReminderMinutes = repository.getPreClassReminderMinutes()
+        if (_preClassReminderMinutes.value != newPreClassReminderMinutes) _preClassReminderMinutes.value = newPreClassReminderMinutes
+
+        val newNextDayReminder = repository.getNextDayReminder()
+        if (_nextDayReminder.value != newNextDayReminder) _nextDayReminder.value = newNextDayReminder
+
+        val newNextDayReminderHour = repository.getNextDayReminderHour()
+        if (_nextDayReminderHour.value != newNextDayReminderHour) _nextDayReminderHour.value = newNextDayReminderHour
+
+        val newNextDayReminderMinute = repository.getNextDayReminderMinute()
+        if (_nextDayReminderMinute.value != newNextDayReminderMinute) _nextDayReminderMinute.value = newNextDayReminderMinute
+
+        val newIslandNotification = repository.getIslandNotification()
+        if (_islandNotification.value != newIslandNotification) _islandNotification.value = newIslandNotification
+
+        val newTodayShowWallpaper = repository.getTodayShowWallpaper()
+        if (_todayShowWallpaper.value != newTodayShowWallpaper) _todayShowWallpaper.value = newTodayShowWallpaper
+
+        val newDefaultHomepage = repository.getDefaultHomepage()
+        if (_defaultHomepage.value != newDefaultHomepage) _defaultHomepage.value = newDefaultHomepage
     }
 
     fun setSmartWeekend(smart: Boolean) {

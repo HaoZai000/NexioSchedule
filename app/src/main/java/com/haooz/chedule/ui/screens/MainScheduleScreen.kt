@@ -32,17 +32,18 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.RectangleShape
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
@@ -222,8 +223,11 @@ fun MainScheduleScreen(
         result
     }
 
-    LaunchedEffect(pagerState.currentPage) {
-        viewingWeek = pagerState.currentPage + 1
+    // 用 snapshotFlow 观察翻页，避免 LaunchedEffect(pagerState.currentPage) 导致整个页面重组
+    LaunchedEffect(Unit) {
+        snapshotFlow { pagerState.currentPage }.collect { page ->
+            viewingWeek = page + 1
+        }
     }
 
     LaunchedEffect(showJumpWeekDialog) {
@@ -241,20 +245,11 @@ fun MainScheduleScreen(
         }
     }
 
-    // 预计算每周每天的过滤后课程列表，避免在 pager 页面内重复计算
-    // 注意：不要依赖 pagerState.pageCount，否则滑动时会触发全量重建
+    // 按需缓存：仅在 pager 内部访问时计算，不在顶层读取 pagerState.currentPage
     @Suppress("RedundantInitializer")
-    val filteredCoursesByDayAndWeek =
-        remember(coursesByDay, showNonCurrentWeek, totalWeeks) {
-            Array(totalWeeks.coerceAtLeast(1)) { weekIndex ->
-                val week = weekIndex + 1
-                allDays.associateWith { dayOfWeek ->
-                    val dayCourses = coursesByDay[dayOfWeek] ?: emptyList()
-                    if (showNonCurrentWeek) dayCourses
-                    else dayCourses.filter { it.isActiveInWeek(week) }
-                }
-            }
-        }
+    val filteredCoursesCache = remember(coursesByDay, showNonCurrentWeek) {
+        mutableMapOf<Int, Map<Int, List<Course>>>()
+    }
 
     @Suppress("RedundantInitializer")
     val onPendingChange: (Int, Int) -> Unit = remember {
@@ -333,7 +328,7 @@ fun MainScheduleScreen(
 
         // 手势结束后触发缩放回弹动画（指针输入作用域内无法调用 animate，需通过状态触发）
         var bounceBackTrigger by remember { mutableIntStateOf(0) }
-        var gestureEndScale by remember { androidx.compose.runtime.mutableFloatStateOf(1f) }
+        var gestureEndScale by remember { mutableFloatStateOf(1f) }
         LaunchedEffect(bounceBackTrigger) {
             if (bounceBackTrigger > 0 && gestureEndScale < latestMinWallpaperScale) {
                 animate(
@@ -407,9 +402,15 @@ fun MainScheduleScreen(
                         }
 
                         pageDayRange.forEach { dayOfWeek ->
-                            val filteredDayCourses = filteredCoursesByDayAndWeek
-                                .getOrElse(page) { emptyMap() }
-                                .getOrElse(dayOfWeek) { emptyList() }
+                            // 按需计算并缓存：仅在访问时计算，不在顶层读取 pagerState.currentPage
+                            val filteredDayCourses = filteredCoursesCache.getOrPut(page) {
+                                val weekForPage = page + 1
+                                allDays.associateWith { dayOfWeek ->
+                                    val dayCourses = coursesByDay[dayOfWeek] ?: emptyList()
+                                    if (showNonCurrentWeek) dayCourses
+                                    else dayCourses.filter { it.isActiveInWeek(weekForPage) }
+                                }
+                            }.getOrElse(dayOfWeek) { emptyList() }
                             val stableOnCourseClick: (Course) -> Unit =
                                 remember(page, dayOfWeek, week) {
                                     { course ->
@@ -481,24 +482,45 @@ fun MainScheduleScreen(
                     }
 
                     // 网格布局完成后上报几何信息（仅当前页上报，避免 beyondViewportPageCount 缓存页覆盖当前页数据）
+                    // 仅在几何参数实际变化时才触发回调，避免每次重组分配新对象
                     val sectionHeightPx = with(density) { cardHeightPerSection.dp.toPx() }
+                    val prevBoundsVersion = remember { mutableIntStateOf(lastDayBoundsVersion) }
+                    val prevSectionHeight = remember { mutableFloatStateOf(sectionHeightPx) }
+                    val prevMorning = remember { mutableIntStateOf(morningSections) }
+                    val prevAfternoon = remember { mutableIntStateOf(afternoonSections) }
+                    val prevEvening = remember { mutableIntStateOf(eveningSections) }
+                    val prevShowBreak = remember { mutableStateOf(showBreakDividers) }
                     SideEffect {
                         if (page == pagerState.currentPage) {
-                            val boundsMap = mutableMapOf<Int, FloatArray>()
-                            for (i in 1..7) {
-                                val arr = dayBoundsArray[i]
-                                if (arr != null) boundsMap[i] = arr
-                            }
-                            onGridGeometryChange(
-                                ScheduleGridGeometry(
-                                    dayBounds = boundsMap,
-                                    sectionHeightPx = sectionHeightPx,
-                                    morningSections = morningSections,
-                                    afternoonSections = afternoonSections,
-                                    eveningSections = eveningSections,
-                                    showBreakDividers = showBreakDividers
+                            val changed = prevBoundsVersion.intValue != lastDayBoundsVersion
+                                    || prevSectionHeight.floatValue != sectionHeightPx
+                                    || prevMorning.intValue != morningSections
+                                    || prevAfternoon.intValue != afternoonSections
+                                    || prevEvening.intValue != eveningSections
+                                    || prevShowBreak.value != showBreakDividers
+                            if (changed) {
+                                prevBoundsVersion.intValue = lastDayBoundsVersion
+                                prevSectionHeight.floatValue = sectionHeightPx
+                                prevMorning.intValue = morningSections
+                                prevAfternoon.intValue = afternoonSections
+                                prevEvening.intValue = eveningSections
+                                prevShowBreak.value = showBreakDividers
+                                val boundsMap = mutableMapOf<Int, FloatArray>()
+                                for (i in 1..7) {
+                                    val arr = dayBoundsArray[i]
+                                    if (arr != null) boundsMap[i] = arr
+                                }
+                                onGridGeometryChange(
+                                    ScheduleGridGeometry(
+                                        dayBounds = boundsMap,
+                                        sectionHeightPx = sectionHeightPx,
+                                        morningSections = morningSections,
+                                        afternoonSections = afternoonSections,
+                                        eveningSections = eveningSections,
+                                        showBreakDividers = showBreakDividers
+                                    )
                                 )
-                            )
+                            }
                         }
                     }
 
