@@ -45,8 +45,6 @@ import com.haooz.chedule.ui.effects.liquidglass.DampedDragAnimation
 import com.haooz.chedule.ui.effects.liquidglass.InteractiveHighlight
 import com.haooz.chedule.ui.utils.isAppDarkTheme
 import com.kyant.backdrop.Backdrop
-import com.kyant.backdrop.backdrops.layerBackdrop
-import com.kyant.backdrop.backdrops.rememberLayerBackdrop
 import com.kyant.backdrop.drawBackdrop
 import com.kyant.backdrop.effects.blur
 import com.kyant.backdrop.effects.lens
@@ -78,8 +76,6 @@ fun LiquidBottomTabs(
         if (isLightTheme) Color(0xFFFFFFFF).copy(0.6f)
         else Color(0xFF121212).copy(0.54f)
     val defaultEdgeLight = rememberDefaultEdgeLight()
-
-    val tabsBackdrop = rememberLayerBackdrop()
 
     BoxWithConstraints(
         modifier,
@@ -203,33 +199,6 @@ fun LiquidBottomTabs(
                 Modifier
                     .clearAndSetSemantics {}
                     .alpha(0f)
-                    .layerBackdrop(tabsBackdrop)
-                    .graphicsLayer {
-                        translationX = panelOffset
-                    }
-                    .drawBackdrop(
-                        backdrop = backdrop,
-                        shape = { Capsule() },
-                        effects = {
-                            val progress = dampedDragAnimation.pressProgress
-                            vibrancy()
-                            blur(8f.dp.toPx())
-                            lens(
-                                24f.dp.toPx() * progress,
-                                24f.dp.toPx() * progress
-                            )
-                        },
-                        highlight = null,
-                        onDrawSurface = { drawRect(containerColor) }
-                    )
-                    .edgeLight(
-                        shape = Capsule(),
-                        edgeLight = {
-                            val progress = dampedDragAnimation.pressProgress
-                            if (progress > 0f) defaultEdgeLight.copy(intensity = progress) else null
-                        }
-                    )
-                    .then(interactiveHighlight.modifier)
                     .height(highlightHeight)
                     .fillMaxWidth()
                     .padding(horizontal = 7f.dp)

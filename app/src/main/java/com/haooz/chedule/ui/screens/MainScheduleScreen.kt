@@ -639,10 +639,10 @@ fun MainScheduleScreen(
                     }
                 },
                 backdrop = sheetContentBackdrop ?: liquidGlassBackdrop!!,
-                icon = MiuixIcons.Normal.Add,
+                icon = MiuixIcons.Add,
                 contentDescription = "添加课程",
                 modifier = Modifier.padding(end = 20.dp),
-                iconSize = 23.dp,
+                iconSize = 24.dp,
                 containerColor = if (isAppDarkTheme()) Color(0xFF363636).copy(0.4f)
                 else Color(0xFFFFFFFF).copy(0.6f),
                 backdropAlpha = material.backdropAlpha,

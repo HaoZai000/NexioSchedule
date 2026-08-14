@@ -63,16 +63,18 @@ import androidx.compose.ui.unit.DpOffset
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.haooz.chedule.data.Course
-import com.haooz.chedule.ui.components.AddEditCourseBottomSheet
 import com.haooz.chedule.ui.basic.CollapsibleTopAppBar
-import com.haooz.chedule.ui.basic.rememberSharedScrollBehavior
 import com.haooz.chedule.ui.basic.LiquidTopBarButton
+import com.haooz.chedule.ui.basic.OverlayDialog
 import com.haooz.chedule.ui.basic.ProgressiveBlurTopBar
+import com.haooz.chedule.ui.basic.rememberSharedScrollBehavior
+import com.haooz.chedule.ui.components.AddEditCourseBottomSheet
 import com.haooz.chedule.ui.effects.motion.OobeCubicOutEasing
 import com.haooz.chedule.ui.effects.motion.OobeFifthpowerOutEasing
 import com.haooz.chedule.ui.effects.motion.OobeQuadraticOutEasing
 import com.haooz.chedule.ui.effects.motion.OobeQuartOutEasing
 import com.haooz.chedule.ui.utils.isAppDarkTheme
+import com.haooz.chedule.ui.utils.overScrollVertical
 import com.kyant.shapes.RoundedRectangle
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.delay
@@ -82,7 +84,6 @@ import top.yukonga.miuix.kmp.basic.ButtonDefaults
 import top.yukonga.miuix.kmp.basic.Card
 import top.yukonga.miuix.kmp.basic.CardDefaults
 import top.yukonga.miuix.kmp.basic.ColorPalette
-import top.yukonga.miuix.kmp.basic.FloatingActionButton
 import top.yukonga.miuix.kmp.basic.Icon
 import top.yukonga.miuix.kmp.basic.Scaffold
 import top.yukonga.miuix.kmp.basic.SmallTitle
@@ -93,9 +94,7 @@ import top.yukonga.miuix.kmp.icon.MiuixIcons
 import top.yukonga.miuix.kmp.icon.extended.Add
 import top.yukonga.miuix.kmp.icon.extended.ChevronBackward
 import top.yukonga.miuix.kmp.icon.extended.Delete
-import com.haooz.chedule.ui.basic.OverlayDialog
 import top.yukonga.miuix.kmp.theme.MiuixTheme
-import com.haooz.chedule.ui.utils.overScrollVertical
 import top.yukonga.miuix.kmp.utils.scrollEndHaptic
 import kotlin.time.Duration.Companion.milliseconds
 import androidx.compose.ui.graphics.Color as ComposeColor
@@ -495,6 +494,20 @@ fun CourseEditScreen(
                                         contentDescription = "返回",
                                         iconSize = 25.dp,
                                         iconOffset = DpOffset(x = (-2).dp, y = 0.dp),
+                                        backdropAlpha = backdropAlpha,
+                                        shadowAlpha = shadowAlpha,
+                                    )
+                                },
+                                endAction = { backdropAlpha, shadowAlpha ->
+                                    LiquidTopBarButton(
+                                        onClick = {
+                                            hapticFeedback.performHapticFeedback(HapticFeedbackType.Confirm)
+                                            showAddCourseSheet = true
+                                        },
+                                        backdrop = liquidGlassBackdrop,
+                                        icon = MiuixIcons.Add,
+                                        contentDescription = "添加课程",
+                                        iconSize = 24.dp,
                                         backdropAlpha = backdropAlpha,
                                         shadowAlpha = shadowAlpha,
                                     )
@@ -1050,29 +1063,6 @@ fun CourseEditScreen(
                                     color = Color(0xFFF44336)
                                 )
                             }
-                        }
-                    }
-
-                    // FAB
-                    Box(
-                        modifier = Modifier
-                            .fillMaxSize()
-                            .padding(end = 32.dp, bottom = 48.dp),
-                        contentAlignment = Alignment.BottomEnd
-                    ) {
-                        FloatingActionButton(
-                            onClick = {
-                                hapticFeedback.performHapticFeedback(HapticFeedbackType.Confirm)
-                                showAddCourseSheet = true
-                            },
-                            shadowElevation = 0.dp,
-                        ) {
-                            Icon(
-                                imageVector = MiuixIcons.Add,
-                                contentDescription = "添加课程",
-                                tint = ComposeColor.White,
-                                modifier = Modifier.size(24.dp)
-                            )
                         }
                     }
 
