@@ -62,22 +62,8 @@ fun RowScope.DropdownArrowEndAction(
 /**
  * The implementation of the dropdown.
  *
- * @param item The item of the current option.
- * @param optionSize The size of the options.
- * @param isSelected Whether the option is selected.
- * @param index The index of the current option in the options.
- * @param dropdownColors The [DropdownColors] used to style the option row.
- * @param enabled Whether the option is clickable. Disabled rows ignore clicks and use the disabled text color.
- * @param dialogMode Whether the item is shown in dialog mode.
- * @param hasSubmenu When true, this row acts as a submenu trigger: a trailing chevron is shown
- *   instead of the selection check, and the row's accessibility role becomes [Role.Button].
- * @param isFirst Whether this row is the first row of the entire popup. Controls the larger top
- *   padding in popup mode. Defaults to `index == 0`; multi-entry callers should pass the
- *   popup-global flag so only the actual first row gets extra padding.
- * @param isLast Whether this row is the last row of the entire popup. Controls the larger bottom
- *   padding in popup mode. Defaults to `index == optionSize - 1`; multi-entry callers should pass
- *   the popup-global flag.
- * @param onSelectedIndexChange The callback invoked with [index] when the option is selected.
+ * 本地覆盖版本：条目使用圆角矩形裁剪 + clickable 点击反馈，外层加 8dp 内边距，
+ * 首行顶部/末行底部额外 8dp。
  */
 @Composable
 fun DropdownImpl(
@@ -178,9 +164,6 @@ fun DropdownImpl(
         }
 
         if (hasSubmenu) {
-            // Chevron uses the softer summaryColor so the trigger row doesn't visually
-            // compete with selected/leaf items. The chevron is intentionally static —
-            // only the cloned header in the secondary popup rotates during expansion.
             val chevronColor = when {
                 !enabled -> MiuixTheme.colorScheme.disabledOnSecondaryVariant
                 isSelected -> dropdownColors.selectedContentColor
@@ -234,59 +217,6 @@ fun DropdownImpl(
     )
 }
 
-/**
- * The implementation of the spinner.
- *
- * @param entry the [DropdownItem] to be shown in the spinner.
- * @param entryCount the count of the entries in the spinner.
- * @param isSelected whether the entry is selected.
- * @param index the index of the entry.
- * @param spinnerColors the [DropdownColors] used to style the entry row.
- * @param dialogMode whether the spinner is in dialog mode.
- * @param onSelectedIndexChange the callback to be invoked when the selected index of the spinner is changed.
- */
-@Deprecated(
-    message = "Use DropdownImpl instead. SpinnerItemImpl is a thin alias kept for compatibility.",
-    replaceWith = ReplaceWith(
-        "DropdownImpl(item = entry, optionSize = entryCount, isSelected = isSelected, " +
-            "index = index, dropdownColors = spinnerColors, enabled = entry.enabled, " +
-            "dialogMode = dialogMode, onSelectedIndexChange = onSelectedIndexChange)",
-    ),
-    level = DeprecationLevel.WARNING,
-)
-@Composable
-fun SpinnerItemImpl(
-    entry: DropdownItem,
-    entryCount: Int,
-    isSelected: Boolean,
-    index: Int,
-    spinnerColors: DropdownColors,
-    dialogMode: Boolean = false,
-    onSelectedIndexChange: (Int) -> Unit,
-) {
-    DropdownImpl(
-        item = entry,
-        optionSize = entryCount,
-        isSelected = isSelected,
-        index = index,
-        dropdownColors = spinnerColors,
-        enabled = entry.enabled,
-        dialogMode = dialogMode,
-        onSelectedIndexChange = onSelectedIndexChange,
-    )
-}
-
-/**
- * Colors used by dropdown option rows.
- *
- * @param contentColor The text color of an unselected option.
- * @param summaryColor The summary text color of an unselected option.
- * @param containerColor The background color of an unselected option.
- * @param selectedContentColor The text color of the selected option.
- * @param selectedSummaryColor The summary text color of the selected option.
- * @param selectedContainerColor The background color of the selected option.
- * @param selectedIndicatorColor The color of the selected indicator icon.
- */
 @Immutable
 data class DropdownColors(
     val contentColor: Color,
@@ -298,37 +228,12 @@ data class DropdownColors(
     val selectedIndicatorColor: Color,
 )
 
-/**
- * A group of dropdown items.
- *
- * A [DropdownEntry] represents one visual group in a dropdown menu. Group titles are intentionally
- * reserved for future use because the original MIUI dropdown style currently has no matching
- * group-title presentation.
- *
- * @param items Items shown in this dropdown group.
- * @param enabled Whether this group is enabled. When false, all items in this group are disabled;
- * when true, each item's [DropdownItem.enabled] value is still respected.
- */
 @Stable
 data class DropdownEntry(
     val items: List<DropdownItem>,
     val enabled: Boolean = true,
 )
 
-/**
- * An item shown inside a dropdown, spinner, or dropdown menu.
- *
- * @param text Text shown for the item.
- * @param enabled Whether the item can be clicked.
- * @param selected Whether the item is selected.
- * @param onClick Callback invoked when the item is clicked. Ignored when [children] is non-null
- *   and non-empty (the click is consumed by the cascading layer to expand the submenu).
- * @param icon Optional icon shown before [text].
- * @param summary Optional summary shown below [text].
- * @param children Optional submenu items. When non-null and non-empty, this item becomes a
- *   submenu trigger: cascading dropdown popups render a chevron and open a child popup on click,
- *   recursively. Stabilize this list (e.g. via `remember`) to avoid unnecessary recomposition.
- */
 @Stable
 data class DropdownItem(
     val text: String,
@@ -339,9 +244,6 @@ data class DropdownItem(
     val summary: String? = null,
     val children: List<DropdownItem>? = null,
 ) {
-    /**
-     * [SpinnerEntry] compatibility
-     */
     constructor(
         icon: @Composable ((Modifier) -> Unit)? = null,
         title: String? = null,
@@ -354,43 +256,18 @@ data class DropdownItem(
 }
 
 object DropdownDefaults {
-    /** Minimum row height when the dropdown is shown in dialog mode. */
     val MinHeight: Dp = 56.dp
-
-    /** Minimum row width when the dropdown is shown in dialog mode. */
     val MinWidth: Dp = 200.dp
-
-    /** Size of the trailing check icon shown on the selected option. */
     val CheckIconSize: Dp = 20.dp
-
-    /** Size of the up-down arrow rendered by [DropdownArrowEndAction]. */
     val ArrowSize: DpSize = DpSize(width = 10.dp, height = 16.dp)
-
-    /** Size of the trailing chevron shown on rows that own a submenu. */
     val ChevronSize: DpSize = DpSize(width = 10.dp, height = 16.dp)
-
-    /** Minimum size of the leading icon cell. */
     val IconMinSize: Dp = 26.dp
-
-    /** Maximum width of the inner text/icon row when the dropdown is shown in popup mode. */
     val MaxItemTextWidth: Dp = 216.dp
-
-    /** Horizontal padding of each row in popup mode. */
     val InsideHorizontalPadding: Dp = 20.dp
-
-    /** Horizontal padding of each row in dialog mode. */
     val DialogHorizontalPadding: Dp = 28.dp
-
-    /** Top/bottom padding applied to the first/last row in popup mode. */
     val FirstLastVerticalPadding: Dp = 20.dp
-
-    /** Top/bottom padding applied to middle rows in popup mode and to all rows in dialog mode. */
     val MiddleVerticalPadding: Dp = 12.dp
-
-    /** Padding between the leading icon cell and the title text. */
     val IconEndPadding: Dp = 12.dp
-
-    /** Padding between the title/summary block and the trailing check icon. */
     val CheckIconStartPadding: Dp = 12.dp
 
     @Composable

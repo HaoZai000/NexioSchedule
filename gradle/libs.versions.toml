@@ -18,6 +18,7 @@ startupRuntime = "1.2.0"              # App Startup（自动初始化 Activity �
 miuix = "0.9.3"                       # Miuix 小米风格组件库
 shapes = "1.2.0"                      # 自定义形状库（星形、多边形等）
 backdrop = "2.0.0"                    # Backdrop 模糊背景库
+materialKolor = "4.1.1"               # Material Color for Multiplatform（miuix theme 依赖）
 
 # 序列化 / 网络
 gson = "2.11.0"                       # Gson JSON 序列化
@@ -79,6 +80,7 @@ shapes = { group = "io.github.kyant0", name = "shapes", version.ref = "shapes" }
 
 # Backdrop
 backdrop = { group = "io.github.kyant0", name = "backdrop", version.ref = "backdrop" }                             # 模糊背景库
+materialKolor-utilities = { group = "com.materialkolor", name = "material-color-utilities", version.ref = "materialKolor" } # Material Color（miuix theme 依赖）
 
 [plugins]
 android-application = { id = "com.android.application", version.ref = "agp" }     # Android 应用插件

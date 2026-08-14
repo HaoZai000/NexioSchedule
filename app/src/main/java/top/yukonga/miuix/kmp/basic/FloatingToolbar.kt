@@ -1,0 +1,101 @@
+// Copyright 2025, compose-miuix-ui contributors
+// SPDX-License-Identifier: Apache-2.0
+
+package top.yukonga.miuix.kmp.basic
+
+import androidx.compose.foundation.gestures.detectTapGestures
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.NonRestartableComposable
+import androidx.compose.runtime.remember
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.dropShadow
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.shadow.Shadow
+import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.unit.Dp
+import androidx.compose.ui.unit.dp
+import top.yukonga.miuix.kmp.squircle.squircleBackground
+import top.yukonga.miuix.kmp.theme.MiuixTheme
+
+/**
+ * A [FloatingToolbar] that renders its content in a Card, arranged either horizontally or vertically.
+ * The actual placement on screen is handled by the parent, typically Scaffold.
+ *
+ * @param modifier The modifier to be applied to the [FloatingToolbar].
+ * @param color Background color of the [FloatingToolbar].
+ * @param cornerRadius Corner radius of the [FloatingToolbar].
+ * @param outSidePadding Padding outside the [FloatingToolbar].
+ * @param shadowElevation The shadow elevation of the [FloatingToolbar].
+ * @param showDivider Whether to show the divider line around the [FloatingToolbar].
+ * @param content The [Composable] content of the [FloatingToolbar].
+ */
+@Composable
+@NonRestartableComposable
+fun FloatingToolbar(
+    modifier: Modifier = Modifier,
+    color: Color = FloatingToolbarDefaults.defaultColor(),
+    cornerRadius: Dp = FloatingToolbarDefaults.CornerRadius,
+    outSidePadding: PaddingValues = FloatingToolbarDefaults.OutSidePadding,
+    shadowElevation: Dp = 4.dp,
+    showDivider: Boolean = false,
+    content: @Composable () -> Unit,
+) {
+    val shape = remember(cornerRadius) { RoundedCornerShape(cornerRadius) }
+    val dividerColor = MiuixTheme.colorScheme.dividerLine
+
+    val dividerMod = if (showDivider) {
+        Modifier
+            .squircleBackground(color = dividerColor, cornerRadius = cornerRadius)
+            .padding(0.75.dp)
+    } else {
+        Modifier
+    }
+    val shadowMod = if (shadowElevation > 0.dp) {
+        Modifier.dropShadow(
+            shape = shape,
+            shadow = Shadow(
+                radius = 10.dp,
+                color = Color.Black,
+                alpha = 0.1f,
+            ),
+        )
+    } else {
+        Modifier
+    }
+
+    Box(
+        modifier = modifier
+            .padding(outSidePadding)
+            .then(dividerMod)
+            .then(shadowMod)
+            .squircleBackground(color = color, cornerRadius = cornerRadius)
+            .pointerInput(Unit) {
+                detectTapGestures { /* Consume click */ }
+            },
+    ) {
+        content()
+    }
+}
+
+object FloatingToolbarDefaults {
+
+    /**
+     * Default corner radius of the [FloatingToolbar].
+     */
+    val CornerRadius = 50.dp
+
+    /**
+     * Default color of the [FloatingToolbar].
+     */
+    @Composable
+    fun defaultColor() = MiuixTheme.colorScheme.surfaceContainer
+
+    /**
+     * Default padding outside the [FloatingToolbar].
+     */
+    val OutSidePadding = PaddingValues(12.dp, 8.dp)
+}

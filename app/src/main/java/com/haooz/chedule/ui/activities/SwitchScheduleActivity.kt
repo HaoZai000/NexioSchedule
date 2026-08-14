@@ -17,16 +17,22 @@ import androidx.compose.animation.core.tween
 import androidx.compose.animation.slideInVertically
 import androidx.compose.animation.slideOutVertically
 import androidx.compose.foundation.background
+import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.RowScope
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.material3.Text
@@ -44,14 +50,16 @@ import androidx.compose.runtime.snapshotFlow
 import androidx.compose.runtime.withFrameNanos
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.drawWithContent
 import androidx.compose.ui.focus.FocusRequester
-import androidx.compose.ui.graphics.RectangleShape
+import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.asAndroidBitmap
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.rememberGraphicsLayer
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.input.nestedscroll.nestedScroll
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.text.font.FontWeight
@@ -65,10 +73,17 @@ import com.haooz.chedule.ui.basic.NativeMiuixTextField
 import com.haooz.chedule.ui.basic.OverlayDialog
 import com.haooz.chedule.ui.basic.ProgressiveBlurTopBar
 import com.haooz.chedule.ui.basic.rememberSharedScrollBehavior
+import com.haooz.chedule.ui.effects.edgelight.edgeLight
+import com.haooz.chedule.ui.effects.edgelight.rememberDefaultEdgeLight
 import com.haooz.chedule.ui.theme.CourseScheduleTheme
 import com.haooz.chedule.ui.utils.applyThemeAwareSystemBars
 import com.haooz.chedule.ui.utils.isAppDarkTheme
 import com.haooz.chedule.ui.utils.overScrollVertical
+import com.kyant.backdrop.drawBackdrop
+import com.kyant.backdrop.effects.blur
+import com.kyant.backdrop.effects.lens
+import com.kyant.backdrop.effects.vibrancy
+import com.kyant.shapes.Capsule
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.launch
@@ -76,20 +91,12 @@ import top.yukonga.miuix.kmp.basic.Button
 import top.yukonga.miuix.kmp.basic.ButtonDefaults
 import top.yukonga.miuix.kmp.basic.Card
 import top.yukonga.miuix.kmp.basic.CardDefaults
-import top.yukonga.miuix.kmp.basic.FloatingActionButton
 import top.yukonga.miuix.kmp.basic.Icon
-import top.yukonga.miuix.kmp.basic.NavigationBar
-import top.yukonga.miuix.kmp.basic.NavigationBarDisplayMode
-import top.yukonga.miuix.kmp.basic.NavigationBarItem
 import top.yukonga.miuix.kmp.basic.Scaffold
 import top.yukonga.miuix.kmp.basic.SmallTitle
 import top.yukonga.miuix.kmp.basic.TextButton
-import top.yukonga.miuix.kmp.blur.BlendColorEntry
-import top.yukonga.miuix.kmp.blur.BlurBlendMode
-import top.yukonga.miuix.kmp.blur.BlurDefaults
 import top.yukonga.miuix.kmp.blur.layerBackdrop
 import top.yukonga.miuix.kmp.blur.rememberLayerBackdrop
-import top.yukonga.miuix.kmp.blur.textureBlur
 import top.yukonga.miuix.kmp.icon.MiuixIcons
 import top.yukonga.miuix.kmp.icon.extended.Add
 import top.yukonga.miuix.kmp.icon.extended.ChevronBackward
@@ -224,18 +231,6 @@ fun SwitchScheduleScreen(
         val screenWidthDp = LocalConfiguration.current.screenWidthDp
         ((screenWidthDp - 600).coerceIn(0, 600) / 600f * 112 + 16).dp
     } else 16.dp
-    val colors = BlurDefaults.blurColors(
-        blendColors = listOf(
-            if (isDark) BlendColorEntry(
-                ComposeColor.Black.copy(alpha = 0.7f),
-                BlurBlendMode.SrcOver
-            )
-            else BlendColorEntry(ComposeColor.White.copy(alpha = 0.7f), BlurBlendMode.SrcOver)
-        ),
-        brightness = 0f,
-        contrast = 1f,
-        saturation = 1.2f
-    )
 
     LaunchedEffect(showAddDialog) {
         if (showAddDialog) {
@@ -312,15 +307,30 @@ fun SwitchScheduleScreen(
                             )
                         },
                         endAction = if (!isEditMode) { backdropAlpha, shadowAlpha ->
-                            LiquidTopBarButton(
-                                onClick = { isEditMode = true },
-                                backdrop = liquidGlassBackdrop,
-                                icon = MiuixIcons.Normal.Edit,
-                                contentDescription = "编辑",
-                                iconSize = 26.dp,
-                                backdropAlpha = backdropAlpha,
-                                shadowAlpha = shadowAlpha,
-                            )
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                LiquidTopBarButton(
+                                    onClick = {
+                                        hapticFeedback.performHapticFeedback(HapticFeedbackType.Confirm)
+                                        showAddDialog = true
+                                    },
+                                    backdrop = liquidGlassBackdrop,
+                                    icon = MiuixIcons.Add,
+                                    contentDescription = "添加",
+                                    iconSize = 24.dp,
+                                    backdropAlpha = backdropAlpha,
+                                    shadowAlpha = shadowAlpha,
+                                )
+                                Spacer(Modifier.width(8.dp))
+                                LiquidTopBarButton(
+                                    onClick = { isEditMode = true },
+                                    backdrop = liquidGlassBackdrop,
+                                    icon = MiuixIcons.Normal.Edit,
+                                    contentDescription = "编辑",
+                                    iconSize = 26.dp,
+                                    backdropAlpha = backdropAlpha,
+                                    shadowAlpha = shadowAlpha,
+                                )
+                            }
                         } else null,
                     )
                 }
@@ -329,7 +339,6 @@ fun SwitchScheduleScreen(
                 var navBarVisible by remember { mutableStateOf(false) }
                 LaunchedEffect(isEditMode) {
                     if (isEditMode) {
-                        delay(100.milliseconds)
                         navBarVisible = true
                     } else {
                         navBarVisible = false
@@ -344,108 +353,74 @@ fun SwitchScheduleScreen(
                     exit = slideOutVertically(targetOffsetY = { it }, animationSpec = tween(180))
                 ) {
                     val checkedCount = checkboxStates.values.count { it }
-                    NavigationBar(
+                    Box(
                         modifier = Modifier
-                            .height(74.dp)
-                            .textureBlur(
-                                backdrop = backdrop,
-                                shape = RectangleShape,
-                                colors = colors
-                            ),
-                        mode = NavigationBarDisplayMode.IconAndText,
-                        color = ComposeColor.Transparent,
-                        showDivider = false
+                            .fillMaxWidth()
+                            .padding(top = 8.dp, bottom = 28.dp),
+                        contentAlignment = Alignment.Center
                     ) {
-                        NavigationBarItem(
-                            selected = checkedCount == 1,
-                            enabled = checkedCount == 1,
-                            onClick = {
-                                hapticFeedback.performHapticFeedback(HapticFeedbackType.KeyboardTap)
-                            },
-                            icon = MiuixIcons.Forward,
-                            label = "分享"
-                        )
-                        NavigationBarItem(
-                            selected = checkedCount == 1,
-                            enabled = checkedCount == 1,
-                            onClick = {
-                                hapticFeedback.performHapticFeedback(HapticFeedbackType.KeyboardTap)
-                                if (checkedCount == 1) {
-                                    val selected = checkboxStates.entries.find { it.value }?.key
-                                    if (selected != null) {
-                                        editingScheduleName = selected
-                                        editScheduleName = selected
-                                        showEditDialog = true
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth(0.63f)
+                                .height(56.dp)
+                                .drawBackdrop(
+                                    backdrop = liquidGlassBackdrop,
+                                    shape = { Capsule() },
+                                    effects = {
+                                        vibrancy()
+                                        blur(4f.dp.toPx())
+                                        lens(10f.dp.toPx(), 32f.dp.toPx())
+                                    },
+                                    highlight = null,
+                                    onDrawSurface = {
+                                        val containerColor = if (isDark) ComposeColor(0xFF181818).copy(alpha = 0.84f) else ComposeColor.White.copy(alpha = 0.76f)
+                                        drawRect(containerColor)
+                                    }
+                                )
+                                .edgeLight(shape = Capsule(), edgeLight = rememberDefaultEdgeLight())
+                                .padding(horizontal = 7.dp, vertical = 3.5.dp),
+                            horizontalArrangement = Arrangement.SpaceEvenly,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            BottomBarItem(
+                                icon = MiuixIcons.Forward,
+                                label = "分享",
+                                enabled = checkedCount == 1,
+                                onClick = {
+                                    hapticFeedback.performHapticFeedback(HapticFeedbackType.KeyboardTap)
+                                }
+                            )
+                            BottomBarItem(
+                                icon = MiuixIcons.Edit,
+                                label = "编辑",
+                                enabled = checkedCount == 1,
+                                onClick = {
+                                    hapticFeedback.performHapticFeedback(HapticFeedbackType.KeyboardTap)
+                                    if (checkedCount == 1) {
+                                        val selected = checkboxStates.entries.find { it.value }?.key
+                                        if (selected != null) {
+                                            editingScheduleName = selected
+                                            editScheduleName = selected
+                                            showEditDialog = true
+                                        }
                                     }
                                 }
-                            },
-                            icon = MiuixIcons.Edit,
-                            label = "编辑"
-                        )
-                        NavigationBarItem(
-                            selected = checkedCount >= 1,
-                            enabled = checkedCount >= 1,
-                            onClick = {
-                                hapticFeedback.performHapticFeedback(HapticFeedbackType.KeyboardTap)
-                                if (checkedCount >= 1) {
-                                    showDeleteDialog = true
+                            )
+                            BottomBarItem(
+                                icon = MiuixIcons.Delete,
+                                label = "删除",
+                                enabled = checkedCount >= 1,
+                                onClick = {
+                                    hapticFeedback.performHapticFeedback(HapticFeedbackType.KeyboardTap)
+                                    if (checkedCount >= 1) {
+                                        showDeleteDialog = true
+                                    }
                                 }
-                            },
-                            icon = MiuixIcons.Delete,
-                            label = "删除"
-                        )
+                            )
+                        }
                     }
                 }
             },
-            floatingActionButton = {
-                var fabAlpha by remember { mutableFloatStateOf(1f) }
-                var fabScaleTarget by remember { mutableFloatStateOf(1f) }
-                LaunchedEffect(isEditMode) {
-                    if (isEditMode) {
-                        fabAlpha = 0f
-                        fabScaleTarget = 0.8f
-                    } else {
-                        delay(180.milliseconds)
-                        fabAlpha = 1f
-                        fabScaleTarget = 1f
-                    }
-                }
-                val animatedFabAlpha by animateFloatAsState(
-                    targetValue = fabAlpha,
-                    animationSpec = if (isEditMode) tween(100) else tween(120),
-                    label = "fabAlpha"
-                )
-                val fabScale by animateFloatAsState(
-                    targetValue = fabScaleTarget,
-                    animationSpec = if (isEditMode) tween(100) else tween(120),
-                    label = "fabScale"
-                )
-                Box(
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .padding(end = 20.dp, bottom = 20.dp),
-                    contentAlignment = Alignment.BottomEnd
-                ) {
-                    FloatingActionButton(
-                        onClick = {
-                            hapticFeedback.performHapticFeedback(HapticFeedbackType.Confirm)
-                            showAddDialog = true
-                        },
-                        shadowElevation = 0.dp,
-                        modifier = Modifier.graphicsLayer {
-                            alpha = animatedFabAlpha
-                            scaleX = fabScale
-                            scaleY = fabScale
-                        }
-                    ) {
-                        Icon(
-                            imageVector = MiuixIcons.Add,
-                            tint = ComposeColor.White,
-                            contentDescription = "添加"
-                        )
-                    }
-                }
-            }
         ) { paddingValues ->
             Box(
                 modifier = Modifier
@@ -981,5 +956,90 @@ fun SwitchScheduleScreen(
                 }
             }
         }
+    }
+}
+
+@Composable
+private fun RowScope.BottomBarItem(
+    icon: androidx.compose.ui.graphics.vector.ImageVector,
+    label: String,
+    enabled: Boolean,
+    onClick: () -> Unit
+) {
+    var isPressed by remember { mutableStateOf(false) }
+    val pressAlpha by animateFloatAsState(
+        targetValue = if (isPressed) 1f else 0f,
+        animationSpec = tween(150),
+        label = "pressAlpha"
+    )
+    val pressScale by animateFloatAsState(
+        targetValue = if (isPressed) 0.92f else 1f,
+        animationSpec = tween(150),
+        label = "pressScale"
+    )
+    Column(
+        modifier = Modifier
+            .pointerInput(enabled) {
+                if (enabled) {
+                    detectTapGestures(
+                        onPress = {
+                            isPressed = true
+                            tryAwaitRelease()
+                            isPressed = false
+                        },
+                        onTap = { onClick() }
+                    )
+                }
+            }
+            .drawWithContent {
+                if (pressAlpha > 0f) {
+                    val extraWidth = 3.dp.toPx()
+                    val overlayWidth = size.width + extraWidth * 2
+                    val overlayHeight = size.height
+                    val capsule = Capsule()
+                    val outline = capsule.createOutline(
+                        Size(overlayWidth, overlayHeight),
+                        layoutDirection,
+                        this
+                    )
+                    val path = androidx.compose.ui.graphics.Path().apply {
+                        when (outline) {
+                            is androidx.compose.ui.graphics.Outline.Generic -> addPath(outline.path)
+                            is androidx.compose.ui.graphics.Outline.Rounded -> addRoundRect(outline.roundRect)
+                            is androidx.compose.ui.graphics.Outline.Rectangle -> addRect(outline.rect)
+                        }
+                    }
+                    val centerX = size.width / 2f + extraWidth
+                    val centerY = size.height / 2f
+                    path.transform(androidx.compose.ui.graphics.Matrix().apply {
+                        translate(-extraWidth, 0f)
+                        translate(centerX, centerY)
+                        scale(pressScale, pressScale, 0f)
+                        translate(-centerX, -centerY)
+                    })
+                    drawPath(
+                        path = path,
+                        color = ComposeColor.Black.copy(alpha = 0.08f * pressAlpha)
+                    )
+                }
+                drawContent()
+            }
+            .clip(Capsule())
+            .fillMaxHeight()
+            .weight(1f),
+        verticalArrangement = Arrangement.spacedBy(2.dp, Alignment.CenterVertically),
+        horizontalAlignment = Alignment.CenterHorizontally
+    ) {
+        Icon(
+            imageVector = icon,
+            contentDescription = label,
+            tint = if (enabled) MiuixTheme.colorScheme.onSurface else MiuixTheme.colorScheme.onSurface.copy(alpha = 0.38f),
+            modifier = Modifier.size(24.dp)
+        )
+        Text(
+            text = label,
+            fontSize = 11.sp,
+            color = if (enabled) MiuixTheme.colorScheme.onSurface else MiuixTheme.colorScheme.onSurface.copy(alpha = 0.38f)
+        )
     }
 }

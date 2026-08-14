@@ -54,6 +54,11 @@ composeCompiler {
     stabilityConfigurationFiles.set(listOf(project.layout.projectDirectory.file("compose-stability.conf")))
 }
 
+// miuix-ui 已 fork 到本地源码，排除传递依赖中的 miuix-ui jar 避免 R8 重复定义
+configurations.all {
+    exclude(group = "top.yukonga.miuix.kmp", module = "miuix-ui-android")
+}
+
 dependencies {
     // ===== AndroidX / Compose 基础 =====
     // Compose BOM：统一管理所有 Compose 库版本
@@ -80,8 +85,7 @@ dependencies {
     implementation(libs.androidx.startup.runtime)
 
     // ===== Miuix UI =====
-    // 基础 UI 组件
-    implementation(libs.miuix.ui)
+    // miuix-ui 已 fork 到本地源码，不再使用 jar 依赖
     // 偏好设置组件
     implementation(libs.miuix.preference)
     // 图标资源
@@ -102,6 +106,8 @@ dependencies {
     implementation(libs.shapes)
     // Backdrop 模糊背景
     implementation(libs.backdrop)
+    // Material Color（miuix theme 依赖）
+    implementation(libs.materialKolor.utilities)
 
     // ===== 序列化 =====
     // Gson：JSON 序列化/反序列化（课表数据持久化）

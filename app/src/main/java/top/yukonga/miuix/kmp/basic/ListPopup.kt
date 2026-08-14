@@ -284,6 +284,9 @@ object ListPopupDefaults {
      */
     val FractionExitAnimationSpec = spring(dampingRatio = 0.78f, stiffness = 400f, visibilityThreshold = 0.0001f)
 
+    /** 通用缩放动画（兼容库引用，等同于进入动画） */
+    val FractionAnimationSpec = FractionEnterAnimationSpec
+
     /** 进入时的透明度动画（150ms渐入） */
     val AlphaEnterAnimationSpec = tween<Float>(durationMillis = 120)
 

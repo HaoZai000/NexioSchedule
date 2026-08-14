@@ -1,0 +1,542 @@
+// Copyright 2025, compose-miuix-ui contributors
+// SPDX-License-Identifier: Apache-2.0
+
+package top.yukonga.miuix.kmp.basic
+
+import androidx.compose.animation.animateColorAsState
+import androidx.compose.animation.core.animateDpAsState
+import androidx.compose.foundation.ScrollState
+import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.interaction.collectIsFocusedAsState
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.offset
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.text.BasicTextField
+import androidx.compose.foundation.text.KeyboardActions
+import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.foundation.text.input.InputTransformation
+import androidx.compose.foundation.text.input.KeyboardActionHandler
+import androidx.compose.foundation.text.input.OutputTransformation
+import androidx.compose.foundation.text.input.TextFieldDecorator
+import androidx.compose.foundation.text.input.TextFieldLineLimits
+import androidx.compose.foundation.text.input.TextFieldState
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.Immutable
+import androidx.compose.runtime.derivedStateOf
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberUpdatedState
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.SolidColor
+import androidx.compose.ui.graphics.takeOrElse
+import androidx.compose.ui.text.TextLayoutResult
+import androidx.compose.ui.text.TextStyle
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.TextFieldValue
+import androidx.compose.ui.text.input.VisualTransformation
+import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.unit.Density
+import androidx.compose.ui.unit.Dp
+import androidx.compose.ui.unit.DpSize
+import androidx.compose.ui.unit.IntOffset
+import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
+import top.yukonga.miuix.kmp.squircle.squircleBackground
+import top.yukonga.miuix.kmp.squircle.squircleBorder
+import top.yukonga.miuix.kmp.theme.LocalContentColor
+import top.yukonga.miuix.kmp.theme.MiuixTheme
+
+/**
+ * A [TextField] component with Miuix style.
+ *
+ * @param state The [TextFieldState] to be shown in the text field.
+ * @param modifier The modifier to be applied to the [TextField].
+ * @param insideMargin The margin inside the [TextField].
+ * @param colors The [TextFieldColors] applied to the [TextField]. Use
+ *   [TextFieldDefaults.textFieldColors] to customize.
+ * @param cornerRadius The corner radius of the [TextField].
+ * @param label The label to be displayed when the [TextField] is empty.
+ * @param useLabelAsPlaceholder Whether to use the label as a placeholder.
+ * @param enabled Whether the [TextField] is enabled.
+ * @param readOnly Whether the [TextField] is read-only.
+ * @param inputTransformation The input transformation to be applied to the [TextField].
+ * @param textStyle The text style to be applied to the [TextField].
+ * @param keyboardOptions The keyboard options to be applied to the [TextField].
+ * @param onKeyboardAction The keyboard action handler for the [TextField].
+ * @param lineLimits The line limits for the [TextField].
+ * @param leadingIcon The leading icon to be displayed in the [TextField].
+ * @param trailingIcon The trailing icon to be displayed in the [TextField].
+ * @param onTextLayout The callback to be called when the text layout changes.
+ * @param interactionSource The interaction source to be applied to the [TextField].
+ * @param cursorBrush The brush to be used for the cursor.
+ * @param outputTransformation The output transformation for the text field.
+ * @param scrollState The scroll state for the text field.
+ */
+@Composable
+fun TextField(
+    state: TextFieldState,
+    modifier: Modifier = Modifier,
+    insideMargin: DpSize = TextFieldDefaults.InsideMargin,
+    colors: TextFieldColors = TextFieldDefaults.textFieldColors(),
+    cornerRadius: Dp = TextFieldDefaults.CornerRadius,
+    label: String = "",
+    useLabelAsPlaceholder: Boolean = false,
+    enabled: Boolean = true,
+    readOnly: Boolean = false,
+    inputTransformation: InputTransformation? = null,
+    textStyle: TextStyle = MiuixTheme.textStyles.main,
+    keyboardOptions: KeyboardOptions = KeyboardOptions.Default,
+    onKeyboardAction: KeyboardActionHandler? = null,
+    lineLimits: TextFieldLineLimits = TextFieldLineLimits.Default,
+    leadingIcon: @Composable (() -> Unit)? = null,
+    trailingIcon: @Composable (() -> Unit)? = null,
+    onTextLayout: (Density.(getResult: () -> TextLayoutResult?) -> Unit)? = null,
+    interactionSource: MutableInteractionSource? = null,
+    cursorBrush: Brush = SolidColor(colors.borderColor),
+    outputTransformation: OutputTransformation? = null,
+    scrollState: ScrollState = rememberScrollState(),
+) {
+    @Suppress("NAME_SHADOWING")
+    val interactionSource = interactionSource ?: remember { MutableInteractionSource() }
+    val isFocused by interactionSource.collectIsFocusedAsState()
+    val labelState by remember(label, useLabelAsPlaceholder) {
+        derivedStateOf {
+            when {
+                label.isEmpty() -> LabelAnimState.Hidden
+                useLabelAsPlaceholder && state.text.isNotEmpty() -> LabelAnimState.Placeholder
+                state.text.isNotEmpty() -> LabelAnimState.Floating
+                else -> LabelAnimState.Normal
+            }
+        }
+    }
+
+    val currentOnTextLayout by rememberUpdatedState(onTextLayout)
+
+    val contentColor = LocalContentColor.current
+    val resolvedTextStyle = remember(textStyle, contentColor) {
+        val textColor = textStyle.color.takeOrElse { contentColor }
+        textStyle.copy(textColor)
+    }
+
+    BasicTextField(
+        state = state,
+        modifier = modifier,
+        enabled = enabled,
+        readOnly = readOnly,
+        textStyle = resolvedTextStyle,
+        cursorBrush = cursorBrush,
+        keyboardOptions = keyboardOptions,
+        onKeyboardAction = onKeyboardAction,
+        lineLimits = lineLimits,
+        onTextLayout = currentOnTextLayout,
+        interactionSource = interactionSource,
+        inputTransformation = inputTransformation,
+        outputTransformation = outputTransformation,
+        scrollState = scrollState,
+        decorator = TextFieldDecorator { innerTextField ->
+            TextFieldChrome(
+                label = label,
+                labelState = labelState,
+                colors = colors,
+                cornerRadius = cornerRadius,
+                insideMargin = insideMargin,
+                leadingIcon = leadingIcon,
+                trailingIcon = trailingIcon,
+                isFocused = isFocused,
+                innerTextField = innerTextField,
+            )
+        },
+    )
+}
+
+/**
+ * A [TextField] component with Miuix style.
+ *
+ * @param value The input [TextFieldValue] to be shown in the text field.
+ * @param onValueChange The callback that is triggered when the input service updates values in
+ *   [TextFieldValue]. An updated [TextFieldValue] comes as a parameter of the callback.
+ * @param modifier The modifier to be applied to the [TextField].
+ * @param insideMargin The margin inside the [TextField].
+ * @param colors The [TextFieldColors] applied to the [TextField]. Use
+ *   [TextFieldDefaults.textFieldColors] to customize.
+ * @param cornerRadius The corner radius of the [TextField].
+ * @param label The label to be displayed when the [TextField] is empty.
+ * @param useLabelAsPlaceholder Whether to use the label as a placeholder.
+ * @param enabled Whether the [TextField] is enabled.
+ * @param readOnly Whether the [TextField] is read-only.
+ * @param textStyle The text style to be applied to the [TextField].
+ * @param keyboardOptions The keyboard options to be applied to the [TextField].
+ * @param keyboardActions The keyboard actions to be applied to the [TextField].
+ * @param leadingIcon The leading icon to be displayed in the [TextField].
+ * @param trailingIcon The trailing icon to be displayed in the [TextField].
+ * @param singleLine Whether the text field is single line.
+ * @param maxLines The maximum number of lines allowed to be displayed in [TextField].
+ * @param minLines The minimum number of lines allowed to be displayed in [TextField]. It is required
+ *   that 1 <= [minLines] <= [maxLines].
+ * @param visualTransformation The visual transformation to be applied to the [TextField].
+ * @param onTextLayout The callback to be called when the text layout changes.
+ * @param interactionSource The interaction source to be applied to the [TextField].
+ * @param cursorBrush The brush to be used for the cursor.
+ */
+@Composable
+fun TextField(
+    value: TextFieldValue,
+    onValueChange: (TextFieldValue) -> Unit,
+    modifier: Modifier = Modifier,
+    insideMargin: DpSize = TextFieldDefaults.InsideMargin,
+    colors: TextFieldColors = TextFieldDefaults.textFieldColors(),
+    cornerRadius: Dp = TextFieldDefaults.CornerRadius,
+    label: String = "",
+    useLabelAsPlaceholder: Boolean = false,
+    enabled: Boolean = true,
+    readOnly: Boolean = false,
+    textStyle: TextStyle = MiuixTheme.textStyles.main,
+    keyboardOptions: KeyboardOptions = KeyboardOptions.Default,
+    keyboardActions: KeyboardActions = KeyboardActions.Default,
+    leadingIcon: @Composable (() -> Unit)? = null,
+    trailingIcon: @Composable (() -> Unit)? = null,
+    singleLine: Boolean = false,
+    maxLines: Int = if (singleLine) 1 else Int.MAX_VALUE,
+    minLines: Int = 1,
+    visualTransformation: VisualTransformation = VisualTransformation.None,
+    onTextLayout: (TextLayoutResult) -> Unit = {},
+    interactionSource: MutableInteractionSource? = null,
+    cursorBrush: Brush = SolidColor(colors.borderColor),
+) {
+    @Suppress("NAME_SHADOWING")
+    val interactionSource = interactionSource ?: remember { MutableInteractionSource() }
+    val isFocused by interactionSource.collectIsFocusedAsState()
+    val labelState = remember(value.text, label, useLabelAsPlaceholder) {
+        when {
+            label.isEmpty() -> LabelAnimState.Hidden
+            useLabelAsPlaceholder && value.text.isNotEmpty() -> LabelAnimState.Placeholder
+            value.text.isNotEmpty() -> LabelAnimState.Floating
+            else -> LabelAnimState.Normal
+        }
+    }
+
+    val currentOnValueChange by rememberUpdatedState(onValueChange)
+    val currentOnTextLayout by rememberUpdatedState(onTextLayout)
+
+    val contentColor = LocalContentColor.current
+    val resolvedTextStyle = remember(textStyle, contentColor) {
+        val textColor = textStyle.color.takeOrElse { contentColor }
+        textStyle.copy(textColor)
+    }
+
+    BasicTextField(
+        value = value,
+        onValueChange = currentOnValueChange,
+        modifier = modifier,
+        enabled = enabled,
+        readOnly = readOnly,
+        textStyle = resolvedTextStyle,
+        keyboardOptions = keyboardOptions,
+        keyboardActions = keyboardActions,
+        singleLine = singleLine,
+        maxLines = maxLines,
+        minLines = minLines,
+        visualTransformation = visualTransformation,
+        onTextLayout = currentOnTextLayout,
+        interactionSource = interactionSource,
+        cursorBrush = cursorBrush,
+        decorationBox = @Composable { innerTextField ->
+            TextFieldChrome(
+                label = label,
+                labelState = labelState,
+                colors = colors,
+                cornerRadius = cornerRadius,
+                insideMargin = insideMargin,
+                leadingIcon = leadingIcon,
+                trailingIcon = trailingIcon,
+                isFocused = isFocused,
+                innerTextField = innerTextField,
+            )
+        },
+    )
+}
+
+/**
+ * A text field component with Miuix style.
+ *
+ * @param value The text to be displayed in the text field.
+ * @param onValueChange The callback to be called when the value changes.
+ * @param modifier The modifier to be applied to the [TextField].
+ * @param insideMargin The margin inside the [TextField].
+ * @param colors The [TextFieldColors] applied to the [TextField]. Use
+ *   [TextFieldDefaults.textFieldColors] to customize.
+ * @param cornerRadius The corner radius of the [TextField].
+ * @param label The label to be displayed when the [TextField] is empty.
+ * @param useLabelAsPlaceholder Whether to use the label as a placeholder.
+ * @param enabled Whether the [TextField] is enabled.
+ * @param readOnly Whether the [TextField] is read-only.
+ * @param textStyle The text style to be applied to the [TextField].
+ * @param keyboardOptions The keyboard options to be applied to the [TextField].
+ * @param keyboardActions The keyboard actions to be applied to the [TextField].
+ * @param leadingIcon The leading icon to be displayed in the [TextField].
+ * @param trailingIcon The trailing icon to be displayed in the [TextField].
+ * @param singleLine Whether the text field is single line.
+ * @param maxLines The maximum number of lines allowed to be displayed in [TextField].
+ * @param minLines The minimum number of lines allowed to be displayed in [TextField]. It is required
+ *   that 1 <= [minLines] <= [maxLines].
+ * @param visualTransformation The visual transformation to be applied to the [TextField].
+ * @param onTextLayout The callback to be called when the text layout changes.
+ * @param interactionSource The interaction source to be applied to the [TextField].
+ * @param cursorBrush The brush to be used for the cursor.
+ */
+@Composable
+fun TextField(
+    value: String,
+    onValueChange: (String) -> Unit,
+    modifier: Modifier = Modifier,
+    insideMargin: DpSize = TextFieldDefaults.InsideMargin,
+    colors: TextFieldColors = TextFieldDefaults.textFieldColors(),
+    cornerRadius: Dp = TextFieldDefaults.CornerRadius,
+    label: String = "",
+    useLabelAsPlaceholder: Boolean = false,
+    enabled: Boolean = true,
+    readOnly: Boolean = false,
+    textStyle: TextStyle = MiuixTheme.textStyles.main,
+    keyboardOptions: KeyboardOptions = KeyboardOptions.Default,
+    keyboardActions: KeyboardActions = KeyboardActions.Default,
+    leadingIcon: @Composable (() -> Unit)? = null,
+    trailingIcon: @Composable (() -> Unit)? = null,
+    singleLine: Boolean = false,
+    maxLines: Int = if (singleLine) 1 else Int.MAX_VALUE,
+    minLines: Int = 1,
+    visualTransformation: VisualTransformation = VisualTransformation.None,
+    onTextLayout: (TextLayoutResult) -> Unit = {},
+    interactionSource: MutableInteractionSource? = null,
+    cursorBrush: Brush = SolidColor(colors.borderColor),
+) {
+    @Suppress("NAME_SHADOWING")
+    val interactionSource = interactionSource ?: remember { MutableInteractionSource() }
+    val isFocused by interactionSource.collectIsFocusedAsState()
+    val labelState = remember(value, label, useLabelAsPlaceholder) {
+        when {
+            label.isEmpty() -> LabelAnimState.Hidden
+            useLabelAsPlaceholder && value.isNotEmpty() -> LabelAnimState.Placeholder
+            value.isNotEmpty() -> LabelAnimState.Floating
+            else -> LabelAnimState.Normal
+        }
+    }
+
+    val currentOnValueChange by rememberUpdatedState(onValueChange)
+    val currentOnTextLayout by rememberUpdatedState(onTextLayout)
+
+    val contentColor = LocalContentColor.current
+    val resolvedTextStyle = remember(textStyle, contentColor) {
+        val textColor = textStyle.color.takeOrElse { contentColor }
+        textStyle.copy(textColor)
+    }
+
+    BasicTextField(
+        value = value,
+        onValueChange = currentOnValueChange,
+        modifier = modifier,
+        enabled = enabled,
+        readOnly = readOnly,
+        textStyle = resolvedTextStyle,
+        keyboardOptions = keyboardOptions,
+        keyboardActions = keyboardActions,
+        singleLine = singleLine,
+        maxLines = maxLines,
+        minLines = minLines,
+        visualTransformation = visualTransformation,
+        onTextLayout = currentOnTextLayout,
+        interactionSource = interactionSource,
+        cursorBrush = cursorBrush,
+        decorationBox = @Composable { innerTextField ->
+            TextFieldChrome(
+                label = label,
+                labelState = labelState,
+                colors = colors,
+                cornerRadius = cornerRadius,
+                insideMargin = insideMargin,
+                leadingIcon = leadingIcon,
+                trailingIcon = trailingIcon,
+                isFocused = isFocused,
+                innerTextField = innerTextField,
+            )
+        },
+    )
+}
+
+private enum class LabelAnimState { Hidden, Placeholder, Normal, Floating }
+
+/** Contains default values used by [TextField]. */
+object TextFieldDefaults {
+    /** The default corner radius of the [TextField]. */
+    val CornerRadius = 16.dp
+
+    /** The default inside margin of the [TextField]. */
+    val InsideMargin = DpSize(16.dp, 16.dp)
+
+    /** The default border width when the [TextField] is focused. */
+    internal val BorderWidth = 2.dp
+
+    /** The label font size when the label is floating above the text. */
+    internal val LabelFontSizeFloating = 10.dp
+
+    /** The label font size when the label is in its normal position. */
+    internal val LabelFontSizeNormal = 17.dp
+
+    /**
+     * Default colors used by the [TextField].
+     *
+     * @param backgroundColor The background color of the [TextField].
+     * @param labelColor The color of the floating / inline label.
+     * @param borderColor The color of the border when the [TextField] is focused.
+     */
+    @Composable
+    fun textFieldColors(
+        backgroundColor: Color = MiuixTheme.colorScheme.secondaryContainer,
+        labelColor: Color = MiuixTheme.colorScheme.onSecondaryContainer,
+        borderColor: Color = MiuixTheme.colorScheme.primary,
+    ): TextFieldColors = remember(backgroundColor, labelColor, borderColor) {
+        TextFieldColors(
+            backgroundColor = backgroundColor,
+            labelColor = labelColor,
+            borderColor = borderColor,
+        )
+    }
+}
+
+/**
+ * Colors used by a [TextField] in different parts of the component.
+ *
+ * @param backgroundColor The background color of the [TextField].
+ * @param labelColor The color of the floating / inline label.
+ * @param borderColor The color of the border when the [TextField] is focused.
+ */
+@Immutable
+data class TextFieldColors(
+    val backgroundColor: Color,
+    val labelColor: Color,
+    val borderColor: Color,
+)
+
+/**
+ * Builds the shared chrome (background, animated border, floating label, leading/trailing icons,
+ * padding) around the inner text field. Centralizes derived state + animations so the three
+ * [TextField] overloads only differ in the [BasicTextField] call.
+ */
+@Composable
+private fun TextFieldChrome(
+    label: String,
+    labelState: LabelAnimState,
+    colors: TextFieldColors,
+    cornerRadius: Dp,
+    insideMargin: DpSize,
+    leadingIcon: @Composable (() -> Unit)?,
+    trailingIcon: @Composable (() -> Unit)?,
+    isFocused: Boolean,
+    innerTextField: @Composable () -> Unit,
+) {
+    val borderWidthState = animateDpAsState(if (isFocused) TextFieldDefaults.BorderWidth else 0.dp)
+    val borderColorState = animateColorAsState(if (isFocused) colors.borderColor else colors.backgroundColor)
+    val labelAnim = animateDpAsState(
+        when (labelState) {
+            LabelAnimState.Floating -> -insideMargin.height / 2
+            LabelAnimState.Placeholder, LabelAnimState.Normal -> 0.dp
+            LabelAnimState.Hidden -> 0.dp
+        },
+    )
+    val labelFontSize by animateDpAsState(
+        when (labelState) {
+            LabelAnimState.Floating -> TextFieldDefaults.LabelFontSizeFloating
+            else -> TextFieldDefaults.LabelFontSizeNormal
+        },
+    )
+    val hasLeadingIcon = leadingIcon != null
+    val hasTrailingIcon = trailingIcon != null
+    val paddingModifier = remember(hasLeadingIcon, hasTrailingIcon, insideMargin) {
+        when {
+            !hasLeadingIcon && !hasTrailingIcon -> Modifier.padding(insideMargin.width, vertical = insideMargin.height)
+            !hasLeadingIcon -> Modifier.padding(start = insideMargin.width).padding(vertical = insideMargin.height)
+            !hasTrailingIcon -> Modifier.padding(end = insideMargin.width).padding(vertical = insideMargin.height)
+            else -> Modifier.padding(vertical = insideMargin.height)
+        }
+    }
+
+    TextFieldDecorationBox(
+        label = label,
+        labelFontSize = labelFontSize,
+        labelColor = colors.labelColor,
+        labelState = labelState,
+        backgroundColor = colors.backgroundColor,
+        borderWidth = { borderWidthState.value },
+        borderColor = { borderColorState.value },
+        cornerRadius = cornerRadius,
+        paddingModifier = paddingModifier,
+        leadingIcon = leadingIcon,
+        trailingIcon = trailingIcon,
+        labelAnim = { labelAnim.value },
+        insideMargin = insideMargin,
+        innerTextField = innerTextField,
+    )
+}
+
+@Composable
+private fun TextFieldDecorationBox(
+    label: String,
+    labelFontSize: Dp,
+    labelColor: Color,
+    labelState: LabelAnimState,
+    backgroundColor: Color,
+    borderWidth: () -> Dp,
+    borderColor: () -> Color,
+    cornerRadius: Dp,
+    paddingModifier: Modifier = Modifier,
+    leadingIcon: @Composable (() -> Unit)? = null,
+    trailingIcon: @Composable (() -> Unit)? = null,
+    labelAnim: () -> Dp = { 0.dp },
+    insideMargin: DpSize = TextFieldDefaults.InsideMargin,
+    innerTextField: @Composable () -> Unit,
+) {
+    Box(
+        modifier = Modifier
+            .squircleBackground(color = backgroundColor, cornerRadius = cornerRadius)
+            .squircleBorder(
+                width = borderWidth,
+                color = borderColor,
+                cornerRadius = cornerRadius,
+            ),
+        contentAlignment = Alignment.CenterStart,
+    ) {
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            leadingIcon?.invoke()
+            Box(
+                modifier = Modifier.weight(1f).then(paddingModifier),
+                contentAlignment = Alignment.TopStart,
+            ) {
+                if (labelState != LabelAnimState.Hidden && labelState != LabelAnimState.Placeholder) {
+                    Text(
+                        text = label,
+                        fontSize = labelFontSize.value.sp,
+                        color = labelColor,
+                        fontWeight = FontWeight.Medium,
+                        modifier = Modifier.offset { IntOffset(0, labelAnim().roundToPx()) },
+                        textAlign = TextAlign.Start,
+                    )
+                }
+                Box(
+                    modifier = Modifier.offset(y = if (labelState == LabelAnimState.Floating) insideMargin.height / 2 else 0.dp),
+                    contentAlignment = Alignment.CenterStart,
+                ) {
+                    innerTextField()
+                }
+            }
+            trailingIcon?.invoke()
+        }
+    }
+}
