@@ -2088,6 +2088,7 @@ fun CourseScheduleApp() {
                 show = showMorePopup,
                 backdrop = liquidGlassBackdrop,
                 fraction = morePopupFraction,
+                onDismiss = { showMorePopup = false },
             ) {
                 LiquidGlassDropdownMenuItem(
                     text = "跳转周数",
@@ -2118,7 +2119,8 @@ fun CourseScheduleApp() {
             }
             LiquidGlassDropdownMenu(
                 show = showTodayMorePopup,
-                backdrop = liquidGlassBackdrop
+                backdrop = liquidGlassBackdrop,
+                onDismiss = { showTodayMorePopup = false },
             ) {
                 LiquidGlassDropdownMenuItem(
                     text = "跳转日期",

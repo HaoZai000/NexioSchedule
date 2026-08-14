@@ -249,6 +249,7 @@ fun DayColumn(
 
             // 午休分界线
             val dividerColor = if (cardBlurRadius > 0f) Color.Transparent else MiuixTheme.colorScheme.surfaceContainer
+            val dividerShape = RoundedRectangle(12.dp)
             if (showBreakDividers) {
                 Box(
                     modifier = Modifier
@@ -262,7 +263,8 @@ fun DayColumn(
                             modifier = Modifier
                                 .fillMaxWidth()
                                 .height(20.dp)
-                                .background(dividerColor)
+                                .padding(horizontal = 4.dp)
+                                .background(dividerColor, dividerShape)
                         )
                     }
                 }
@@ -397,7 +399,8 @@ fun DayColumn(
                             modifier = Modifier
                                 .fillMaxWidth()
                                 .height(20.dp)
-                                .background(dividerColor)
+                                .padding(horizontal = 4.dp)
+                                .background(dividerColor, dividerShape)
                         )
                     }
                 }

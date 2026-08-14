@@ -2,7 +2,9 @@ package com.haooz.chedule.ui.basic
 
 import android.graphics.BlurMaskFilter
 import android.graphics.Paint
+import androidx.activity.compose.BackHandler
 import androidx.compose.animation.core.Animatable
+import androidx.compose.animation.core.CubicBezierEasing
 import androidx.compose.animation.core.spring
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.clickable
@@ -74,8 +76,13 @@ fun LiquidGlassDropdownMenu(
     backdrop: Backdrop,
     modifier: Modifier = Modifier,
     fraction: Animatable<Float,*> = remember { Animatable(0f) },
+    onDismiss: (() -> Unit)? = null,
     content: @Composable ColumnScope.() -> Unit
 ) {
+    if (show && onDismiss != null) {
+        BackHandler { onDismiss() }
+    }
+
     val isLightTheme = !isAppDarkTheme()
     val containerColor = if (isLightTheme) Color(0xFFFFFFFF).copy(0.72f)
         else Color(0xFF242424).copy(0.8f)
@@ -127,6 +134,8 @@ fun LiquidGlassDropdownMenu(
             }
     }
 
+    val transformOriginProgress = remember { Animatable(0f) }
+
     val cornerRadius = 25.dp
 
     // 裁剪 Shape：fraction=0 时裁为小正方形（对齐右上角），fraction=1 时完整尺寸。
@@ -145,7 +154,13 @@ fun LiquidGlassDropdownMenu(
             launch {
                 fraction.animateTo(
                     1f,
-                    spring(dampingRatio = 0.78f, stiffness = 232f, visibilityThreshold = 0.0001f)
+                    spring(dampingRatio = 0.78f, stiffness = 240f, visibilityThreshold = 0.0001f)
+                )
+            }
+            launch {
+                transformOriginProgress.animateTo(
+                    1f,
+                    spring(dampingRatio = 0.78f, stiffness = 500f, visibilityThreshold = 0.0001f)
                 )
             }
             launch {
@@ -153,14 +168,22 @@ fun LiquidGlassDropdownMenu(
             }
         } else {
             // fraction 退出动画与 alpha 退出动画并行
+            val exitEasing = CubicBezierEasing(0.0f, 0.0f, 0.0f, 1.0f)
             launch {
                 fraction.animateTo(
                     0f,
                     spring(dampingRatio = 0.78f, stiffness = 400f, visibilityThreshold = 0.0001f)
                 )
             }
-            menuAlpha.animateTo(0f, tween(380))
+            launch {
+                transformOriginProgress.animateTo(
+                    0f,
+                    tween(450, easing = exitEasing)
+                )
+            }
+            menuAlpha.animateTo(0f, tween(400))
             fraction.snapTo(0f)
+            transformOriginProgress.snapTo(0f)
             menuAlpha.snapTo(0f)
         }
     }
@@ -213,9 +236,10 @@ fun LiquidGlassDropdownMenu(
                     // 从锚点(1f, 0f)动态移动到中心(0.5f, 0.5f)
                     val startOrigin = TransformOrigin(1f, 0f)
                     val targetOrigin = TransformOrigin(0.5f, 0.5f)
+                    val f2 = transformOriginProgress.value
                     transformOrigin = TransformOrigin(
-                        pivotFractionX = startOrigin.pivotFractionX + (targetOrigin.pivotFractionX - startOrigin.pivotFractionX) * f,
-                        pivotFractionY = startOrigin.pivotFractionY + (targetOrigin.pivotFractionY - startOrigin.pivotFractionY) * f
+                        pivotFractionX = startOrigin.pivotFractionX + (targetOrigin.pivotFractionX - startOrigin.pivotFractionX) * f2,
+                        pivotFractionY = startOrigin.pivotFractionY + (targetOrigin.pivotFractionY - startOrigin.pivotFractionY) * f2
                     )
                     clip = false
                 }

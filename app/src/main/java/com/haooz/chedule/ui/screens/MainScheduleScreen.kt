@@ -492,14 +492,13 @@ fun MainScheduleScreen(
 
                     if (showBreakDividers) {
                     val dividerColor = if (wallpaperBitmap != null) Color.Transparent else MiuixTheme.colorScheme.surfaceContainer
-                    val dividerShape = if (isTablet) RoundedRectangle(12.dp) else RectangleShape
+                    val dividerShape = RoundedRectangle(12.dp)
+                    val dividerHorizontalPadding = if (isTablet) 24.dp else 4.dp
                     Box(
                         modifier = Modifier.fillMaxWidth().offset(y = morningHeight.dp)
                             .height(24.dp)
                             .padding(vertical = 2.dp)
-                            .then(
-                                if (isTablet) Modifier.padding(horizontal = 24.dp) else Modifier
-                            )
+                            .padding(horizontal = dividerHorizontalPadding)
                             .background(dividerColor, dividerShape)
                             .then(
                                 if (wallpaperBitmap != null) {
@@ -532,9 +531,7 @@ fun MainScheduleScreen(
                         modifier = Modifier.fillMaxWidth().offset(y = dinnerBreakY.dp)
                             .height(24.dp)
                             .padding(vertical = 2.dp)
-                            .then(
-                                if (isTablet) Modifier.padding(horizontal = 24.dp) else Modifier
-                            )
+                            .padding(horizontal = dividerHorizontalPadding)
                             .background(dividerColor, dividerShape)
                             .then(
                                 if (wallpaperBitmap != null) {
