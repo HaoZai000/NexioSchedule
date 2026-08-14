@@ -33,7 +33,6 @@ import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
-import androidx.compose.runtime.mutableStateMapOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
@@ -376,7 +375,8 @@ fun MainScheduleScreen(
             ) {
                 Box(modifier = Modifier.fillMaxWidth()) {
                     // 收集每列在 root 中的 x 区间与顶部 y，供拖拽落点检测使用
-                    val dayBoundsMap = remember { mutableStateMapOf<Int, FloatArray>() }
+                    val dayBoundsArray = remember { arrayOfNulls<FloatArray>(8) }
+                    var lastDayBoundsVersion by remember { mutableIntStateOf(0) }
                     Row(
                         modifier = Modifier
                             .fillMaxWidth()
@@ -426,6 +426,12 @@ fun MainScheduleScreen(
                             val stableOnEmptyClick: (Int) -> Unit = remember(dayOfWeek) {
                                 { section -> viewModel.showAddDialog(dayOfWeek, section) }
                             }
+                            val stableOnCourseLongPress: (Course, Float, Float, Float, Float, com.kyant.backdrop.Backdrop?, Int) -> Unit =
+                                remember(page, dayOfWeek) {
+                                    { course, left, top, width, height, _, cWeek ->
+                                        onCourseLongPress(course, left, top, width, height, courseCardBackdrop, cWeek)
+                                    }
+                                }
                             DayColumn(
                                 dayOfWeek = dayOfWeek,
                                 courses = filteredDayCourses,
@@ -448,9 +454,7 @@ fun MainScheduleScreen(
                                 isTablet = isTablet,
                                 cardContentAlignment = cardContentAlignment,
                                 draggingCourseIds = draggingCourseIds,
-                                onCourseLongPress = { course, left, top, width, height, _, currentWeek ->
-                                    onCourseLongPress(course, left, top, width, height, courseCardBackdrop, currentWeek)
-                                },
+                                onCourseLongPress = stableOnCourseLongPress,
                                 onCourseDragStart = onCourseDragStart,
                                 onCourseDrag = onCourseDrag,
                                 onCourseDragEnd = onCourseDragEnd,
@@ -462,7 +466,12 @@ fun MainScheduleScreen(
                                     .onGloballyPositioned { coordinates ->
                                         val pos = coordinates.positionInRoot()
                                         val w = coordinates.size.width.toFloat()
-                                        dayBoundsMap[dayOfWeek] = floatArrayOf(pos.x, pos.x + w, pos.y)
+                                        val old = dayBoundsArray[dayOfWeek]
+                                        val new = floatArrayOf(pos.x, pos.x + w, pos.y)
+                                        if (old == null || old[0] != new[0] || old[1] != new[1] || old[2] != new[2]) {
+                                            dayBoundsArray[dayOfWeek] = new
+                                            lastDayBoundsVersion++
+                                        }
                                     }
                             )
                         }
@@ -472,9 +481,14 @@ fun MainScheduleScreen(
                     val sectionHeightPx = with(density) { cardHeightPerSection.dp.toPx() }
                     SideEffect {
                         if (page == pagerState.currentPage) {
+                            val boundsMap = mutableMapOf<Int, FloatArray>()
+                            for (i in 1..7) {
+                                val arr = dayBoundsArray[i]
+                                if (arr != null) boundsMap[i] = arr
+                            }
                             onGridGeometryChange(
                                 ScheduleGridGeometry(
-                                    dayBounds = dayBoundsMap.toMap(),
+                                    dayBounds = boundsMap,
                                     sectionHeightPx = sectionHeightPx,
                                     morningSections = morningSections,
                                     afternoonSections = afternoonSections,

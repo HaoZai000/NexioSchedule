@@ -179,7 +179,6 @@ fun CourseCard(
                             var isLongPress = false
                             var isDraggingCard = false
                             var menuShown = false
-                            // 长按定时器：按住不动到时触发，不再依赖 pointer event 唤醒
                             val longPressJob = scope.launch {
                                 delay(320.milliseconds)
                                 isLongPress = true
@@ -200,14 +199,11 @@ fun CourseCard(
                                         isPressed = false
                                         if (isDraggingCard) {
                                             if (menuShown) {
-                                                // 拖拽中但菜单未关闭（移动未超阈值）：浮层回弹原位，不结束拖拽
                                                 onDrag(0f, 0f)
                                             } else {
-                                                // 菜单已关闭：正常结束拖拽
                                                 onDragEnd()
                                             }
                                         } else if (menuShown) {
-                                            // 菜单已显示，松手 → 菜单保持
                                         } else {
                                             val upChange = event.changes.firstOrNull()
                                             if (upChange != null) {
@@ -221,14 +217,24 @@ fun CourseCard(
                                         break
                                     }
                                     val currentPos = event.changes.firstOrNull()?.position ?: continue
-                                    // 长按前：手指移动超过8dp → 取消长按（当作滚动）
-                                    val dragDist = (currentPos - downPosition).getDistance()
+                                    val dx = currentPos.x - downPosition.x
+                                    val dy = currentPos.y - downPosition.y
+                                    val dragDist = currentPos.minus(downPosition).getDistance()
+
+                                    // 水平滑动 → 释放手势给 HorizontalPager
+                                    if (!isLongPress && !isDraggingCard && !menuShown
+                                        && kotlin.math.abs(dx) > 5f * density
+                                        && kotlin.math.abs(dx) > kotlin.math.abs(dy) * 1.2f
+                                    ) {
+                                        isPressed = false
+                                        break
+                                    }
+
                                     if (!isLongPress && dragDist > 8f * density) {
                                         isPressed = false
                                         event.changes.forEach { it.consume() }
                                         break
                                     }
-                                    // 菜单已显示：任意移动即触发拖拽，仅当移动超过12dp才关闭菜单
                                     if (menuShown && !isDraggingCard) {
                                         isDraggingCard = true
                                         onDragStart()
@@ -296,15 +302,17 @@ fun CourseCard(
                         }
                         try {
                             while (true) {
-                                val event = awaitPointerEvent(PointerEventPass.Main)
+                                // 菜单/拖拽状态：Main pass 拦截事件防止穿透
+                                // 否则：Final pass 让 HorizontalPager 先处理水平滑动
+                                val pass = if (menuShown || isDraggingCard)
+                                    PointerEventPass.Main else PointerEventPass.Final
+                                val event = awaitPointerEvent(pass)
                                 val pressed = event.changes.any { it.pressed }
                                 if (!pressed) {
                                     if (isDraggingCard) {
                                         if (menuShown) {
-                                            // 拖拽中但菜单未关闭（移动未超阈值）：浮层回弹原位，不结束拖拽
                                             onDrag(0f, 0f)
                                         } else {
-                                            // 菜单已关闭：正常结束拖拽
                                             onDragEnd()
                                         }
                                     } else if (menuShown) {
@@ -321,12 +329,22 @@ fun CourseCard(
                                     break
                                 }
                                 val currentPos = event.changes.firstOrNull()?.position ?: continue
-                                val dragDist = (currentPos - downPosition).getDistance()
+                                val dx = currentPos.x - downPosition.x
+                                val dy = currentPos.y - downPosition.y
+                                val dragDist = currentPos.minus(downPosition).getDistance()
+
+                                // 水平滑动 → 释放手势给 HorizontalPager
+                                if (!isLongPress && !isDraggingCard && !menuShown
+                                    && kotlin.math.abs(dx) > 5f * density
+                                    && kotlin.math.abs(dx) > kotlin.math.abs(dy) * 1.2f
+                                ) {
+                                    break
+                                }
+
                                 if (!isLongPress && dragDist > 8f * density) {
                                     event.changes.forEach { it.consume() }
                                     break
                                 }
-                                // 菜单已显示：任意移动即触发拖拽，仅当移动超过12dp才关闭菜单
                                 if (menuShown && !isDraggingCard) {
                                     isDraggingCard = true
                                     onDragStart()

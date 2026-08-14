@@ -140,109 +140,52 @@ fun DayColumn(
                 val isOccupied = section in occupiedSections
                 val isSectionPending = isPendingDay && pendingSection == section && !isOccupied
                 val isDropHighlight = dropHighlightSections?.contains(section) == true
-                Box(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .height(cardHeightPerSection.dp)
-                        .offset(y = currentOffset.dp)
-                        .then(if (isDropHighlight) Modifier.padding(dropHighlightPadding(section)).background(dropHighlightColor, dropHighlightShape(section)) else Modifier)
-                        .then(
-                            if (!isSectionPending && !isOccupied) {
-                                Modifier.combinedClickable(
-                                    indication = null,
-                                    interactionSource = sharedInteractionSource,
-                                    onClick = {
-                                        onPendingChange(dayOfWeek, section)
-                                    },
-                                    onLongClick = {
-                                        hapticFeedback.performHapticFeedback(HapticFeedbackType.LongPress)
-                                        onEmptyLongPress()
-                                    }
-                                )
-                            } else {
-                                Modifier
-                            }
-                        ),
-                    contentAlignment = Alignment.Center
-                ) {
-                    if (isSectionPending) {
-                        if (hasBlur) {
-                            key(cardCornerRadius) {
-                                Box(
-                                    modifier = Modifier
-                                        .fillMaxSize()
-                                        .padding(horizontal = 2.dp, vertical = 2.dp)
-                                        .drawBackdrop(
-                                            backdrop = wallpaperBackdrop,
-                                            shape = { RoundedRectangle(cardCornerRadius.dp) },
-                                            effects = {
-                                                blur(cardBlurRadius.dp.toPx())
-                                            },
-                                            highlight = null,
-                                            onDrawSurface = {
-                                                drawRect( if (isDark) Color(0xFF242424).copy(alpha =0.64f) else Color(0xFFF0F0F0).copy(alpha =0.5f))
-                                            }
-                                        )
-                                        .edgeLight(shape = RoundedRectangle(cardCornerRadius.dp), edgeLight = rememberCourseCardEdgeLight())
-                                ) {
-                                    Card(
-                                        modifier = Modifier.fillMaxSize(),
-                                        cornerRadius = cardCornerRadius.dp,
-                                        insideMargin = PaddingValues(0.dp),
-                                        showIndication = true,
-                                        colors = CardDefaults.defaultColors(
-                                            color = Color.Transparent,
-                                            contentColor = if (isDark) Color(0xFFF0F0F0).copy(alpha =0.64f) else Color(0xFF242424).copy(alpha =0.5f)
-                                        ),
-                                        onClick = {
-                                            hapticFeedback.performHapticFeedback(HapticFeedbackType.Confirm)
-                                            onEmptyClick(section)
-                                        }
-                                    ) {
-                                        Box(
-                                            modifier = Modifier.fillMaxSize(),
-                                            contentAlignment = Alignment.Center
-                                        ) {
-                                            Icon(
-                                                imageVector = MiuixIcons.Add,
-                                                contentDescription = "添加",
-                                                modifier = Modifier.size(22.dp)
-                                            )
-                                        }
-                                    }
-                                }
-                            }
-                        } else {
-                            Card(
-                                modifier = Modifier
-                                    .fillMaxSize()
-                                    .padding(horizontal = 2.dp, vertical = 2.dp),
-                                cornerRadius = cardCornerRadius.dp,
-                                insideMargin = PaddingValues(0.dp),
-                                pressFeedbackType = PressFeedbackType.Sink,
-                                showIndication = true,
-                                colors = CardDefaults.defaultColors(
-                                    color = Color(0xFF9E9E9E).copy(alpha = if (isDark) 0.13f else 0.15f),
-                                    contentColor = Color(0xFF9E9E9E).copy(alpha = 0.5f)
-                                ),
-                                onClick = {
-                                    hapticFeedback.performHapticFeedback(HapticFeedbackType.Confirm)
-                                    onEmptyClick(section)
-                                }
-                            ) {
-                                Box(
-                                    modifier = Modifier.fillMaxSize(),
-                                    contentAlignment = Alignment.Center
-                                ) {
-                                    Icon(
-                                        imageVector = MiuixIcons.Add,
-                                        contentDescription = "添加",
-                                        modifier = Modifier.size(22.dp)
-                                    )
-                                }
-                            }
-                        }
+                if (isSectionPending) {
+                    // 仅 pending 状态需要完整渲染（模糊+边光+卡片）
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(cardHeightPerSection.dp)
+                            .offset(y = currentOffset.dp)
+                    ) {
+                        PendingSectionBox(
+                            section = section,
+                            dayOfWeek = dayOfWeek,
+                            hasBlur = hasBlur,
+                            isDark = isDark,
+                            cardCornerRadius = cardCornerRadius,
+                            cardBlurRadius = cardBlurRadius,
+                            wallpaperBackdrop = wallpaperBackdrop,
+                            hapticFeedback = hapticFeedback,
+                            onEmptyClick = onEmptyClick
+                        )
                     }
+                } else {
+                    // 空白或占用：仅占位 + 可点击
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(cardHeightPerSection.dp)
+                            .offset(y = currentOffset.dp)
+                            .then(if (isDropHighlight) Modifier.padding(dropHighlightPadding(section)).background(dropHighlightColor, dropHighlightShape(section)) else Modifier)
+                            .then(
+                                if (!isOccupied) {
+                                    Modifier.combinedClickable(
+                                        indication = null,
+                                        interactionSource = sharedInteractionSource,
+                                        onClick = {
+                                            onPendingChange(dayOfWeek, section)
+                                        },
+                                        onLongClick = {
+                                            hapticFeedback.performHapticFeedback(HapticFeedbackType.LongPress)
+                                            onEmptyLongPress()
+                                        }
+                                    )
+                                } else {
+                                    Modifier
+                                }
+                            )
+                    )
                 }
                 currentOffset += cardHeightPerSection.toInt()
             }
@@ -278,109 +221,50 @@ fun DayColumn(
                 val isOccupied = section in occupiedSections
                 val isSectionPending = isPendingDay && pendingSection == section && !isOccupied
                 val isDropHighlight = dropHighlightSections?.contains(section) == true
-                Box(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .height(cardHeightPerSection.dp)
-                        .offset(y = currentOffset.dp)
-                        .then(if (isDropHighlight) Modifier.padding(dropHighlightPadding(section)).background(dropHighlightColor, dropHighlightShape(section)) else Modifier)
-                        .then(
-                            if (!isSectionPending && !isOccupied) {
-                                Modifier.combinedClickable(
-                                    indication = null,
-                                    interactionSource = sharedInteractionSource,
-                                    onClick = {
-                                        onPendingChange(dayOfWeek, section)
-                                    },
-                                    onLongClick = {
-                                        hapticFeedback.performHapticFeedback(HapticFeedbackType.LongPress)
-                                        onEmptyLongPress()
-                                    }
-                                )
-                            } else {
-                                Modifier
-                            }
-                        ),
-                    contentAlignment = Alignment.Center
-                ) {
-                    if (isSectionPending) {
-                        if (hasBlur) {
-                            key(cardCornerRadius) {
-                                Box(
-                                    modifier = Modifier
-                                        .fillMaxSize()
-                                        .padding(horizontal = 2.dp, vertical = 2.dp)
-                                        .drawBackdrop(
-                                            backdrop = wallpaperBackdrop,
-                                            shape = { RoundedRectangle(cardCornerRadius.dp) },
-                                            effects = {
-                                                blur(cardBlurRadius.dp.toPx())
-                                            },
-                                            highlight = null,
-                                            onDrawSurface = {
-                                                drawRect( if (isDark) Color(0xFF242424).copy(alpha =0.64f) else Color(0xFFF0F0F0).copy(alpha =0.5f))
-                                            }
-                                        )
-                                        .edgeLight(shape = RoundedRectangle(cardCornerRadius.dp), edgeLight = rememberCourseCardEdgeLight())
-                                ) {
-                                    Card(
-                                        modifier = Modifier.fillMaxSize(),
-                                        cornerRadius = cardCornerRadius.dp,
-                                        insideMargin = PaddingValues(0.dp),
-                                        showIndication = true,
-                                        colors = CardDefaults.defaultColors(
-                                            color = Color.Transparent,
-                                            contentColor = if (isDark) Color(0xFFF0F0F0).copy(alpha =0.64f) else Color(0xFF242424).copy(alpha =0.5f)
-                                        ),
-                                        onClick = {
-                                            hapticFeedback.performHapticFeedback(HapticFeedbackType.Confirm)
-                                            onEmptyClick(section)
-                                        }
-                                    ) {
-                                        Box(
-                                            modifier = Modifier.fillMaxSize(),
-                                            contentAlignment = Alignment.Center
-                                        ) {
-                                            Icon(
-                                                imageVector = MiuixIcons.Add,
-                                                contentDescription = "添加",
-                                                modifier = Modifier.size(22.dp)
-                                            )
-                                        }
-                                    }
-                                }
-                            }
-                        } else {
-                            Card(
-                                modifier = Modifier
-                                    .fillMaxSize()
-                                    .padding(horizontal = 2.dp, vertical = 2.dp),
-                                cornerRadius = cardCornerRadius.dp,
-                                insideMargin = PaddingValues(0.dp),
-                                pressFeedbackType = PressFeedbackType.Sink,
-                                showIndication = true,
-                                colors = CardDefaults.defaultColors(
-                                    color = Color(0xFF9E9E9E).copy(alpha = if (isDark) 0.13f else 0.15f),
-                                    contentColor = Color(0xFF9E9E9E).copy(alpha = 0.5f)
-                                ),
-                                onClick = {
-                                    hapticFeedback.performHapticFeedback(HapticFeedbackType.Confirm)
-                                    onEmptyClick(section)
-                                }
-                            ) {
-                                Box(
-                                    modifier = Modifier.fillMaxSize(),
-                                    contentAlignment = Alignment.Center
-                                ) {
-                                    Icon(
-                                        imageVector = MiuixIcons.Add,
-                                        contentDescription = "添加",
-                                        modifier = Modifier.size(22.dp)
-                                    )
-                                }
-                            }
-                        }
+                if (isSectionPending) {
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(cardHeightPerSection.dp)
+                            .offset(y = currentOffset.dp)
+                    ) {
+                        PendingSectionBox(
+                            section = section,
+                            dayOfWeek = dayOfWeek,
+                            hasBlur = hasBlur,
+                            isDark = isDark,
+                            cardCornerRadius = cardCornerRadius,
+                            cardBlurRadius = cardBlurRadius,
+                            wallpaperBackdrop = wallpaperBackdrop,
+                            hapticFeedback = hapticFeedback,
+                            onEmptyClick = onEmptyClick
+                        )
                     }
+                } else {
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(cardHeightPerSection.dp)
+                            .offset(y = currentOffset.dp)
+                            .then(if (isDropHighlight) Modifier.padding(dropHighlightPadding(section)).background(dropHighlightColor, dropHighlightShape(section)) else Modifier)
+                            .then(
+                                if (!isOccupied) {
+                                    Modifier.combinedClickable(
+                                        indication = null,
+                                        interactionSource = sharedInteractionSource,
+                                        onClick = {
+                                            onPendingChange(dayOfWeek, section)
+                                        },
+                                        onLongClick = {
+                                            hapticFeedback.performHapticFeedback(HapticFeedbackType.LongPress)
+                                            onEmptyLongPress()
+                                        }
+                                    )
+                                } else {
+                                    Modifier
+                                }
+                            )
+                    )
                 }
                 currentOffset += cardHeightPerSection.toInt()
             }
@@ -414,109 +298,50 @@ fun DayColumn(
                 val isOccupied = section in occupiedSections
                 val isSectionPending = isPendingDay && pendingSection == section && !isOccupied
                 val isDropHighlight = dropHighlightSections?.contains(section) == true
-                Box(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .height(cardHeightPerSection.dp)
-                        .offset(y = currentOffset.dp)
-                        .then(if (isDropHighlight) Modifier.padding(dropHighlightPadding(section)).background(dropHighlightColor, dropHighlightShape(section)) else Modifier)
-                        .then(
-                            if (!isSectionPending && !isOccupied) {
-                                Modifier.combinedClickable(
-                                    indication = null,
-                                    interactionSource = sharedInteractionSource,
-                                    onClick = {
-                                        onPendingChange(dayOfWeek, section)
-                                    },
-                                    onLongClick = {
-                                        hapticFeedback.performHapticFeedback(HapticFeedbackType.LongPress)
-                                        onEmptyLongPress()
-                                    }
-                                )
-                            } else {
-                                Modifier
-                            }
-                        ),
-                    contentAlignment = Alignment.Center
-                ) {
-                    if (isSectionPending) {
-                        if (hasBlur) {
-                            key(cardCornerRadius) {
-                                Box(
-                                    modifier = Modifier
-                                        .fillMaxSize()
-                                        .padding(horizontal = 2.dp, vertical = 2.dp)
-                                        .drawBackdrop(
-                                            backdrop = wallpaperBackdrop,
-                                            shape = { RoundedRectangle(cardCornerRadius.dp) },
-                                            effects = {
-                                                blur(cardBlurRadius.dp.toPx())
-                                            },
-                                            highlight = null,
-                                            onDrawSurface = {
-                                                drawRect( if (isDark) Color(0xFF242424).copy(alpha =0.64f) else Color(0xFFF0F0F0).copy(alpha =0.5f))
-                                            }
-                                        )
-                                        .edgeLight(shape = RoundedRectangle(cardCornerRadius.dp), edgeLight = rememberCourseCardEdgeLight())
-                                ) {
-                                    Card(
-                                        modifier = Modifier.fillMaxSize(),
-                                        cornerRadius = cardCornerRadius.dp,
-                                        insideMargin = PaddingValues(0.dp),
-                                        showIndication = true,
-                                        colors = CardDefaults.defaultColors(
-                                            color = Color.Transparent,
-                                            contentColor = if (isDark) Color(0xFFF0F0F0).copy(alpha =0.64f) else Color(0xFF242424).copy(alpha =0.5f)
-                                        ),
-                                        onClick = {
-                                            hapticFeedback.performHapticFeedback(HapticFeedbackType.Confirm)
-                                            onEmptyClick(section)
-                                        }
-                                    ) {
-                                        Box(
-                                            modifier = Modifier.fillMaxSize(),
-                                            contentAlignment = Alignment.Center
-                                        ) {
-                                            Icon(
-                                                imageVector = MiuixIcons.Add,
-                                                contentDescription = "添加",
-                                                modifier = Modifier.size(22.dp)
-                                            )
-                                        }
-                                    }
-                                }
-                            }
-                        } else {
-                            Card(
-                                modifier = Modifier
-                                    .fillMaxSize()
-                                    .padding(horizontal = 2.dp, vertical = 2.dp),
-                                cornerRadius = cardCornerRadius.dp,
-                                insideMargin = PaddingValues(0.dp),
-                                pressFeedbackType = PressFeedbackType.Sink,
-                                showIndication = true,
-                                colors = CardDefaults.defaultColors(
-                                    color = Color(0xFF9E9E9E).copy(alpha = if (isDark) 0.13f else 0.15f),
-                                    contentColor = Color(0xFF9E9E9E).copy(alpha = 0.5f)
-                                ),
-                                onClick = {
-                                    hapticFeedback.performHapticFeedback(HapticFeedbackType.Confirm)
-                                    onEmptyClick(section)
-                                }
-                            ) {
-                                Box(
-                                    modifier = Modifier.fillMaxSize(),
-                                    contentAlignment = Alignment.Center
-                                ) {
-                                    Icon(
-                                        imageVector = MiuixIcons.Add,
-                                        contentDescription = "添加",
-                                        modifier = Modifier.size(22.dp)
-                                    )
-                                }
-                            }
-                        }
+                if (isSectionPending) {
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(cardHeightPerSection.dp)
+                            .offset(y = currentOffset.dp)
+                    ) {
+                        PendingSectionBox(
+                            section = section,
+                            dayOfWeek = dayOfWeek,
+                            hasBlur = hasBlur,
+                            isDark = isDark,
+                            cardCornerRadius = cardCornerRadius,
+                            cardBlurRadius = cardBlurRadius,
+                            wallpaperBackdrop = wallpaperBackdrop,
+                            hapticFeedback = hapticFeedback,
+                            onEmptyClick = onEmptyClick
+                        )
                     }
+                } else {
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(cardHeightPerSection.dp)
+                            .offset(y = currentOffset.dp)
+                            .then(if (isDropHighlight) Modifier.padding(dropHighlightPadding(section)).background(dropHighlightColor, dropHighlightShape(section)) else Modifier)
+                            .then(
+                                if (!isOccupied) {
+                                    Modifier.combinedClickable(
+                                        indication = null,
+                                        interactionSource = sharedInteractionSource,
+                                        onClick = {
+                                            onPendingChange(dayOfWeek, section)
+                                        },
+                                        onLongClick = {
+                                            hapticFeedback.performHapticFeedback(HapticFeedbackType.LongPress)
+                                            onEmptyLongPress()
+                                        }
+                                    )
+                                } else {
+                                    Modifier
+                                }
+                            )
+                    )
                 }
                 currentOffset += cardHeightPerSection.toInt()
             }
@@ -629,6 +454,105 @@ fun DayColumn(
                             }
                         )
                     }
+                }
+            }
+        }
+    }
+}
+
+/**
+ * Pending 状态的空节次卡片（含模糊+边光+图标），仅在用户点击空白格时渲染。
+ * 提取为独立 Composable 避免在普通空单元格中创建子树。
+ */
+@Composable
+private fun PendingSectionBox(
+    section: Int,
+    dayOfWeek: Int,
+    hasBlur: Boolean,
+    isDark: Boolean,
+    cardCornerRadius: Float,
+    cardBlurRadius: Float,
+    wallpaperBackdrop: Backdrop?,
+    hapticFeedback: androidx.compose.ui.hapticfeedback.HapticFeedback,
+    onEmptyClick: (Int) -> Unit
+) {
+    Box(
+        modifier = Modifier.fillMaxSize(),
+        contentAlignment = Alignment.Center
+    ) {
+        if (hasBlur) {
+            key(cardCornerRadius) {
+                Box(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .padding(horizontal = 2.dp, vertical = 2.dp)
+                        .drawBackdrop(
+                            backdrop = wallpaperBackdrop!!,
+                            shape = { RoundedRectangle(cardCornerRadius.dp) },
+                            effects = {
+                                blur(cardBlurRadius.dp.toPx())
+                            },
+                            highlight = null,
+                            onDrawSurface = {
+                                drawRect(if (isDark) Color(0xFF242424).copy(alpha = 0.64f) else Color(0xFFF0F0F0).copy(alpha = 0.5f))
+                            }
+                        )
+                        .edgeLight(shape = RoundedRectangle(cardCornerRadius.dp), edgeLight = rememberCourseCardEdgeLight())
+                ) {
+                    Card(
+                        modifier = Modifier.fillMaxSize(),
+                        cornerRadius = cardCornerRadius.dp,
+                        insideMargin = PaddingValues(0.dp),
+                        showIndication = true,
+                        colors = CardDefaults.defaultColors(
+                            color = Color.Transparent,
+                            contentColor = if (isDark) Color(0xFFF0F0F0).copy(alpha = 0.64f) else Color(0xFF242424).copy(alpha = 0.5f)
+                        ),
+                        onClick = {
+                            hapticFeedback.performHapticFeedback(HapticFeedbackType.Confirm)
+                            onEmptyClick(section)
+                        }
+                    ) {
+                        Box(
+                            modifier = Modifier.fillMaxSize(),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Icon(
+                                imageVector = MiuixIcons.Add,
+                                contentDescription = "添加",
+                                modifier = Modifier.size(22.dp)
+                            )
+                        }
+                    }
+                }
+            }
+        } else {
+            Card(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(horizontal = 2.dp, vertical = 2.dp),
+                cornerRadius = cardCornerRadius.dp,
+                insideMargin = PaddingValues(0.dp),
+                pressFeedbackType = PressFeedbackType.Sink,
+                showIndication = true,
+                colors = CardDefaults.defaultColors(
+                    color = Color(0xFF9E9E9E).copy(alpha = if (isDark) 0.13f else 0.15f),
+                    contentColor = Color(0xFF9E9E9E).copy(alpha = 0.5f)
+                ),
+                onClick = {
+                    hapticFeedback.performHapticFeedback(HapticFeedbackType.Confirm)
+                    onEmptyClick(section)
+                }
+            ) {
+                Box(
+                    modifier = Modifier.fillMaxSize(),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Icon(
+                        imageVector = MiuixIcons.Add,
+                        contentDescription = "添加",
+                        modifier = Modifier.size(22.dp)
+                    )
                 }
             }
         }
