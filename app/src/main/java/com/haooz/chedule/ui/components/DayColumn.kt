@@ -23,6 +23,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.unit.dp
 import com.haooz.chedule.data.Course
@@ -496,22 +497,27 @@ private fun PendingSectionBox(
     ) {
         if (hasBlur) {
             key(cardCornerRadius) {
+                val backdropShape = remember(cardCornerRadius) { RoundedRectangle(cardCornerRadius.dp) }
+                val edgeLightShape = remember(cardCornerRadius) { RoundedRectangle(cardCornerRadius.dp) }
+                val density = LocalDensity.current
+                val blurPx = with(density) { remember(cardBlurRadius) { cardBlurRadius.dp.toPx() } }
+                val surfaceColor = remember(isDark) { if (isDark) Color(0xFF242424).copy(alpha = 0.64f) else Color(0xFFF0F0F0).copy(alpha = 0.5f) }
                 Box(
                     modifier = Modifier
                         .fillMaxSize()
                         .padding(horizontal = 2.dp, vertical = 2.dp)
                         .drawBackdrop(
                             backdrop = wallpaperBackdrop!!,
-                            shape = { RoundedRectangle(cardCornerRadius.dp) },
+                            shape = { backdropShape },
                             effects = {
-                                blur(cardBlurRadius.dp.toPx())
+                                blur(blurPx)
                             },
                             highlight = null,
                             onDrawSurface = {
-                                drawRect(if (isDark) Color(0xFF242424).copy(alpha = 0.64f) else Color(0xFFF0F0F0).copy(alpha = 0.5f))
+                                drawRect(surfaceColor)
                             }
                         )
-                        .edgeLight(shape = RoundedRectangle(cardCornerRadius.dp), edgeLight = rememberCourseCardEdgeLight())
+                        .edgeLight(shape = edgeLightShape, edgeLight = rememberCourseCardEdgeLight())
                 ) {
                     Card(
                         modifier = Modifier.fillMaxSize(),

@@ -28,6 +28,7 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
@@ -86,6 +87,7 @@ fun CourseCard(
     val effectiveCornerRadius = if (isTablet) (cardCornerRadius * 1.3f) else cardCornerRadius
     val isDark = isAppDarkTheme()
     val scope = rememberCoroutineScope()
+    val localDensity = LocalDensity.current
 
     val effectiveAlpha = if (hasBlur) cardAlpha * 1.6f else cardAlpha
     val cardColor = remember(course.colorRes, isCurrentWeek, effectiveAlpha) {
@@ -127,6 +129,12 @@ fun CourseCard(
             var cardPosition by remember { mutableStateOf(Offset.Zero) }
             var cardSize by remember { mutableStateOf(Offset.Zero) }
             var layoutCoordinates by remember { mutableStateOf<androidx.compose.ui.layout.LayoutCoordinates?>(null) }
+            val backdropShape = remember(effectiveCornerRadius) { RoundedRectangle(effectiveCornerRadius.dp) }
+            val edgeLightShape = remember(cardCornerRadius) { RoundedRectangle(cardCornerRadius.dp) }
+            val blurPx = with(localDensity) { remember(cardBlurRadius) { cardBlurRadius.dp.toPx() } }
+            val lensRadiusPx = with(localDensity) { remember { 6f.dp.toPx() } }
+            val lensStrengthPx = with(localDensity) { remember { 14f.dp.toPx() } }
+            val overlayColor = remember(isDark) { if (isDark) Color.Black.copy(alpha = 0.15f) else Color.White.copy(alpha = 0.17f) }
             LaunchedEffect(isPressed) {
                 if (isPressed) {
                     scale.animateTo(
@@ -153,17 +161,16 @@ fun CourseCard(
                     }
                     .onGloballyPositioned { coordinates ->
                         layoutCoordinates = coordinates
-                        // 上报卡片正中心的绝对坐标
                         val center = coordinates.localToRoot(Offset(coordinates.size.width / 2f, coordinates.size.height / 2f))
                         cardPosition = center
                         cardSize = Offset(coordinates.size.width.toFloat(), coordinates.size.height.toFloat())
                     }
                     .drawBackdrop(
                         backdrop = wallpaperBackdrop,
-                        shape = { RoundedRectangle(effectiveCornerRadius.dp) },
+                        shape = { backdropShape },
                         effects = {
-                            blur(cardBlurRadius.dp.toPx())
-                            lens(6f.dp.toPx(), 14f.dp.toPx())
+                            blur(blurPx)
+                            lens(lensRadiusPx, lensStrengthPx)
                         },
                         highlight = null,
                         onDrawSurface = {
@@ -171,9 +178,9 @@ fun CourseCard(
                         }
                     )
                     .drawBehind {
-                        drawRect(color = if (isDark) Color.Black.copy(alpha = 0.15f) else Color.White.copy(alpha = 0.17f))
+                        drawRect(color = overlayColor)
                     }
-                    .edgeLight(shape = RoundedRectangle(cardCornerRadius.dp), edgeLight = rememberCourseCardEdgeLight())
+                    .edgeLight(shape = edgeLightShape, edgeLight = rememberCourseCardEdgeLight())
                     .pointerInput(course) {
                         awaitEachGesture {
                             val down = awaitFirstDown(requireUnconsumed = false)
