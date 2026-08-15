@@ -213,37 +213,39 @@ class MainActivity : ComponentActivity() {
         // 初始化超级岛通知助手
         IslandNotificationHelper.init(this)
 
-        // 同步预加载当前搭配壁纸，让首帧就有壁纸数据
+        // 异步预加载当前搭配壁纸，避免阻塞主线程（Compose 侧已处理 cachedWallpaperBitmap=null 的情况）
         if (cachedWallpaperBitmap == null) {
-            try {
-                val repo = com.haooz.chedule.data.CourseRepository(this)
-                repo.migrateToCombinationsIfNeeded()
-                val ids = repo.getCombinationIds()
-                val currentId = repo.getCurrentCombinationId()
-                val idx = ids.indexOf(currentId).coerceAtLeast(0)
-                cachedCombinationIds = ids
-                cachedCurrentCombinationIndex = idx
-                if (ids.isNotEmpty()) {
-                    val currentIdValue = ids[idx]
-                    cachedWallpaperBitmap = repo.loadCombinationWallpaper(currentIdValue)
-                    cachedWallpaperOffset = Offset(
-                        repo.getCombinationOffsetX(currentIdValue),
-                        repo.getCombinationOffsetY(currentIdValue)
-                    )
-                    cachedWallpaperScale = repo.getCombinationScale(currentIdValue)
-                    cachedAppearance = com.haooz.chedule.data.AppearanceConfig(
-                        cardBlurRadius = repo.getCombinationCardBlur(currentIdValue),
-                        cardAlpha = repo.getCombinationCardAlpha(currentIdValue),
-                        cardHeight = repo.getCombinationCardHeight(currentIdValue),
-                        cardCornerRadius = repo.getCombinationCardCornerRadius(currentIdValue),
-                        wallpaperBrightness = repo.getCombinationWallpaperBrightness(currentIdValue),
-                        showBreakDividers = repo.getCombinationShowBreakDividers(currentIdValue),
-                        cardContentAlignment = repo.getCombinationCardContentAlignment(
-                            currentIdValue
+            kotlinx.coroutines.CoroutineScope(Dispatchers.IO).launch {
+                try {
+                    val repo = com.haooz.chedule.data.CourseRepository(this@MainActivity)
+                    repo.migrateToCombinationsIfNeeded()
+                    val ids = repo.getCombinationIds()
+                    val currentId = repo.getCurrentCombinationId()
+                    val idx = ids.indexOf(currentId).coerceAtLeast(0)
+                    cachedCombinationIds = ids
+                    cachedCurrentCombinationIndex = idx
+                    if (ids.isNotEmpty()) {
+                        val currentIdValue = ids[idx]
+                        cachedWallpaperBitmap = repo.loadCombinationWallpaper(currentIdValue)
+                        cachedWallpaperOffset = Offset(
+                            repo.getCombinationOffsetX(currentIdValue),
+                            repo.getCombinationOffsetY(currentIdValue)
                         )
-                    )
+                        cachedWallpaperScale = repo.getCombinationScale(currentIdValue)
+                        cachedAppearance = com.haooz.chedule.data.AppearanceConfig(
+                            cardBlurRadius = repo.getCombinationCardBlur(currentIdValue),
+                            cardAlpha = repo.getCombinationCardAlpha(currentIdValue),
+                            cardHeight = repo.getCombinationCardHeight(currentIdValue),
+                            cardCornerRadius = repo.getCombinationCardCornerRadius(currentIdValue),
+                            wallpaperBrightness = repo.getCombinationWallpaperBrightness(currentIdValue),
+                            showBreakDividers = repo.getCombinationShowBreakDividers(currentIdValue),
+                            cardContentAlignment = repo.getCombinationCardContentAlignment(
+                                currentIdValue
+                            )
+                        )
+                    }
+                } catch (_: Exception) {
                 }
-            } catch (_: Exception) {
             }
         }
 
@@ -299,6 +301,321 @@ class MainActivity : ComponentActivity() {
                 )
                 shareIntentAction = Intent.ACTION_SEND
             }
+        }
+    }
+}
+
+/** 计算壁纸 cover-fill 最小缩放比例，确保壁纸填满屏幕不露出底部背景 */
+private fun computeWallpaperMinScale(
+    bitmap: android.graphics.Bitmap?,
+    screenWPx: Float,
+    screenHPx: Float
+): Float {
+    if (bitmap == null || bitmap.width <= 0 || bitmap.height <= 0) return 1f
+    val fitScale = minOf(screenWPx / bitmap.width, screenHPx / bitmap.height)
+    val coverScale = maxOf(screenWPx / bitmap.width, screenHPx / bitmap.height)
+    return if (fitScale > 0f) coverScale / fitScale else 1f
+}
+
+/** 删除本周课程确认弹窗 */
+@Composable
+private fun DeleteWeekCourseDialog(
+    show: Boolean,
+    course: Course?,
+    week: Int,
+    viewModel: CourseViewModel,
+    liquidGlassBackdrop: com.kyant.backdrop.Backdrop?,
+    hapticFeedback: androidx.compose.ui.hapticfeedback.HapticFeedback,
+    onDismiss: () -> Unit,
+) {
+    OverlayDialog(
+        title = "删除本周课程",
+        summary = "确定要删除「${course?.name}」在第${week}周的课程吗？\n此操作不可撤销。",
+        show = show,
+        liquidGlassBackdrop = liquidGlassBackdrop,
+        onDismissRequest = onDismiss
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(top = 16.dp),
+            horizontalArrangement = Arrangement.spacedBy(12.dp)
+        ) {
+            Button(
+                modifier = Modifier.weight(1f),
+                onClick = {
+                    hapticFeedback.performHapticFeedback(HapticFeedbackType.Confirm)
+                    onDismiss()
+                },
+            ) {
+                Text(
+                    "取消",
+                    fontSize = 17.sp,
+                    fontWeight = FontWeight.Medium,
+                    color = MiuixTheme.colorScheme.onSurface
+                )
+            }
+            Button(
+                modifier = Modifier.weight(1f),
+                onClick = {
+                    hapticFeedback.performHapticFeedback(HapticFeedbackType.Confirm)
+                    course?.let { viewModel.deleteCourseForWeek(it.id, week) }
+                    onDismiss()
+                },
+            ) {
+                Text(
+                    "删除",
+                    fontSize = 17.sp,
+                    fontWeight = FontWeight.Medium,
+                    color = Color(0xFFF44336)
+                )
+            }
+        }
+    }
+}
+
+/** 调课冲突弹窗：拖到有课位置时让用户选择"覆盖"或"交换" */
+@Composable
+private fun RescheduleConflictDialog(
+    show: Boolean,
+    source: Course?,
+    target: Course?,
+    dropTarget: Pair<Int, Int>?,
+    draggedWeek: Int,
+    viewModel: CourseViewModel,
+    liquidGlassBackdrop: com.kyant.backdrop.Backdrop?,
+    hapticFeedback: androidx.compose.ui.hapticfeedback.HapticFeedback,
+    onDismiss: () -> Unit,
+    onOverwrite: (Set<String>) -> Unit,
+    onSwap: (Set<String>) -> Unit,
+) {
+    OverlayDialog(
+        title = "该位置已有课程",
+        summary = if (target != null && source != null && dropTarget != null) {
+            "「${source.name}」要如何处理与「${target.name}」的位置冲突？\n" +
+                    "覆盖：删除「${target.name}」本周的课程，并把「${source.name}」调到此位置\n" +
+                    "交换：互换本周两节课的位置"
+        } else {
+            "该位置已有课程，要如何处理？"
+        },
+        show = show,
+        liquidGlassBackdrop = liquidGlassBackdrop,
+        onDismissRequest = onDismiss
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(top = 16.dp),
+            horizontalArrangement = Arrangement.spacedBy(12.dp)
+        ) {
+            Button(
+                modifier = Modifier.weight(1f),
+                onClick = {
+                    hapticFeedback.performHapticFeedback(HapticFeedbackType.Confirm)
+                    onDismiss()
+                },
+            ) {
+                Text(
+                    "取消",
+                    fontSize = 17.sp,
+                    fontWeight = FontWeight.Medium,
+                    color = MiuixTheme.colorScheme.onSurface
+                )
+            }
+            Button(
+                modifier = Modifier.weight(1f),
+                onClick = {
+                    hapticFeedback.performHapticFeedback(HapticFeedbackType.Confirm)
+                    if (source != null && dropTarget != null && target != null) {
+                        val sectionSpan = source.endSection - source.startSection
+                        val targetEnd = dropTarget.second + sectionSpan
+                        viewModel.overwriteCourseForWeek(
+                            source.id, draggedWeek, dropTarget.first, dropTarget.second, targetEnd
+                        )
+                        val sourceCourses = viewModel.getCoursesAtSlot(
+                            draggedWeek, source.dayOfWeek, source.startSection, source.endSection
+                        ).filter { it.id != source.id && !it.isActiveInWeek(draggedWeek) }
+                        if (sourceCourses.isNotEmpty()) {
+                            onOverwrite(sourceCourses.map { it.id }.toSet())
+                        }
+                    }
+                    onDismiss()
+                },
+            ) {
+                Text(
+                    "覆盖",
+                    fontSize = 17.sp,
+                    fontWeight = FontWeight.Medium,
+                    color = Color(0xFFFF9800)
+                )
+            }
+            Button(
+                modifier = Modifier.weight(1f),
+                onClick = {
+                    hapticFeedback.performHapticFeedback(HapticFeedbackType.Confirm)
+                    if (source != null && target != null) {
+                        viewModel.swapCoursesForWeek(source.id, target.id, draggedWeek)
+                        val sourceCourses = viewModel.getCoursesAtSlot(
+                            draggedWeek, source.dayOfWeek, source.startSection, source.endSection
+                        ).filter { it.id != source.id && it.id != target.id && !it.isActiveInWeek(draggedWeek) }
+                        val conflictCourses = viewModel.getCoursesAtSlot(
+                            draggedWeek, target.dayOfWeek, target.startSection, target.endSection
+                        ).filter { it.id != target.id && it.id != source.id && !it.isActiveInWeek(draggedWeek) }
+                        val allAnimated = (sourceCourses + conflictCourses).map { it.id }.toSet()
+                        if (allAnimated.isNotEmpty()) {
+                            onSwap(allAnimated)
+                        }
+                    }
+                    onDismiss()
+                },
+            ) {
+                Text(
+                    "交换",
+                    fontSize = 17.sp,
+                    fontWeight = FontWeight.Medium,
+                    color = MiuixTheme.colorScheme.primary
+                )
+            }
+        }
+    }
+}
+
+/** 排班模式切换加载遮罩 */
+@Composable
+private fun ShiftLoadingOverlay(
+    show: Boolean,
+    onShiftReady: () -> Unit,
+    onHide: () -> Unit,
+) {
+    AnimatedVisibility(
+        visible = show,
+        enter = fadeIn(animationSpec = tween(100)),
+        exit = fadeOut(animationSpec = tween(100))
+    ) {
+        LaunchedEffect(Unit) {
+            delay(100.milliseconds)
+            onShiftReady()
+            delay(500.milliseconds)
+            onHide()
+        }
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .background(MiuixTheme.colorScheme.surface),
+            contentAlignment = Alignment.Center
+        ) {
+            Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                top.yukonga.miuix.kmp.basic.InfiniteProgressIndicator(
+                    size = 30.dp,
+                    strokeWidth = 2.8.dp,
+                    orbitingDotSize = 3.2.dp
+                )
+                Spacer(modifier = Modifier.height(12.dp))
+                Text(
+                    text = "切换中",
+                    style = MiuixTheme.textStyles.body1.copy(
+                        fontSize = 14.sp,
+                        fontWeight = FontWeight.Medium
+                    ),
+                    color = MiuixTheme.colorScheme.onSurfaceSecondary
+                )
+            }
+        }
+    }
+}
+
+/** 课表页更多菜单 + 今日页更多菜单 */
+@Composable
+private fun MorePopupMenus(
+    showMorePopup: Boolean,
+    onMorePopupDismiss: () -> Unit,
+    showTodayMorePopup: Boolean,
+    onTodayMorePopupDismiss: () -> Unit,
+    morePopupFraction: Animatable<Float, *>,
+    liquidGlassBackdrop: com.kyant.backdrop.Backdrop,
+    onJumpWeek: () -> Unit,
+    onCourseManage: () -> Unit,
+    onEnterCustomize: () -> Unit,
+    onJumpToDate: () -> Unit,
+) {
+    if (showMorePopup) {
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .clickable(
+                    interactionSource = remember { MutableInteractionSource() },
+                    indication = null
+                ) { onMorePopupDismiss() }
+        )
+    }
+    if (showTodayMorePopup) {
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .clickable(
+                    interactionSource = remember { MutableInteractionSource() },
+                    indication = null
+                ) { onTodayMorePopupDismiss() }
+        )
+    }
+    val statusBarHeight = WindowInsets.statusBars.asPaddingValues().calculateTopPadding()
+    Box(
+        modifier = Modifier
+            .fillMaxSize()
+            .graphicsLayer { clip = false }
+            .padding(
+                top = if (statusBarHeight > 0.dp) statusBarHeight - 20.dp else 17.dp,
+            )
+            .offset(x = 9.dp),
+        contentAlignment = Alignment.TopEnd
+    ) {
+        LiquidGlassDropdownMenu(
+            show = showMorePopup,
+            backdrop = liquidGlassBackdrop,
+            fraction = morePopupFraction,
+            onDismiss = onMorePopupDismiss,
+        ) {
+            LiquidGlassDropdownMenuItem(
+                text = "跳转周数",
+                onClick = {
+                    onMorePopupDismiss()
+                    onJumpWeek()
+                },
+            )
+            LiquidGlassDropdownMenuItem(
+                text = "课程管理",
+                onClick = {
+                    onMorePopupDismiss()
+                    onCourseManage()
+                }
+            )
+            LiquidGlassDropdownMenuItem(
+                text = "课表外观",
+                onClick = {
+                    onMorePopupDismiss()
+                    onEnterCustomize()
+                },
+            )
+        }
+        LiquidGlassDropdownMenu(
+            show = showTodayMorePopup,
+            backdrop = liquidGlassBackdrop,
+            onDismiss = onTodayMorePopupDismiss,
+        ) {
+            LiquidGlassDropdownMenuItem(
+                text = "跳转日期",
+                onClick = {
+                    onTodayMorePopupDismiss()
+                    onJumpToDate()
+                },
+            )
+            LiquidGlassDropdownMenuItem(
+                text = "课程管理",
+                onClick = {
+                    onTodayMorePopupDismiss()
+                    onCourseManage()
+                },
+            )
         }
     }
 }
@@ -481,7 +798,6 @@ fun CourseScheduleApp() {
     var originalSnapshot by remember { mutableStateOf<android.graphics.Bitmap?>(null) }
     var isApplyingCustomize by remember { mutableStateOf(false) }
     var isNewCombinationCreated by remember { mutableStateOf(false) }
-    var newCombinationIndex by remember { mutableIntStateOf(0) }
     // 新建搭配后自动进入编辑模式的触发器
     var pendingEnterCutout by remember { mutableStateOf(false) }
     // 启动时迁移旧数据并加载所有搭配
@@ -567,13 +883,7 @@ fun CourseScheduleApp() {
         if (curr != null) {
             wallpaperBitmap = curr.bitmap
             wallpaperOffset = curr.offset
-            // 计算最小缩放比例，确保壁纸填满屏幕不露出底部背景
-            val bmp = curr.bitmap
-            val minScale = if (bmp != null && bmp.width > 0 && bmp.height > 0) {
-                val fitScale = minOf(screenWPx / bmp.width, screenHPx / bmp.height)
-                val coverScale = maxOf(screenWPx / bmp.width, screenHPx / bmp.height)
-                if (fitScale > 0f) coverScale / fitScale else 1f
-            } else 1f
+            val minScale = computeWallpaperMinScale(curr.bitmap, screenWPx, screenHPx)
             wallpaperScale = maxOf(curr.scale, minScale)
             savedWallpaperBitmap = curr.bitmap
             savedWallpaperOffset = curr.offset
@@ -612,13 +922,7 @@ fun CourseScheduleApp() {
             if (c != null) {
                 wallpaperBitmap = c.bitmap
                 wallpaperOffset = c.offset
-                // 计算最小缩放比例，确保壁纸填满屏幕不露出底部背景
-                val bmp = c.bitmap
-                val minScale = if (bmp != null && bmp.width > 0 && bmp.height > 0) {
-                    val fitScale = minOf(screenWPx / bmp.width, screenHPx / bmp.height)
-                    val coverScale = maxOf(screenWPx / bmp.width, screenHPx / bmp.height)
-                    if (fitScale > 0f) coverScale / fitScale else 1f
-                } else 1f
+                val minScale = computeWallpaperMinScale(c.bitmap, screenWPx, screenHPx)
                 wallpaperScale = maxOf(c.scale, minScale)
                 appearance = com.haooz.chedule.data.AppearanceConfig.fromCombination(c)
             }
@@ -1034,13 +1338,7 @@ fun CourseScheduleApp() {
                 val savedOrigAppear2 = originalAppearance
                 wallpaperBitmap = nextComb.bitmap
                 wallpaperOffset = nextComb.offset
-                // 计算最小缩放比例，确保壁纸填满屏幕不露出底部背景
-                val bmp2 = nextComb.bitmap
-                val minScale2 = if (bmp2 != null && bmp2.width > 0 && bmp2.height > 0) {
-                    val fitScale = minOf(screenWPx / bmp2.width, screenHPx / bmp2.height)
-                    val coverScale = maxOf(screenWPx / bmp2.width, screenHPx / bmp2.height)
-                    if (fitScale > 0f) coverScale / fitScale else 1f
-                } else 1f
+                val minScale2 = computeWallpaperMinScale(nextComb.bitmap, screenWPx, screenHPx)
                 wallpaperScale = maxOf(nextComb.scale, minScale2)
                 appearance = com.haooz.chedule.data.AppearanceConfig.fromCombination(nextComb)
                 originalWallpaperBitmap = nextComb.bitmap
@@ -1085,13 +1383,7 @@ fun CourseScheduleApp() {
                 val comb = combinations[i]
                 wallpaperBitmap = comb.bitmap
                 wallpaperOffset = comb.offset
-                // 计算最小缩放比例，确保壁纸填满屏幕不露出底部背景
-                val bmp3 = comb.bitmap
-                val minScale3 = if (bmp3 != null && bmp3.width > 0 && bmp3.height > 0) {
-                    val fitScale = minOf(screenWPx / bmp3.width, screenHPx / bmp3.height)
-                    val coverScale = maxOf(screenWPx / bmp3.width, screenHPx / bmp3.height)
-                    if (fitScale > 0f) coverScale / fitScale else 1f
-                } else 1f
+                val minScale3 = computeWallpaperMinScale(comb.bitmap, screenWPx, screenHPx)
                 wallpaperScale = maxOf(comb.scale, minScale3)
                 appearance = com.haooz.chedule.data.AppearanceConfig.fromCombination(comb)
                 originalWallpaperBitmap = comb.bitmap
@@ -1123,14 +1415,8 @@ fun CourseScheduleApp() {
                 android.graphics.BitmapFactory.decodeStream(stream)
             }
             wallpaperBitmap = bitmap
-            // 选择新壁纸时重置位移，缩放自动计算为填满短边的最小值
             wallpaperOffset = Offset.Zero
-            // 自动计算最小缩放比例，确保壁纸填满屏幕不露出底部背景
-            val autoScale = if (bitmap != null && bitmap.width > 0 && bitmap.height > 0) {
-                val fitScale = minOf(screenWPx / bitmap.width, screenHPx / bitmap.height)
-                val coverScale = maxOf(screenWPx / bitmap.width, screenHPx / bitmap.height)
-                if (fitScale > 0f) coverScale / fitScale else 1f
-            } else 1f
+            val autoScale = computeWallpaperMinScale(bitmap, screenWPx, screenHPx)
             wallpaperScale = autoScale
             // 同步到当前搭配
             val idx = currentCombinationIndex
@@ -1746,205 +2032,46 @@ fun CourseScheduleApp() {
                     }
                 )
                 // 删除本周课程确认弹窗
-                OverlayDialog(
-                    title = "删除本周课程",
-                    summary = "确定要删除「${deleteConfirmCourse?.name}」在第${draggedWeek}周的课程吗？\n此操作不可撤销。",
+                DeleteWeekCourseDialog(
                     show = showDeleteConfirmDialog,
+                    course = deleteConfirmCourse,
+                    week = draggedWeek,
+                    viewModel = viewModel,
                     liquidGlassBackdrop = liquidGlassBackdrop,
-                    onDismissRequest = { showDeleteConfirmDialog = false }
-                ) {
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(top = 16.dp),
-                        horizontalArrangement = Arrangement.spacedBy(12.dp)
-                    ) {
-                        Button(
-                            modifier = Modifier.weight(1f),
-                            onClick = {
-                                hapticFeedback.performHapticFeedback(HapticFeedbackType.Confirm)
-                                showDeleteConfirmDialog = false
-                            },
-                        ) {
-                            Text(
-                                "取消",
-                                fontSize = 17.sp,
-                                fontWeight = FontWeight.Medium,
-                                color = MiuixTheme.colorScheme.onSurface
-                            )
-                        }
-                        Button(
-                            modifier = Modifier.weight(1f),
-                            onClick = {
-                                hapticFeedback.performHapticFeedback(HapticFeedbackType.Confirm)
-                                deleteConfirmCourse?.let { course ->
-                                    viewModel.deleteCourseForWeek(course.id, draggedWeek)
-                                }
-                                showDeleteConfirmDialog = false
-                            },
-                        ) {
-                            Text(
-                                "删除",
-                                fontSize = 17.sp,
-                                fontWeight = FontWeight.Medium,
-                                color = Color(0xFFF44336)
-                            )
-                        }
-                    }
-                }
-                // 调课冲突弹窗：拖到有课位置时让用户选择"覆盖"或"交换"
-                val conflictSource = draggedCardCourse
-                val conflictTarget = pendingConflictCourse
-                val conflictDrop = pendingDropTarget
-                OverlayDialog(
-                    title = "该位置已有课程",
-                    summary = if (conflictTarget != null && conflictSource != null && conflictDrop != null) {
-                        "「${conflictSource.name}」要如何处理与「${conflictTarget.name}」的位置冲突？\n" +
-                                "覆盖：删除「${conflictTarget.name}」本周的课程，并把「${conflictSource.name}」调到此位置\n" +
-                                "交换：互换本周两节课的位置"
-                    } else {
-                        "该位置已有课程，要如何处理？"
-                    },
+                    hapticFeedback = hapticFeedback,
+                    onDismiss = { showDeleteConfirmDialog = false },
+                )
+                // 调课冲突弹窗
+                RescheduleConflictDialog(
                     show = showRescheduleConflictDialog,
+                    source = draggedCardCourse,
+                    target = pendingConflictCourse,
+                    dropTarget = pendingDropTarget,
+                    draggedWeek = draggedWeek,
+                    viewModel = viewModel,
                     liquidGlassBackdrop = liquidGlassBackdrop,
-                    onDismissRequest = {
-                        // 取消：仅清空状态，不做调课
+                    hapticFeedback = hapticFeedback,
+                    onDismiss = {
                         showRescheduleConflictDialog = false
                         pendingConflictCourse = null
                         pendingDropTarget = null
                         draggedCardCourse = null
-                    }
-                ) {
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(top = 16.dp),
-                        horizontalArrangement = Arrangement.spacedBy(12.dp)
-                    ) {
-                        Button(
-                            modifier = Modifier.weight(1f),
-                            onClick = {
-                                hapticFeedback.performHapticFeedback(HapticFeedbackType.Confirm)
-                                showRescheduleConflictDialog = false
-                                pendingConflictCourse = null
-                                pendingDropTarget = null
-                                draggedCardCourse = null
-                            },
-                        ) {
-                            Text(
-                                "取消",
-                                fontSize = 17.sp,
-                                fontWeight = FontWeight.Medium,
-                                color = MiuixTheme.colorScheme.onSurface
-                            )
+                    },
+                    onOverwrite = { ids ->
+                        animateInCourseIds = ids
+                        coroutineScope.launch {
+                            delay(350.milliseconds)
+                            animateInCourseIds = emptySet()
                         }
-                        Button(
-                            modifier = Modifier.weight(1f),
-                            onClick = {
-                                hapticFeedback.performHapticFeedback(HapticFeedbackType.Confirm)
-                                val source = draggedCardCourse
-                                val target = pendingDropTarget
-                                val conflict = pendingConflictCourse
-                                if (source != null && target != null && conflict != null) {
-                                    val sectionSpan = source.endSection - source.startSection
-                                    val targetEnd = target.second + sectionSpan
-                                    viewModel.overwriteCourseForWeek(
-                                        source.id,
-                                        draggedWeek,
-                                        target.first,
-                                        target.second,
-                                        targetEnd
-                                    )
-                                    // 计算原位置露出的非本周课程
-                                    val sourceCourses = viewModel.getCoursesAtSlot(
-                                        draggedWeek,
-                                        source.dayOfWeek,
-                                        source.startSection,
-                                        source.endSection
-                                    ).filter {
-                                        it.id != source.id && !it.isActiveInWeek(
-                                            draggedWeek
-                                        )
-                                    }
-                                    if (sourceCourses.isNotEmpty()) {
-                                        animateInCourseIds = sourceCourses.map { it.id }.toSet()
-                                        coroutineScope.launch {
-                                            delay(350.milliseconds)
-                                            animateInCourseIds = emptySet()
-                                        }
-                                    }
-                                }
-                                showRescheduleConflictDialog = false
-                                pendingConflictCourse = null
-                                pendingDropTarget = null
-                                draggedCardCourse = null
-                            },
-                        ) {
-                            Text(
-                                "覆盖",
-                                fontSize = 17.sp,
-                                fontWeight = FontWeight.Medium,
-                                color = Color(0xFFFF9800)
-                            )
+                    },
+                    onSwap = { ids ->
+                        animateInCourseIds = ids
+                        coroutineScope.launch {
+                            delay(350.milliseconds)
+                            animateInCourseIds = emptySet()
                         }
-                        Button(
-                            modifier = Modifier.weight(1f),
-                            onClick = {
-                                hapticFeedback.performHapticFeedback(HapticFeedbackType.Confirm)
-                                val source = draggedCardCourse
-                                val conflict = pendingConflictCourse
-                                if (source != null && conflict != null) {
-                                    viewModel.swapCoursesForWeek(
-                                        source.id,
-                                        conflict.id,
-                                        draggedWeek
-                                    )
-                                    // 计算两个原位置露出的非本周课程
-                                    val sourceCourses = viewModel.getCoursesAtSlot(
-                                        draggedWeek,
-                                        source.dayOfWeek,
-                                        source.startSection,
-                                        source.endSection
-                                    ).filter {
-                                        it.id != source.id && it.id != conflict.id && !it.isActiveInWeek(
-                                            draggedWeek
-                                        )
-                                    }
-                                    val conflictCourses = viewModel.getCoursesAtSlot(
-                                        draggedWeek,
-                                        conflict.dayOfWeek,
-                                        conflict.startSection,
-                                        conflict.endSection
-                                    ).filter {
-                                        it.id != conflict.id && it.id != source.id && !it.isActiveInWeek(
-                                            draggedWeek
-                                        )
-                                    }
-                                    val allAnimated =
-                                        (sourceCourses + conflictCourses).map { it.id }.toSet()
-                                    if (allAnimated.isNotEmpty()) {
-                                        animateInCourseIds = allAnimated
-                                        coroutineScope.launch {
-                                            delay(350.milliseconds)
-                                            animateInCourseIds = emptySet()
-                                        }
-                                    }
-                                }
-                                showRescheduleConflictDialog = false
-                                pendingConflictCourse = null
-                                pendingDropTarget = null
-                                draggedCardCourse = null
-                            },
-                        ) {
-                            Text(
-                                "交换",
-                                fontSize = 17.sp,
-                                fontWeight = FontWeight.Medium,
-                                color = MiuixTheme.colorScheme.primary
-                            )
-                        }
-                    }
-                }
+                    },
+                )
             }
             // 课程详情动画期间：用静态快照替代实际内容渲染，降低性能负载
             if (mainContentSnapshot != null) {
@@ -2085,94 +2212,27 @@ fun CourseScheduleApp() {
                 }
             )
         }
-        // LiquidGlass 更多菜单（Scaffold 外层，显示在最上方）
-        if (showMorePopup) {
-            Box(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .clickable(
-                        interactionSource = remember { MutableInteractionSource() },
-                        indication = null
-                    ) { showMorePopup = false }
-            )
-        }
-        if (showTodayMorePopup) {
-            Box(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .clickable(
-                        interactionSource = remember { MutableInteractionSource() },
-                        indication = null
-                    ) { showTodayMorePopup = false }
-            )
-        }
-        val statusBarHeight = WindowInsets.statusBars.asPaddingValues().calculateTopPadding()
-        Box(
-            modifier = Modifier
-                .fillMaxSize()
-                .graphicsLayer { clip = false }
-                .padding(
-                    top = if (statusBarHeight > 0.dp) statusBarHeight - 20.dp else 17.dp,
-                )
-                .offset(x = (9).dp),
-            contentAlignment = Alignment.TopEnd
-        ) {
-            LiquidGlassDropdownMenu(
-                show = showMorePopup,
-                backdrop = liquidGlassBackdrop,
-                fraction = morePopupFraction,
-                onDismiss = { showMorePopup = false },
-            ) {
-                LiquidGlassDropdownMenuItem(
-                    text = "跳转周数",
-                    onClick = {
-                        showMorePopup = false
-                        viewModel.showJumpWeekDialog()
-                    },
-                )
-                LiquidGlassDropdownMenuItem(
-                    text = "课程管理",
-                    onClick = {
-                        showMorePopup = false
-                        val intent =
-                            Intent(context, CourseManageActivity::class.java)
-                        context.startActivity(intent)
-                    }
-                )
-                LiquidGlassDropdownMenuItem(
-                    text = "课表外观",
-                    onClick = {
-                        showMorePopup = false
-                        coroutineScope.launch {
-                            delay(200.milliseconds)
-                            enterCustomizePage()
-                        }
-                    },
-                )
-            }
-            LiquidGlassDropdownMenu(
-                show = showTodayMorePopup,
-                backdrop = liquidGlassBackdrop,
-                onDismiss = { showTodayMorePopup = false },
-            ) {
-                LiquidGlassDropdownMenuItem(
-                    text = "跳转日期",
-                    onClick = {
-                        showTodayMorePopup = false
-                        todayJumpToDateTrigger++
-                    },
-                )
-                LiquidGlassDropdownMenuItem(
-                    text = "课程管理",
-                    onClick = {
-                        showTodayMorePopup = false
-                        val intent =
-                            Intent(context, CourseManageActivity::class.java)
-                        context.startActivity(intent)
-                    },
-                )
-            }
-        }
+        // LiquidGlass 更多菜单
+        MorePopupMenus(
+            showMorePopup = showMorePopup,
+            onMorePopupDismiss = { showMorePopup = false },
+            showTodayMorePopup = showTodayMorePopup,
+            onTodayMorePopupDismiss = { showTodayMorePopup = false },
+            morePopupFraction = morePopupFraction,
+            liquidGlassBackdrop = liquidGlassBackdrop,
+            onJumpWeek = { viewModel.showJumpWeekDialog() },
+            onCourseManage = {
+                val intent = Intent(context, CourseManageActivity::class.java)
+                context.startActivity(intent)
+            },
+            onEnterCustomize = {
+                coroutineScope.launch {
+                    delay(200.milliseconds)
+                    enterCustomizePage()
+                }
+            },
+            onJumpToDate = { todayJumpToDateTrigger++ },
+        )
         // 进入动画遮罩（仅颜色渐变，模糊由 SwitchScheduleScreen 自身承担）
         if (isEntryAnimating) {
             Box(
@@ -2360,7 +2420,6 @@ fun CourseScheduleApp() {
                         // 新搭配插入到列表头部，永远在加号卡右侧
                         combinations = listOf(newComb) + combinations
                         currentCombinationIndex = 0
-                        newCombinationIndex = 0
                         // 原始搭配被推到 index 1，更新原始索引
                         originalCombinationIndex += 1
                         // 保存原搭配状态，快照捕获后恢复
@@ -2422,14 +2481,7 @@ fun CourseScheduleApp() {
                             val c = combinations[combIdx]
                             wallpaperBitmap = c.bitmap
                             wallpaperOffset = c.offset
-                            // 计算最小缩放比例，确保壁纸填满屏幕不露出底部背景
-                            val bmp = c.bitmap
-                            val minScale = if (bmp != null && bmp.width > 0 && bmp.height > 0) {
-                                val fitScale = minOf(screenWPx / bmp.width, screenHPx / bmp.height)
-                                val coverScale =
-                                    maxOf(screenWPx / bmp.width, screenHPx / bmp.height)
-                                if (fitScale > 0f) coverScale / fitScale else 1f
-                            } else 1f
+                            val minScale = computeWallpaperMinScale(c.bitmap, screenWPx, screenHPx)
                             wallpaperScale = maxOf(c.scale, minScale)
                             appearance = com.haooz.chedule.data.AppearanceConfig.fromCombination(c)
                             // 同步更新 savedWallpaper*：编辑取消时需回退到"当前查看搭配"的未编辑状态，
@@ -2488,20 +2540,7 @@ fun CourseScheduleApp() {
                                     val c = combinations[currentCombinationIndex]
                                     wallpaperBitmap = c.bitmap
                                     wallpaperOffset = c.offset
-                                    // 计算最小缩放比例，确保壁纸填满屏幕不露出底部背景
-                                    val bmpDel = c.bitmap
-                                    val minScaleDel =
-                                        if (bmpDel != null && bmpDel.width > 0 && bmpDel.height > 0) {
-                                            val fitScale = minOf(
-                                                screenWPx / bmpDel.width,
-                                                screenHPx / bmpDel.height
-                                            )
-                                            val coverScale = maxOf(
-                                                screenWPx / bmpDel.width,
-                                                screenHPx / bmpDel.height
-                                            )
-                                            if (fitScale > 0f) coverScale / fitScale else 1f
-                                        } else 1f
+                                    val minScaleDel = computeWallpaperMinScale(c.bitmap, screenWPx, screenHPx)
                                     wallpaperScale = maxOf(c.scale, minScaleDel)
                                     savedWallpaperBitmap = c.bitmap
                                     savedWallpaperOffset = c.offset
@@ -3118,47 +3157,19 @@ fun CourseScheduleApp() {
             }
         }
 
-        // 排班模式加载遮罩（全屏覆盖，包括导航栏和状态栏）
-        AnimatedVisibility(
-            visible = showShiftLoading,
-            enter = fadeIn(animationSpec = tween(100)),
-            exit = fadeOut(animationSpec = tween(100))
-        ) {
-            LaunchedEffect(Unit) {
-                delay(100.milliseconds)
+        // 排班模式加载遮罩
+        ShiftLoadingOverlay(
+            show = showShiftLoading,
+            onShiftReady = {
                 if (isExitingShift) {
                     shiftViewModel.exitShiftMode()
                     selectedTab = 0
                 } else {
                     shiftViewModel.enterShiftMode()
                 }
-                delay(500.milliseconds)
-                showShiftLoading = false
-            }
-            Box(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .background(MiuixTheme.colorScheme.surface),
-                contentAlignment = Alignment.Center
-            ) {
-                Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                    top.yukonga.miuix.kmp.basic.InfiniteProgressIndicator(
-                        size = 30.dp,
-                        strokeWidth = 2.8.dp,
-                        orbitingDotSize = 3.2.dp
-                    )
-                    Spacer(modifier = Modifier.height(12.dp))
-                    Text(
-                        text = "切换中",
-                        style = MiuixTheme.textStyles.body1.copy(
-                            fontSize = 14.sp,
-                            fontWeight = FontWeight.Medium
-                        ),
-                        color = MiuixTheme.colorScheme.onSurfaceSecondary
-                    )
-                }
-            }
-        }
+            },
+            onHide = { showShiftLoading = false },
+        )
     }
 }
 

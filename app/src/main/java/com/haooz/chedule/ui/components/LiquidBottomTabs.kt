@@ -3,14 +3,24 @@
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.EaseOut
 import androidx.compose.animation.core.spring
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.RowScope
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.asPaddingValues
+import androidx.compose.foundation.layout.fillMaxHeight
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.statusBars
 import androidx.compose.foundation.layout.width
+import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
@@ -21,6 +31,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.snapshotFlow
+import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
@@ -32,10 +43,13 @@ import androidx.compose.ui.graphics.ColorFilter
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalLayoutDirection
+import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.clearAndSetSemantics
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.LayoutDirection
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import androidx.compose.ui.util.fastCoerceIn
 import androidx.compose.ui.util.fastRoundToInt
 import androidx.compose.ui.util.lerp
@@ -55,6 +69,38 @@ import kotlinx.coroutines.flow.drop
 import kotlinx.coroutines.launch
 import kotlin.math.abs
 import kotlin.math.sign
+
+internal val LocalLiquidBottomTabScale =
+    staticCompositionLocalOf { { 1f } }
+
+@Composable
+fun RowScope.LiquidBottomTab(
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier,
+    content: @Composable ColumnScope.() -> Unit
+) {
+    val scale = LocalLiquidBottomTabScale.current
+    Column(
+        modifier
+            .clip(Capsule())
+            .clickable(
+                interactionSource = null,
+                indication = null,
+                role = Role.Tab,
+                onClick = onClick
+            )
+            .fillMaxHeight()
+            .weight(1f)
+            .graphicsLayer {
+                val scale = scale()
+                scaleX = scale
+                scaleY = scale
+            },
+        verticalArrangement = Arrangement.spacedBy(2f.dp, Alignment.CenterVertically),
+        horizontalAlignment = Alignment.CenterHorizontally,
+        content = content
+    )
+}
 
 @Composable
 fun LiquidBottomTabs(
@@ -232,5 +278,83 @@ fun LiquidBottomTabs(
                 .height(selectorHeight)
                 .width(with(density) { (tabWidth + 6f.dp.toPx()).toDp() })
         )
+    }
+}
+
+@Composable
+fun LiquidNavigationRail(
+    selectedTab: Int,
+    onTabSelected: (Int) -> Unit,
+    backdrop: Backdrop,
+    isShiftMode: Boolean,
+    modifier: Modifier = Modifier
+) {
+    var liquidSelectedTab by remember { mutableIntStateOf(selectedTab) }
+    LaunchedEffect(selectedTab) { liquidSelectedTab = selectedTab }
+
+    val statusBarPadding = WindowInsets.statusBars.asPaddingValues().calculateTopPadding()
+    val topPadding = if (statusBarPadding > 0.dp) statusBarPadding else 36.dp
+    val isDark = !isAppDarkTheme()
+    val textColor = if (isDark) Color.Black.copy(alpha = 0.8f) else Color.White.copy(alpha = 0.8f)
+
+    Box(
+        modifier = modifier.fillMaxSize(),
+        contentAlignment = Alignment.TopCenter
+    ) {
+        LiquidBottomTabs(
+            selectedTabIndex = { liquidSelectedTab },
+            onTabSelected = { onTabSelected(it) },
+            backdrop = backdrop,
+            tabsCount = if (!isShiftMode) 3 else 2,
+            modifier = Modifier
+                .padding(top = topPadding + 4.dp)
+                .width(if (isShiftMode) 160.dp else 240.dp)
+                .height(40.dp),
+            containerHeight = 400.dp
+        ) {
+            if (!isShiftMode) {
+                LiquidBottomTab({ onTabSelected(0) }) {
+                    Text(
+                        "今日",
+                        fontSize = 15.sp,
+                        fontWeight = FontWeight.Medium,
+                        color = textColor
+                    )
+                }
+                LiquidBottomTab({ onTabSelected(1) }) {
+                    Text(
+                        "课程表",
+                        fontSize = 15.sp,
+                        fontWeight = FontWeight.Medium,
+                        color = textColor
+                    )
+                }
+                LiquidBottomTab({ onTabSelected(2) }) {
+                    Text(
+                        "我的",
+                        fontSize = 15.sp,
+                        fontWeight = FontWeight.Medium,
+                        color = textColor
+                    )
+                }
+            } else {
+                LiquidBottomTab({ onTabSelected(0) }) {
+                    Text(
+                        "排班课表",
+                        fontSize = 15.sp,
+                        fontWeight = FontWeight.Medium,
+                        color = textColor
+                    )
+                }
+                LiquidBottomTab({ onTabSelected(1) }) {
+                    Text(
+                        "设置",
+                        fontSize = 15.sp,
+                        fontWeight = FontWeight.Medium,
+                        color = textColor
+                    )
+                }
+            }
+        }
     }
 }
