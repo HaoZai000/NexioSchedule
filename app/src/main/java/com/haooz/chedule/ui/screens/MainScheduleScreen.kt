@@ -843,7 +843,7 @@ fun MainScheduleScreen(
             BlurBottomSheet(
                 show = showCourseDetail,
                 title = "课程详情",
-                backdrop = screenBackdrop,
+                liquidGlassBackdrop = liquidGlassBackdrop,
                 dimBackground = true,
                 onDismissRequest = {
                     showCourseDetail = false

@@ -32,7 +32,6 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.geometry.Offset
-import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.nestedscroll.NestedScrollConnection
@@ -172,7 +171,7 @@ private fun BlurBottomSheetTabletContent(
     val sheetHeightPx = remember { mutableIntStateOf(0) }
 
     val isDark = MiuixTheme.colorScheme.background.luminance() < 0.5f
-    val sheetBgColor = sheetBackgroundColor ?: if (isDark) Color(0xFF1E1E1E) else Color(0xFFF7F7F7)
+    val sheetBgColor = sheetBackgroundColor ?: if (isDark) Color(0xFF1E1E1E) else Color(0xFFF2F2F2)
 
     // 显示/隐藏动画（同时驱动弹窗位移与遮罩透明度，确保二者完全同步）
     LaunchedEffect(show) {
@@ -243,21 +242,13 @@ private fun BlurBottomSheetTabletContent(
                             highlight = null
                         )
                     } else {
-                        // API < 33 降级：渐变遮罩
-                        Modifier.background(
-                            Brush.verticalGradient(
-                                colorStops = arrayOf(
-                                    0.0f to sheetBgColor.copy(alpha = 0.9f),
-                                    0.4f to sheetBgColor.copy(alpha = 0.82f),
-                                    0.7f to sheetBgColor.copy(alpha = 0.6f),
-                                    1.0f to sheetBgColor.copy(alpha = 0.0f)
-                                )
-                            )
-                        )
+                        Modifier
                     }
                 )
                 .edgeLight(shape = RoundedRectangle(38.dp), edgeLight = rememberDefaultEdgeLight())
-                .background(sheetBgColor.copy(alpha = sheetBackgroundAlpha ?: if (isDark) 0.92f else 0.9f))
+                .background(sheetBgColor.copy(alpha = sheetBackgroundAlpha ?: if (liquidGlassBackdrop != null)
+                    if (Build.VERSION.SDK_INT >= 33) (if (isDark) 0.87f else 0.87f) else 1f
+                else 1f))
                 .semantics {
                     onClick(label = "Dismiss") {
                         onDismissRequest()

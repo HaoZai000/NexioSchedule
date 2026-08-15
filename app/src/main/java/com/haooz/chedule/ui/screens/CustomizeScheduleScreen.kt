@@ -1606,7 +1606,7 @@ fun CustomizeScheduleScreen(
                 BlurBottomSheet(
                     show = showEffectSheet,
                     title = "效果",
-                    backdrop = sheetBackdrop,
+                    liquidGlassBackdrop = liquidGlassBackdrop,
                     sheetBackgroundAlpha = if (isAppDarkTheme()) 0.9f else 0.86f,
                     onDismissRequest = { showEffectSheet = false },
                     onSheetContentBackdropCreated = { sheetContentBackdrop = it },
@@ -1907,7 +1907,7 @@ fun CustomizeScheduleScreen(
                 BlurBottomSheet(
                     show = showCustomizeSheet,
                     title = "自定义",
-                    backdrop = sheetBackdrop,
+                    liquidGlassBackdrop = liquidGlassBackdrop,
                     sheetBackgroundAlpha = if (isAppDarkTheme()) 0.9f else 0.86f,
                     onDismissRequest = { showCustomizeSheet = false },
                     onSheetContentBackdropCreated = { sheetContentBackdrop = it },

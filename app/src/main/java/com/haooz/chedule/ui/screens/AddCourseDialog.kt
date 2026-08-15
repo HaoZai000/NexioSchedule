@@ -297,7 +297,7 @@ fun AddCourseDialog(
     BlurBottomSheet(
         show = show,
         title = if (isEdit) "编辑课程" else "添加课程",
-        backdrop = backdrop,
+        liquidGlassBackdrop = liquidGlassBackdrop,
         dimBackground = true,
         sheetOffsetDp = statusBarsPadding + 5.dp,
         onDismissRequest = onDismiss,
@@ -1098,7 +1098,7 @@ private fun AddCourseDialogContent(
                                                 .fillMaxSize()
                                                 .padding(if (isSelected) 2.dp else 0.dp)
                                                 .clip(RoundedRectangle(10.dp))
-                                                .background(if (isDark) Color(0xFF303030) else Color(0xF8F8F8F8))
+                                                .background(if (isDark) Color(0xFF2B2B2B) else Color(0xFFFBFBFB))
                                         )
                                         Box(
                                             modifier = Modifier
@@ -1120,7 +1120,7 @@ private fun AddCourseDialogContent(
                                     }
                                 } else if (colorIndex == allColors.size) {
                                     val isCustomColor = selectedColor !in allColors
-                                    val bgColor = if (isDark) Color(0xFF505050) else Color(0xFFF7F7F7)
+                                    val bgColor = if (isDark) Color(0xFF242424) else Color(0xFFF2F2F2)
                                     val hintColor = MiuixTheme.colorScheme.onSurfaceVariantSummary
                                     val primaryColor = MiuixTheme.colorScheme.primary
                                     var isCustomPressed by remember { mutableStateOf(false) }
@@ -1177,7 +1177,7 @@ private fun AddCourseDialogContent(
                                                 .fillMaxSize()
                                                 .padding(if (isCustomColor) 2.dp else 0.dp)
                                                 .clip(RoundedRectangle(10.dp))
-                                                .background(if (isDark) Color(0xFF363636) else Color(0xFFFFFFFF))
+                                                .background(if (isDark) Color(0xFF2B2B2B) else Color(0xFFFBFBFB))
                                         )
                                         Box(
                                             modifier = Modifier

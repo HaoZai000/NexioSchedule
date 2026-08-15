@@ -70,14 +70,12 @@ import com.haooz.chedule.ui.utils.OverScrollState
 import com.kyant.backdrop.Backdrop
 import com.kyant.backdrop.backdrops.layerBackdrop
 import com.kyant.backdrop.backdrops.rememberLayerBackdrop
+import com.kyant.backdrop.drawBackdrop
+import com.kyant.backdrop.effects.blur
+import com.kyant.backdrop.effects.vibrancy
 import com.kyant.shapes.RoundedRectangle
 import kotlinx.coroutines.launch
 import top.yukonga.miuix.kmp.anim.folmeSpring
-import top.yukonga.miuix.kmp.blur.BlendColorEntry
-import top.yukonga.miuix.kmp.blur.BlurBlendMode
-import top.yukonga.miuix.kmp.blur.BlurDefaults
-import top.yukonga.miuix.kmp.blur.LayerBackdrop
-import top.yukonga.miuix.kmp.blur.textureBlur
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 import top.yukonga.miuix.kmp.utils.MiuixPopupUtils.Companion.DialogLayout
 import kotlin.math.abs
@@ -96,20 +94,23 @@ val LocalSheetTopBarMaterial = compositionLocalOf { SheetTopBarMaterial(1f, 1f) 
  *
  * @param show 是否显示
  * @param title 标题文字
- * @param backdrop 模糊背景的 LayerBackdrop
+ * @param liquidGlassBackdrop 液态玻璃 backdrop
  * @param blurRadius 模糊半径
  * @param dimBackground 是否压暗背景
  * @param sheetBackgroundColor 弹窗背景颜色，null 则使用默认颜色
- * @param sheetBackgroundAlpha 弹窗背景透明度，null 则使用默认值（有 backdrop 时 0.9/0.6，无 backdrop 时 1.0）
+ * @param sheetBackgroundAlpha 弹窗背景透明度，null 则使用默认值
  * @param onDismissRequest 关闭回调
+ * @param startAction 标题栏左侧操作按钮
  * @param endAction 标题栏右侧操作按钮
+ * @param onSheetContentBackdropCreated 弹窗内容 backdrop 创建回调
+ * @param skipEnterAnimation 是否跳过进入动画
  * @param content 内容区域
  */
 @Composable
 fun BlurBottomSheet(
     show: Boolean,
     title: String,
-    backdrop: LayerBackdrop?,
+    liquidGlassBackdrop: Backdrop?,
     blurRadius: Float = 24f,
     dimBackground: Boolean = false,
     sheetBackgroundColor: Color? = null,
@@ -154,7 +155,7 @@ fun BlurBottomSheet(
             show = show,
             visibleState = visibleState,
             title = title,
-            backdrop = backdrop,
+            liquidGlassBackdrop = liquidGlassBackdrop,
             blurRadius = blurRadius,
             dimBackground = dimBackground,
             sheetBackgroundColor = sheetBackgroundColor,
@@ -176,7 +177,7 @@ private fun BlurBottomSheetContent(
     show: Boolean,
     visibleState: MutableState<Boolean>,
     title: String,
-    backdrop: LayerBackdrop?,
+    liquidGlassBackdrop: Backdrop?,
     blurRadius: Float,
     dimBackground: Boolean = false,
     sheetBackgroundColor: Color? = null,
@@ -199,7 +200,7 @@ private fun BlurBottomSheetContent(
     val imeInsets = WindowInsets.ime
 
     val isDark = MiuixTheme.colorScheme.background.luminance() < 0.5f
-    val sheetBgColor = sheetBackgroundColor ?: if (isDark) Color(0xFF1E1E1E) else Color(0xFFF7F7F7)
+    val sheetBgColor = sheetBackgroundColor ?: if (isDark) Color(0xFF1E1E1E) else Color(0xFFF2F2F2)
     val dismissThresholdPx = with(density) { 150.dp.toPx() }
     val velocityThresholdPx = with(density) { 800.dp.toPx() }
 
@@ -272,29 +273,23 @@ private fun BlurBottomSheetContent(
                 .imePadding()
                 .clip(RoundedRectangle(36.dp))
                 .then(
-                    if (backdrop != null) {
-                        Modifier.textureBlur(
-                            backdrop = backdrop,
-                            shape = RoundedRectangle(36.dp),
-                            blurRadius = blurRadius,
-
-                            colors = BlurDefaults.blurColors(
-                                blendColors = listOf(
-                                    BlendColorEntry(
-                                        color = if (isDark) Color.Black.copy(alpha = 0.86f) else Color.White.copy(alpha = 0.54f),
-                                        mode = BlurBlendMode.Screen,
-                                    )
-                                ),
-                                brightness = 0f,
-                                contrast = 1f,
-                                saturation = 1.2f,
-                            ),
+                    if (Build.VERSION.SDK_INT >= 33) {
+                        Modifier.drawBackdrop(
+                            backdrop = liquidGlassBackdrop!!,
+                            shape = { RoundedRectangle(36.dp) },
+                            effects = {
+                                vibrancy()
+                                blur(blurRadius.dp.toPx())
+                            },
+                            highlight = null
                         )
-                    } else Modifier
+                    } else {
+                        Modifier
+                    }
                 )
                 .edgeLight(shape = RoundedRectangle(36.dp), edgeLight = rememberDefaultEdgeLight())
-                .background(sheetBgColor.copy(alpha = sheetBackgroundAlpha ?: if (backdrop != null)
-                    if (Build.VERSION.SDK_INT >= 33) (if (isDark) 0.9f else 0.76f) else 1f
+                .background(sheetBgColor.copy(alpha = sheetBackgroundAlpha ?: if (liquidGlassBackdrop != null)
+                    if (Build.VERSION.SDK_INT >= 33) (if (isDark) 0.87f else 0.87f) else 1f
                     else 1f))
                 .semantics {
                     onClick(label = "Dismiss") {

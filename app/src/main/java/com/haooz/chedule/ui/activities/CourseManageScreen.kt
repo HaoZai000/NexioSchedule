@@ -422,7 +422,7 @@ fun CourseManageScreen(
                                             .fillMaxSize()
                                             .padding(if (isSelected) 2.dp else 0.dp)
                                             .clip(RoundedRectangle(10.dp))
-                                            .background(if (isDark) ComposeColor(0xFF242424) else ComposeColor(0xFFFFFFFF))
+                                            .background(if (isDark) ComposeColor(0xFF1F1F1F) else ComposeColor(0xFFFEFEFE))
                                     )
                                     Box(
                                         modifier = Modifier
@@ -445,7 +445,7 @@ fun CourseManageScreen(
                             } else if (colorIndex == allColors.size) {
                                 // 自定义颜色按钮
                                 val isCustomColor = newCourseColor !in allColors
-                                val bgColor = if (isDark) ComposeColor(0xFF505050) else ComposeColor(0xFFF7F7F7)
+                                val bgColor = if (isDark) Color(0xFF242424) else Color(0xFFF2F2F2)
                                 val hintColor = MiuixTheme.colorScheme.onSurfaceVariantSummary
                                 val primaryColor = MiuixTheme.colorScheme.primary
                                 var isCustomPressed by remember { mutableStateOf(false) }
@@ -503,7 +503,7 @@ fun CourseManageScreen(
                                             .fillMaxSize()
                                             .padding(if (isCustomColor) 2.dp else 0.dp)
                                             .clip(RoundedRectangle(10.dp))
-                                            .background(if (isDark) ComposeColor(0xFF242424) else ComposeColor(0xFFFFFFFF))
+                                            .background(if (isDark) ComposeColor(0xFF1F1F1F) else ComposeColor(0xFFFEFEFE))
                                     )
                                     Box(
                                         modifier = Modifier
