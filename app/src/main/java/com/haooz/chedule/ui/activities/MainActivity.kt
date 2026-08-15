@@ -973,6 +973,8 @@ fun CourseScheduleApp() {
     var switchAnimJob by remember { mutableStateOf<kotlinx.coroutines.Job?>(null) }
     var switchAnimForward by remember { mutableStateOf(false) }
     var switchAnimRunning by remember { mutableStateOf(false) }
+    // 切换课表后的异步重载任务，快照截取前需 join 等待新课表数据就绪
+    var switchReloadJob by remember { mutableStateOf<kotlinx.coroutines.Job?>(null) }
     val switchAnimProgress = remember { Animatable(0f) }
     val backgroundScale = remember { Animatable(1f) }
     val managePageBlurRadius = remember { Animatable(0f) }
@@ -2870,6 +2872,17 @@ fun CourseScheduleApp() {
                         switchAnimJob = coroutineScope.launch {
                             if (scheduleChanged && !wasForward) {
                                 scheduleChanged = false
+                                // 等待异步重载完成，确保网格渲染的是新课表数据
+                                switchReloadJob?.join()
+                                switchReloadJob = null
+                                // 清除旧快照后等待新课表渲染，再录到新课表网格。
+                                // 快照从 screenGraphicsLayer（主内容层）读取，切换页是独立图层不会被录进快照，
+                                // 因此无需隐藏切换页，让切换页保持可见即可遮住主内容，避免露出背景或网格的中间帧
+                                mainContentSnapshot = null
+                                // 等待新课表完成渲染：withFrameNanos 在帧开始返回，此时 graphicsLayer
+                                // 装的还是上一帧（旧课表）内容；需等待多帧以确保 reloadCourses 触发的
+                                // 深层重组 + 绘制已完成，才能录到新课表网格
+                                withFrameNanos { }
                                 withFrameNanos { }
                                 withFrameNanos { }
                                 mainContentSnapshot = try {
@@ -2932,11 +2945,12 @@ fun CourseScheduleApp() {
                             switchCardSnapshot = null
                             switchCardBounds = null
                             switchCurrentCardBounds = null
+                            mainContentSnapshot = null
                             switchAnimRunning = false
                         }
                     },
                     onScheduleChanged = {
-                        viewModel.reloadCourses()
+                        switchReloadJob = viewModel.reloadCourses()
                         settingsViewModel.refreshSettings()
                         scheduleChanged = true
                     },
@@ -2951,6 +2965,17 @@ fun CourseScheduleApp() {
                         switchAnimJob = coroutineScope.launch {
                             if (scheduleChanged) {
                                 scheduleChanged = false
+                                // 等待异步重载完成，确保网格渲染的是新课表数据
+                                switchReloadJob?.join()
+                                switchReloadJob = null
+                                // 清除旧快照后等待新课表渲染，再录到新课表网格。
+                                // 快照从 screenGraphicsLayer（主内容层）读取，切换页是独立图层不会被录进快照，
+                                // 因此无需隐藏切换页，让切换页保持可见即可遮住主内容，避免露出背景或网格的中间帧
+                                mainContentSnapshot = null
+                                // 等待新课表完成渲染：withFrameNanos 在帧开始返回，此时 graphicsLayer
+                                // 装的还是上一帧（旧课表）内容；需等待多帧以确保 reloadCourses 触发的
+                                // 深层重组 + 绘制已完成，才能录到新课表网格
+                                withFrameNanos { }
                                 withFrameNanos { }
                                 withFrameNanos { }
                                 mainContentSnapshot = try {
@@ -2995,6 +3020,7 @@ fun CourseScheduleApp() {
                             switchScreenSnapshot = null
                             switchCardSnapshot = null
                             switchCardBounds = null
+                            mainContentSnapshot = null
                         }
                     },
                     onCurrentCardBounds = { bounds ->

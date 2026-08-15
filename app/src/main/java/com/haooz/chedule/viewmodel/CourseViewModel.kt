@@ -13,6 +13,7 @@ import com.haooz.chedule.widget.TodayCourseWidgetProvider
 import com.haooz.chedule.widget.TodayCourseWidgetProvider4x7
 import com.haooz.chedule.widget.TodayCourseWidgetProviderStandard
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -139,9 +140,10 @@ class CourseViewModel(application: Application) : AndroidViewModel(application) 
 
     /**
      * 重新加载所有数据（切换课表后调用）
+     * 返回 Job 供调用方等待加载完成后再截取新课表快照
      */
-    fun reloadCourses() {
-        viewModelScope.launch(Dispatchers.IO) {
+    fun reloadCourses(): Job {
+        return viewModelScope.launch(Dispatchers.IO) {
             loadData()
         }
     }
