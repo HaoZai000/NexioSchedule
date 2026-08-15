@@ -52,10 +52,13 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.core.content.edit
 import com.haooz.chedule.data.Course
+import com.haooz.chedule.ui.basic.OverlayDialog
+import com.haooz.chedule.ui.basic.SharedScrollBehavior
 import com.haooz.chedule.ui.effects.edgelight.edgeLight
 import com.haooz.chedule.ui.effects.edgelight.rememberCardEdgeLight
 import com.haooz.chedule.ui.effects.edgelight.rememberDefaultEdgeLight
 import com.haooz.chedule.ui.utils.isAppDarkTheme
+import com.haooz.chedule.ui.utils.overScrollVertical
 import com.haooz.chedule.viewmodel.CourseViewModel
 import com.haooz.chedule.viewmodel.SettingsViewModel
 import com.kyant.backdrop.Backdrop
@@ -65,6 +68,7 @@ import com.kyant.backdrop.effects.lens
 import com.kyant.shapes.RoundedRectangle
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
+import top.yukonga.miuix.kmp.basic.ButtonDefaults
 import top.yukonga.miuix.kmp.basic.Card
 import top.yukonga.miuix.kmp.basic.NumberPicker
 import top.yukonga.miuix.kmp.basic.Scaffold
@@ -72,11 +76,7 @@ import top.yukonga.miuix.kmp.basic.SmallTitle
 import top.yukonga.miuix.kmp.basic.TextButton
 import top.yukonga.miuix.kmp.blur.layerBackdrop
 import top.yukonga.miuix.kmp.blur.rememberLayerBackdrop
-import com.haooz.chedule.ui.basic.OverlayDialog
-import com.haooz.chedule.ui.basic.SharedScrollBehavior
 import top.yukonga.miuix.kmp.theme.MiuixTheme
-import com.haooz.chedule.ui.utils.overScrollVertical
-import top.yukonga.miuix.kmp.basic.ButtonDefaults
 import top.yukonga.miuix.kmp.utils.scrollEndHaptic
 import java.time.LocalDate
 import java.time.LocalTime
@@ -549,7 +549,7 @@ fun TodayScreen(
                                     if (settingsScrollBehavior != null) Modifier.nestedScroll(settingsScrollBehavior.nestedScrollConnection) else Modifier
                                 ),
                             contentPadding = PaddingValues(
-                                top = paddingValues.calculateTopPadding() + topBarHeightDp,
+                                top = paddingValues.calculateTopPadding() + topBarHeightDp + 14.dp,
                                 bottom = 120.dp
                             ),
                             verticalArrangement = Arrangement.spacedBy(12.dp)

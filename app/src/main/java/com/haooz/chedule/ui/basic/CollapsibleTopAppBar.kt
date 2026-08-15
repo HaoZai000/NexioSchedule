@@ -41,6 +41,7 @@ import androidx.compose.ui.input.nestedscroll.NestedScrollSource
 import androidx.compose.ui.layout.Layout
 import androidx.compose.ui.layout.layoutId
 import androidx.compose.ui.layout.onSizeChanged
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
@@ -288,7 +289,7 @@ fun CollapsibleTopAppBar(
     title: String,
     modifier: Modifier = Modifier,
     largeTitle: String = title,
-    showLargeTitle: Boolean = true,
+    showLargeTitle: Boolean? = null,
     showSmallTitle: Boolean? = null,
     showShadow: Boolean? = null,
     showGradientOverlay: Boolean = true,
@@ -303,6 +304,9 @@ fun CollapsibleTopAppBar(
     onAlphaChanged: (backdropAlpha: Float, shadowAlpha: Float) -> Unit = { _, _ -> },
 ) {
     val state = scrollBehavior?.state
+
+    val isTablet = LocalConfiguration.current.screenWidthDp >= 600
+    val effectiveShowLargeTitle = showLargeTitle ?: !isTablet
 
     val overScrollState = LocalOverScrollState.current
 
@@ -335,25 +339,25 @@ fun CollapsibleTopAppBar(
     // 没有大标题时，设置 heightOffsetLimit = -1 表示 bar 已完全折叠，不消费滚动
     // 设为 -1 而非 0，确保 onPreScroll 中 heightOffset(0) > heightOffsetLimit(-1) 为 true，
     // 这样向上滚动时能正确重置 postCollapseScrollOffset
-    LaunchedEffect(showLargeTitle, scrollBehavior) {
-        if (!showLargeTitle) {
+    LaunchedEffect(effectiveShowLargeTitle, scrollBehavior) {
+        if (!effectiveShowLargeTitle) {
             scrollBehavior?.state?.heightOffsetLimit = -1f
         }
     }
 
-    val smallTitleVisible by remember(state, showLargeTitle, showSmallTitle) {
+    val smallTitleVisible by remember(state, effectiveShowLargeTitle, showSmallTitle) {
         derivedStateOf {
             // 外部显式控制时使用外部值
             showSmallTitle
             // 没有大标题时，小标题始终显示
-                ?: if (!showLargeTitle) true
+                ?: if (!effectiveShowLargeTitle) true
                 // 默认：折叠到一定程度时显示
                 else (state?.collapsedFraction ?: 0f) >= 0.45f
         }
     }
     val density = LocalDensity.current
     val scrollShadowThresholdPx = with(density) { 10.dp.toPx() }
-    val showButtonShadow = remember(scrollBehavior, showShadow, showLargeTitle, overScrollState.offset) {
+    val showButtonShadow = remember(scrollBehavior, showShadow, effectiveShowLargeTitle, overScrollState.offset) {
         derivedStateOf {
             if (showShadow != null) return@derivedStateOf showShadow
             val contentOffset = scrollBehavior?.state?.contentOffset ?: 0f
@@ -483,7 +487,7 @@ fun CollapsibleTopAppBar(
                         endAction(backdropAlpha.value, shadowAlpha.value)
                     }
                 }
-                if (showLargeTitle) {
+                if (effectiveShowLargeTitle) {
                     Box(
                         Modifier
                             .layoutId("largeTitle")
@@ -539,7 +543,7 @@ fun CollapsibleTopAppBar(
                 .fastFirst { it.layoutId == "title" }
                 .measure(constraints.copy(minWidth = 0, maxWidth = titleMaxWidth, minHeight = 0))
 
-            val largeTitlePlaceable = if (showLargeTitle) {
+            val largeTitlePlaceable = if (effectiveShowLargeTitle) {
                 measurables
                     .firstOrNull { it.layoutId == "largeTitle" }
                     ?.measure(

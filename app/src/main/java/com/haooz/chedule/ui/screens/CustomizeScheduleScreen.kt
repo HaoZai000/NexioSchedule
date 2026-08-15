@@ -220,7 +220,7 @@ fun CustomizeScheduleScreen(
     // 液态玻璃效果的透明下拉颜色
     val liquidGlassDropdownColors = DropdownDefaults.dropdownColors(
         containerColor = Color.Transparent,
-        selectedContainerColor = Color.Transparent,
+        selectedContainerColor =  Color.Transparent,
     )
 
     // 弹窗模糊 backdrop
@@ -1477,16 +1477,18 @@ fun CustomizeScheduleScreen(
                     liquidGlassBackdrop = liquidGlassBackdrop,
                     onSheetContentBackdropCreated = { sheetContentBackdrop = it },
                     startAction = {
-
+                        val material = LocalSheetTopBarMaterial.current
                         LiquidTopBarButton(
                             onClick = { showEffectSheet = false },
                             backdrop = sheetContentBackdrop ?: liquidGlassBackdrop,
                             icon = MiuixIcons.Normal.Close,
                             contentDescription = "关闭",
-                            modifier = Modifier.padding(start = 20.dp),
+                            modifier = Modifier.padding(start = 16.dp),
                             iconSize = 24.dp,
                             containerColor = if (isAppDarkTheme()) Color(0xFF363636).copy(0.4f)
                             else Color(0xFFFFFFFF).copy(0.6f),
+                            backdropAlpha = material.backdropAlpha,
+                            shadowAlpha = material.shadowAlpha,
                         )
                     }
                 ) {
@@ -1497,7 +1499,7 @@ fun CustomizeScheduleScreen(
                             .verticalScroll(rememberScrollState()),
                         verticalArrangement = Arrangement.spacedBy(16.dp)
                     ) {
-                        Spacer(Modifier.height(60.dp))
+                        Spacer(Modifier.height(56.dp))
                         Card(
                             modifier = Modifier
                                 .fillMaxWidth()
@@ -1615,7 +1617,7 @@ fun CustomizeScheduleScreen(
                             backdrop = sheetContentBackdrop ?: liquidGlassBackdrop,
                             icon = MiuixIcons.Normal.Close,
                             contentDescription = "关闭",
-                            modifier = Modifier.padding(start = 20.dp),
+                            modifier = Modifier.padding(start = 18.dp),
                             iconSize = 24.dp,
                             containerColor = if (isAppDarkTheme()) Color(0xFF363636).copy(0.4f)
                             else Color(0xFFFFFFFF).copy(0.6f),
@@ -1632,7 +1634,7 @@ fun CustomizeScheduleScreen(
                             .verticalScroll(rememberScrollState()),
                         verticalArrangement = Arrangement.spacedBy(16.dp)
                     ) {
-                        Spacer(Modifier.height(60.dp))
+                        Spacer(Modifier.height(58.dp))
                         Card(
                             modifier = Modifier
                                 .fillMaxWidth()
@@ -1749,18 +1751,19 @@ fun CustomizeScheduleScreen(
                     liquidGlassBackdrop = liquidGlassBackdrop,
                     onSheetContentBackdropCreated = { sheetContentBackdrop = it },
                     startAction = {
-
+                        val material = LocalSheetTopBarMaterial.current
                         LiquidTopBarButton(
                             onClick = { showCustomizeSheet = false },
                             backdrop = sheetContentBackdrop ?: liquidGlassBackdrop,
                             icon = MiuixIcons.Normal.Close,
                             contentDescription = "关闭",
-                            modifier = Modifier.padding(start = 20.dp),
+                            modifier = Modifier.padding(start = 16.dp),
                             containerColor = if (isAppDarkTheme()) Color(0xFF363636).copy(0.4f)
                             else Color(0xFFFFFFFF).copy(0.6f),
                             iconSize = 24.dp,
+                            backdropAlpha = material.backdropAlpha,
+                            shadowAlpha = material.shadowAlpha,
                         )
-
                     }
                 ) {
                     Column(
@@ -1770,7 +1773,7 @@ fun CustomizeScheduleScreen(
                             .verticalScroll(rememberScrollState()),
                         verticalArrangement = Arrangement.spacedBy(16.dp)
                     ) {
-                        Spacer(Modifier.height(60.dp))
+                        Spacer(Modifier.height(56.dp))
                         Card(
                             modifier = Modifier
                                 .fillMaxWidth()
@@ -1915,7 +1918,7 @@ fun CustomizeScheduleScreen(
                             backdrop = sheetContentBackdrop ?: liquidGlassBackdrop,
                             icon = MiuixIcons.Normal.Close,
                             contentDescription = "关闭",
-                            modifier = Modifier.padding(start = 20.dp),
+                            modifier = Modifier.padding(start = 16.dp),
                             containerColor = if (isAppDarkTheme()) Color(0xFF363636).copy(0.4f)
                             else Color(0xFFFFFFFF).copy(0.6f),
                             iconSize = 24.dp,
@@ -1931,7 +1934,7 @@ fun CustomizeScheduleScreen(
                             .verticalScroll(rememberScrollState()),
                         verticalArrangement = Arrangement.spacedBy(16.dp)
                     ) {
-                        Spacer(Modifier.height(60.dp))
+                        Spacer(Modifier.height(58.dp))
                         Card(
                             modifier = Modifier
                                 .fillMaxWidth()

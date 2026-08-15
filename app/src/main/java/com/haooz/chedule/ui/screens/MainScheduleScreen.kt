@@ -678,7 +678,7 @@ fun MainScheduleScreen(
                 backdrop = sheetContentBackdrop ?: liquidGlassBackdrop!!,
                 icon = MiuixIcons.Add,
                 contentDescription = "添加课程",
-                modifier = Modifier.padding(end = 20.dp),
+                modifier = Modifier.padding(end = if (isTablet) 16.dp else 18.dp),
                 iconSize = 24.dp,
                 containerColor = if (isAppDarkTheme()) Color(0xFF363636).copy(0.4f)
                 else Color(0xFFFFFFFF).copy(0.6f),
@@ -704,7 +704,7 @@ fun MainScheduleScreen(
                     .verticalScroll(rememberScrollState()),
                 verticalArrangement = Arrangement.spacedBy(16.dp)
             ) {
-                Spacer(modifier = Modifier.height(60.dp))
+                Spacer(modifier = Modifier.height(if (isTablet) 56.dp else 58.dp))
                 coursesToShow.forEach { course ->
                     val summaryText = buildString {
                         append(course.getWeekText())

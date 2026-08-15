@@ -10,7 +10,6 @@ import androidx.compose.animation.core.CubicBezierEasing
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -21,18 +20,24 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.wrapContentHeight
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.MutableState
+import androidx.compose.runtime.derivedStateOf
+import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
-import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.input.nestedscroll.NestedScrollConnection
+import androidx.compose.ui.input.nestedscroll.NestedScrollSource
+import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalWindowInfo
@@ -41,10 +46,13 @@ import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.Dp
+import androidx.compose.ui.unit.Velocity
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.zIndex
 import com.haooz.chedule.ui.effects.edgelight.edgeLight
 import com.haooz.chedule.ui.effects.edgelight.rememberDefaultEdgeLight
+import com.haooz.chedule.ui.utils.LocalOverScrollState
+import com.haooz.chedule.ui.utils.OverScrollState
 import com.kyant.backdrop.Backdrop
 import com.kyant.backdrop.backdrops.layerBackdrop
 import com.kyant.backdrop.backdrops.rememberLayerBackdrop
@@ -52,6 +60,8 @@ import com.kyant.backdrop.drawBackdrop
 import com.kyant.backdrop.effects.blur
 import com.kyant.backdrop.effects.vibrancy
 import com.kyant.shapes.RoundedRectangle
+import kotlinx.coroutines.launch
+import top.yukonga.miuix.kmp.anim.folmeSpring
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 import top.yukonga.miuix.kmp.utils.MiuixPopupUtils.Companion.DialogLayout
 
@@ -196,20 +206,9 @@ private fun BlurBottomSheetTabletContent(
                     Modifier.background(Color.Black.copy(alpha = 0.2f * animationProgress.value))
                 } else Modifier
             )
-            // 无条件消费触摸的兜底层（置于 clickable 之前，位于内层，先于 clickable 处理）：
-            // 在退出/重建期间 clickable 可能存在未注册的帧，此层确保事件必然被消费，杜绝穿透到下层。
-            .pointerInput(Unit) {
-                awaitPointerEventScope {
-                    while (true) {
-                        awaitPointerEvent().changes.forEach { it.consume() }
-                    }
-                }
-            }
             .clickable(
                 interactionSource = null,
                 indication = null,
-                // 触摸拦截为"状态"而非动画：只要弹窗可见（该 Box 存在）就始终拦截，
-                // 避免重建瞬间 animationProgress 为 0 时导致穿透触摸。
                 onClick = onDismissRequest,
             ),
         contentAlignment = if (isBottomAligned) Alignment.BottomCenter else Alignment.Center,
@@ -259,9 +258,6 @@ private fun BlurBottomSheetTabletContent(
                 )
                 .edgeLight(shape = RoundedRectangle(38.dp), edgeLight = rememberDefaultEdgeLight())
                 .background(sheetBgColor.copy(alpha = sheetBackgroundAlpha ?: if (isDark) 0.92f else 0.9f))
-                .pointerInput(Unit) {
-                    detectTapGestures { /* consume clicks */ }
-                }
                 .semantics {
                     onClick(label = "Dismiss") {
                         onDismissRequest()
@@ -269,66 +265,117 @@ private fun BlurBottomSheetTabletContent(
                     }
                 },
             content = {
+                // === 顶栏机制（迁移自手机版 BlurBottomSheet）===
+                val topBarState = rememberCollapsibleTopAppBarState()
+                val scrollBehavior = rememberSharedScrollBehavior(topBarState)
+                val overScrollState = remember { OverScrollState() }
+                LaunchedEffect(Unit) { topBarState.heightOffsetLimit = -1f }
 
-                // 捕获弹窗内容的 backdrop
-                val sheetBackdropColor = if (isDark) Color(0xFF1E1E1E) else Color(0xFFF4F4F4)
-                val sheetContentBackdrop = rememberLayerBackdrop {
-                    drawRect(sheetBackdropColor)
-                    drawContent()
-                }
-
-                LaunchedEffect(sheetContentBackdrop) {
-                    sheetContentBackdropHolder?.value = sheetContentBackdrop
-                }
-
-                // 内容区域
-                Box(
-                    modifier = Modifier.wrapContentHeight().layerBackdrop(sheetContentBackdrop)
-                ) {
-                    content()
-                }
-
-                // 渐变模糊遮罩
-                ProgressiveBlurTopBar(
-                    backdrop = sheetContentBackdrop,
-                    height = 86.dp,
-                    tintColor = sheetBgColor,
-                    tintIntensity = 0f,
-                    modifier = Modifier.zIndex(1f)
-                ) {
-                    Box(modifier = Modifier.fillMaxWidth().height(60.dp))
-                }
-
-                // 标题栏
-                Box(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(top = 20.dp, bottom = 16.dp)
-                        .zIndex(2f)
-                        .pointerInput(Unit) {
-                            awaitPointerEventScope {
-                                while (true) {
-                                    awaitPointerEvent().changes.forEach { it.consume() }
-                                }
-                            }
-                        },
-                ) {
-                    Text(
-                        text = title,
-                        modifier = Modifier.align(Alignment.Center),
-                        fontSize = MiuixTheme.textStyles.title4.fontSize,
-                        fontWeight = FontWeight.Medium,
-                        textAlign = TextAlign.Center,
-                        color = MiuixTheme.colorScheme.onSurface,
-                    )
-                    if (startAction != null) {
-                        Box(modifier = Modifier.align(Alignment.CenterStart)) {
-                            startAction()
-                        }
+                val showButtonShadow by remember(scrollBehavior) {
+                    derivedStateOf {
+                        val contentOffset = scrollBehavior.state.contentOffset
+                        val os = overScrollState.offset
+                        contentOffset < 0f || os < 0f
                     }
-                    if (endAction != null) {
-                        Box(modifier = Modifier.align(Alignment.CenterEnd)) {
-                            endAction()
+                }
+                val proxyConnection = remember(scrollBehavior, overScrollState) {
+                    val delegate = scrollBehavior.nestedScrollConnection
+                    object : NestedScrollConnection {
+                        override fun onPreScroll(available: Offset, source: NestedScrollSource): Offset =
+                            delegate.onPreScroll(available, source)
+
+                        override fun onPostScroll(
+                            consumed: Offset,
+                            available: Offset,
+                            source: NestedScrollSource,
+                        ): Offset {
+                            if (overScrollState.offset != 0f) {
+                                return delegate.onPostScroll(Offset.Zero, available, source)
+                            }
+                            return delegate.onPostScroll(consumed, available, source)
+                        }
+
+                        override suspend fun onPreFling(available: Velocity): Velocity =
+                            delegate.onPreFling(available)
+
+                        override suspend fun onPostFling(consumed: Velocity, available: Velocity): Velocity =
+                            delegate.onPostFling(consumed, available)
+                    }
+                }
+                val shadowAlpha = remember { Animatable(0f) }
+                val backdropAlpha = remember { Animatable(0f) }
+                LaunchedEffect(showButtonShadow) {
+                    val target = if (showButtonShadow) 1f else 0f
+                    val spec = if (showButtonShadow) {
+                        folmeSpring(damping = 1.0f, response = 0.6f)
+                    } else {
+                        folmeSpring<Float>(damping = 1.0f, response = 0.4f)
+                    }
+                    launch { shadowAlpha.animateTo(target, spec) }
+                    launch { backdropAlpha.animateTo(target, spec) }
+                }
+
+                CompositionLocalProvider(
+                    LocalOverScrollState provides overScrollState,
+                    LocalSheetTopBarMaterial provides SheetTopBarMaterial(backdropAlpha.value, shadowAlpha.value),
+                ) {
+                    // 捕获弹窗内容的 backdrop
+                    val sheetBackdropColor = if (isDark) Color(0xFF1E1E1E) else Color(0xFFF4F4F4)
+                    val sheetContentBackdrop = rememberLayerBackdrop {
+                        drawRect(sheetBackdropColor)
+                        drawContent()
+                    }
+
+                    LaunchedEffect(sheetContentBackdrop) {
+                        sheetContentBackdropHolder?.value = sheetContentBackdrop
+                    }
+
+                    // 内容区域（nestedScroll 接入顶栏滚动行为）
+                    Box(
+                        modifier = Modifier
+                            .nestedScroll(proxyConnection)
+                            .wrapContentHeight()
+                            .layerBackdrop(sheetContentBackdrop)
+                    ) {
+                        content()
+                    }
+
+                    // 渐变模糊遮罩
+                    ProgressiveBlurTopBar(
+                        backdrop = sheetContentBackdrop,
+                        height = 82.dp,
+                        tintColor = sheetBgColor,
+                        tintIntensity = 0f,
+                        blurAlpha = backdropAlpha.value,
+                        modifier = Modifier.zIndex(1f)
+                    ) {
+                        Box(modifier = Modifier.fillMaxWidth().height(60.dp))
+                    }
+
+                    // 标题栏
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(top = 16.dp, bottom = 16.dp)
+                            .zIndex(2f),
+                    ) {
+                        Text(
+                            text = title,
+                            modifier = Modifier.align(Alignment.Center),
+                            fontSize = MiuixTheme.textStyles.title4.fontSize,
+                            fontWeight = FontWeight.Medium,
+                            textAlign = TextAlign.Center,
+                            color = MiuixTheme.colorScheme.onSurface,
+                        )
+                        if (startAction != null) {
+                            Box(modifier = Modifier.align(Alignment.CenterStart)) {
+                                startAction()
+                            }
+                        }
+                        if (endAction != null) {
+                            Box(modifier = Modifier.align(Alignment.CenterEnd)) {
+                                endAction()
+                            }
                         }
                     }
                 }

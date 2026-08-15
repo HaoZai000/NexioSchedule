@@ -223,6 +223,7 @@ fun AddCourseDialog(
             liquidGlassBackdrop = liquidGlassBackdrop,
             onSheetContentBackdropCreated = { sheetContentBackdrop = it },
             startAction = {
+                val material = LocalSheetTopBarMaterial.current
                 LiquidTopBarButton(
                     onClick = {
                         onDismiss()
@@ -230,18 +231,23 @@ fun AddCourseDialog(
                     backdrop = sheetContentBackdrop ?: liquidGlassBackdrop!!,
                     icon = MiuixIcons.Normal.Close,
                     contentDescription = "关闭",
-                    modifier = Modifier.padding(start = 20.dp),
-                    iconSize = 24.dp
+                    modifier = Modifier.padding(start = 16.dp),
+                    iconSize = 24.dp,
+                    backdropAlpha = material.backdropAlpha,
+                    shadowAlpha = material.shadowAlpha,
                 )
             },
             endAction = {
+                val material = LocalSheetTopBarMaterial.current
                 LiquidTopBarButton(
                     onClick = onConfirmClick,
                     backdrop = sheetContentBackdrop ?: liquidGlassBackdrop!!,
                     icon = MiuixIcons.Ok,
                     contentDescription = "确定",
-                    modifier = Modifier.padding(end = 20.dp),
-                    iconSize = 25.dp
+                    modifier = Modifier.padding(end = 16.dp),
+                    iconSize = 25.dp,
+                    backdropAlpha = material.backdropAlpha,
+                    shadowAlpha = material.shadowAlpha,
                 )
             },
         ) {
@@ -305,7 +311,7 @@ fun AddCourseDialog(
                 backdrop = sheetContentBackdrop ?: liquidGlassBackdrop!!,
                 icon = MiuixIcons.Normal.Close,
                 contentDescription = "关闭",
-                modifier = Modifier.padding(start = 20.dp),
+                modifier = Modifier.padding(start = 18.dp),
                 iconSize = 24.dp,
                 backdropAlpha = material.backdropAlpha,
                 shadowAlpha = material.shadowAlpha,
@@ -318,7 +324,7 @@ fun AddCourseDialog(
                 backdrop = sheetContentBackdrop ?: liquidGlassBackdrop!!,
                 icon = MiuixIcons.Ok,
                 contentDescription = "确定",
-                modifier = Modifier.padding(end = 20.dp),
+                modifier = Modifier.padding(end = 18.dp),
                 iconSize = 25.dp,
                 backdropAlpha = material.backdropAlpha,
                 shadowAlpha = material.shadowAlpha,
@@ -584,6 +590,7 @@ private fun AddCourseDialogContent(
 ) {
     val hapticFeedback = LocalHapticFeedback.current
     val statusBarsPadding = WindowInsets.statusBars.asPaddingValues().calculateTopPadding()
+    val isTablet = LocalConfiguration.current.screenWidthDp >= 600
 
     Column(
         modifier = Modifier
@@ -596,7 +603,7 @@ private fun AddCourseDialogContent(
             .padding(start = 16.dp, end = 16.dp),
         verticalArrangement = Arrangement.spacedBy(12.dp),
     ) {
-        Spacer(modifier = Modifier.height(68.dp))
+        Spacer(modifier = Modifier.height(if (isTablet) 56.dp else 58.dp))
 
         // 基本信息卡片
         Card(

@@ -14,7 +14,6 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.Orientation
 import androidx.compose.foundation.gestures.awaitFirstDown
-import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.gestures.draggable
 import androidx.compose.foundation.gestures.rememberDraggableState
 import androidx.compose.foundation.layout.Box
@@ -239,20 +238,9 @@ private fun BlurBottomSheetContent(
                     Modifier.background(Color.Black.copy(alpha = 0.2f * animationProgress.value))
                 } else Modifier
             )
-            // 无条件消费触摸的兜底层（置于 clickable 之前，位于内层，先于 clickable 处理）：
-            // 在退出/重建期间 clickable 可能存在未注册的帧，此层确保事件必然被消费，杜绝穿透到下层。
-            .pointerInput(Unit) {
-                awaitPointerEventScope {
-                    while (true) {
-                        awaitPointerEvent().changes.forEach { it.consume() }
-                    }
-                }
-            }
             .clickable(
                 interactionSource = null,
                 indication = null,
-                // 触摸拦截为"状态"而非动画：只要弹窗可见（该 Box 存在）就始终拦截，
-                // 避免重建瞬间 animationProgress 为 0 时导致穿透触摸。
                 onClick = onDismissRequest,
             ),
     ) {
@@ -308,9 +296,6 @@ private fun BlurBottomSheetContent(
                 .background(sheetBgColor.copy(alpha = sheetBackgroundAlpha ?: if (backdrop != null)
                     if (Build.VERSION.SDK_INT >= 33) (if (isDark) 0.9f else 0.76f) else 1f
                     else 1f))
-                .pointerInput(Unit) {
-                    detectTapGestures { /* consume clicks */ }
-                }
                 .semantics {
                     onClick(label = "Dismiss") {
                         onDismissRequest()
@@ -440,9 +425,10 @@ private fun BlurBottomSheetContent(
                     // 渐变模糊遮罩（采样弹窗内容）
                     ProgressiveBlurTopBar(
                         backdrop = sheetContentBackdrop,
-                        height = 86.dp,
+                        height = 84.dp,
                         tintColor = sheetBgColor,
                         tintIntensity = 0f,
+                        blurAlpha = backdropAlpha.value,
                         modifier = Modifier.zIndex(1f)
                     ) {
                         Box(modifier = Modifier.fillMaxWidth().height(60.dp))
@@ -452,15 +438,8 @@ private fun BlurBottomSheetContent(
                     Box(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .padding(top = 24.dp, bottom = 16.dp)
-                            .zIndex(2f)
-                            .pointerInput(Unit) {
-                                awaitPointerEventScope {
-                                    while (true) {
-                                        awaitPointerEvent().changes.forEach { it.consume() }
-                                    }
-                                }
-                            },
+                            .padding(top = 18.dp, bottom = 16.dp)
+                            .zIndex(2f),
                     ) {
                         Text(
                             text = title,
@@ -503,7 +482,7 @@ private fun DragHandleArea() {
     Box(
         modifier = Modifier
             .fillMaxWidth()
-            .height(28.dp)
+            .height(22.dp)
             .zIndex(2f)
             .pointerInput(Unit) {
                 awaitPointerEventScope {

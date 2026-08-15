@@ -27,6 +27,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.DpOffset
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -126,9 +127,10 @@ internal fun ScheduleTopBar(
                             LiquidTopBarButton(
                                 onClick = onBackToCurrentWeek,
                                 backdrop = liquidGlassBackdrop,
-                                icon = MiuixIcons.Reset,
+                                icon = MiuixIcons.Medium.Reset,
                                 contentDescription = "返回本周",
-                                iconSize = 25.dp,
+                                iconSize = 24.dp,
+                                iconOffset = DpOffset(x = 0.dp, y = (-1).dp),
                                 backdropAlpha = backdropAlpha,
                                 shadowAlpha = shadowAlpha
                             )
@@ -136,28 +138,28 @@ internal fun ScheduleTopBar(
                     }
                 },
                 endAction = { backdropAlpha, shadowAlpha ->
-                    if (navBarStyle == "rail") {
-                        AnimatedVisibility(
-                            visible = !isViewingCurrentWeek,
-                            enter = fadeIn(animationSpec = tween(180)),
-                            exit = fadeOut(animationSpec = tween(120))
-                        ) {
-                            LiquidTopBarButton(
-                                onClick = onBackToCurrentWeek,
-                                backdrop = liquidGlassBackdrop,
-                                icon = MiuixIcons.Medium.Reset,
-                                contentDescription = "返回本周",
-                                iconSize = 22.dp,
-                                modifier = Modifier.padding(end = 8.dp),
-                                backdropAlpha = backdropAlpha,
-                                shadowAlpha = shadowAlpha
-                            )
-                        }
-                    }
                     Row(
                         horizontalArrangement = Arrangement.spacedBy(8.dp),
                         verticalAlignment = Alignment.CenterVertically
                     ) {
+                        if (navBarStyle == "rail") {
+                            AnimatedVisibility(
+                                visible = !isViewingCurrentWeek,
+                                enter = fadeIn(animationSpec = tween(180)),
+                                exit = fadeOut(animationSpec = tween(120))
+                            ) {
+                                LiquidTopBarButton(
+                                    onClick = onBackToCurrentWeek,
+                                    backdrop = liquidGlassBackdrop,
+                                    icon = MiuixIcons.Medium.Reset,
+                                    contentDescription = "返回本周",
+                                    iconOffset = DpOffset(x = 0.dp, y = (-1).dp),
+                                    iconSize = 24.dp,
+                                    backdropAlpha = backdropAlpha,
+                                    shadowAlpha = shadowAlpha
+                                )
+                            }
+                        }
                         LiquidTopBarButton(
                             onClick = {
                                 onOpenSwitchSchedule()

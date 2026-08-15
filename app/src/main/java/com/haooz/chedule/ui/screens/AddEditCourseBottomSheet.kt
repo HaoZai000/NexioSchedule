@@ -223,7 +223,7 @@ fun AddEditCourseBottomSheet(
             backdrop = sheetContentBackdrop ?: liquidGlassBackdrop!!,
             icon = MiuixIcons.Normal.Close,
             contentDescription = "关闭",
-            modifier = Modifier.padding(start = 20.dp),
+            modifier = Modifier.padding(start = if (isTablet) 16.dp else 18.dp),
             iconSize = 24.dp,
             backdropAlpha = material.backdropAlpha,
             shadowAlpha = material.shadowAlpha,
@@ -237,7 +237,7 @@ fun AddEditCourseBottomSheet(
             backdrop = sheetContentBackdrop ?: liquidGlassBackdrop!!,
             icon = MiuixIcons.Ok,
             contentDescription = "确定",
-            modifier = Modifier.padding(end = 20.dp),
+            modifier = Modifier.padding(end = if (isTablet) 16.dp else 18.dp),
             iconSize = 25.dp,
             backdropAlpha = material.backdropAlpha,
             shadowAlpha = material.shadowAlpha,
@@ -256,7 +256,7 @@ fun AddEditCourseBottomSheet(
                 .padding(start = 16.dp, end = 16.dp),
             verticalArrangement = Arrangement.spacedBy(12.dp),
         ) {
-            Spacer(modifier = Modifier.height(68.dp))
+            Spacer(modifier = Modifier.height(if (isTablet) 56.dp else 58.dp))
             // 地点教师卡片
             Card(
                 cornerRadius = 20.dp,

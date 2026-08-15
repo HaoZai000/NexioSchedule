@@ -76,6 +76,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.DpOffset
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.unit.dp
@@ -3269,9 +3270,10 @@ private fun TodayTopBar(
                         LiquidTopBarButton(
                             onClick = onBackToToday,
                             backdrop = liquidGlassBackdrop,
-                            icon = MiuixIcons.Reset,
+                            icon = MiuixIcons.Medium.Reset,
                             contentDescription = "返回今天",
-                            iconSize = 25.dp,
+                            iconOffset = DpOffset(x = 0.dp, y = (-1).dp),
+                            iconSize = 24.dp,
                             backdropAlpha = backdropAlpha,
                             shadowAlpha = shadowAlpha,
                         )
@@ -3279,22 +3281,62 @@ private fun TodayTopBar(
                 }
             },
             endAction = { backdropAlpha, shadowAlpha ->
-                LiquidTopBarButton(
-                    onClick = onMoreClick,
-                    backdrop = liquidGlassBackdrop,
-                    icon = MiuixIcons.More,
-                    contentDescription = "更多",
-                    iconSize = 23.dp,
-                    backdropAlpha = backdropAlpha,
-                    shadowAlpha = shadowAlpha,
-                    modifier = Modifier.offset {
-                        val f = buttonFraction.value
-                        IntOffset(
-                            x = (-100 * f).dp.roundToPx(),
-                            y = (45 * f).dp.roundToPx()
+                if (isTabletLiquidGlass) {
+                    Row(
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        AnimatedVisibility(
+                            visible = !isToday,
+                            enter = fadeIn(animationSpec = tween(180)),
+                            exit = fadeOut(animationSpec = tween(120))
+                        ) {
+                            LiquidTopBarButton(
+                                onClick = onBackToToday,
+                                backdrop = liquidGlassBackdrop,
+                                icon = MiuixIcons.Medium.Reset,
+                                contentDescription = "返回今天",
+                                iconSize = 24.dp,
+                                iconOffset = DpOffset(x = 0.dp, y = (-1).dp),
+                                backdropAlpha = backdropAlpha,
+                                shadowAlpha = shadowAlpha,
+                            )
+                        }
+                        LiquidTopBarButton(
+                            onClick = onMoreClick,
+                            backdrop = liquidGlassBackdrop,
+                            icon = MiuixIcons.More,
+                            contentDescription = "更多",
+                            iconSize = 23.dp,
+                            backdropAlpha = backdropAlpha,
+                            shadowAlpha = shadowAlpha,
+                            modifier = Modifier.offset {
+                                val f = buttonFraction.value
+                                IntOffset(
+                                    x = (-100 * f).dp.roundToPx(),
+                                    y = (45 * f).dp.roundToPx()
+                                )
+                            }
                         )
-                    },
-                )
+                    }
+                } else {
+                    LiquidTopBarButton(
+                        onClick = onMoreClick,
+                        backdrop = liquidGlassBackdrop,
+                        icon = MiuixIcons.More,
+                        contentDescription = "更多",
+                        iconSize = 23.dp,
+                        backdropAlpha = backdropAlpha,
+                        shadowAlpha = shadowAlpha,
+                        modifier = Modifier.offset {
+                            val f = buttonFraction.value
+                            IntOffset(
+                                x = (-100 * f).dp.roundToPx(),
+                                y = (45 * f).dp.roundToPx()
+                            )
+                        }
+                    )
+                }
             },
         )
     }
