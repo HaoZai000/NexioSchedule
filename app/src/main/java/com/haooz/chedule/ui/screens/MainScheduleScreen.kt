@@ -146,7 +146,13 @@ fun MainScheduleScreen(
     animateInCourseIds: Set<String> = emptySet(),
     onGridGeometryChange: (ScheduleGridGeometry) -> Unit = {},
     scheduleScrollBehavior: SharedScrollBehavior? = null,
-    paddingValues: PaddingValues = androidx.compose.foundation.layout.PaddingValues()
+    paddingValues: PaddingValues = androidx.compose.foundation.layout.PaddingValues(),
+    // Activity 层提升的状态，return@Scaffold 不会销毁
+    externalScrollState: androidx.compose.foundation.ScrollState = rememberScrollState(),
+    externalShowCourseDetail: androidx.compose.runtime.MutableState<Boolean> = mutableStateOf(false),
+    externalSheetContentBackdrop: androidx.compose.runtime.MutableState<com.kyant.backdrop.Backdrop?> = mutableStateOf(null),
+    externalSelectedCourse: androidx.compose.runtime.MutableState<Course?> = mutableStateOf(null),
+    externalSelectedCourses: androidx.compose.runtime.MutableState<List<Course>> = mutableStateOf(emptyList()),
 ) {
     val courses by viewModel.courses.collectAsState()
     val currentWeek by viewModel.currentWeek.collectAsState()
@@ -165,7 +171,7 @@ fun MainScheduleScreen(
     val density = LocalDensity.current
     val screenWidthPx = with(density) { configuration.screenWidthDp.dp.toPx() }
     val screenHeightPx = with(density) { configuration.screenHeightDp.dp.toPx() }
-    val scrollState = rememberScrollState()
+    val scrollState = externalScrollState
     val topBarHeightDp = with(density) { (scheduleScrollBehavior?.currentHeightPx ?: 0f).toDp() }
 
     // 计算壁纸最小缩放比例（填满短边，确保不露出底部背景）
@@ -180,10 +186,10 @@ fun MainScheduleScreen(
         } else 1f
     }
 
-    var showCourseDetail by remember { mutableStateOf(false) }
-    var sheetContentBackdrop by remember { mutableStateOf<com.kyant.backdrop.Backdrop?>(null) }
-    var selectedCourse by remember { mutableStateOf<Course?>(null) }
-    var selectedCourses by remember { mutableStateOf<List<Course>>(emptyList()) }
+    var showCourseDetail by externalShowCourseDetail
+    var sheetContentBackdrop by externalSheetContentBackdrop
+    var selectedCourse by externalSelectedCourse
+    var selectedCourses by externalSelectedCourses
     var pendingDay by remember { mutableIntStateOf(-1) }
     var pendingSection by remember { mutableIntStateOf(-1) }
     var viewingWeek by remember { mutableIntStateOf(currentWeek) }
@@ -810,6 +816,13 @@ fun MainScheduleScreen(
                 Spacer(modifier = Modifier.height(if (isTablet) 0.dp else 260.dp))
             }
         }
+        // 重建时如果弹窗已打开，跳过进入动画；弹窗关闭后重置，避免后续打开始终无动画
+        var skipSheetEnterAnimation by remember { mutableStateOf(showCourseDetail) }
+        LaunchedEffect(showCourseDetail) {
+            if (!showCourseDetail) {
+                skipSheetEnterAnimation = false
+            }
+        }
         if (isTablet) {
             BlurBottomSheetTablet(
                 show = showCourseDetail,
@@ -823,6 +836,7 @@ fun MainScheduleScreen(
                 liquidGlassBackdrop = liquidGlassBackdrop,
                 onSheetContentBackdropCreated = { sheetContentBackdrop = it },
                 endAction = detailEndAction,
+                skipEnterAnimation = skipSheetEnterAnimation,
                 content = detailContent
             )
         } else {
@@ -837,6 +851,7 @@ fun MainScheduleScreen(
                 },
                 onSheetContentBackdropCreated = { sheetContentBackdrop = it },
                 endAction = detailEndAction,
+                skipEnterAnimation = skipSheetEnterAnimation,
                 content = detailContent
             )
         }

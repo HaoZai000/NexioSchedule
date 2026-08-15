@@ -313,9 +313,9 @@ class MiuixPopupUtils {
             dialogState: DialogState,
             largeScreen: Boolean,
         ) {
-            val visibleState = remember { MutableTransitionState(false) }
+            val visibleState = remember { MutableTransitionState(dialogState.showState.value) }
             var pendingOpen by remember { mutableStateOf(false) }
-            var lastTarget by remember { mutableStateOf(false) }
+            var lastTarget by remember { mutableStateOf(dialogState.showState.value) }
             val keyboardController = LocalSoftwareKeyboardController.current
             val density = LocalDensity.current
             val imeInsets = WindowInsets.ime

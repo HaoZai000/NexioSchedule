@@ -121,10 +121,12 @@ fun BlurBottomSheet(
     startAction: @Composable (() -> Unit)? = null,
     endAction: @Composable (() -> Unit)? = null,
     onSheetContentBackdropCreated: ((Backdrop?) -> Unit)? = null,
+    skipEnterAnimation: Boolean = false,
     content: @Composable () -> Unit,
 ) {
-    val visibleState = remember { mutableStateOf(false) }
+    val visibleState = remember { mutableStateOf(show) }
     val sheetContentBackdropHolder = remember { mutableStateOf<Backdrop?>(null) }
+    val dimAlpha = remember { Animatable(if (show) 0.2f else 0f) }
 
     // 显示时立即可见，隐藏时等动画播完再隐藏
     LaunchedEffect(show) {
@@ -135,6 +137,36 @@ fun BlurBottomSheet(
 
     LaunchedEffect(sheetContentBackdropHolder.value) {
         onSheetContentBackdropCreated?.invoke(sheetContentBackdropHolder.value)
+    }
+
+    // 遮罩层透明度动画（仅影响显示，不影响触摸）
+    LaunchedEffect(show) {
+        if (show) {
+            dimAlpha.animateTo(0.2f, animationSpec = tween(320))
+        } else {
+            dimAlpha.animateTo(0f, animationSpec = tween(240))
+            visibleState.value = false
+        }
+    }
+
+    // 返回手势和遮罩层放在 DialogLayout 外面，确保组合时立即生效，
+    // 不受 MiuixPopupHost 重组延迟影响
+    // 触摸/返回行为由 show 控制，动画只影响显示
+    BackHandler(enabled = show) {
+        onDismissRequest()
+    }
+    if (dimBackground && dimAlpha.value > 0f) {
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .background(Color.Black.copy(alpha = dimAlpha.value))
+                .clickable(
+                    interactionSource = null,
+                    indication = null,
+                    enabled = show,
+                    onClick = onDismissRequest,
+                ),
+        )
     }
 
     DialogLayout(
@@ -160,6 +192,7 @@ fun BlurBottomSheet(
             sheetContentBackdropHolder = sheetContentBackdropHolder,
             sheetOffsetDp = sheetOffsetDp,
             sheetMaxWidth = sheetMaxWidth,
+            skipEnterAnimation = skipEnterAnimation,
             content = content,
         )
     }
@@ -181,9 +214,10 @@ private fun BlurBottomSheetContent(
     startAction: @Composable (() -> Unit)? = null,
     endAction: @Composable (() -> Unit)? = null,
     sheetContentBackdropHolder: MutableState<Backdrop?>? = null,
+    skipEnterAnimation: Boolean = false,
     content: @Composable () -> Unit,
 ) {
-    val animationProgress = remember { Animatable(0f) }
+    val animationProgress = remember { Animatable(if (show && skipEnterAnimation) 1f else 0f) }
     val dragOffsetY = remember { Animatable(0f) }
     val density = LocalDensity.current
     val windowInfo = LocalWindowInfo.current
@@ -200,14 +234,18 @@ private fun BlurBottomSheetContent(
     LaunchedEffect(show) {
         if (show) {
             dragOffsetY.snapTo(0f)
-            // 进入动画：使用 CubicBezier 带回弹效果
-            animationProgress.animateTo(
-                targetValue = 1f,
-                animationSpec = tween(
-                    durationMillis = 480,
-                    easing = CubicBezierEasing(0.34f, 1.12f, 0.3f, 1f)
+            if (skipEnterAnimation) {
+                animationProgress.snapTo(1f)
+            } else {
+                // 进入动画：使用 CubicBezier 带回弹效果
+                animationProgress.animateTo(
+                    targetValue = 1f,
+                    animationSpec = tween(
+                        durationMillis = 480,
+                        easing = CubicBezierEasing(0.34f, 1.12f, 0.3f, 1f)
+                    )
                 )
-            )
+            }
         } else {
             // 退出动画
             animationProgress.animateTo(0f, animationSpec = tween(320, easing = CubicBezierEasing(0.34f, 1f, 0.3f, 1f)))
@@ -216,27 +254,6 @@ private fun BlurBottomSheetContent(
     }
 
     if (!show && animationProgress.value <= 0f) return
-
-    // 返回手势处理
-    BackHandler(enabled = show) {
-        onDismissRequest()
-    }
-
-    // 遮罩层 - 始终渲染，用 animationProgress 控制透明度
-    Box(modifier = Modifier.fillMaxSize()) {
-        if (dimBackground && animationProgress.value > 0f) {
-            Box(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .background(Color.Black.copy(alpha = animationProgress.value * 0.2f))
-                    .clickable(
-                        interactionSource = null,
-                        indication = null,
-                        onClick = onDismissRequest,
-                    ),
-            )
-        }
-    }
 
     // 底部弹窗主体 - 允许内容溢出屏幕底部
     Box(

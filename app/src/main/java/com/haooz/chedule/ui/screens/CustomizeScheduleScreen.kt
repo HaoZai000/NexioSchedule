@@ -219,8 +219,8 @@ fun CustomizeScheduleScreen(
     val liquidGlassBackdrop = com.kyant.backdrop.backdrops.rememberLayerBackdrop()
     // 液态玻璃效果的透明下拉颜色
     val liquidGlassDropdownColors = DropdownDefaults.dropdownColors(
-        containerColor = androidx.compose.ui.graphics.Color.Transparent,
-        selectedContainerColor = androidx.compose.ui.graphics.Color.Transparent,
+        containerColor = Color.Transparent,
+        selectedContainerColor = Color.Transparent,
     )
 
     // 弹窗模糊 backdrop

@@ -87,10 +87,12 @@ fun BlurBottomSheetTablet(
     endAction: @Composable (() -> Unit)? = null,
     liquidGlassBackdrop: Backdrop? = null,
     onSheetContentBackdropCreated: ((Backdrop?) -> Unit)? = null,
+    skipEnterAnimation: Boolean = false,
     content: @Composable () -> Unit,
 ) {
-    val visibleState = remember { mutableStateOf(false) }
+    val visibleState = remember { mutableStateOf(show) }
     val sheetContentBackdropHolder = remember { mutableStateOf<Backdrop?>(null) }
+    val dimAlpha = remember { Animatable(if (show) 0.2f else 0f) }
 
     LaunchedEffect(show) {
         if (show) {
@@ -100,6 +102,36 @@ fun BlurBottomSheetTablet(
 
     LaunchedEffect(sheetContentBackdropHolder.value) {
         onSheetContentBackdropCreated?.invoke(sheetContentBackdropHolder.value)
+    }
+
+    // 遮罩层透明度动画（仅影响显示，不影响触摸）
+    LaunchedEffect(show) {
+        if (show) {
+            dimAlpha.animateTo(0.2f, animationSpec = tween(320))
+        } else {
+            dimAlpha.animateTo(0f, animationSpec = tween(240))
+            visibleState.value = false
+        }
+    }
+
+    // 返回手势和遮罩层放在 DialogLayout 外面，确保组合时立即生效，
+    // 不受 MiuixPopupHost 重组延迟影响
+    // 触摸/返回行为由 show 控制，动画只影响显示
+    BackHandler(enabled = show) {
+        onDismissRequest()
+    }
+    if (dimBackground && dimAlpha.value > 0f) {
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .background(Color.Black.copy(alpha = dimAlpha.value))
+                .clickable(
+                    interactionSource = null,
+                    indication = null,
+                    enabled = show,
+                    onClick = onDismissRequest,
+                ),
+        )
     }
 
     DialogLayout(
@@ -125,6 +157,7 @@ fun BlurBottomSheetTablet(
             endAction = endAction,
             liquidGlassBackdrop = liquidGlassBackdrop,
             sheetContentBackdropHolder = sheetContentBackdropHolder,
+            skipEnterAnimation = skipEnterAnimation,
             content = content,
         )
     }
@@ -146,9 +179,10 @@ private fun BlurBottomSheetTabletContent(
     endAction: @Composable (() -> Unit)? = null,
     liquidGlassBackdrop: Backdrop? = null,
     sheetContentBackdropHolder: MutableState<Backdrop?>? = null,
+    skipEnterAnimation: Boolean = false,
     content: @Composable () -> Unit,
 ) {
-    val animationProgress = remember { Animatable(0f) }
+    val animationProgress = remember { Animatable(if (show && skipEnterAnimation) 1f else 0f) }
     val density = LocalDensity.current
     val windowInfo = LocalWindowInfo.current
     val sheetHeightPx = remember { mutableIntStateOf(0) }
@@ -159,13 +193,17 @@ private fun BlurBottomSheetTabletContent(
     // 显示/隐藏动画
     LaunchedEffect(show) {
         if (show) {
-            animationProgress.animateTo(
-                targetValue = 1f,
-                animationSpec = tween(
-                    durationMillis = 500,
-                    easing = CubicBezierEasing(0.34f, 1.12f, 0.3f, 1f)
+            if (skipEnterAnimation) {
+                animationProgress.snapTo(1f)
+            } else {
+                animationProgress.animateTo(
+                    targetValue = 1f,
+                    animationSpec = tween(
+                        durationMillis = 500,
+                        easing = CubicBezierEasing(0.34f, 1.12f, 0.3f, 1f)
+                    )
                 )
-            )
+            }
         } else {
             animationProgress.animateTo(0f, animationSpec = tween(380, easing = CubicBezierEasing(0.34f, 1f, 0.3f, 1f)))
             visibleState.value = false
@@ -173,26 +211,6 @@ private fun BlurBottomSheetTabletContent(
     }
 
     if (!show && animationProgress.value <= 0f) return
-
-    BackHandler(enabled = show) {
-        onDismissRequest()
-    }
-
-    // 遮罩层
-    Box(modifier = Modifier.fillMaxSize()) {
-        if (dimBackground && animationProgress.value > 0f) {
-            Box(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .background(Color.Black.copy(alpha = animationProgress.value * 0.2f))
-                    .clickable(
-                        interactionSource = null,
-                        indication = null,
-                        onClick = onDismissRequest,
-                    ),
-            )
-        }
-    }
 
     // 平板弹窗主体 - 居中悬浮矩形，从底部滑入
     Box(

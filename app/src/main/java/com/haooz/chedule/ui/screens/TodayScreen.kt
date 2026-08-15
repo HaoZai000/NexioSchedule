@@ -313,6 +313,8 @@ fun TodayScreen(
     wallpaperBrightness: Float = 0f,
     cardBlurRadius: Float = 0f,
     liquidGlassBackdrop: Backdrop? = null,
+    // Activity 层提升的状态，return@Scaffold 不会销毁
+    externalListState: androidx.compose.foundation.lazy.LazyListState = rememberLazyListState(),
 ) {
     val courses by viewModel.courses.collectAsState()
     val classStartTime by viewModel.classStartTime.collectAsState()
@@ -484,7 +486,7 @@ fun TodayScreen(
                 }
 
                 val dateText = pageDate.format(DateTimeFormatter.ofPattern("yyyy年M月d日"))
-                val listState = rememberLazyListState()
+                val listState = externalListState
                 LaunchedEffect(listState) {
                     snapshotFlow { listState.firstVisibleItemScrollOffset }
                         .collect { offset ->

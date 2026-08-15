@@ -38,7 +38,9 @@ import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBars
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.pager.rememberPagerState
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -594,11 +596,11 @@ fun CourseScheduleApp() {
                         combinations = combinations.toMutableList().also {
                             it[index] = cur.copy(bitmap = bmp)
                         }
+                        }
                     }
                 }
             }
         }
-    }
     val cutoutMainScale = remember { Animatable(1f) }
     var cutoutCenterYRatio by remember { mutableFloatStateOf(0.5f) }
     // 弹窗打开时的同步上移偏移（直接 translationY，与 CustomizeScheduleScreen 同帧）
@@ -652,6 +654,16 @@ fun CourseScheduleApp() {
         )
     }
     var switchContentRootX by remember { mutableFloatStateOf(0f) }
+
+    // MainScheduleScreen 状态提升到 Activity 层，return@Scaffold 不会销毁
+    val scheduleScrollState = rememberScrollState()
+    val scheduleSheetContentBackdrop = remember { mutableStateOf<com.kyant.backdrop.Backdrop?>(null) }
+    val scheduleSelectedCourse = remember { mutableStateOf<Course?>(null) }
+    val scheduleSelectedCourses = remember { mutableStateOf<List<Course>>(emptyList()) }
+    val scheduleShowCourseDetail = remember { mutableStateOf(false) }
+
+    // TodayScreen 状态提升到 Activity 层
+    val todayListState = rememberLazyListState()
     var switchContentRootY by remember { mutableFloatStateOf(0f) }
     var switchAnimJob by remember { mutableStateOf<kotlinx.coroutines.Job?>(null) }
     var switchAnimForward by remember { mutableStateOf(false) }
@@ -947,9 +959,10 @@ fun CourseScheduleApp() {
         detailCardHeight = cardHeight
         detailFromToday = fromToday
         coroutineScope.launch {
-            hiddenCourseIds = setOf(courseIdToHide)
-            // 截取全屏快照并裁剪卡片
+            // 先截取全屏快照（在隐藏课程之前，确保快照内容完整）
             val fullSnapshot = screenGraphicsLayer.toImageBitmap().asAndroidBitmap()
+            mainContentSnapshot = fullSnapshot
+            hiddenCourseIds = setOf(courseIdToHide)
             detailSnapshot = try {
                 val x = cardLeft.toInt().coerceIn(0, fullSnapshot.width - 1)
                 val y = cardTop.toInt().coerceIn(0, fullSnapshot.height - 1)
@@ -1362,6 +1375,11 @@ fun CourseScheduleApp() {
                     }
                 }
             ) { paddingValues ->
+                // 课程详情动画期间：跳过内容重组，用快照 Image 替代
+                if (showDetail && mainContentSnapshot != null) {
+                    Box(modifier = Modifier.fillMaxSize())
+                    return@Scaffold
+                }
                 // 不再用 combinations.isEmpty() 门控整个内容区：
                 // 课程网格（TodayScreen/MainScheduleScreen）只依赖 viewModel，与壁纸加载解耦。
                 // 壁纸未就绪时 wallpaperBitmap=null，MainScheduleScreen 内部显示主题底色，课程方块照常渲染。
@@ -1413,6 +1431,7 @@ fun CourseScheduleApp() {
                                     wallpaperBrightness = displayAppearance.wallpaperBrightness,
                                     cardBlurRadius = displayAppearance.cardBlurRadius,
                                     liquidGlassBackdrop = liquidGlassBackdrop,
+                                    externalListState = todayListState,
                                 )
 
                                 1 -> {
@@ -1600,7 +1619,12 @@ fun CourseScheduleApp() {
                                         },
                                         animateInCourseIds = animateInCourseIds,
                                         scheduleScrollBehavior = scheduleScrollBehavior,
-                                        paddingValues = paddingValues
+                                        paddingValues = paddingValues,
+                                        externalScrollState = scheduleScrollState,
+                                        externalShowCourseDetail = scheduleShowCourseDetail,
+                                        externalSheetContentBackdrop = scheduleSheetContentBackdrop,
+                                        externalSelectedCourse = scheduleSelectedCourse,
+                                        externalSelectedCourses = scheduleSelectedCourses
                                     )
                                 }
 
@@ -1677,7 +1701,7 @@ fun CourseScheduleApp() {
                     scheduleViewModel = scheduleViewModel,
                     settingsViewModel = settingsViewModel,
                     liquidGlassBackdrop = liquidGlassBackdrop,
-                )
+                                )
 
                 // 更新弹窗
                 UpdateDialog(liquidGlassBackdrop = liquidGlassBackdrop)
@@ -1921,6 +1945,15 @@ fun CourseScheduleApp() {
                         }
                     }
                 }
+            }
+            // 课程详情动画期间：用静态快照替代实际内容渲染，降低性能负载
+            if (mainContentSnapshot != null) {
+                Image(
+                    bitmap = mainContentSnapshot!!.asImageBitmap(),
+                    contentDescription = null,
+                    modifier = Modifier.fillMaxSize(),
+                    contentScale = ContentScale.Crop
+                )
             }
         }
         // 拖拽课程卡片浮层（退出动画期间仍保持渲染，直到 scale 回到 1f 才移除并让原卡片显现）
@@ -2751,6 +2784,11 @@ fun CourseScheduleApp() {
                 onBack = {
                     showDetail = false
                     hiddenCourseIds = emptySet()
+                    // 延迟清除快照，让实际内容先重组完成，避免闪烁
+                    coroutineScope.launch {
+                        delay(16.milliseconds)
+                        mainContentSnapshot = null
+                    }
                 }
             )
         }
