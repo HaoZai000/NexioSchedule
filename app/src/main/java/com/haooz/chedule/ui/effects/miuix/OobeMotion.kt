@@ -19,6 +19,7 @@ import androidx.compose.animation.togetherWith
 import kotlin.math.PI
 import kotlin.math.cos
 import kotlin.math.exp
+import kotlin.math.pow
 import kotlin.math.sin
 import kotlin.math.sqrt
 
@@ -50,7 +51,7 @@ internal val OobeCubicOutEasing = Easing { fraction ->
 
 internal val OobeQuartOutEasing = Easing { fraction ->
     val inverse = 1f - fraction
-    1f - inverse * inverse * inverse * inverse
+    1f - inverse.pow(4.5f)
 }
 
 internal val OobeFifthpowerOutEasing = Easing { fraction ->
