@@ -92,7 +92,6 @@ fun BlurBottomSheetTablet(
 ) {
     val visibleState = remember { mutableStateOf(show) }
     val sheetContentBackdropHolder = remember { mutableStateOf<Backdrop?>(null) }
-    val dimAlpha = remember { Animatable(if (show) 0.2f else 0f) }
 
     LaunchedEffect(show) {
         if (show) {
@@ -104,34 +103,9 @@ fun BlurBottomSheetTablet(
         onSheetContentBackdropCreated?.invoke(sheetContentBackdropHolder.value)
     }
 
-    // 遮罩层透明度动画（仅影响显示，不影响触摸）
-    LaunchedEffect(show) {
-        if (show) {
-            dimAlpha.animateTo(0.2f, animationSpec = tween(320))
-        } else {
-            dimAlpha.animateTo(0f, animationSpec = tween(240))
-            visibleState.value = false
-        }
-    }
-
-    // 返回手势和遮罩层放在 DialogLayout 外面，确保组合时立即生效，
-    // 不受 MiuixPopupHost 重组延迟影响
-    // 触摸/返回行为由 show 控制，动画只影响显示
+    // 返回手势放在 DialogLayout 外面，确保组合时立即生效
     BackHandler(enabled = show) {
         onDismissRequest()
-    }
-    if (dimBackground && dimAlpha.value > 0f) {
-        Box(
-            modifier = Modifier
-                .fillMaxSize()
-                .background(Color.Black.copy(alpha = dimAlpha.value))
-                .clickable(
-                    interactionSource = null,
-                    indication = null,
-                    enabled = show,
-                    onClick = onDismissRequest,
-                ),
-        )
     }
 
     DialogLayout(
@@ -190,7 +164,7 @@ private fun BlurBottomSheetTabletContent(
     val isDark = MiuixTheme.colorScheme.background.luminance() < 0.5f
     val sheetBgColor = sheetBackgroundColor ?: if (isDark) Color(0xFF1E1E1E) else Color(0xFFF7F7F7)
 
-    // 显示/隐藏动画
+    // 显示/隐藏动画（同时驱动弹窗位移与遮罩透明度，确保二者完全同步）
     LaunchedEffect(show) {
         if (show) {
             if (skipEnterAnimation) {
@@ -210,16 +184,32 @@ private fun BlurBottomSheetTabletContent(
         }
     }
 
-    if (!show && animationProgress.value <= 0f) return
+    // 本组件存在性完全由 DialogEntry（visibleState）控制，禁止在此提前 return，
+    // 否则退出动画结束瞬间遮罩被移除而 DialogEntry content 仍空挂在屏上，造成触摸穿透。
 
     // 平板弹窗主体 - 居中悬浮矩形，从底部滑入
     Box(
         modifier = Modifier
             .fillMaxSize()
+            .then(
+                if (dimBackground) {
+                    Modifier.background(Color.Black.copy(alpha = 0.2f * animationProgress.value))
+                } else Modifier
+            )
+            // 无条件消费触摸的兜底层（置于 clickable 之前，位于内层，先于 clickable 处理）：
+            // 在退出/重建期间 clickable 可能存在未注册的帧，此层确保事件必然被消费，杜绝穿透到下层。
+            .pointerInput(Unit) {
+                awaitPointerEventScope {
+                    while (true) {
+                        awaitPointerEvent().changes.forEach { it.consume() }
+                    }
+                }
+            }
             .clickable(
                 interactionSource = null,
                 indication = null,
-                enabled = animationProgress.value > 0f,
+                // 触摸拦截为"状态"而非动画：只要弹窗可见（该 Box 存在）就始终拦截，
+                // 避免重建瞬间 animationProgress 为 0 时导致穿透触摸。
                 onClick = onDismissRequest,
             ),
         contentAlignment = if (isBottomAligned) Alignment.BottomCenter else Alignment.Center,
