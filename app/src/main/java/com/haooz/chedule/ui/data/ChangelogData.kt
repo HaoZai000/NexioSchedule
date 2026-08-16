@@ -7,8 +7,8 @@ data class ChangelogEntry(
 )
 val changelogData = listOf(
     ChangelogEntry(
-        version = "v1.4.0-0812",
-        date = "2026-08-12",
+        version = "v1.4.0-0817",
+        date = "2026-08-17",
         changes = listOf(
             "应用风格彻底重构为HyperOS4风格",
             "全新视觉体验，全局高级材质",
@@ -17,7 +17,8 @@ val changelogData = listOf(
             "优化部分连贯动画、课程表页面的流畅度",
             "修复ShortCut菜单溢出屏幕的问题",
             "修复切换外观后状态栏反色异常的问题",
-            "修复超级岛可能不稳定的问题"
+            "修复超级岛可能不稳定的问题",
+            "注意：旧搭配请手动重新设置壁纸，否则可能出现反色异常/主题异常等问题"
         )
     ),
     ChangelogEntry(
