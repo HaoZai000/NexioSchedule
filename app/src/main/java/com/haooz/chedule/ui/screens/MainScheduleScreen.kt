@@ -67,10 +67,15 @@ import com.haooz.chedule.ui.basic.OverlayDialog
 import com.haooz.chedule.ui.basic.SharedScrollBehavior
 import com.haooz.chedule.ui.components.DayColumn
 import com.haooz.chedule.ui.components.SectionColumn
+import com.haooz.chedule.ui.effects.edgelight.edgeLight
+import com.haooz.chedule.ui.effects.edgelight.rememberCourseCardEdgeLight
 import com.haooz.chedule.ui.utils.isAppDarkTheme
 import com.haooz.chedule.ui.utils.overScrollVertical
 import com.haooz.chedule.viewmodel.CourseViewModel
 import com.haooz.chedule.viewmodel.SettingsViewModel
+import com.kyant.backdrop.drawBackdrop
+import com.kyant.backdrop.effects.blur
+import com.kyant.backdrop.effects.lens
 import com.kyant.shapes.RoundedRectangle
 import kotlinx.coroutines.launch
 import top.yukonga.miuix.kmp.basic.ButtonDefaults
@@ -78,12 +83,8 @@ import top.yukonga.miuix.kmp.basic.Card
 import top.yukonga.miuix.kmp.basic.CardDefaults
 import top.yukonga.miuix.kmp.basic.NumberPicker
 import top.yukonga.miuix.kmp.basic.TextButton
-import top.yukonga.miuix.kmp.blur.BlendColorEntry
-import top.yukonga.miuix.kmp.blur.BlurBlendMode
-import top.yukonga.miuix.kmp.blur.BlurDefaults
 import top.yukonga.miuix.kmp.blur.layerBackdrop
 import top.yukonga.miuix.kmp.blur.rememberLayerBackdrop
-import top.yukonga.miuix.kmp.blur.textureBlur
 import top.yukonga.miuix.kmp.icon.MiuixIcons
 import top.yukonga.miuix.kmp.icon.extended.Add
 import top.yukonga.miuix.kmp.theme.MiuixTheme
@@ -266,7 +267,7 @@ fun MainScheduleScreen(
     }
 
     // 壁纸 LayerBackdrop：捕获壁纸内容供课程卡片 textureBlur 使用
-    val wallpaperBackdropColor = MiuixTheme.colorScheme.surface
+    val wallpaperBackdropColor = if (isAppDarkTheme()) Color(0xFF101010) else Color(0xFFFAFAFA)
     val wallpaperBackdrop = rememberLayerBackdrop {
         drawRect(wallpaperBackdropColor)
         drawContent()
@@ -395,7 +396,6 @@ fun MainScheduleScreen(
                             eveningSections = eveningSections,
                             sectionTimes = sectionTimes,
                             cardHeightPerSection = cardHeightPerSection,
-                            cardBlurRadius = cardBlurRadius,
                             showBreakDividers = showBreakDividers,
                             currentSection = if (week == currentWeek) currentSection else -1,
                             isTablet = isTablet,
@@ -536,69 +536,59 @@ fun MainScheduleScreen(
                     val dinnerBreakY = morningHeight + dividerOffset + afternoonHeight
 
                     if (showBreakDividers) {
-                    val dividerColor = if (wallpaperBitmap != null) Color.Transparent else MiuixTheme.colorScheme.surfaceContainer
                     val dividerShape = RoundedRectangle(12.dp)
                     val dividerHorizontalPadding = if (isTablet) 24.dp else 4.dp
                     val dividerIsDark = isAppDarkTheme()
-                    val dividerBlendEntry = remember(dividerIsDark, cardAlpha) {
-                        BlendColorEntry(
-                            color = if (dividerIsDark) Color.Black.copy(alpha = cardAlpha)
-                            else Color.White.copy(alpha = cardAlpha * 2),
-                            mode = BlurBlendMode.SrcOver
-                        )
-                    }
-                    val dividerBlurColors = BlurDefaults.blurColors(
-                        blendColors = listOf(dividerBlendEntry)
-                    )
-                    Box(
-                        modifier = Modifier.fillMaxWidth().offset(y = morningHeight.dp)
-                            .height(24.dp)
-                            .padding(vertical = 2.dp)
-                            .padding(horizontal = dividerHorizontalPadding)
-                            .background(dividerColor, dividerShape)
-                            .then(
-                                if (wallpaperBitmap != null) {
-                                    Modifier.textureBlur(
-                                        backdrop = wallpaperBackdrop,
-                                        shape = dividerShape,
-                                        blurRadius = cardBlurRadius * 2,
-                                        colors = dividerBlurColors
-                                    )
-                                } else Modifier
-                            ),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Text(
-                            "午休",
-                            style = MiuixTheme.textStyles.footnote2,
-                            color = MiuixTheme.colorScheme.onSurfaceVariantActions
-                        )
-                    }
+                    val dividerDensity = LocalDensity.current
+                    // 与课程卡片一致的液态玻璃参数
+                    val dividerBlurPx = with(dividerDensity) { remember(cardBlurRadius) { cardBlurRadius.dp.toPx() } }
+                    val dividerLensRadiusPx = with(dividerDensity) { remember { 4f.dp.toPx() } }
+                    val dividerLensStrengthPx = with(dividerDensity) { remember { 14f.dp.toPx() } }
+                    val hasWallpaperDivider = wallpaperBitmap != null
+                    // 无壁纸时用纯色背景；有壁纸时底色透明，由 drawBackdrop 绘制玻璃层
+                    val dividerBaseColor = if (hasWallpaperDivider) Color.Transparent else if (dividerIsDark) Color(0xFF171717) else Color(0xFFF3F3F3)
+                    // 玻璃底色与反光覆盖层（同 CourseCard 的液态玻璃观感）
+                    val dividerGlassColor = if (dividerIsDark) Color(0xFF323232).copy(alpha = 0.64f) else Color.White.copy(alpha = 0.5f)
+                    val dividerOverlayColor = if (dividerIsDark) Color(0xFF323232).copy(alpha = 0.12f) else Color.White.copy(alpha = 0.1f)
+                    val dividerBlurShape = remember { RoundedRectangle(12.dp) }
+                    val dividerEdgeLightShape = remember { RoundedRectangle(12.dp) }
 
-                    Box(
-                        modifier = Modifier.fillMaxWidth().offset(y = dinnerBreakY.dp)
-                            .height(24.dp)
-                            .padding(vertical = 2.dp)
-                            .padding(horizontal = dividerHorizontalPadding)
-                            .background(dividerColor, dividerShape)
-                            .then(
-                                if (wallpaperBitmap != null) {
-                                    Modifier.textureBlur(
-                                        backdrop = wallpaperBackdrop,
-                                        shape = dividerShape,
-                                        blurRadius = cardBlurRadius * 2,
-                                        colors = dividerBlurColors
-                                    )
-                                } else Modifier
-                            ),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Text(
-                            "晚休",
-                            style = MiuixTheme.textStyles.footnote2,
-                            color = MiuixTheme.colorScheme.onSurfaceVariantActions
-                        )
+                    @Composable
+                    fun BreakDivider(offsetY: Int, text: String) {
+                        Box(
+                            modifier = Modifier.fillMaxWidth().offset(y = offsetY.dp)
+                                .height(24.dp)
+                                .padding(vertical = 2.dp)
+                                .padding(horizontal = dividerHorizontalPadding)
+                                .background(dividerBaseColor, dividerShape)
+                                .then(
+                                    if (hasWallpaperDivider) {
+                                        Modifier.drawBackdrop(
+                                            backdrop = courseCardBackdrop,
+                                            shape = { dividerBlurShape },
+                                            effects = {
+                                                blur(dividerBlurPx)
+                                                lens(dividerLensRadiusPx, dividerLensStrengthPx)
+                                            },
+                                            highlight = null,
+                                            onDrawSurface = {
+                                                drawRect(dividerGlassColor)
+                                                drawRect(dividerOverlayColor)
+                                            }
+                                        ).edgeLight(shape = dividerEdgeLightShape, edgeLight = rememberCourseCardEdgeLight())
+                                    } else Modifier
+                                ),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Text(
+                                text = text,
+                                style = MiuixTheme.textStyles.footnote2,
+                                color = MiuixTheme.colorScheme.onSurfaceVariantActions
+                            )
+                        }
                     }
+                    BreakDivider(morningHeight, "午休")
+                    BreakDivider(dinnerBreakY, "晚休")
                     }
                 }
             }

@@ -1,7 +1,6 @@
 package com.haooz.chedule.ui.components
 
 import android.annotation.SuppressLint
-import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -34,7 +33,6 @@ fun SectionColumn(
     eveningSections: Int = 3,
     sectionTimes: Map<Int, String> = Course.defaultSectionTimes,
     cardHeightPerSection: Float = 54f,
-    cardBlurRadius: Float = 0f,
     showBreakDividers: Boolean = true,
     currentSection: Int = -1,
     isTablet: Boolean = false,
@@ -68,24 +66,7 @@ fun SectionColumn(
             currentOffset += cardHeightPerSection.toInt()
         }
 
-        // 午休分界线
-        val dividerColor = if (cardBlurRadius > 0f) Color.Transparent else MiuixTheme.colorScheme.surfaceContainer
-        if (showBreakDividers && !isTablet) {
-            Box(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(24.dp)
-                    .offset(y = currentOffset.dp),
-                contentAlignment = Alignment.Center
-            ) {
-                Box(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .height(20.dp)
-                        .background(dividerColor)
-                )
-            }
-        }
+        // 午休/晚休分界线由主分界线（MainScheduleScreen）全宽绘制并覆盖时间列，此处仅保留 24dp 占位以保证时间对齐
         currentOffset += if (showBreakDividers) 24 else 0
 
         // 下午节次
@@ -97,23 +78,7 @@ fun SectionColumn(
             currentOffset += cardHeightPerSection.toInt()
         }
 
-        // 晚休分界线
-        if (showBreakDividers && !isTablet) {
-            Box(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(24.dp)
-                    .offset(y = currentOffset.dp),
-                contentAlignment = Alignment.Center
-            ) {
-                Box(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .height(20.dp)
-                        .background(dividerColor)
-                )
-            }
-        }
+        // 晚休分界线（同午休）由主分界线（MainScheduleScreen）全宽绘制并覆盖时间列，此处仅保留 24dp 占位以保证时间对齐
         currentOffset += if (showBreakDividers) 24 else 0
 
         // 晚上节次
