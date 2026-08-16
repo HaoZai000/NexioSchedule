@@ -9,6 +9,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.NonRestartableComposable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 
@@ -25,13 +26,13 @@ import top.yukonga.miuix.kmp.theme.MiuixTheme
 fun SmallTitle(
     text: String,
     modifier: Modifier = Modifier,
-    textColor: Color = MiuixTheme.colorScheme.onBackgroundVariant,
+    textColor: Color = Color(0xFF8F9CAE),
     insideMargin: PaddingValues = SmallTitleDefaults.InsideMargin,
 ) {
     Text(
         modifier = modifier.padding(insideMargin),
         text = text,
-        style = MiuixTheme.textStyles.subtitle,
+        style = MiuixTheme.textStyles.subtitle.copy(fontWeight = FontWeight.Medium),
         color = textColor,
     )
 }

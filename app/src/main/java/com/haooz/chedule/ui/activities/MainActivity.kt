@@ -810,21 +810,34 @@ fun CourseScheduleApp() {
     var wallpaperBitmap by remember { mutableStateOf(MainActivity.cachedWallpaperBitmap) }
     var wallpaperOffset by remember { mutableStateOf(MainActivity.cachedWallpaperOffset) }
     var wallpaperScale by remember { mutableFloatStateOf(MainActivity.cachedWallpaperScale) }
+    // 快照捕获时临时覆盖主题：captureThemeActive 为 true 时 effectiveForcedDark 取 captureThemeIsDark；
+    // 用于捕获不同搭配快照时让主题跟随该搭配的壁纸亮暗（亮色壁纸→浅色，暗色→深色，无壁纸→跟随应用设置）
+    var captureThemeActive by remember { mutableStateOf(false) }
+    var captureThemeIsDark by remember { mutableStateOf<Boolean?>(null) }
 
     // 壁纸主题锁定：课程表页有壁纸时按壁纸均匀测光结果强制浅色/深色；今日页仅在开启"今日页显示壁纸"时锁定，否则跟随系统；设置页跟随系统
     val currentComb = combinations.getOrNull(currentCombinationIndex)
     val currentCombIsLight = currentComb?.wallpaperIsLight
+    // 同步读取当前搭配持久化的壁纸亮暗结果：搭配/壁纸是异步加载的，若首帧只依赖它们，
+    // 首次进入会先显示应用主题、加载完成后又跳变到壁纸主题。这里用轻量同步读取兜底，首帧即确定主题。
+    val initialCombWallpaperIsLight = remember {
+        wallpaperRepository.getCombinationWallpaperIsLight(wallpaperRepository.getCurrentCombinationId())
+    }
+    // 搭配已加载时用其自身测光结果；仅当搭配尚未加载（首帧）时退回 initial，
+    // 避免无壁纸搭配(currentCombIsLight=null)错误回退到初始搭配的测光结果
+    val combIsLight = if (currentComb == null) initialCombWallpaperIsLight else currentCombIsLight
     val todayShowWallpaper = settingsViewModel.todayShowWallpaper.collectAsState().value
     val todayPageShowsWallpaper = selectedTab == 0 && todayShowWallpaper
     val forcedDark = if (selectedTab == 2) null
     else if (selectedTab == 1 || todayPageShowsWallpaper) {
-        if (wallpaperBitmap != null && currentCombIsLight != null) !currentCombIsLight else null
+        if (combIsLight != null) !combIsLight else null
     } else null
     val effectiveIsDark = forcedDark ?: isDark
-    // 系统栏（状态栏/导航栏）始终跟随应用设置（theme_mode），不随壁纸强制主题变化
     val appSettingDark = rememberAppSettingDark()
-    LaunchedEffect(appSettingDark) {
-        activity?.applyThemeAwareSystemBars(appSettingDark)
+    // 系统状态栏跟随页面实际深浅（含壁纸强制主题），保证有壁纸页面正确反色；
+    // 系统导航栏图标始终跟随应用设置（theme_mode）
+    LaunchedEffect(effectiveIsDark, appSettingDark) {
+        activity?.applyThemeAwareSystemBars(effectiveIsDark)
         activity?.applyNavigationBarIsDark(appSettingDark)
     }
 
@@ -1394,11 +1407,16 @@ fun CourseScheduleApp() {
                 originalWallpaperScale = nextComb.scale
                 originalAppearance =
                     com.haooz.chedule.data.AppearanceConfig.fromCombination(nextComb)
+                // 切换主题跟随该搭配的壁纸亮暗，保证快照正确反映深浅色
+                captureThemeActive = true
+                captureThemeIsDark = nextComb.wallpaperIsLight?.let { !it }
                 delay(120.milliseconds)
                 val nextSnap = screenGraphicsLayer.toImageBitmap().asAndroidBitmap()
                 combinations = combinations.toMutableList().also {
                     it[1] = it[1].copy(snapshot = nextSnap)
                 }
+                captureThemeActive = false
+                captureThemeIsDark = null
                 wallpaperBitmap = savedWp2
                 wallpaperOffset = savedOf2
                 wallpaperScale = savedSc2
@@ -1438,11 +1456,16 @@ fun CourseScheduleApp() {
                 originalWallpaperOffset = comb.offset
                 originalWallpaperScale = comb.scale
                 originalAppearance = com.haooz.chedule.data.AppearanceConfig.fromCombination(comb)
+                // 切换主题跟随该搭配的壁纸亮暗，保证快照正确反映深浅色
+                captureThemeActive = true
+                captureThemeIsDark = comb.wallpaperIsLight?.let { !it }
                 delay(120.milliseconds)
                 val snap = screenGraphicsLayer.toImageBitmap().asAndroidBitmap()
                 combinations = combinations.toMutableList().also {
                     it[i] = it[i].copy(snapshot = snap)
                 }
+                captureThemeActive = false
+                captureThemeIsDark = null
             }
             wallpaperBitmap = savedWp
             wallpaperOffset = savedOf
@@ -2020,7 +2043,7 @@ fun CourseScheduleApp() {
                 LongPressCustomizeButton(
                     visible = showLongPressOverlay,
                     backdrop = backdrop,
-                    isDark = isDark,
+                    isDark = effectiveIsDark,
                     onClick = {
                         showLongPressButton = false
                         coroutineScope.launch {
@@ -2127,18 +2150,16 @@ fun CourseScheduleApp() {
                 )
             }
             }
-            // 有壁纸时用强制主题包裹脚手架（同时修改 colorScheme 与 isAppDarkTheme 两条通道）
-            if (forcedDark != null) {
-                val forcedController = remember(forcedDark) {
-                    ThemeController(if (forcedDark) ColorSchemeMode.Dark else ColorSchemeMode.Light)
-                }
-                MiuixTheme(controller = forcedController) {
-                    CompositionLocalProvider(LocalForcedDarkTheme provides forcedDark) {
-                        scaffoldContent()
-                    }
-                }
-            } else {
-                CompositionLocalProvider(LocalForcedDarkTheme provides null) {
+            // 始终用 MiuixTheme 包裹脚手架，保持组合结构恒定；
+            // 有壁纸时 controller 跟随壁纸强制主题，无壁纸时跟随应用设置。
+            // 结构恒定可避免 tab 切换深浅变化时底栏被重建导致滑块动画丢失。
+            val effectiveForcedDark = if (captureThemeActive) captureThemeIsDark else forcedDark
+            val effectiveDark = effectiveForcedDark ?: appSettingDark
+            val pageController = remember(effectiveDark) {
+                ThemeController(if (effectiveDark) ColorSchemeMode.Dark else ColorSchemeMode.Light)
+            }
+            MiuixTheme(controller = pageController) {
+                CompositionLocalProvider(LocalForcedDarkTheme provides effectiveForcedDark) {
                     scaffoldContent()
                 }
             }
@@ -2363,6 +2384,16 @@ fun CourseScheduleApp() {
                             }
                         }
                         isNewCombinationCreated = false
+                    } else {
+                        // 退出动画开始前恢复原搭配壁纸/外观，并用 captureTheme 锁定原搭配主题，
+                        // 避免动画期间主题跟随预览搭配；不恢复 currentCombinationIndex，防止 pager 提前回滚
+                        wallpaperBitmap = originalWallpaperBitmap
+                        wallpaperOffset = originalWallpaperOffset
+                        wallpaperScale = originalWallpaperScale
+                        appearance = originalAppearance
+                        val origComb = combinations.getOrNull(originalCombinationIndex)
+                        captureThemeActive = true
+                        captureThemeIsDark = origComb?.wallpaperIsLight?.let { !it }
                     }
                     customizeExitScale.snapTo(customizeExitTargetScale)
                     customizeExitAlpha.snapTo(1f)
@@ -2835,6 +2866,9 @@ fun CourseScheduleApp() {
                 showCustomizePage = false
                 customizeSnapshot = null
                 isWindowCutoutActive = false
+                // 动画结束后 currentCombinationIndex 已恢复原搭配，forcedDark 自然接管，释放 captureTheme
+                captureThemeActive = false
+                captureThemeIsDark = null
                 if (!isApplyingCustomize) {
                     // 退出（非应用）：恢复 live 变量，并还原 combinations 列表中被 callback 修改的条目
                     wallpaperBitmap = originalWallpaperBitmap

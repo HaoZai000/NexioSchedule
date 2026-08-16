@@ -372,7 +372,7 @@ fun lightColorScheme(
     background: Color = Color.White,
     onBackground: Color = Color.Black,
     onBackgroundVariant: Color = Color(0xFF8C93B0),
-    surface: Color = Color(0xFFF7F7F7),
+    surface: Color = Color(0xFFF4F4F4),
     onSurface: Color = Color.Black,
     surfaceVariant: Color = Color.White,
     onSurfaceSecondary: Color = Color(0xCC000000),

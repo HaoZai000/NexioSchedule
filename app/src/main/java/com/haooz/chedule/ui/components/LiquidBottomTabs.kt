@@ -224,10 +224,7 @@ fun LiquidBottomTabs(
                     layerBlock = {},
                     onDrawSurface = { drawRect(containerColor) }
                 )
-                .edgeLight(
-                    shape = Capsule(),
-                    edgeLight = defaultEdgeLight
-                )
+                .edgeLight(shape = Capsule(), edgeLight = defaultEdgeLight)
                 .then(interactiveHighlight.modifier)
                 .height(containerHeight)
                 .fillMaxWidth()

@@ -20,10 +20,14 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.TransformOrigin
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.haooz.chedule.ui.effects.edgelight.edgeLight
+import com.haooz.chedule.ui.effects.edgelight.rememberDefaultEdgeLight
+import com.kyant.shapes.Capsule
 import com.kyant.shapes.RoundedRectangle
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.launch
@@ -113,11 +117,11 @@ internal fun LongPressCustomizeButton(
         val bottomblurColors = BlurDefaults.blurColors(
             blendColors = listOf(
                 if (isDark) BlendColorEntry(
-                    MiuixTheme.colorScheme.background.copy(alpha = 0.7f),
+                    MiuixTheme.colorScheme.background.copy(alpha = 0.8f),
                     BlurBlendMode.Screen
                 )
                 else BlendColorEntry(
-                    androidx.compose.ui.graphics.Color.White.copy(alpha = 0.7f),
+                    Color.White.copy(alpha = 0.92f),
                     BlurBlendMode.Screen
                 )
             ),
@@ -141,6 +145,7 @@ internal fun LongPressCustomizeButton(
                     blurRadius = 25f,
                     colors = bottomblurColors,
                 )
+                .edgeLight(shape = Capsule(), edgeLight = rememberDefaultEdgeLight())
                 .clip(RoundedRectangle(25.dp))
         ) {
             Button(
