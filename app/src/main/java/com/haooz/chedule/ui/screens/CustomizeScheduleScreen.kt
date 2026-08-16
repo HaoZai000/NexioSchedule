@@ -1525,9 +1525,9 @@ fun CustomizeScheduleScreen(
                                 Slider(
                                     value = effectValue,
                                     onValueChange = { if (hasWallpaper) effectValue = it },
-                                    valueRange = 0f..50f,
+                                    valueRange = 0f..20f,
                                     showKeyPoints = true,
-                                    keyPoints = listOf(0f, 10f, 20f, 30f, 40f, 50f),
+                                    keyPoints = listOf(4f),
                                     magnetThreshold = 0.05f,
                                     modifier = Modifier.fillMaxWidth(),
                                     hapticEffect = SliderDefaults.SliderHapticEffect.Step,
