@@ -117,6 +117,7 @@ class CourseRepository private constructor(context: Context) {
         private const val KEY_COMBINATION_CARD_HEIGHT_PREFIX = "comb_card_height_"
         private const val KEY_COMBINATION_CARD_CORNER_PREFIX = "comb_card_corner_"
         private const val KEY_COMBINATION_WALLPAPER_BRIGHTNESS_PREFIX = "comb_wp_brightness_"
+        private const val KEY_COMBINATION_WALLPAPER_IS_LIGHT_PREFIX = "comb_wp_is_light_"
         private const val KEY_COMBINATION_SHOW_BREAK_DIVIDERS_PREFIX = "comb_break_div_"
         private const val KEY_COMBINATION_CARD_CONTENT_ALIGNMENT_PREFIX = "comb_card_align_"
         // 多时间配置支持
@@ -1760,6 +1761,18 @@ class CourseRepository private constructor(context: Context) {
     }
 
     fun getCombinationWallpaperBrightness(id: Long): Float = prefs.getFloat("${KEY_COMBINATION_WALLPAPER_BRIGHTNESS_PREFIX}$id", 0f)
+
+    fun saveCombinationWallpaperIsLight(id: Long, isLight: Boolean?) {
+        prefs.edit {
+            if (isLight == null) remove("${KEY_COMBINATION_WALLPAPER_IS_LIGHT_PREFIX}$id")
+            else putBoolean("${KEY_COMBINATION_WALLPAPER_IS_LIGHT_PREFIX}$id", isLight)
+        }
+    }
+
+    fun getCombinationWallpaperIsLight(id: Long): Boolean? {
+        val key = "${KEY_COMBINATION_WALLPAPER_IS_LIGHT_PREFIX}$id"
+        return if (prefs.contains(key)) prefs.getBoolean(key, false) else null
+    }
 
     fun saveCombinationShowBreakDividers(id: Long, show: Boolean) {
         prefs.edit {

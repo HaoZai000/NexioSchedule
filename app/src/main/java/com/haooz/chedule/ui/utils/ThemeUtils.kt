@@ -11,10 +11,25 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.ui.platform.LocalContext
+
+/**
+ * 壁纸强制深色模式覆盖：非 null 时，isAppDarkTheme() 直接返回该值，
+ * 用于今日页/课程表页有壁纸时按壁纸亮暗锁定主题。
+ */
+val LocalForcedDarkTheme = staticCompositionLocalOf<Boolean?> { null }
 
 @Composable
 fun isAppDarkTheme(): Boolean {
+    // 若当前组合有壁纸并强制了主题，优先使用该结果
+    LocalForcedDarkTheme.current?.let { return it }
+    return rememberAppSettingDark()
+}
+
+/** 读取应用设置（theme_mode，系统/浅色/深色）对应的深浅色，不经过壁纸强制覆盖 */
+@Composable
+fun rememberAppSettingDark(): Boolean {
     val context = LocalContext.current
     val prefs = remember { context.getSharedPreferences("app_theme_prefs", Context.MODE_PRIVATE) }
     val themeMode = remember { mutableStateOf(prefs.getString("theme_mode", "system") ?: "system") }
@@ -50,14 +65,29 @@ fun Activity.applyThemeAwareSystemBars() {
             nightMode == Configuration.UI_MODE_NIGHT_YES
         }
     }
+    // 状态栏跟随应用设置，导航栏始终跟随应用设置（theme_mode），不受壁纸强制主题影响
+    applyThemeAwareSystemBars(isDark)
+    applyNavigationBarIsDark(isDark)
+}
 
+/** 按显式深色值仅刷新状态栏外观（用于壁纸强制锁定主题的场景，导航栏仍跟随应用设置） */
+fun Activity.applyThemeAwareSystemBars(isDark: Boolean) {
     window.decorView.post {
         window.insetsController?.let { controller ->
-            val appearance = if (isDark) 0 else (
+            controller.setSystemBarsAppearance(
+                if (isDark) 0 else WindowInsetsController.APPEARANCE_LIGHT_STATUS_BARS,
                 WindowInsetsController.APPEARANCE_LIGHT_STATUS_BARS
             )
-            controller.setSystemBarsAppearance(appearance,
-                WindowInsetsController.APPEARANCE_LIGHT_STATUS_BARS or
+        }
+    }
+}
+
+/** 导航栏图标外观：始终跟随应用设置（theme_mode），不随壁纸强制主题变化 */
+fun Activity.applyNavigationBarIsDark(isDark: Boolean) {
+    window.decorView.post {
+        window.insetsController?.let { controller ->
+            controller.setSystemBarsAppearance(
+                if (isDark) 0 else WindowInsetsController.APPEARANCE_LIGHT_NAVIGATION_BARS,
                 WindowInsetsController.APPEARANCE_LIGHT_NAVIGATION_BARS
             )
         }

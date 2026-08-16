@@ -43,6 +43,7 @@ import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -114,8 +115,11 @@ import com.haooz.chedule.ui.screens.SettingsScreen
 import com.haooz.chedule.ui.screens.ShiftScheduleScreen
 import com.haooz.chedule.ui.screens.TodayScreen
 import com.haooz.chedule.ui.theme.CourseScheduleTheme
+import com.haooz.chedule.ui.utils.LocalForcedDarkTheme
+import com.haooz.chedule.ui.utils.applyNavigationBarIsDark
 import com.haooz.chedule.ui.utils.applyThemeAwareSystemBars
 import com.haooz.chedule.ui.utils.isAppDarkTheme
+import com.haooz.chedule.ui.utils.rememberAppSettingDark
 import com.haooz.chedule.viewmodel.CourseViewModel
 import com.haooz.chedule.viewmodel.ScheduleViewModel
 import com.haooz.chedule.viewmodel.SettingsViewModel
@@ -137,7 +141,9 @@ import top.yukonga.miuix.kmp.icon.extended.Edit
 import top.yukonga.miuix.kmp.icon.extended.More
 import top.yukonga.miuix.kmp.icon.extended.Reset
 import top.yukonga.miuix.kmp.squircle.addSquircleRect
+import top.yukonga.miuix.kmp.theme.ColorSchemeMode
 import top.yukonga.miuix.kmp.theme.MiuixTheme
+import top.yukonga.miuix.kmp.theme.ThemeController
 import java.time.LocalDate
 import java.util.Calendar
 import kotlin.time.Duration.Companion.milliseconds
@@ -316,6 +322,30 @@ private fun computeWallpaperMinScale(
     val fitScale = minOf(screenWPx / bitmap.width, screenHPx / bitmap.height)
     val coverScale = maxOf(screenWPx / bitmap.width, screenHPx / bitmap.height)
     return if (fitScale > 0f) coverScale / fitScale else 1f
+}
+
+/**
+ * 壁纸均匀测光：将壁纸等比缩放到小网格后计算平均亮度（感知加权），
+ * 平均亮度 >= 128 判定为亮色壁纸，否则为暗色壁纸。
+ */
+private fun computeWallpaperIsLight(bitmap: android.graphics.Bitmap?): Boolean? {
+    if (bitmap == null || bitmap.width <= 0 || bitmap.height <= 0) return null
+    val gridW = 16
+    val gridH = 16
+    val small = android.graphics.Bitmap.createScaledBitmap(bitmap, gridW, gridH, true)
+    var sum = 0L
+    for (x in 0 until gridW) {
+        for (y in 0 until gridH) {
+            val c = small.getPixel(x, y)
+            val r = (c shr 16) and 0xFF
+            val g = (c shr 8) and 0xFF
+            val b = c and 0xFF
+            sum += (299 * r + 587 * g + 114 * b) / 1000
+        }
+    }
+    val avg = sum / (gridW * gridH)
+    small.recycle()
+    return avg >= 128
 }
 
 /** 删除本周课程确认弹窗 */
@@ -673,10 +703,6 @@ fun CourseScheduleApp() {
     val totalSections = morningSections + afternoonSections + eveningSections
     val activity = LocalActivity.current as? MainActivity
     val resumeCount = activity?.resumeCount ?: 0
-    // 主题模式变化时实时更新状态栏外观（修复应用内切换深色模式后状态栏不反色）
-    LaunchedEffect(isDark) {
-        activity?.applyThemeAwareSystemBars()
-    }
     // 从其他 Activity 返回时刷新设置（如教务导入应用了预设时间段）
     LaunchedEffect(resumeCount) {
         if (resumeCount > 0) {
@@ -785,6 +811,23 @@ fun CourseScheduleApp() {
     var wallpaperOffset by remember { mutableStateOf(MainActivity.cachedWallpaperOffset) }
     var wallpaperScale by remember { mutableFloatStateOf(MainActivity.cachedWallpaperScale) }
 
+    // 壁纸主题锁定：课程表页有壁纸时按壁纸均匀测光结果强制浅色/深色；今日页仅在开启"今日页显示壁纸"时锁定，否则跟随系统；设置页跟随系统
+    val currentComb = combinations.getOrNull(currentCombinationIndex)
+    val currentCombIsLight = currentComb?.wallpaperIsLight
+    val todayShowWallpaper = settingsViewModel.todayShowWallpaper.collectAsState().value
+    val todayPageShowsWallpaper = selectedTab == 0 && todayShowWallpaper
+    val forcedDark = if (selectedTab == 2) null
+    else if (selectedTab == 1 || todayPageShowsWallpaper) {
+        if (wallpaperBitmap != null && currentCombIsLight != null) !currentCombIsLight else null
+    } else null
+    val effectiveIsDark = forcedDark ?: isDark
+    // 系统栏（状态栏/导航栏）始终跟随应用设置（theme_mode），不随壁纸强制主题变化
+    val appSettingDark = rememberAppSettingDark()
+    LaunchedEffect(appSettingDark) {
+        activity?.applyThemeAwareSystemBars(appSettingDark)
+        activity?.applyNavigationBarIsDark(appSettingDark)
+    }
+
     // 保存"已应用"的壁纸快照，用于开洞编辑取消时回退到当前查看的搭配
     var savedWallpaperBitmap by remember { mutableStateOf<android.graphics.Bitmap?>(null) }
     var savedWallpaperOffset by remember { mutableStateOf(wallpaperOffset) }
@@ -831,7 +874,8 @@ fun CourseScheduleApp() {
                     cardCornerRadius = wallpaperRepository.getCombinationCardCornerRadius(id),
                     wallpaperBrightness = wallpaperRepository.getCombinationWallpaperBrightness(id),
                     showBreakDividers = wallpaperRepository.getCombinationShowBreakDividers(id),
-                    cardContentAlignment = wallpaperRepository.getCombinationCardContentAlignment(id)
+                    cardContentAlignment = wallpaperRepository.getCombinationCardContentAlignment(id),
+                    wallpaperIsLight = wallpaperRepository.getCombinationWallpaperIsLight(id)
                 )
             }
             combinations = list
@@ -865,7 +909,8 @@ fun CourseScheduleApp() {
                         showBreakDividers = wallpaperRepository.getCombinationShowBreakDividers(id),
                         cardContentAlignment = wallpaperRepository.getCombinationCardContentAlignment(
                             id
-                        )
+                        ),
+                        wallpaperIsLight = wallpaperRepository.getCombinationWallpaperIsLight(id)
                     )
                 }
                 Triple(list, loadedIds, loadedIndex)
@@ -1421,6 +1466,8 @@ fun CourseScheduleApp() {
             wallpaperOffset = Offset.Zero
             val autoScale = computeWallpaperMinScale(bitmap, screenWPx, screenHPx)
             wallpaperScale = autoScale
+            // 均匀测光：判断亮色/暗色壁纸，供今日页/课程表页锁定主题
+            val isLight = computeWallpaperIsLight(bitmap)
             // 同步到当前搭配
             val idx = currentCombinationIndex
             if (idx in combinations.indices) {
@@ -1428,7 +1475,8 @@ fun CourseScheduleApp() {
                     it[idx] = it[idx].copy(
                         bitmap = bitmap,
                         offset = Offset.Zero,
-                        scale = autoScale
+                        scale = autoScale,
+                        wallpaperIsLight = isLight
                     )
                 }
             }
@@ -1586,23 +1634,25 @@ fun CourseScheduleApp() {
                 )
                 .layerBackdrop(fullBlurBackdrop)
         ) {
-            Scaffold(
-                bottomBar = {
-                    ScheduleBottomBar(
-                        navBarStyle = navBarStyle,
-                        isShiftMode = isShiftMode,
-                        selectedTab = selectedTab,
-                        onTabSelected = { selectedTab = it },
-                        liquidGlassBackdrop = liquidGlassBackdrop,
-                        addButton = {
-                            if (!isShiftMode) {
-                                LiquidAddButton(
-                                    onClick = { viewModel.showAddDialog() },
-                                    backdrop = liquidGlassBackdrop
-                                )
+            // 有壁纸时用强制主题包裹脚手架（同时修改 colorScheme 与 isAppDarkTheme 两条通道）
+            val scaffoldContent = @Composable {
+                Scaffold(
+                    bottomBar = {
+                        ScheduleBottomBar(
+                            navBarStyle = navBarStyle,
+                            isShiftMode = isShiftMode,
+                            selectedTab = selectedTab,
+                            onTabSelected = { selectedTab = it },
+                            liquidGlassBackdrop = liquidGlassBackdrop,
+                            addButton = {
+                                if (!isShiftMode) {
+                                    LiquidAddButton(
+                                        onClick = { viewModel.showAddDialog() },
+                                        backdrop = liquidGlassBackdrop
+                                    )
+                                }
                             }
-                        }
-                    )
+                        )
                 },
                 topBar = {
                     ScheduleTopBar(
@@ -2076,6 +2126,22 @@ fun CourseScheduleApp() {
                     },
                 )
             }
+            }
+            // 有壁纸时用强制主题包裹脚手架（同时修改 colorScheme 与 isAppDarkTheme 两条通道）
+            if (forcedDark != null) {
+                val forcedController = remember(forcedDark) {
+                    ThemeController(if (forcedDark) ColorSchemeMode.Dark else ColorSchemeMode.Light)
+                }
+                MiuixTheme(controller = forcedController) {
+                    CompositionLocalProvider(LocalForcedDarkTheme provides forcedDark) {
+                        scaffoldContent()
+                    }
+                }
+            } else {
+                CompositionLocalProvider(LocalForcedDarkTheme provides null) {
+                    scaffoldContent()
+                }
+            }
             // 课程详情动画期间：用静态快照替代实际内容渲染，降低性能负载
             if (mainContentSnapshot != null) {
                 Image(
@@ -2309,6 +2375,8 @@ fun CourseScheduleApp() {
                     // 持久化当前搭配到磁盘（在 IO 线程异步执行，不阻塞 UI）
                     val bitmap = wallpaperBitmap
                     val combId = combinations.getOrNull(currentCombinationIndex)?.id ?: 0L
+                    // 当前搭配的壁纸测光结果（选择壁纸时已计算），用于持久化 + 主题锁定
+                    val isLight = combinations.getOrNull(currentCombinationIndex)?.wallpaperIsLight
                     // 截取当前 MainActivity 快照（包含课表+新壁纸）作为卡片预览（仅内存，不持久化）
                     val capturedSnapshot = screenGraphicsLayer.toImageBitmap().asAndroidBitmap()
                     val saveJob = launch(Dispatchers.IO) {
@@ -2335,6 +2403,7 @@ fun CourseScheduleApp() {
                             combId,
                             appearance.wallpaperBrightness
                         )
+                        wallpaperRepository.saveCombinationWallpaperIsLight(combId, isLight)
                         wallpaperRepository.saveCombinationShowBreakDividers(
                             combId,
                             appearance.showBreakDividers
@@ -2360,7 +2429,8 @@ fun CourseScheduleApp() {
                                 cardCornerRadius = appearance.cardCornerRadius,
                                 wallpaperBrightness = appearance.wallpaperBrightness,
                                 showBreakDividers = appearance.showBreakDividers,
-                                cardContentAlignment = appearance.cardContentAlignment
+                                cardContentAlignment = appearance.cardContentAlignment,
+                                wallpaperIsLight = isLight
                             )
                         }
                     }
