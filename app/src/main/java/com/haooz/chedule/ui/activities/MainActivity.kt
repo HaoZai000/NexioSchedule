@@ -853,6 +853,8 @@ fun CourseScheduleApp() {
     var originalWallpaperScale by remember { mutableFloatStateOf(wallpaperScale) }
     var originalAppearance by remember { mutableStateOf(com.haooz.chedule.data.AppearanceConfig()) }
     var originalSnapshot by remember { mutableStateOf<android.graphics.Bitmap?>(null) }
+    // 记录进入搭配页时原始搭配的壁纸亮暗结果，用于退出（非应用）时还原主题锁定
+    var originalWallpaperIsLight by remember { mutableStateOf<Boolean?>(null) }
     var isApplyingCustomize by remember { mutableStateOf(false) }
     var isNewCombinationCreated by remember { mutableStateOf(false) }
     // 新建搭配后自动进入编辑模式的触发器
@@ -1439,6 +1441,7 @@ fun CourseScheduleApp() {
             originalWallpaperScale = wallpaperScale
             originalAppearance = appearance
             originalSnapshot = combinations.getOrNull(currentCombinationIndex)?.snapshot
+            originalWallpaperIsLight = combinations.getOrNull(currentCombinationIndex)?.wallpaperIsLight
             // 后台逐个捕获其他搭配快照（等打开动画结束后再开始，避免动画期间主界面壁纸跳变）
             delay(500.milliseconds)
             val savedWp = wallpaperBitmap
@@ -2391,9 +2394,9 @@ fun CourseScheduleApp() {
                         wallpaperOffset = originalWallpaperOffset
                         wallpaperScale = originalWallpaperScale
                         appearance = originalAppearance
-                        val origComb = combinations.getOrNull(originalCombinationIndex)
                         captureThemeActive = true
-                        captureThemeIsDark = origComb?.wallpaperIsLight?.let { !it }
+                        // 用进入时记录的原始壁纸亮暗锁定原搭配主题，避免动画期间跟随被编辑过的深色壁纸
+                        captureThemeIsDark = originalWallpaperIsLight?.let { !it }
                     }
                     customizeExitScale.snapTo(customizeExitTargetScale)
                     customizeExitAlpha.snapTo(1f)
@@ -2882,7 +2885,8 @@ fun CourseScheduleApp() {
                         combinations = combinations.toMutableList().also {
                             it[restoreIdx] = it[restoreIdx].copy(
                                 showBreakDividers = originalAppearance.showBreakDividers,
-                                cardContentAlignment = originalAppearance.cardContentAlignment
+                                cardContentAlignment = originalAppearance.cardContentAlignment,
+                                wallpaperIsLight = originalWallpaperIsLight
                             )
                         }
                     }
