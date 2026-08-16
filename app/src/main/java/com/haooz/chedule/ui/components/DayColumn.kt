@@ -90,7 +90,6 @@ fun DayColumn(
     // 拖拽落点高亮：当前列中需高亮的节次范围（含起止），null 表示无高亮
     dropHighlightSections: IntRange? = null,
     // 调课后需要淡入放大的课程ID集合
-    animateInCourseIds: Set<String> = emptySet(),
     @SuppressLint("ModifierParameter") modifier: Modifier = Modifier
 ) {
     val totalHeight = ((morningSections + afternoonSections + eveningSections) * cardHeightPerSection + (if (showBreakDividers) 24 * 2 else 0)).toInt()
@@ -208,7 +207,6 @@ fun DayColumn(
                 ) {
                     PendingSectionBox(
                         section = pendingSection,
-                        dayOfWeek = dayOfWeek,
                         hasBlur = hasBlur,
                         isDark = isDark,
                         cardCornerRadius = cardCornerRadius,
@@ -349,7 +347,6 @@ private fun CourseCardsLayer(
             }
         }
 
-        val lunchBreak = morningSections
         val dinnerBreak = morningSections + afternoonSections
 
         displayedCourses.map { course ->
@@ -361,7 +358,7 @@ private fun CourseCardsLayer(
                 var segStart = course.startSection
                 while (segStart <= course.endSection) {
                     var segEnd = course.endSection
-                    if (lunchBreak in segStart..<segEnd) segEnd = lunchBreak
+                    if (morningSections in segStart..<segEnd) segEnd = morningSections
                     if (dinnerBreak in segStart..<segEnd) segEnd = dinnerBreak
                     segments.add(segStart to segEnd)
                     segStart = segEnd + 1
@@ -439,7 +436,6 @@ private fun CourseCardsLayer(
 @Composable
 private fun PendingSectionBox(
     section: Int,
-    dayOfWeek: Int,
     hasBlur: Boolean,
     isDark: Boolean,
     cardCornerRadius: Float,

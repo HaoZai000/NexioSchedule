@@ -35,7 +35,6 @@ class CourseViewModel(application: Application) : AndroidViewModel(application) 
 
     // 数据版本号，每次重新加载数据时递增，用于强制 UI 重组
     private val _dataVersion = MutableStateFlow(0)
-    val dataVersion: StateFlow<Int> = _dataVersion.asStateFlow()
 
     // 当前周次
     private val _currentWeek = MutableStateFlow(1)
@@ -79,10 +78,9 @@ class CourseViewModel(application: Application) : AndroidViewModel(application) 
 
     // 当前是否处于假期（无课程的周）
     private val _isHoliday = MutableStateFlow(false)
-    val isHoliday: StateFlow<Boolean> = _isHoliday.asStateFlow()
 
     init {
-        repository.onCourseChanged = { action, _ ->
+        repository.onCourseChanged = { _, _ ->
             viewModelScope.launch(Dispatchers.IO) {
                 loadCourses()
             }
@@ -217,7 +215,7 @@ class CourseViewModel(application: Application) : AndroidViewModel(application) 
             val week = (daysBetween / 7 + 1).toInt()
             // 不做任何 clamp，允许返回 0 或负数（学期未开始）或超过 totalWeeks（学期已结束）
             week
-        } catch (e: Exception) {
+        } catch (_: Exception) {
             _isSemesterStarted.value = true
             1
         }

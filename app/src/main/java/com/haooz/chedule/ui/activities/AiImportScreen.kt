@@ -418,7 +418,6 @@ fun AiImportScreen(
             show = true,
             course = editingCourse,
             selectedDay = editingCourse.dayOfWeek,
-            backdrop = backdrop,
             liquidGlassBackdrop = liquidGlassBackdrop,
             totalWeeks = totalWeeks,
             totalSections = effectiveMaxSection,

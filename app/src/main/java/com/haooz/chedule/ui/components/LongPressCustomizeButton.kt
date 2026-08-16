@@ -151,7 +151,7 @@ internal fun LongPressCustomizeButton(
             Button(
                 modifier = Modifier.width(140.dp).height(48.dp),
                 onClick = onClick,
-                colors = ButtonDefaults.buttonColors(color = androidx.compose.ui.graphics.Color.Transparent)
+                colors = ButtonDefaults.buttonColors(color = Color.Transparent)
             ) {
                 Text(
                     text = "自定义课表",

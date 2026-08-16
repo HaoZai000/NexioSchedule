@@ -73,23 +73,19 @@ fun Activity.applyThemeAwareSystemBars() {
 /** 按显式深色值仅刷新状态栏外观（用于壁纸强制锁定主题的场景，导航栏仍跟随应用设置） */
 fun Activity.applyThemeAwareSystemBars(isDark: Boolean) {
     window.decorView.post {
-        window.insetsController?.let { controller ->
-            controller.setSystemBarsAppearance(
-                if (isDark) 0 else WindowInsetsController.APPEARANCE_LIGHT_STATUS_BARS,
-                WindowInsetsController.APPEARANCE_LIGHT_STATUS_BARS
-            )
-        }
+        window.insetsController?.setSystemBarsAppearance(
+            if (isDark) 0 else WindowInsetsController.APPEARANCE_LIGHT_STATUS_BARS,
+            WindowInsetsController.APPEARANCE_LIGHT_STATUS_BARS
+        )
     }
 }
 
 /** 导航栏图标外观：始终跟随应用设置（theme_mode），不随壁纸强制主题变化 */
 fun Activity.applyNavigationBarIsDark(isDark: Boolean) {
     window.decorView.post {
-        window.insetsController?.let { controller ->
-            controller.setSystemBarsAppearance(
-                if (isDark) 0 else WindowInsetsController.APPEARANCE_LIGHT_NAVIGATION_BARS,
-                WindowInsetsController.APPEARANCE_LIGHT_NAVIGATION_BARS
-            )
-        }
+        window.insetsController?.setSystemBarsAppearance(
+            if (isDark) 0 else WindowInsetsController.APPEARANCE_LIGHT_NAVIGATION_BARS,
+            WindowInsetsController.APPEARANCE_LIGHT_NAVIGATION_BARS
+        )
     }
 }

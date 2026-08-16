@@ -73,7 +73,6 @@ import top.yukonga.miuix.kmp.basic.ColorPalette
 import top.yukonga.miuix.kmp.basic.Icon
 import top.yukonga.miuix.kmp.basic.NumberPicker
 import top.yukonga.miuix.kmp.basic.TextButton
-import top.yukonga.miuix.kmp.blur.LayerBackdrop
 import top.yukonga.miuix.kmp.icon.MiuixIcons
 import top.yukonga.miuix.kmp.icon.extended.Add
 import top.yukonga.miuix.kmp.icon.extended.Close
@@ -91,7 +90,6 @@ fun AddCourseDialog(
     show: Boolean,
     course: Course?,
     selectedDay: Int,
-    backdrop: LayerBackdrop?,
     liquidGlassBackdrop: Backdrop? = null,
     totalWeeks: Int = 20,
     totalSections: Int = 12,

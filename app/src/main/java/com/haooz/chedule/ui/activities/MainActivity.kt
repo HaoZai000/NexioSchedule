@@ -83,6 +83,8 @@ import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.zIndex
+import androidx.core.graphics.get
+import androidx.core.graphics.scale
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.window.embedding.SplitController
 import com.haooz.chedule.data.Course
@@ -328,15 +330,16 @@ private fun computeWallpaperMinScale(
  * 壁纸均匀测光：将壁纸等比缩放到小网格后计算平均亮度（感知加权），
  * 平均亮度 >= 128 判定为亮色壁纸，否则为暗色壁纸。
  */
+@SuppressLint("UseKtx")
 private fun computeWallpaperIsLight(bitmap: android.graphics.Bitmap?): Boolean? {
     if (bitmap == null || bitmap.width <= 0 || bitmap.height <= 0) return null
     val gridW = 16
     val gridH = 16
-    val small = android.graphics.Bitmap.createScaledBitmap(bitmap, gridW, gridH, true)
+    val small = bitmap.scale(gridW, gridH)
     var sum = 0L
     for (x in 0 until gridW) {
         for (y in 0 until gridH) {
-            val c = small.getPixel(x, y)
+            val c = small[x, y]
             val r = (c shr 16) and 0xFF
             val g = (c shr 8) and 0xFF
             val b = c and 0xFF
@@ -2084,7 +2087,6 @@ fun CourseScheduleApp() {
                     show = showAddDialog,
                     course = editingCourse,
                     selectedDay = viewModel.selectedDay.collectAsState().value,
-                    backdrop = backdrop,
                     liquidGlassBackdrop = liquidGlassBackdrop,
                     totalWeeks = totalWeeks,
                     totalSections = totalSections,

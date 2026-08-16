@@ -470,7 +470,6 @@ fun MainScheduleScreen(
                                 onCourseDragEnd = onCourseDragEnd,
                                 onCourseMenuDismiss = onCourseMenuDismiss,
                                 dropHighlightSections = if (dropHighlight?.first == dayOfWeek) dropHighlight.second else null,
-                                animateInCourseIds = animateInCourseIds,
                                 modifier = Modifier
                                     .weight(1f)
                                     .onGloballyPositioned { coordinates ->
