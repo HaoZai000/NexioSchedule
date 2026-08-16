@@ -4,8 +4,7 @@ package com.haooz.chedule.ui.components
 import android.annotation.SuppressLint
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
-import androidx.compose.foundation.combinedClickable
-import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.fillMaxHeight
@@ -15,14 +14,18 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.key
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.drawBehind
+import androidx.compose.ui.geometry.CornerRadius
+import androidx.compose.ui.geometry.RoundRect
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.unit.dp
@@ -95,8 +98,6 @@ fun DayColumn(
     val hasBlur = wallpaperBackdrop != null
     val isPendingDay = pendingDay == dayOfWeek
     val hapticFeedback = LocalHapticFeedback.current
-    // 共享交互源，避免每个空单元格创建新的 MutableInteractionSource
-    val sharedInteractionSource = remember { MutableInteractionSource() }
 
     val occupiedSections = remember(courses) {
         buildSet {
@@ -113,27 +114,6 @@ fun DayColumn(
     } else {
         if (isDark) Color.White.copy(alpha = 0.06f) else Color.Black.copy(alpha = 0.04f)
     }
-    val dropHighlightCornerRadius = cardCornerRadius.dp
-    val dropHighlightPaddingV = 2.dp
-    val dropHighlightPaddingH = 2.dp
-    fun dropHighlightPadding(section: Int): PaddingValues {
-        val range = dropHighlightSections ?: return PaddingValues(0.dp)
-        if (section !in range) return PaddingValues(0.dp)
-        val isFirst = section == range.first
-        val isLast = section == range.last
-        val top = if (isFirst) dropHighlightPaddingV else 0.dp
-        val bottom = if (isLast) dropHighlightPaddingV else 0.dp
-        return PaddingValues(start = dropHighlightPaddingH, end = dropHighlightPaddingH, top = top, bottom = bottom)
-    }
-    fun dropHighlightShape(section: Int): androidx.compose.ui.graphics.Shape {
-        val range = dropHighlightSections ?: return RoundedCornerShape(0.dp)
-        if (section !in range) return RoundedCornerShape(0.dp)
-        val isFirst = section == range.first
-        val isLast = section == range.last
-        val top = if (isFirst) dropHighlightCornerRadius else 0.dp
-        val bottom = if (isLast) dropHighlightCornerRadius else 0.dp
-        return RoundedCornerShape(topStart = top, topEnd = top, bottomStart = bottom, bottomEnd = bottom)
-    }
 
     Box(
         modifier = modifier
@@ -144,64 +124,103 @@ fun DayColumn(
                 .fillMaxWidth()
                 .fillMaxHeight()
         ) {
-            var currentOffset = 0
+            val totalSectionsGrid = morningSections + afternoonSections + eveningSections
+            val density = LocalDensity.current
+            val perSectionPx = with(density) { cardHeightPerSection.dp.toPx() }
+            val dividerPx = if (showBreakDividers) with(density) { 24.dp.toPx() } else 0f
+            val dividerGap = if (showBreakDividers) 24 else 0
 
-            // 上午节次
-            for (section in 1..morningSections) {
-                val isOccupied = section in occupiedSections
-                val isSectionPending = isPendingDay && pendingSection == section && !isOccupied
-                val isDropHighlight = dropHighlightSections?.contains(section) == true
-                if (isSectionPending) {
-                    // 仅 pending 状态需要完整渲染（模糊+边光+卡片）
-                    Box(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .height(cardHeightPerSection.dp)
-                            .offset(y = currentOffset.dp)
-                    ) {
-                        PendingSectionBox(
-                            section = section,
-                            dayOfWeek = dayOfWeek,
-                            hasBlur = hasBlur,
-                            isDark = isDark,
-                            cardCornerRadius = cardCornerRadius,
-                            cardBlurRadius = cardBlurRadius,
-                            wallpaperBackdrop = wallpaperBackdrop,
-                            hapticFeedback = hapticFeedback,
-                            onEmptyClick = onEmptyClick
-                        )
-                    }
-                } else {
-                    // 空白或占用：仅占位 + 可点击
-                    Box(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .height(cardHeightPerSection.dp)
-                            .offset(y = currentOffset.dp)
-                            .then(if (isDropHighlight) Modifier.padding(dropHighlightPadding(section)).background(dropHighlightColor, dropHighlightShape(section)) else Modifier)
-                            .then(
-                                if (!isOccupied) {
-                                    Modifier.combinedClickable(
-                                        indication = null,
-                                        interactionSource = sharedInteractionSource,
-                                        onClick = {
-                                            onPendingChange(dayOfWeek, section)
-                                        },
-                                        onLongClick = {
-                                            hapticFeedback.performHapticFeedback(HapticFeedbackType.LongPress)
-                                            onEmptyLongPress()
-                                        }
-                                    )
-                                } else {
-                                    Modifier
-                                }
-                            )
-                    )
-                }
-                currentOffset += cardHeightPerSection.toInt()
+            // 节次顶部偏移（dp）换算，与 CourseCardsLayer 的 segOffset 逻辑保持一致
+            fun sectionTopDp(section: Int): Float = when {
+                section <= morningSections -> (section - 1) * cardHeightPerSection
+                section <= morningSections + afternoonSections ->
+                    morningSections * cardHeightPerSection + dividerGap + (section - morningSections - 1) * cardHeightPerSection
+                else ->
+                    (morningSections + afternoonSections) * cardHeightPerSection + 2 * dividerGap + (section - morningSections - afternoonSections - 1) * cardHeightPerSection
             }
 
-            // 午休分界线
+            // 1. 空节次交互层 —— 单节点承载所有空节次的点击/长按，依据 Y 坐标换算节次，
+            //    并将拖拽落点高亮一并绘制于此，减少每页布局节点数（原每个节次一个 Box）
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .fillMaxHeight()
+                    .drawBehind {
+                        val range = dropHighlightSections ?: return@drawBehind
+                        val cornerPx = cardCornerRadius.dp.toPx()
+                        val padV = 2.dp.toPx()
+                        val padH = 2.dp.toPx()
+                        val firstTopPx = with(density) { sectionTopDp(range.first).dp.toPx() }
+                        val lastBottomPx = with(density) { sectionTopDp(range.last).dp.toPx() } + perSectionPx
+                        val path = Path().apply {
+                            addRoundRect(
+                                roundRect = RoundRect(
+                                    left = padH,
+                                    top = firstTopPx + padV,
+                                    right = size.width - padH,
+                                    bottom = lastBottomPx - padV,
+                                    topLeftCornerRadius = CornerRadius(cornerPx),
+                                    topRightCornerRadius = CornerRadius(cornerPx),
+                                    bottomLeftCornerRadius = CornerRadius(cornerPx),
+                                    bottomRightCornerRadius = CornerRadius(cornerPx)
+                                )
+                            )
+                        }
+                        drawPath(path, dropHighlightColor)
+                    }
+                    .pointerInput(dayOfWeek, occupiedSections, morningSections, afternoonSections, eveningSections, showBreakDividers, perSectionPx, dividerPx) {
+                        detectTapGestures(
+                            onTap = { offset ->
+                                val y = offset.y
+                                val morningPx = morningSections * perSectionPx
+                                val section = when {
+                                    y < morningPx -> (y / perSectionPx).toInt() + 1
+                                    y < morningPx + dividerPx -> -1
+                                    y < morningPx + dividerPx + afternoonSections * perSectionPx -> {
+                                        val s = ((y - morningPx - dividerPx) / perSectionPx).toInt()
+                                        morningSections + s + 1
+                                    }
+                                    y < morningPx + dividerPx + afternoonSections * perSectionPx + dividerPx -> -1
+                                    else -> {
+                                        val s = ((y - morningPx - dividerPx - afternoonSections * perSectionPx - dividerPx) / perSectionPx).toInt()
+                                        morningSections + afternoonSections + s + 1
+                                    }
+                                }
+                                if (section in 1..totalSectionsGrid && section !in occupiedSections) {
+                                    onPendingChange(dayOfWeek, section)
+                                }
+                            },
+                            onLongPress = {
+                                hapticFeedback.performHapticFeedback(HapticFeedbackType.LongPress)
+                                onEmptyLongPress()
+                            }
+                        )
+                    }
+            )
+
+            // 2. Pending 添加卡片（用户点击空节次后渲染，仅渲染当前日非占用的 pending 节次）
+            if (isPendingDay && pendingSection in 1..totalSectionsGrid && pendingSection !in occupiedSections) {
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(cardHeightPerSection.dp)
+                        .offset(y = sectionTopDp(pendingSection).dp)
+                ) {
+                    PendingSectionBox(
+                        section = pendingSection,
+                        dayOfWeek = dayOfWeek,
+                        hasBlur = hasBlur,
+                        isDark = isDark,
+                        cardCornerRadius = cardCornerRadius,
+                        cardBlurRadius = cardBlurRadius,
+                        wallpaperBackdrop = wallpaperBackdrop,
+                        hapticFeedback = hapticFeedback,
+                        onEmptyClick = onEmptyClick
+                    )
+                }
+            }
+
+            // 3. 午休/晚休分界线
             val dividerColor = if (cardBlurRadius > 0f) Color.Transparent else MiuixTheme.colorScheme.surfaceContainer
             val dividerShape = RoundedRectangle(12.dp)
             if (showBreakDividers) {
@@ -209,7 +228,7 @@ fun DayColumn(
                     modifier = Modifier
                         .fillMaxWidth()
                         .height(24.dp)
-                        .offset(y = currentOffset.dp),
+                        .offset(y = (morningSections * cardHeightPerSection).toInt().dp),
                     contentAlignment = Alignment.Center
                 ) {
                     if (!isTablet) {
@@ -222,71 +241,11 @@ fun DayColumn(
                         )
                     }
                 }
-            }
-            currentOffset += if (showBreakDividers) 24 else 0
-
-            // 下午节次
-            val afternoonStart = morningSections + 1
-            val afternoonEnd = morningSections + afternoonSections
-            for (section in afternoonStart..afternoonEnd) {
-                val isOccupied = section in occupiedSections
-                val isSectionPending = isPendingDay && pendingSection == section && !isOccupied
-                val isDropHighlight = dropHighlightSections?.contains(section) == true
-                if (isSectionPending) {
-                    Box(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .height(cardHeightPerSection.dp)
-                            .offset(y = currentOffset.dp)
-                    ) {
-                        PendingSectionBox(
-                            section = section,
-                            dayOfWeek = dayOfWeek,
-                            hasBlur = hasBlur,
-                            isDark = isDark,
-                            cardCornerRadius = cardCornerRadius,
-                            cardBlurRadius = cardBlurRadius,
-                            wallpaperBackdrop = wallpaperBackdrop,
-                            hapticFeedback = hapticFeedback,
-                            onEmptyClick = onEmptyClick
-                        )
-                    }
-                } else {
-                    Box(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .height(cardHeightPerSection.dp)
-                            .offset(y = currentOffset.dp)
-                            .then(if (isDropHighlight) Modifier.padding(dropHighlightPadding(section)).background(dropHighlightColor, dropHighlightShape(section)) else Modifier)
-                            .then(
-                                if (!isOccupied) {
-                                    Modifier.combinedClickable(
-                                        indication = null,
-                                        interactionSource = sharedInteractionSource,
-                                        onClick = {
-                                            onPendingChange(dayOfWeek, section)
-                                        },
-                                        onLongClick = {
-                                            hapticFeedback.performHapticFeedback(HapticFeedbackType.LongPress)
-                                            onEmptyLongPress()
-                                        }
-                                    )
-                                } else {
-                                    Modifier
-                                }
-                            )
-                    )
-                }
-                currentOffset += cardHeightPerSection.toInt()
-            }
-
-            // 晚休分界线
-            if (showBreakDividers) {
                 Box(
                     modifier = Modifier
                         .fillMaxWidth()
                         .height(24.dp)
-                        .offset(y = currentOffset.dp),
+                        .offset(y = (morningSections * cardHeightPerSection + dividerGap + afternoonSections * cardHeightPerSection).toInt().dp),
                     contentAlignment = Alignment.Center
                 ) {
                     if (!isTablet) {
@@ -300,176 +259,174 @@ fun DayColumn(
                     }
                 }
             }
-            currentOffset += if (showBreakDividers) 24 else 0
 
-            // 晚上节次
-            val eveningStart = morningSections + afternoonSections + 1
-            val eveningEnd = morningSections + afternoonSections + eveningSections
-            for (section in eveningStart..eveningEnd) {
-                val isOccupied = section in occupiedSections
-                val isSectionPending = isPendingDay && pendingSection == section && !isOccupied
-                val isDropHighlight = dropHighlightSections?.contains(section) == true
-                if (isSectionPending) {
-                    Box(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .height(cardHeightPerSection.dp)
-                            .offset(y = currentOffset.dp)
-                    ) {
-                        PendingSectionBox(
-                            section = section,
-                            dayOfWeek = dayOfWeek,
-                            hasBlur = hasBlur,
-                            isDark = isDark,
-                            cardCornerRadius = cardCornerRadius,
-                            cardBlurRadius = cardBlurRadius,
-                            wallpaperBackdrop = wallpaperBackdrop,
-                            hapticFeedback = hapticFeedback,
-                            onEmptyClick = onEmptyClick
-                        )
-                    }
+            // 课程卡片层 —— 独立组合函数，周切换时仅此层重组，静态网格骨架可被 Compose 跳过
+            CourseCardsLayer(
+                courses = courses,
+                currentWeek = currentWeek,
+                showBreakDividers = showBreakDividers,
+                morningSections = morningSections,
+                afternoonSections = afternoonSections,
+                eveningSections = eveningSections,
+                cardHeightPerSection = cardHeightPerSection,
+                cardCornerRadius = cardCornerRadius,
+                cardAlpha = cardAlpha,
+                isTablet = isTablet,
+                cardContentAlignment = cardContentAlignment,
+                wallpaperBackdrop = wallpaperBackdrop,
+                cardBlurRadius = cardBlurRadius,
+                draggingCourseIds = draggingCourseIds,
+                onCourseClick = onCourseClick,
+                onCourseLongPress = onCourseLongPress,
+                onCourseDragStart = onCourseDragStart,
+                onCourseDrag = onCourseDrag,
+                onCourseDragEnd = onCourseDragEnd,
+                onCourseMenuDismiss = onCourseMenuDismiss,
+                onPendingChange = onPendingChange
+            )
+        }
+    }
+}
+
+/**
+ * 课程卡片层。将分组/筛选/分段计算与卡片组合包裹在独立组合函数中，
+ * 使周切换（courses/currentWeek 变化）时重组范围收缩到本层，
+ * 静态网格骨架（空占位 + 分界线）不随周数据重建。
+ */
+@Composable
+private fun CourseCardsLayer(
+    courses: List<Course>,
+    currentWeek: Int,
+    showBreakDividers: Boolean,
+    morningSections: Int,
+    afternoonSections: Int,
+    eveningSections: Int,
+    cardHeightPerSection: Float,
+    cardCornerRadius: Float,
+    cardAlpha: Float,
+    isTablet: Boolean,
+    cardContentAlignment: com.haooz.chedule.data.CardContentAlignment,
+    wallpaperBackdrop: Backdrop?,
+    cardBlurRadius: Float,
+    draggingCourseIds: Set<String>,
+    onCourseClick: (Course) -> Unit,
+    onCourseLongPress: (Course, Float, Float, Float, Float, Backdrop?, Int) -> Unit,
+    onCourseDragStart: (String) -> Unit,
+    onCourseDrag: (String, Float, Float) -> Unit,
+    onCourseDragEnd: (String) -> Unit,
+    onCourseMenuDismiss: () -> Unit,
+    onPendingChange: (Int, Int) -> Unit
+) {
+    val courseRenderDataList = remember(courses, currentWeek, showBreakDividers, morningSections, afternoonSections, eveningSections) {
+        val coursesBySection = courses.groupBy { it.startSection }
+        val displayedCourses = mutableListOf<Course>()
+        val hiddenCoursesMap = mutableMapOf<Int, List<Course>>()
+
+        coursesBySection.forEach { (startSection, sectionCourses) ->
+            val currentWeekCourses = sectionCourses.filter { it.isActiveInWeek(currentWeek) }
+            val otherCourses = sectionCourses.filter { !it.isActiveInWeek(currentWeek) }
+
+            if (currentWeekCourses.isNotEmpty()) {
+                displayedCourses.add(currentWeekCourses.first())
+                val hidden = currentWeekCourses.drop(1) + otherCourses
+                if (hidden.isNotEmpty()) {
+                    hiddenCoursesMap[startSection] = hidden
+                }
+            } else {
+                val allEnded = otherCourses.all { it.endWeek < currentWeek }
+                val courseToShow = if (allEnded) {
+                    otherCourses.maxByOrNull { it.endWeek } ?: otherCourses.first()
                 } else {
-                    Box(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .height(cardHeightPerSection.dp)
-                            .offset(y = currentOffset.dp)
-                            .then(if (isDropHighlight) Modifier.padding(dropHighlightPadding(section)).background(dropHighlightColor, dropHighlightShape(section)) else Modifier)
-                            .then(
-                                if (!isOccupied) {
-                                    Modifier.combinedClickable(
-                                        indication = null,
-                                        interactionSource = sharedInteractionSource,
-                                        onClick = {
-                                            onPendingChange(dayOfWeek, section)
-                                        },
-                                        onLongClick = {
-                                            hapticFeedback.performHapticFeedback(HapticFeedbackType.LongPress)
-                                            onEmptyLongPress()
-                                        }
-                                    )
-                                } else {
-                                    Modifier
-                                }
-                            )
-                    )
+                    otherCourses.filter { it.startWeek > currentWeek }
+                        .minByOrNull { it.startWeek }
+                        ?: otherCourses.first()
                 }
-                currentOffset += cardHeightPerSection.toInt()
-            }
-
-            // 课程卡片 —— 将分组/筛选/分段计算包裹在 remember 中，避免每次重组重复执行
-            val courseRenderDataList = remember(courses, currentWeek, showBreakDividers, morningSections, afternoonSections, eveningSections) {
-                val coursesBySection = courses.groupBy { it.startSection }
-                val displayedCourses = mutableListOf<Course>()
-                val hiddenCoursesMap = mutableMapOf<Int, List<Course>>()
-
-                coursesBySection.forEach { (startSection, sectionCourses) ->
-                    val currentWeekCourses = sectionCourses.filter { it.isActiveInWeek(currentWeek) }
-                    val otherCourses = sectionCourses.filter { !it.isActiveInWeek(currentWeek) }
-
-                    if (currentWeekCourses.isNotEmpty()) {
-                        displayedCourses.add(currentWeekCourses.first())
-                        val hidden = currentWeekCourses.drop(1) + otherCourses
-                        if (hidden.isNotEmpty()) {
-                            hiddenCoursesMap[startSection] = hidden
-                        }
-                    } else {
-                        val allEnded = otherCourses.all { it.endWeek < currentWeek }
-                        val courseToShow = if (allEnded) {
-                            otherCourses.maxByOrNull { it.endWeek } ?: otherCourses.first()
-                        } else {
-                            otherCourses.filter { it.startWeek > currentWeek }
-                                .minByOrNull { it.startWeek }
-                                ?: otherCourses.first()
-                        }
-                        displayedCourses.add(courseToShow)
-                        val hidden = otherCourses - courseToShow
-                        if (hidden.isNotEmpty()) {
-                            hiddenCoursesMap[startSection] = hidden
-                        }
-                    }
-                }
-
-                val lunchBreak = morningSections
-                val dinnerBreak = morningSections + afternoonSections
-
-                displayedCourses.map { course ->
-                    val isCurrentWeekCourse = course.isActiveInWeek(currentWeek)
-                    val hasHiddenCourses = hiddenCoursesMap.containsKey(course.startSection)
-
-                    val segments = mutableListOf<Pair<Int, Int>>()
-                    if (showBreakDividers) {
-                        var segStart = course.startSection
-                        while (segStart <= course.endSection) {
-                            var segEnd = course.endSection
-                            if (lunchBreak in segStart..<segEnd) segEnd = lunchBreak
-                            if (dinnerBreak in segStart..<segEnd) segEnd = dinnerBreak
-                            segments.add(segStart to segEnd)
-                            segStart = segEnd + 1
-                        }
-                    } else {
-                        segments.add(course.startSection to course.endSection)
-                    }
-
-                    CourseRenderData(course, isCurrentWeekCourse, hasHiddenCourses, segments)
+                displayedCourses.add(courseToShow)
+                val hidden = otherCourses - courseToShow
+                if (hidden.isNotEmpty()) {
+                    hiddenCoursesMap[startSection] = hidden
                 }
             }
+        }
 
-            courseRenderDataList.forEach { renderData ->
-                val course = renderData.course
-                val isCurrentWeekCourse = renderData.isCurrentWeekCourse
-                val isDragging = course.id in draggingCourseIds && isCurrentWeekCourse
+        val lunchBreak = morningSections
+        val dinnerBreak = morningSections + afternoonSections
 
-                renderData.segments.forEachIndexed { idx, (segStartSection, segEndSection) ->
-                    val displayCourse = course.copy(startSection = segStartSection, endSection = segEndSection)
-                    val dividerGap = if (showBreakDividers) 24 else 0
-                    val segOffset = when {
-                        segStartSection <= morningSections -> ((segStartSection - 1) * cardHeightPerSection).toInt()
-                        segStartSection <= morningSections + afternoonSections -> (morningSections * cardHeightPerSection + dividerGap + (segStartSection - morningSections - 1) * cardHeightPerSection).toInt()
-                        else -> (morningSections * cardHeightPerSection + dividerGap + afternoonSections * cardHeightPerSection + dividerGap + (segStartSection - morningSections - afternoonSections - 1) * cardHeightPerSection).toInt()
-                    }
+        displayedCourses.map { course ->
+            val isCurrentWeekCourse = course.isActiveInWeek(currentWeek)
+            val hasHiddenCourses = hiddenCoursesMap.containsKey(course.startSection)
 
-                    Box(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .offset(y = segOffset.dp)
-                    ) {
-                        CourseCard(
-                            course = displayCourse,
-                            isCurrentWeek = isCurrentWeekCourse,
-                            hasMultipleCourses = idx == 0 && renderData.hasHiddenCourses,
-                            wallpaperBackdrop = wallpaperBackdrop,
-                            cardBlurRadius = cardBlurRadius,
-                            cardAlpha = cardAlpha,
-                            cardHeightPerSection = cardHeightPerSection,
-                            cardCornerRadius = cardCornerRadius,
-                            isTablet = isTablet,
-                            cardContentAlignment = cardContentAlignment,
-                            isDragging = isDragging,
-                            onClick = {
-                                onPendingChange(-1, -1)
-                                onCourseClick(course)
-                            },
-                            onLongPressStart = { left, top, width, height ->
-                                if (isCurrentWeekCourse) {
-                                    onCourseLongPress(course, left, top, width, height, wallpaperBackdrop, currentWeek)
-                                }
-                            },
-                            onDragStart = {
-                                onCourseDragStart(course.id)
-                            },
-                            onDrag = { offsetX, offsetY ->
-                                onCourseDrag(course.id, offsetX, offsetY)
-                            },
-                            onDragEnd = {
-                                onCourseDragEnd(course.id)
-                            },
-                            onMenuDismiss = {
-                                onCourseMenuDismiss()
-                            }
-                        )
-                    }
+            val segments = mutableListOf<Pair<Int, Int>>()
+            if (showBreakDividers) {
+                var segStart = course.startSection
+                while (segStart <= course.endSection) {
+                    var segEnd = course.endSection
+                    if (lunchBreak in segStart..<segEnd) segEnd = lunchBreak
+                    if (dinnerBreak in segStart..<segEnd) segEnd = dinnerBreak
+                    segments.add(segStart to segEnd)
+                    segStart = segEnd + 1
                 }
+            } else {
+                segments.add(course.startSection to course.endSection)
+            }
+
+            CourseRenderData(course, isCurrentWeekCourse, hasHiddenCourses, segments)
+        }
+    }
+
+    courseRenderDataList.forEach { renderData ->
+        val course = renderData.course
+        val isCurrentWeekCourse = renderData.isCurrentWeekCourse
+        val isDragging = course.id in draggingCourseIds && isCurrentWeekCourse
+
+        renderData.segments.forEachIndexed { idx, (segStartSection, segEndSection) ->
+            val displayCourse = course.copy(startSection = segStartSection, endSection = segEndSection)
+            val dividerGap = if (showBreakDividers) 24 else 0
+            val segOffset = when {
+                segStartSection <= morningSections -> ((segStartSection - 1) * cardHeightPerSection).toInt()
+                segStartSection <= morningSections + afternoonSections -> (morningSections * cardHeightPerSection + dividerGap + (segStartSection - morningSections - 1) * cardHeightPerSection).toInt()
+                else -> (morningSections * cardHeightPerSection + dividerGap + afternoonSections * cardHeightPerSection + dividerGap + (segStartSection - morningSections - afternoonSections - 1) * cardHeightPerSection).toInt()
+            }
+
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .offset(y = segOffset.dp)
+            ) {
+                CourseCard(
+                    course = displayCourse,
+                    isCurrentWeek = isCurrentWeekCourse,
+                    hasMultipleCourses = idx == 0 && renderData.hasHiddenCourses,
+                    wallpaperBackdrop = wallpaperBackdrop,
+                    cardBlurRadius = cardBlurRadius,
+                    cardAlpha = cardAlpha,
+                    cardHeightPerSection = cardHeightPerSection,
+                    cardCornerRadius = cardCornerRadius,
+                    isTablet = isTablet,
+                    cardContentAlignment = cardContentAlignment,
+                    isDragging = isDragging,
+                    onClick = {
+                        onPendingChange(-1, -1)
+                        onCourseClick(course)
+                    },
+                    onLongPressStart = { left, top, width, height ->
+                        if (isCurrentWeekCourse) {
+                            onCourseLongPress(course, left, top, width, height, wallpaperBackdrop, currentWeek)
+                        }
+                    },
+                    onDragStart = {
+                        onCourseDragStart(course.id)
+                    },
+                    onDrag = { offsetX, offsetY ->
+                        onCourseDrag(course.id, offsetX, offsetY)
+                    },
+                    onDragEnd = {
+                        onCourseDragEnd(course.id)
+                    },
+                    onMenuDismiss = {
+                        onCourseMenuDismiss()
+                    }
+                )
             }
         }
     }
