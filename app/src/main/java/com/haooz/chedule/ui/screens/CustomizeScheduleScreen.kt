@@ -1474,7 +1474,6 @@ fun CustomizeScheduleScreen(
                     sheetMaxHeight = 320.dp,
                     isBottomAligned = true,
                     onDismissRequest = { showEffectSheet = false },
-                    liquidGlassBackdrop = liquidGlassBackdrop,
                     onSheetContentBackdropCreated = { sheetContentBackdrop = it },
                     startAction = {
                         val material = LocalSheetTopBarMaterial.current
@@ -1606,8 +1605,7 @@ fun CustomizeScheduleScreen(
                 BlurBottomSheet(
                     show = showEffectSheet,
                     title = "效果",
-                    liquidGlassBackdrop = liquidGlassBackdrop,
-                    sheetBackgroundAlpha = if (isAppDarkTheme()) 0.9f else 0.86f,
+                    sheetBackgroundAlpha = 1f,
                     onDismissRequest = { showEffectSheet = false },
                     onSheetContentBackdropCreated = { sheetContentBackdrop = it },
                     startAction = {
@@ -1748,7 +1746,6 @@ fun CustomizeScheduleScreen(
                     sheetMaxHeight = 320.dp,
                     isBottomAligned = true,
                     onDismissRequest = { showCustomizeSheet = false },
-                    liquidGlassBackdrop = liquidGlassBackdrop,
                     onSheetContentBackdropCreated = { sheetContentBackdrop = it },
                     startAction = {
                         val material = LocalSheetTopBarMaterial.current
@@ -1907,8 +1904,7 @@ fun CustomizeScheduleScreen(
                 BlurBottomSheet(
                     show = showCustomizeSheet,
                     title = "自定义",
-                    liquidGlassBackdrop = liquidGlassBackdrop,
-                    sheetBackgroundAlpha = if (isAppDarkTheme()) 0.9f else 0.86f,
+                    sheetBackgroundAlpha = 1f,
                     onDismissRequest = { showCustomizeSheet = false },
                     onSheetContentBackdropCreated = { sheetContentBackdrop = it },
                     startAction = {

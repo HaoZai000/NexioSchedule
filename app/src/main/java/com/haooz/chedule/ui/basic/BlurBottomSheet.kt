@@ -110,7 +110,7 @@ val LocalSheetTopBarMaterial = compositionLocalOf { SheetTopBarMaterial(1f, 1f) 
 fun BlurBottomSheet(
     show: Boolean,
     title: String,
-    liquidGlassBackdrop: Backdrop?,
+    liquidGlassBackdrop: Backdrop? = null,
     blurRadius: Float = 24f,
     dimBackground: Boolean = false,
     sheetBackgroundColor: Color? = null,
@@ -273,9 +273,9 @@ private fun BlurBottomSheetContent(
                 .imePadding()
                 .clip(RoundedRectangle(36.dp))
                 .then(
-                    if (Build.VERSION.SDK_INT >= 33) {
+                    if (liquidGlassBackdrop != null && Build.VERSION.SDK_INT >= 33) {
                         Modifier.drawBackdrop(
-                            backdrop = liquidGlassBackdrop!!,
+                            backdrop = liquidGlassBackdrop,
                             shape = { RoundedRectangle(36.dp) },
                             effects = {
                                 vibrancy()

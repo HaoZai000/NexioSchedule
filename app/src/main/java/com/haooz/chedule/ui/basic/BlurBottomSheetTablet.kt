@@ -231,9 +231,9 @@ private fun BlurBottomSheetTabletContent(
                 }
                 .clip(RoundedRectangle(38.dp))
                 .then(
-                    if (Build.VERSION.SDK_INT >= 33) {
+                    if (liquidGlassBackdrop != null && Build.VERSION.SDK_INT >= 33) {
                         Modifier.drawBackdrop(
-                            backdrop = liquidGlassBackdrop!!,
+                            backdrop = liquidGlassBackdrop,
                             shape = { RoundedRectangle(38.dp) },
                             effects = {
                                 vibrancy()
