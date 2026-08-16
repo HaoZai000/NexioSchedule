@@ -1622,7 +1622,8 @@ class CourseRepository private constructor(context: Context) {
                 .remove("${KEY_COMBINATION_WALLPAPER_BRIGHTNESS_PREFIX}$id")
                 .remove("${KEY_COMBINATION_SHOW_BREAK_DIVIDERS_PREFIX}$id")
         }
-        // 删除壁纸与快照文件
+        // 删除壁纸与快照文件（webp 优先，同时清理旧版 png）
+        java.io.File(appContext.filesDir, "${COMBINATION_WALLPAPER_PREFIX}$id.webp").delete()
         java.io.File(appContext.filesDir, "${COMBINATION_WALLPAPER_PREFIX}$id.png").delete()
         java.io.File(appContext.filesDir, "${COMBINATION_SNAPSHOT_PREFIX}$id.png").delete()
         // 同步清理内存缓存，防止读到已删除搭配的旧 bitmap
@@ -1637,30 +1638,69 @@ class CourseRepository private constructor(context: Context) {
         }
     }
 
-    /** 保存指定搭配的壁纸图片 */
+    /** 壁纸的目标存储/解码分辨率（屏幕分辨率），用于平衡显示质量与内存占用 */
+    private fun wallpaperTargetBounds(): Pair<Int, Int> {
+        val metrics = appContext.resources.displayMetrics
+        return metrics.widthPixels to metrics.heightPixels
+    }
+
+    /** 计算满足目标尺寸的 2 的幂次降采样倍数（inSampleSize） */
+    private fun calculateInSampleSize(bounds: android.graphics.BitmapFactory.Options, reqWidth: Int, reqHeight: Int): Int {
+        var inSampleSize = 1
+        if (bounds.outHeight > reqHeight || bounds.outWidth > reqWidth) {
+            val halfHeight = bounds.outHeight / 2
+            val halfWidth = bounds.outWidth / 2
+            while ((halfHeight / inSampleSize) >= reqHeight && (halfWidth / inSampleSize) >= reqWidth) {
+                inSampleSize *= 2
+            }
+        }
+        return inSampleSize
+    }
+
+    /** 保存指定搭配的壁纸图片（缩放到屏幕分辨率并以 WebP 有损格式存储） */
     fun saveCombinationWallpaper(id: Long, bitmap: android.graphics.Bitmap): Boolean {
         return try {
-            val file = java.io.File(appContext.filesDir, "${COMBINATION_WALLPAPER_PREFIX}$id.png")
+            val (targetW, targetH) = wallpaperTargetBounds()
+            // 超出屏幕分辨率时先等比缩小，避免存储超大图占用磁盘与内存
+            val scaled = if (bitmap.width > targetW || bitmap.height > targetH) {
+                val scale = minOf(targetW / bitmap.width.toFloat(), targetH / bitmap.height.toFloat())
+                android.graphics.Bitmap.createScaledBitmap(
+                    bitmap,
+                    (bitmap.width * scale).toInt().coerceAtLeast(1),
+                    (bitmap.height * scale).toInt().coerceAtLeast(1),
+                    true
+                )
+            } else bitmap
+            val file = java.io.File(appContext.filesDir, "${COMBINATION_WALLPAPER_PREFIX}$id.webp")
             java.io.FileOutputStream(file).use { out ->
-                bitmap.compress(android.graphics.Bitmap.CompressFormat.PNG, 100, out)
+                // WebP 有损，质量 80，同画质下体积比 PNG 小 70%+
+                scaled.compress(android.graphics.Bitmap.CompressFormat.WEBP, 80, out)
             }
             // 同步更新内存缓存，避免下次读取再用旧图重新解码
-            wallpaperCache.put(id, bitmap)
+            wallpaperCache.put(id, scaled)
             true
         } catch (_: Exception) {
             false
         }
     }
 
-    /** 加载指定搭配的壁纸图片（带内存缓存，命中时零延迟） */
+    /** 加载指定搭配的壁纸图片（带内存缓存，命中时零延迟；解码时按屏幕分辨率降采样） */
     fun loadCombinationWallpaper(id: Long): android.graphics.Bitmap? {
         // 1. 缓存命中：直接返回，避免重复解码
         wallpaperCache.get(id)?.let { return it }
-        // 2. 缓存未命中：从磁盘解码
-        val file = java.io.File(appContext.filesDir, "${COMBINATION_WALLPAPER_PREFIX}$id.png")
+        // 2. 缓存未命中：从磁盘解码（优先 webp，兼容旧版 png）
+        val webpFile = java.io.File(appContext.filesDir, "${COMBINATION_WALLPAPER_PREFIX}$id.webp")
+        val file = if (webpFile.exists()) webpFile
+        else java.io.File(appContext.filesDir, "${COMBINATION_WALLPAPER_PREFIX}$id.png")
         if (!file.exists()) return null
         return try {
-            android.graphics.BitmapFactory.decodeFile(file.absolutePath)?.also { bmp ->
+            val (targetW, targetH) = wallpaperTargetBounds()
+            // 先读尺寸，再按屏幕分辨率计算降采样倍数，避免超大图一次性解码耗尽内存
+            val opts = android.graphics.BitmapFactory.Options().apply { inJustDecodeBounds = true }
+            android.graphics.BitmapFactory.decodeFile(file.absolutePath, opts)
+            opts.inSampleSize = calculateInSampleSize(opts, targetW, targetH)
+            opts.inJustDecodeBounds = false
+            android.graphics.BitmapFactory.decodeFile(file.absolutePath, opts)?.also { bmp ->
                 wallpaperCache.put(id, bmp)
             }
         } catch (_: Exception) {
