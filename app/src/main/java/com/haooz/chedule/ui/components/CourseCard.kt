@@ -28,14 +28,13 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.platform.LocalDensity
-import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.pointer.PointerEventPass
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.onGloballyPositioned
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
@@ -174,12 +173,11 @@ fun CourseCard(
                         },
                         highlight = null,
                         onDrawSurface = {
+                            // 底色 + 反光覆盖层一并在此绘制，省去独立的 drawBehind 绘制节点
                             drawRect(cardColor)
+                            drawRect(overlayColor)
                         }
                     )
-                    .drawBehind {
-                        drawRect(color = overlayColor)
-                    }
                     .edgeLight(shape = edgeLightShape, edgeLight = rememberCourseCardEdgeLight())
                     .pointerInput(course) {
                         awaitEachGesture {
