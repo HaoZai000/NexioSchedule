@@ -507,8 +507,8 @@ private fun buildExportIcs(
             if (weeks.isEmpty()) continue
 
             val sectionTimes = settingsViewModel.sectionTimes.value
-            val startSectionTime = sectionTimes[course.startSection] ?: continue
-            val endSectionTime = sectionTimes[course.endSection] ?: continue
+            val startSectionTime = course.getEffectiveStartTime(sectionTimes) ?: continue
+            val endSectionTime = course.getEffectiveEndTime(sectionTimes) ?: continue
 
             val startHour = startSectionTime.substringBefore("-").substringBefore(":").toIntOrNull() ?: 8
             val startMinute = startSectionTime.substringBefore("-").substringAfter(":").toIntOrNull() ?: 0

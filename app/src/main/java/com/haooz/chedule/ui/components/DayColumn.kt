@@ -1,4 +1,3 @@
-/** 日期列组件 - 显示单日课程列表 */
 package com.haooz.chedule.ui.components
 
 import android.annotation.SuppressLint
@@ -69,6 +68,7 @@ fun DayColumn(
     morningSections: Int = 4,
     afternoonSections: Int = 4,
     eveningSections: Int = 3,
+    sectionTimes: Map<Int, String> = Course.defaultSectionTimes,
     currentWeek: Int = 1,
     pendingDay: Int = -1,
     pendingSection: Int = -1,
@@ -98,11 +98,30 @@ fun DayColumn(
     val isPendingDay = pendingDay == dayOfWeek
     val hapticFeedback = LocalHapticFeedback.current
 
-    val occupiedSections = remember(courses) {
+    val totalSectionsGrid = morningSections + afternoonSections + eveningSections
+    // 已占用的节次：普通课程按节次范围，自定义时间课程按其时间区间覆盖到的节次
+    val occupiedSections = remember(courses, sectionTimes, totalSectionsGrid) {
         buildSet {
             courses.forEach { course ->
-                for (s in course.startSection..course.endSection) {
-                    add(s)
+                if (course.hasValidCustomTime()) {
+                    val cs = parseMinutes(course.customStartTime)
+                    val ce = parseMinutes(course.customEndTime)
+                    if (cs >= 0 && ce > cs) {
+                        for (section in 1..totalSectionsGrid) {
+                            val timeStr = sectionTimes[section] ?: continue
+                            val parts = timeStr.split("-")
+                            if (parts.size != 2) continue
+                            val ss = parseMinutes(parts[0])
+                            val se = parseMinutes(parts[1])
+                            if (ss >= 0 && se >= 0 && cs < se && ce > ss) {
+                                add(section)
+                            }
+                        }
+                    }
+                } else {
+                    for (s in course.startSection..course.endSection) {
+                        add(s)
+                    }
                 }
             }
         }
@@ -220,6 +239,7 @@ fun DayColumn(
 
             // 3. 午休/晚休分界线
             val dividerColor = if (cardBlurRadius > 0f) Color.Transparent else MiuixTheme.colorScheme.surfaceContainer
+
             val dividerShape = RoundedRectangle(12.dp)
             if (showBreakDividers) {
                 Box(
@@ -266,6 +286,7 @@ fun DayColumn(
                 morningSections = morningSections,
                 afternoonSections = afternoonSections,
                 eveningSections = eveningSections,
+                sectionTimes = sectionTimes,
                 cardHeightPerSection = cardHeightPerSection,
                 cardCornerRadius = cardCornerRadius,
                 cardAlpha = cardAlpha,
@@ -299,6 +320,7 @@ private fun CourseCardsLayer(
     morningSections: Int,
     afternoonSections: Int,
     eveningSections: Int,
+    sectionTimes: Map<Int, String>,
     cardHeightPerSection: Float,
     cardCornerRadius: Float,
     cardAlpha: Float,
@@ -375,6 +397,48 @@ private fun CourseCardsLayer(
         val course = renderData.course
         val isCurrentWeekCourse = renderData.isCurrentWeekCourse
         val isDragging = course.id in draggingCourseIds && isCurrentWeekCourse
+
+        // 自定义时间课程：按时间轴插值定位/定高，不按节次分段，忽略午休/晚休分界
+        if (course.hasValidCustomTime()) {
+            val layout = computeCustomTimeLayout(
+                customStart = course.customStartTime,
+                customEnd = course.customEndTime,
+                morningSections = morningSections,
+                afternoonSections = afternoonSections,
+                eveningSections = eveningSections,
+                cardHeightPerSection = cardHeightPerSection,
+                dividerGap = if (showBreakDividers) 24 else 0,
+                sectionTimes = sectionTimes
+            )
+            if (layout != null) {
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .offset(y = layout.topDp.dp)
+                ) {
+                    CourseCard(
+                        course = course,
+                        isCurrentWeek = isCurrentWeekCourse,
+                        hasMultipleCourses = renderData.hasHiddenCourses,
+                        wallpaperBackdrop = wallpaperBackdrop,
+                        cardBlurRadius = cardBlurRadius,
+                        cardAlpha = cardAlpha,
+                        cardHeightPerSection = cardHeightPerSection,
+                        customCardHeightDp = layout.heightDp,
+                        cardCornerRadius = cardCornerRadius,
+                        isTablet = isTablet,
+                        cardContentAlignment = cardContentAlignment,
+                        isDragging = isDragging,
+                        onClick = {
+                            onPendingChange(-1, -1)
+                            onCourseClick(course)
+                        },
+                        // 自定义时间课程不允许长按调课，不传入长按/拖拽回调
+                    )
+                }
+            }
+            return@forEach
+        }
 
         renderData.segments.forEachIndexed { idx, (segStartSection, segEndSection) ->
             val displayCourse = course.copy(startSection = segStartSection, endSection = segEndSection)
@@ -530,4 +594,81 @@ private fun PendingSectionBox(
             }
         }
     }
+}
+
+/**
+ * 解析 "HH:mm" 为当天分钟数，解析失败返回 -1
+ */
+private fun parseMinutes(time: String?): Int {
+    if (time.isNullOrBlank()) return -1
+    val parts = time.split(":")
+    if (parts.size != 2) return -1
+    val h = parts[0].toIntOrNull() ?: return -1
+    val m = parts[1].toIntOrNull() ?: return -1
+    return h * 60 + m
+}
+
+/**
+ * 自定义时间课程在网格中的布局：顶部偏移（dp）+ 高度（dp）
+ */
+private data class CustomTimeLayout(
+    val topDp: Float,
+    val heightDp: Float
+)
+
+/**
+ * 按时间轴插值计算自定义时间课程的位置与高度。
+ *
+ * 保留节次网格骨架，早/午/晚三个连续时间段各自按时间比例插值到对应高度区间；
+ * 跨时间段（含午休/晚休分隔带）时用统一的"分钟 → Y"映射，使课程能自然跨过分隔带。
+ * 自定义时间在网格时间范围之外时做钳制（早于第一节→列顶，晚于最后一节→列底）。
+ */
+private fun computeCustomTimeLayout(
+    customStart: String?,
+    customEnd: String?,
+    morningSections: Int,
+    afternoonSections: Int,
+    eveningSections: Int,
+    cardHeightPerSection: Float,
+    dividerGap: Int,
+    sectionTimes: Map<Int, String>
+): CustomTimeLayout? {
+    val cs = parseMinutes(customStart)
+    val ce = parseMinutes(customEnd)
+    if (cs < 0 || ce < 0 || ce <= cs) return null
+
+    val morningStart = parseMinutes(sectionTimes[1]?.substringBefore("-"))
+    val morningEnd = parseMinutes(sectionTimes[morningSections]?.substringAfter("-"))
+    val afternoonStart = parseMinutes(sectionTimes[morningSections + 1]?.substringBefore("-"))
+    val afternoonEnd = parseMinutes(sectionTimes[morningSections + afternoonSections]?.substringAfter("-"))
+    val eveningStart = parseMinutes(sectionTimes[morningSections + afternoonSections + 1]?.substringBefore("-"))
+    val eveningEnd = parseMinutes(sectionTimes[morningSections + afternoonSections + eveningSections]?.substringAfter("-"))
+    if (morningStart < 0 || morningEnd <= morningStart ||
+        afternoonStart < 0 || afternoonEnd <= afternoonStart ||
+        eveningStart < 0 || eveningEnd <= eveningStart) return null
+
+    val morningHeight = morningSections * cardHeightPerSection
+    val afternoonHeight = afternoonSections * cardHeightPerSection
+    val eveningHeight = eveningSections * cardHeightPerSection
+    val afternoonTop = morningHeight + dividerGap
+    val eveningTop = afternoonTop + afternoonHeight + dividerGap
+
+    fun timeToY(minutes: Int): Float = when {
+        minutes <= morningEnd -> {
+            if (minutes <= morningStart) 0f
+            else morningHeight * (minutes - morningStart).toFloat() / (morningEnd - morningStart).toFloat()
+        }
+        minutes <= afternoonEnd -> {
+            if (minutes <= afternoonStart) afternoonTop
+            else afternoonTop + afternoonHeight * (minutes - afternoonStart).toFloat() / (afternoonEnd - afternoonStart).toFloat()
+        }
+        else -> {
+            if (minutes <= eveningStart) eveningTop
+            else eveningTop + eveningHeight * (minutes - eveningStart).toFloat() / (eveningEnd - eveningStart).toFloat()
+        }
+    }
+
+    val top = timeToY(cs)
+    val bottom = timeToY(ce)
+    return CustomTimeLayout(top, bottom - top)
 }

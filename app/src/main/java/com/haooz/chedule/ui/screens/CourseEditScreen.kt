@@ -180,7 +180,7 @@ fun CourseEditScreen(
     onCourseAdded: (Course) -> Unit = { _ -> },
     onDeleteCourse: (String) -> Unit = { _ -> },
     onColorChanged: (Long) -> Unit = { _ -> },
-    getOccupiedWeeks: (dayOfWeek: Int, startSection: Int, endSection: Int, excludeIds: List<String>) -> Set<Int> = { _, _, _, _ -> emptySet() },
+    getOccupiedWeeks: (dayOfWeek: Int, startSection: Int, endSection: Int, excludeIds: List<String>, startTime: String?, endTime: String?) -> Set<Int> = { _, _, _, _, _, _ -> emptySet() },
     liquidGlassBackdrop: com.kyant.backdrop.backdrops.LayerBackdrop? = null
 ) {
     val courseName = courses.firstOrNull()?.name ?: ""
@@ -1076,8 +1076,8 @@ fun CourseEditScreen(
                         onConfirm = { newCourse ->
                             pendingAddCourse = newCourse
                         },
-                        getOccupiedWeeks = { dow, ss, es, excludeIds ->
-                            getOccupiedWeeks(dow, ss, es, excludeIds)
+                        getOccupiedWeeks = { dow, ss, es, excludeIds, startTime, endTime ->
+                            getOccupiedWeeks(dow, ss, es, excludeIds, startTime, endTime)
                         }
                     )
 
@@ -1105,6 +1105,9 @@ fun CourseEditScreen(
                                         endWeek = updatedCourse.endWeek,
                                         weekType = updatedCourse.weekType,
                                         selectedWeeks = updatedCourse.selectedWeeks,
+                                        isCustomTime = updatedCourse.isCustomTime,
+                                        customStartTime = updatedCourse.customStartTime,
+                                        customEndTime = updatedCourse.customEndTime,
                                         lastModified = System.currentTimeMillis()
                                     )
                                 )
@@ -1112,8 +1115,8 @@ fun CourseEditScreen(
                             showEditCourseSheet = false
                             editingGroup = null
                         },
-                        getOccupiedWeeks = { dow, ss, es, excludeIds ->
-                            getOccupiedWeeks(dow, ss, es, excludeIds)
+                        getOccupiedWeeks = { dow, ss, es, excludeIds, startTime, endTime ->
+                            getOccupiedWeeks(dow, ss, es, excludeIds, startTime, endTime)
                         }
                     )
                 }
@@ -1132,7 +1135,7 @@ private fun CourseGroupCard(
     val course = group.courses.first()
     val dayLabels = listOf("", "周一", "周二", "周三", "周四", "周五", "周六", "周日")
     val weekText = course.getWeekText().ifEmpty { "未设置" }
-    val sectionText = course.getSectionText().ifEmpty { "未设置" }
+    val sectionText = course.getTimeDisplayText().ifEmpty { "未设置" }
 
     Column(modifier = Modifier.fillMaxWidth()) {
         SmallTitle(

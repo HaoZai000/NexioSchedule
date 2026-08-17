@@ -272,7 +272,7 @@ object CourseReminderHelper {
                             context = context,
                             courseName = course.name,
                             classroom = course.classroom,
-                            section = course.getSectionText(),
+                            section = course.getTimeDisplayText(),
                             startTime = startTime,
                             teacher = course.teacher,
                             minutesUntil = minutesUntil,
@@ -289,7 +289,7 @@ object CourseReminderHelper {
                         val expandIntent = Intent(context, IslandExpandReceiver::class.java).apply {
                             putExtra(IslandExpandReceiver.EXTRA_COURSE_NAME, course.name)
                             putExtra(IslandExpandReceiver.EXTRA_CLASSROOM, course.classroom)
-                            putExtra(IslandExpandReceiver.EXTRA_SECTION, course.getSectionText())
+                            putExtra(IslandExpandReceiver.EXTRA_SECTION, course.getTimeDisplayText())
                             putExtra(IslandExpandReceiver.EXTRA_START_TIME, startTime)
                             putExtra(IslandExpandReceiver.EXTRA_NOTIFICATION_ID, 1003)
                         }
@@ -324,7 +324,7 @@ object CourseReminderHelper {
                             } else 0L
                         } else 0L
                         showPreClassCountdownNotification(
-                            context, course.name, course.classroom, course.getSectionText(),
+                            context, course.name, course.classroom, course.getTimeDisplayText(),
                             startTime, startMillis, endMillis
                         )
                     }
@@ -336,7 +336,7 @@ object CourseReminderHelper {
                 putExtra(EXTRA_REMINDER_TYPE, TYPE_PRE_CLASS)
                 putExtra(EXTRA_COURSE_NAME, course.name)
                 putExtra(EXTRA_COURSE_CLASSROOM, course.classroom)
-                putExtra(EXTRA_COURSE_SECTION, course.getSectionText())
+                putExtra(EXTRA_COURSE_SECTION, course.getTimeDisplayText())
                 putExtra(EXTRA_COURSE_START_TIME, startTime)
                 putExtra(EXTRA_COURSE_TEACHER, course.teacher)
                 // courseStartMillis 必须是课程实际上课时间，与 alarmTime（触发时间）解耦
@@ -561,6 +561,8 @@ object CourseReminderHelper {
     }
 
     fun getCourseStartTime(course: Course, repository: CourseRepository): String? {
+        // 自定义上课时间优先
+        if (course.hasValidCustomTime()) return course.customStartTime
         val morningTimes = repository.getPeriodTimes("morning")
         val afternoonTimes = repository.getPeriodTimes("afternoon")
         val eveningTimes = repository.getPeriodTimes("evening")
@@ -585,6 +587,8 @@ object CourseReminderHelper {
     }
 
     fun getCourseEndTime(course: Course, repository: CourseRepository): String? {
+        // 自定义上课时间优先
+        if (course.hasValidCustomTime()) return course.customEndTime
         val morningTimes = repository.getPeriodTimes("morning")
         val afternoonTimes = repository.getPeriodTimes("afternoon")
         val eveningTimes = repository.getPeriodTimes("evening")

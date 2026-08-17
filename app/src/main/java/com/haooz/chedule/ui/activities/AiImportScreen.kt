@@ -423,7 +423,7 @@ fun AiImportScreen(
             totalSections = effectiveMaxSection,
             defaultStartSection = editingCourse.startSection,
             defaultEndSection = editingCourse.endSection,
-            getOccupiedWeeks = { _, _, _, _ -> emptySet() },
+            getOccupiedWeeks = { _, _, _, _, _, _ -> emptySet() },
             onDismiss = {
                 // 退出动画结束后才执行真正的删除，避免列表缩短导致组件被提前移除
                 if (pendingDelete && editingCourseIndex in parsedCourses.indices) {

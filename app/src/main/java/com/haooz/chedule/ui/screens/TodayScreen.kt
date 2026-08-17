@@ -170,9 +170,21 @@ private fun CourseItemContent(course: Course, sectionTimes: Map<Int, String>) {
         }
     }
 
-    val timeRange = getSectionTimeRange(course.startSection, course.endSection)
-    val startTimeStr = sectionTimes[course.startSection]?.split("-")?.firstOrNull() ?: ""
-    val endTimeStr = sectionTimes[course.endSection]?.split("-")?.lastOrNull() ?: ""
+    val timeRange = if (course.hasValidCustomTime()) {
+        "${course.customStartTime} - ${course.customEndTime}"
+    } else {
+        getSectionTimeRange(course.startSection, course.endSection)
+    }
+    val startTimeStr = if (course.hasValidCustomTime()) {
+        course.customStartTime ?: ""
+    } else {
+        sectionTimes[course.startSection]?.split("-")?.firstOrNull() ?: ""
+    }
+    val endTimeStr = if (course.hasValidCustomTime()) {
+        course.customEndTime ?: ""
+    } else {
+        sectionTimes[course.endSection]?.split("-")?.lastOrNull() ?: ""
+    }
     val startTime = parseTime(startTimeStr)
     val endTime = parseTime(endTimeStr)
 
@@ -255,7 +267,7 @@ private fun CourseItemContent(course: Course, sectionTimes: Map<Int, String>) {
             )
             Spacer(modifier = Modifier.height(4.dp))
             Text(
-                text = "第${course.startSection}-${course.endSection}节 | ${course.classroom} | ${course.teacher}",
+                text = "${course.getTimeDisplayText()} | ${course.classroom} | ${course.teacher}",
                 style = MiuixTheme.textStyles.footnote1,
                 color = MiuixTheme.colorScheme.onBackgroundVariant
             )

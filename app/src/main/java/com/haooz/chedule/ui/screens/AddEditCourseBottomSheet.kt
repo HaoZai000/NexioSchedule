@@ -11,6 +11,7 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
@@ -71,7 +72,7 @@ import java.util.UUID
  * @param backdrop 模糊背景
  * @param onDismissRequest 关闭回调
  * @param onConfirm 确认回调，返回新创建的课程
- * @param getOccupiedWeeks 获取已占用周次的回调
+ * @param getOccupiedWeeks 获取已占用周次的回调（后两个参数为自定义开始/结束时间，仅自定义时间课程传入）
  */
 @SuppressLint("ConfigurationScreenWidthHeight")
 @Composable
@@ -83,7 +84,7 @@ fun AddEditCourseBottomSheet(
     onDismissRequest: () -> Unit,
     onConfirm: (Course) -> Unit,
     editCourse: Course? = null,
-    getOccupiedWeeks: (dayOfWeek: Int, startSection: Int, endSection: Int, excludeIds: List<String>) -> Set<Int> = { _, _, _, _ -> emptySet() },
+    getOccupiedWeeks: (dayOfWeek: Int, startSection: Int, endSection: Int, excludeIds: List<String>, startTime: String?, endTime: String?) -> Set<Int> = { _, _, _, _, _, _ -> emptySet() },
 ) {
     val hapticFeedback = LocalHapticFeedback.current
     val totalWeeks = 20
@@ -118,13 +119,34 @@ fun AddEditCourseBottomSheet(
     var tempStartSection by remember(show) { mutableIntStateOf(if (startSection > 0) startSection else 1) }
     var tempEndSection by remember(show) { mutableIntStateOf(if (endSection > 0) endSection else 1) }
 
-    // 根据当前选择的星期和节次动态计算已占用的周次（排除自身）
-    val currentOccupiedWeeks = remember(dayOfWeek, startSection, endSection) {
+    // 自定义时间状态
+    var isCustomTime by remember(show) { mutableStateOf(editCourse?.isCustomTime ?: false) }
+    var customStartTime by remember(show) { mutableStateOf(editCourse?.customStartTime ?: "") }
+    var customEndTime by remember(show) { mutableStateOf(editCourse?.customEndTime ?: "") }
+    var showTimeDialog by remember(show) { mutableStateOf(false) }
+    var timeError by remember(show) { mutableStateOf(false) }
+    var tempStartHour by remember(show) { mutableIntStateOf(parseTimeHour(editCourse?.customStartTime)) }
+    var tempStartMinute by remember(show) { mutableIntStateOf(parseTimeMinute(editCourse?.customStartTime)) }
+    var tempEndHour by remember(show) { mutableIntStateOf(parseTimeHour(editCourse?.customEndTime)) }
+    var tempEndMinute by remember(show) { mutableIntStateOf(parseTimeMinute(editCourse?.customEndTime)) }
+
+    // 根据当前选择的星期、节次和自定义时间动态计算已占用的周次（排除自身）
+    val currentOccupiedWeeks = remember(
+        dayOfWeek,
+        startSection,
+        endSection,
+        isCustomTime,
+        customStartTime,
+        customEndTime
+    ) {
         getOccupiedWeeks(
             dayOfWeek,
             startSection,
             endSection,
-            editCourse?.let { listOf(it.id) } ?: emptyList())
+            editCourse?.let { listOf(it.id) } ?: emptyList(),
+            if (isCustomTime) customStartTime.ifBlank { null } else null,
+            if (isCustomTime) customEndTime.ifBlank { null } else null
+        )
     }
 
     // 周次选择状态（编辑模式预填已选周次，每次弹窗打开时重置）
@@ -207,6 +229,9 @@ fun AddEditCourseBottomSheet(
                 colorRes = editCourse?.colorRes ?: courses.firstOrNull()?.colorRes
                 ?: Course.courseColors.first(),
                 selectedWeeks = weeksToSave,
+                isCustomTime = isCustomTime,
+                customStartTime = if (isCustomTime) customStartTime else null,
+                customEndTime = if (isCustomTime) customEndTime else null,
                 lastModified = System.currentTimeMillis()
             )
             onConfirm(course)
@@ -338,14 +363,36 @@ fun AddEditCourseBottomSheet(
                         .fillMaxWidth()
                         .padding(vertical = 17.dp, horizontal = 16.dp)
                 ) {
-                    Text(
-                        text = "上课星期",
-                        fontSize = 17.sp,
-                        fontWeight = FontWeight.Medium,
-                        color = MiuixTheme.colorScheme.onSurface,
-                        modifier = Modifier.padding(bottom = 10.dp)
-                    )
                     val isDark = MiuixTheme.colorScheme.background.luminance() < 0.5f
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(bottom = 10.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text(
+                            text = "上课星期",
+                            fontSize = 17.sp,
+                            fontWeight = FontWeight.Medium,
+                            color = MiuixTheme.colorScheme.onSurface,
+                            modifier = Modifier.weight(1f)
+                        )
+                        Checkbox(
+                            state = if (isCustomTime) ToggleableState.On else ToggleableState.Off,
+                            onClick = { isCustomTime = !isCustomTime },
+                            colors = CheckboxDefaults.checkboxColors(
+                                uncheckedBackgroundColor = if (isDark) Color(0xFF505050) else Color(
+                                    0xFFF7F7F7
+                                )
+                            )
+                        )
+                        Spacer(modifier = Modifier.width(4.dp))
+                        Text(
+                            text = "自定义时间",
+                            style = MiuixTheme.textStyles.body2,
+                            color = MiuixTheme.colorScheme.onSurfaceVariantSummary
+                        )
+                    }
                     Row(
                         modifier = Modifier.fillMaxWidth(),
                         horizontalArrangement = Arrangement.spacedBy(6.dp)
@@ -386,7 +433,7 @@ fun AddEditCourseBottomSheet(
                     }
                 }
             }
-            // 上课节次卡片
+            // 上课节次卡片 / 上课时间卡片（勾选自定义时间后切换为时间选择）
             Card(
                 cornerRadius = 20.dp,
                 modifier = Modifier.fillMaxWidth(),
@@ -397,22 +444,45 @@ fun AddEditCourseBottomSheet(
                     contentColor = MiuixTheme.colorScheme.onSurface
                 ),
             ) {
-                ArrowPreference(
-                    title = "上课节次",
-                    endActions = {
-                        Text(
-                            text = if (startSection > 0) "第${startSection} - ${endSection}节" else "未设置",
-                            fontSize = 14.5.sp,
-                            color = MiuixTheme.colorScheme.onSurfaceVariantActions
-                        )
-                    },
-                    onClick = {
-                        tempStartSection = if (startSection > 0) startSection else 1
-                        tempEndSection = if (endSection > 0) endSection else 1
-                        showSectionDialog = true
-                    },
-                    holdDownState = showSectionDialog
-                )
+                if (isCustomTime) {
+                    ArrowPreference(
+                        title = "上课时间",
+                        endActions = {
+                            Text(
+                                text = if (customStartTime.isNotBlank() && customEndTime.isNotBlank())
+                                    "$customStartTime - $customEndTime" else "未设置",
+                                fontSize = 14.5.sp,
+                                color = MiuixTheme.colorScheme.onSurfaceVariantActions
+                            )
+                        },
+                        onClick = {
+                            tempStartHour = parseTimeHour(customStartTime)
+                            tempStartMinute = parseTimeMinute(customStartTime)
+                            tempEndHour = parseTimeHour(customEndTime)
+                            tempEndMinute = parseTimeMinute(customEndTime)
+                            timeError = false
+                            showTimeDialog = true
+                        },
+                        holdDownState = showTimeDialog
+                    )
+                } else {
+                    ArrowPreference(
+                        title = "上课节次",
+                        endActions = {
+                            Text(
+                                text = if (startSection > 0) "第${startSection} - ${endSection}节" else "未设置",
+                                fontSize = 14.5.sp,
+                                color = MiuixTheme.colorScheme.onSurfaceVariantActions
+                            )
+                        },
+                        onClick = {
+                            tempStartSection = if (startSection > 0) startSection else 1
+                            tempEndSection = if (endSection > 0) endSection else 1
+                            showSectionDialog = true
+                        },
+                        holdDownState = showSectionDialog
+                    )
+                }
             }
 
             // 上课周次卡片
@@ -766,8 +836,193 @@ fun AddEditCourseBottomSheet(
             }
         }
     }
+
+    // 自定义上课时间选择弹窗（时:分 双滚轮）
+    OverlayDialog(
+        title = "选择上课时间",
+        show = showTimeDialog,
+        liquidGlassBackdrop = sheetContentBackdrop ?: liquidGlassBackdrop,
+        onDismissRequest = { showTimeDialog = false }
+    ) {
+        Column(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalAlignment = Alignment.CenterHorizontally
+        ) {
+            TimeRangePickerGroup(
+                startHour = tempStartHour,
+                startMinute = tempStartMinute,
+                endHour = tempEndHour,
+                endMinute = tempEndMinute,
+                onStartHourChange = { tempStartHour = it; timeError = false },
+                onStartMinuteChange = { tempStartMinute = it; timeError = false },
+                onEndHourChange = { tempEndHour = it; timeError = false },
+                onEndMinuteChange = { tempEndMinute = it; timeError = false }
+            )
+            if (timeError) {
+                Text(
+                    text = "结束时间需晚于开始时间",
+                    style = MiuixTheme.textStyles.footnote1,
+                    color = Color(0xFFF44336),
+                    modifier = Modifier.padding(top = 8.dp)
+                )
+            }
+
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(top = 16.dp),
+                horizontalArrangement = Arrangement.spacedBy(12.dp)
+            ) {
+                TextButton(
+                    text = "取消",
+                    onClick = {
+                        hapticFeedback.performHapticFeedback(HapticFeedbackType.Confirm)
+                        showTimeDialog = false
+                        timeError = false
+                    },
+                    modifier = Modifier.weight(1f)
+                )
+                TextButton(
+                    text = "确定",
+                    onClick = {
+                        hapticFeedback.performHapticFeedback(HapticFeedbackType.Confirm)
+                        val startMinutes = tempStartHour * 60 + tempStartMinute
+                        val endMinutes = tempEndHour * 60 + tempEndMinute
+                        if (endMinutes > startMinutes) {
+                            customStartTime = formatTime(tempStartHour, tempStartMinute)
+                            customEndTime = formatTime(tempEndHour, tempEndMinute)
+                            timeError = false
+                            showTimeDialog = false
+                        } else {
+                            timeError = true
+                        }
+                    },
+                    colors = ButtonDefaults.textButtonColorsPrimary(),
+                    modifier = Modifier.weight(1f)
+                )
+            }
+        }
+    }
+}
+
+/**
+ * 时间段 时:分 双滚轮选择器（与时间配置编辑页一致的左右布局）
+ */
+@Composable
+private fun TimeRangePickerGroup(
+    startHour: Int,
+    startMinute: Int,
+    endHour: Int,
+    endMinute: Int,
+    onStartHourChange: (Int) -> Unit,
+    onStartMinuteChange: (Int) -> Unit,
+    onEndHourChange: (Int) -> Unit,
+    onEndMinuteChange: (Int) -> Unit
+) {
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.Center
+    ) {
+        NumberPicker(
+            value = startHour,
+            onValueChange = onStartHourChange,
+            range = 0..23,
+            visibleItemCount = 3,
+            itemHeight = 60.dp,
+            label = { String.format("%02d", it) },
+            wrapAround = true,
+            textStyle = MiuixTheme.textStyles.title2,
+            modifier = Modifier.weight(1f)
+        )
+        Text(
+            text = ":",
+            style = MiuixTheme.textStyles.paragraph,
+            fontWeight = FontWeight.Bold,
+            color = MiuixTheme.colorScheme.onSurface,
+            modifier = Modifier.padding().offset(y = (-2).dp)
+        )
+        val sMinIdx = minuteValues.indexOf(startMinute).coerceAtLeast(0)
+        NumberPicker(
+            value = sMinIdx,
+            onValueChange = { onStartMinuteChange(minuteValues[it]) },
+            range = minuteValues.indices,
+            visibleItemCount = 3,
+            itemHeight = 60.dp,
+            label = { String.format("%02d", minuteValues[it]) },
+            wrapAround = true,
+            textStyle = MiuixTheme.textStyles.title2,
+            modifier = Modifier.weight(1f)
+        )
+        Text(
+            text = "-",
+            style = MiuixTheme.textStyles.title2,
+            color = MiuixTheme.colorScheme.onSurface,
+            modifier = Modifier.padding()
+        )
+        NumberPicker(
+            value = endHour,
+            onValueChange = onEndHourChange,
+            range = 0..23,
+            visibleItemCount = 3,
+            itemHeight = 60.dp,
+            label = { String.format("%02d", it) },
+            wrapAround = true,
+            textStyle = MiuixTheme.textStyles.title2,
+            modifier = Modifier.weight(1f)
+        )
+        Text(
+            text = ":",
+            style = MiuixTheme.textStyles.paragraph,
+            fontWeight = FontWeight.Bold,
+            color = MiuixTheme.colorScheme.onSurface,
+            modifier = Modifier.padding().offset(y = (-2).dp)
+        )
+        val eMinIdx = minuteValues.indexOf(endMinute).coerceAtLeast(0)
+        NumberPicker(
+            value = eMinIdx,
+            onValueChange = { onEndMinuteChange(minuteValues[it]) },
+            range = minuteValues.indices,
+            visibleItemCount = 3,
+            itemHeight = 60.dp,
+            label = { String.format("%02d", minuteValues[it]) },
+            wrapAround = true,
+            textStyle = MiuixTheme.textStyles.title2,
+            modifier = Modifier.weight(1f)
+        )
+    }
 }
 
 private fun Color.luminance(): Float {
     return 0.299f * red + 0.587f * green + 0.114f * blue
 }
+
+/**
+ * 解析 "HH:mm" 格式字符串中的小时，无效时返回 8
+ */
+private fun parseTimeHour(time: String?): Int {
+    if (time.isNullOrBlank()) return 8
+    val parts = time.split(":")
+    return parts.firstOrNull()?.toIntOrNull()?.coerceIn(0, 23) ?: 8
+}
+
+/**
+ * 解析 "HH:mm" 格式字符串中的分钟，无效时返回 0
+ */
+private fun parseTimeMinute(time: String?): Int {
+    if (time.isNullOrBlank()) return 0
+    val parts = time.split(":")
+    return parts.getOrNull(1)?.toIntOrNull()?.coerceIn(0, 59) ?: 0
+}
+
+/**
+ * 将时/分格式化为 "HH:mm"
+ */
+private fun formatTime(hour: Int, minute: Int): String {
+    return String.format("%02d:%02d", hour, minute)
+}
+
+/**
+ * 自定义时间选择弹窗中可用的分钟值（每 5 分钟一档）
+ */
+private val minuteValues = (0..59 step 5).toList()

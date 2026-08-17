@@ -442,10 +442,12 @@ fun CourseDetailScreen(
                                                             val courseDate = startMonday.plusDays((week - 1).toLong() * 7 + (course.dayOfWeek - 1).toLong())
                                                             val dateFormat = java.time.format.DateTimeFormatter.ofPattern("M/d")
                                                             val dateStr = courseDate.format(dateFormat)
-                                                            val sectionText = "第${course.startSection}-${course.endSection}节"
+                                                            val sectionText = course.getTimeDisplayText()
                                                             val timeStart = sectionTimes[course.startSection]?.split("-")?.firstOrNull() ?: ""
                                                             val timeEnd = sectionTimes[course.endSection]?.split("-")?.lastOrNull() ?: ""
-                                                            val timeText = if (timeStart.isNotEmpty() && timeEnd.isNotEmpty()) "$timeStart - $timeEnd" else ""
+                                                            val timeText = if (course.hasValidCustomTime()) {
+                                                                ""
+                                                            } else if (timeStart.isNotEmpty() && timeEnd.isNotEmpty()) "$timeStart - $timeEnd" else ""
 
                                                             if (index > 0) {
                                                                 Spacer(modifier = Modifier.height(28.dp))

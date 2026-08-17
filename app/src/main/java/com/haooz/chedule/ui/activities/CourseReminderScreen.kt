@@ -673,7 +673,7 @@ fun CourseReminderScreen(
                         val courseName = nextCourse?.name ?: "暂无课程"
                         val classroom = nextCourse?.classroom ?: ""
                         val startTime = nextCourse?.let { CourseReminderHelper.getCourseStartTime(it, repo) } ?: ""
-                        val section = nextCourse?.getSectionText() ?: ""
+                        val section = nextCourse?.getTimeDisplayText() ?: ""
                         if (islandNotification && isIslandSupported) {
                             IslandNotificationHelper.sendTestIslandNotification(context)
                             Toast.makeText(context, "已发送超级岛测试通知", Toast.LENGTH_SHORT).show()

@@ -17,7 +17,11 @@ data class Course(
     val colorRes: Long,         // 课程颜色
     val selectedWeeks: List<Int> = emptyList(), // 选中的具体周次列表（为空时使用startWeek/endWeek/weekType）
     val scheduleId: String = "", // 所属课表ID（空字符串表示未指定，用于云同步区分课表）
-    val lastModified: Long = System.currentTimeMillis() // 最后修改时间戳
+    val lastModified: Long = System.currentTimeMillis(), // 最后修改时间戳
+    // 自定义上课时间：开启后使用 customStartTime/customEndTime，否则回退到节次时间表
+    val isCustomTime: Boolean = false,
+    val customStartTime: String? = null, // "HH:mm"
+    val customEndTime: String? = null    // "HH:mm"
 ) {
     companion object {
         const val WEEK_TYPE_ALL = 0   // 全部周
@@ -126,6 +130,33 @@ data class Course(
     }
 
     /**
+     * 是否启用了自定义上课时间（自定义开关开启且起止时间均有效）
+     */
+    fun hasValidCustomTime(): Boolean {
+        return isCustomTime &&
+            !customStartTime.isNullOrBlank() &&
+            !customEndTime.isNullOrBlank()
+    }
+
+    /**
+     * 获取有效开始时间（"HH:mm"）。优先使用自定义时间，否则回退到节次时间表
+     * @param sectionTimes 全局绝对节次号 -> "HH:mm-HH:mm"
+     */
+    fun getEffectiveStartTime(sectionTimes: Map<Int, String>): String? {
+        if (hasValidCustomTime()) return customStartTime
+        return sectionTimes[startSection]?.split("-")?.firstOrNull()?.trim()
+    }
+
+    /**
+     * 获取有效结束时间（"HH:mm"）。优先使用自定义时间，否则回退到节次时间表
+     * @param sectionTimes 全局绝对节次号 -> "HH:mm-HH:mm"
+     */
+    fun getEffectiveEndTime(sectionTimes: Map<Int, String>): String? {
+        if (hasValidCustomTime()) return customEndTime
+        return sectionTimes[endSection]?.split("-")?.lastOrNull()?.trim()
+    }
+
+    /**
      * 获取周类型描述
      */
     fun getWeekTypeText(): String {
@@ -149,6 +180,17 @@ data class Course(
         } else {
             "第${startSection}-${endSection}节"
         }
+    }
+
+    /**
+     * 获取课程时间展示文本。自定义时间课程显示 "HH:mm - HH:mm"，
+     * 否则回退到节次文本（如 "第1-2节"）
+     */
+    fun getTimeDisplayText(): String {
+        if (hasValidCustomTime()) {
+            return "$customStartTime - $customEndTime"
+        }
+        return getSectionText()
     }
 
     /**

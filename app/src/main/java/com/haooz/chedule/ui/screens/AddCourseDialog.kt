@@ -18,6 +18,7 @@ import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBars
@@ -95,7 +96,7 @@ fun AddCourseDialog(
     totalSections: Int = 12,
     defaultStartSection: Int = 1,
     defaultEndSection: Int = 2,
-    getOccupiedWeeks: (dayOfWeek: Int, startSection: Int, endSection: Int, excludeIds: List<String>) -> Set<Int> = { _, _, _, _ -> emptySet() },
+    getOccupiedWeeks: (dayOfWeek: Int, startSection: Int, endSection: Int, excludeIds: List<String>, startTime: String?, endTime: String?) -> Set<Int> = { _, _, _, _, _, _ -> emptySet() },
     onDismiss: () -> Unit,
     onConfirm: (Course) -> Unit,
     onDelete: (String) -> Unit,
@@ -116,9 +117,34 @@ fun AddCourseDialog(
     var isDoubleWeek by remember(show) { mutableStateOf(course?.weekType == Course.WEEK_TYPE_EVEN) }
     var selectedColor by remember(show) { mutableLongStateOf(course?.colorRes ?: Course.courseColors.first()) }
 
-    val currentOccupiedWeeks by remember(dayOfWeek, startSection, endSection) {
+    // 自定义上课时间状态
+    var isCustomTime by remember(show) { mutableStateOf(course?.isCustomTime ?: false) }
+    var customStartTime by remember(show) { mutableStateOf(course?.customStartTime ?: "") }
+    var customEndTime by remember(show) { mutableStateOf(course?.customEndTime ?: "") }
+    var showTimeDialog by remember(show) { mutableStateOf(false) }
+    var timeError by remember(show) { mutableStateOf(false) }
+    var tempStartHour by remember(show) { mutableIntStateOf(parseTimeHour(course?.customStartTime)) }
+    var tempStartMinute by remember(show) { mutableIntStateOf(parseTimeMinute(course?.customStartTime)) }
+    var tempEndHour by remember(show) { mutableIntStateOf(parseTimeHour(course?.customEndTime)) }
+    var tempEndMinute by remember(show) { mutableIntStateOf(parseTimeMinute(course?.customEndTime)) }
+
+    val currentOccupiedWeeks by remember(
+        dayOfWeek,
+        startSection,
+        endSection,
+        isCustomTime,
+        customStartTime,
+        customEndTime
+    ) {
         derivedStateOf {
-            getOccupiedWeeks(dayOfWeek, startSection, endSection, listOfNotNull(course?.id))
+            getOccupiedWeeks(
+                dayOfWeek,
+                startSection,
+                endSection,
+                listOfNotNull(course?.id),
+                if (isCustomTime) customStartTime.ifBlank { null } else null,
+                if (isCustomTime) customEndTime.ifBlank { null } else null
+            )
         }
     }
 
@@ -202,7 +228,10 @@ fun AddCourseDialog(
                 endWeek = maxWeek,
                 weekType = weekType,
                 colorRes = selectedColor,
-                selectedWeeks = weeksToSave
+                selectedWeeks = weeksToSave,
+                isCustomTime = isCustomTime,
+                customStartTime = if (isCustomTime) customStartTime else null,
+                customEndTime = if (isCustomTime) customEndTime else null
             )
 
             onConfirm(newCourse)
@@ -288,6 +317,18 @@ fun AddCourseDialog(
                     customColor = Color(selectedColor)
                     showColorDialog = true
                 },
+                isCustomTime = isCustomTime,
+                onIsCustomTimeChange = { isCustomTime = it },
+                customStartTime = customStartTime,
+                customEndTime = customEndTime,
+                onShowTimeDialog = {
+                    tempStartHour = parseTimeHour(customStartTime)
+                    tempStartMinute = parseTimeMinute(customStartTime)
+                    tempEndHour = parseTimeHour(customEndTime)
+                    tempEndMinute = parseTimeMinute(customEndTime)
+                    timeError = false
+                    showTimeDialog = true
+                },
                 onDeleteClick = { showDeleteDialog = true },
             )
         }
@@ -367,6 +408,18 @@ fun AddCourseDialog(
             onShowColorDialog = {
                 customColor = Color(selectedColor)
                 showColorDialog = true
+            },
+            isCustomTime = isCustomTime,
+            onIsCustomTimeChange = { isCustomTime = it },
+            customStartTime = customStartTime,
+            customEndTime = customEndTime,
+            onShowTimeDialog = {
+                tempStartHour = parseTimeHour(customStartTime)
+                tempStartMinute = parseTimeMinute(customStartTime)
+                tempEndHour = parseTimeHour(customEndTime)
+                tempEndMinute = parseTimeMinute(customEndTime)
+                timeError = false
+                showTimeDialog = true
             },
             onDeleteClick = { showDeleteDialog = true },
         )
@@ -501,6 +554,73 @@ fun AddCourseDialog(
         }
     }
 
+    // 自定义上课时间选择弹窗（时:分 双滚轮）
+    OverlayDialog(
+        title = "选择上课时间",
+        show = showTimeDialog,
+        onDismissRequest = { showTimeDialog = false },
+        liquidGlassBackdrop = sheetContentBackdrop ?: liquidGlassBackdrop,
+    ) {
+        Column(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalAlignment = Alignment.CenterHorizontally
+        ) {
+            TimeRangePickerGroup(
+                startHour = tempStartHour,
+                startMinute = tempStartMinute,
+                endHour = tempEndHour,
+                endMinute = tempEndMinute,
+                onStartHourChange = { tempStartHour = it; timeError = false },
+                onStartMinuteChange = { tempStartMinute = it; timeError = false },
+                onEndHourChange = { tempEndHour = it; timeError = false },
+                onEndMinuteChange = { tempEndMinute = it; timeError = false }
+            )
+            if (timeError) {
+                Text(
+                    text = "结束时间需晚于开始时间",
+                    style = MiuixTheme.textStyles.footnote1,
+                    color = Color(0xFFF44336),
+                    modifier = Modifier.padding(top = 8.dp)
+                )
+            }
+
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(top = 16.dp),
+                horizontalArrangement = Arrangement.spacedBy(12.dp)
+            ) {
+                TextButton(
+                    text = "取消",
+                    onClick = {
+                        hapticFeedback.performHapticFeedback(HapticFeedbackType.Confirm)
+                        showTimeDialog = false
+                        timeError = false
+                    },
+                    modifier = Modifier.weight(1f)
+                )
+                TextButton(
+                    text = "确定",
+                    onClick = {
+                        hapticFeedback.performHapticFeedback(HapticFeedbackType.Confirm)
+                        val startMinutes = tempStartHour * 60 + tempStartMinute
+                        val endMinutes = tempEndHour * 60 + tempEndMinute
+                        if (endMinutes > startMinutes) {
+                            customStartTime = formatTime(tempStartHour, tempStartMinute)
+                            customEndTime = formatTime(tempEndHour, tempEndMinute)
+                            timeError = false
+                            showTimeDialog = false
+                        } else {
+                            timeError = true
+                        }
+                    },
+                    colors = ButtonDefaults.textButtonColorsPrimary(),
+                    modifier = Modifier.weight(1f)
+                )
+            }
+        }
+    }
+
     // 自定义颜色选择弹窗
     OverlayDialog(
         title = "选择颜色",
@@ -584,6 +704,11 @@ private fun AddCourseDialogContent(
     onIsDoubleWeekChange: (Boolean) -> Unit,
     onShowSectionDialog: () -> Unit,
     onShowColorDialog: () -> Unit,
+    isCustomTime: Boolean,
+    onIsCustomTimeChange: (Boolean) -> Unit,
+    customStartTime: String,
+    customEndTime: String,
+    onShowTimeDialog: () -> Unit,
     onDeleteClick: () -> Unit,
 ) {
     val hapticFeedback = LocalHapticFeedback.current
@@ -713,13 +838,33 @@ private fun AddCourseDialogContent(
                     .fillMaxWidth()
                     .padding(vertical = 17.dp, horizontal = 16.dp)
             ) {
-                Text(
-                    text = "上课星期",
-                    fontSize = 17.sp,
-                    fontWeight = FontWeight.Medium,
-                    color = MiuixTheme.colorScheme.onSurface,
-                    modifier = Modifier.padding(bottom = 10.dp)
-                )
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(bottom = 10.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(
+                        text = "上课星期",
+                        fontSize = 17.sp,
+                        fontWeight = FontWeight.Medium,
+                        color = MiuixTheme.colorScheme.onSurface,
+                        modifier = Modifier.weight(1f)
+                    )
+                    Checkbox(
+                        state = if (isCustomTime) ToggleableState.On else ToggleableState.Off,
+                        onClick = { onIsCustomTimeChange(!isCustomTime) },
+                        colors = CheckboxDefaults.checkboxColors(
+                            uncheckedBackgroundColor = if (isDark) Color(0xFF505050) else Color(0xFFF7F7F7)
+                        )
+                    )
+                    Spacer(modifier = Modifier.width(4.dp))
+                    Text(
+                        text = "自定义时间",
+                        style = MiuixTheme.textStyles.body2,
+                        color = MiuixTheme.colorScheme.onSurfaceVariantSummary
+                    )
+                }
                 val dayIsDark = MiuixTheme.colorScheme.background.luminance() < 0.5f
                 Row(
                     modifier = Modifier.fillMaxWidth(),
@@ -758,7 +903,7 @@ private fun AddCourseDialogContent(
             }
         }
 
-        // 节次范围
+        // 节次范围 / 上课时间（勾选自定义时间后切换为时间选择）
         Card(
             cornerRadius = 20.dp,
             modifier = Modifier.fillMaxWidth(),
@@ -767,17 +912,32 @@ private fun AddCourseDialogContent(
                 contentColor = MiuixTheme.colorScheme.onSurface
             )
         ) {
-            ArrowPreference(
-                title = "上课节次",
-                endActions = {
-                    Text(
-                        text = "第${startSection} - ${endSection}节",
-                        fontSize = 14.5.sp,
-                        color = MiuixTheme.colorScheme.onSurfaceVariantActions
-                    )
-                },
-                onClick = onShowSectionDialog,
-            )
+            if (isCustomTime) {
+                ArrowPreference(
+                    title = "上课时间",
+                    endActions = {
+                        Text(
+                            text = if (customStartTime.isNotBlank() && customEndTime.isNotBlank())
+                                "$customStartTime - $customEndTime" else "未设置",
+                            fontSize = 14.5.sp,
+                            color = MiuixTheme.colorScheme.onSurfaceVariantActions
+                        )
+                    },
+                    onClick = onShowTimeDialog,
+                )
+            } else {
+                ArrowPreference(
+                    title = "上课节次",
+                    endActions = {
+                        Text(
+                            text = "第${startSection} - ${endSection}节",
+                            fontSize = 14.5.sp,
+                            color = MiuixTheme.colorScheme.onSurfaceVariantActions
+                        )
+                    },
+                    onClick = onShowSectionDialog,
+                )
+            }
         }
 
         // 周次设置
@@ -1257,3 +1417,121 @@ private fun AddCourseDialogContent(
 private fun Color.luminance(): Float {
     return 0.299f * red + 0.587f * green + 0.114f * blue
 }
+
+/**
+ * 时间段 时:分 双滚轮选择器（与时间配置编辑页一致的左右布局）
+ */
+@Composable
+private fun TimeRangePickerGroup(
+    startHour: Int,
+    startMinute: Int,
+    endHour: Int,
+    endMinute: Int,
+    onStartHourChange: (Int) -> Unit,
+    onStartMinuteChange: (Int) -> Unit,
+    onEndHourChange: (Int) -> Unit,
+    onEndMinuteChange: (Int) -> Unit
+) {
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.Center
+    ) {
+        NumberPicker(
+            value = startHour,
+            onValueChange = onStartHourChange,
+            range = 0..23,
+            visibleItemCount = 3,
+            itemHeight = 60.dp,
+            label = { String.format("%02d", it) },
+            wrapAround = true,
+            textStyle = MiuixTheme.textStyles.title2,
+            modifier = Modifier.weight(1f)
+        )
+        Text(
+            text = ":",
+            style = MiuixTheme.textStyles.paragraph,
+            fontWeight = FontWeight.Bold,
+            color = MiuixTheme.colorScheme.onSurface,
+            modifier = Modifier.padding().offset(y = (-2).dp)
+        )
+        val sMinIdx = minuteValues.indexOf(startMinute).coerceAtLeast(0)
+        NumberPicker(
+            value = sMinIdx,
+            onValueChange = { onStartMinuteChange(minuteValues[it]) },
+            range = minuteValues.indices,
+            visibleItemCount = 3,
+            itemHeight = 60.dp,
+            label = { String.format("%02d", minuteValues[it]) },
+            wrapAround = true,
+            textStyle = MiuixTheme.textStyles.title2,
+            modifier = Modifier.weight(1f)
+        )
+        Text(
+            text = "-",
+            style = MiuixTheme.textStyles.title2,
+            color = MiuixTheme.colorScheme.onSurface,
+            modifier = Modifier.padding()
+        )
+        NumberPicker(
+            value = endHour,
+            onValueChange = onEndHourChange,
+            range = 0..23,
+            visibleItemCount = 3,
+            itemHeight = 60.dp,
+            label = { String.format("%02d", it) },
+            wrapAround = true,
+            textStyle = MiuixTheme.textStyles.title2,
+            modifier = Modifier.weight(1f)
+        )
+        Text(
+            text = ":",
+            style = MiuixTheme.textStyles.paragraph,
+            fontWeight = FontWeight.Bold,
+            color = MiuixTheme.colorScheme.onSurface,
+            modifier = Modifier.padding().offset(y = (-2).dp)
+        )
+        val eMinIdx = minuteValues.indexOf(endMinute).coerceAtLeast(0)
+        NumberPicker(
+            value = eMinIdx,
+            onValueChange = { onEndMinuteChange(minuteValues[it]) },
+            range = minuteValues.indices,
+            visibleItemCount = 3,
+            itemHeight = 60.dp,
+            label = { String.format("%02d", minuteValues[it]) },
+            wrapAround = true,
+            textStyle = MiuixTheme.textStyles.title2,
+            modifier = Modifier.weight(1f)
+        )
+    }
+}
+
+/**
+ * 解析 "HH:mm" 格式字符串中的小时，无效时返回 8
+ */
+private fun parseTimeHour(time: String?): Int {
+    if (time.isNullOrBlank()) return 8
+    val parts = time.split(":")
+    return parts.firstOrNull()?.toIntOrNull()?.coerceIn(0, 23) ?: 8
+}
+
+/**
+ * 解析 "HH:mm" 格式字符串中的分钟，无效时返回 0
+ */
+private fun parseTimeMinute(time: String?): Int {
+    if (time.isNullOrBlank()) return 0
+    val parts = time.split(":")
+    return parts.getOrNull(1)?.toIntOrNull()?.coerceIn(0, 59) ?: 0
+}
+
+/**
+ * 将时/分格式化为 "HH:mm"
+ */
+private fun formatTime(hour: Int, minute: Int): String {
+    return String.format("%02d:%02d", hour, minute)
+}
+
+/**
+ * 自定义时间选择弹窗中可用的分钟值（每 5 分钟一档）
+ */
+private val minuteValues = (0..59 step 5).toList()

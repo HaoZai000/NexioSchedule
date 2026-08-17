@@ -254,7 +254,7 @@ fun CourseManageScreen(
                                 .filter { it.dayOfWeek > 0 && it.startSection > 0 }
                                 .joinToString("、") {
                                     val day = dayNames.getOrElse(it.dayOfWeek) { "?" }
-                                    "${day}${it.startSection}-${it.endSection}节"
+                                    "${day}${it.getTimeDisplayText()}"
                                 }
 
                             val teachers = courseList

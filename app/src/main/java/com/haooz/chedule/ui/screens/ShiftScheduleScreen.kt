@@ -233,7 +233,7 @@ fun ShiftScheduleScreen(
                         )
                         Spacer(modifier = Modifier.height(4.dp))
                         Text(
-                            text = "${course.name}  第${course.startSection}-${course.endSection}节",
+                            text = "${course.name}  ${course.getTimeDisplayText()}",
                             style = MiuixTheme.textStyles.footnote1,
                             color = MiuixTheme.colorScheme.onSurfaceVariantActions
                         )

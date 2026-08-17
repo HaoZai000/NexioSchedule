@@ -17,6 +17,7 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -28,6 +29,7 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
@@ -67,6 +69,8 @@ fun CourseCard(
     cardBlurRadius: Float = 0f,
     cardAlpha: Float = 0.15f,
     cardHeightPerSection: Float = 54f,
+    // 自定义时间课程显式指定卡片高度（dp），null 时按节次数量计算
+    customCardHeightDp: Float? = null,
     cardCornerRadius: Float = 10f,
     isTablet: Boolean = false,
     cardContentAlignment: com.haooz.chedule.data.CardContentAlignment = com.haooz.chedule.data.CardContentAlignment.CENTER_CENTER,
@@ -81,7 +85,7 @@ fun CourseCard(
     @SuppressLint("ModifierParameter") modifier: Modifier = Modifier
 ) {
     val sectionCount = course.endSection - course.startSection + 1
-    val cardHeight = (sectionCount * cardHeightPerSection).dp
+    val cardHeight = (customCardHeightDp ?: (sectionCount * cardHeightPerSection)).dp
     val hasBlur = wallpaperBackdrop != null
     val effectiveCornerRadius = if (isTablet) (cardCornerRadius * 1.3f) else cardCornerRadius
     val isDark = isAppDarkTheme()
@@ -493,6 +497,24 @@ private fun CardContent(course: Course, sectionCount: Int, textColor: Color, has
                     .size(8.dp)
                     .background(color = textColor, shape = CircleShape)
             )
+        }
+
+        if (course.hasValidCustomTime()) {
+            Box(
+                modifier = Modifier
+                    .align(Alignment.TopEnd)
+                    .padding(if (isTablet) 6.dp else 5.dp)
+                    .clip(RoundedCornerShape(4.dp))
+                    .background(textColor.copy(alpha = 0.2f))
+                    .padding(horizontal = 4.dp, vertical = 1.dp)
+            ) {
+                Text(
+                    text = "自定义",
+                    fontSize = 8.sp,
+                    color = textColor,
+                    maxLines = 1
+                )
+            }
         }
     }
 }

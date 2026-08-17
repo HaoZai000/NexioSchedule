@@ -154,7 +154,7 @@ class CourseWidgetProviderStandard : AppWidgetProvider() {
             views.setInt(R.id.widget_course1, "setBackgroundResource",
                 if (remaining1 != null) R.drawable.widget_card_active_background else R.drawable.widget_card_background)
             views.setTextViewText(R.id.widget_info1, buildString {
-                append(c1.getSectionText())
+                append(c1.getTimeDisplayText())
                 if (c1.classroom.isNotEmpty()) append("｜").append(c1.classroom)
                 if (c1.teacher.isNotEmpty()) append("｜").append(c1.teacher)
             })
@@ -173,7 +173,7 @@ class CourseWidgetProviderStandard : AppWidgetProvider() {
                 views.setInt(R.id.widget_course2, "setBackgroundResource",
                     if (remaining2 != null) R.drawable.widget_card_active_background else R.drawable.widget_card_background)
                 views.setTextViewText(R.id.widget_info2, buildString {
-                    append(c2.getSectionText())
+                    append(c2.getTimeDisplayText())
                     if (c2.classroom.isNotEmpty()) append("｜").append(c2.classroom)
                     if (c2.teacher.isNotEmpty()) append("｜").append(c2.teacher)
                 })
@@ -229,6 +229,7 @@ class CourseWidgetProviderStandard : AppWidgetProvider() {
     }
 
     private fun getCourseStartTime(course: Course, repository: CourseRepository): String? {
+        if (course.hasValidCustomTime()) return course.customStartTime
         val morningTimes = repository.getPeriodTimes("morning")
         val afternoonTimes = repository.getPeriodTimes("afternoon")
         val eveningTimes = repository.getPeriodTimes("evening")
@@ -249,6 +250,7 @@ class CourseWidgetProviderStandard : AppWidgetProvider() {
     }
 
     private fun getCourseEndTime(course: Course, repository: CourseRepository): String? {
+        if (course.hasValidCustomTime()) return course.customEndTime
         val morningTimes = repository.getPeriodTimes("morning")
         val afternoonTimes = repository.getPeriodTimes("afternoon")
         val eveningTimes = repository.getPeriodTimes("evening")

@@ -171,7 +171,10 @@ class AndroidBridge(
                         endWeek = json.weeks.maxOrNull() ?: 20,
                         weekType = Course.WEEK_TYPE_ALL,
                         selectedWeeks = json.weeks.sorted(),
-                        colorRes = color
+                        colorRes = color,
+                        isCustomTime = json.isCustomTime,
+                        customStartTime = json.customStartTime,
+                        customEndTime = json.customEndTime
                     )
                 }
 

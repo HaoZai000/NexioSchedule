@@ -368,14 +368,25 @@ class CourseViewModel(application: Application) : AndroidViewModel(application) 
 
     /**
      * 获取指定星期和节次范围已占用的周次列表
+     * @param startTime 自定义开始时间（"HH:mm"，仅自定义时间课程传入）
+     * @param endTime 自定义结束时间（"HH:mm"，仅自定义时间课程传入）
      */
     fun getOccupiedWeeks(
         dayOfWeek: Int,
         startSection: Int,
         endSection: Int,
-        excludeIds: Set<String> = emptySet()
+        excludeIds: Set<String> = emptySet(),
+        startTime: String? = null,
+        endTime: String? = null
     ): Set<Int> {
-        return repository.getOccupiedWeeks(dayOfWeek, startSection, endSection, excludeIds)
+        return repository.getOccupiedWeeks(
+            dayOfWeek,
+            startSection,
+            endSection,
+            excludeIds,
+            startTime,
+            endTime
+        )
     }
 
     /**

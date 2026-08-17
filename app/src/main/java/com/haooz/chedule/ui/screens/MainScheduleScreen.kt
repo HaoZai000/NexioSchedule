@@ -451,6 +451,7 @@ fun MainScheduleScreen(
                                 morningSections = morningSections,
                                 afternoonSections = afternoonSections,
                                 eveningSections = eveningSections,
+                                sectionTimes = sectionTimes,
                                 currentWeek = week,
                                 pendingDay = pendingDay,
                                 pendingSection = pendingSection,
@@ -698,7 +699,7 @@ fun MainScheduleScreen(
                     val summaryText = buildString {
                         append(course.getWeekText())
                         append(" ｜ ")
-                        append(course.getSectionText())
+                        append(course.getTimeDisplayText())
                         if (course.classroom.isNotEmpty()) {
                             append("\n")
                             append(course.classroom)

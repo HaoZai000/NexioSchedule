@@ -437,7 +437,7 @@ object IslandNotificationHelper {
         val nextCourse = CourseReminderHelper.findNextCourseToday(context)
         val startTime = nextCourse?.let { CourseReminderHelper.getCourseStartTime(it, repository) }
         val section = if (nextCourse != null) {
-            "第${nextCourse.startSection}-${nextCourse.endSection}节"
+            nextCourse.getTimeDisplayText()
         } else ""
         val classroom = nextCourse?.classroom ?: ""
         val courseName = nextCourse?.name ?: "课程"

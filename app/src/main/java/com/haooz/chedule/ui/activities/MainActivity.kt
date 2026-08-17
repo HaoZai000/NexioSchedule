@@ -2092,12 +2092,14 @@ fun CourseScheduleApp() {
                     totalSections = totalSections,
                     defaultStartSection = editingStartSection,
                     defaultEndSection = editingEndSection,
-                    getOccupiedWeeks = { dayOfWeek, startSection, endSection, excludeIds ->
+                    getOccupiedWeeks = { dayOfWeek, startSection, endSection, excludeIds, startTime, endTime ->
                         viewModel.getOccupiedWeeks(
                             dayOfWeek = dayOfWeek,
                             startSection = startSection,
                             endSection = endSection,
-                            excludeIds = excludeIds.toSet()
+                            excludeIds = excludeIds.toSet(),
+                            startTime = startTime,
+                            endTime = endTime
                         )
                     },
                     onDismiss = { viewModel.hideDialog() },

@@ -428,12 +428,14 @@ class CourseManageActivity : ComponentActivity() {
                             onColorChanged = { colorRes ->
                                 cardColor = Color(colorRes)
                             },
-                            getOccupiedWeeks = { dayOfWeek, startSection, endSection, excludeIds ->
+                            getOccupiedWeeks = { dayOfWeek, startSection, endSection, excludeIds, startTime, endTime ->
                                 courseViewModel.getOccupiedWeeks(
                                     dayOfWeek = dayOfWeek,
                                     startSection = startSection,
                                     endSection = endSection,
-                                    excludeIds = excludeIds.toSet()
+                                    excludeIds = excludeIds.toSet(),
+                                    startTime = startTime,
+                                    endTime = endTime
                                 )
                             },
                             liquidGlassBackdrop = editLiquidGlassBackdrop

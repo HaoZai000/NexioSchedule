@@ -51,6 +51,8 @@ class CourseRepository private constructor(context: Context) {
             // 设置变更时更新时间戳，确保本地修改不会被远程覆盖
             val prefix = getScheduleKeyPrefix()
             prefs.edit { putLong("${prefix}_settings_last_modified", System.currentTimeMillis()) }
+            // 节次时间/节数变化会影响分钟级占用判断，需要清空占用周次缓存
+            occupiedWeeksCache.clear()
         }
         onCourseChanged?.invoke(action, courseId)
     }
@@ -190,7 +192,8 @@ class CourseRepository private constructor(context: Context) {
     @Suppress("SENSELESS_COMPARISON", "ELVIS_ALWAYS_NULL", "NULLABILITY_MISMATCH_BASED_ON_JAVA_ANNOTATIONS")
     private fun sanitizeCourses(courses: List<Course>): List<Course> {
         return courses.map { course ->
-            if (course.scheduleId == null || course.selectedWeeks == null) {
+            if (course.scheduleId == null || course.selectedWeeks == null
+                || course.customStartTime == null || course.customEndTime == null) {
                 Course(
                     id = course.id ?: "",
                     name = course.name ?: "",
@@ -205,7 +208,10 @@ class CourseRepository private constructor(context: Context) {
                     colorRes = course.colorRes,
                     selectedWeeks = course.selectedWeeks ?: emptyList(),
                     scheduleId = course.scheduleId ?: "",
-                    lastModified = course.lastModified
+                    lastModified = course.lastModified,
+                    isCustomTime = course.isCustomTime,
+                    customStartTime = course.customStartTime,
+                    customEndTime = course.customEndTime
                 )
             } else {
                 course
@@ -253,30 +259,23 @@ class CourseRepository private constructor(context: Context) {
 
     /**
      * 预热占用周次缓存：预计算所有节次组合的占用周次
+     * 占用判断为分钟级时间重叠（自定义时间课程同样参与占用）
      */
     private fun preWarmOccupiedWeeksCache(courses: List<Course>) {
         occupiedWeeksCache.clear()
-        val totalSections = 12
+        val totalSections = getMorningSections() + getAfternoonSections() + getEveningSections()
+        val sectionTimes = getGlobalSectionTimes()
         for (day in 1..7) {
             for (start in 1..totalSections) {
                 for (end in start..totalSections) {
                     val occupied = mutableSetOf<Int>()
+                    val newStartMin = timeToMinutes(sectionTimes[start]?.substringBefore("-")?.trim())
+                    val newEndMin = timeToMinutes(sectionTimes[end]?.substringAfter("-")?.trim())
                     courses.forEach { course ->
                         if (course.dayOfWeek == day &&
-                            course.startSection <= end &&
-                            course.endSection >= start
+                            isTimeConflict(newStartMin, newEndMin, start, end, course, sectionTimes)
                         ) {
-                            if (course.selectedWeeks.isNotEmpty()) {
-                                occupied.addAll(course.selectedWeeks)
-                            } else {
-                                for (week in course.startWeek..course.endWeek) {
-                                    when (course.weekType) {
-                                        Course.WEEK_TYPE_ODD -> if (week % 2 == 1) occupied.add(week)
-                                        Course.WEEK_TYPE_EVEN -> if (week % 2 == 0) occupied.add(week)
-                                        else -> occupied.add(week)
-                                    }
-                                }
-                            }
+                            addCourseWeeks(occupied, course)
                         }
                     }
                     occupiedWeeksCache["${day}_${start}_${end}"] = occupied
@@ -1255,49 +1254,133 @@ class CourseRepository private constructor(context: Context) {
 
     /**
      * 获取指定星期和节次范围已占用的周次列表
+     * 占用判断为分钟级时间重叠：自定义时间课程按其实际起止时间参与占用；
+     * 时间无法确定时回退到节次重叠判断。
+     *
+     * @param dayOfWeek 星期几
+     * @param startSection 开始节次
+     * @param endSection 结束节次
+     * @param excludeIds 需要排除的课程ID（编辑时排除自身）
+     * @param startTime 自定义开始时间（"HH:mm"，仅自定义时间课程传入）
+     * @param endTime 自定义结束时间（"HH:mm"，仅自定义时间课程传入）
      */
     fun getOccupiedWeeks(
         dayOfWeek: Int,
         startSection: Int,
         endSection: Int,
-        excludeIds: Set<String> = emptySet()
+        excludeIds: Set<String> = emptySet(),
+        startTime: String? = null,
+        endTime: String? = null
     ): Set<Int> {
-        // 无排除条件时使用缓存
-        if (excludeIds.isEmpty()) {
+        // 无排除条件且非自定义时间时使用缓存
+        if (excludeIds.isEmpty() && startTime == null && endTime == null) {
             val cacheKey = "${dayOfWeek}_${startSection}_${endSection}"
             occupiedWeeksCache[cacheKey]?.let { return it }
+        }
+
+        val sectionTimes = getGlobalSectionTimes()
+        val newStartMin = if (startTime != null) {
+            timeToMinutes(startTime)
+        } else {
+            timeToMinutes(sectionTimes[startSection]?.substringBefore("-")?.trim())
+        }
+        val newEndMin = if (endTime != null) {
+            timeToMinutes(endTime)
+        } else {
+            timeToMinutes(sectionTimes[endSection]?.substringAfter("-")?.trim())
         }
 
         val occupied = mutableSetOf<Int>()
         getAllCourses().forEach { course ->
             if (course.id in excludeIds) return@forEach
             if (course.dayOfWeek == dayOfWeek &&
-                course.startSection <= endSection &&
-                course.endSection >= startSection
+                isTimeConflict(newStartMin, newEndMin, startSection, endSection, course, sectionTimes)
             ) {
-                // 如果有具体的周次列表，直接添加
-                if (course.selectedWeeks.isNotEmpty()) {
-                    occupied.addAll(course.selectedWeeks)
-                } else {
-                    // 否则使用范围判断
-                    for (week in course.startWeek..course.endWeek) {
-                        when (course.weekType) {
-                            Course.WEEK_TYPE_ODD -> if (week % 2 == 1) occupied.add(week)
-                            Course.WEEK_TYPE_EVEN -> if (week % 2 == 0) occupied.add(week)
-                            else -> occupied.add(week)
-                        }
-                    }
-                }
+                addCourseWeeks(occupied, course)
             }
         }
 
-        // 无排除条件时存入缓存
-        if (excludeIds.isEmpty()) {
+        // 无排除条件且非自定义时间时存入缓存
+        if (excludeIds.isEmpty() && startTime == null && endTime == null) {
             val cacheKey = "${dayOfWeek}_${startSection}_${endSection}"
             occupiedWeeksCache[cacheKey] = occupied
         }
 
         return occupied
+    }
+
+    /**
+     * 将 "HH:mm" 时间字符串转换为分钟数（自当日 00:00 起），无法解析时返回 null
+     */
+    private fun timeToMinutes(time: String?): Int? {
+        if (time.isNullOrBlank()) return null
+        val parts = time.split(":")
+        if (parts.size != 2) return null
+        val hour = parts[0].toIntOrNull() ?: return null
+        val minute = parts[1].toIntOrNull() ?: return null
+        return hour * 60 + minute
+    }
+
+    /**
+     * 获取全局绝对节次号 -> "HH:mm-HH:mm" 的扁平映射
+     * 上午保持原编号，下午偏移上午节数，晚上偏移上午+下午节数
+     */
+    private fun getGlobalSectionTimes(): Map<Int, String> {
+        val morning = getPeriodTimes("morning")
+        val afternoon = getPeriodTimes("afternoon")
+        val evening = getPeriodTimes("evening")
+        val morningSections = getMorningSections()
+        val afternoonSections = getAfternoonSections()
+        return buildMap {
+            morning.forEach { (k, v) -> put(k, v) }
+            afternoon.forEach { (k, v) -> put(morningSections + k, v) }
+            evening.forEach { (k, v) -> put(morningSections + afternoonSections + k, v) }
+        }
+    }
+
+    /**
+     * 将课程的周次加入集合
+     */
+    private fun addCourseWeeks(occupied: MutableSet<Int>, course: Course) {
+        if (course.selectedWeeks.isNotEmpty()) {
+            occupied.addAll(course.selectedWeeks)
+        } else {
+            for (week in course.startWeek..course.endWeek) {
+                when (course.weekType) {
+                    Course.WEEK_TYPE_ODD -> if (week % 2 == 1) occupied.add(week)
+                    Course.WEEK_TYPE_EVEN -> if (week % 2 == 0) occupied.add(week)
+                    else -> occupied.add(week)
+                }
+            }
+        }
+    }
+
+    /**
+     * 判断待添加课程与已存在课程是否在时间上冲突（分钟级）
+     *
+     * @param newStartMin 待添加课程开始分钟数（无法确定时为 null）
+     * @param newEndMin 待添加课程结束分钟数（无法确定时为 null）
+     * @param newStartSection 待添加课程开始节次（用于时间无法确定时的回退判断）
+     * @param newEndSection 待添加课程结束节次
+     * @param existing 已存在课程
+     * @param sectionTimes 全局绝对节次号 -> "HH:mm-HH:mm"
+     */
+    private fun isTimeConflict(
+        newStartMin: Int?,
+        newEndMin: Int?,
+        newStartSection: Int,
+        newEndSection: Int,
+        existing: Course,
+        sectionTimes: Map<Int, String>
+    ): Boolean {
+        val existingStart = timeToMinutes(existing.getEffectiveStartTime(sectionTimes))
+        val existingEnd = timeToMinutes(existing.getEffectiveEndTime(sectionTimes))
+        // 双方时间均可确定时使用分钟级重叠判断（相邻不重叠，即 end == start 不算冲突）
+        if (newStartMin != null && newEndMin != null && existingStart != null && existingEnd != null) {
+            return newStartMin < existingEnd && existingStart < newEndMin
+        }
+        // 时间无法确定时回退到节次重叠判断
+        return existing.startSection <= newEndSection && existing.endSection >= newStartSection
     }
 
     /**
