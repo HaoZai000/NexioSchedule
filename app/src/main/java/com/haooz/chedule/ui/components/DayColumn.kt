@@ -652,20 +652,25 @@ private fun computeCustomTimeLayout(
     val eveningHeight = eveningSections * cardHeightPerSection
     val afternoonTop = morningHeight + dividerGap
     val eveningTop = afternoonTop + afternoonHeight + dividerGap
+    val columnBottom = eveningTop + eveningHeight
 
-    fun timeToY(minutes: Int): Float = when {
-        minutes <= morningEnd -> {
-            if (minutes <= morningStart) 0f
-            else morningHeight * (minutes - morningStart).toFloat() / (morningEnd - morningStart).toFloat()
+    fun timeToY(minutes: Int): Float {
+        val raw = when {
+            minutes <= morningEnd -> {
+                if (minutes <= morningStart) 0f
+                else morningHeight * (minutes - morningStart).toFloat() / (morningEnd - morningStart).toFloat()
+            }
+            minutes <= afternoonEnd -> {
+                if (minutes <= afternoonStart) afternoonTop
+                else afternoonTop + afternoonHeight * (minutes - afternoonStart).toFloat() / (afternoonEnd - afternoonStart).toFloat()
+            }
+            else -> {
+                if (minutes <= eveningStart) eveningTop
+                else eveningTop + eveningHeight * (minutes - eveningStart).toFloat() / (eveningEnd - eveningStart).toFloat()
+            }
         }
-        minutes <= afternoonEnd -> {
-            if (minutes <= afternoonStart) afternoonTop
-            else afternoonTop + afternoonHeight * (minutes - afternoonStart).toFloat() / (afternoonEnd - afternoonStart).toFloat()
-        }
-        else -> {
-            if (minutes <= eveningStart) eveningTop
-            else eveningTop + eveningHeight * (minutes - eveningStart).toFloat() / (eveningEnd - eveningStart).toFloat()
-        }
+        // 钳制到列边界，避免课程时间超出首末节时向下/向上溢出
+        return raw.coerceIn(0f, columnBottom)
     }
 
     val top = timeToY(cs)

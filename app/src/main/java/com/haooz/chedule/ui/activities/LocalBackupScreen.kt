@@ -350,6 +350,9 @@ fun LocalBackupScreen(
                                                             "dayOfWeek" to course.dayOfWeek,
                                                             "startSection" to course.startSection,
                                                             "endSection" to course.endSection,
+                                                            "isCustomTime" to course.isCustomTime,
+                                                            "customStartTime" to course.customStartTime,
+                                                            "customEndTime" to course.customEndTime,
                                                             "colorRes" to course.colorRes,
                                                             "selectedWeeks" to (course.selectedWeeks.ifEmpty {
                                                                 (course.startWeek..course.endWeek).toList()

@@ -80,6 +80,12 @@ val JS_PROMISE_BRIDGE = """
                 });
             }
         };
+
+        // V2 桥接对象别名（shiguang Bridge）：业务接口完全不变，仅对象改名
+        // window.shiguangBridge          -> AndroidBridge（同步：showToast、notifyTaskCompletion 等）
+        // window.shiguangBridgePromise   -> AndroidBridgePromise（异步：showAlert、saveImportedCourses 等）
+        window.shiguangBridge = window.shiguangBridge || window.AndroidBridge;
+        window.shiguangBridgePromise = window.shiguangBridgePromise || window.AndroidBridgePromise;
     })();
 """.trimIndent()
 

@@ -468,6 +468,9 @@ private fun buildExportJson(
                 "dayOfWeek" to course.dayOfWeek,
                 "startSection" to course.startSection,
                 "endSection" to course.endSection,
+                "isCustomTime" to course.isCustomTime,
+                "customStartTime" to course.customStartTime,
+                "customEndTime" to course.customEndTime,
                 "selectedWeeks" to (course.selectedWeeks.ifEmpty {
                     (course.startWeek..course.endWeek).toList()
                 }).sorted()
