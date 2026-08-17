@@ -7,6 +7,15 @@ data class ChangelogEntry(
 )
 val changelogData = listOf(
     ChangelogEntry(
+        version = "v1.4.1-0811",
+        date = "2026-08-11",
+        changes = listOf(
+            "新增支持自定义课程时间",
+            "课程提醒功能全面进化，优化原生实况通知样式，支持上课免打扰，支持自定义显示内容",
+            "",
+        )
+    ),
+    ChangelogEntry(
         version = "v1.4.0-0817",
         date = "2026-08-17",
         changes = listOf(

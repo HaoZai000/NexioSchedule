@@ -20,6 +20,7 @@
     <uses-permission android:name="android.permission.WAKE_LOCK" />
     <uses-permission android:name="android.permission.REQUEST_IGNORE_BATTERY_OPTIMIZATIONS" />
     <uses-permission android:name="android.permission.POST_PROMOTED_NOTIFICATIONS" />
+    <uses-permission android:name="android.permission.MODIFY_AUDIO_SETTINGS" />
 
     <application
         android:allowBackup="true"
@@ -226,6 +227,11 @@
         <receiver
             android:name=".reminder.CourseStartReceiver"
             android:exported="false" />
+
+        <receiver
+            android:name=".reminder.MuteReceiver"
+            android:exported="false" />
+
         <receiver
             android:name=".reminder.BootCompletedReceiver"
             android:exported="true">

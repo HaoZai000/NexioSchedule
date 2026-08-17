@@ -42,6 +42,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.input.nestedscroll.nestedScroll
@@ -57,12 +58,16 @@ import com.haooz.chedule.reminder.CourseReminderHelper
 import com.haooz.chedule.reminder.IslandNotificationHelper
 import com.haooz.chedule.shizuku.ShizukuManager
 import com.haooz.chedule.ui.basic.OverlayDialog
+import com.haooz.chedule.ui.basic.OverlayDropdownMenu
 import com.haooz.chedule.ui.basic.SharedScrollBehavior
 import com.haooz.chedule.ui.utils.overScrollVertical
 import com.haooz.chedule.viewmodel.SettingsViewModel
 import kotlinx.coroutines.launch
 import top.yukonga.miuix.kmp.basic.ButtonDefaults
 import top.yukonga.miuix.kmp.basic.Card
+import top.yukonga.miuix.kmp.basic.DropdownDefaults
+import top.yukonga.miuix.kmp.basic.DropdownEntry
+import top.yukonga.miuix.kmp.basic.DropdownItem
 import top.yukonga.miuix.kmp.basic.NumberPicker
 import top.yukonga.miuix.kmp.basic.Scaffold
 import top.yukonga.miuix.kmp.basic.TextButton
@@ -102,6 +107,13 @@ fun CourseReminderScreen(
     var shizukuRunning by remember { mutableStateOf(false) }
     var shizukuAuthorized by remember { mutableStateOf(false) }
     var isIslandSupported by remember { mutableStateOf(false) }
+
+    // 实况通知右侧显示：0=课程名称，1=上课地点，2=倒计时
+    var liveRightMode by remember { mutableIntStateOf(reminderPrefs.getInt("live_right_mode", 0)) }
+    // 超级岛左侧显示：0=课程名称，1=上课地点，2=倒计时
+    var islandLeftMode by remember { mutableIntStateOf(reminderPrefs.getInt("island_left_mode", 0)) }
+    // 超级岛右侧显示：0=课程名称，1=上课地点，2=倒计时
+    var islandRightMode by remember { mutableIntStateOf(reminderPrefs.getInt("island_right_mode", 1)) }
 
     val masterEnabled = preClassReminder || nextDayReminder
     var permissionRefreshKey by remember { mutableIntStateOf(0) }
@@ -186,6 +198,10 @@ fun CourseReminderScreen(
         drawRect(backgroundColor)
         drawContent()
     }
+    val liquidGlassDropdownColors = DropdownDefaults.dropdownColors(
+        containerColor = Color.Transparent,
+        selectedContainerColor = Color.Transparent,
+    )
     val isTablet = LocalConfiguration.current.screenWidthDp >= 600
     val tabletHorizontalPadding = if (isTablet) {
         val screenWidthDp = LocalConfiguration.current.screenWidthDp
@@ -448,6 +464,149 @@ fun CourseReminderScreen(
                         }
                     }
 
+
+                    // 缩略态显示设置
+                    item {
+                        val collapsedModeScale = remember { Animatable(0.8f) }
+                        val collapsedModeAlpha = remember { Animatable(0f) }
+                        LaunchedEffect(masterEnabled) {
+                            if (masterEnabled) {
+                                launch { collapsedModeScale.animateTo(1f, animationSpec = tween(400)) }
+                                launch { collapsedModeAlpha.animateTo(1f, animationSpec = tween(400)) }
+                            } else {
+                                launch { collapsedModeScale.animateTo(0.8f, animationSpec = tween(300)) }
+                                launch { collapsedModeAlpha.animateTo(0f, animationSpec = tween(300)) }
+                            }
+                        }
+
+                        val liveRightOptions = listOf(
+                            DropdownItem(
+                                text = "课程名称",
+                                selected = liveRightMode == 0,
+                                onClick = {
+                                    liveRightMode = 0
+                                    reminderPrefs.edit().putInt("live_right_mode", 0).apply()
+                                }
+                            ),
+                            DropdownItem(
+                                text = "上课地点",
+                                selected = liveRightMode == 1,
+                                onClick = {
+                                    liveRightMode = 1
+                                    reminderPrefs.edit().putInt("live_right_mode", 1).apply()
+                                }
+                            ),
+                            DropdownItem(
+                                text = "倒计时",
+                                selected = liveRightMode == 2,
+                                onClick = {
+                                    liveRightMode = 2
+                                    reminderPrefs.edit().putInt("live_right_mode", 2).apply()
+                                }
+                            ),
+                        )
+
+                        val islandLeftOptions = listOf(
+                            DropdownItem(
+                                text = "课程名称",
+                                selected = islandLeftMode == 0,
+                                onClick = {
+                                    islandLeftMode = 0
+                                    reminderPrefs.edit().putInt("island_left_mode", 0).apply()
+                                }
+                            ),
+                            DropdownItem(
+                                text = "上课地点",
+                                selected = islandLeftMode == 1,
+                                onClick = {
+                                    islandLeftMode = 1
+                                    reminderPrefs.edit().putInt("island_left_mode", 1).apply()
+                                }
+                            ),
+                            DropdownItem(
+                                text = "倒计时",
+                                selected = islandLeftMode == 2,
+                                onClick = {
+                                    islandLeftMode = 2
+                                    reminderPrefs.edit().putInt("island_left_mode", 2).apply()
+                                }
+                            ),
+                        )
+
+                        val islandRightOptions = listOf(
+                            DropdownItem(
+                                text = "课程名称",
+                                selected = islandRightMode == 0,
+                                onClick = {
+                                    islandRightMode = 0
+                                    reminderPrefs.edit().putInt("island_right_mode", 0).apply()
+                                }
+                            ),
+                            DropdownItem(
+                                text = "上课地点",
+                                selected = islandRightMode == 1,
+                                onClick = {
+                                    islandRightMode = 1
+                                    reminderPrefs.edit().putInt("island_right_mode", 1).apply()
+                                }
+                            ),
+                            DropdownItem(
+                                text = "倒计时",
+                                selected = islandRightMode == 2,
+                                onClick = {
+                                    islandRightMode = 2
+                                    reminderPrefs.edit().putInt("island_right_mode", 2).apply()
+                                }
+                            ),
+                        )
+
+                        if (!islandNotification || !isIslandSupported) {
+                            // 关闭超级岛：只显示"实况通知右侧"
+                            Card(
+                                cornerRadius = 20.dp,
+                                modifier = Modifier.fillMaxWidth().graphicsLayer {
+                                    scaleX = collapsedModeScale.value
+                                    scaleY = collapsedModeScale.value
+                                    alpha = collapsedModeAlpha.value
+                                },
+                                insideMargin = PaddingValues(0.dp)
+                            ) {
+                                OverlayDropdownMenu(
+                                    title = "实况通知右侧",
+                                    entry = DropdownEntry(items = liveRightOptions),
+                                    collapseOnSelection = true,
+                                    liquidGlassBackdrop = liquidGlassBackdrop,
+                                    dropdownColors = liquidGlassDropdownColors,
+                                )
+                            }
+                        } else {
+                            // 开启超级岛：显示"超级岛左侧"和"超级岛右侧"
+                            Card(
+                                cornerRadius = 20.dp,
+                                modifier = Modifier.fillMaxWidth().graphicsLayer {
+                                    scaleX = collapsedModeScale.value
+                                    scaleY = collapsedModeScale.value
+                                    alpha = collapsedModeAlpha.value
+                                },
+                                insideMargin = PaddingValues(0.dp)
+                            ) {
+                                OverlayDropdownMenu(
+                                    title = "超级岛左侧",
+                                    entry = DropdownEntry(items = islandLeftOptions),
+                                    collapseOnSelection = true,
+                                    liquidGlassBackdrop = liquidGlassBackdrop,
+                                    dropdownColors = liquidGlassDropdownColors,
+                                )
+                                OverlayDropdownMenu(
+                                    title = "超级岛右侧",
+                                    entry = DropdownEntry(items = islandRightOptions),
+                                    collapseOnSelection = true,
+                                    liquidGlassBackdrop = liquidGlassBackdrop,
+                                    dropdownColors = liquidGlassDropdownColors,
+                                )
+                            }
+                        }
+                    }
 
                     // 电池优化提示
                     if (masterEnabled && !isIgnoringBattery) {

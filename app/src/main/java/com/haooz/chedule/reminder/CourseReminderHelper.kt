@@ -210,10 +210,6 @@ object CourseReminderHelper {
 
         if (currentWeek > totalWeeks || currentWeek > lastWeekWithCourses) return
 
-        // 清除旧的倒计时状态，重新调度所有闹钟
-        context.getSharedPreferences("countdown_state", Context.MODE_PRIVATE)
-            .edit().putBoolean("active", false).apply()
-
         val todayCourses = allCourses.filter { course ->
             course.dayOfWeek == today && course.isActiveInWeek(currentWeek)
         }.sortedBy { it.startSection }
@@ -745,21 +741,55 @@ object CourseReminderHelper {
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
         )
 
+        // 静音模式 PendingIntent
+        val muteIntent = Intent(context, MuteReceiver::class.java)
+        val mutePendingIntent = PendingIntent.getBroadcast(
+            context,
+            courseName.hashCode() + 100,
+            muteIntent,
+            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+        )
+
         val notificationId = 10000 + courseName.hashCode()
         val minutesUntilStart = ((startMillis - System.currentTimeMillis()) / 60_000).toInt()
 
+        // 读取实况通知右侧显示模式：0=课程名称，1=上课地点，2=倒计时
+        val reminderPrefs = context.getSharedPreferences("course_reminder_prefs", Context.MODE_PRIVATE)
+        val collapsedMode = reminderPrefs.getInt("live_right_mode", 0)
+        val shortCriticalText = when (collapsedMode) {
+            0 -> courseName
+            1 -> if (classroom.isNotEmpty()) classroom else courseName
+            2 -> "${minutesUntilStart + 1}分钟"
+            else -> courseName
+        }
+
+        // 构建大文本内容
+        val bigText = buildString {
+            if (startTime.isNotEmpty()) append(startTime)
+            if (classroom.isNotEmpty()) {
+                if (isNotEmpty()) append(" · ")
+                append(classroom)
+            }
+        }
+
         val notification = NotificationCompat.Builder(context, CHANNEL_LIVE_ID)
             .setSmallIcon(R.mipmap.ic_launcher)
-            .setContentTitle(if (classroom.isNotEmpty()) "$courseName｜$classroom" else courseName)
-            .setContentText("即将上课｜$startTime")
-            .setShortCriticalText(courseName)
+            .setContentTitle("$courseName | 即将上课")
+            .setShortCriticalText(shortCriticalText)
+            .setStyle(
+                NotificationCompat.BigTextStyle()
+                    .bigText(bigText)
+            )
             .setWhen(startMillis)
             .setUsesChronometer(true)
+            .setChronometerCountDown(true)
             .setOngoing(true)
             .setOnlyAlertOnce(true)
             .setContentIntent(contentIntent)
             .setCategory(Notification.CATEGORY_REMINDER)
             .setRequestPromotedOngoing(true)
+            .addAction(R.mipmap.ic_launcher, "查看课表", contentIntent)
+            .addAction(R.mipmap.ic_launcher, "立即静音", mutePendingIntent)
             .apply {
                 val timeout = endMillis - System.currentTimeMillis()
                 if (timeout > 0) setTimeoutAfter(timeout)
@@ -783,10 +813,10 @@ object CourseReminderHelper {
             .apply()
 
         // 倒计时到达后立即触发更新，使用精确闹钟确保可靠触发
-        val delay = startMillis - System.currentTimeMillis()
+            val delay = startMillis - System.currentTimeMillis()
         if (delay > 0) {
             val alarmManager = context.getSystemService(Context.ALARM_SERVICE) as AlarmManager
-            val triggerAt = startMillis + 1000L
+            val triggerAt = startMillis + 100L
             val alarmIntent = Intent(context, CourseStartReceiver::class.java)
             val pendingIntent = PendingIntent.getBroadcast(
                 context,
@@ -851,15 +881,39 @@ object CourseReminderHelper {
                 },
                 PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
             )
+
+            // 静音模式 PendingIntent
+            val muteIntent = Intent(context, MuteReceiver::class.java)
+            val mutePendingIntent = PendingIntent.getBroadcast(
+                context,
+                courseName.hashCode() + 100,
+                muteIntent,
+                PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+            )
+
+            // 构建"已上课"大文本内容
+            val bigText = buildString {
+                if (startTime.isNotEmpty()) append(startTime)
+                if (classroom.isNotEmpty()) {
+                    if (isNotEmpty()) append(" · ")
+                    append(classroom)
+                }
+            }
+
             val startedNotification = NotificationCompat.Builder(context, CHANNEL_LIVE_ID)
                 .setSmallIcon(R.mipmap.ic_launcher)
-                .setContentTitle(if (classroom.isNotEmpty()) "$courseName｜$classroom" else courseName)
-                .setContentText("已上课｜$startTime")
+                .setContentTitle("$courseName | 已上课")
                 .setShortCriticalText("已上课")
+                .setStyle(
+                    NotificationCompat.BigTextStyle()
+                        .bigText(bigText)
+                )
                 .setOngoing(true)
                 .setContentIntent(startedIntent)
                 .setCategory(Notification.CATEGORY_REMINDER)
                 .setRequestPromotedOngoing(true)
+                .addAction(R.mipmap.ic_launcher, "查看课表", startedIntent)
+                .addAction(R.mipmap.ic_launcher, "立即静音", mutePendingIntent)
                 .setTimeoutAfter(15_000L)
                 .build()
             manager.notify(notificationId, startedNotification)
@@ -874,11 +928,44 @@ object CourseReminderHelper {
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
         )
 
+        // 静音模式 PendingIntent
+        val muteIntent = Intent(context, MuteReceiver::class.java)
+        val mutePendingIntent = PendingIntent.getBroadcast(
+            context,
+            courseName.hashCode() + 100,
+            muteIntent,
+            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+        )
+
+        val minutesUntilStart = ((startMillis - now) / 60_000).toInt()
+
+        // 读取实况通知右侧显示模式
+        val collapsedPrefs = context.getSharedPreferences("course_reminder_prefs", Context.MODE_PRIVATE)
+        val collapsedMode = collapsedPrefs.getInt("live_right_mode", 0)
+        val shortCriticalText = when (collapsedMode) {
+            0 -> courseName
+            1 -> if (classroom.isNotEmpty()) classroom else courseName
+            2 -> "${minutesUntilStart + 1}分钟"
+            else -> courseName
+        }
+
+        // 构建大文本内容
+        val bigText = buildString {
+            if (startTime.isNotEmpty()) append(startTime)
+            if (classroom.isNotEmpty()) {
+                if (isNotEmpty()) append(" · ")
+                append(classroom)
+            }
+        }
+
         val notification = NotificationCompat.Builder(context, CHANNEL_LIVE_ID)
             .setSmallIcon(R.mipmap.ic_launcher)
-            .setContentTitle(if (classroom.isNotEmpty()) "$courseName｜$classroom" else courseName)
-            .setContentText("即将上课｜$startTime")
-            .setShortCriticalText(courseName)
+            .setContentTitle("$courseName | 即将上课")
+            .setShortCriticalText(shortCriticalText)
+            .setStyle(
+                NotificationCompat.BigTextStyle()
+                    .bigText(bigText)
+            )
             .setWhen(startMillis)
             .setUsesChronometer(true)
             .setChronometerCountDown(true)
@@ -887,6 +974,8 @@ object CourseReminderHelper {
             .setContentIntent(contentIntent)
             .setCategory(Notification.CATEGORY_REMINDER)
             .setRequestPromotedOngoing(true)
+            .addAction(R.mipmap.ic_launcher, "查看课表", contentIntent)
+            .addAction(R.mipmap.ic_launcher, "立即静音", mutePendingIntent)
             .apply {
                 val timeout = endMillis - now
                 if (timeout > 0) setTimeoutAfter(timeout)

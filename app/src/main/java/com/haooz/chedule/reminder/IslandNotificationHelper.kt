@@ -10,9 +10,9 @@ import android.content.Intent
 import android.graphics.drawable.Icon
 import android.os.Bundle
 import android.util.Log
-import com.haooz.chedule.ui.activities.MainActivity
 import com.haooz.chedule.R
 import com.haooz.chedule.shizuku.ShizukuManager
+import com.haooz.chedule.ui.activities.MainActivity
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
@@ -140,6 +140,25 @@ object IslandNotificationHelper {
     ): String {
         val json = JSONObject()
 
+        // 读取超级岛左侧/右侧显示模式
+        val prefs = context.getSharedPreferences("course_reminder_prefs", Context.MODE_PRIVATE)
+        val leftMode = prefs.getInt("island_left_mode", 0)
+        val rightMode = prefs.getInt("island_right_mode", 1)
+        val minutesPlus1 = (minutesUntil ?: 0) + 1
+
+        val islandLeftText = when (leftMode) {
+            0 -> courseName ?: ""
+            1 -> classroom ?: ""
+            2 -> "${minutesPlus1}分钟"
+            else -> courseName ?: ""
+        }
+        val islandRightText = when (rightMode) {
+            0 -> courseName ?: ""
+            1 -> classroom ?: ""
+            2 -> "${minutesPlus1}分钟"
+            else -> classroom ?: ""
+        }
+
         // param_v2 部分
         val paramV2 = JSONObject().apply {
             put("business", BUSINESS_TAG)
@@ -247,11 +266,11 @@ object IslandNotificationHelper {
                 val bigIsland = JSONObject().apply {
                     put("templateNo", 2) // 模板2：文本
 
-                    // A区：课程名称（无图标）
+                    // A区：左侧显示
                     val imageTextInfoLeft = JSONObject().apply {
                         put("type", 1)
                         val textInfo = JSONObject().apply {
-                            put("title", courseName ?: title)
+                            put("title", islandLeftText)
                             put("content", "")
                             put("showHighlightColor", false)
                             put("narrowFont", false)
@@ -260,19 +279,43 @@ object IslandNotificationHelper {
                     }
                     put("imageTextInfoLeft", imageTextInfoLeft)
 
-                    // B区：教室 或 已上课
-                    val textInfo = JSONObject().apply {
-                        put("frontTitle", "")
-                        put("title", if (minutesUntil != null && minutesUntil > 0) {
-                            classroom ?: ""
-                        } else {
-                            "已上课"
+                    // B区：右侧显示
+                    if (rightMode == 2 && minutesUntil != null && minutesUntil > 0) {
+                        // 倒计时模式：使用 sameWidthDigitInfo 等宽数字计时
+                        val sameWidthDigitInfo = JSONObject().apply {
+                            put("content", "上课")
+                            put("showHighlightColor", false)
+                            val timerInfo = JSONObject().apply {
+                                put("timerType", -1) // -1 倒计时
+                                put("timerWhen", courseStartTimestamp ?: (System.currentTimeMillis() + minutesUntil * 60 * 1000L))
+                                put("timerTotal", 0L)
+                                put("timerSystemCurrent", System.currentTimeMillis())
+                            }
+                            put("timerInfo", timerInfo)
+                        }
+                        put("sameWidthDigitInfo", sameWidthDigitInfo)
+                        put("textInfo", JSONObject().apply {
+                            put("frontTitle", "")
+                            put("title", "")
+                            put("content", "")
+                            put("showHighlightColor", false)
+                            put("narrowFont", false)
                         })
-                        put("content", "")
-                        put("showHighlightColor", false)
-                        put("narrowFont", false)
+                    } else {
+                        // 文本模式
+                        val textInfo = JSONObject().apply {
+                            put("frontTitle", "")
+                            put("title", if (minutesUntil != null && minutesUntil > 0) {
+                                islandRightText
+                            } else {
+                                "已上课"
+                            })
+                            put("content", "")
+                            put("showHighlightColor", false)
+                            put("narrowFont", false)
+                        }
+                        put("textInfo", textInfo)
                     }
-                    put("textInfo", textInfo)
                 }
                 put("bigIslandArea", bigIsland)
 
@@ -432,52 +475,15 @@ object IslandNotificationHelper {
 
         ensureChannel(context)
 
-        // 获取下一节课
-        val repository = com.haooz.chedule.data.CourseRepository(context)
-        val nextCourse = CourseReminderHelper.findNextCourseToday(context)
-        val startTime = nextCourse?.let { CourseReminderHelper.getCourseStartTime(it, repository) }
-        val section = if (nextCourse != null) {
-            nextCourse.getTimeDisplayText()
-        } else ""
-        val classroom = nextCourse?.classroom ?: ""
-        val courseName = nextCourse?.name ?: "课程"
-        val teacher = nextCourse?.teacher ?: ""
-
-        // 使用固定 ID 5000 区分正式通知（1001-1003）和明日通知（1002），
-        // 便于取消时精确匹配，避免残留闹钟
+        // 测试数据
+        val courseName = "大学英语Ⅱ"
+        val classroom = "A201"
+        val section = "第3~4节"
         val testNotificationId = 5000
 
-        // 计算精确的课程开始时间戳
-        val courseStartTimestamp = if (startTime != null) {
-            val parts = startTime.split(":")
-            if (parts.size == 2) {
-                val now = java.util.Calendar.getInstance()
-                val startHour = parts[0].toIntOrNull() ?: 0
-                val startMinute = parts[1].toIntOrNull() ?: 0
-                
-                // 设置课程开始时间
-                val courseTime = java.util.Calendar.getInstance().apply {
-                    set(java.util.Calendar.HOUR_OF_DAY, startHour)
-                    set(java.util.Calendar.MINUTE, startMinute)
-                    set(java.util.Calendar.SECOND, 0)
-                    set(java.util.Calendar.MILLISECOND, 0)
-                }
-                
-                // 如果课程时间已过，返回null表示已上课
-                if (courseTime.timeInMillis <= now.timeInMillis) {
-                    null
-                } else {
-                    courseTime.timeInMillis
-                }
-            } else null
-        } else null
-        
-        // 计算剩余分钟数（用于显示）
-        val minutesUntil = if (courseStartTimestamp != null) {
-            val now = System.currentTimeMillis()
-            val minutes = ((courseStartTimestamp - now) / (60 * 1000)).toInt()
-            if (minutes > 0) minutes else 0  // 如果课程已过，返回0表示已上课
-        } else 0
+        // 当前时间 + 2分，保证 minutesUntil >= 1
+        val courseStartTimestamp = System.currentTimeMillis() + 60_000L
+        val minutesUntil = ((courseStartTimestamp - System.currentTimeMillis()) / (60 * 1000)).toInt()
 
         val contentIntent = Intent(context, MainActivity::class.java).apply {
             flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP
@@ -490,12 +496,9 @@ object IslandNotificationHelper {
         )
 
         // 构建标题和内容
-        val title = if (startTime != null) "$courseName $startTime" else courseName
-        val content = buildString {
-            if (section.isNotEmpty()) append(section)
-            if (classroom.isNotEmpty()) append("｜").append(classroom)
-            if (teacher.isNotEmpty()) append("｜").append(teacher)
-        }
+        val startTime = "09:00"
+        val title = "$courseName $startTime"
+        val content = "第3~4节｜A201"
 
         val builder = Notification.Builder(context, CHANNEL_ID)
             .setSmallIcon(R.mipmap.ic_launcher)
