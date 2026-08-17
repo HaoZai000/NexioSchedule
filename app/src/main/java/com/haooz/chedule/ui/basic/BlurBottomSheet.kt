@@ -76,7 +76,11 @@ import com.kyant.backdrop.effects.vibrancy
 import com.kyant.shapes.RoundedRectangle
 import kotlinx.coroutines.launch
 import top.yukonga.miuix.kmp.anim.folmeSpring
+import com.haooz.chedule.ui.utils.LocalForcedDarkTheme
+import com.haooz.chedule.ui.utils.rememberAppSettingDark
+import top.yukonga.miuix.kmp.theme.ColorSchemeMode
 import top.yukonga.miuix.kmp.theme.MiuixTheme
+import top.yukonga.miuix.kmp.theme.ThemeController
 import top.yukonga.miuix.kmp.utils.MiuixPopupUtils.Companion.DialogLayout
 import kotlin.math.abs
 
@@ -191,7 +195,14 @@ private fun BlurBottomSheetContent(
     skipEnterAnimation: Boolean = false,
     content: @Composable () -> Unit,
 ) {
-    val animationProgress = remember { Animatable(if (show && skipEnterAnimation) 1f else 0f) }
+    // 弹窗始终跟随应用主题，不受壁纸强制主题影响
+    val sheetAppDark = rememberAppSettingDark()
+    val sheetAppController = remember(sheetAppDark) {
+        ThemeController(if (sheetAppDark) ColorSchemeMode.Dark else ColorSchemeMode.Light)
+    }
+    CompositionLocalProvider(LocalForcedDarkTheme provides null) {
+        MiuixTheme(controller = sheetAppController) {
+            val animationProgress = remember { Animatable(if (show && skipEnterAnimation) 1f else 0f) }
     val dragOffsetY = remember { Animatable(0f) }
     val density = LocalDensity.current
     val windowInfo = LocalWindowInfo.current
@@ -289,7 +300,7 @@ private fun BlurBottomSheetContent(
                 )
                 .edgeLight(shape = RoundedRectangle(36.dp), edgeLight = rememberDefaultEdgeLight())
                 .background(sheetBgColor.copy(alpha = sheetBackgroundAlpha ?: if (liquidGlassBackdrop != null)
-                    if (Build.VERSION.SDK_INT >= 33) (if (isDark) 0.87f else 0.87f) else 1f
+                    if (Build.VERSION.SDK_INT >= 33) 0.92f else 1f
                     else 1f))
                 .semantics {
                     onClick(label = "Dismiss") {
@@ -458,6 +469,8 @@ private fun BlurBottomSheetContent(
                 }
             },
         )
+        }
+        }
     }
 }
 

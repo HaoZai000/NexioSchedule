@@ -41,6 +41,7 @@ import androidx.compose.foundation.layout.statusBars
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
@@ -138,8 +139,11 @@ import top.yukonga.miuix.kmp.basic.rememberNavigationRailState
 import top.yukonga.miuix.kmp.blur.layerBackdrop
 import top.yukonga.miuix.kmp.blur.rememberLayerBackdrop
 import top.yukonga.miuix.kmp.icon.MiuixIcons
+import top.yukonga.miuix.kmp.icon.extended.Background
+import top.yukonga.miuix.kmp.icon.extended.Backup
 import top.yukonga.miuix.kmp.icon.extended.Delete
 import top.yukonga.miuix.kmp.icon.extended.Edit
+import top.yukonga.miuix.kmp.icon.extended.Import
 import top.yukonga.miuix.kmp.icon.extended.More
 import top.yukonga.miuix.kmp.icon.extended.Reset
 import top.yukonga.miuix.kmp.squircle.addSquircleRect
@@ -615,12 +619,28 @@ private fun MorePopupMenus(
                     onMorePopupDismiss()
                     onJumpWeek()
                 },
+                icon = {
+                    Icon(
+                        imageVector = MiuixIcons.Import,
+                        contentDescription = null,
+                        tint = MiuixTheme.colorScheme.onSurface,
+                        modifier = Modifier.size(24.dp).offset(x = (-2).dp)
+                    )
+                }
             )
             LiquidGlassDropdownMenuItem(
                 text = "课程管理",
                 onClick = {
                     onMorePopupDismiss()
                     onCourseManage()
+                },
+                icon = {
+                    Icon(
+                        imageVector = MiuixIcons.Backup,
+                        contentDescription = null,
+                        tint = MiuixTheme.colorScheme.onSurface,
+                        modifier = Modifier.size(24.dp)
+                    )
                 }
             )
             LiquidGlassDropdownMenuItem(
@@ -629,6 +649,14 @@ private fun MorePopupMenus(
                     onMorePopupDismiss()
                     onEnterCustomize()
                 },
+                icon = {
+                    Icon(
+                        imageVector = MiuixIcons.Background,
+                        contentDescription = null,
+                        tint = MiuixTheme.colorScheme.onSurface,
+                        modifier = Modifier.size(24.dp)
+                    )
+                }
             )
         }
         LiquidGlassDropdownMenu(
@@ -642,6 +670,14 @@ private fun MorePopupMenus(
                     onTodayMorePopupDismiss()
                     onJumpToDate()
                 },
+                icon = {
+                    Icon(
+                        imageVector = MiuixIcons.Import,
+                        contentDescription = null,
+                        tint = MiuixTheme.colorScheme.onSurface,
+                        modifier = Modifier.size(24.dp).offset(x = (-2).dp)
+                    )
+                }
             )
             LiquidGlassDropdownMenuItem(
                 text = "课程管理",
@@ -649,6 +685,14 @@ private fun MorePopupMenus(
                     onTodayMorePopupDismiss()
                     onCourseManage()
                 },
+                icon = {
+                    Icon(
+                        imageVector = MiuixIcons.Backup,
+                        contentDescription = null,
+                        tint = MiuixTheme.colorScheme.onSurface,
+                        modifier = Modifier.size(24.dp)
+                    )
+                }
             )
         }
     }
@@ -2083,37 +2127,46 @@ fun CourseScheduleApp() {
                     editingCourse?.startSection ?: selectedStartSection
                 val editingEndSection = editingCourse?.endSection ?: selectedEndSection
 
-                AddCourseDialog(
-                    show = showAddDialog,
-                    course = editingCourse,
-                    selectedDay = viewModel.selectedDay.collectAsState().value,
-                    liquidGlassBackdrop = liquidGlassBackdrop,
-                    totalWeeks = totalWeeks,
-                    totalSections = totalSections,
-                    defaultStartSection = editingStartSection,
-                    defaultEndSection = editingEndSection,
-                    getOccupiedWeeks = { dayOfWeek, startSection, endSection, excludeIds, startTime, endTime ->
-                        viewModel.getOccupiedWeeks(
-                            dayOfWeek = dayOfWeek,
-                            startSection = startSection,
-                            endSection = endSection,
-                            excludeIds = excludeIds.toSet(),
-                            startTime = startTime,
-                            endTime = endTime
+                // 添加课程对话框（始终跟随应用主题，不受壁纸强制主题影响）
+                val appDialogDark = rememberAppSettingDark()
+                val appDialogController = remember(appDialogDark) {
+                    ThemeController(if (appDialogDark) ColorSchemeMode.Dark else ColorSchemeMode.Light)
+                }
+                MiuixTheme(controller = appDialogController) {
+                    CompositionLocalProvider(LocalForcedDarkTheme provides null) {
+                        AddCourseDialog(
+                            show = showAddDialog,
+                            course = editingCourse,
+                            selectedDay = viewModel.selectedDay.collectAsState().value,
+                            liquidGlassBackdrop = liquidGlassBackdrop,
+                            totalWeeks = totalWeeks,
+                            totalSections = totalSections,
+                            defaultStartSection = editingStartSection,
+                            defaultEndSection = editingEndSection,
+                            getOccupiedWeeks = { dayOfWeek, startSection, endSection, excludeIds, startTime, endTime ->
+                                viewModel.getOccupiedWeeks(
+                                    dayOfWeek = dayOfWeek,
+                                    startSection = startSection,
+                                    endSection = endSection,
+                                    excludeIds = excludeIds.toSet(),
+                                    startTime = startTime,
+                                    endTime = endTime
+                                )
+                            },
+                            onDismiss = { viewModel.hideDialog() },
+                            onConfirm = { course ->
+                                if (editingCourse != null) {
+                                    viewModel.updateCourse(course)
+                                } else {
+                                    viewModel.addCourse(course)
+                                }
+                            },
+                            onDelete = { courseId ->
+                                viewModel.deleteCourse(courseId)
+                            }
                         )
-                    },
-                    onDismiss = { viewModel.hideDialog() },
-                    onConfirm = { course ->
-                        if (editingCourse != null) {
-                            viewModel.updateCourse(course)
-                        } else {
-                            viewModel.addCourse(course)
-                        }
-                    },
-                    onDelete = { courseId ->
-                        viewModel.deleteCourse(courseId)
                     }
-                )
+                }
                 // 删除本周课程确认弹窗
                 DeleteWeekCourseDialog(
                     show = showDeleteConfirmDialog,
@@ -2309,27 +2362,36 @@ fun CourseScheduleApp() {
                 }
             )
         }
-        // LiquidGlass 更多菜单
-        MorePopupMenus(
-            showMorePopup = showMorePopup,
-            onMorePopupDismiss = { showMorePopup = false },
-            showTodayMorePopup = showTodayMorePopup,
-            onTodayMorePopupDismiss = { showTodayMorePopup = false },
-            morePopupFraction = morePopupFraction,
-            liquidGlassBackdrop = liquidGlassBackdrop,
-            onJumpWeek = { viewModel.showJumpWeekDialog() },
-            onCourseManage = {
-                val intent = Intent(context, CourseManageActivity::class.java)
-                context.startActivity(intent)
-            },
-            onEnterCustomize = {
-                coroutineScope.launch {
-                    delay(200.milliseconds)
-                    enterCustomizePage()
-                }
-            },
-            onJumpToDate = { todayJumpToDateTrigger++ },
-        )
+        // LiquidGlass 更多菜单（有壁纸时主题跟随壁纸强制主题，无壁纸时跟随应用设置）
+        val menuForcedDark = forcedDark
+        val menuDark = menuForcedDark ?: appSettingDark
+        val menuController = remember(menuDark) {
+            ThemeController(if (menuDark) ColorSchemeMode.Dark else ColorSchemeMode.Light)
+        }
+        MiuixTheme(controller = menuController) {
+            CompositionLocalProvider(LocalForcedDarkTheme provides menuForcedDark) {
+                MorePopupMenus(
+                    showMorePopup = showMorePopup,
+                    onMorePopupDismiss = { showMorePopup = false },
+                    showTodayMorePopup = showTodayMorePopup,
+                    onTodayMorePopupDismiss = { showTodayMorePopup = false },
+                    morePopupFraction = morePopupFraction,
+                    liquidGlassBackdrop = liquidGlassBackdrop,
+                    onJumpWeek = { viewModel.showJumpWeekDialog() },
+                    onCourseManage = {
+                        val intent = Intent(context, CourseManageActivity::class.java)
+                        context.startActivity(intent)
+                    },
+                    onEnterCustomize = {
+                        coroutineScope.launch {
+                            delay(200.milliseconds)
+                            enterCustomizePage()
+                        }
+                    },
+                    onJumpToDate = { todayJumpToDateTrigger++ },
+                )
+            }
+        }
         // 进入动画遮罩（仅颜色渐变，模糊由 SwitchScheduleScreen 自身承担）
         if (isEntryAnimating) {
             Box(
