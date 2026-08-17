@@ -105,6 +105,41 @@ internal fun safeTransformOrigin(x: Float, y: Float): TransformOrigin {
     return TransformOrigin(safeX, safeY)
 }
 
+/**
+ * 从 [PopupPositionResult] 和实际偏移量推导 [PopupLayoutPosition] 和本地 [TransformOrigin]。
+ * 在 composition 和 layout 阶段均可调用，保证方向和锚点始终一致。
+ */
+internal fun resolvePopupAnchors(
+    positionResult: PopupPositionResult,
+    calculatedOffset: IntOffset,
+    popupContentSize: IntSize,
+    parentBounds: IntRect,
+    alignment: PopupPositionProvider.Align,
+    layoutDirection: LayoutDirection,
+): Pair<PopupLayoutPosition, TransformOrigin> {
+    val isRightAligned = when (alignment.resolve(layoutDirection)) {
+        PopupPositionProvider.Align.End,
+        PopupPositionProvider.Align.TopEnd,
+        PopupPositionProvider.Align.BottomEnd,
+        -> true
+        else -> false
+    }
+    val distLeft = abs(calculatedOffset.x - parentBounds.left)
+    val distRight = abs((calculatedOffset.x + popupContentSize.width) - parentBounds.right)
+    val rightAligned = if (popupContentSize.width > 0) distRight < distLeft else isRightAligned
+
+    val layoutPos = PopupLayoutPosition(
+        showBelow = positionResult.showBelow,
+        showAbove = positionResult.showAbove,
+        isRightAligned = rightAligned,
+    )
+    val origin = TransformOrigin(
+        pivotFractionX = if (rightAligned) 1f else 0f,
+        pivotFractionY = if (positionResult.showAbove) 1f else 0f,
+    )
+    return layoutPos to origin
+}
+
 // =====================================================================
 // 常量 - 用于ListPopupColumn的测量策略
 // =====================================================================
@@ -220,10 +255,24 @@ fun ListPopupColumn(
  *
  * 注意：位置是相对于窗口计算的，不是相对于锚点！
  */
+/**
+ * 弹窗位置计算结果，包含偏移量和展开方向。
+ *
+ * @param offset 弹窗左上角在窗口坐标系中的偏移量
+ * @param showBelow 弹窗是否在锚点下方展开
+ * @param showAbove 弹窗是否在锚点上方展开
+ */
+@Immutable
+data class PopupPositionResult(
+    val offset: IntOffset,
+    val showBelow: Boolean,
+    val showAbove: Boolean,
+)
+
 @Stable
 interface PopupPositionProvider {
     /**
-     * 计算弹窗的位置（偏移量）
+     * 计算弹窗的位置（偏移量）和展开方向。
      *
      * @param anchorBounds 锚点（父组件）的边界
      * @param windowBounds 窗口安全区域的边界（排除状态栏、导航栏、刘海等）
@@ -239,7 +288,7 @@ interface PopupPositionProvider {
         popupContentSize: IntSize,
         popupMargin: IntRect,
         alignment: Align,
-    ): IntOffset
+    ): PopupPositionResult
 
     /**
      * 获取弹窗的额外边距
@@ -332,7 +381,7 @@ object ListPopupDefaults {
             popupContentSize: IntSize,
             popupMargin: IntRect,
             alignment: PopupPositionProvider.Align,
-        ): IntOffset {
+        ): PopupPositionResult {
             val offsetXDelta = 82  //@ 3x density
             val offsetYDelta = 94  //@ 3x density
 
@@ -342,18 +391,31 @@ object ListPopupDefaults {
             } else {
                 anchorBounds.left + popupMargin.left + offsetXDelta
             }
-            // 计算Y偏移（覆盖模式：弹窗上端或下端与锚点对齐，微调）
-            val offsetY = if (windowBounds.bottom - anchorBounds.bottom > popupContentSize.height) {
+
+            // 计算Y偏移并记录展开方向
+            val spaceBelow = windowBounds.bottom - anchorBounds.bottom
+            val spaceAbove = anchorBounds.top - windowBounds.top
+            val offsetY: Int
+            val showBelow: Boolean
+            val showAbove: Boolean
+            if (spaceBelow > popupContentSize.height) {
                 // 显示在下方：弹窗上端与锚点上端对齐，往上偏移
-                anchorBounds.top - offsetYDelta
-            } else if (anchorBounds.top - windowBounds.top > popupContentSize.height) {
+                offsetY = anchorBounds.top - offsetYDelta
+                showBelow = true
+                showAbove = false
+            } else if (spaceAbove > popupContentSize.height) {
                 // 显示在上方：弹窗下端与锚点下端对齐，往下偏移
-                anchorBounds.bottom - popupContentSize.height + offsetYDelta
+                offsetY = anchorBounds.bottom - popupContentSize.height + offsetYDelta
+                showBelow = false
+                showAbove = true
             } else {
                 // 居中显示
-                anchorBounds.top + anchorBounds.height / 2 - popupContentSize.height / 2
+                offsetY = anchorBounds.top + anchorBounds.height / 2 - popupContentSize.height / 2
+                showBelow = false
+                showAbove = false
             }
-            return IntOffset(
+
+            val clampedOffset = IntOffset(
                 x = offsetX.coerceIn(
                     windowBounds.left,
                     (windowBounds.right - popupContentSize.width - popupMargin.right).coerceAtLeast(windowBounds.left),
@@ -363,6 +425,7 @@ object ListPopupDefaults {
                     windowBounds.bottom - popupContentSize.height - popupMargin.bottom,
                 ),
             )
+            return PopupPositionResult(clampedOffset, showBelow, showAbove)
         }
 
         override fun getMargins(): PaddingValues = margins
@@ -385,25 +448,35 @@ object ListPopupDefaults {
             popupContentSize: IntSize,
             popupMargin: IntRect,
             alignment: PopupPositionProvider.Align,
-        ): IntOffset {
+        ): PopupPositionResult {
             val offsetX: Int
             val offsetY: Int
+            val showBelow: Boolean
+            val showAbove: Boolean
             when (alignment.resolve(layoutDirection)) {
                 PopupPositionProvider.Align.TopStart -> {
                     offsetX = anchorBounds.left + popupMargin.left
                     offsetY = anchorBounds.bottom + popupMargin.top
+                    showBelow = true
+                    showAbove = false
                 }
                 PopupPositionProvider.Align.TopEnd -> {
                     offsetX = anchorBounds.right - popupContentSize.width - popupMargin.right
                     offsetY = anchorBounds.bottom + popupMargin.top
+                    showBelow = true
+                    showAbove = false
                 }
                 PopupPositionProvider.Align.BottomStart -> {
                     offsetX = anchorBounds.left + popupMargin.left
                     offsetY = anchorBounds.top - popupContentSize.height - popupMargin.bottom
+                    showBelow = false
+                    showAbove = true
                 }
                 PopupPositionProvider.Align.BottomEnd -> {
                     offsetX = anchorBounds.right - popupContentSize.width - popupMargin.right
                     offsetY = anchorBounds.top - popupContentSize.height - popupMargin.bottom
+                    showBelow = false
+                    showAbove = true
                 }
                 else -> {
                     // 兜底逻辑：与dropdownPositionProvider相同
@@ -412,16 +485,24 @@ object ListPopupDefaults {
                     } else {
                         anchorBounds.left + popupMargin.left
                     }
-                    offsetY = if (windowBounds.bottom - anchorBounds.bottom > popupContentSize.height) {
-                        anchorBounds.bottom + popupMargin.bottom
-                    } else if (anchorBounds.top - windowBounds.top > popupContentSize.height) {
-                        anchorBounds.top - popupContentSize.height - popupMargin.top
+                    val spaceBelow = windowBounds.bottom - anchorBounds.bottom
+                    val spaceAbove = anchorBounds.top - windowBounds.top
+                    if (spaceBelow > popupContentSize.height) {
+                        offsetY = anchorBounds.bottom + popupMargin.bottom
+                        showBelow = true
+                        showAbove = false
+                    } else if (spaceAbove > popupContentSize.height) {
+                        offsetY = anchorBounds.top - popupContentSize.height - popupMargin.top
+                        showBelow = false
+                        showAbove = true
                     } else {
-                        anchorBounds.top + anchorBounds.height / 2 - popupContentSize.height / 2
+                        offsetY = anchorBounds.top + anchorBounds.height / 2 - popupContentSize.height / 2
+                        showBelow = false
+                        showAbove = false
                     }
                 }
             }
-            return IntOffset(
+            val clampedOffset = IntOffset(
                 x = offsetX.coerceIn(
                     windowBounds.left,
                     (windowBounds.right - popupContentSize.width - popupMargin.right).coerceAtLeast(windowBounds.left),
@@ -431,6 +512,7 @@ object ListPopupDefaults {
                     windowBounds.bottom - popupContentSize.height - popupMargin.bottom,
                 ),
             )
+            return PopupPositionResult(clampedOffset, showBelow, showAbove)
         }
 
         override fun getMargins(): PaddingValues = PaddingValues(horizontal = 0.dp, vertical = 0.dp)
@@ -549,8 +631,8 @@ fun rememberListPopupLayoutInfo(
         )
     }
 
-    // 计算弹窗偏移量
-    val calculatedOffset = remember(
+    // 计算弹窗位置和展开方向（由 positionProvider 一次性返回）
+    val positionResult = remember(
         popupContentSize,
         windowBounds,
         parentBounds,
@@ -560,7 +642,7 @@ fun rememberListPopupLayoutInfo(
         popupPositionProvider,
     ) {
         if (popupContentSize == IntSize.Zero) {
-            IntOffset.Zero
+            PopupPositionResult(IntOffset.Zero, showBelow = true, showAbove = false)
         } else {
             popupPositionProvider.calculatePosition(
                 parentBounds,
@@ -572,15 +654,15 @@ fun rememberListPopupLayoutInfo(
             )
         }
     }
+    val calculatedOffset = positionResult.offset
 
-    // 解析弹窗的放置方向（下方/上方/居中，左对齐/右对齐）
-    val popupLayoutPosition = remember(
+    // 解析弹窗的放置方向和本地变换原点：方向直接取自 positionProvider 的真实分支。
+    val (popupLayoutPosition, localTransformOrigin) = remember(
         popupContentSize,
-        windowBounds,
-        parentBounds,
-        alignment,
         calculatedOffset,
+        positionResult,
         layoutDirection,
+        alignment,
     ) {
         if (popupContentSize == IntSize.Zero) {
             val isRightAligned = when (alignment.resolve(layoutDirection)) {
@@ -590,46 +672,44 @@ fun rememberListPopupLayoutInfo(
                 -> true
                 else -> false
             }
-            PopupLayoutPosition(showBelow = true, showAbove = false, isRightAligned = isRightAligned)
+            PopupLayoutPosition(showBelow = true, showAbove = false, isRightAligned = isRightAligned) to
+                TransformOrigin(if (isRightAligned) 1f else 0f, 0f)
         } else {
-            val popupCenterY = calculatedOffset.y + popupContentSize.height / 2
-            val anchorCenterY = parentBounds.top + parentBounds.height / 2
-            val showBelow = popupCenterY > anchorCenterY
-            val showAbove = popupCenterY < anchorCenterY
-
-            val distLeft = abs(calculatedOffset.x - parentBounds.left)
-            val distRight = abs((calculatedOffset.x + popupContentSize.width) - parentBounds.right)
-            val isRightAligned = distRight < distLeft
-
-            PopupLayoutPosition(showBelow = showBelow, showAbove = showAbove, isRightAligned = isRightAligned)
+            resolvePopupAnchors(positionResult, calculatedOffset, popupContentSize, parentBounds, alignment, layoutDirection)
         }
     }
 
-    // 计算有效的变换原点（窗口坐标系，用于缩放动画的pivot）
+    // 计算有效的变换原点（窗口坐标系，用于缩放动画的pivot）。
+    // 方向直接取自 positionResult，与实际展开分支完全一致。
     val effectiveTransformOrigin = remember(
         popupContentSize,
         calculatedOffset,
-        popupLayoutPosition,
+        positionResult,
         containerSize,
         predictedTransformOrigin,
+        layoutDirection,
+        alignment,
     ) {
         if (popupContentSize == IntSize.Zero) {
             predictedTransformOrigin
         } else {
-            val (showBelow, showAbove, isRightAligned) = popupLayoutPosition
+            val isRightAligned = when (alignment.resolve(layoutDirection)) {
+                PopupPositionProvider.Align.End,
+                PopupPositionProvider.Align.TopEnd,
+                PopupPositionProvider.Align.BottomEnd,
+                -> true
+                else -> false
+            }
             val cornerX = if (isRightAligned) {
                 (calculatedOffset.x + popupContentSize.width).toFloat()
             } else {
                 calculatedOffset.x.toFloat()
             }
 
-            val showMiddle = !showBelow && !showAbove
-            val topLeftY = calculatedOffset.y
             val cornerY = when {
-                showMiddle -> (topLeftY + popupContentSize.height / 2f)
-                showBelow -> topLeftY.toFloat()
-                showAbove -> (topLeftY + popupContentSize.height).toFloat()
-                else -> topLeftY.toFloat()
+                positionResult.showBelow -> calculatedOffset.y.toFloat()
+                positionResult.showAbove -> (calculatedOffset.y + popupContentSize.height).toFloat()
+                else -> (calculatedOffset.y + popupContentSize.height / 2f)
             }
 
             safeTransformOrigin(
@@ -637,22 +717,6 @@ fun rememberListPopupLayoutInfo(
                 cornerY / containerSize.height.toFloat(),
             )
         }
-    }
-
-    // 计算本地变换原点（本地坐标系，用于graphicsLayer的transformOrigin）
-    val localTransformOrigin = remember(popupLayoutPosition) {
-        val (showBelow, showAbove, isRightAligned) = popupLayoutPosition
-        val showMiddle = !showBelow && !showAbove
-
-        TransformOrigin(
-            pivotFractionX = if (isRightAligned) 1f else 0f,
-            pivotFractionY = when {
-                showMiddle -> 0.5f
-                showBelow -> 0f
-                showAbove -> 1f
-                else -> 0f
-            },
-        )
     }
 
     return ListPopupLayoutInfo(

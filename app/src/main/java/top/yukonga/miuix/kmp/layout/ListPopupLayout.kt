@@ -22,6 +22,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.graphics.TransformOrigin
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.layout
 import androidx.compose.ui.layout.onGloballyPositioned
@@ -38,8 +39,11 @@ import androidx.compose.ui.platform.LocalLayoutDirection
 import androidx.compose.ui.unit.LayoutDirection
 import top.yukonga.miuix.kmp.basic.ListPopupContent
 import top.yukonga.miuix.kmp.basic.ListPopupDefaults
+import top.yukonga.miuix.kmp.basic.PopupLayoutPosition
 import top.yukonga.miuix.kmp.basic.PopupPositionProvider
+import top.yukonga.miuix.kmp.basic.PopupPositionResult
 import top.yukonga.miuix.kmp.basic.rememberListPopupLayoutInfo
+import top.yukonga.miuix.kmp.basic.resolvePopupAnchors
 import top.yukonga.miuix.kmp.theme.LocalDismissState
 import top.yukonga.miuix.kmp.anim.SinOutEasing
 
@@ -75,7 +79,7 @@ fun liquidDropdownPositionProvider(): PopupPositionProvider = object : PopupPosi
         popupContentSize: IntSize,
         popupMargin: IntRect,
         alignment: PopupPositionProvider.Align,
-    ): IntOffset {
+    ): PopupPositionResult {
         val offsetXDelta = 82  //@ 3x density
         val offsetYDelta = 94  //@ 3x density
 
@@ -84,14 +88,27 @@ fun liquidDropdownPositionProvider(): PopupPositionProvider = object : PopupPosi
         } else {
             anchorBounds.left + popupMargin.left + offsetXDelta
         }
-        val offsetY = if (windowBounds.bottom - anchorBounds.bottom > popupContentSize.height) {
-            anchorBounds.top - offsetYDelta
-        } else if (anchorBounds.top - windowBounds.top > popupContentSize.height) {
-            anchorBounds.bottom - popupContentSize.height + offsetYDelta
+
+        val spaceBelow = windowBounds.bottom - anchorBounds.bottom
+        val spaceAbove = anchorBounds.top - windowBounds.top
+        val offsetY: Int
+        val showBelow: Boolean
+        val showAbove: Boolean
+        if (spaceBelow > popupContentSize.height) {
+            offsetY = anchorBounds.top - offsetYDelta
+            showBelow = true
+            showAbove = false
+        } else if (spaceAbove > popupContentSize.height) {
+            offsetY = anchorBounds.bottom - popupContentSize.height + offsetYDelta
+            showBelow = false
+            showAbove = true
         } else {
-            anchorBounds.top + anchorBounds.height / 2 - popupContentSize.height / 2
+            offsetY = anchorBounds.top + anchorBounds.height / 2 - popupContentSize.height / 2
+            showBelow = false
+            showAbove = false
         }
-        return IntOffset(
+
+        val clampedOffset = IntOffset(
             x = offsetX.coerceIn(
                 windowBounds.left,
                 (windowBounds.right - popupContentSize.width - popupMargin.right).coerceAtLeast(windowBounds.left),
@@ -101,6 +118,7 @@ fun liquidDropdownPositionProvider(): PopupPositionProvider = object : PopupPosi
                 windowBounds.bottom - popupContentSize.height - popupMargin.bottom,
             ),
         )
+        return PopupPositionResult(clampedOffset, showBelow, showAbove)
     }
 
     override fun getMargins(): PaddingValues = margins
@@ -206,6 +224,11 @@ fun ListPopupLayout(
         popupContentSize = popupContentSize,
     )
 
+    // 由 layout 阶段计算的真实方向和锚点，与 calculatedOffset 使用同一个 measuredSize，
+    // 避免 composition 阶段的 popupContentSize 与 layout 阶段的 measuredSize 不一致。
+    var realPopupLayoutPosition by remember { mutableStateOf(PopupLayoutPosition(showBelow = true, showAbove = false, isRightAligned = false)) }
+    var realLocalTransformOrigin by remember { mutableStateOf(TransformOrigin(0f, 0f)) }
+
     val requestDismiss: () -> Unit = remember {
         { currentOnDismiss?.invoke() }
     }
@@ -245,7 +268,7 @@ fun ListPopupLayout(
                         )
                         val measuredSize = IntSize(placeable.width, placeable.height)
 
-                        val calculatedOffset = popupPositionProvider.calculatePosition(
+                        val positionResult = popupPositionProvider.calculatePosition(
                             parentBounds,
                             windowBounds,
                             layoutDirection,
@@ -253,6 +276,14 @@ fun ListPopupLayout(
                             popupMargin,
                             alignment,
                         )
+                        val calculatedOffset = positionResult.offset
+
+                        // 从同一个 positionResult 推导方向和锚点，保证一致性
+                        val (layoutPos, transformOrigin) = resolvePopupAnchors(
+                            positionResult, calculatedOffset, measuredSize, parentBounds, alignment, layoutDirection,
+                        )
+                        realPopupLayoutPosition = layoutPos
+                        realLocalTransformOrigin = transformOrigin
 
                         val adjustedOffset = IntOffset(
                             x = calculatedOffset.x - hostPositionInWindow.x.toInt(),
@@ -269,8 +300,8 @@ fun ListPopupLayout(
                     onPopupContentSizeChange = { popupContentSize = it },
                     fractionProgress = { fractionProgress.value },
                     alphaProgress = { alphaProgress.value },
-                    popupLayoutPosition = layoutInfo.popupLayoutPosition,
-                    localTransformOrigin = layoutInfo.localTransformOrigin,
+                    popupLayoutPosition = realPopupLayoutPosition,
+                    localTransformOrigin = realLocalTransformOrigin,
                     liquidGlassBackdrop = liquidGlassBackdrop,
                     revealLimitHeight = revealLimitHeight,
                     content = {

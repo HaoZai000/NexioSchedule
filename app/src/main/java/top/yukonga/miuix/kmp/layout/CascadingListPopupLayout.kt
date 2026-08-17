@@ -441,7 +441,7 @@ private fun CascadingMorphSubLayout(
                 primaryMeasuredSize,
                 popupMargin,
                 alignment,
-            )
+            ).offset
         }
 
         // Probe secondary's natural size first so the union rect (primary ∪ secondary) is
