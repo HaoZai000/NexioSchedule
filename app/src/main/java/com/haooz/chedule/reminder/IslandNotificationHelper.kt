@@ -402,11 +402,7 @@ object IslandNotificationHelper {
         notification.extras.putString("miui.focus.param", islandParams)
 
         if (useShizukuBypass && !isShizukuAvailable()) {
-            // 超级岛开启但 Shizuku 不可用，提示用户
-            Log.w(TAG, "Shizuku not available, showing toast and sending notification")
-            android.os.Handler(android.os.Looper.getMainLooper()).post {
-                android.widget.Toast.makeText(context, "Shizuku 未授权，超级岛通知可能无法正常显示", android.widget.Toast.LENGTH_LONG).show()
-            }
+            // Shizuku 不可用，直接发送（不走 bypass）
         }
         scope.launch {
             withShizukuBypass(context, notificationId, notification, useShizukuBypass)
@@ -535,26 +531,17 @@ object IslandNotificationHelper {
         val notification = builder.build()
         notification.extras.putString("miui.focus.param", islandParams)
 
-        // 确保 Shizuku 可用后再发送
+        // Shizuku 不可用时弹 Toast 提示，然后直接发送（不走 bypass）
         if (!isShizukuAvailable()) {
-            Log.w(TAG, "Shizuku not available, requesting permission first")
-            ShizukuManager.requestPermission { granted ->
-                if (granted) {
-                    Log.d(TAG, "Shizuku permission granted, sending notification")
-                    scope.launch {
-                        withShizukuBypass(context, testNotificationId, notification, useShizukuBypass = true)
-                    }
-                } else {
-                    Log.w(TAG, "Shizuku permission denied, sending without bypass")
-                    sendNotificationDirect(context, testNotificationId, notification)
-                }
+            android.os.Handler(android.os.Looper.getMainLooper()).post {
+                android.widget.Toast.makeText(context, "Shizuku 未授权，超级岛通知可能无法正常显示", android.widget.Toast.LENGTH_LONG).show()
             }
-            return
-        }
-
-        // Shizuku 已可用，直接发送
-        scope.launch {
-            withShizukuBypass(context, testNotificationId, notification, useShizukuBypass = true)
+            sendNotificationDirect(context, testNotificationId, notification)
+        } else {
+            // Shizuku 已可用，走 bypass 发送
+            scope.launch {
+                withShizukuBypass(context, testNotificationId, notification, useShizukuBypass = true)
+            }
         }
 
         // 测试模式：倒计时结束后触发展开态弹出

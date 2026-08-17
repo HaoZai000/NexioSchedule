@@ -52,6 +52,7 @@ import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.core.content.edit
 import androidx.core.net.toUri
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.haooz.chedule.reminder.CourseReminderHelper
@@ -458,6 +459,12 @@ fun CourseReminderScreen(
                                                 modifier = Modifier.fillMaxWidth()
                                             )
                                         }
+                                        Spacer(modifier = Modifier.height(8.dp))
+                                        Text(
+                                            text = "HyperOS4起Shizuku方法已不再可用，请自行处理",
+                                            style = MiuixTheme.textStyles.body2,
+                                            color = MiuixTheme.colorScheme.onSurfaceVariantSummary
+                                        )
                                     }
                                 }
                             }
@@ -485,7 +492,7 @@ fun CourseReminderScreen(
                                 selected = liveRightMode == 0,
                                 onClick = {
                                     liveRightMode = 0
-                                    reminderPrefs.edit().putInt("live_right_mode", 0).apply()
+                                    reminderPrefs.edit { putInt("live_right_mode", 0) }
                                 }
                             ),
                             DropdownItem(
@@ -493,7 +500,7 @@ fun CourseReminderScreen(
                                 selected = liveRightMode == 1,
                                 onClick = {
                                     liveRightMode = 1
-                                    reminderPrefs.edit().putInt("live_right_mode", 1).apply()
+                                    reminderPrefs.edit { putInt("live_right_mode", 1) }
                                 }
                             ),
                             DropdownItem(
@@ -501,7 +508,7 @@ fun CourseReminderScreen(
                                 selected = liveRightMode == 2,
                                 onClick = {
                                     liveRightMode = 2
-                                    reminderPrefs.edit().putInt("live_right_mode", 2).apply()
+                                    reminderPrefs.edit { putInt("live_right_mode", 2) }
                                 }
                             ),
                         )
@@ -512,7 +519,7 @@ fun CourseReminderScreen(
                                 selected = islandLeftMode == 0,
                                 onClick = {
                                     islandLeftMode = 0
-                                    reminderPrefs.edit().putInt("island_left_mode", 0).apply()
+                                    reminderPrefs.edit { putInt("island_left_mode", 0) }
                                 }
                             ),
                             DropdownItem(
@@ -520,7 +527,7 @@ fun CourseReminderScreen(
                                 selected = islandLeftMode == 1,
                                 onClick = {
                                     islandLeftMode = 1
-                                    reminderPrefs.edit().putInt("island_left_mode", 1).apply()
+                                    reminderPrefs.edit { putInt("island_left_mode", 1) }
                                 }
                             ),
                             DropdownItem(
@@ -528,7 +535,7 @@ fun CourseReminderScreen(
                                 selected = islandLeftMode == 2,
                                 onClick = {
                                     islandLeftMode = 2
-                                    reminderPrefs.edit().putInt("island_left_mode", 2).apply()
+                                    reminderPrefs.edit { putInt("island_left_mode", 2) }
                                 }
                             ),
                         )
@@ -539,7 +546,7 @@ fun CourseReminderScreen(
                                 selected = islandRightMode == 0,
                                 onClick = {
                                     islandRightMode = 0
-                                    reminderPrefs.edit().putInt("island_right_mode", 0).apply()
+                                    reminderPrefs.edit { putInt("island_right_mode", 0) }
                                 }
                             ),
                             DropdownItem(
@@ -547,7 +554,7 @@ fun CourseReminderScreen(
                                 selected = islandRightMode == 1,
                                 onClick = {
                                     islandRightMode = 1
-                                    reminderPrefs.edit().putInt("island_right_mode", 1).apply()
+                                    reminderPrefs.edit { putInt("island_right_mode", 1) }
                                 }
                             ),
                             DropdownItem(
@@ -555,7 +562,7 @@ fun CourseReminderScreen(
                                 selected = islandRightMode == 2,
                                 onClick = {
                                     islandRightMode = 2
-                                    reminderPrefs.edit().putInt("island_right_mode", 2).apply()
+                                    reminderPrefs.edit { putInt("island_right_mode", 2) }
                                 }
                             ),
                         )
@@ -572,7 +579,7 @@ fun CourseReminderScreen(
                                 insideMargin = PaddingValues(0.dp)
                             ) {
                                 OverlayDropdownMenu(
-                                    title = "实况通知右侧",
+                                    title = "实时动态右侧",
                                     entry = DropdownEntry(items = liveRightOptions),
                                     collapseOnSelection = true,
                                     liquidGlassBackdrop = liquidGlassBackdrop,
@@ -708,7 +715,7 @@ fun CourseReminderScreen(
                                     TextButton(
                                         text = "已开启",
                                         onClick = {
-                                            reminderPrefs.edit().putBoolean("auto_start_dismissed", true).apply()
+                                            reminderPrefs.edit { putBoolean("auto_start_dismissed", true) }
                                             autoStartDismissed = true
                                         },
                                         modifier = Modifier.weight(1f)
@@ -796,7 +803,6 @@ fun CourseReminderScreen(
                                                 promotedSettingsLauncher.launch(intent)
                                             }
                                         },
-                                        colors = ButtonDefaults.textButtonColorsPrimary(),
                                         modifier = Modifier.fillMaxWidth()
                                     )
                                 }

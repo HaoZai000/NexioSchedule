@@ -10,6 +10,7 @@ import android.content.Context
 import android.content.Intent
 import android.os.Build
 import androidx.core.app.NotificationCompat
+import androidx.core.content.edit
 import com.haooz.chedule.R
 import com.haooz.chedule.data.Course
 import com.haooz.chedule.data.CourseRepository
@@ -54,10 +55,10 @@ object CourseReminderHelper {
      */
     fun recordPreClassSent(context: Context, courseId: String) {
         context.getSharedPreferences(PREF_SENT_HISTORY, Context.MODE_PRIVATE)
-            .edit()
-            .putString(KEY_LAST_SENT_COURSE, courseId)
-            .putLong(KEY_LAST_SENT_TIME, System.currentTimeMillis())
-            .apply()
+            .edit {
+                putString(KEY_LAST_SENT_COURSE, courseId)
+                    .putLong(KEY_LAST_SENT_TIME, System.currentTimeMillis())
+            }
     }
 
     /**
@@ -87,7 +88,7 @@ object CourseReminderHelper {
         if (lastDate == today) return
 
         // 日期变化（或首次运行），重新调度
-        prefs.edit().putString(KEY_LAST_SCHEDULE_DATE, today).apply()
+        prefs.edit { putString(KEY_LAST_SCHEDULE_DATE, today) }
         startReminderService(context)
     }
 
@@ -372,7 +373,7 @@ object CourseReminderHelper {
                     alarmTime.timeInMillis,
                     pendingIntent
                 )
-            } catch (e: SecurityException) { }
+            } catch (_: SecurityException) { }
         }
     }
 
@@ -758,7 +759,7 @@ object CourseReminderHelper {
         val collapsedMode = reminderPrefs.getInt("live_right_mode", 0)
         val shortCriticalText = when (collapsedMode) {
             0 -> courseName
-            1 -> if (classroom.isNotEmpty()) classroom else courseName
+            1 -> classroom.ifEmpty { courseName }
             2 -> "${minutesUntilStart + 1}分钟"
             else -> courseName
         }
@@ -788,8 +789,8 @@ object CourseReminderHelper {
             .setContentIntent(contentIntent)
             .setCategory(Notification.CATEGORY_REMINDER)
             .setRequestPromotedOngoing(true)
-            .addAction(R.mipmap.ic_launcher, "查看课表", contentIntent)
-            .addAction(R.mipmap.ic_launcher, "立即静音", mutePendingIntent)
+            .addAction(R.drawable.ic_notification_calendar, "查看课表", contentIntent)
+            .addAction(R.drawable.ic_notification_mute, "立即静音", mutePendingIntent)
             .apply {
                 val timeout = endMillis - System.currentTimeMillis()
                 if (timeout > 0) setTimeoutAfter(timeout)
@@ -801,16 +802,16 @@ object CourseReminderHelper {
 
         // 保存倒计时状态，供 WidgetRefreshReceiver 每分钟更新
         val prefs = context.getSharedPreferences("countdown_state", Context.MODE_PRIVATE)
-        prefs.edit()
-            .putBoolean("active", true)
-            .putString("courseName", courseName)
-            .putString("classroom", classroom)
-            .putString("section", section)
-            .putString("startTime", startTime)
-            .putLong("startMillis", startMillis)
-            .putLong("endMillis", endMillis)
-            .putInt("notificationId", notificationId)
-            .apply()
+        prefs.edit {
+            putBoolean("active", true)
+                .putString("courseName", courseName)
+                .putString("classroom", classroom)
+                .putString("section", section)
+                .putString("startTime", startTime)
+                .putLong("startMillis", startMillis)
+                .putLong("endMillis", endMillis)
+                .putInt("notificationId", notificationId)
+        }
 
         // 倒计时到达后立即触发更新，使用精确闹钟确保可靠触发
             val delay = startMillis - System.currentTimeMillis()
@@ -844,7 +845,7 @@ object CourseReminderHelper {
         // 超级岛模式下不显示实况通知
         val repository = CourseRepository(context)
         if (repository.getIslandNotification() && IslandNotificationHelper.isIslandSupported(context)) {
-            prefs.edit().putBoolean("active", false).apply()
+            prefs.edit { putBoolean("active", false) }
             return
         }
 
@@ -853,17 +854,16 @@ object CourseReminderHelper {
         val notificationId = prefs.getInt("notificationId", 0)
         val courseName = prefs.getString("courseName", "") ?: ""
         val classroom = prefs.getString("classroom", "") ?: ""
-        val section = prefs.getString("section", "") ?: ""
         val startTime = prefs.getString("startTime", "") ?: ""
 
         val now = System.currentTimeMillis()
 
         // 通知过期（课程结束），取消
-        if (endMillis > 0 && now >= endMillis) {
+        if (endMillis in 1..now) {
             val manager = context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
             manager.cancel(notificationId)
             manager.cancel(1003)
-            prefs.edit().putBoolean("active", false).apply()
+            prefs.edit { putBoolean("active", false) }
             return
         }
 
@@ -872,7 +872,7 @@ object CourseReminderHelper {
             val manager = context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
             manager.cancel(notificationId)
             manager.cancel(1003)
-            prefs.edit().putBoolean("active", false).apply()
+            prefs.edit { putBoolean("active", false) }
 
             val startedIntent = PendingIntent.getActivity(
                 context, courseName.hashCode(),
@@ -912,8 +912,8 @@ object CourseReminderHelper {
                 .setContentIntent(startedIntent)
                 .setCategory(Notification.CATEGORY_REMINDER)
                 .setRequestPromotedOngoing(true)
-                .addAction(R.mipmap.ic_launcher, "查看课表", startedIntent)
-                .addAction(R.mipmap.ic_launcher, "立即静音", mutePendingIntent)
+                .addAction(R.drawable.ic_notification_calendar, "查看课表", startedIntent)
+                .addAction(R.drawable.ic_notification_mute, "立即静音", mutePendingIntent)
                 .setTimeoutAfter(15_000L)
                 .build()
             manager.notify(notificationId, startedNotification)
@@ -944,7 +944,7 @@ object CourseReminderHelper {
         val collapsedMode = collapsedPrefs.getInt("live_right_mode", 0)
         val shortCriticalText = when (collapsedMode) {
             0 -> courseName
-            1 -> if (classroom.isNotEmpty()) classroom else courseName
+            1 -> classroom.ifEmpty { courseName }
             2 -> "${minutesUntilStart + 1}分钟"
             else -> courseName
         }
@@ -974,8 +974,8 @@ object CourseReminderHelper {
             .setContentIntent(contentIntent)
             .setCategory(Notification.CATEGORY_REMINDER)
             .setRequestPromotedOngoing(true)
-            .addAction(R.mipmap.ic_launcher, "查看课表", contentIntent)
-            .addAction(R.mipmap.ic_launcher, "立即静音", mutePendingIntent)
+            .addAction(R.drawable.ic_notification_calendar, "查看课表", contentIntent)
+            .addAction(R.drawable.ic_notification_mute, "立即静音", mutePendingIntent)
             .apply {
                 val timeout = endMillis - now
                 if (timeout > 0) setTimeoutAfter(timeout)
