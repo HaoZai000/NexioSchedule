@@ -28,7 +28,6 @@ import androidx.compose.runtime.setValue
 import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.blur
-import androidx.compose.material3.Icon
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.geometry.CornerRadius
@@ -301,7 +300,7 @@ fun LiquidGlassDropdownMenuItem(
             .padding(horizontal = 8.dp)
             .clip(RoundedRectangle(17.dp))
             .clickable(onClick = onClick)
-            .padding(horizontal = 14.dp, vertical = 12.dp)
+            .padding(horizontal = 14.dp, vertical = 10.5.dp)
     ) {
         Row(verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
             if (icon != null) {
@@ -310,7 +309,7 @@ fun LiquidGlassDropdownMenuItem(
             }
             Text(
                 text = text,
-                fontSize = 16.sp,
+                fontSize = 15.6.sp,
                 fontWeight = FontWeight.Medium,
                 color = textColor
             )

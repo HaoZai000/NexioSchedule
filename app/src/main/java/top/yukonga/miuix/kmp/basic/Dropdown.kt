@@ -35,6 +35,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.DpSize
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import com.kyant.shapes.RoundedRectangle
 import top.yukonga.miuix.kmp.icon.MiuixIcons
 import top.yukonga.miuix.kmp.icon.basic.ArrowRight
@@ -138,7 +139,7 @@ fun DropdownImpl(
                 onClick = { currentOnSelectedIndexChange(index) },
             )
             .then(containerModifier)
-            .padding(horizontal = 14.dp, vertical = 12.dp),
+            .padding(horizontal = 14.dp, vertical = 10.5.dp),
     ) {
         Row(
             modifier = innerRowModifier,
@@ -149,7 +150,7 @@ fun DropdownImpl(
             Column {
                 Text(
                     text = item.text,
-                    fontSize = MiuixTheme.textStyles.body1.fontSize,
+                    fontSize = 15.6.sp,
                     fontWeight = FontWeight.Medium,
                     color = titleColor,
                 )

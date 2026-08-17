@@ -139,11 +139,11 @@ import top.yukonga.miuix.kmp.basic.rememberNavigationRailState
 import top.yukonga.miuix.kmp.blur.layerBackdrop
 import top.yukonga.miuix.kmp.blur.rememberLayerBackdrop
 import top.yukonga.miuix.kmp.icon.MiuixIcons
+import top.yukonga.miuix.kmp.icon.basic.FastForward
 import top.yukonga.miuix.kmp.icon.extended.Background
 import top.yukonga.miuix.kmp.icon.extended.Backup
 import top.yukonga.miuix.kmp.icon.extended.Delete
 import top.yukonga.miuix.kmp.icon.extended.Edit
-import top.yukonga.miuix.kmp.icon.extended.Import
 import top.yukonga.miuix.kmp.icon.extended.More
 import top.yukonga.miuix.kmp.icon.extended.Reset
 import top.yukonga.miuix.kmp.squircle.addSquircleRect
@@ -621,10 +621,10 @@ private fun MorePopupMenus(
                 },
                 icon = {
                     Icon(
-                        imageVector = MiuixIcons.Import,
+                        imageVector = MiuixIcons.Basic.FastForward,
                         contentDescription = null,
                         tint = MiuixTheme.colorScheme.onSurface,
-                        modifier = Modifier.size(24.dp).offset(x = (-2).dp)
+                        modifier = Modifier.size(24.dp)
                     )
                 }
             )
@@ -639,7 +639,7 @@ private fun MorePopupMenus(
                         imageVector = MiuixIcons.Backup,
                         contentDescription = null,
                         tint = MiuixTheme.colorScheme.onSurface,
-                        modifier = Modifier.size(24.dp)
+                        modifier = Modifier.size(23.dp)
                     )
                 }
             )
@@ -654,7 +654,7 @@ private fun MorePopupMenus(
                         imageVector = MiuixIcons.Background,
                         contentDescription = null,
                         tint = MiuixTheme.colorScheme.onSurface,
-                        modifier = Modifier.size(24.dp)
+                        modifier = Modifier.size(23.dp)
                     )
                 }
             )
@@ -672,10 +672,10 @@ private fun MorePopupMenus(
                 },
                 icon = {
                     Icon(
-                        imageVector = MiuixIcons.Import,
+                        imageVector = MiuixIcons.Basic.FastForward,
                         contentDescription = null,
                         tint = MiuixTheme.colorScheme.onSurface,
-                        modifier = Modifier.size(24.dp).offset(x = (-2).dp)
+                        modifier = Modifier.size(23.dp)
                     )
                 }
             )
@@ -690,7 +690,7 @@ private fun MorePopupMenus(
                         imageVector = MiuixIcons.Backup,
                         contentDescription = null,
                         tint = MiuixTheme.colorScheme.onSurface,
-                        modifier = Modifier.size(24.dp)
+                        modifier = Modifier.size(23.dp)
                     )
                 }
             )
@@ -2234,6 +2234,14 @@ fun CourseScheduleApp() {
             }
         }
         // 拖拽课程卡片浮层（退出动画期间仍保持渲染，直到 scale 回到 1f 才移除并让原卡片显现）
+        // 有壁纸时跟随壁纸主题，无壁纸时跟随应用设置
+        val overlayEffectiveForcedDark = if (captureThemeActive) captureThemeIsDark else forcedDark
+        val overlayEffectiveDark = overlayEffectiveForcedDark ?: appSettingDark
+        val overlayPageController = remember(overlayEffectiveDark) {
+            ThemeController(if (overlayEffectiveDark) ColorSchemeMode.Dark else ColorSchemeMode.Light)
+        }
+        MiuixTheme(controller = overlayPageController) {
+            CompositionLocalProvider(LocalForcedDarkTheme provides overlayEffectiveForcedDark) {
         if (floatingCardVisible) {
             val course = draggedCardCourse
             if (course != null) {
@@ -2289,6 +2297,8 @@ fun CourseScheduleApp() {
                         onClick = {}
                     )
                 }
+            }
+        }
             }
         }
         // 快捷菜单：点击外部关闭（先触发退出动画，动画结束再清空状态）
