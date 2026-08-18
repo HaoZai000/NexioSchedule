@@ -299,7 +299,7 @@ private fun calculateWeekFromDate(startDate: String, date: LocalDate): Int {
         val start = LocalDate.parse(startDate.replace("/", "-"))
         val startMonday = start.minusDays((start.dayOfWeek.value - 1).toLong())
         val daysBetween = ChronoUnit.DAYS.between(startMonday, date)
-        (daysBetween / 7 + 1).toInt()
+        daysBetween.floorDiv(7).toInt() + 1
     } catch (_: Exception) { 1 }
 }
 

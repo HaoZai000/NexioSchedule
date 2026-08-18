@@ -212,7 +212,7 @@ class CourseViewModel(application: Application) : AndroidViewModel(application) 
             // 判断学期是否已开始
             _isSemesterStarted.value = !today.isBefore(startMonday)
             val daysBetween = ChronoUnit.DAYS.between(startMonday, today)
-            val week = (daysBetween / 7 + 1).toInt()
+            val week = daysBetween.floorDiv(7).toInt() + 1
             // 不做任何 clamp，允许返回 0 或负数（学期未开始）或超过 totalWeeks（学期已结束）
             week
         } catch (_: Exception) {
