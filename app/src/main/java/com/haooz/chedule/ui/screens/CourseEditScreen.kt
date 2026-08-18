@@ -1030,22 +1030,16 @@ fun CourseEditScreen(
                                 .padding(top = 16.dp),
                             horizontalArrangement = Arrangement.spacedBy(12.dp)
                         ) {
-                            Button(
-                                modifier = Modifier.weight(1f),
+                            TextButton(
+                                text = "取消",
                                 onClick = {
                                     hapticFeedback.performHapticFeedback(HapticFeedbackType.Confirm)
                                     showDeleteDialog = false
                                 },
-                            ) {
-                                Text(
-                                    "取消",
-                                    fontSize = 17.sp,
-                                    fontWeight = FontWeight.Medium,
-                                    color = MiuixTheme.colorScheme.onSurface
-                                )
-                            }
-                            Button(
-                                modifier = Modifier.weight(1f),
+                                modifier = Modifier.weight(1f)
+                            )
+                            TextButton(
+                                text = "删除",
                                 onClick = {
                                     hapticFeedback.performHapticFeedback(HapticFeedbackType.Confirm)
                                     showDeleteDialog = false
@@ -1055,14 +1049,9 @@ fun CourseEditScreen(
                                             "${group.key.dayOfWeek}_${group.key.startSection}_${group.key.startWeek}"
                                     }
                                 },
-                            ) {
-                                Text(
-                                    "删除",
-                                    fontSize = 17.sp,
-                                    fontWeight = FontWeight.Medium,
-                                    color = Color(0xFFF44336)
-                                )
-                            }
+                                textColor = Color(0xFFF44336),
+                                modifier = Modifier.weight(1f)
+                            )
                         }
                     }
 

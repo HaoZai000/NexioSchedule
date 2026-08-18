@@ -135,6 +135,7 @@ import kotlinx.coroutines.withContext
 import top.yukonga.miuix.kmp.basic.Button
 import top.yukonga.miuix.kmp.basic.NavigationRailDefaults
 import top.yukonga.miuix.kmp.basic.Scaffold
+import top.yukonga.miuix.kmp.basic.TextButton
 import top.yukonga.miuix.kmp.basic.rememberNavigationRailState
 import top.yukonga.miuix.kmp.blur.layerBackdrop
 import top.yukonga.miuix.kmp.blur.rememberLayerBackdrop
@@ -250,7 +251,9 @@ class MainActivity : ComponentActivity() {
                             cardAlpha = repo.getCombinationCardAlpha(currentIdValue),
                             cardHeight = repo.getCombinationCardHeight(currentIdValue),
                             cardCornerRadius = repo.getCombinationCardCornerRadius(currentIdValue),
-                            wallpaperBrightness = repo.getCombinationWallpaperBrightness(currentIdValue),
+                            wallpaperBrightness = repo.getCombinationWallpaperBrightness(
+                                currentIdValue
+                            ),
                             showBreakDividers = repo.getCombinationShowBreakDividers(currentIdValue),
                             cardContentAlignment = repo.getCombinationCardContentAlignment(
                                 currentIdValue
@@ -379,35 +382,24 @@ private fun DeleteWeekCourseDialog(
                 .padding(top = 16.dp),
             horizontalArrangement = Arrangement.spacedBy(12.dp)
         ) {
-            Button(
-                modifier = Modifier.weight(1f),
+            TextButton(
+                text = "取消",
                 onClick = {
                     hapticFeedback.performHapticFeedback(HapticFeedbackType.Confirm)
                     onDismiss()
                 },
-            ) {
-                Text(
-                    "取消",
-                    fontSize = 17.sp,
-                    fontWeight = FontWeight.Medium,
-                    color = MiuixTheme.colorScheme.onSurface
-                )
-            }
-            Button(
-                modifier = Modifier.weight(1f),
+                modifier = Modifier.weight(1f)
+            )
+            TextButton(
+                text = "删除",
                 onClick = {
                     hapticFeedback.performHapticFeedback(HapticFeedbackType.Confirm)
                     course?.let { viewModel.deleteCourseForWeek(it.id, week) }
                     onDismiss()
                 },
-            ) {
-                Text(
-                    "删除",
-                    fontSize = 17.sp,
-                    fontWeight = FontWeight.Medium,
-                    color = Color(0xFFF44336)
-                )
-            }
+                textColor = Color(0xFFF44336),
+                modifier = Modifier.weight(1f)
+            )
         }
     }
 }
@@ -495,10 +487,18 @@ private fun RescheduleConflictDialog(
                         viewModel.swapCoursesForWeek(source.id, target.id, draggedWeek)
                         val sourceCourses = viewModel.getCoursesAtSlot(
                             draggedWeek, source.dayOfWeek, source.startSection, source.endSection
-                        ).filter { it.id != source.id && it.id != target.id && !it.isActiveInWeek(draggedWeek) }
+                        ).filter {
+                            it.id != source.id && it.id != target.id && !it.isActiveInWeek(
+                                draggedWeek
+                            )
+                        }
                         val conflictCourses = viewModel.getCoursesAtSlot(
                             draggedWeek, target.dayOfWeek, target.startSection, target.endSection
-                        ).filter { it.id != target.id && it.id != source.id && !it.isActiveInWeek(draggedWeek) }
+                        ).filter {
+                            it.id != target.id && it.id != source.id && !it.isActiveInWeek(
+                                draggedWeek
+                            )
+                        }
                         val allAnimated = (sourceCourses + conflictCourses).map { it.id }.toSet()
                         if (allAnimated.isNotEmpty()) {
                             onSwap(allAnimated)
@@ -1014,11 +1014,11 @@ fun CourseScheduleApp() {
                         combinations = combinations.toMutableList().also {
                             it[index] = cur.copy(bitmap = bmp)
                         }
-                        }
                     }
                 }
             }
         }
+    }
     val cutoutMainScale = remember { Animatable(1f) }
     var cutoutCenterYRatio by remember { mutableFloatStateOf(0.5f) }
     // 弹窗打开时的同步上移偏移（直接 translationY，与 CustomizeScheduleScreen 同帧）
@@ -1069,7 +1069,8 @@ fun CourseScheduleApp() {
 
     // MainScheduleScreen 状态提升到 Activity 层，return@Scaffold 不会销毁
     val scheduleScrollState = rememberScrollState()
-    val scheduleSheetContentBackdrop = remember { mutableStateOf<com.kyant.backdrop.Backdrop?>(null) }
+    val scheduleSheetContentBackdrop =
+        remember { mutableStateOf<com.kyant.backdrop.Backdrop?>(null) }
     val scheduleSelectedCourse = remember { mutableStateOf<Course?>(null) }
     val scheduleSelectedCourses = remember { mutableStateOf<List<Course>>(emptyList()) }
     val scheduleShowCourseDetail = remember { mutableStateOf(false) }
@@ -1488,7 +1489,8 @@ fun CourseScheduleApp() {
             originalWallpaperScale = wallpaperScale
             originalAppearance = appearance
             originalSnapshot = combinations.getOrNull(currentCombinationIndex)?.snapshot
-            originalWallpaperIsLight = combinations.getOrNull(currentCombinationIndex)?.wallpaperIsLight
+            originalWallpaperIsLight =
+                combinations.getOrNull(currentCombinationIndex)?.wallpaperIsLight
             // 后台逐个捕获其他搭配快照（等打开动画结束后再开始，避免动画期间主界面壁纸跳变）
             delay(500.milliseconds)
             val savedWp = wallpaperBitmap
@@ -1726,133 +1728,100 @@ fun CourseScheduleApp() {
                                 }
                             }
                         )
-                },
-                topBar = {
-                    ScheduleTopBar(
-                        visible = (!isShiftMode && selectedTab == 1) || (isShiftMode && selectedTab == 0),
-                        navBarStyle = navBarStyle,
-                        pagerCurrentPage = pagerState.currentPage,
-                        currentWeek = currentWeek,
-                        isHoliday = viewingIsHoliday,
-                        isViewingCurrentWeek = isViewingCurrentWeek,
-                        dayRange = dayRange,
-                        currentDayOfWeek = currentDayOfWeek,
-                        isCurrentWeek = pagerState.currentPage + 1 == currentWeek && currentWeek in 1..totalWeeks,
-                        weekDates = weekDates,
-                        onBackToCurrentWeek = {
-                            coroutineScope.launch {
-                                val targetPage =
-                                    (currentWeek - 1).coerceIn(0, (totalWeeks - 1).coerceAtLeast(0))
-                                pagerState.animateScrollToPage(targetPage)
-                            }
-                        },
-                        onOpenSwitchSchedule = {
-                            if (!isShiftMode && !showSwitchSchedule) {
+                    },
+                    topBar = {
+                        ScheduleTopBar(
+                            visible = (!isShiftMode && selectedTab == 1) || (isShiftMode && selectedTab == 0),
+                            navBarStyle = navBarStyle,
+                            pagerCurrentPage = pagerState.currentPage,
+                            currentWeek = currentWeek,
+                            isHoliday = viewingIsHoliday,
+                            isViewingCurrentWeek = isViewingCurrentWeek,
+                            dayRange = dayRange,
+                            currentDayOfWeek = currentDayOfWeek,
+                            isCurrentWeek = pagerState.currentPage + 1 == currentWeek && currentWeek in 1..totalWeeks,
+                            weekDates = weekDates,
+                            onBackToCurrentWeek = {
                                 coroutineScope.launch {
-                                    mainContentSnapshot =
-                                        screenGraphicsLayer.toImageBitmap().asAndroidBitmap()
-                                    switchPendingReverse = true
-                                    switchCapturingSnapshot = true
-                                    showSwitchSchedule = true
+                                    val targetPage =
+                                        (currentWeek - 1).coerceIn(
+                                            0,
+                                            (totalWeeks - 1).coerceAtLeast(0)
+                                        )
+                                    pagerState.animateScrollToPage(targetPage)
                                 }
-                            }
-                        },
-                        onMoreClick = { showMorePopup = true },
-                        isTablet = isTablet,
-                        liquidGlassBackdrop = liquidGlassBackdrop,
-                        scrollBehavior = scheduleScrollBehavior,
-                        showMorePopup = showMorePopup,
-                        morePopupFraction = morePopupFraction,
-                    )
-                    // 设置页标题栏（Activity 层级渲染，避免 drawPlainBackdrop native crash）
-                    if (selectedTab == 2 || (isShiftMode && selectedTab == 1)) {
-                        SettingsTopBar(
+                            },
+                            onOpenSwitchSchedule = {
+                                if (!isShiftMode && !showSwitchSchedule) {
+                                    coroutineScope.launch {
+                                        mainContentSnapshot =
+                                            screenGraphicsLayer.toImageBitmap().asAndroidBitmap()
+                                        switchPendingReverse = true
+                                        switchCapturingSnapshot = true
+                                        showSwitchSchedule = true
+                                    }
+                                }
+                            },
+                            onMoreClick = { showMorePopup = true },
+                            isTablet = isTablet,
                             liquidGlassBackdrop = liquidGlassBackdrop,
-                            navBarStyle = navBarStyle,
-                            scrollBehavior = settingsScrollBehavior,
+                            scrollBehavior = scheduleScrollBehavior,
+                            showMorePopup = showMorePopup,
+                            morePopupFraction = morePopupFraction,
                         )
+                        // 设置页标题栏（Activity 层级渲染，避免 drawPlainBackdrop native crash）
+                        if (selectedTab == 2 || (isShiftMode && selectedTab == 1)) {
+                            SettingsTopBar(
+                                liquidGlassBackdrop = liquidGlassBackdrop,
+                                navBarStyle = navBarStyle,
+                                scrollBehavior = settingsScrollBehavior,
+                            )
+                        }
+                        // 今日页标题栏（液态玻璃模式下在 Activity 层级渲染）
+                        if (!isShiftMode && selectedTab == 0) {
+                            TodayTopBar(
+                                liquidGlassBackdrop = liquidGlassBackdrop,
+                                navBarStyle = navBarStyle,
+                                currentDayOfWeek = todaySelectedDayOfWeek,
+                                isToday = todayIsToday,
+                                onBackToToday = { scrollToTodayTrigger++ },
+                                onMoreClick = { showTodayMorePopup = true },
+                                scrollBehavior = todayScrollBehavior,
+                                showMorePopup = showTodayMorePopup,
+                            )
+                        }
                     }
-                    // 今日页标题栏（液态玻璃模式下在 Activity 层级渲染）
-                    if (!isShiftMode && selectedTab == 0) {
-                        TodayTopBar(
-                            liquidGlassBackdrop = liquidGlassBackdrop,
-                            navBarStyle = navBarStyle,
-                            currentDayOfWeek = todaySelectedDayOfWeek,
-                            isToday = todayIsToday,
-                            onBackToToday = { scrollToTodayTrigger++ },
-                            onMoreClick = { showTodayMorePopup = true },
-                            scrollBehavior = todayScrollBehavior,
-                            showMorePopup = showTodayMorePopup,
-                        )
+                ) { paddingValues ->
+                    // 课程详情动画期间：跳过内容重组，用快照 Image 替代
+                    if (showDetail && mainContentSnapshot != null) {
+                        Box(modifier = Modifier.fillMaxSize())
+                        return@Scaffold
                     }
-                }
-            ) { paddingValues ->
-                // 课程详情动画期间：跳过内容重组，用快照 Image 替代
-                if (showDetail && mainContentSnapshot != null) {
-                    Box(modifier = Modifier.fillMaxSize())
-                    return@Scaffold
-                }
-                // 不再用 combinations.isEmpty() 门控整个内容区：
-                // 课程网格（TodayScreen/MainScheduleScreen）只依赖 viewModel，与壁纸加载解耦。
-                // 壁纸未就绪时 wallpaperBitmap=null，MainScheduleScreen 内部显示主题底色，课程方块照常渲染。
-                // 搭配相关的操作（新建/删除/编辑）在各自回调里已有 getOrNull 守卫，空列表时不会越界。
-                Box(
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .padding(start = railPaddingStart)
-                        .layerBackdrop(backdrop)
-                ) {
+                    // 不再用 combinations.isEmpty() 门控整个内容区：
+                    // 课程网格（TodayScreen/MainScheduleScreen）只依赖 viewModel，与壁纸加载解耦。
+                    // 壁纸未就绪时 wallpaperBitmap=null，MainScheduleScreen 内部显示主题底色，课程方块照常渲染。
+                    // 搭配相关的操作（新建/删除/编辑）在各自回调里已有 getOrNull 守卫，空列表时不会越界。
                     Box(
                         modifier = Modifier
                             .fillMaxSize()
-                            .then(
-                                Modifier.liquidGlassLayerBackdrop(
-                                    liquidGlassBackdrop
-                                )
-                            )
+                            .padding(start = railPaddingStart)
+                            .layerBackdrop(backdrop)
                     ) {
-                        if (!isShiftMode) {
-                            when (selectedTab) {
-                                0 -> TodayScreen(
-                                    viewModel = viewModel,
-                                    settingsViewModel = settingsViewModel,
-                                    hiddenCourseIds = hiddenCourseIds,
-                                    onCourseClick = { courses, left, top, width, height, _, courseIdToHide ->
-                                        openCourseDetail(
-                                            courses,
-                                            left,
-                                            top,
-                                            width,
-                                            height,
-                                            fromToday = true,
-                                            courseIdToHide = courseIdToHide
-                                        )
-                                    },
-                                    pagerState = todayPagerState,
-                                    navBarStyle = navBarStyle,
-                                    onScrollYChanged = { todayScrollY = it },
-                                    settingsScrollBehavior = todayScrollBehavior,
-                                    onSelectedDayChanged = { todaySelectedDayOfWeek = it },
-                                    onSelectedDateChanged = { todayIsToday = it },
-                                    scrollToTodayTrigger = scrollToTodayTrigger,
-                                    jumpToDateTrigger = todayJumpToDateTrigger,
-                                    onJumpToDateProcessed = { todayJumpToDateTrigger = 0 },
-                                    wallpaperBitmap = if (showCustomizePage && !isWindowCutoutActive) originalWallpaperBitmap else wallpaperBitmap,
-                                    wallpaperOffset = if (showCustomizePage && !isWindowCutoutActive) originalWallpaperOffset else wallpaperOffset,
-                                    wallpaperScale = if (showCustomizePage && !isWindowCutoutActive) originalWallpaperScale else wallpaperScale,
-                                    wallpaperBrightness = displayAppearance.wallpaperBrightness,
-                                    cardBlurRadius = displayAppearance.cardBlurRadius,
-                                    liquidGlassBackdrop = liquidGlassBackdrop,
-                                    externalListState = todayListState,
+                        Box(
+                            modifier = Modifier
+                                .fillMaxSize()
+                                .then(
+                                    Modifier.liquidGlassLayerBackdrop(
+                                        liquidGlassBackdrop
+                                    )
                                 )
-
-                                1 -> {
-                                    MainScheduleScreen(
+                        ) {
+                            if (!isShiftMode) {
+                                when (selectedTab) {
+                                    0 -> TodayScreen(
                                         viewModel = viewModel,
                                         settingsViewModel = settingsViewModel,
-                                        pagerState = pagerState,
                                         hiddenCourseIds = hiddenCourseIds,
-                                        draggingCourseIds = draggingCourseIds,
                                         onCourseClick = { courses, left, top, width, height, _, courseIdToHide ->
                                             openCourseDetail(
                                                 courses,
@@ -1860,355 +1829,408 @@ fun CourseScheduleApp() {
                                                 top,
                                                 width,
                                                 height,
-                                                fromToday = false,
+                                                fromToday = true,
                                                 courseIdToHide = courseIdToHide
                                             )
                                         },
-                                        onPopupStateChange = { showCourseDetailPopup = it },
-                                        onEmptyLongPress = {
-                                            hapticFeedback.performHapticFeedback(HapticFeedbackType.LongPress)
-                                            showLongPressButton = true
-                                        },
-                                        onCourseLongPress = { course, left, top, width, height, backdrop, currentWeek ->
-                                            hapticFeedback.performHapticFeedback(HapticFeedbackType.LongPress)
-                                            isDraggingCard = true
-                                            floatingCardVisible = true
-                                            draggingCourseIds = setOf(course.id)
-                                            draggedCardCourse = course
-                                            draggedWeek = currentWeek
-                                            // left/top 现在是卡片正中心绝对坐标，浮层按中心对齐使用
-                                            draggedCardPosition = Offset(left, top)
-                                            draggedCardOffset = Offset.Zero
-                                            draggedCardSize = Offset(width, height)
-                                            draggedCardBackdrop = backdrop
-                                            shortcutMenuCourse = course
-                                            shortcutMenuVisible = true
-                                            // 快捷菜单仍按左上角定位，把中心点转回左上角
-                                            shortcutMenuPosition =
-                                                Offset(left - width / 2f, top - height / 2f)
-                                            shortcutMenuBackdrop = backdrop
-                                        },
-                                        onCourseDragStart = { _ ->
-                                            // 拖拽开始不关闭菜单，菜单保留到移动超过阈值后由 onCourseMenuDismiss 关闭
-                                            pendingDropTarget = null
-                                        },
-                                        onCourseMenuDismiss = {
-                                            // 移动超过阈值，触发菜单退出动画
-                                            shortcutMenuVisible = false
-                                            coroutineScope.launch {
-                                                delay(220.milliseconds)
-                                                shortcutMenuCourse = null
-                                            }
-                                        },
-                                        onCourseDrag = { _, offsetX, offsetY ->
-                                            draggedCardOffset = Offset(offsetX, offsetY)
-                                            // 实时计算落点：x 用浮层中心，y 用卡片第一格中心（卡片顶部 + 半节高）
-                                            // 卡片高度基于 course 实时计算，避免 draggedCardSize 缓存旧值导致偏移
-                                            val course = draggedCardCourse
-                                            if (course != null) {
-                                                val sectionH = gridGeometry?.sectionHeightPx ?: 0f
-                                                val sectionCount =
-                                                    course.endSection - course.startSection + 1
-                                                val cardHeightPx = sectionCount * sectionH
-                                                val centerX = draggedCardPosition.x + offsetX
-                                                val cardTopY =
-                                                    draggedCardPosition.y + offsetY - cardHeightPx / 2f
-                                                val firstSectionCenterY = cardTopY + sectionH / 2f
-                                                pendingDropTarget =
-                                                    computeDropTarget(centerX, firstSectionCenterY)
-                                            }
-                                        },
-                                        onCourseDragEnd = { _ ->
-                                            // 仅结束拖拽浮层，不关闭菜单；菜单关闭交给 onCourseMenuDismiss（超过阈值）或点击空白处
-                                            // 调课落点提交：根据 pendingDropTarget 决定是否调课
-                                            val source = draggedCardCourse
-                                            val target = pendingDropTarget
-                                            val week = draggedWeek
-                                            // 松手立即清除高亮
-                                            pendingDropTarget = null
-                                            if (source != null && target != null) {
-                                                val sectionSpan =
-                                                    source.endSection - source.startSection
-                                                val targetStart = target.second
-                                                val targetEnd = targetStart + sectionSpan
-                                                // 落点位置若与原位置一致，不做任何操作
-                                                val sameSlot = source.dayOfWeek == target.first &&
-                                                        source.startSection == targetStart &&
-                                                        source.endSection == targetEnd
-                                                if (!sameSlot) {
-                                                    // 检查目标位置该周是否有冲突课程（仅算本周活跃的课）
-                                                    val conflicts = viewModel.getCoursesAtSlot(
-                                                        week, target.first, targetStart, targetEnd
-                                                    ).filter {
-                                                        it.id != source.id && it.isActiveInWeek(week)
-                                                    }
-                                                    if (conflicts.isEmpty()) {
-                                                        // 空位：移动并播放吸附动画
-                                                        viewModel.moveCourseForWeek(
-                                                            source.id,
+                                        pagerState = todayPagerState,
+                                        navBarStyle = navBarStyle,
+                                        onScrollYChanged = { todayScrollY = it },
+                                        settingsScrollBehavior = todayScrollBehavior,
+                                        onSelectedDayChanged = { todaySelectedDayOfWeek = it },
+                                        onSelectedDateChanged = { todayIsToday = it },
+                                        scrollToTodayTrigger = scrollToTodayTrigger,
+                                        jumpToDateTrigger = todayJumpToDateTrigger,
+                                        onJumpToDateProcessed = { todayJumpToDateTrigger = 0 },
+                                        wallpaperBitmap = if (showCustomizePage && !isWindowCutoutActive) originalWallpaperBitmap else wallpaperBitmap,
+                                        wallpaperOffset = if (showCustomizePage && !isWindowCutoutActive) originalWallpaperOffset else wallpaperOffset,
+                                        wallpaperScale = if (showCustomizePage && !isWindowCutoutActive) originalWallpaperScale else wallpaperScale,
+                                        wallpaperBrightness = displayAppearance.wallpaperBrightness,
+                                        cardBlurRadius = displayAppearance.cardBlurRadius,
+                                        liquidGlassBackdrop = liquidGlassBackdrop,
+                                        externalListState = todayListState,
+                                    )
+
+                                    1 -> {
+                                        MainScheduleScreen(
+                                            viewModel = viewModel,
+                                            settingsViewModel = settingsViewModel,
+                                            pagerState = pagerState,
+                                            hiddenCourseIds = hiddenCourseIds,
+                                            draggingCourseIds = draggingCourseIds,
+                                            onCourseClick = { courses, left, top, width, height, _, courseIdToHide ->
+                                                openCourseDetail(
+                                                    courses,
+                                                    left,
+                                                    top,
+                                                    width,
+                                                    height,
+                                                    fromToday = false,
+                                                    courseIdToHide = courseIdToHide
+                                                )
+                                            },
+                                            onPopupStateChange = { showCourseDetailPopup = it },
+                                            onEmptyLongPress = {
+                                                hapticFeedback.performHapticFeedback(
+                                                    HapticFeedbackType.LongPress
+                                                )
+                                                showLongPressButton = true
+                                            },
+                                            onCourseLongPress = { course, left, top, width, height, backdrop, currentWeek ->
+                                                hapticFeedback.performHapticFeedback(
+                                                    HapticFeedbackType.LongPress
+                                                )
+                                                isDraggingCard = true
+                                                floatingCardVisible = true
+                                                draggingCourseIds = setOf(course.id)
+                                                draggedCardCourse = course
+                                                draggedWeek = currentWeek
+                                                // left/top 现在是卡片正中心绝对坐标，浮层按中心对齐使用
+                                                draggedCardPosition = Offset(left, top)
+                                                draggedCardOffset = Offset.Zero
+                                                draggedCardSize = Offset(width, height)
+                                                draggedCardBackdrop = backdrop
+                                                shortcutMenuCourse = course
+                                                shortcutMenuVisible = true
+                                                // 快捷菜单仍按左上角定位，把中心点转回左上角
+                                                shortcutMenuPosition =
+                                                    Offset(left - width / 2f, top - height / 2f)
+                                                shortcutMenuBackdrop = backdrop
+                                            },
+                                            onCourseDragStart = { _ ->
+                                                // 拖拽开始不关闭菜单，菜单保留到移动超过阈值后由 onCourseMenuDismiss 关闭
+                                                pendingDropTarget = null
+                                            },
+                                            onCourseMenuDismiss = {
+                                                // 移动超过阈值，触发菜单退出动画
+                                                shortcutMenuVisible = false
+                                                coroutineScope.launch {
+                                                    delay(220.milliseconds)
+                                                    shortcutMenuCourse = null
+                                                }
+                                            },
+                                            onCourseDrag = { _, offsetX, offsetY ->
+                                                draggedCardOffset = Offset(offsetX, offsetY)
+                                                // 实时计算落点：x 用浮层中心，y 用卡片第一格中心（卡片顶部 + 半节高）
+                                                // 卡片高度基于 course 实时计算，避免 draggedCardSize 缓存旧值导致偏移
+                                                val course = draggedCardCourse
+                                                if (course != null) {
+                                                    val sectionH =
+                                                        gridGeometry?.sectionHeightPx ?: 0f
+                                                    val sectionCount =
+                                                        course.endSection - course.startSection + 1
+                                                    val cardHeightPx = sectionCount * sectionH
+                                                    val centerX = draggedCardPosition.x + offsetX
+                                                    val cardTopY =
+                                                        draggedCardPosition.y + offsetY - cardHeightPx / 2f
+                                                    val firstSectionCenterY =
+                                                        cardTopY + sectionH / 2f
+                                                    pendingDropTarget =
+                                                        computeDropTarget(
+                                                            centerX,
+                                                            firstSectionCenterY
+                                                        )
+                                                }
+                                            },
+                                            onCourseDragEnd = { _ ->
+                                                // 仅结束拖拽浮层，不关闭菜单；菜单关闭交给 onCourseMenuDismiss（超过阈值）或点击空白处
+                                                // 调课落点提交：根据 pendingDropTarget 决定是否调课
+                                                val source = draggedCardCourse
+                                                val target = pendingDropTarget
+                                                val week = draggedWeek
+                                                // 松手立即清除高亮
+                                                pendingDropTarget = null
+                                                if (source != null && target != null) {
+                                                    val sectionSpan =
+                                                        source.endSection - source.startSection
+                                                    val targetStart = target.second
+                                                    val targetEnd = targetStart + sectionSpan
+                                                    // 落点位置若与原位置一致，不做任何操作
+                                                    val sameSlot =
+                                                        source.dayOfWeek == target.first &&
+                                                                source.startSection == targetStart &&
+                                                                source.endSection == targetEnd
+                                                    if (!sameSlot) {
+                                                        // 检查目标位置该周是否有冲突课程（仅算本周活跃的课）
+                                                        val conflicts = viewModel.getCoursesAtSlot(
                                                             week,
                                                             target.first,
                                                             targetStart,
                                                             targetEnd
-                                                        )
-                                                        snapFloatingCardToTarget(
-                                                            target.first,
-                                                            targetStart,
-                                                            sectionSpan
-                                                        )
-                                                        // 计算原位置露出的非本周课程，添加淡入放大动画
-                                                        val sourceCourses =
-                                                            viewModel.getCoursesAtSlot(
+                                                        ).filter {
+                                                            it.id != source.id && it.isActiveInWeek(
+                                                                week
+                                                            )
+                                                        }
+                                                        if (conflicts.isEmpty()) {
+                                                            // 空位：移动并播放吸附动画
+                                                            viewModel.moveCourseForWeek(
+                                                                source.id,
                                                                 week,
-                                                                source.dayOfWeek,
-                                                                source.startSection,
-                                                                source.endSection
-                                                            ).filter {
-                                                                it.id != source.id && !it.isActiveInWeek(
-                                                                    week
-                                                                )
+                                                                target.first,
+                                                                targetStart,
+                                                                targetEnd
+                                                            )
+                                                            snapFloatingCardToTarget(
+                                                                target.first,
+                                                                targetStart,
+                                                                sectionSpan
+                                                            )
+                                                            // 计算原位置露出的非本周课程，添加淡入放大动画
+                                                            val sourceCourses =
+                                                                viewModel.getCoursesAtSlot(
+                                                                    week,
+                                                                    source.dayOfWeek,
+                                                                    source.startSection,
+                                                                    source.endSection
+                                                                ).filter {
+                                                                    it.id != source.id && !it.isActiveInWeek(
+                                                                        week
+                                                                    )
+                                                                }
+                                                            if (sourceCourses.isNotEmpty()) {
+                                                                animateInCourseIds =
+                                                                    sourceCourses.map { it.id }
+                                                                        .toSet()
+                                                                coroutineScope.launch {
+                                                                    delay(350.milliseconds)
+                                                                    animateInCourseIds = emptySet()
+                                                                }
                                                             }
-                                                        if (sourceCourses.isNotEmpty()) {
-                                                            animateInCourseIds =
-                                                                sourceCourses.map { it.id }.toSet()
+                                                        } else {
+                                                            // 有课：暂存冲突信息，弹出对话框让用户选择"覆盖"或"交换"
+                                                            pendingConflictCourse =
+                                                                conflicts.first()
+                                                            // 暂存目标位置到 draggedCardCourse 的临时字段不容易，借助独立状态
+                                                            pendingDropTarget =
+                                                                target.first to targetStart
+                                                            showRescheduleConflictDialog = true
+                                                            // 不立刻关闭浮层，等用户选择后再处理
+                                                            // 但浮层要先隐藏，避免遮挡对话框
                                                             coroutineScope.launch {
-                                                                delay(350.milliseconds)
-                                                                animateInCourseIds = emptySet()
+                                                                floatingScale.animateTo(
+                                                                    1f,
+                                                                    tween(durationMillis = 180)
+                                                                )
+                                                                delay(180.milliseconds)
+                                                                isDraggingCard = false
+                                                                floatingCardVisible = false
+                                                                draggingCourseIds = emptySet()
+                                                                // 不清空 draggedCardCourse/pendingDropTarget，待对话框处理后再清
+                                                                draggedCardOffset = Offset.Zero
                                                             }
                                                         }
                                                     } else {
-                                                        // 有课：暂存冲突信息，弹出对话框让用户选择"覆盖"或"交换"
-                                                        pendingConflictCourse = conflicts.first()
-                                                        // 暂存目标位置到 draggedCardCourse 的临时字段不容易，借助独立状态
-                                                        pendingDropTarget =
-                                                            target.first to targetStart
-                                                        showRescheduleConflictDialog = true
-                                                        // 不立刻关闭浮层，等用户选择后再处理
-                                                        // 但浮层要先隐藏，避免遮挡对话框
-                                                        coroutineScope.launch {
-                                                            floatingScale.animateTo(
-                                                                1f,
-                                                                tween(durationMillis = 180)
-                                                            )
-                                                            delay(180.milliseconds)
-                                                            isDraggingCard = false
-                                                            floatingCardVisible = false
-                                                            draggingCourseIds = emptySet()
-                                                            // 不清空 draggedCardCourse/pendingDropTarget，待对话框处理后再清
-                                                            draggedCardOffset = Offset.Zero
-                                                        }
+                                                        snapFloatingCardToOrigin()
                                                     }
                                                 } else {
-                                                    snapFloatingCardToOrigin()
+                                                    dismissFloatingCard()
                                                 }
-                                            } else {
-                                                dismissFloatingCard()
-                                            }
+                                            },
+                                            wallpaperBitmap = if (showCustomizePage && !isWindowCutoutActive) originalWallpaperBitmap else wallpaperBitmap,
+                                            wallpaperOffset = if (showCustomizePage && !isWindowCutoutActive) originalWallpaperOffset else wallpaperOffset,
+                                            wallpaperScale = if (showCustomizePage && !isWindowCutoutActive) originalWallpaperScale else wallpaperScale,
+                                            isWallpaperEditing = isWindowCutoutActive,
+                                            onWallpaperOffsetChange = { wallpaperOffset = it },
+                                            onWallpaperScaleChange = { wallpaperScale = it },
+                                            cardBlurRadius = displayAppearance.cardBlurRadius,
+                                            cardAlpha = displayAppearance.cardAlpha,
+                                            cardHeightPerSection = displayAppearance.cardHeight,
+                                            cardCornerRadius = displayAppearance.cardCornerRadius,
+                                            wallpaperBrightness = displayAppearance.wallpaperBrightness,
+                                            showBreakDividers = displayAppearance.showBreakDividers,
+                                            cardContentAlignment = displayAppearance.cardContentAlignment,
+                                            liquidGlassBackdrop = liquidGlassBackdrop,
+                                            onGridGeometryChange = { geom -> gridGeometry = geom },
+                                            dropHighlight = run {
+                                                val target = pendingDropTarget
+                                                val source = draggedCardCourse
+                                                if (floatingCardVisible && target != null && source != null) {
+                                                    val sectionSpan =
+                                                        source.endSection - source.startSection
+                                                    target.first to (target.second..(target.second + sectionSpan))
+                                                } else null
+                                            },
+                                            animateInCourseIds = animateInCourseIds,
+                                            scheduleScrollBehavior = scheduleScrollBehavior,
+                                            paddingValues = paddingValues,
+                                            externalScrollState = scheduleScrollState,
+                                            externalShowCourseDetail = scheduleShowCourseDetail,
+                                            externalSheetContentBackdrop = scheduleSheetContentBackdrop,
+                                            externalSelectedCourse = scheduleSelectedCourse,
+                                            externalSelectedCourses = scheduleSelectedCourses
+                                        )
+                                    }
+
+                                    2 -> SettingsScreen(
+                                        viewModel = viewModel,
+                                        scheduleViewModel = scheduleViewModel,
+                                        settingsViewModel = settingsViewModel,
+                                        shiftViewModel = shiftViewModel,
+                                        onEnterShiftMode = {
+                                            showShiftLoading = true
+                                            isExitingShift = false
                                         },
-                                        wallpaperBitmap = if (showCustomizePage && !isWindowCutoutActive) originalWallpaperBitmap else wallpaperBitmap,
-                                        wallpaperOffset = if (showCustomizePage && !isWindowCutoutActive) originalWallpaperOffset else wallpaperOffset,
-                                        wallpaperScale = if (showCustomizePage && !isWindowCutoutActive) originalWallpaperScale else wallpaperScale,
-                                        isWallpaperEditing = isWindowCutoutActive,
-                                        onWallpaperOffsetChange = { wallpaperOffset = it },
-                                        onWallpaperScaleChange = { wallpaperScale = it },
-                                        cardBlurRadius = displayAppearance.cardBlurRadius,
-                                        cardAlpha = displayAppearance.cardAlpha,
-                                        cardHeightPerSection = displayAppearance.cardHeight,
-                                        cardCornerRadius = displayAppearance.cardCornerRadius,
-                                        wallpaperBrightness = displayAppearance.wallpaperBrightness,
-                                        showBreakDividers = displayAppearance.showBreakDividers,
-                                        cardContentAlignment = displayAppearance.cardContentAlignment,
+                                        navBarStyle = navBarStyle,
+                                        onScrollYChanged = { settingsScrollY = it },
+                                        settingsScrollBehavior = settingsScrollBehavior,
+                                        activeSecondaryActivity = activeSecondaryActivity,
                                         liquidGlassBackdrop = liquidGlassBackdrop,
-                                        onGridGeometryChange = { geom -> gridGeometry = geom },
-                                        dropHighlight = run {
-                                            val target = pendingDropTarget
-                                            val source = draggedCardCourse
-                                            if (floatingCardVisible && target != null && source != null) {
-                                                val sectionSpan =
-                                                    source.endSection - source.startSection
-                                                target.first to (target.second..(target.second + sectionSpan))
-                                            } else null
-                                        },
-                                        animateInCourseIds = animateInCourseIds,
-                                        scheduleScrollBehavior = scheduleScrollBehavior,
-                                        paddingValues = paddingValues,
-                                        externalScrollState = scheduleScrollState,
-                                        externalShowCourseDetail = scheduleShowCourseDetail,
-                                        externalSheetContentBackdrop = scheduleSheetContentBackdrop,
-                                        externalSelectedCourse = scheduleSelectedCourse,
-                                        externalSelectedCourses = scheduleSelectedCourses
                                     )
                                 }
+                            } else {
+                                when (selectedTab) {
+                                    0 -> ShiftScheduleScreen(
+                                        shiftViewModel = shiftViewModel,
+                                        settingsViewModel = settingsViewModel,
+                                        pagerState = pagerState,
+                                        cardHeightPerSection = appearance.cardHeight,
+                                    )
 
-                                2 -> SettingsScreen(
-                                    viewModel = viewModel,
-                                    scheduleViewModel = scheduleViewModel,
-                                    settingsViewModel = settingsViewModel,
-                                    shiftViewModel = shiftViewModel,
-                                    onEnterShiftMode = {
-                                        showShiftLoading = true
-                                        isExitingShift = false
-                                    },
-                                    navBarStyle = navBarStyle,
-                                    onScrollYChanged = { settingsScrollY = it },
-                                    settingsScrollBehavior = settingsScrollBehavior,
-                                    activeSecondaryActivity = activeSecondaryActivity,
-                                    liquidGlassBackdrop = liquidGlassBackdrop,
-                                )
-                            }
-                        } else {
-                            when (selectedTab) {
-                                0 -> ShiftScheduleScreen(
-                                    shiftViewModel = shiftViewModel,
-                                    settingsViewModel = settingsViewModel,
-                                    pagerState = pagerState,
-                                    cardHeightPerSection = appearance.cardHeight,
-                                )
-
-                                1 -> SettingsScreen(
-                                    viewModel = viewModel,
-                                    scheduleViewModel = scheduleViewModel,
-                                    settingsViewModel = settingsViewModel,
-                                    shiftViewModel = shiftViewModel,
-                                    isShiftMode = true,
-                                    onExitShiftMode = {
-                                        showShiftLoading = true
-                                        isExitingShift = true
-                                    },
-                                    onEnterShiftMode = {
-                                        showShiftLoading = true
-                                        isExitingShift = false
-                                    },
-                                    navBarStyle = navBarStyle,
-                                    onScrollYChanged = { settingsScrollY = it },
-                                    settingsScrollBehavior = settingsScrollBehavior,
-                                    activeSecondaryActivity = activeSecondaryActivity,
-                                    liquidGlassBackdrop = liquidGlassBackdrop,
-                                )
-                            }
-                        }
-                    }
-                }
-                // 长按空白区域后显示的"自定义课表"按钮
-                LongPressCustomizeButton(
-                    visible = showLongPressOverlay,
-                    backdrop = backdrop,
-                    isDark = effectiveIsDark,
-                    onClick = {
-                        showLongPressButton = false
-                        coroutineScope.launch {
-                            delay(120.milliseconds)
-                            showLongPressOverlay = false
-                            enterCustomizePage()
-                        }
-                    },
-                    onDismiss = { showLongPressButton = false }
-                )
-
-                // 分享导入确认弹窗（必须在 Scaffold 内部）
-                ShareImportDialog(
-                    activity = activity,
-                    shareIntentVersion = activity?.shareIntentVersion ?: 0,
-                    courseViewModel = viewModel,
-                    scheduleViewModel = scheduleViewModel,
-                    settingsViewModel = settingsViewModel,
-                    liquidGlassBackdrop = liquidGlassBackdrop,
-                                )
-
-                // 更新弹窗
-                UpdateDialog(liquidGlassBackdrop = liquidGlassBackdrop)
-
-                // 添加课程对话框
-                val showAddDialog by viewModel.showAddDialog.collectAsState()
-                val editingCourse by viewModel.editingCourse.collectAsState()
-                val selectedStartSection by viewModel.selectedStartSection.collectAsState()
-                val selectedEndSection by viewModel.selectedEndSection.collectAsState()
-                val editingStartSection =
-                    editingCourse?.startSection ?: selectedStartSection
-                val editingEndSection = editingCourse?.endSection ?: selectedEndSection
-
-                // 添加课程对话框（始终跟随应用主题，不受壁纸强制主题影响）
-                val appDialogDark = rememberAppSettingDark()
-                val appDialogController = remember(appDialogDark) {
-                    ThemeController(if (appDialogDark) ColorSchemeMode.Dark else ColorSchemeMode.Light)
-                }
-                MiuixTheme(controller = appDialogController) {
-                    CompositionLocalProvider(LocalForcedDarkTheme provides null) {
-                        AddCourseDialog(
-                            show = showAddDialog,
-                            course = editingCourse,
-                            selectedDay = viewModel.selectedDay.collectAsState().value,
-                            liquidGlassBackdrop = liquidGlassBackdrop,
-                            totalWeeks = totalWeeks,
-                            totalSections = totalSections,
-                            defaultStartSection = editingStartSection,
-                            defaultEndSection = editingEndSection,
-                            getOccupiedWeeks = { dayOfWeek, startSection, endSection, excludeIds, startTime, endTime ->
-                                viewModel.getOccupiedWeeks(
-                                    dayOfWeek = dayOfWeek,
-                                    startSection = startSection,
-                                    endSection = endSection,
-                                    excludeIds = excludeIds.toSet(),
-                                    startTime = startTime,
-                                    endTime = endTime
-                                )
-                            },
-                            onDismiss = { viewModel.hideDialog() },
-                            onConfirm = { course ->
-                                if (editingCourse != null) {
-                                    viewModel.updateCourse(course)
-                                } else {
-                                    viewModel.addCourse(course)
+                                    1 -> SettingsScreen(
+                                        viewModel = viewModel,
+                                        scheduleViewModel = scheduleViewModel,
+                                        settingsViewModel = settingsViewModel,
+                                        shiftViewModel = shiftViewModel,
+                                        isShiftMode = true,
+                                        onExitShiftMode = {
+                                            showShiftLoading = true
+                                            isExitingShift = true
+                                        },
+                                        onEnterShiftMode = {
+                                            showShiftLoading = true
+                                            isExitingShift = false
+                                        },
+                                        navBarStyle = navBarStyle,
+                                        onScrollYChanged = { settingsScrollY = it },
+                                        settingsScrollBehavior = settingsScrollBehavior,
+                                        activeSecondaryActivity = activeSecondaryActivity,
+                                        liquidGlassBackdrop = liquidGlassBackdrop,
+                                    )
                                 }
-                            },
-                            onDelete = { courseId ->
-                                viewModel.deleteCourse(courseId)
                             }
-                        )
+                        }
                     }
+                    // 长按空白区域后显示的"自定义课表"按钮
+                    LongPressCustomizeButton(
+                        visible = showLongPressOverlay,
+                        backdrop = backdrop,
+                        isDark = effectiveIsDark,
+                        onClick = {
+                            showLongPressButton = false
+                            coroutineScope.launch {
+                                delay(120.milliseconds)
+                                showLongPressOverlay = false
+                                enterCustomizePage()
+                            }
+                        },
+                        onDismiss = { showLongPressButton = false }
+                    )
+
+                    // 分享导入确认弹窗（必须在 Scaffold 内部）
+                    ShareImportDialog(
+                        activity = activity,
+                        shareIntentVersion = activity?.shareIntentVersion ?: 0,
+                        courseViewModel = viewModel,
+                        scheduleViewModel = scheduleViewModel,
+                        settingsViewModel = settingsViewModel,
+                        liquidGlassBackdrop = liquidGlassBackdrop,
+                    )
+
+                    // 更新弹窗
+                    UpdateDialog(liquidGlassBackdrop = liquidGlassBackdrop)
+
+                    // 添加课程对话框
+                    val showAddDialog by viewModel.showAddDialog.collectAsState()
+                    val editingCourse by viewModel.editingCourse.collectAsState()
+                    val selectedStartSection by viewModel.selectedStartSection.collectAsState()
+                    val selectedEndSection by viewModel.selectedEndSection.collectAsState()
+                    val editingStartSection =
+                        editingCourse?.startSection ?: selectedStartSection
+                    val editingEndSection = editingCourse?.endSection ?: selectedEndSection
+
+                    // 添加课程对话框（始终跟随应用主题，不受壁纸强制主题影响）
+                    val appDialogDark = rememberAppSettingDark()
+                    val appDialogController = remember(appDialogDark) {
+                        ThemeController(if (appDialogDark) ColorSchemeMode.Dark else ColorSchemeMode.Light)
+                    }
+                    MiuixTheme(controller = appDialogController) {
+                        CompositionLocalProvider(LocalForcedDarkTheme provides null) {
+                            AddCourseDialog(
+                                show = showAddDialog,
+                                course = editingCourse,
+                                selectedDay = viewModel.selectedDay.collectAsState().value,
+                                liquidGlassBackdrop = liquidGlassBackdrop,
+                                totalWeeks = totalWeeks,
+                                totalSections = totalSections,
+                                defaultStartSection = editingStartSection,
+                                defaultEndSection = editingEndSection,
+                                getOccupiedWeeks = { dayOfWeek, startSection, endSection, excludeIds, startTime, endTime ->
+                                    viewModel.getOccupiedWeeks(
+                                        dayOfWeek = dayOfWeek,
+                                        startSection = startSection,
+                                        endSection = endSection,
+                                        excludeIds = excludeIds.toSet(),
+                                        startTime = startTime,
+                                        endTime = endTime
+                                    )
+                                },
+                                onDismiss = { viewModel.hideDialog() },
+                                onConfirm = { course ->
+                                    if (editingCourse != null) {
+                                        viewModel.updateCourse(course)
+                                    } else {
+                                        viewModel.addCourse(course)
+                                    }
+                                },
+                                onDelete = { courseId ->
+                                    viewModel.deleteCourse(courseId)
+                                }
+                            )
+                        }
+                    }
+                    // 删除本周课程确认弹窗
+                    DeleteWeekCourseDialog(
+                        show = showDeleteConfirmDialog,
+                        course = deleteConfirmCourse,
+                        week = draggedWeek,
+                        viewModel = viewModel,
+                        liquidGlassBackdrop = liquidGlassBackdrop,
+                        hapticFeedback = hapticFeedback,
+                        onDismiss = { showDeleteConfirmDialog = false },
+                    )
+                    // 调课冲突弹窗
+                    RescheduleConflictDialog(
+                        show = showRescheduleConflictDialog,
+                        source = draggedCardCourse,
+                        target = pendingConflictCourse,
+                        dropTarget = pendingDropTarget,
+                        draggedWeek = draggedWeek,
+                        viewModel = viewModel,
+                        liquidGlassBackdrop = liquidGlassBackdrop,
+                        hapticFeedback = hapticFeedback,
+                        onDismiss = {
+                            showRescheduleConflictDialog = false
+                            pendingConflictCourse = null
+                            pendingDropTarget = null
+                            draggedCardCourse = null
+                        },
+                        onOverwrite = { ids ->
+                            animateInCourseIds = ids
+                            coroutineScope.launch {
+                                delay(350.milliseconds)
+                                animateInCourseIds = emptySet()
+                            }
+                        },
+                        onSwap = { ids ->
+                            animateInCourseIds = ids
+                            coroutineScope.launch {
+                                delay(350.milliseconds)
+                                animateInCourseIds = emptySet()
+                            }
+                        },
+                    )
                 }
-                // 删除本周课程确认弹窗
-                DeleteWeekCourseDialog(
-                    show = showDeleteConfirmDialog,
-                    course = deleteConfirmCourse,
-                    week = draggedWeek,
-                    viewModel = viewModel,
-                    liquidGlassBackdrop = liquidGlassBackdrop,
-                    hapticFeedback = hapticFeedback,
-                    onDismiss = { showDeleteConfirmDialog = false },
-                )
-                // 调课冲突弹窗
-                RescheduleConflictDialog(
-                    show = showRescheduleConflictDialog,
-                    source = draggedCardCourse,
-                    target = pendingConflictCourse,
-                    dropTarget = pendingDropTarget,
-                    draggedWeek = draggedWeek,
-                    viewModel = viewModel,
-                    liquidGlassBackdrop = liquidGlassBackdrop,
-                    hapticFeedback = hapticFeedback,
-                    onDismiss = {
-                        showRescheduleConflictDialog = false
-                        pendingConflictCourse = null
-                        pendingDropTarget = null
-                        draggedCardCourse = null
-                    },
-                    onOverwrite = { ids ->
-                        animateInCourseIds = ids
-                        coroutineScope.launch {
-                            delay(350.milliseconds)
-                            animateInCourseIds = emptySet()
-                        }
-                    },
-                    onSwap = { ids ->
-                        animateInCourseIds = ids
-                        coroutineScope.launch {
-                            delay(350.milliseconds)
-                            animateInCourseIds = emptySet()
-                        }
-                    },
-                )
-            }
             }
             // 始终用 MiuixTheme 包裹脚手架，保持组合结构恒定；
             // 有壁纸时 controller 跟随壁纸强制主题，无壁纸时跟随应用设置。
@@ -2242,63 +2264,65 @@ fun CourseScheduleApp() {
         }
         MiuixTheme(controller = overlayPageController) {
             CompositionLocalProvider(LocalForcedDarkTheme provides overlayEffectiveForcedDark) {
-        if (floatingCardVisible) {
-            val course = draggedCardCourse
-            if (course != null) {
-                android.util.Log.d(
-                    "FloatRender",
-                    "render course=${course.name}, sec=${course.startSection}-${course.endSection}, draggedCardSize=${draggedCardSize}"
-                )
-                // draggedCardPosition 为卡片正中心绝对坐标，浮层按中心对齐：offset = 中心 - 半宽
-                // 吸附期间使用 floatingOffsetAnim 替代 draggedCardOffset，实现从当前位置到目标位置的动画
-                val currentOffsetX = if (isSnapping) floatingOffsetX.value else draggedCardOffset.x
-                val currentOffsetY = if (isSnapping) floatingOffsetY.value else draggedCardOffset.y
-                val centerX = draggedCardPosition.x + currentOffsetX
-                val centerY = draggedCardPosition.y + currentOffsetY
-                // 宽度用 draggedCardSize（宽度不随节数变化）
-                // 高度按原卡片每节高度 × 当前 course 节数实时计算，避免 draggedCardSize 缓存旧节数
-                val widthPx = draggedCardSize.x
-                val sectionCount = course.endSection - course.startSection + 1
-                val sectionH = gridGeometry?.sectionHeightPx
-                    ?: with(density) { displayAppearance.cardHeight.dp.toPx() }
-                val heightPx = sectionCount * sectionH
-                val offsetX = with(density) { (centerX - widthPx / 2f).toDp() }
-                val offsetY = with(density) { (centerY - heightPx / 2f).toDp() }
-                val width = with(density) { widthPx.toDp() }
-                val height = with(density) { heightPx.toDp() }
-                LaunchedEffect(floatingCardVisible) {
-                    if (floatingCardVisible) {
-                        floatingScale.snapTo(0.94f)
-                        floatingScale.animateTo(1.04f, tween(durationMillis = 120))
+                if (floatingCardVisible) {
+                    val course = draggedCardCourse
+                    if (course != null) {
+                        android.util.Log.d(
+                            "FloatRender",
+                            "render course=${course.name}, sec=${course.startSection}-${course.endSection}, draggedCardSize=${draggedCardSize}"
+                        )
+                        // draggedCardPosition 为卡片正中心绝对坐标，浮层按中心对齐：offset = 中心 - 半宽
+                        // 吸附期间使用 floatingOffsetAnim 替代 draggedCardOffset，实现从当前位置到目标位置的动画
+                        val currentOffsetX =
+                            if (isSnapping) floatingOffsetX.value else draggedCardOffset.x
+                        val currentOffsetY =
+                            if (isSnapping) floatingOffsetY.value else draggedCardOffset.y
+                        val centerX = draggedCardPosition.x + currentOffsetX
+                        val centerY = draggedCardPosition.y + currentOffsetY
+                        // 宽度用 draggedCardSize（宽度不随节数变化）
+                        // 高度按原卡片每节高度 × 当前 course 节数实时计算，避免 draggedCardSize 缓存旧节数
+                        val widthPx = draggedCardSize.x
+                        val sectionCount = course.endSection - course.startSection + 1
+                        val sectionH = gridGeometry?.sectionHeightPx
+                            ?: with(density) { displayAppearance.cardHeight.dp.toPx() }
+                        val heightPx = sectionCount * sectionH
+                        val offsetX = with(density) { (centerX - widthPx / 2f).toDp() }
+                        val offsetY = with(density) { (centerY - heightPx / 2f).toDp() }
+                        val width = with(density) { widthPx.toDp() }
+                        val height = with(density) { heightPx.toDp() }
+                        LaunchedEffect(floatingCardVisible) {
+                            if (floatingCardVisible) {
+                                floatingScale.snapTo(0.94f)
+                                floatingScale.animateTo(1.04f, tween(durationMillis = 120))
+                            }
+                        }
+
+                        Box(
+                            modifier = Modifier
+                                .offset(x = offsetX, y = offsetY)
+                                .size(width = width, height = height)
+                                .padding(vertical = 2.dp)
+                                .graphicsLayer {
+                                    scaleX = floatingScale.value
+                                    scaleY = floatingScale.value
+                                }
+                        ) {
+                            CourseCard(
+                                course = course,
+                                isCurrentWeek = course.isActiveInWeek(draggedWeek),
+                                wallpaperBackdrop = if (wallpaperBitmap != null) liquidGlassBackdrop else null,
+                                cardBlurRadius = displayAppearance.cardBlurRadius,
+                                cardAlpha = displayAppearance.cardAlpha,
+                                cardHeightPerSection = displayAppearance.cardHeight,
+                                cardCornerRadius = displayAppearance.cardCornerRadius,
+                                isTablet = isTablet,
+                                cardContentAlignment = displayAppearance.cardContentAlignment,
+                                disablePadding = true,
+                                onClick = {}
+                            )
+                        }
                     }
                 }
-
-                Box(
-                    modifier = Modifier
-                        .offset(x = offsetX, y = offsetY)
-                        .size(width = width, height = height)
-                        .padding(vertical = 2.dp)
-                        .graphicsLayer {
-                            scaleX = floatingScale.value
-                            scaleY = floatingScale.value
-                        }
-                ) {
-                    CourseCard(
-                        course = course,
-                        isCurrentWeek = course.isActiveInWeek(draggedWeek),
-                        wallpaperBackdrop = if (wallpaperBitmap != null) liquidGlassBackdrop else null,
-                        cardBlurRadius = displayAppearance.cardBlurRadius,
-                        cardAlpha = displayAppearance.cardAlpha,
-                        cardHeightPerSection = displayAppearance.cardHeight,
-                        cardCornerRadius = displayAppearance.cardCornerRadius,
-                        isTablet = isTablet,
-                        cardContentAlignment = displayAppearance.cardContentAlignment,
-                        disablePadding = true,
-                        onClick = {}
-                    )
-                }
-            }
-        }
             }
         }
         // 快捷菜单：点击外部关闭（先触发退出动画，动画结束再清空状态）
@@ -2723,7 +2747,8 @@ fun CourseScheduleApp() {
                                     val c = combinations[currentCombinationIndex]
                                     wallpaperBitmap = c.bitmap
                                     wallpaperOffset = c.offset
-                                    val minScaleDel = computeWallpaperMinScale(c.bitmap, screenWPx, screenHPx)
+                                    val minScaleDel =
+                                        computeWallpaperMinScale(c.bitmap, screenWPx, screenHPx)
                                     wallpaperScale = maxOf(c.scale, minScaleDel)
                                     savedWallpaperBitmap = c.bitmap
                                     savedWallpaperOffset = c.offset

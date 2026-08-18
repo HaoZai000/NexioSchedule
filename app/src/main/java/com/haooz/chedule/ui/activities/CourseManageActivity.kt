@@ -131,6 +131,10 @@ class CourseManageActivity : ComponentActivity() {
                 var shortcutMenuSnapshot by remember { mutableStateOf<androidx.compose.ui.graphics.ImageBitmap?>(null) }
                 var editingCourse by remember { mutableStateOf<Course?>(null) }
 
+                // 删除确认弹窗状态
+                var showDeleteConfirmDialog by remember { mutableStateOf(false) }
+                var pendingDeleteCourses by remember { mutableStateOf<List<Course>>(emptyList()) }
+
                 // Track course IDs created in this session for cleanup on exit
                 var createdCourseIds by remember { mutableStateOf(setOf<String>()) }
                 // Track course IDs that were opened for editing (to avoid deleting modified ones)
@@ -306,6 +310,16 @@ class CourseManageActivity : ComponentActivity() {
                                                     showShortcutMenu = true
                                                 }
                                             },
+                                            onDeleteCourses = { courses ->
+                                                coroutineScope.launch {
+                                                    courses.forEach { course ->
+                                                        courseViewModel.deleteCourse(course.id)
+                                                    }
+                                                }
+                                            },
+                                            deleteConfirmShow = showDeleteConfirmDialog,
+                                            deleteConfirmCourses = pendingDeleteCourses,
+                                            onDeleteConfirmDismiss = { showDeleteConfirmDialog = false },
                                             onCourseClick = { courses, left, top, width, height, _, color, alpha ->
                                                 coroutineScope.launch {
                                                     selectedCourses = courses
@@ -520,13 +534,11 @@ class CourseManageActivity : ComponentActivity() {
                                 icon = MiuixIcons.Delete,
                                 label = "删除",
                                 onClick = {
-                                    val coursesToDelete = shortcutMenuCourses.toList()
+                                    pendingDeleteCourses = shortcutMenuCourses.toList()
                                     showShortcutMenu = false
                                     coroutineScope.launch {
                                         delay(260.milliseconds)
-                                        coursesToDelete.forEach { course ->
-                                            courseViewModel.deleteCourse(course.id)
-                                        }
+                                        showDeleteConfirmDialog = true
                                     }
                                 }
                             )

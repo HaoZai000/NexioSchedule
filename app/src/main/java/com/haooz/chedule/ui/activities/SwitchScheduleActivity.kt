@@ -907,22 +907,16 @@ fun SwitchScheduleScreen(
                             .padding(top = 16.dp),
                         horizontalArrangement = Arrangement.spacedBy(12.dp)
                     ) {
-                        Button(
-                            modifier = Modifier.weight(1f),
+                        TextButton(
+                            text = "取消",
                             onClick = {
                                 hapticFeedback.performHapticFeedback(HapticFeedbackType.Confirm)
                                 showDeleteDialog = false
                             },
-                        ) {
-                            Text(
-                                "取消",
-                                fontSize = 17.sp,
-                                fontWeight = FontWeight.Medium,
-                                color = MiuixTheme.colorScheme.onSurface
-                            )
-                        }
-                        Button(
-                            modifier = Modifier.weight(1f),
+                            modifier = Modifier.weight(1f)
+                        )
+                        TextButton(
+                            text = "删除",
                             onClick = {
                                 hapticFeedback.performHapticFeedback(HapticFeedbackType.Confirm)
                                 val selectedNames = checkboxStates.filter { it.value }.keys.toList()
@@ -944,14 +938,9 @@ fun SwitchScheduleScreen(
                                     onScheduleChanged()
                                 }
                             },
-                        ) {
-                            Text(
-                                "删除",
-                                fontSize = 17.sp,
-                                fontWeight = FontWeight.Medium,
-                                color = ComposeColor(0xFFF44336)
-                            )
-                        }
+                            textColor = ComposeColor(0xFFF44336),
+                            modifier = Modifier.weight(1f)
+                        )
                     }
                 }
             }

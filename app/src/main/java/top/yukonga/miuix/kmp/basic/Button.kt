@@ -5,6 +5,7 @@ package top.yukonga.miuix.kmp.basic
 
 import androidx.compose.foundation.Indication
 import androidx.compose.foundation.LocalIndication
+import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
@@ -20,13 +21,17 @@ import androidx.compose.runtime.Immutable
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.role
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.TextStyle
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
+import com.haooz.chedule.ui.utils.isAppDarkTheme
+import com.kyant.shapes.RoundedRectangle
 import top.yukonga.miuix.kmp.squircle.squircleSurface
 import top.yukonga.miuix.kmp.theme.LocalContentColor
 import top.yukonga.miuix.kmp.theme.MiuixTheme
@@ -119,33 +124,46 @@ fun TextButton(
     colors: TextButtonColors = ButtonDefaults.textButtonColors(),
     insideMargin: PaddingValues = ButtonDefaults.InsideMargin,
     textStyle: TextStyle? = null,
+    textColor: Color? = null,
     interactionSource: MutableInteractionSource? = null,
     indication: Indication? = LocalIndication.current,
 ) {
-    val mappedColors = remember(colors) {
-        ButtonColors(
-            color = colors.color,
-            disabledColor = colors.disabledColor,
-            contentColor = colors.textColor,
-            disabledContentColor = colors.disabledTextColor,
-        )
+    @Suppress("NAME_SHADOWING")
+    val interactionSource = interactionSource ?: remember { MutableInteractionSource() }
+    val bgColor = colors.color.copy(alpha = colors.alpha)
+    val disabledBgColor = colors.disabledColor
+    val containerColor = if (enabled) bgColor else disabledBgColor
+    val contentColor = if (enabled) textColor ?: colors.textColor else colors.disabledTextColor
+    val rowModifier = remember(minWidth, minHeight, insideMargin) {
+        Modifier
+            .defaultMinSize(minWidth = minWidth, minHeight = minHeight)
+            .padding(insideMargin)
     }
-    Button(
-        onClick = onClick,
-        modifier = modifier,
-        enabled = enabled,
-        cornerRadius = cornerRadius,
-        minWidth = minWidth,
-        minHeight = minHeight,
-        colors = mappedColors,
-        insideMargin = insideMargin,
-        interactionSource = interactionSource,
-        indication = indication,
-    ) {
-        Text(
-            text = text,
-            style = textStyle ?: MiuixTheme.textStyles.button,
-        )
+    CompositionLocalProvider(LocalContentColor provides contentColor) {
+        Box(
+            modifier = modifier
+                .semantics { role = Role.Button }
+                .background(color = containerColor, shape = RoundedRectangle(cornerRadius))
+                .clip(RoundedRectangle(cornerRadius))
+                .clickable(
+                    interactionSource = interactionSource,
+                    indication = indication,
+                    enabled = enabled,
+                    onClick = onClick,
+                ),
+            propagateMinConstraints = true,
+        ) {
+            Row(
+                modifier = rowModifier,
+                horizontalArrangement = Arrangement.Center,
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Text(
+                    text = text,
+                    style = (textStyle ?: MiuixTheme.textStyles.button).copy(fontWeight = FontWeight.Medium),
+                )
+            }
+        }
     }
 }
 
@@ -214,16 +232,18 @@ object ButtonDefaults {
      */
     @Composable
     fun textButtonColors(
-        color: Color = MiuixTheme.colorScheme.secondaryVariant,
+        color: Color = if (isAppDarkTheme())Color.White else Color.Black,
         disabledColor: Color = MiuixTheme.colorScheme.disabledSecondaryVariant,
         textColor: Color = MiuixTheme.colorScheme.onSecondaryVariant,
         disabledTextColor: Color = MiuixTheme.colorScheme.disabledOnSecondaryVariant,
-    ): TextButtonColors = remember(color, disabledColor, textColor, disabledTextColor) {
+        alpha: Float = 0.06f,
+    ): TextButtonColors = remember(color, disabledColor, textColor, disabledTextColor, alpha) {
         TextButtonColors(
             color = color,
             disabledColor = disabledColor,
             textColor = textColor,
             disabledTextColor = disabledTextColor,
+            alpha = alpha,
         )
     }
 
@@ -236,12 +256,14 @@ object ButtonDefaults {
         disabledColor: Color = MiuixTheme.colorScheme.disabledPrimaryButton,
         textColor: Color = MiuixTheme.colorScheme.onPrimary,
         disabledTextColor: Color = MiuixTheme.colorScheme.disabledOnPrimaryButton,
-    ): TextButtonColors = remember(color, disabledColor, textColor, disabledTextColor) {
+        alpha: Float = 0.84f,
+    ): TextButtonColors = remember(color, disabledColor, textColor, disabledTextColor, alpha) {
         TextButtonColors(
             color = color,
             disabledColor = disabledColor,
             textColor = textColor,
             disabledTextColor = disabledTextColor,
+            alpha = alpha,
         )
     }
 }
@@ -260,4 +282,5 @@ data class TextButtonColors(
     val disabledColor: Color,
     val textColor: Color,
     val disabledTextColor: Color,
+    val alpha: Float = 1f,
 )

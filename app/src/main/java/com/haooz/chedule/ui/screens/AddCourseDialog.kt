@@ -27,6 +27,7 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
@@ -60,8 +61,10 @@ import com.haooz.chedule.ui.basic.LiquidTopBarButton
 import com.haooz.chedule.ui.basic.LocalSheetTopBarMaterial
 import com.haooz.chedule.ui.basic.NativeTextField
 import com.haooz.chedule.ui.basic.OverlayDialog
+import com.haooz.chedule.ui.utils.LocalForcedDarkTheme
 import com.haooz.chedule.ui.utils.isAppDarkTheme
 import com.haooz.chedule.ui.utils.overScrollVertical
+import com.haooz.chedule.ui.utils.rememberAppSettingDark
 import com.kyant.backdrop.Backdrop
 import com.kyant.shapes.RoundedRectangle
 import top.yukonga.miuix.kmp.basic.Button
@@ -80,7 +83,9 @@ import top.yukonga.miuix.kmp.icon.extended.Close
 import top.yukonga.miuix.kmp.icon.extended.Delete
 import top.yukonga.miuix.kmp.icon.extended.Ok
 import top.yukonga.miuix.kmp.preference.ArrowPreference
+import top.yukonga.miuix.kmp.theme.ColorSchemeMode
 import top.yukonga.miuix.kmp.theme.MiuixTheme
+import top.yukonga.miuix.kmp.theme.ThemeController
 import top.yukonga.miuix.kmp.utils.PressFeedbackType
 import top.yukonga.miuix.kmp.utils.scrollEndHaptic
 import java.util.UUID
@@ -105,6 +110,12 @@ fun AddCourseDialog(
     val hapticFeedback = LocalHapticFeedback.current
     val context = LocalContext.current
     val isDark = isAppDarkTheme()
+    // 嵌套弹窗（节次/自定义时间等）渲染在 root popup host，继承宿主的壁纸主题；
+    // 此处强制跟随应用主题。
+    val appDialogDark = rememberAppSettingDark()
+    val appDialogController = remember(appDialogDark) {
+        ThemeController(if (appDialogDark) ColorSchemeMode.Dark else ColorSchemeMode.Light)
+    }
     var sheetContentBackdrop by remember { mutableStateOf<Backdrop?>(null) }
 
     var name by remember(show) { mutableStateOf(course?.name ?: "") }
@@ -440,36 +451,37 @@ fun AddCourseDialog(
                 .padding(top = 16.dp),
             horizontalArrangement = Arrangement.spacedBy(12.dp)
         ) {
-            Button(
-                modifier = Modifier.weight(1f),
+            TextButton(
+                text = "取消",
                 onClick = {
                     hapticFeedback.performHapticFeedback(HapticFeedbackType.Confirm)
                     showDeleteDialog = false
                 },
-            ) {
-                Text("取消", fontSize = 17.sp, fontWeight = FontWeight.Medium, color = MiuixTheme.colorScheme.onSurface)
-            }
-            Button(
-                modifier = Modifier.weight(1f),
+                modifier = Modifier.weight(1f)
+            )
+            TextButton(
+                text = "删除",
                 onClick = {
                     hapticFeedback.performHapticFeedback(HapticFeedbackType.Confirm)
                     course?.id?.let { onDelete(it) }
                     showDeleteDialog = false
                     onDismiss()
                 },
-            ) {
-                Text("删除", fontSize = 17.sp, fontWeight = FontWeight.Medium, color = Color(0xFFF44336))
-            }
+                textColor = Color(0xFFF44336),
+                modifier = Modifier.weight(1f)
+            )
         }
     }
 
-    // 节次选择弹窗
+    // 节次选择弹窗（强制跟随应用主题）
     OverlayDialog(
         title = "选择上课节次",
         show = showSectionDialog,
         onDismissRequest = { showSectionDialog = false },
         liquidGlassBackdrop = sheetContentBackdrop ?: liquidGlassBackdrop,
     ) {
+        MiuixTheme(controller = appDialogController) {
+            CompositionLocalProvider(LocalForcedDarkTheme provides null) {
         Column(
             modifier = Modifier.fillMaxWidth(),
             horizontalAlignment = Alignment.CenterHorizontally
@@ -552,15 +564,19 @@ fun AddCourseDialog(
                 )
             }
         }
+            }
+        }
     }
 
-    // 自定义上课时间选择弹窗（时:分 双滚轮）
+    // 自定义上课时间选择弹窗（时:分 双滚轮，强制跟随应用主题）
     OverlayDialog(
         title = "选择上课时间",
         show = showTimeDialog,
         onDismissRequest = { showTimeDialog = false },
         liquidGlassBackdrop = sheetContentBackdrop ?: liquidGlassBackdrop,
     ) {
+        MiuixTheme(controller = appDialogController) {
+            CompositionLocalProvider(LocalForcedDarkTheme provides null) {
         Column(
             modifier = Modifier.fillMaxWidth(),
             horizontalAlignment = Alignment.CenterHorizontally
@@ -617,6 +633,8 @@ fun AddCourseDialog(
                     colors = ButtonDefaults.textButtonColorsPrimary(),
                     modifier = Modifier.weight(1f)
                 )
+            }
+        }
             }
         }
     }

@@ -104,6 +104,10 @@ fun CourseManageScreen(
     onEditDismiss: () -> Unit = {},
     pendingEditCourse: Course? = null,
     onCourseLongPress: (courses: List<Course>, left: Float, top: Float, width: Float, height: Float) -> Unit = { _, _, _, _, _ -> },
+    onDeleteCourses: (List<Course>) -> Unit = {},
+    deleteConfirmShow: Boolean = false,
+    deleteConfirmCourses: List<Course> = emptyList(),
+    onDeleteConfirmDismiss: () -> Unit = {},
     liquidGlassBackdrop: com.kyant.backdrop.Backdrop? = null
 ) {
     val hapticFeedback = LocalHapticFeedback.current
@@ -664,6 +668,49 @@ fun CourseManageScreen(
                         showCustomColorDialog = false
                     },
                     colors = ButtonDefaults.textButtonColorsPrimary(),
+                    modifier = Modifier.weight(1f)
+                )
+            }
+        }
+    }
+
+    // 删除确认弹窗
+    if (deleteConfirmCourses.isNotEmpty()) {
+        val deleteCourseName = deleteConfirmCourses.firstOrNull()?.name ?: ""
+        val deleteSummary = if (deleteConfirmCourses.size > 1) {
+            "确定要删除课程「${deleteCourseName}」的 ${deleteConfirmCourses.size} 条记录吗？\n此操作不可撤销。"
+        } else {
+            "确定要删除课程「${deleteCourseName}」吗？\n此操作不可撤销。"
+        }
+        OverlayDialog(
+            title = "删除课程",
+            summary = deleteSummary,
+            show = deleteConfirmShow,
+            onDismissRequest = onDeleteConfirmDismiss,
+            liquidGlassBackdrop = liquidGlassBackdrop
+        ) {
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(top = 16.dp),
+                horizontalArrangement = Arrangement.spacedBy(12.dp)
+            ) {
+                TextButton(
+                    text = "取消",
+                    onClick = {
+                        hapticFeedback.performHapticFeedback(HapticFeedbackType.Confirm)
+                        onDeleteConfirmDismiss()
+                    },
+                    modifier = Modifier.weight(1f)
+                )
+                TextButton(
+                    text = "删除",
+                    onClick = {
+                        hapticFeedback.performHapticFeedback(HapticFeedbackType.Confirm)
+                        onDeleteConfirmDismiss()
+                        onDeleteCourses(deleteConfirmCourses)
+                    },
+                    textColor = Color(0xFFF44336),
                     modifier = Modifier.weight(1f)
                 )
             }
