@@ -132,7 +132,6 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
-import top.yukonga.miuix.kmp.basic.Button
 import top.yukonga.miuix.kmp.basic.NavigationRailDefaults
 import top.yukonga.miuix.kmp.basic.Scaffold
 import top.yukonga.miuix.kmp.basic.TextButton
@@ -422,7 +421,7 @@ private fun RescheduleConflictDialog(
     OverlayDialog(
         title = "该位置已有课程",
         summary = if (target != null && source != null && dropTarget != null) {
-            "「${source.name}」要如何处理与「${target.name}」的位置冲突？\n" +
+            "「${source.name}」与「${target.name}」的位置冲突\n" +
                     "覆盖：删除「${target.name}」本周的课程，并把「${source.name}」调到此位置\n" +
                     "交换：互换本周两节课的位置"
         } else {
@@ -438,21 +437,17 @@ private fun RescheduleConflictDialog(
                 .padding(top = 16.dp),
             horizontalArrangement = Arrangement.spacedBy(12.dp)
         ) {
-            Button(
+            TextButton(
+                text = "取消",
                 modifier = Modifier.weight(1f),
                 onClick = {
                     hapticFeedback.performHapticFeedback(HapticFeedbackType.Confirm)
                     onDismiss()
                 },
-            ) {
-                Text(
-                    "取消",
-                    fontSize = 17.sp,
-                    fontWeight = FontWeight.Medium,
-                    color = MiuixTheme.colorScheme.onSurface
-                )
-            }
-            Button(
+            )
+            TextButton(
+                text = "覆盖",
+                textColor = Color(0xFFFF9800),
                 modifier = Modifier.weight(1f),
                 onClick = {
                     hapticFeedback.performHapticFeedback(HapticFeedbackType.Confirm)
@@ -471,15 +466,10 @@ private fun RescheduleConflictDialog(
                     }
                     onDismiss()
                 },
-            ) {
-                Text(
-                    "覆盖",
-                    fontSize = 17.sp,
-                    fontWeight = FontWeight.Medium,
-                    color = Color(0xFFFF9800)
-                )
-            }
-            Button(
+            )
+            TextButton(
+                text = "交换",
+                textColor = MiuixTheme.colorScheme.primary,
                 modifier = Modifier.weight(1f),
                 onClick = {
                     hapticFeedback.performHapticFeedback(HapticFeedbackType.Confirm)
@@ -506,14 +496,7 @@ private fun RescheduleConflictDialog(
                     }
                     onDismiss()
                 },
-            ) {
-                Text(
-                    "交换",
-                    fontSize = 17.sp,
-                    fontWeight = FontWeight.Medium,
-                    color = MiuixTheme.colorScheme.primary
-                )
-            }
+            )
         }
     }
 }
