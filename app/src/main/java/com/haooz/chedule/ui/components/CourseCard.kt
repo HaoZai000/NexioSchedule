@@ -500,21 +500,32 @@ private fun CardContent(course: Course, sectionCount: Int, textColor: Color, has
         }
 
         if (course.hasValidCustomTime()) {
-            Box(
+            // 顶部显示开始时间
+            Text(
+                text = course.customStartTime ?: "",
+                fontSize = 8.sp,
+                color = textColor,
                 modifier = Modifier
-                    .align(Alignment.TopEnd)
+                    .align(Alignment.TopCenter)
                     .padding(if (isTablet) 6.dp else 5.dp)
                     .clip(RoundedCornerShape(4.dp))
-                    .background(textColor.copy(alpha = 0.2f))
-                    .padding(horizontal = 4.dp, vertical = 1.dp)
-            ) {
-                Text(
-                    text = "自定义",
-                    fontSize = 8.sp,
-                    color = textColor,
-                    maxLines = 1
-                )
-            }
+                    .background(textColor.copy(alpha = 0.1f))
+                    .padding(horizontal = 4.dp, vertical = 1.dp),
+                maxLines = 1
+            )
+            // 底部显示结束时间
+            Text(
+                text = course.customEndTime ?: "",
+                fontSize = 8.sp,
+                color = textColor,
+                modifier = Modifier
+                    .align(Alignment.BottomCenter)
+                    .padding(if (isTablet) 6.dp else 5.dp)
+                    .clip(RoundedCornerShape(4.dp))
+                    .background(textColor.copy(alpha = 0.1f))
+                    .padding(horizontal = 4.dp, vertical = 1.dp),
+                maxLines = 1
+            )
         }
     }
 }
