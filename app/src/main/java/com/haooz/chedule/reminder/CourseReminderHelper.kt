@@ -443,8 +443,12 @@ object CourseReminderHelper {
         val repository = CourseRepository(context)
         val todayCourses = getTodayCourses(context)
 
+        // 倒计时通知激活时，需要每分钟刷新以更新倒计时文本
+        val countdownPrefs = context.getSharedPreferences("countdown_state", Context.MODE_PRIVATE)
+        val hasActiveCountdown = countdownPrefs.getBoolean("active", false)
+
         // 检查是否有课程正在进行或即将开始（5分钟内）
-        var hasActiveCourse = false
+        var hasActiveCourse = hasActiveCountdown
         var nextEventTime: Long? = null  // 下一个课程开始/结束时间
 
         for (course in todayCourses) {
@@ -760,7 +764,7 @@ object CourseReminderHelper {
         val shortCriticalText = when (collapsedMode) {
             0 -> courseName
             1 -> classroom.ifEmpty { courseName }
-            2 -> "${minutesUntilStart + 1}分钟"
+            2 -> "${minutesUntilStart +1}分钟"
             else -> courseName
         }
 
@@ -811,6 +815,7 @@ object CourseReminderHelper {
                 .putLong("startMillis", startMillis)
                 .putLong("endMillis", endMillis)
                 .putInt("notificationId", notificationId)
+                .remove("last_displayed_minutes")
         }
 
         // 倒计时到达后立即触发更新，使用精确闹钟确保可靠触发
@@ -833,10 +838,15 @@ object CourseReminderHelper {
                 )
             } catch (_: SecurityException) { }
         }
+
+        // 启动 widget 刷新链，确保倒计时每分钟更新
+        val alarmManager = context.getSystemService(Context.ALARM_SERVICE) as AlarmManager
+        scheduleNextWidgetRefresh(context, alarmManager)
     }
 
     /**
-     * 每分钟由 WidgetRefreshReceiver 调用，更新实况倒计时通知内容
+     * 每分钟由 WidgetRefreshReceiver 调用，更新倒计时通知
+     * 使用同一个 notifyId 重复调用 notify() 无痕更新UI
      */
     fun updateActiveCountdown(context: Context) {
         val prefs = context.getSharedPreferences("countdown_state", Context.MODE_PRIVATE)
@@ -920,24 +930,12 @@ object CourseReminderHelper {
             return
         }
 
-        val contentIntent = PendingIntent.getActivity(
-            context, courseName.hashCode(),
-            Intent(context, MainActivity::class.java).apply {
-                flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP
-            },
-            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
-        )
-
-        // 静音模式 PendingIntent
-        val muteIntent = Intent(context, MuteReceiver::class.java)
-        val mutePendingIntent = PendingIntent.getBroadcast(
-            context,
-            courseName.hashCode() + 100,
-            muteIntent,
-            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
-        )
-
+        // 更新倒计时通知，使用同一个 notifyId 无痕更新
         val minutesUntilStart = ((startMillis - now) / 60_000).toInt()
+
+        // 只在分钟数变化时才重建通知
+        val lastDisplayedMinutes = prefs.getInt("last_displayed_minutes", -1)
+        if (minutesUntilStart == lastDisplayedMinutes) return
 
         // 读取实况通知右侧显示模式
         val collapsedPrefs = context.getSharedPreferences("course_reminder_prefs", Context.MODE_PRIVATE)
@@ -945,7 +943,7 @@ object CourseReminderHelper {
         val shortCriticalText = when (collapsedMode) {
             0 -> courseName
             1 -> classroom.ifEmpty { courseName }
-            2 -> "${minutesUntilStart + 1}分钟"
+            2 -> "${minutesUntilStart +1}分钟"
             else -> courseName
         }
 
@@ -957,6 +955,22 @@ object CourseReminderHelper {
                 append(classroom)
             }
         }
+
+        val contentIntent = PendingIntent.getActivity(
+            context, courseName.hashCode(),
+            Intent(context, MainActivity::class.java).apply {
+                flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP
+            },
+            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+        )
+
+        val muteIntent = Intent(context, MuteReceiver::class.java)
+        val mutePendingIntent = PendingIntent.getBroadcast(
+            context,
+            courseName.hashCode() + 100,
+            muteIntent,
+            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+        )
 
         val notification = NotificationCompat.Builder(context, CHANNEL_LIVE_ID)
             .setSmallIcon(R.mipmap.ic_launcher)
@@ -984,5 +998,8 @@ object CourseReminderHelper {
 
         val manager = context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
         manager.notify(notificationId, notification)
+
+        // 记录本次显示的分钟数
+        prefs.edit { putInt("last_displayed_minutes", minutesUntilStart) }
     }
 }

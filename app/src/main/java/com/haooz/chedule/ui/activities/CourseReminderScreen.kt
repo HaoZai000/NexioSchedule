@@ -843,7 +843,7 @@ fun CourseReminderScreen(
                             IslandNotificationHelper.sendTestIslandNotification(context)
                             Toast.makeText(context, "已发送超级岛测试通知", Toast.LENGTH_SHORT).show()
                         } else {
-                            val startMillis = System.currentTimeMillis() + 30_000L
+                            val startMillis = System.currentTimeMillis() + 120_000L
                             val endMillis = startMillis + 45 * 60_000L
                             CourseReminderHelper.showPreClassCountdownNotification(
                                 context = context,
@@ -854,7 +854,7 @@ fun CourseReminderScreen(
                                 startMillis = startMillis,
                                 endMillis = endMillis
                             )
-                            Toast.makeText(context, "已发送: $courseName (模拟30秒后上课)", Toast.LENGTH_SHORT).show()
+                            Toast.makeText(context, "已发送: $courseName (模拟2分钟后上课)", Toast.LENGTH_SHORT).show()
                         }
                     },
                     colors = ButtonDefaults.textButtonColorsPrimary(),
