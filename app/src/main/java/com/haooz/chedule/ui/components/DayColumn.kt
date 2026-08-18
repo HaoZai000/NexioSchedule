@@ -637,16 +637,7 @@ private fun computeCustomTimeLayout(
     val ce = parseMinutes(customEnd)
     if (cs < 0 || ce < 0 || ce <= cs) return null
 
-    val morningStart = parseMinutes(sectionTimes[1]?.substringBefore("-"))
-    val morningEnd = parseMinutes(sectionTimes[morningSections]?.substringAfter("-"))
-    val afternoonStart = parseMinutes(sectionTimes[morningSections + 1]?.substringBefore("-"))
-    val afternoonEnd = parseMinutes(sectionTimes[morningSections + afternoonSections]?.substringAfter("-"))
-    val eveningStart = parseMinutes(sectionTimes[morningSections + afternoonSections + 1]?.substringBefore("-"))
-    val eveningEnd = parseMinutes(sectionTimes[morningSections + afternoonSections + eveningSections]?.substringAfter("-"))
-    if (morningStart < 0 || morningEnd <= morningStart ||
-        afternoonStart < 0 || afternoonEnd <= afternoonStart ||
-        eveningStart < 0 || eveningEnd <= eveningStart) return null
-
+    val totalSections = morningSections + afternoonSections + eveningSections
     val morningHeight = morningSections * cardHeightPerSection
     val afternoonHeight = afternoonSections * cardHeightPerSection
     val eveningHeight = eveningSections * cardHeightPerSection
@@ -654,26 +645,52 @@ private fun computeCustomTimeLayout(
     val eveningTop = afternoonTop + afternoonHeight + dividerGap
     val columnBottom = eveningTop + eveningHeight
 
+    // 收集所有节次的起止时间
+    data class SectionInfo(val start: Int, val end: Int, val index: Int)
+    val sections = mutableListOf<SectionInfo>()
+    for (section in 1..totalSections) {
+        val timeStr = sectionTimes[section] ?: continue
+        val parts = timeStr.split("-")
+        if (parts.size != 2) continue
+        val ss = parseMinutes(parts[0])
+        val se = parseMinutes(parts[1])
+        if (ss < 0 || se < 0) continue
+        sections.add(SectionInfo(ss, se, section))
+    }
+    if (sections.isEmpty()) return null
+
+    // 将时间映射到 Y 坐标：在节次内按比例插值，跳过课间
     fun timeToY(minutes: Int): Float {
-        val raw = when {
-            minutes <= morningEnd -> {
-                if (minutes <= morningStart) 0f
-                else morningHeight * (minutes - morningStart).toFloat() / (morningEnd - morningStart).toFloat()
-            }
-            minutes <= afternoonEnd -> {
-                if (minutes <= afternoonStart) afternoonTop
-                else afternoonTop + afternoonHeight * (minutes - afternoonStart).toFloat() / (afternoonEnd - afternoonStart).toFloat()
-            }
-            else -> {
-                if (minutes <= eveningStart) eveningTop
-                else eveningTop + eveningHeight * (minutes - eveningStart).toFloat() / (eveningEnd - eveningStart).toFloat()
+        // 找到该时间所在的节次
+        for (info in sections) {
+            if (minutes <= info.end) {
+                val section = info.index
+                val sectionTop = when {
+                    section <= morningSections -> (section - 1) * cardHeightPerSection
+                    section <= morningSections + afternoonSections ->
+                        morningSections * cardHeightPerSection + dividerGap + (section - morningSections - 1) * cardHeightPerSection
+                    else ->
+                        morningSections * cardHeightPerSection + dividerGap + afternoonSections * cardHeightPerSection + dividerGap +
+                                (section - morningSections - afternoonSections - 1) * cardHeightPerSection
+                }
+                // 在该节次内按时间比例插值
+                val fraction = if (info.end > info.start) {
+                    ((minutes - info.start).toFloat() / (info.end - info.start)).coerceIn(0f, 1f)
+                } else 0f
+                return sectionTop + cardHeightPerSection * fraction
             }
         }
-        // 钳制到列边界，避免课程时间超出首末节时向下/向上溢出
-        return raw.coerceIn(0f, columnBottom)
+        // 超出最后一节：返回列底
+        return columnBottom
     }
 
-    val top = timeToY(cs)
-    val bottom = timeToY(ce)
-    return CustomTimeLayout(top, bottom - top)
+    // 早于第一节时：Y=0
+    fun timeToYClamped(minutes: Int): Float {
+        if (minutes <= sections.first().start) return 0f
+        return timeToY(minutes).coerceIn(0f, columnBottom)
+    }
+
+    val top = timeToYClamped(cs)
+    val bottom = timeToYClamped(ce)
+    return CustomTimeLayout(top, (bottom - top).coerceAtLeast(0f))
 }

@@ -272,7 +272,7 @@ fun CourseCard(
                 contentAlignment = Alignment.Center
             ) {
                 CardContent(course, sectionCount, textColor, hasMultipleCourses,
-                    isTablet, cardContentAlignment)
+                    isTablet, cardContentAlignment, cardHeight.value, cardHeightPerSection)
             }
         }
     } else {
@@ -393,7 +393,7 @@ fun CourseCard(
                 onClick = {}
             ) {
                 CardContent(course, sectionCount, textColor, hasMultipleCourses,
-                    isTablet, cardContentAlignment)
+                    isTablet, cardContentAlignment, cardHeight.value, cardHeightPerSection)
             }
         }
     }
@@ -404,7 +404,8 @@ private val overflowCache = java.util.concurrent.ConcurrentHashMap<String, Boole
 
 @Composable
 private fun CardContent(course: Course, sectionCount: Int, textColor: Color, hasMultipleCourses: Boolean,
-                        isTablet: Boolean = false, cardContentAlignment: com.haooz.chedule.data.CardContentAlignment = com.haooz.chedule.data.CardContentAlignment.CENTER_CENTER) {
+                        isTablet: Boolean = false, cardContentAlignment: com.haooz.chedule.data.CardContentAlignment = com.haooz.chedule.data.CardContentAlignment.CENTER_CENTER,
+                        cardHeightDp: Float = 0f, cardHeightPerSection: Float = 54f) {
     val footnote2Size = 10.5.sp
     val smallSize = (footnote2Size.value - 1.7).sp
 
@@ -499,7 +500,7 @@ private fun CardContent(course: Course, sectionCount: Int, textColor: Color, has
             )
         }
 
-        if (course.hasValidCustomTime()) {
+        if (course.hasValidCustomTime() && cardHeightDp >= 2 * cardHeightPerSection) {
             // 顶部显示开始时间
             Text(
                 text = course.customStartTime ?: "",
