@@ -18,7 +18,9 @@ import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.asPaddingValues
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBars
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -68,6 +70,7 @@ import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import top.yukonga.miuix.kmp.basic.CircularProgressIndicator
 import top.yukonga.miuix.kmp.basic.Scaffold
 import top.yukonga.miuix.kmp.basic.Surface
 import top.yukonga.miuix.kmp.blur.layerBackdrop
@@ -323,7 +326,19 @@ class EducationalImportActivity : ComponentActivity() {
                                     )
                                 },
                                 endAction = { backdropAlpha, shadowAlpha ->
-                                    if (!isUpdating) {
+                                    if (isUpdating) {
+                                        Box(
+                                            modifier = Modifier
+                                                .offset(x = (-6).dp, y = (-4).dp)
+                                                .size(40.dp),
+                                            contentAlignment = Alignment.Center
+                                        ) {
+                                            CircularProgressIndicator(
+                                                modifier = Modifier.size(20.dp),
+                                                progress = if (isChecking) null else updateProgress,
+                                            )
+                                        }
+                                    } else {
                                         LiquidTopBarButton(
                                             onClick = {
                                                 forceUpdate(this@EducationalImportActivity)
