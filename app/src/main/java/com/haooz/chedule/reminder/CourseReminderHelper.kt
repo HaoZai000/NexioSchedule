@@ -800,6 +800,9 @@ object CourseReminderHelper {
                 if (timeout > 0) setTimeoutAfter(timeout)
             }
             .build()
+            .apply {
+                flags = flags or Notification.FLAG_ONLY_ALERT_ONCE
+            }
 
         val manager = context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
         manager.notify(notificationId, notification)
@@ -926,6 +929,9 @@ object CourseReminderHelper {
                 .addAction(R.drawable.ic_notification_mute, "立即静音", mutePendingIntent)
                 .setTimeoutAfter(15_000L)
                 .build()
+                .apply {
+                    flags = flags or Notification.FLAG_ONLY_ALERT_ONCE
+                }
             manager.notify(notificationId, startedNotification)
             return
         }
@@ -995,6 +1001,9 @@ object CourseReminderHelper {
                 if (timeout > 0) setTimeoutAfter(timeout)
             }
             .build()
+            .apply {
+                flags = flags or Notification.FLAG_ONLY_ALERT_ONCE
+            }
 
         val manager = context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
         manager.notify(notificationId, notification)
