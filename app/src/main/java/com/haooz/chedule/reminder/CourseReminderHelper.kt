@@ -936,22 +936,20 @@ object CourseReminderHelper {
             return
         }
 
+        // 读取实况通知右侧显示模式
+        val collapsedPrefs = context.getSharedPreferences("course_reminder_prefs", Context.MODE_PRIVATE)
+        val collapsedMode = collapsedPrefs.getInt("live_right_mode", 0)
+
+        // 非倒计时模式（课程名/教室）内容不变，无需每分钟重建通知
+        if (collapsedMode != 2) return
+
         // 更新倒计时通知，使用同一个 notifyId 无痕更新
         val minutesUntilStart = ((startMillis - now) / 60_000).toInt()
 
         // 只在分钟数变化时才重建通知
         val lastDisplayedMinutes = prefs.getInt("last_displayed_minutes", -1)
         if (minutesUntilStart == lastDisplayedMinutes) return
-
-        // 读取实况通知右侧显示模式
-        val collapsedPrefs = context.getSharedPreferences("course_reminder_prefs", Context.MODE_PRIVATE)
-        val collapsedMode = collapsedPrefs.getInt("live_right_mode", 0)
-        val shortCriticalText = when (collapsedMode) {
-            0 -> courseName
-            1 -> classroom.ifEmpty { courseName }
-            2 -> "${minutesUntilStart +1}分钟"
-            else -> courseName
-        }
+        val shortCriticalText = "${minutesUntilStart + 1}分钟"
 
         // 构建大文本内容
         val bigText = buildString {
