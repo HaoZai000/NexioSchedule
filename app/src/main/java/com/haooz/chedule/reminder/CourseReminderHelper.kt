@@ -209,7 +209,7 @@ object CourseReminderHelper {
         val morningSections = repository.getMorningSections()
         val afternoonSections = repository.getAfternoonSections()
 
-        if (currentWeek > totalWeeks || currentWeek > lastWeekWithCourses) return
+        if (currentWeek < 1 || currentWeek > totalWeeks || currentWeek > lastWeekWithCourses) return
 
         val todayCourses = allCourses.filter { course ->
             course.dayOfWeek == today && course.isActiveInWeek(currentWeek)
@@ -382,11 +382,11 @@ object CourseReminderHelper {
         repository: CourseRepository,
         alarmManager: AlarmManager
     ) {
-        // 学期已结束，不再调度明日课程提醒
+        // 学期未开始或已结束，不再调度明日课程提醒
         val currentWeek = repository.getCurrentWeek()
         val totalWeeks = repository.getTotalWeeks()
         val lastWeekWithCourses = repository.getLastWeekWithCourses()
-        if (currentWeek > totalWeeks || currentWeek > lastWeekWithCourses) return
+        if (currentWeek < 1 || currentWeek > totalWeeks || currentWeek > lastWeekWithCourses) return
 
         val hour = repository.getNextDayReminderHour()
         val minute = repository.getNextDayReminderMinute()
@@ -619,7 +619,7 @@ object CourseReminderHelper {
         val tomorrowDayOfWeek = if (today == 7) 1 else today + 1
         val tomorrowWeek = if (tomorrowDayOfWeek == 1) currentWeek + 1 else currentWeek
 
-        if (tomorrowWeek > totalWeeks || tomorrowWeek > lastWeekWithCourses) return emptyList()
+        if (tomorrowWeek < 1 || tomorrowWeek > totalWeeks || tomorrowWeek > lastWeekWithCourses) return emptyList()
 
         return courses.filter { course ->
             course.dayOfWeek == tomorrowDayOfWeek && course.isActiveInWeek(tomorrowWeek)
