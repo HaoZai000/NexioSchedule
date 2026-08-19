@@ -151,7 +151,7 @@ fun BlurCard(
 
 
 @Composable
-private fun CourseItemContent(course: Course, sectionTimes: Map<Int, String>) {
+private fun CourseItemContent(course: Course, sectionTimes: Map<Int, String>, pageDate: LocalDate = LocalDate.now()) {
     fun getSectionTimeRange(startSection: Int, endSection: Int): String {
         val startTime = sectionTimes[startSection]?.split("-")?.firstOrNull() ?: ""
         val endTime = sectionTimes[endSection]?.split("-")?.lastOrNull() ?: ""
@@ -188,13 +188,20 @@ private fun CourseItemContent(course: Course, sectionTimes: Map<Int, String>) {
     val startTime = parseTime(startTimeStr)
     val endTime = parseTime(endTimeStr)
 
-    val initialStatus = remember(startTime, endTime) {
-        val now = LocalTime.now()
+    val initialStatus = remember(pageDate, startTime, endTime) {
+        val today = LocalDate.now()
         when {
+            !pageDate.isEqual(today) ->
+                if (pageDate.isBefore(today)) "已结束" else "未开始"
             startTime == null || endTime == null -> "未知"
-            now.isBefore(startTime) -> "未开始"
-            now.isAfter(endTime) -> "已结束"
-            else -> "进行中"
+            else -> {
+                val now = LocalTime.now()
+                when {
+                    now.isBefore(startTime) -> "未开始"
+                    now.isAfter(endTime) -> "已结束"
+                    else -> "进行中"
+                }
+            }
         }
     }
     val initialRemaining = remember(startTime, endTime) {
@@ -210,8 +217,13 @@ private fun CourseItemContent(course: Course, sectionTimes: Map<Int, String>) {
     var remainingMinutes by remember { mutableIntStateOf(initialRemaining.first) }
     var remainingSeconds by remember { mutableIntStateOf(initialRemaining.second) }
 
-    LaunchedEffect(startTime, endTime) {
+    LaunchedEffect(startTime, endTime, pageDate) {
         while (true) {
+            val today = LocalDate.now()
+            if (!pageDate.isEqual(today)) {
+                courseStatus = if (pageDate.isBefore(today)) "已结束" else "未开始"
+                return@LaunchedEffect
+            }
             val now = LocalTime.now()
             when {
                 startTime == null || endTime == null -> {
@@ -566,7 +578,7 @@ fun TodayScreen(
                             ),
                             verticalArrangement = Arrangement.spacedBy(12.dp)
                         ) {
-                            addCourseSections(morningCourses, afternoonCourses, eveningCourses, pageCourses, isPageToday, courses, hiddenCourseIds, sectionTimes, onCourseClick, if (hasWallpaper) cardBackdrop else null, cardBlurRadius)
+                            addCourseSections(morningCourses, afternoonCourses, eveningCourses, pageCourses, isPageToday, pageDate, courses, hiddenCourseIds, sectionTimes, onCourseClick, if (hasWallpaper) cardBackdrop else null, cardBlurRadius)
                         }
                     }
                 } else {
@@ -617,7 +629,7 @@ fun TodayScreen(
                                 )
                             }
                         }
-                        addCourseSections(morningCourses, afternoonCourses, eveningCourses, pageCourses, isPageToday, courses, hiddenCourseIds, sectionTimes, onCourseClick, if (hasWallpaper) cardBackdrop else null, cardBlurRadius)
+                        addCourseSections(morningCourses, afternoonCourses, eveningCourses, pageCourses, isPageToday, pageDate, courses, hiddenCourseIds, sectionTimes, onCourseClick, if (hasWallpaper) cardBackdrop else null, cardBlurRadius)
                     }
                 }
             }
@@ -1055,6 +1067,7 @@ private fun androidx.compose.foundation.lazy.LazyListScope.addCourseSections(
     eveningCourses: List<Course>,
     pageCourses: List<Course>,
     isPageToday: Boolean,
+    pageDate: LocalDate,
     courses: List<Course>,
     hiddenCourseIds: Set<String>,
     sectionTimes: Map<Int, String>,
@@ -1069,7 +1082,7 @@ private fun androidx.compose.foundation.lazy.LazyListScope.addCourseSections(
                 BlurCard(cornerRadius = 20.dp, wallpaperBackdrop = wallpaperBackdrop, blurRadius = blurRadius, modifier = Modifier.fillMaxWidth()) {
                     Column {
                         morningCourses.forEach { course ->
-                            CourseItemWithClick(course, courses, hiddenCourseIds, sectionTimes, onCourseClick, wallpaperBackdrop != null && blurRadius > 0f)
+                            CourseItemWithClick(course, courses, hiddenCourseIds, sectionTimes, pageDate, onCourseClick, wallpaperBackdrop != null && blurRadius > 0f)
                         }
                     }
                 }
@@ -1083,7 +1096,7 @@ private fun androidx.compose.foundation.lazy.LazyListScope.addCourseSections(
                 BlurCard(cornerRadius = 20.dp, wallpaperBackdrop = wallpaperBackdrop, blurRadius = blurRadius, modifier = Modifier.fillMaxWidth()) {
                     Column {
                         afternoonCourses.forEach { course ->
-                            CourseItemWithClick(course, courses, hiddenCourseIds, sectionTimes, onCourseClick, wallpaperBackdrop != null && blurRadius > 0f)
+                            CourseItemWithClick(course, courses, hiddenCourseIds, sectionTimes, pageDate, onCourseClick, wallpaperBackdrop != null && blurRadius > 0f)
                         }
                     }
                 }
@@ -1097,7 +1110,7 @@ private fun androidx.compose.foundation.lazy.LazyListScope.addCourseSections(
                 BlurCard(cornerRadius = 20.dp, wallpaperBackdrop = wallpaperBackdrop, blurRadius = blurRadius, modifier = Modifier.fillMaxWidth()) {
                     Column {
                         eveningCourses.forEach { course ->
-                            CourseItemWithClick(course, courses, hiddenCourseIds, sectionTimes, onCourseClick, wallpaperBackdrop != null && blurRadius > 0f)
+                            CourseItemWithClick(course, courses, hiddenCourseIds, sectionTimes, pageDate, onCourseClick, wallpaperBackdrop != null && blurRadius > 0f)
                         }
                     }
                 }
@@ -1124,6 +1137,7 @@ private fun CourseItemWithClick(
     allCourses: List<Course>,
     hiddenCourseIds: Set<String>,
     sectionTimes: Map<Int, String>,
+    pageDate: LocalDate,
     onCourseClick: (courses: List<Course>, cardLeft: Float, cardTop: Float, cardWidth: Float, cardHeight: Float, snapshot: android.graphics.Bitmap?, courseIdToHide: String) -> Unit,
     hasWallpaper: Boolean = false
 ) {
@@ -1154,7 +1168,7 @@ private fun CourseItemWithClick(
                     }
                 }
         ) {
-            CourseItemContent(course, sectionTimes)
+            CourseItemContent(course, sectionTimes, pageDate)
         }
     }
 }
