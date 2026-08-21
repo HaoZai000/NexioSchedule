@@ -67,7 +67,7 @@ import com.kyant.backdrop.Backdrop
 import com.kyant.backdrop.drawBackdrop
 import com.kyant.backdrop.effects.blur
 import com.kyant.backdrop.effects.vibrancy
-import com.kyant.shapes.RoundedRectangle
+import com.kyant.capsule.ContinuousRoundedRectangle
 import kotlinx.coroutines.launch
 import top.yukonga.miuix.kmp.anim.DecelerateEasing
 import top.yukonga.miuix.kmp.anim.folmeSpring
@@ -309,12 +309,12 @@ internal fun DialogContent(
         .pointerInput(Unit) {
             detectTapGestures { /* Consume click */ }
         }
-        .clip(RoundedRectangle(bottomCornerRadius))
+        .clip(ContinuousRoundedRectangle(bottomCornerRadius))
         .then(
             if (liquidGlassBackdrop != null && Build.VERSION.SDK_INT >= 33) {
                 Modifier.drawBackdrop(
                     backdrop = liquidGlassBackdrop,
-                    shape = { RoundedRectangle(bottomCornerRadius) },
+                    shape = { ContinuousRoundedRectangle(bottomCornerRadius) },
                     effects = {
                         vibrancy()
                         blur(24.dp.toPx())
@@ -323,14 +323,14 @@ internal fun DialogContent(
                 )
             } else Modifier
         )
-        .edgeLight(shape = RoundedRectangle(bottomCornerRadius), edgeLight = rememberDefaultEdgeLight())
+        .edgeLight(shape = ContinuousRoundedRectangle(bottomCornerRadius), edgeLight = rememberDefaultEdgeLight())
         .background(
             color = if (liquidGlassBackdrop != null && Build.VERSION.SDK_INT >= 33) {
                 backgroundColor.copy(alpha = if (isDark) 0.87f else 0.82f)
             } else {
                 backgroundColor
             },
-            shape = RoundedRectangle(bottomCornerRadius),
+            shape = ContinuousRoundedRectangle(bottomCornerRadius),
         )
         .padding(horizontal = insideMargin.width, vertical = insideMargin.height)
 

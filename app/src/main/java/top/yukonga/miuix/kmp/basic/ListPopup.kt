@@ -66,7 +66,7 @@ import com.haooz.chedule.ui.effects.edgelight.rememberDefaultEdgeLight
 import com.kyant.backdrop.drawBackdrop
 import com.kyant.backdrop.effects.blur
 import com.kyant.backdrop.effects.vibrancy
-import com.kyant.shapes.RoundedRectangle
+import com.kyant.capsule.ContinuousRoundedRectangle
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.launch
 import top.yukonga.miuix.kmp.anim.SinOutEasing
@@ -877,7 +877,7 @@ fun ListPopupContent(
                                 val fraction = fractionProgress().coerceIn(0f, 1f)
                                 val avgScale = 0.24f + 0.76f * fraction
                                 val scaledCornerRadius = cornerRadius / avgScale
-                                RoundedRectangle(scaledCornerRadius)
+                                ContinuousRoundedRectangle(scaledCornerRadius)
                             },
                             effects = {
                                 vibrancy()
@@ -962,7 +962,7 @@ fun Modifier.popupClipReveal(
         // 使用两个轴缩放的平均值来计算圆角，保持圆角不变
         val avgScale = (scaleXL + scaleXY) / 2f
         val scaledCornerRadius = cornerRadius / avgScale
-        val roundedRectShape = RoundedRectangle(scaledCornerRadius)
+        val roundedRectShape = ContinuousRoundedRectangle(scaledCornerRadius)
         val outline = roundedRectShape.createOutline(
             size = Size(size.width, visibleHeight),
             layoutDirection = layoutDirection,

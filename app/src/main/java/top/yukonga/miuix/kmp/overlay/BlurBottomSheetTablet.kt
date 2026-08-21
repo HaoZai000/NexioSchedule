@@ -61,7 +61,7 @@ import com.kyant.backdrop.backdrops.rememberLayerBackdrop
 import com.kyant.backdrop.drawBackdrop
 import com.kyant.backdrop.effects.blur
 import com.kyant.backdrop.effects.vibrancy
-import com.kyant.shapes.RoundedRectangle
+import com.kyant.capsule.ContinuousRoundedRectangle
 import kotlinx.coroutines.launch
 import top.yukonga.miuix.kmp.anim.folmeSpring
 import com.haooz.chedule.ui.utils.LocalForcedDarkTheme
@@ -243,12 +243,12 @@ private fun BlurBottomSheetTabletContent(
                 .onGloballyPositioned { coordinates ->
                     sheetHeightPx.intValue = coordinates.size.height
                 }
-                .clip(RoundedRectangle(38.dp))
+                .clip(ContinuousRoundedRectangle(38.dp))
                 .then(
                     if (liquidGlassBackdrop != null && Build.VERSION.SDK_INT >= 33) {
                         Modifier.drawBackdrop(
                             backdrop = liquidGlassBackdrop,
-                            shape = { RoundedRectangle(38.dp) },
+                            shape = { ContinuousRoundedRectangle(38.dp) },
                             effects = {
                                 vibrancy()
                                 blur(24.dp.toPx())
@@ -259,7 +259,7 @@ private fun BlurBottomSheetTabletContent(
                         Modifier
                     }
                 )
-                .edgeLight(shape = RoundedRectangle(38.dp), edgeLight = rememberDefaultEdgeLight())
+                .edgeLight(shape = ContinuousRoundedRectangle(38.dp), edgeLight = rememberDefaultEdgeLight())
                 .background(sheetBgColor.copy(alpha = sheetBackgroundAlpha ?: if (liquidGlassBackdrop != null)
                     if (Build.VERSION.SDK_INT >= 33) 0.92f else 1f
                 else 1f))

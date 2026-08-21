@@ -52,7 +52,7 @@ import top.yukonga.miuix.kmp.basic.NativeMiuixTextField
 import top.yukonga.miuix.kmp.overlay.OverlayDialog
 import com.haooz.chedule.ui.basic.SharedScrollBehavior
 import com.haooz.chedule.ui.utils.overScrollVertical
-import com.kyant.shapes.RoundedRectangle
+import com.kyant.capsule.ContinuousRoundedRectangle
 import kotlinx.coroutines.launch
 import top.yukonga.miuix.kmp.basic.ButtonDefaults
 import top.yukonga.miuix.kmp.basic.CircularProgressIndicator
@@ -267,7 +267,7 @@ fun SchoolSelectionScreen(
                                     school.adapters.any { it.category == AdapterData.CATEGORY_POSTGRADUATE }
                                 Box(
                                     modifier = Modifier.fillMaxWidth()
-                                        .then(if (isTablet) Modifier.clip(RoundedRectangle(20.dp)) else Modifier)
+                                        .then(if (isTablet) Modifier.clip(ContinuousRoundedRectangle(20.dp)) else Modifier)
                                         .clickable {
                                             hapticFeedback.performHapticFeedback(
                                                 HapticFeedbackType.VirtualKey

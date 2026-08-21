@@ -467,7 +467,7 @@ fun LocalBackupScreen(
                                 Row {
                                     Box(
                                         modifier = Modifier
-                                            .clip(com.kyant.shapes.RoundedRectangle(20.dp))
+                                            .clip(com.kyant.capsule.ContinuousRoundedRectangle(20.dp))
                                             .background(MiuixTheme.colorScheme.primary)
                                             .clickable {
                                                 hapticFeedback.performHapticFeedback(
@@ -489,7 +489,7 @@ fun LocalBackupScreen(
                                     Spacer(modifier = Modifier.width(8.dp))
                                     Box(
                                         modifier = Modifier
-                                            .clip(com.kyant.shapes.RoundedRectangle(20.dp))
+                                            .clip(com.kyant.capsule.ContinuousRoundedRectangle(20.dp))
                                             .background(
                                                 if (isAppDarkTheme()) Color(0xFF363636)
                                                 else Color(0xFFF0F0F0)

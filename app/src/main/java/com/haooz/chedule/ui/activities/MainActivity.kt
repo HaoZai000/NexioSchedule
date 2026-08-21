@@ -127,7 +127,7 @@ import com.haooz.chedule.viewmodel.CourseViewModel
 import com.haooz.chedule.viewmodel.ScheduleViewModel
 import com.haooz.chedule.viewmodel.SettingsViewModel
 import com.haooz.chedule.viewmodel.ShiftViewModel
-import com.kyant.shapes.RoundedRectangle
+import com.kyant.capsule.ContinuousRoundedRectangle
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
@@ -3345,7 +3345,7 @@ fun CourseScheduleApp() {
                             width = with(density) { cWidth.toDp() },
                             height = with(density) { cHeight.toDp() }
                         )
-                        .clip(RoundedRectangle(cRadius))
+                        .clip(ContinuousRoundedRectangle(cRadius))
                         .background(MiuixTheme.colorScheme.background)
                 ) {
                     // 卡片快照（淡出，保持原始大小）
@@ -3355,7 +3355,7 @@ fun CourseScheduleApp() {
                             contentDescription = null,
                             modifier = Modifier
                                 .align(Alignment.TopStart)
-                                .clip(RoundedRectangle(20.dp))
+                                .clip(ContinuousRoundedRectangle(20.dp))
                                 .graphicsLayer { alpha = (1f - p * 2f).coerceIn(0f, 1f) },
                             contentScale = ContentScale.None
                         )

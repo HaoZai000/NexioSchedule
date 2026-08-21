@@ -83,7 +83,7 @@ import com.kyant.backdrop.drawBackdrop
 import com.kyant.backdrop.effects.blur
 import com.kyant.backdrop.effects.lens
 import com.kyant.backdrop.effects.vibrancy
-import com.kyant.shapes.Capsule
+import com.kyant.capsule.ContinuousCapsule
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.launch
@@ -364,7 +364,7 @@ fun SwitchScheduleScreen(
                                 .height(56.dp)
                                 .drawBackdrop(
                                     backdrop = liquidGlassBackdrop,
-                                    shape = { Capsule() },
+                                    shape = { ContinuousCapsule() },
                                     effects = {
                                         vibrancy()
                                         blur(4f.dp.toPx())
@@ -376,7 +376,7 @@ fun SwitchScheduleScreen(
                                         drawRect(containerColor)
                                     }
                                 )
-                                .edgeLight(shape = Capsule(), edgeLight = rememberDefaultEdgeLight())
+                                .edgeLight(shape = ContinuousCapsule(), edgeLight = rememberDefaultEdgeLight())
                                 .padding(horizontal = 7.dp, vertical = 3.5.dp),
                             horizontalArrangement = Arrangement.SpaceEvenly,
                             verticalAlignment = Alignment.CenterVertically
@@ -977,7 +977,7 @@ private fun RowScope.BottomBarItem(
                     val extraWidth = 3.dp.toPx()
                     val overlayWidth = size.width + extraWidth * 2
                     val overlayHeight = size.height
-                    val capsule = Capsule()
+                    val capsule = ContinuousCapsule()
                     val outline = capsule.createOutline(
                         Size(overlayWidth, overlayHeight),
                         layoutDirection,
@@ -1005,7 +1005,7 @@ private fun RowScope.BottomBarItem(
                 }
                 drawContent()
             }
-            .clip(Capsule())
+            .clip(ContinuousCapsule())
             .fillMaxHeight()
             .weight(1f),
         verticalArrangement = Arrangement.spacedBy(2.dp, Alignment.CenterVertically),

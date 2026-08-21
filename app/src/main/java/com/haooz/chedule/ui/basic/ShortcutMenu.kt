@@ -45,7 +45,7 @@ import com.kyant.backdrop.drawBackdrop
 import com.kyant.backdrop.effects.blur
 import com.kyant.backdrop.effects.lens
 import com.kyant.backdrop.effects.vibrancy
-import com.kyant.shapes.RoundedRectangle
+import com.kyant.capsule.ContinuousRoundedRectangle
 import kotlinx.coroutines.launch
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 
@@ -167,7 +167,7 @@ fun ShortcutMenu(
                 .padding(ShadowPadding)
                 .drawBackdrop(
                     backdrop = backdrop,
-                    shape = { RoundedRectangle(18.dp) },
+                    shape = { ContinuousRoundedRectangle(18.dp) },
                     effects = {
                         vibrancy()
                         blur(4f.dp.toPx())
@@ -179,7 +179,7 @@ fun ShortcutMenu(
                         drawRect(containerColor)
                     }
                 )
-                .edgeLight(shape = RoundedRectangle(18.dp), edgeLight = rememberDefaultEdgeLight())
+                .edgeLight(shape = ContinuousRoundedRectangle(18.dp), edgeLight = rememberDefaultEdgeLight())
                 .clickable(
                     indication = null,
                     interactionSource = remember { MutableInteractionSource() }

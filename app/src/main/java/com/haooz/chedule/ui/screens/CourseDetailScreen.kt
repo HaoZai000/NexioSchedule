@@ -60,7 +60,7 @@ import com.haooz.chedule.ui.effects.motion.OobeQuadraticOutEasing
 import com.haooz.chedule.ui.effects.motion.OobeQuartOutEasing
 import com.haooz.chedule.ui.utils.isAppDarkTheme
 import com.haooz.chedule.ui.utils.overScrollVertical
-import com.kyant.shapes.RoundedRectangle
+import com.kyant.capsule.ContinuousRoundedRectangle
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
@@ -104,7 +104,7 @@ private class AnimClipShape(
             else -> screenCornerRadiusPx
         }
         val radiusDp = (radiusPx / s.scale / density.density).dp
-        return RoundedRectangle(radiusDp).createOutline(
+        return ContinuousRoundedRectangle(radiusDp).createOutline(
             androidx.compose.ui.geometry.Size(screenWidth, s.clipBottom),
             layoutDirection,
             density
@@ -301,7 +301,7 @@ fun CourseDetailScreen(
                     modifier = Modifier
                         .align(Alignment.TopStart)
                         .fillMaxWidth()
-                        .clip(RoundedRectangle(22.dp))
+                        .clip(ContinuousRoundedRectangle(22.dp))
                         .graphicsLayer { alpha = s.snapshotAlpha },
                     contentScale = ContentScale.FillWidth
                 )

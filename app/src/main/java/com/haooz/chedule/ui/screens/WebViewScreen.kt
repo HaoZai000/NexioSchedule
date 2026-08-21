@@ -81,8 +81,8 @@ import com.haooz.chedule.ui.web.AndroidBridge
 import com.haooz.chedule.ui.web.WebCompatDelegate
 import com.haooz.chedule.ui.web.WebPostBridge
 import com.kyant.backdrop.backdrops.LayerBackdrop
-import com.kyant.shapes.Capsule
-import com.kyant.shapes.RoundedRectangle
+import com.kyant.capsule.ContinuousCapsule
+import com.kyant.capsule.ContinuousRoundedRectangle
 import top.yukonga.miuix.kmp.basic.ButtonDefaults
 import top.yukonga.miuix.kmp.basic.Icon
 import top.yukonga.miuix.kmp.basic.IconButton
@@ -494,10 +494,10 @@ fun WebViewScreen(
                 .align(Alignment.BottomCenter)
                 .padding(horizontal = 16.dp + tabletHorizontalPadding)
                 .padding(bottom = 24.dp)
-                .border(0.5.dp, MiuixTheme.colorScheme.outline, Capsule())
+                .border(0.5.dp, MiuixTheme.colorScheme.outline, ContinuousCapsule())
                 .fillMaxWidth(),
             color = MiuixTheme.colorScheme.surfaceVariant,
-            shape = Capsule()
+            shape = ContinuousCapsule()
         ) {
             Row(
                 modifier = Modifier
@@ -519,13 +519,13 @@ fun WebViewScreen(
                         )
                         Spacer(Modifier.width(6.dp))
                         Surface(
-                            shape = RoundedRectangle(4.dp),
+                            shape = ContinuousRoundedRectangle(4.dp),
                             color = if (isDesktopMode)
                                 MiuixTheme.colorScheme.primary.copy(alpha = 0.12f)
                             else
                                 Color(0xFF66BB6A).copy(alpha = 0.15f),
                             modifier = Modifier
-                                .clip(RoundedRectangle(4.dp))
+                                .clip(ContinuousRoundedRectangle(4.dp))
                                 .clickable {
                                     hapticFeedback.performHapticFeedback(HapticFeedbackType.VirtualKey)
                                     isDesktopMode = !isDesktopMode
@@ -554,7 +554,7 @@ fun WebViewScreen(
 
                 Surface(
                     modifier = Modifier.size(44.dp),
-                    shape = RoundedRectangle(22.dp),
+                    shape = ContinuousRoundedRectangle(22.dp),
                     color = if (assetJsPath != null)
                         MiuixTheme.colorScheme.primary
                     else
@@ -601,7 +601,7 @@ private fun WebAlertDialog(
         )
     ) {
         Surface(
-            shape = RoundedRectangle(28.dp),
+            shape = ContinuousRoundedRectangle(28.dp),
             color = MiuixTheme.colorScheme.background,
             modifier = Modifier
                 .fillMaxWidth()
@@ -656,7 +656,7 @@ private fun WebPromptDialog(
         )
     ) {
         Surface(
-            shape = RoundedRectangle(28.dp),
+            shape = ContinuousRoundedRectangle(28.dp),
             color = MiuixTheme.colorScheme.background,
             modifier = Modifier
                 .fillMaxWidth()
@@ -677,7 +677,7 @@ private fun WebPromptDialog(
                 )
                 Spacer(Modifier.height(16.dp))
                 Surface(
-                    shape = RoundedRectangle(12.dp),
+                    shape = ContinuousRoundedRectangle(12.dp),
                     color = MiuixTheme.colorScheme.surfaceVariant
                 ) {
                     NativeMiuixTextField(
@@ -730,7 +730,7 @@ private fun WebSelectionDialog(
         )
     ) {
         Surface(
-            shape = RoundedRectangle(28.dp),
+            shape = ContinuousRoundedRectangle(28.dp),
             color = MiuixTheme.colorScheme.background,
             modifier = Modifier
                 .fillMaxWidth()
@@ -749,14 +749,14 @@ private fun WebSelectionDialog(
                     itemsIndexed(items) { index, item ->
                         val isSelected = index == selectedIndex
                         Surface(
-                            shape = RoundedRectangle(12.dp),
+                            shape = ContinuousRoundedRectangle(12.dp),
                             color = if (isSelected)
                                 MiuixTheme.colorScheme.primary.copy(alpha = 0.12f)
                             else
                                 Color.Transparent,
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .clip(RoundedRectangle(12.dp))
+                                .clip(ContinuousRoundedRectangle(12.dp))
                                 .clickable {
                                     selectedIndex = index
                                 }

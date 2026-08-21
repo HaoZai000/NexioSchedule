@@ -48,7 +48,7 @@ import androidx.compose.ui.state.ToggleableState
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
-import com.kyant.shapes.Capsule
+import com.kyant.capsule.ContinuousCapsule
 import top.yukonga.miuix.kmp.theme.LocalColors
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 import top.yukonga.miuix.kmp.theme.MiuixTheme.isDynamicColor
@@ -84,7 +84,7 @@ fun Switch(
     var rawDragOffset by remember { mutableFloatStateOf(0f) }
     var currentDragInteraction by remember { mutableStateOf<DragInteraction.Start?>(null) }
 
-    val capsuleShape = Capsule()
+    val capsuleShape = ContinuousCapsule()
     val thumbOffsetSpringSpec = remember { spring<Dp>(dampingRatio = 0.7f, stiffness = 987f) }
     val thumbScaleSpringSpec = remember { spring<Float>(dampingRatio = 0.6f, stiffness = 987f) }
 

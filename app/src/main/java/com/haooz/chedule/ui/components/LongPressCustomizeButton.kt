@@ -27,8 +27,8 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.haooz.chedule.ui.effects.edgelight.edgeLight
 import com.haooz.chedule.ui.effects.edgelight.rememberDefaultEdgeLight
-import com.kyant.shapes.Capsule
-import com.kyant.shapes.RoundedRectangle
+import com.kyant.capsule.ContinuousCapsule
+import com.kyant.capsule.ContinuousRoundedRectangle
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.launch
 import top.yukonga.miuix.kmp.basic.Button
@@ -141,12 +141,12 @@ internal fun LongPressCustomizeButton(
                 }
                 .textureBlur(
                     backdrop = backdrop,
-                    shape = RoundedRectangle(25.dp),
+                    shape = ContinuousRoundedRectangle(25.dp),
                     blurRadius = 25f,
                     colors = bottomblurColors,
                 )
-                .edgeLight(shape = Capsule(), edgeLight = rememberDefaultEdgeLight())
-                .clip(RoundedRectangle(25.dp))
+                .edgeLight(shape = ContinuousCapsule(), edgeLight = rememberDefaultEdgeLight())
+                .clip(ContinuousRoundedRectangle(25.dp))
         ) {
             Button(
                 modifier = Modifier.width(140.dp).height(48.dp),

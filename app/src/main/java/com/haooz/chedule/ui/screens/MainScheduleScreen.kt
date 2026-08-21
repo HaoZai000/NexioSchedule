@@ -76,7 +76,7 @@ import com.haooz.chedule.viewmodel.SettingsViewModel
 import com.kyant.backdrop.drawBackdrop
 import com.kyant.backdrop.effects.blur
 import com.kyant.backdrop.effects.lens
-import com.kyant.shapes.RoundedRectangle
+import com.kyant.capsule.ContinuousRoundedRectangle
 import kotlinx.coroutines.launch
 import top.yukonga.miuix.kmp.basic.ButtonDefaults
 import top.yukonga.miuix.kmp.basic.Card
@@ -538,7 +538,7 @@ fun MainScheduleScreen(
                     val dinnerBreakY = morningHeight + dividerOffset + afternoonHeight
 
                     if (showBreakDividers) {
-                    val dividerShape = RoundedRectangle(12.dp)
+                    val dividerShape = ContinuousRoundedRectangle(12.dp)
                     val dividerHorizontalPadding = if (isTablet) 24.dp else 4.dp
                     val dividerIsDark = isAppDarkTheme()
                     val dividerDensity = LocalDensity.current
@@ -552,8 +552,8 @@ fun MainScheduleScreen(
                     // 玻璃底色与反光覆盖层（同 CourseCard 的液态玻璃观感）
                     val dividerGlassColor = if (dividerIsDark) Color(0xFF323232).copy(alpha = 0.64f) else Color.White.copy(alpha = 0.5f)
                     val dividerOverlayColor = if (dividerIsDark) Color(0xFF323232).copy(alpha = 0.12f) else Color.White.copy(alpha = 0.1f)
-                    val dividerBlurShape = remember { RoundedRectangle(12.dp) }
-                    val dividerEdgeLightShape = remember { RoundedRectangle(12.dp) }
+                    val dividerBlurShape = remember { ContinuousRoundedRectangle(12.dp) }
+                    val dividerEdgeLightShape = remember { ContinuousRoundedRectangle(12.dp) }
 
                     @Composable
                     fun BreakDivider(offsetY: Int, text: String) {
@@ -784,7 +784,7 @@ fun MainScheduleScreen(
                             }
                             Box(
                                 modifier = Modifier
-                                    .clip(RoundedRectangle(20.dp))
+                                    .clip(ContinuousRoundedRectangle(20.dp))
                                     .background(MiuixTheme.colorScheme.primary.copy(alpha = 0.1f))
                                     .clickable {
                                         showCourseDetail = false

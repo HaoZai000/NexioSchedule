@@ -65,7 +65,7 @@ import com.kyant.backdrop.Backdrop
 import com.kyant.backdrop.drawBackdrop
 import com.kyant.backdrop.effects.blur
 import com.kyant.backdrop.effects.lens
-import com.kyant.shapes.RoundedRectangle
+import com.kyant.capsule.ContinuousRoundedRectangle
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import top.yukonga.miuix.kmp.basic.ButtonDefaults
@@ -108,14 +108,14 @@ fun BlurCard(
     val isDark = isAppDarkTheme()
 
     if (hasBlur) {
-        val shape = RoundedRectangle(cornerRadius)
+        val shape = ContinuousRoundedRectangle(cornerRadius)
         val defaultEdgeLight = rememberDefaultEdgeLight()
         Box(
             modifier = modifier
                 .clip(shape)
                 .drawBackdrop(
                     backdrop = wallpaperBackdrop,
-                    shape = { RoundedRectangle(cornerRadius) },
+                    shape = { ContinuousRoundedRectangle(cornerRadius) },
                     effects = {
                         blur(blurRadius.dp.toPx())
                         lens(12f.dp.toPx(), 12f.dp.toPx())
@@ -128,11 +128,11 @@ fun BlurCard(
                 .then(
                     if (showEdgeLight) {
                         Modifier.edgeLight(
-                            shape = RoundedRectangle(cornerRadius),
+                            shape = ContinuousRoundedRectangle(cornerRadius),
                             edgeLight = defaultEdgeLight)
                     } else
                         Modifier.edgeLight(
-                            shape = RoundedRectangle(cornerRadius),
+                            shape = ContinuousRoundedRectangle(cornerRadius),
                             edgeLight = rememberCardEdgeLight())
                 )
         ) {

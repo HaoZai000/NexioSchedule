@@ -36,7 +36,7 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.DpSize
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.kyant.shapes.RoundedRectangle
+import com.kyant.capsule.ContinuousRoundedRectangle
 import top.yukonga.miuix.kmp.icon.MiuixIcons
 import top.yukonga.miuix.kmp.icon.basic.ArrowRight
 import top.yukonga.miuix.kmp.icon.basic.ArrowUpDown
@@ -131,7 +131,7 @@ fun DropdownImpl(
                 top = if (isFirst) 8.dp else 0.dp,
                 bottom = if (isLast) 8.dp else 0.dp,
             )
-            .clip(RoundedRectangle(17.dp))
+            .clip(ContinuousRoundedRectangle(17.dp))
             .drawBehind { drawRect(backgroundColorState.value) }
             .clickable(
                 enabled = enabled,

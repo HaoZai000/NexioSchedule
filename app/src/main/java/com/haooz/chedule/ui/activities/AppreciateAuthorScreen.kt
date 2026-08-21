@@ -45,7 +45,7 @@ import com.haooz.chedule.R
 import com.haooz.chedule.ui.basic.SharedScrollBehavior
 import com.haooz.chedule.ui.data.AppreciationItem
 import com.haooz.chedule.ui.data.sampleAppreciations
-import com.kyant.shapes.RoundedRectangle
+import com.kyant.capsule.ContinuousRoundedRectangle
 import top.yukonga.miuix.kmp.basic.Card
 import top.yukonga.miuix.kmp.basic.Icon
 import top.yukonga.miuix.kmp.basic.Scaffold
@@ -115,7 +115,7 @@ fun AppreciateAuthorScreen(
                             modifier = Modifier
                                 .fillMaxSize()
                                 .padding(14.dp)
-                                .clip(RoundedRectangle(10.dp)),
+                                .clip(ContinuousRoundedRectangle(10.dp)),
                             contentScale = ContentScale.Crop,
                         )
                     }
@@ -211,7 +211,7 @@ fun AppreciateAuthorScreen(
                                 modifier = Modifier
                                     .fillMaxSize()
                                     .padding(14.dp)
-                                    .clip(RoundedRectangle(10.dp)),
+                                    .clip(ContinuousRoundedRectangle(10.dp)),
                                 contentScale = ContentScale.Crop,
                             )
                         }

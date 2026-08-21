@@ -74,7 +74,7 @@ import com.haooz.chedule.ui.effects.motion.OobeQuadraticOutEasing
 import com.haooz.chedule.ui.effects.motion.OobeQuartOutEasing
 import com.haooz.chedule.ui.utils.isAppDarkTheme
 import com.haooz.chedule.ui.utils.overScrollVertical
-import com.kyant.shapes.RoundedRectangle
+import com.kyant.capsule.ContinuousRoundedRectangle
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
@@ -132,7 +132,7 @@ private class EditAnimClipShape(
             else -> screenCornerRadiusPx
         }
         val radiusDp = (radiusPx / s.scale / density.density).dp
-        return RoundedRectangle(radiusDp).createOutline(
+        return ContinuousRoundedRectangle(radiusDp).createOutline(
             androidx.compose.ui.geometry.Size(screenWidth, s.clipBottom),
             layoutDirection,
             density
@@ -433,7 +433,7 @@ fun CourseEditScreen(
                     modifier = Modifier
                         .align(Alignment.TopStart)
                         .fillMaxWidth()
-                        .clip(RoundedRectangle((18 / s.scale).dp))
+                        .clip(ContinuousRoundedRectangle((18 / s.scale).dp))
                         .graphicsLayer { alpha = s.snapshotAlpha },
                     contentScale = ContentScale.FillWidth
                 )
@@ -684,14 +684,14 @@ fun CourseEditScreen(
                                                                         .graphicsLayer {
                                                                             alpha = borderAlpha
                                                                         }
-                                                                        .clip(RoundedRectangle(12.dp))
+                                                                        .clip(ContinuousRoundedRectangle(12.dp))
                                                                         .background(primaryColor)
                                                                 )
                                                                 Box(
                                                                     modifier = Modifier
                                                                         .fillMaxSize()
                                                                         .padding(if (isSelected) 2.dp else 0.dp)
-                                                                        .clip(RoundedRectangle(10.dp))
+                                                                        .clip(ContinuousRoundedRectangle(10.dp))
                                                                         .background(
                                                                             if (isDark) Color(
                                                                                 0xFF242424
@@ -800,14 +800,14 @@ fun CourseEditScreen(
                                                                             alpha =
                                                                                 customBorderAlpha
                                                                         }
-                                                                        .clip(RoundedRectangle(12.dp))
+                                                                        .clip(ContinuousRoundedRectangle(12.dp))
                                                                         .background(primaryColor)
                                                                 )
                                                                 Box(
                                                                     modifier = Modifier
                                                                         .fillMaxSize()
                                                                         .padding(if (isCustomColor) 2.dp else 0.dp)
-                                                                        .clip(RoundedRectangle(10.dp))
+                                                                        .clip(ContinuousRoundedRectangle(10.dp))
                                                                         .background(
                                                                             if (isDark) Color(
                                                                                 0xFF242424
@@ -847,7 +847,7 @@ fun CourseEditScreen(
                                                                                             0.7f
                                                                                         )
                                                                                         .clip(
-                                                                                            RoundedRectangle(
+                                                                                            ContinuousRoundedRectangle(
                                                                                                 4.dp
                                                                                             )
                                                                                         )

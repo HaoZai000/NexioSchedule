@@ -62,7 +62,7 @@ import com.haooz.chedule.ui.basic.SharedScrollBehavior
 import com.haooz.chedule.ui.utils.isAppDarkTheme
 import com.haooz.chedule.ui.utils.overScrollVertical
 import com.haooz.chedule.viewmodel.CourseViewModel
-import com.kyant.shapes.RoundedRectangle
+import com.kyant.capsule.ContinuousRoundedRectangle
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import top.yukonga.miuix.kmp.basic.ButtonDefaults
@@ -418,14 +418,14 @@ fun CourseManageScreen(
                                         modifier = Modifier
                                             .fillMaxSize()
                                             .graphicsLayer { alpha = borderAlpha }
-                                            .clip(RoundedRectangle(12.dp))
+                                            .clip(ContinuousRoundedRectangle(12.dp))
                                             .background(primaryColor)
                                     )
                                     Box(
                                         modifier = Modifier
                                             .fillMaxSize()
                                             .padding(if (isSelected) 2.dp else 0.dp)
-                                            .clip(RoundedRectangle(10.dp))
+                                            .clip(ContinuousRoundedRectangle(10.dp))
                                             .background(if (isDark) ComposeColor(0xFF1F1F1F) else ComposeColor(0xFFFEFEFE))
                                     )
                                     Box(
@@ -499,14 +499,14 @@ fun CourseManageScreen(
                                         modifier = Modifier
                                             .fillMaxSize()
                                             .graphicsLayer { alpha = customBorderAlpha }
-                                            .clip(RoundedRectangle(12.dp))
+                                            .clip(ContinuousRoundedRectangle(12.dp))
                                             .background(primaryColor)
                                     )
                                     Box(
                                         modifier = Modifier
                                             .fillMaxSize()
                                             .padding(if (isCustomColor) 2.dp else 0.dp)
-                                            .clip(RoundedRectangle(10.dp))
+                                            .clip(ContinuousRoundedRectangle(10.dp))
                                             .background(if (isDark) ComposeColor(0xFF1F1F1F) else ComposeColor(0xFFFEFEFE))
                                     )
                                     Box(
@@ -536,7 +536,7 @@ fun CourseManageScreen(
                                                     Box(
                                                         modifier = Modifier
                                                             .size(24.dp)
-                                                            .clip(RoundedRectangle(6.dp))
+                                                            .clip(ContinuousRoundedRectangle(6.dp))
                                                             .background(Color(newCourseColor))
                                                     )
                                                 } else {
@@ -772,7 +772,7 @@ private fun CourseManageCard(
             Box(
                 modifier = Modifier
                     .size(8.dp)
-                    .clip(RoundedRectangle(4.dp))
+                    .clip(ContinuousRoundedRectangle(4.dp))
                     .background(color)
             )
             Spacer(modifier = Modifier.height(8.dp))

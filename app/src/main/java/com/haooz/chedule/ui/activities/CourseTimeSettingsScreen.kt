@@ -246,7 +246,7 @@ fun CourseTimeSettingsScreen(
                                             Spacer(modifier = Modifier.width(6.dp))
                                             Box(
                                                 modifier = Modifier
-                                                    .clip(com.kyant.shapes.RoundedRectangle(6.dp))
+                                                    .clip(com.kyant.capsule.ContinuousRoundedRectangle(6.dp))
                                                     .background(MiuixTheme.colorScheme.primary.copy(alpha = 0.15f))
                                                     .padding(horizontal = 4.dp, vertical = 2.dp),
                                                 contentAlignment = Alignment.Center
@@ -285,7 +285,7 @@ fun CourseTimeSettingsScreen(
                                             .align(Alignment.CenterEnd)
                                             .offset(x = editOffsetX)
                                             .height(38.dp)
-                                            .clip(com.kyant.shapes.RoundedRectangle(20.dp))
+                                            .clip(com.kyant.capsule.ContinuousRoundedRectangle(20.dp))
                                             .background(MiuixTheme.colorScheme.primary)
                                             .clickable {
                                                 hapticFeedback.performHapticFeedback(HapticFeedbackType.Confirm)
@@ -316,7 +316,7 @@ fun CourseTimeSettingsScreen(
                                             .offset(x = deleteOffsetX)
                                             .graphicsLayer { alpha = deleteAlpha }
                                             .height(38.dp)
-                                            .clip(com.kyant.shapes.RoundedRectangle(20.dp))
+                                            .clip(com.kyant.capsule.ContinuousRoundedRectangle(20.dp))
                                             .background(if (isAppDarkTheme()) Color(0xFF363636) else Color(0xFFF0F0F0))
                                             .clickable(enabled = !isSelected) {
                                                 hapticFeedback.performHapticFeedback(HapticFeedbackType.Confirm)

@@ -78,7 +78,7 @@ import com.haooz.chedule.ui.theme.CourseScheduleTheme
 import com.haooz.chedule.ui.utils.applyThemeAwareSystemBars
 import com.haooz.chedule.ui.utils.isAppDarkTheme
 import com.haooz.chedule.ui.utils.overScrollVertical
-import com.kyant.shapes.RoundedRectangle
+import com.kyant.capsule.ContinuousRoundedRectangle
 import top.yukonga.miuix.kmp.basic.Card
 import top.yukonga.miuix.kmp.basic.CardDefaults
 import top.yukonga.miuix.kmp.basic.Icon
@@ -318,7 +318,7 @@ private fun AboutScreen(onBack: () -> Unit, liquidGlassBackdrop: com.kyant.backd
                                 if (backdrop != null) {
                                     Modifier.textureBlur(
                                         backdrop = backdrop,
-                                        shape = RoundedRectangle(16.dp),
+                                        shape = ContinuousRoundedRectangle(16.dp),
                                         blurRadius = 150f,
                                         colors = BlurDefaults.blurColors(
                                             blendColors = logoBlend,
@@ -389,7 +389,7 @@ private fun AboutScreen(onBack: () -> Unit, liquidGlassBackdrop: com.kyant.backd
                                     if (backdrop != null) {
                                         Modifier.textureBlur(
                                             backdrop = backdrop,
-                                            shape = RoundedRectangle(20.dp),
+                                            shape = ContinuousRoundedRectangle(20.dp),
                                             blurRadius = 60f,
                                             colors = BlurDefaults.blurColors(
                                                 blendColors = cardBlend,
@@ -463,7 +463,7 @@ private fun AboutScreen(onBack: () -> Unit, liquidGlassBackdrop: com.kyant.backd
                                     if (backdrop != null) {
                                         Modifier.textureBlur(
                                             backdrop = backdrop,
-                                            shape = RoundedRectangle(20.dp),
+                                            shape = ContinuousRoundedRectangle(20.dp),
                                             blurRadius = 60f,
                                             colors = BlurDefaults.blurColors(
                                                 blendColors = cardBlend,
@@ -641,13 +641,13 @@ private fun AboutScreen(onBack: () -> Unit, liquidGlassBackdrop: com.kyant.backd
                             Card(
                                 modifier = Modifier
                                     .padding(horizontal = 16.dp)
-                                    .clip(RoundedRectangle(20.dp))
+                                    .clip(ContinuousRoundedRectangle(20.dp))
                                     .clickable { expanded = !expanded }
                                     .then(
                                         if (backdrop != null) {
                                             Modifier.textureBlur(
                                                 backdrop = backdrop,
-                                                shape = RoundedRectangle(20.dp),
+                                                shape = ContinuousRoundedRectangle(20.dp),
                                                 blurRadius = 60f,
                                                 colors = BlurDefaults.blurColors(
                                                     blendColors = cardBlend,
@@ -908,7 +908,7 @@ private fun AboutScreen(onBack: () -> Unit, liquidGlassBackdrop: com.kyant.backd
                     Column(
                         horizontalAlignment = Alignment.CenterHorizontally,
                         modifier = Modifier
-                            .clip(RoundedRectangle(18.dp))
+                            .clip(ContinuousRoundedRectangle(18.dp))
                             .clickable {
                                 hapticFeedback.performHapticFeedback(HapticFeedbackType.VirtualKey)
                                 uriHandler.openUri("https://github.com/HaoZai000/NexioSchedule")
@@ -931,7 +931,7 @@ private fun AboutScreen(onBack: () -> Unit, liquidGlassBackdrop: com.kyant.backd
                     Column(
                         horizontalAlignment = Alignment.CenterHorizontally,
                         modifier = Modifier
-                            .clip(RoundedRectangle(18.dp))
+                            .clip(ContinuousRoundedRectangle(18.dp))
                             .clickable {
                                 hapticFeedback.performHapticFeedback(HapticFeedbackType.VirtualKey)
                                 uriHandler.openUri("https://gitee.com/com_haooz_account/hyper_schedule")

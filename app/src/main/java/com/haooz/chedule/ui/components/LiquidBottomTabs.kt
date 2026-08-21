@@ -1,4 +1,4 @@
-﻿package com.haooz.chedule.ui.components
+package com.haooz.chedule.ui.components
 
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.EaseOut
@@ -63,7 +63,7 @@ import com.kyant.backdrop.drawBackdrop
 import com.kyant.backdrop.effects.blur
 import com.kyant.backdrop.effects.lens
 import com.kyant.backdrop.effects.vibrancy
-import com.kyant.shapes.Capsule
+import com.kyant.capsule.ContinuousCapsule
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.drop
 import kotlinx.coroutines.launch
@@ -82,7 +82,7 @@ fun RowScope.LiquidBottomTab(
     val scale = LocalLiquidBottomTabScale.current
     Column(
         modifier
-            .clip(Capsule())
+            .clip(ContinuousCapsule())
             .clickable(
                 interactionSource = null,
                 indication = null,
@@ -214,7 +214,7 @@ fun LiquidBottomTabs(
                 }
                 .drawBackdrop(
                     backdrop = backdrop,
-                    shape = { Capsule() },
+                    shape = { ContinuousCapsule() },
                     effects = {
                         vibrancy()
                         blur(4f.dp.toPx())
@@ -224,7 +224,7 @@ fun LiquidBottomTabs(
                     layerBlock = {},
                     onDrawSurface = { drawRect(containerColor) }
                 )
-                .edgeLight(shape = Capsule(), edgeLight = defaultEdgeLight)
+                .edgeLight(shape = ContinuousCapsule(), edgeLight = defaultEdgeLight)
                 .then(interactiveHighlight.modifier)
                 .height(containerHeight)
                 .fillMaxWidth()
@@ -267,7 +267,7 @@ fun LiquidBottomTabs(
                     scaleX /= 1f - (velocity * 0.75f).fastCoerceIn(-0.2f, 0.2f)
                     scaleY *= 1f - (velocity * 0.25f).fastCoerceIn(-0.2f, 0.2f)
                 }
-                .clip(Capsule())
+                .clip(ContinuousCapsule())
                 .drawBehind {
                     val selectorColor = if (isLightTheme) Color.Black.copy(0.08f) else Color.White.copy(0.12f)
                     drawRect(selectorColor)

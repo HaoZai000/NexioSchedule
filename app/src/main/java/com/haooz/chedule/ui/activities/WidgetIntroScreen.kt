@@ -228,7 +228,7 @@ private fun WidgetPreviewToday() {
 
     Card(
         cornerRadius = 22.dp,
-        modifier = Modifier.fillMaxWidth().border(1.dp, borderColor, com.kyant.shapes.RoundedRectangle(22.dp)),
+        modifier = Modifier.fillMaxWidth().border(1.dp, borderColor, com.kyant.capsule.ContinuousRoundedRectangle(22.dp)),
         insideMargin = PaddingValues(0.dp)
     ) {
         Column(
@@ -278,8 +278,8 @@ private fun WidgetPreviewSmall2x2() {
             modifier = Modifier
                 .width(166.dp)
                 .height(166.dp)
-                .border(1.dp, borderColor, com.kyant.shapes.RoundedRectangle(22.dp))
-                .background(bgColor, com.kyant.shapes.RoundedRectangle(22.dp))
+                .border(1.dp, borderColor, com.kyant.capsule.ContinuousRoundedRectangle(22.dp))
+                .background(bgColor, com.kyant.capsule.ContinuousRoundedRectangle(22.dp))
         ) {
             Column(
                 modifier = Modifier
@@ -415,7 +415,7 @@ private fun CourseCardPreview(
                 Text(endTime, fontSize = 12.sp, fontWeight = FontWeight.Medium, color = timeEndColor, fontFamily = FontFamily.SansSerif)
             }
             Spacer(modifier = Modifier.width(10.dp))
-            Box(modifier = Modifier.width(4.dp).height(32.dp).background(barColor, com.kyant.shapes.RoundedRectangle(2.dp)))
+            Box(modifier = Modifier.width(4.dp).height(32.dp).background(barColor, com.kyant.capsule.ContinuousRoundedRectangle(2.dp)))
             Spacer(modifier = Modifier.width(10.dp))
             Column(modifier = Modifier.weight(1f)) {
                 Text(name, fontSize = 14.sp, fontWeight = FontWeight.Medium, color = nameColor, maxLines = 1)
@@ -432,7 +432,7 @@ private fun CourseCardPreview(
 @Composable
 private fun FeatureItem(title: String, description: String) {
     Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.Top) {
-        Box(modifier = Modifier.size(8.dp).padding(top = 7.dp).background(MiuixTheme.colorScheme.primary, com.kyant.shapes.RoundedRectangle(4.dp)))
+        Box(modifier = Modifier.size(8.dp).padding(top = 7.dp).background(MiuixTheme.colorScheme.primary, com.kyant.capsule.ContinuousRoundedRectangle(4.dp)))
         Spacer(modifier = Modifier.width(12.dp))
         Column(modifier = Modifier.weight(1f)) {
             Text(title, fontSize = 16.sp, fontWeight = FontWeight.Medium, color = MiuixTheme.colorScheme.onSurface)

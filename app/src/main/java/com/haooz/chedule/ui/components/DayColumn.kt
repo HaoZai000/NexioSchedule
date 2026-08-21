@@ -35,7 +35,7 @@ import com.haooz.chedule.ui.utils.isAppDarkTheme
 import com.kyant.backdrop.Backdrop
 import com.kyant.backdrop.drawBackdrop
 import com.kyant.backdrop.effects.blur
-import com.kyant.shapes.RoundedRectangle
+import com.kyant.capsule.ContinuousRoundedRectangle
 import top.yukonga.miuix.kmp.basic.Card
 import top.yukonga.miuix.kmp.basic.CardDefaults
 import top.yukonga.miuix.kmp.basic.Icon
@@ -240,7 +240,7 @@ fun DayColumn(
             // 3. 午休/晚休分界线
             val dividerColor = if (cardBlurRadius > 0f) Color.Transparent else MiuixTheme.colorScheme.surfaceContainer
 
-            val dividerShape = RoundedRectangle(12.dp)
+            val dividerShape = ContinuousRoundedRectangle(12.dp)
             if (showBreakDividers) {
                 Box(
                     modifier = Modifier
@@ -514,8 +514,8 @@ private fun PendingSectionBox(
     ) {
         if (hasBlur) {
             key(cardCornerRadius) {
-                val backdropShape = remember(cardCornerRadius) { RoundedRectangle(cardCornerRadius.dp) }
-                val edgeLightShape = remember(cardCornerRadius) { RoundedRectangle(cardCornerRadius.dp) }
+                val backdropShape = remember(cardCornerRadius) { ContinuousRoundedRectangle(cardCornerRadius.dp) }
+                val edgeLightShape = remember(cardCornerRadius) { ContinuousRoundedRectangle(cardCornerRadius.dp) }
                 val density = LocalDensity.current
                 val blurPx = with(density) { remember(cardBlurRadius) { cardBlurRadius.dp.toPx() } }
                 val surfaceColor = remember(isDark) { if (isDark) Color(0xFF242424).copy(alpha = 0.64f) else Color(0xFFF0F0F0).copy(alpha = 0.5f) }

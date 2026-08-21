@@ -81,8 +81,8 @@ import com.kyant.backdrop.drawBackdrop
 import com.kyant.backdrop.effects.blur
 import com.kyant.backdrop.effects.lens
 import com.kyant.backdrop.effects.vibrancy
-import com.kyant.shapes.Capsule
-import com.kyant.shapes.RoundedRectangle
+import com.kyant.capsule.ContinuousCapsule
+import com.kyant.capsule.ContinuousRoundedRectangle
 import kotlinx.coroutines.delay
 import top.yukonga.miuix.kmp.icon.MiuixIcons
 import top.yukonga.miuix.kmp.icon.basic.Search
@@ -219,7 +219,7 @@ fun SearchBar(
                 .background(
                     color = MiuixTheme.colorScheme.surface,
                 )
-                .clip(RoundedRectangle(20.dp))
+                .clip(ContinuousRoundedRectangle(20.dp))
         ) {
             content()
         }
@@ -273,7 +273,7 @@ fun InputField(
     val currentOnSearch by rememberUpdatedState(onSearch)
     val currentOnExpandedChange by rememberUpdatedState(onExpandedChange)
     val internalInteractionSource = interactionSource ?: remember { MutableInteractionSource() }
-    val capsuleShape = Capsule()
+    val capsuleShape = ContinuousCapsule()
 
     val actualLeadingIcon = leadingIcon ?: {
         Box(

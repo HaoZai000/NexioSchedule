@@ -63,7 +63,7 @@ import com.haooz.chedule.viewmodel.CourseViewModel
 import com.haooz.chedule.viewmodel.ScheduleViewModel
 import com.haooz.chedule.viewmodel.SettingsViewModel
 import com.kyant.backdrop.backdrops.LayerBackdrop
-import com.kyant.shapes.RoundedRectangle
+import com.kyant.capsule.ContinuousRoundedRectangle
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -399,12 +399,12 @@ class EducationalImportActivity : ComponentActivity() {
                                     val isSelected = selectedTab == index
                                     Surface(
                                         modifier = Modifier
-                                            .clip(RoundedRectangle(20.dp))
+                                            .clip(ContinuousRoundedRectangle(20.dp))
                                             .clickable {
                                                 hapticFeedback.performHapticFeedback(HapticFeedbackType.VirtualKey)
                                                 selectedTab = index
                                             },
-                                        shape = RoundedRectangle(20.dp),
+                                        shape = ContinuousRoundedRectangle(20.dp),
                                         color = if (isSelected) MiuixTheme.colorScheme.primary else MiuixTheme.colorScheme.surfaceVariant
                                     ) {
                                         Box(

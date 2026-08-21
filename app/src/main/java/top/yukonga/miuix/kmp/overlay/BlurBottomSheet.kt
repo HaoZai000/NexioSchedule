@@ -76,7 +76,7 @@ import com.kyant.backdrop.backdrops.rememberLayerBackdrop
 import com.kyant.backdrop.drawBackdrop
 import com.kyant.backdrop.effects.blur
 import com.kyant.backdrop.effects.vibrancy
-import com.kyant.shapes.RoundedRectangle
+import com.kyant.capsule.ContinuousRoundedRectangle
 import kotlinx.coroutines.launch
 import top.yukonga.miuix.kmp.anim.folmeSpring
 import com.haooz.chedule.ui.utils.LocalForcedDarkTheme
@@ -285,12 +285,12 @@ private fun BlurBottomSheetContent(
                     }
                 }
                 .imePadding()
-                .clip(RoundedRectangle(36.dp))
+                .clip(ContinuousRoundedRectangle(36.dp))
                 .then(
                     if (liquidGlassBackdrop != null && Build.VERSION.SDK_INT >= 33) {
                         Modifier.drawBackdrop(
                             backdrop = liquidGlassBackdrop,
-                            shape = { RoundedRectangle(36.dp) },
+                            shape = { ContinuousRoundedRectangle(36.dp) },
                             effects = {
                                 vibrancy()
                                 blur(blurRadius.dp.toPx())
@@ -301,7 +301,7 @@ private fun BlurBottomSheetContent(
                         Modifier
                     }
                 )
-                .edgeLight(shape = RoundedRectangle(36.dp), edgeLight = rememberDefaultEdgeLight())
+                .edgeLight(shape = ContinuousRoundedRectangle(36.dp), edgeLight = rememberDefaultEdgeLight())
                 .background(sheetBgColor.copy(alpha = sheetBackgroundAlpha ?: if (liquidGlassBackdrop != null)
                     if (Build.VERSION.SDK_INT >= 33) 0.92f else 1f
                     else 1f))

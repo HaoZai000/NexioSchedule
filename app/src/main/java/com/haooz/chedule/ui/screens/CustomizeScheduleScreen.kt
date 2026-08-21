@@ -100,8 +100,8 @@ import com.kyant.backdrop.effects.blur
 import com.kyant.backdrop.effects.lens
 import com.kyant.backdrop.effects.vibrancy
 import com.kyant.backdrop.shadow.Shadow
-import com.kyant.shapes.Capsule
-import com.kyant.shapes.RoundedRectangle
+import com.kyant.capsule.ContinuousCapsule
+import com.kyant.capsule.ContinuousRoundedRectangle
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.first
@@ -777,7 +777,7 @@ fun CustomizeScheduleScreen(
                                     transformOrigin = TransformOrigin(pivotOriginX, pivotOriginY)
                                     alpha = baseCardAlpha * extraAlpha
                                 }
-                                .clip(RoundedRectangle(screenRadiusDp * cardScaleAnim.value))
+                                .clip(ContinuousRoundedRectangle(screenRadiusDp * cardScaleAnim.value))
                         ) {
                             if (page == 0) {
                                 // 左侧"+"占位卡：点击创建新搭配
@@ -1023,7 +1023,7 @@ fun CustomizeScheduleScreen(
                                 .offset(y = (-60).dp)
                                 .width(200.dp)
                                 .height(48.dp)
-                                .clip(RoundedRectangle(24.dp)),
+                                .clip(ContinuousRoundedRectangle(24.dp)),
                             enabled = !isCutoutActive,
                             onClick = {
                                 // 进入开洞前先清除删除态，让模糊随 alpha 一起淡出
@@ -1190,7 +1190,7 @@ fun CustomizeScheduleScreen(
                             .height(40.dp)
                             .drawBackdrop(
                                 backdrop = liquidGlassBackdrop,
-                                shape = { Capsule() },
+                                shape = { ContinuousCapsule() },
                                 effects = {
                                     vibrancy()
                                     blur(2f.dp.toPx())
@@ -1214,7 +1214,7 @@ fun CustomizeScheduleScreen(
                                     drawRect(Color.Black.copy(alpha = 0.03f * exitHighlight.pressProgress))
                                 }
                             )
-                            .edgeLight(shape = Capsule(), edgeLight = rememberDefaultEdgeLight())
+                            .edgeLight(shape = ContinuousCapsule(), edgeLight = rememberDefaultEdgeLight())
                             .clickable(
                                 interactionSource = null,
                                 indication = null,
@@ -1248,7 +1248,7 @@ fun CustomizeScheduleScreen(
                             .height(40.dp)
                             .drawBackdrop(
                                 backdrop = liquidGlassBackdrop,
-                                shape = { Capsule() },
+                                shape = { ContinuousCapsule() },
                                 effects = {
                                     vibrancy()
                                     blur(2f.dp.toPx())
@@ -1272,7 +1272,7 @@ fun CustomizeScheduleScreen(
                                     drawRect(Color.Black.copy(alpha = 0.03f * applyHighlight.pressProgress))
                                 }
                             )
-                            .edgeLight(shape = Capsule(), edgeLight = rememberDefaultEdgeLight())
+                            .edgeLight(shape = ContinuousCapsule(), edgeLight = rememberDefaultEdgeLight())
                             .clickable(
                                 interactionSource = null,
                                 indication = null,
@@ -1426,7 +1426,7 @@ fun CustomizeScheduleScreen(
                                 // clip 和 scale 在同一个 graphicsLayer 内，每帧重新裁剪
                                 // 视觉圆角 = screenRadius * currentScale（随缩放变化）
                                 clip = true
-                                shape = RoundedRectangle(screenRadiusDp)
+                                shape = ContinuousRoundedRectangle(screenRadiusDp)
                             },
                         contentScale = ContentScale.Crop
                     )

@@ -7,7 +7,7 @@ import androidx.compose.ui.graphics.Shape
 import androidx.compose.ui.unit.Density
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.LayoutDirection
-import com.kyant.shapes.RoundedRectangle
+import com.kyant.capsule.ContinuousRoundedRectangle
 
 /**
  * 创建一个圆角随动画进度反向放大的 Shape。
@@ -34,7 +34,7 @@ fun rememberDynamicCornerRadiusShape(
             val fraction = fractionProgress().coerceIn(0f, 1f)
             val avgScale = 0.24f + 0.76f * fraction
             val scaledCornerRadius = cornerRadius / avgScale
-            return RoundedRectangle(scaledCornerRadius).createOutline(size, layoutDirection, density)
+            return ContinuousRoundedRectangle(scaledCornerRadius).createOutline(size, layoutDirection, density)
         }
     }
 }

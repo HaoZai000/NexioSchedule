@@ -102,8 +102,7 @@ dependencies {
     implementation(libs.navigationevent.compose)
 
     // ===== 形状库 =====
-    // Kyant0形状支持
-    implementation(libs.shapes)
+    // 形状使用本地 fork 的 capsule 库（ContinuousRoundedRectangle / ContinuousCapsule）
     // Backdrop 模糊背景
     implementation(libs.backdrop)
     // Material Color（miuix theme 依赖）

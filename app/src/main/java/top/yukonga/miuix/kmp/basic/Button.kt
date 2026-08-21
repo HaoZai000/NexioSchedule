@@ -31,7 +31,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import com.haooz.chedule.ui.utils.isAppDarkTheme
-import com.kyant.shapes.RoundedRectangle
+import com.kyant.capsule.ContinuousRoundedRectangle
 import top.yukonga.miuix.kmp.squircle.squircleSurface
 import top.yukonga.miuix.kmp.theme.LocalContentColor
 import top.yukonga.miuix.kmp.theme.MiuixTheme
@@ -143,8 +143,8 @@ fun TextButton(
         Box(
             modifier = modifier
                 .semantics { role = Role.Button }
-                .background(color = containerColor, shape = RoundedRectangle(cornerRadius))
-                .clip(RoundedRectangle(cornerRadius))
+                .background(color = containerColor, shape = ContinuousRoundedRectangle(cornerRadius))
+                .clip(ContinuousRoundedRectangle(cornerRadius))
                 .clickable(
                     interactionSource = interactionSource,
                     indication = indication,

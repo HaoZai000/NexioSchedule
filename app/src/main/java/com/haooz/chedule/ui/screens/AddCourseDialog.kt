@@ -66,7 +66,7 @@ import com.haooz.chedule.ui.utils.isAppDarkTheme
 import com.haooz.chedule.ui.utils.overScrollVertical
 import com.haooz.chedule.ui.utils.rememberAppSettingDark
 import com.kyant.backdrop.Backdrop
-import com.kyant.shapes.RoundedRectangle
+import com.kyant.capsule.ContinuousRoundedRectangle
 import top.yukonga.miuix.kmp.basic.Button
 import top.yukonga.miuix.kmp.basic.ButtonDefaults
 import top.yukonga.miuix.kmp.basic.Card
@@ -1254,14 +1254,14 @@ private fun AddCourseDialogContent(
                                             modifier = Modifier
                                                 .fillMaxSize()
                                                 .graphicsLayer { alpha = borderAlpha }
-                                                .clip(RoundedRectangle(12.dp))
+                                                .clip(ContinuousRoundedRectangle(12.dp))
                                                 .background(primaryColor)
                                         )
                                         Box(
                                             modifier = Modifier
                                                 .fillMaxSize()
                                                 .padding(if (isSelected) 2.dp else 0.dp)
-                                                .clip(RoundedRectangle(10.dp))
+                                                .clip(ContinuousRoundedRectangle(10.dp))
                                                 .background(if (isDark) Color(0xFF2B2B2B) else Color(0xFFFBFBFB))
                                         )
                                         Box(
@@ -1333,14 +1333,14 @@ private fun AddCourseDialogContent(
                                             modifier = Modifier
                                                 .fillMaxSize()
                                                 .graphicsLayer { alpha = customBorderAlpha }
-                                                .clip(RoundedRectangle(12.dp))
+                                                .clip(ContinuousRoundedRectangle(12.dp))
                                                 .background(primaryColor)
                                         )
                                         Box(
                                             modifier = Modifier
                                                 .fillMaxSize()
                                                 .padding(if (isCustomColor) 2.dp else 0.dp)
-                                                .clip(RoundedRectangle(10.dp))
+                                                .clip(ContinuousRoundedRectangle(10.dp))
                                                 .background(if (isDark) Color(0xFF2B2B2B) else Color(0xFFFBFBFB))
                                         )
                                         Box(
@@ -1367,7 +1367,7 @@ private fun AddCourseDialogContent(
                                                         Box(
                                                             modifier = Modifier
                                                                 .fillMaxSize(0.7f)
-                                                                .clip(RoundedRectangle(4.dp))
+                                                                .clip(ContinuousRoundedRectangle(4.dp))
                                                                 .background(Color(selectedColor).copy(alpha = if (isDark) 0.22f else 0.16f))
                                                         )
                                                     } else {

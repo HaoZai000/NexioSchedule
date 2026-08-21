@@ -79,7 +79,7 @@ import com.haooz.chedule.ui.effects.motion.OobeQuartOutEasing
 import com.haooz.chedule.ui.utils.isAppDarkTheme
 import com.haooz.chedule.ui.utils.overScrollVertical
 import com.kyant.backdrop.backdrops.LayerBackdrop
-import com.kyant.shapes.RoundedRectangle
+import com.kyant.capsule.ContinuousRoundedRectangle
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
@@ -135,7 +135,7 @@ private class ConfigAnimClipShape(
             else -> screenCornerRadiusPx
         }
         val radiusDp = (radiusPx / s.scale / density.density).dp
-        return RoundedRectangle(radiusDp).createOutline(
+        return ContinuousRoundedRectangle(radiusDp).createOutline(
             Size(screenWidth, s.clipBottom),
             layoutDirection,
             density
@@ -517,7 +517,7 @@ fun TimeConfigEditScreen(
                     modifier = Modifier
                         .align(Alignment.TopStart)
                         .fillMaxWidth()
-                        .clip(RoundedRectangle((cardStartCornerRadius / s.scale).dp))
+                        .clip(ContinuousRoundedRectangle((cardStartCornerRadius / s.scale).dp))
                         .graphicsLayer { alpha = s.snapshotAlpha },
                     contentScale = ContentScale.FillWidth
                 )

@@ -50,7 +50,7 @@ import com.kyant.backdrop.Backdrop
 import com.kyant.backdrop.drawBackdrop
 import com.kyant.backdrop.effects.blur
 import com.kyant.backdrop.effects.lens
-import com.kyant.shapes.RoundedRectangle
+import com.kyant.capsule.ContinuousRoundedRectangle
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import top.yukonga.miuix.kmp.basic.Card
@@ -132,8 +132,8 @@ fun CourseCard(
             var cardPosition by remember { mutableStateOf(Offset.Zero) }
             var cardSize by remember { mutableStateOf(Offset.Zero) }
             var layoutCoordinates by remember { mutableStateOf<androidx.compose.ui.layout.LayoutCoordinates?>(null) }
-            val backdropShape = remember(effectiveCornerRadius) { RoundedRectangle(effectiveCornerRadius.dp) }
-            val edgeLightShape = remember(cardCornerRadius) { RoundedRectangle(cardCornerRadius.dp) }
+            val backdropShape = remember(effectiveCornerRadius) { ContinuousRoundedRectangle(effectiveCornerRadius.dp) }
+            val edgeLightShape = remember(cardCornerRadius) { ContinuousRoundedRectangle(cardCornerRadius.dp) }
             val blurPx = with(localDensity) { remember(cardBlurRadius) { cardBlurRadius.dp.toPx() } }
             val lensRadiusPx = with(localDensity) { remember { 6f.dp.toPx() } }
             val lensStrengthPx = with(localDensity) { remember { 14f.dp.toPx() } }

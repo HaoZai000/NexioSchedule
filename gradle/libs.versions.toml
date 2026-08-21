@@ -16,7 +16,7 @@ startupRuntime = "1.2.0"              # App Startup（自动初始化 Activity �
 
 # 第三方 UI
 miuix = "0.9.3"                       # Miuix 小米风格组件库
-shapes = "1.2.0"                      # 自定义形状库（星形、多边形等）
+
 backdrop = "2.0.0"                    # Backdrop 模糊背景库
 materialKolor = "4.1.1"               # Material Color for Multiplatform（miuix theme 依赖）
 
@@ -75,8 +75,7 @@ shizuku-provider = { group = "dev.rikka.shizuku", name = "provider", version.ref
 # NavigationEvent
 navigationevent-compose = { group = "androidx.navigationevent", name = "navigationevent-compose", version.ref = "navigationevent" }  # SearchBar 返回处理
 
-# Shapes
-shapes = { group = "io.github.kyant0", name = "shapes", version.ref = "shapes" }                                   # 自定义形状（卡片装饰）
+
 
 # Backdrop
 backdrop = { group = "io.github.kyant0", name = "backdrop", version.ref = "backdrop" }                             # 模糊背景库

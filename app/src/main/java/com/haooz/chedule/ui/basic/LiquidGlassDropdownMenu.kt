@@ -54,7 +54,7 @@ import com.kyant.backdrop.Backdrop
 import com.kyant.backdrop.drawBackdrop
 import com.kyant.backdrop.effects.blur
 import com.kyant.backdrop.effects.vibrancy
-import com.kyant.shapes.RoundedRectangle
+import com.kyant.capsule.ContinuousRoundedRectangle
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.launch
 import top.yukonga.miuix.kmp.basic.rememberDynamicCornerRadiusShape
@@ -254,7 +254,7 @@ fun LiquidGlassDropdownMenu(
                         val f = fraction.value.coerceIn(0f, 1f)
                         val avgScale = 0.24f + 0.76f * f
                         val scaledCornerRadius = cornerRadius / avgScale
-                        RoundedRectangle(scaledCornerRadius)
+                        ContinuousRoundedRectangle(scaledCornerRadius)
                     },
                     effects = {
                         vibrancy()
@@ -298,7 +298,7 @@ fun LiquidGlassDropdownMenuItem(
         modifier = modifier
             .fillMaxWidth()
             .padding(horizontal = 8.dp)
-            .clip(RoundedRectangle(17.dp))
+            .clip(ContinuousRoundedRectangle(17.dp))
             .clickable(onClick = onClick)
             .padding(horizontal = 14.dp, vertical = 10.5.dp)
     ) {
