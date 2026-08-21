@@ -1372,13 +1372,16 @@ internal fun applyScheduleData(
                 @Suppress("UNCHECKED_CAST")
                 (times["evening"] as? Map<String, String>)?.forEach { (k, v) -> sectionTimesMap["evening_$k"] = v }
             }
+            @Suppress("UNCHECKED_CAST")
+            val importedSectionNames = (times?.get("section_names") as? Map<String, String>) ?: emptyMap()
 
             val newConfig = TimeConfig(
                 name = scheduleName,
                 morningSections = importedMorningSections ?: 4,
                 afternoonSections = importedAfternoonSections ?: 4,
                 eveningSections = importedEveningSections ?: 4,
-                sectionTimes = sectionTimesMap
+                sectionTimes = sectionTimesMap,
+                sectionNames = importedSectionNames
             )
             val newConfigId = scheduleViewModel.addTimeConfig(newConfig)
             scheduleViewModel.setScheduleTimeConfigId(scheduleName, newConfigId)

@@ -1991,15 +1991,107 @@ class CourseRepository private constructor(context: Context) {
         return getTimeConfig(getCurrentTimeConfigId())
     }
 
+    /** 获取当前时间配置的自定义节次名称（全局绝对节次号 -> 名称） */
+    fun getSectionNames(): Map<Int, String> {
+        val config = getCurrentTimeConfig()
+        val names = mutableMapOf<Int, String>()
+        for ((k, v) in config.sectionNames) {
+            val parts = k.split("_")
+            if (parts.size != 2) continue
+            val period = parts[0]
+            val idx = parts[1].toIntOrNull() ?: continue
+            val abs = when (period) {
+                "morning" -> idx
+                "afternoon" -> config.morningSections + idx
+                "evening" -> config.morningSections + config.afternoonSections + idx
+                else -> continue
+            }
+            if (v.isNotBlank()) names[abs] = v
+        }
+        return names
+    }
+
     /** 切换到指定时间配置 */
     fun switchToTimeConfig(id: Long) {
         val config = getTimeConfig(id)
+        // 节数变化时保持课程的时段相对位置，避免课程随绝对节次整体平移
+        remapCoursesForNewSectionCounts(
+            config.morningSections, config.afternoonSections, config.eveningSections
+        )
         setCurrentTimeConfigId(id)
         // 更新当前课表绑定的时间配置
         setScheduleTimeConfigId(getCurrentScheduleId(), id)
         // 将配置中的值应用到当前课表的设置
         applyTimeConfigToSchedule(config)
         notifyCourseChanged("settings")
+    }
+
+    /**
+     * 节次数量变化时，保持每门课在原时段内的相对位置不变，重映射当前课表的课程。
+     * 例如上午 5 节改为 4 节时，"上午第 5 节"的课程保持在第 4 节（钳制），不会掉到下午。
+     */
+    private fun remapCoursesForNewSectionCounts(
+        newMorning: Int, newAfternoon: Int, newEvening: Int
+    ) {
+        val oldMorning = getMorningSections()
+        val oldAfternoon = getAfternoonSections()
+        val oldEvening = getEveningSections()
+        if (oldMorning == newMorning && oldAfternoon == newAfternoon && oldEvening == newEvening) return
+
+        val scheduleId = getCurrentScheduleId()
+        var changed = false
+        val remapped = getCoursesForSchedule(scheduleId).map { course ->
+            val newStart = remapSection(
+                course.startSection, oldMorning, oldAfternoon, oldEvening,
+                newMorning, newAfternoon, newEvening
+            )
+            val newEnd = remapSection(
+                course.endSection, oldMorning, oldAfternoon, oldEvening,
+                newMorning, newAfternoon, newEvening
+            )
+            if (newStart != course.startSection || newEnd != course.endSection) {
+                changed = true
+                course.copy(startSection = newStart, endSection = newEnd)
+            } else {
+                course
+            }
+        }
+        if (changed) saveCourses(remapped)
+    }
+
+    /**
+     * 将单个节次号从旧节数映射到新节数，保持所在时段（上午/下午/晚上）及时段内相对位置不变。
+     * 若新时段数量为 0，则保留相对位置（该课程暂时超出网格不显示，恢复节数后自动回归）。
+     */
+    private fun remapSection(
+        section: Int,
+        oldMorning: Int, oldAfternoon: Int, oldEvening: Int,
+        newMorning: Int, newAfternoon: Int, newEvening: Int
+    ): Int {
+        // 旧配置下的时段起始节、节数与时段编号（0 上午 / 1 下午 / 2 晚上）
+        val oldStart: Int
+        val oldCount: Int
+        val period: Int
+        when {
+            section <= oldMorning -> { oldStart = 1; oldCount = oldMorning; period = 0 }
+            section <= oldMorning + oldAfternoon -> {
+                oldStart = oldMorning + 1; oldCount = oldAfternoon; period = 1
+            }
+            else -> {
+                oldStart = oldMorning + oldAfternoon + 1; oldCount = oldEvening; period = 2
+            }
+        }
+        val relative = (section - oldStart).coerceIn(0, maxOf(oldCount - 1, 0))
+        // 新配置下该时段的起始节与节数
+        val newStart: Int
+        val newCount: Int
+        when (period) {
+            0 -> { newStart = 1; newCount = newMorning }
+            1 -> { newStart = newMorning + 1; newCount = newAfternoon }
+            else -> { newStart = newMorning + newAfternoon + 1; newCount = newEvening }
+        }
+        if (newCount <= 0) return newStart + relative
+        return newStart + relative.coerceIn(0, newCount - 1)
     }
 
     /** 基于当前配置创建新时间配置 */
@@ -2248,7 +2340,8 @@ class CourseRepository private constructor(context: Context) {
                     morningSections = (timeConfigData["morningSections"] as? Number)?.toInt() ?: 4,
                     afternoonSections = (timeConfigData["afternoonSections"] as? Number)?.toInt() ?: 4,
                     eveningSections = (timeConfigData["eveningSections"] as? Number)?.toInt() ?: 4,
-                    sectionTimes = sectionTimesMap
+                    sectionTimes = sectionTimesMap,
+                    sectionNames = (timeConfigData["sectionNames"] as? Map<String, String>) ?: emptyMap()
                 )
             } else {
                 // 没有导入时间配置，复制当前课表的

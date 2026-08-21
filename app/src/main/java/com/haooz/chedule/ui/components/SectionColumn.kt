@@ -32,6 +32,7 @@ fun SectionColumn(
     afternoonSections: Int = 4,
     eveningSections: Int = 3,
     sectionTimes: Map<Int, String> = Course.defaultSectionTimes,
+    sectionNames: Map<Int, String> = emptyMap(),
     cardHeightPerSection: Float = 54f,
     showBreakDividers: Boolean = true,
     currentSection: Int = -1,
@@ -62,7 +63,7 @@ fun SectionColumn(
         // 上午节次
         (1..morningSections).forEach { section ->
             val (startTime, endTime) = timePairs[section - 1]
-            SectionItem(section, startTime, endTime, currentOffset, cardHeightPerSection, section == currentSection, hasWallpaper)
+            SectionItem(section, startTime, endTime, currentOffset, cardHeightPerSection, section == currentSection, hasWallpaper, sectionNames)
             currentOffset += cardHeightPerSection.toInt()
         }
 
@@ -74,7 +75,7 @@ fun SectionColumn(
         val afternoonEnd = morningSections + afternoonSections
         (afternoonStart..afternoonEnd).forEach { section ->
             val (startTime, endTime) = timePairs[section - 1]
-            SectionItem(section, startTime, endTime, currentOffset, cardHeightPerSection, section == currentSection, hasWallpaper)
+            SectionItem(section, startTime, endTime, currentOffset, cardHeightPerSection, section == currentSection, hasWallpaper, sectionNames)
             currentOffset += cardHeightPerSection.toInt()
         }
 
@@ -86,25 +87,33 @@ fun SectionColumn(
         val eveningEnd = morningSections + afternoonSections + eveningSections
         (eveningStart..eveningEnd).forEach { section ->
             val (startTime, endTime) = timePairs[section - 1]
-            SectionItem(section, startTime, endTime, currentOffset, cardHeightPerSection, section == currentSection, hasWallpaper)
+            SectionItem(section, startTime, endTime, currentOffset, cardHeightPerSection, section == currentSection, hasWallpaper, sectionNames)
             currentOffset += cardHeightPerSection.toInt()
         }
     }
 }
 
 @Composable
-private fun SectionItem(section: Int, startTime: String, endTime: String, yOffset: Int, cardHeightPerSection: Float = 54f, isCurrentSection: Boolean = false, hasWallpaper: Boolean = false) {
+private fun SectionItem(section: Int, startTime: String, endTime: String, yOffset: Int, cardHeightPerSection: Float = 54f, isCurrentSection: Boolean = false, hasWallpaper: Boolean = false, sectionNames: Map<Int, String> = emptyMap()) {
     val primaryColor = MiuixTheme.colorScheme.primary
     val onSurfaceColor = MiuixTheme.colorScheme.onSurface
     val onSurfaceVariantColor = MiuixTheme.colorScheme.onSurfaceVariantActions
     val baseBody2 = MiuixTheme.textStyles.body2
     val baseFootnote2 = MiuixTheme.textStyles.footnote2
 
+    // 自定义节次名称优先显示名称，否则显示节次号
+    val customName = sectionNames[section]
+    val displayText = customName ?: section.toString()
+
     val sectionStyle = remember(isCurrentSection, baseBody2) {
         baseBody2.copy(
             fontWeight = if (isCurrentSection) FontWeight.Medium else FontWeight.Normal
         )
     }
+    // 自定义节次名称使用小号 Medium 字重，避免超出列宽
+    val nameStyle = if (customName != null) {
+        sectionStyle.copy(fontSize = 11.sp, fontWeight = FontWeight.Medium)
+    } else sectionStyle
     val sectionColor = if (isCurrentSection) primaryColor else onSurfaceColor
     val timeStyle = remember(baseFootnote2) { baseFootnote2.copy(fontSize = 10.sp) }
     val timeColor = if (isCurrentSection) primaryColor else onSurfaceVariantColor
@@ -119,7 +128,7 @@ private fun SectionItem(section: Int, startTime: String, endTime: String, yOffse
         Column(
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
-            OutlinedText("$section", sectionStyle, sectionColor, hasWallpaper)
+            OutlinedText(displayText, nameStyle, sectionColor, hasWallpaper)
             OutlinedText(startTime, timeStyle, timeColor, hasWallpaper)
             OutlinedText(endTime, timeStyle, timeColor, hasWallpaper)
         }

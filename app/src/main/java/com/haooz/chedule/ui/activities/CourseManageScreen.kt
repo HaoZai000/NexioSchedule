@@ -580,6 +580,7 @@ fun CourseManageScreen(
                 )
                 TextButton(
                     text = "确定",
+                    enabled = newCourseName.isNotBlank(),
                     onClick = {
                         hapticFeedback.performHapticFeedback(HapticFeedbackType.Confirm)
                         if (newCourseName.isNotBlank()) {

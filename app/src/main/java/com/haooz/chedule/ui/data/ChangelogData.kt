@@ -7,10 +7,23 @@ data class ChangelogEntry(
 )
 val changelogData = listOf(
     ChangelogEntry(
+        version = "v1.4.2-0827",
+        date = "2026-08-27",
+        changes = listOf(
+            "新增支持自定义节次名称",
+            "",
+            "",
+            "",
+            "",
+            "",
+            ""
+        )
+    ),
+    ChangelogEntry(
         version = "v1.4.1-0822",
         date = "2026-08-22",
         changes = listOf(
-            "新增支持自定义课程时间",
+            "新增支持课程自定义时间",
             "课程提醒功能全面进化，优化原生实况通知样式，支持上课静音，支持自定义缩略态显示内容，同时小米超级岛去除Shizuku硬性要求",
             "适配拾光教务导入仓库V2",
             "优化部分界面深浅色效果与逻辑",

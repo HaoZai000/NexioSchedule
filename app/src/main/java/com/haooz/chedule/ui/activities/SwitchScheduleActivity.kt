@@ -87,7 +87,6 @@ import com.kyant.shapes.Capsule
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.launch
-import top.yukonga.miuix.kmp.basic.Button
 import top.yukonga.miuix.kmp.basic.ButtonDefaults
 import top.yukonga.miuix.kmp.basic.Card
 import top.yukonga.miuix.kmp.basic.CardDefaults
@@ -770,16 +769,9 @@ fun SwitchScheduleScreen(
                         )
                         TextButton(
                             text = "确定",
+                            enabled = newScheduleName.isNotBlank(),
                             onClick = {
                                 hapticFeedback.performHapticFeedback(HapticFeedbackType.Confirm)
-                                if (newScheduleName.isBlank()) {
-                                    Toast.makeText(
-                                        context,
-                                        "请输入课表名称",
-                                        Toast.LENGTH_SHORT
-                                    ).show()
-                                    return@TextButton
-                                }
                                 if (scheduleNames.contains(newScheduleName)) {
                                     Toast.makeText(
                                         context,

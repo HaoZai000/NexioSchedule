@@ -36,7 +36,10 @@ data class TimeConfig(
 
     // 各节次时间（全局绝对节次号 -> "HH:mm-HH:mm"）
     // 注意：Gson 会将 Int key 转换为 String，所以存储为 Map<String, String>
-    val sectionTimes: Map<String, String> = emptyMap()
+    val sectionTimes: Map<String, String> = emptyMap(),
+
+    // 自定义节次名称（key 同 sectionTimes，如 "morning_1" -> "早自习"）
+    val sectionNames: Map<String, String> = emptyMap()
 ) {
 
     /**

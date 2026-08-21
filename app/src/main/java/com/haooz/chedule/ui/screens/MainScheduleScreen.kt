@@ -166,6 +166,7 @@ fun MainScheduleScreen(
     val afternoonSections by settingsViewModel.afternoonSections.collectAsState()
     val eveningSections by settingsViewModel.eveningSections.collectAsState()
     val sectionTimes by settingsViewModel.sectionTimes.collectAsState()
+    val sectionNames by settingsViewModel.sectionNames.collectAsState()
     val hapticFeedback = LocalHapticFeedback.current
     val configuration = LocalConfiguration.current
     val isTablet = configuration.screenWidthDp >= 600
@@ -395,6 +396,7 @@ fun MainScheduleScreen(
                             afternoonSections = afternoonSections,
                             eveningSections = eveningSections,
                             sectionTimes = sectionTimes,
+                            sectionNames = sectionNames,
                             cardHeightPerSection = cardHeightPerSection,
                             showBreakDividers = showBreakDividers,
                             currentSection = if (week == currentWeek) currentSection else -1,

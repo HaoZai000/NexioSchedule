@@ -67,15 +67,17 @@ import com.haooz.chedule.data.Course
 import com.haooz.chedule.data.CourseRepository
 import com.haooz.chedule.data.TimeConfig
 import com.haooz.chedule.ui.basic.CollapsibleTopAppBar
-import com.haooz.chedule.ui.basic.NativeMiuixTextField
-import com.haooz.chedule.ui.basic.rememberSharedScrollBehavior
 import com.haooz.chedule.ui.basic.LiquidTopBarButton
+import com.haooz.chedule.ui.basic.NativeMiuixTextField
+import com.haooz.chedule.ui.basic.OverlayDialog
 import com.haooz.chedule.ui.basic.ProgressiveBlurTopBar
+import com.haooz.chedule.ui.basic.rememberSharedScrollBehavior
 import com.haooz.chedule.ui.effects.motion.OobeCubicOutEasing
 import com.haooz.chedule.ui.effects.motion.OobeFifthpowerOutEasing
 import com.haooz.chedule.ui.effects.motion.OobeQuadraticOutEasing
 import com.haooz.chedule.ui.effects.motion.OobeQuartOutEasing
 import com.haooz.chedule.ui.utils.isAppDarkTheme
+import com.haooz.chedule.ui.utils.overScrollVertical
 import com.kyant.backdrop.backdrops.LayerBackdrop
 import com.kyant.shapes.RoundedRectangle
 import kotlinx.coroutines.coroutineScope
@@ -94,11 +96,9 @@ import top.yukonga.miuix.kmp.blur.rememberLayerBackdrop
 import top.yukonga.miuix.kmp.icon.MiuixIcons
 import top.yukonga.miuix.kmp.icon.extended.Close
 import top.yukonga.miuix.kmp.icon.extended.Ok
-import com.haooz.chedule.ui.basic.OverlayDialog
 import top.yukonga.miuix.kmp.preference.ArrowPreference
 import top.yukonga.miuix.kmp.squircle.squircleSurface
 import top.yukonga.miuix.kmp.theme.MiuixTheme
-import com.haooz.chedule.ui.utils.overScrollVertical
 import top.yukonga.miuix.kmp.utils.scrollEndHaptic
 import kotlin.time.Duration.Companion.milliseconds
 import androidx.compose.ui.graphics.Color as ComposeColor
@@ -376,6 +376,23 @@ fun TimeConfigEditScreen(
     var afternoonTimes by remember { mutableStateOf(timeConfig.getPeriodTimes("afternoon")) }
     var eveningTimes by remember { mutableStateOf(timeConfig.getPeriodTimes("evening")) }
 
+    // 自定义节次名称（key 同 sectionTimes，如 "morning_1" -> "早自习"）
+    var sectionNames by remember { mutableStateOf(timeConfig.sectionNames) }
+    var tempSectionName by remember { mutableStateOf("") }
+
+    // 获取节次显示名称：有自定义名称时显示"第N节 名称"，否则显示"第N节"
+    fun getSectionTitle(period: String, relSection: Int): String {
+        val key = "${period}_$relSection"
+        val abs = when (period) {
+            "morning" -> relSection
+            "afternoon" -> morningSections + relSection
+            "evening" -> morningSections + afternoonSections + relSection
+            else -> relSection
+        }
+        val name = sectionNames[key]?.takeIf { it.isNotBlank() }
+        return if (name != null) "第${abs}节 $name" else "第${abs}节"
+    }
+
     // 检查时间重叠（仅检查当前节数范围内的节次）
     fun checkTimeOverlap(): String? {
         data class TimeRange(val start: Int, val end: Int, val label: String)
@@ -572,6 +589,21 @@ fun TimeConfigEditScreen(
                                             for ((k, v) in morningTimes) if (k <= morningSections) finalSectionTimes["morning_$k"] = v
                                             for ((k, v) in afternoonTimes) if (k <= afternoonSections) finalSectionTimes["afternoon_$k"] = v
                                             for ((k, v) in eveningTimes) if (k <= eveningSections) finalSectionTimes["evening_$k"] = v
+                                            // 过滤掉超出当前节数范围的自定义名称
+                                            val finalSectionNames = mutableMapOf<String, String>()
+                                            for ((k, v) in sectionNames) {
+                                                val parts = k.split("_")
+                                                if (parts.size != 2) continue
+                                                val period = parts[0]
+                                                val idx = parts[1].toIntOrNull() ?: continue
+                                                val count = when (period) {
+                                                    "morning" -> morningSections
+                                                    "afternoon" -> afternoonSections
+                                                    "evening" -> eveningSections
+                                                    else -> 0
+                                                }
+                                                if (idx in 1..count) finalSectionNames[k] = v
+                                            }
 
                                             val newConfig = timeConfig.copy(
                                                 name = configName,
@@ -594,7 +626,8 @@ fun TimeConfigEditScreen(
                                                 afternoonStartMinute = afternoonStartMinute,
                                                 eveningStartHour = eveningStartHour,
                                                 eveningStartMinute = eveningStartMinute,
-                                                sectionTimes = finalSectionTimes
+                                                sectionTimes = finalSectionTimes,
+                                                sectionNames = finalSectionNames
                                             )
                                             triggerExitAndBack(onSavePending = { onSave(newConfig) })
                                         },
@@ -1020,7 +1053,7 @@ fun TimeConfigEditScreen(
                                             (1..morningSections).forEach { relSection ->
                                                 val timeStr = morningTimes[relSection] ?: ""
                                                 ArrowPreference(
-                                                    title = "第${relSection}节",
+                                                    title = getSectionTitle("morning", relSection),
                                                     endActions = {
                                                         Text(
                                                             timeStr,
@@ -1031,6 +1064,7 @@ fun TimeConfigEditScreen(
                                                     onClick = {
                                                         editingSection = relSection; editingPeriod =
                                                         "morning"
+                                                        tempSectionName = sectionNames["morning_$relSection"] ?: ""
                                                         val (start, end) = parseTimeRange(timeStr)
                                                         tempStartHour =
                                                             start.first; tempStartMinute =
@@ -1061,7 +1095,7 @@ fun TimeConfigEditScreen(
                                             (1..afternoonSections).forEach { relSection ->
                                                 val timeStr = afternoonTimes[relSection] ?: ""
                                                 ArrowPreference(
-                                                    title = "第${morningSections + relSection}节",
+                                                    title = getSectionTitle("afternoon", relSection),
                                                     endActions = {
                                                         Text(
                                                             timeStr,
@@ -1072,6 +1106,7 @@ fun TimeConfigEditScreen(
                                                     onClick = {
                                                         editingSection = relSection; editingPeriod =
                                                         "afternoon"
+                                                        tempSectionName = sectionNames["afternoon_$relSection"] ?: ""
                                                         val (start, end) = parseTimeRange(timeStr)
                                                         tempStartHour =
                                                             start.first; tempStartMinute =
@@ -1102,7 +1137,7 @@ fun TimeConfigEditScreen(
                                             (1..eveningSections).forEach { relSection ->
                                                 val timeStr = eveningTimes[relSection] ?: ""
                                                 ArrowPreference(
-                                                    title = "第${morningSections + afternoonSections + relSection}节",
+                                                    title = getSectionTitle("evening", relSection),
                                                     endActions = {
                                                         Text(
                                                             timeStr,
@@ -1113,6 +1148,7 @@ fun TimeConfigEditScreen(
                                                     onClick = {
                                                         editingSection = relSection; editingPeriod =
                                                         "evening"
+                                                        tempSectionName = sectionNames["evening_$relSection"] ?: ""
                                                         val (start, end) = parseTimeRange(timeStr)
                                                         tempStartHour =
                                                             start.first; tempStartMinute =
@@ -1436,6 +1472,26 @@ fun TimeConfigEditScreen(
                                 modifier = Modifier.fillMaxWidth(),
                                 horizontalAlignment = Alignment.CenterHorizontally
                             ) {
+                                NativeMiuixTextField(
+                                    value = tempSectionName,
+                                    onValueChange = { tempSectionName = it },
+                                    label = "自定义节次名称",
+                                    useLabelAsPlaceholder = true,
+                                    singleLine = true,
+                                    trailingIcon = {
+                                        val nameCount = tempSectionName.length
+                                        Text(
+                                            "$nameCount/2",
+                                            fontSize = 14.2.sp,
+                                            fontWeight = FontWeight.Medium,
+                                            color = if (nameCount > 2) ComposeColor(0xFFF44336)
+                                            else MiuixTheme.colorScheme.onSurfaceVariantActions,
+                                            modifier = Modifier.padding(end = 16.dp)
+                                        )
+                                    },
+                                    modifier = Modifier.fillMaxWidth()
+                                        .padding(bottom = 12.dp)
+                                )
                                 Row(
                                     modifier = Modifier.fillMaxWidth(),
                                     verticalAlignment = Alignment.CenterVertically,
@@ -1524,6 +1580,7 @@ fun TimeConfigEditScreen(
                                     )
                                     TextButton(
                                         text = "确定",
+                                        enabled = tempSectionName.length <= 2,
                                         onClick = {
                                             hapticFeedback.performHapticFeedback(HapticFeedbackType.Confirm)
                                             val startMinutes = tempStartHour * 60 + tempStartMinute
@@ -1565,6 +1622,13 @@ fun TimeConfigEditScreen(
                                                     eveningTimes = eveningTimes.toMutableMap()
                                                         .apply { put(editingSection, newTimeStr) }
                                                 }
+                                            }
+                                            // 保存自定义节次名称（为空则恢复默认"第N节"）
+                                            val nameKey = "${editingPeriod}_${editingSection}"
+                                            val trimmedName = tempSectionName.trim()
+                                            sectionNames = sectionNames.toMutableMap().apply {
+                                                if (trimmedName.isEmpty()) remove(nameKey)
+                                                else put(nameKey, trimmedName)
                                             }
                                             showTimeDialog = false
                                         },

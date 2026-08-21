@@ -68,6 +68,9 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
     private val _eveningTimes = MutableStateFlow(repository.getPeriodTimes("evening"))
     val eveningTimes: StateFlow<Map<Int, String>> = _eveningTimes.asStateFlow()
 
+    private val _sectionNames = MutableStateFlow(repository.getSectionNames())
+    val sectionNames: StateFlow<Map<Int, String>> = _sectionNames.asStateFlow()
+
     // 课前提醒开关
     private val _preClassReminder = MutableStateFlow(repository.getPreClassReminder())
     val preClassReminder: StateFlow<Boolean> = _preClassReminder.asStateFlow()
@@ -150,6 +153,9 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
 
         val newEveningTimes = repository.getPeriodTimes("evening")
         if (_eveningTimes.value != newEveningTimes) _eveningTimes.value = newEveningTimes
+
+        val newSectionNames = repository.getSectionNames()
+        if (_sectionNames.value != newSectionNames) _sectionNames.value = newSectionNames
 
         val newPreClassReminder = repository.getPreClassReminder()
         if (_preClassReminder.value != newPreClassReminder) _preClassReminder.value = newPreClassReminder

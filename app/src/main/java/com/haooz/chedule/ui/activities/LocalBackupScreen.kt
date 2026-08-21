@@ -363,7 +363,8 @@ fun LocalBackupScreen(
                                                         "morningSections" to timeConfig.morningSections,
                                                         "afternoonSections" to timeConfig.afternoonSections,
                                                         "eveningSections" to timeConfig.eveningSections,
-                                                        "sectionTimes" to timeConfig.sectionTimes
+                                                        "sectionTimes" to timeConfig.sectionTimes,
+                                                        "sectionNames" to timeConfig.sectionNames
                                                     )
                                                 )
                                             }

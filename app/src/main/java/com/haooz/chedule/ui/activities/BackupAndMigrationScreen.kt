@@ -458,7 +458,8 @@ private fun buildExportJson(
         "times" to mapOf(
             "morning" to settingsViewModel.getMorningTimes().mapKeys { it.key.toString() },
             "afternoon" to settingsViewModel.getAfternoonTimes().mapKeys { it.key.toString() },
-            "evening" to settingsViewModel.getEveningTimes().mapKeys { it.key.toString() }
+            "evening" to settingsViewModel.getEveningTimes().mapKeys { it.key.toString() },
+            "section_names" to repository.getCurrentTimeConfig().sectionNames
         ),
         "courses" to courses.map { course ->
             mapOf(
