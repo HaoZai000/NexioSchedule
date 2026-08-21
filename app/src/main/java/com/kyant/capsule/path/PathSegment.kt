@@ -49,7 +49,7 @@ sealed interface PathSegment {
             )
 
         override fun drawTo(path: Path) {
-            // 不直接使用 Path.arcTo()：Android 用折线多边形近似弧线，细圆角会产生锯齿。
+            // 不直接使用 Path.arcTo()：Android 用折线多边形近似弧线，细圆角会产生明显锯齿。
             // 改用若干段三次贝塞尔平滑逼近圆弧（每段最大 90°），走原生 cubicTo 渲染。
             val segmentCount = ceil(abs(sweepAngle) / (PI * 0.5)).toInt().coerceAtLeast(1)
             val segmentSweep = sweepAngle / segmentCount
