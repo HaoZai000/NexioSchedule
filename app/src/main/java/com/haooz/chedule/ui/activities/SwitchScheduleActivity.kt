@@ -69,8 +69,6 @@ import androidx.compose.ui.unit.sp
 import com.haooz.chedule.data.CourseRepository
 import com.haooz.chedule.ui.basic.CollapsibleTopAppBar
 import com.haooz.chedule.ui.basic.LiquidTopBarButton
-import top.yukonga.miuix.kmp.basic.NativeMiuixTextField
-import top.yukonga.miuix.kmp.overlay.OverlayDialog
 import com.haooz.chedule.ui.basic.ProgressiveBlurTopBar
 import com.haooz.chedule.ui.basic.rememberSharedScrollBehavior
 import com.haooz.chedule.ui.effects.edgelight.edgeLight
@@ -91,6 +89,7 @@ import top.yukonga.miuix.kmp.basic.ButtonDefaults
 import top.yukonga.miuix.kmp.basic.Card
 import top.yukonga.miuix.kmp.basic.CardDefaults
 import top.yukonga.miuix.kmp.basic.Icon
+import top.yukonga.miuix.kmp.basic.NativeMiuixTextField
 import top.yukonga.miuix.kmp.basic.Scaffold
 import top.yukonga.miuix.kmp.basic.SmallTitle
 import top.yukonga.miuix.kmp.basic.TextButton
@@ -103,6 +102,7 @@ import top.yukonga.miuix.kmp.icon.extended.Close
 import top.yukonga.miuix.kmp.icon.extended.Delete
 import top.yukonga.miuix.kmp.icon.extended.Edit
 import top.yukonga.miuix.kmp.icon.extended.Forward
+import top.yukonga.miuix.kmp.overlay.OverlayDialog
 import top.yukonga.miuix.kmp.preference.CheckboxLocation
 import top.yukonga.miuix.kmp.preference.CheckboxPreference
 import top.yukonga.miuix.kmp.theme.MiuixTheme
@@ -958,6 +958,8 @@ private fun RowScope.BottomBarItem(
         animationSpec = tween(150),
         label = "pressScale"
     )
+    val pressColor = if (isAppDarkTheme()) ComposeColor.White.copy(alpha = 0.11f * pressAlpha)
+    else ComposeColor.Black.copy(alpha = 0.07f * pressAlpha)
     Column(
         modifier = Modifier
             .pointerInput(enabled) {
@@ -1000,7 +1002,7 @@ private fun RowScope.BottomBarItem(
                     })
                     drawPath(
                         path = path,
-                        color = ComposeColor.Black.copy(alpha = 0.08f * pressAlpha)
+                        color = pressColor
                     )
                 }
                 drawContent()

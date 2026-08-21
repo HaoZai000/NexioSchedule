@@ -269,7 +269,7 @@ fun LiquidBottomTabs(
                 }
                 .clip(ContinuousCapsule())
                 .drawBehind {
-                    val selectorColor = if (isLightTheme) Color.Black.copy(0.08f) else Color.White.copy(0.12f)
+                    val selectorColor = if (isLightTheme) Color.Black.copy(0.07f) else Color.White.copy(0.11f)
                     drawRect(selectorColor)
                 }
                 .height(selectorHeight)
