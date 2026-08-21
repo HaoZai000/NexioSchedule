@@ -474,7 +474,7 @@ fun darkColorScheme(
     disabledOnSecondaryVariant: Color = Color(0xFF707170),
     secondaryContainer: Color = Color(0xFF434343),
     onSecondaryContainer: Color = Color(0xFF7C7C7C),
-    secondaryContainerVariant: Color = Color(0xFF4F4F4F),
+    secondaryContainerVariant: Color = Color(0xFFF2F2F2),
     onSecondaryContainerVariant: Color = Color(0xFF959595),
     tertiaryContainer: Color = Color(0xFF2B3B54),
     onTertiaryContainer: Color = Color(0xFF4788ff),

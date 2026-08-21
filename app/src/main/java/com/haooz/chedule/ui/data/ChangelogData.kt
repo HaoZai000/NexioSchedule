@@ -11,7 +11,7 @@ val changelogData = listOf(
         date = "2026-08-27",
         changes = listOf(
             "新增支持自定义节次名称",
-            "",
+            "优化部分组件视觉效果",
             "",
             "",
             "",

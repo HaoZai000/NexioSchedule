@@ -875,7 +875,7 @@ private fun AddCourseDialogContent(
                     Spacer(modifier = Modifier.width(4.dp))
                     Text(
                         text = "自定义时间",
-                        style = MiuixTheme.textStyles.body2,
+                        fontSize = 15.sp,
                         color = MiuixTheme.colorScheme.onSurfaceVariantSummary
                     )
                 }
@@ -897,7 +897,7 @@ private fun AddCourseDialogContent(
                                 color = MiuixTheme.colorScheme.primary,
                                 contentColor = Color.White
                             ) else CardDefaults.defaultColors(
-                                color = if (isDark) Color(0xFF363636) else Color(0xFFF4F4F4)
+                                color = if (isDark) Color(0xFF363636) else Color(0xFFF2F2F2)
                             ),
                             onClick = { onDayOfWeekChange(day) }
                         ) {
@@ -1006,7 +1006,7 @@ private fun AddCourseDialogContent(
 
                             )
                             Spacer(modifier = Modifier.width(4.dp))
-                            Text(text = "全部", style = MiuixTheme.textStyles.body2, color = MiuixTheme.colorScheme.onSurfaceVariantSummary)
+                            Text(text = "全部", fontSize = 15.sp, color = MiuixTheme.colorScheme.onSurfaceVariantSummary)
                         }
 
                         // 单周
@@ -1039,7 +1039,7 @@ private fun AddCourseDialogContent(
 
                             )
                             Spacer(modifier = Modifier.width(4.dp))
-                            Text(text = "单周", style = MiuixTheme.textStyles.body2, color = MiuixTheme.colorScheme.onSurfaceVariantSummary)
+                            Text(text = "单周", fontSize = 15.sp, color = MiuixTheme.colorScheme.onSurfaceVariantSummary)
                         }
 
                         // 双周
@@ -1072,7 +1072,7 @@ private fun AddCourseDialogContent(
 
                             )
                             Spacer(modifier = Modifier.width(4.dp))
-                            Text(text = "双周", style = MiuixTheme.textStyles.body2, color = MiuixTheme.colorScheme.onSurfaceVariantSummary)
+                            Text(text = "双周", fontSize = 15.sp, color = MiuixTheme.colorScheme.onSurfaceVariantSummary)
                         }
                     }
                 }
@@ -1119,7 +1119,7 @@ private fun AddCourseDialogContent(
                                             color = when {
                                                 isSelected -> primaryColor
                                                 isOccupied -> occupiedColor
-                                                else -> if (isDark) Color(0xFF363636) else Color(0xFFF4F4F4)
+                                                else -> if (isDark) Color(0xFF363636) else Color(0xFFF2F2F2)
                                             },
                                             contentColor = when {
                                                 noDaySelected -> outlineColor

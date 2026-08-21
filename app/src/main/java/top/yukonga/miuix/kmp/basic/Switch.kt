@@ -21,7 +21,6 @@ import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.wrapContentSize
 import androidx.compose.foundation.selection.toggleable
-import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.Immutable
 import androidx.compose.runtime.Stable
@@ -37,6 +36,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.semantics.Role
@@ -48,6 +48,7 @@ import androidx.compose.ui.state.ToggleableState
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
+import com.kyant.shapes.Capsule
 import top.yukonga.miuix.kmp.theme.LocalColors
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 import top.yukonga.miuix.kmp.theme.MiuixTheme.isDynamicColor
@@ -83,7 +84,7 @@ fun Switch(
     var rawDragOffset by remember { mutableFloatStateOf(0f) }
     var currentDragInteraction by remember { mutableStateOf<DragInteraction.Start?>(null) }
 
-    val capsuleShape = CircleShape
+    val capsuleShape = Capsule()
     val thumbOffsetSpringSpec = remember { spring<Dp>(dampingRatio = 0.7f, stiffness = 987f) }
     val thumbScaleSpringSpec = remember { spring<Float>(dampingRatio = 0.6f, stiffness = 987f) }
 
@@ -233,7 +234,7 @@ object SwitchDefaults {
         disabledCheckedThumbColor: Color = if (isDynamicColor) LocalColors.current.surface else MiuixTheme.colorScheme.disabledOnPrimary,
         disabledUncheckedThumbColor: Color = MiuixTheme.colorScheme.disabledOnSecondary,
         checkedTrackColor: Color = MiuixTheme.colorScheme.primary,
-        uncheckedTrackColor: Color = MiuixTheme.colorScheme.secondary,
+        uncheckedTrackColor: Color = if (MiuixTheme.colorScheme.background.luminance() < 0.5f) Color(0xFF424242) else Color(0xFFECECEC),
         disabledCheckedTrackColor: Color = MiuixTheme.colorScheme.disabledPrimary,
         disabledUncheckedTrackColor: Color = MiuixTheme.colorScheme.disabledSecondary,
     ): SwitchColors = remember(

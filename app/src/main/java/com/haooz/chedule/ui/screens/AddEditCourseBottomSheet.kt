@@ -384,7 +384,7 @@ fun AddEditCourseBottomSheet(
                         Spacer(modifier = Modifier.width(4.dp))
                         Text(
                             text = "自定义时间",
-                            style = MiuixTheme.textStyles.body2,
+                            fontSize = 15.sp,
                             color = MiuixTheme.colorScheme.onSurfaceVariantSummary
                         )
                     }
@@ -405,7 +405,7 @@ fun AddEditCourseBottomSheet(
                                 pressFeedbackType = PressFeedbackType.Sink,
                                 colors = CardDefaults.defaultColors(
                                     color = if (isSelected) MiuixTheme.colorScheme.primary
-                                    else if (isDark) Color(0xFF363636) else Color(0xFFF4F4F4),
+                                    else if (isDark) Color(0xFF363636) else Color(0xFFF2F2F2),
                                     contentColor = if (isSelected) Color.White else MiuixTheme.colorScheme.onSurfaceVariantSummary
                                 ),
                                 onClick = {
@@ -536,7 +536,7 @@ fun AddEditCourseBottomSheet(
                                 Spacer(modifier = Modifier.width(4.dp))
                                 Text(
                                     text = "全部",
-                                    style = MiuixTheme.textStyles.body2,
+                                    fontSize = 15.sp,
                                     color = MiuixTheme.colorScheme.onSurfaceVariantSummary
                                 )
                             }
@@ -569,7 +569,7 @@ fun AddEditCourseBottomSheet(
                                 Spacer(modifier = Modifier.width(4.dp))
                                 Text(
                                     text = "单周",
-                                    style = MiuixTheme.textStyles.body2,
+                                    fontSize = 15.sp,
                                     color = MiuixTheme.colorScheme.onSurfaceVariantSummary
                                 )
                             }
@@ -602,7 +602,7 @@ fun AddEditCourseBottomSheet(
                                 Spacer(modifier = Modifier.width(4.dp))
                                 Text(
                                     text = "双周",
-                                    style = MiuixTheme.textStyles.body2,
+                                    fontSize = 15.sp,
                                     color = MiuixTheme.colorScheme.onSurfaceVariantSummary
                                 )
                             }
@@ -619,7 +619,7 @@ fun AddEditCourseBottomSheet(
                     val outlineColor = MiuixTheme.colorScheme.outline
                     val onSurfaceSummaryColor = MiuixTheme.colorScheme.onSurfaceVariantSummary
                     val occupiedColor = if (isDark) Color(0xFF4A4A4A) else Color(0xFFF0F0F0)
-                    val defaultCardColor = if (isDark) Color(0xFF363636) else Color(0xFFF4F4F4)
+                    val defaultCardColor = if (isDark) Color(0xFF363636) else Color(0xFFF2F2F2)
 
                     val weekStates = (1..totalWeeks).map { weekNum ->
                         val isSelected = weekNum in selectedWeeks
