@@ -40,6 +40,7 @@ import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ColorFilter
+import androidx.compose.ui.graphics.TransformOrigin
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalLayoutDirection
@@ -261,11 +262,18 @@ fun LiquidBottomTabs(
                 }
                 .then(dampedDragAnimation.modifier)
                 .graphicsLayer {
+                    val rawVelocity = dampedDragAnimation.velocity
                     scaleX = dampedDragAnimation.scaleX
                     scaleY = dampedDragAnimation.scaleY
-                    val velocity = dampedDragAnimation.velocity / 10f
-                    scaleX /= 1f - (velocity * 0.75f).fastCoerceIn(-0.2f, 0.2f)
-                    scaleY *= 1f - (velocity * 0.25f).fastCoerceIn(-0.2f, 0.2f)
+                    val speed = abs(rawVelocity) / 10f
+                    val stretch = (speed * 0.75f).fastCoerceIn(0f, 0.2f)
+                    scaleX /= 1f - stretch
+                    // 锚点作为速度的连续映射：速度大偏向一侧、速度归零平滑回到中心，端点处不跳变不闪烁
+                    val normalized = stretch / 0.2f
+                    transformOrigin = TransformOrigin(
+                        0.5f + normalized * 0.5f * (if (rawVelocity >= 0f) 1f else -1f),
+                        0.5f
+                    )
                 }
                 .clip(ContinuousCapsule())
                 .drawBehind {

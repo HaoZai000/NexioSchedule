@@ -12,7 +12,7 @@ val changelogData = listOf(
         changes = listOf(
             "新增支持自定义节次名称",
             "优化部分组件视觉效果",
-            "",
+            "修复部分按钮圆角锯齿的问题",
             "",
             "",
             "",
