@@ -1,7 +1,7 @@
 /** 仿 Miuix 样式的原生 EditText，使用系统原生选择控件 */
 @file:Suppress("DEPRECATION")
 
-package com.haooz.chedule.ui.basic
+package top.yukonga.miuix.kmp.basic
 
 import android.content.Context
 import android.graphics.Typeface

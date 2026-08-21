@@ -1,4 +1,4 @@
-﻿/** WebView 页面 - 用于加载教务系统网页 */
+/** WebView 页面 - 用于加载教务系统网页 */
 package com.haooz.chedule.ui.screens
 
 import android.annotation.SuppressLint
@@ -75,7 +75,7 @@ import androidx.core.net.toUri
 import com.haooz.chedule.data.Course
 import com.haooz.chedule.data.school.SchoolData
 import com.haooz.chedule.ui.basic.LiquidTopBarButton
-import com.haooz.chedule.ui.basic.NativeMiuixTextField
+import top.yukonga.miuix.kmp.basic.NativeMiuixTextField
 import com.haooz.chedule.ui.basic.ProgressiveBlurTopBar
 import com.haooz.chedule.ui.web.AndroidBridge
 import com.haooz.chedule.ui.web.WebCompatDelegate

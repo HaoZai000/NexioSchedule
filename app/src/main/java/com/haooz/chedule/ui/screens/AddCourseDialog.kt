@@ -55,12 +55,12 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.haooz.chedule.data.Course
-import com.haooz.chedule.ui.basic.BlurBottomSheet
-import com.haooz.chedule.ui.basic.BlurBottomSheetTablet
+import top.yukonga.miuix.kmp.overlay.BlurBottomSheet
+import top.yukonga.miuix.kmp.overlay.BlurBottomSheetTablet
 import com.haooz.chedule.ui.basic.LiquidTopBarButton
-import com.haooz.chedule.ui.basic.LocalSheetTopBarMaterial
-import com.haooz.chedule.ui.basic.NativeTextField
-import com.haooz.chedule.ui.basic.OverlayDialog
+import top.yukonga.miuix.kmp.overlay.LocalSheetTopBarMaterial
+import top.yukonga.miuix.kmp.basic.NativeTextField
+import top.yukonga.miuix.kmp.overlay.OverlayDialog
 import com.haooz.chedule.ui.utils.LocalForcedDarkTheme
 import com.haooz.chedule.ui.utils.isAppDarkTheme
 import com.haooz.chedule.ui.utils.overScrollVertical
@@ -72,7 +72,6 @@ import top.yukonga.miuix.kmp.basic.ButtonDefaults
 import top.yukonga.miuix.kmp.basic.Card
 import top.yukonga.miuix.kmp.basic.CardDefaults
 import top.yukonga.miuix.kmp.basic.Checkbox
-import top.yukonga.miuix.kmp.basic.CheckboxDefaults
 import top.yukonga.miuix.kmp.basic.ColorPalette
 import top.yukonga.miuix.kmp.basic.Icon
 import top.yukonga.miuix.kmp.basic.NumberPicker
@@ -871,10 +870,7 @@ private fun AddCourseDialogContent(
                     )
                     Checkbox(
                         state = if (isCustomTime) ToggleableState.On else ToggleableState.Off,
-                        onClick = { onIsCustomTimeChange(!isCustomTime) },
-                        colors = CheckboxDefaults.checkboxColors(
-                            uncheckedBackgroundColor = if (isDark) Color(0xFF505050) else Color(0xFFF7F7F7)
-                        )
+                        onClick = { onIsCustomTimeChange(!isCustomTime) }
                     )
                     Spacer(modifier = Modifier.width(4.dp))
                     Text(
@@ -883,7 +879,6 @@ private fun AddCourseDialogContent(
                         color = MiuixTheme.colorScheme.onSurfaceVariantSummary
                     )
                 }
-                val dayIsDark = MiuixTheme.colorScheme.background.luminance() < 0.5f
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.spacedBy(6.dp)
@@ -898,10 +893,11 @@ private fun AddCourseDialogContent(
                             cornerRadius = 10.dp,
                             insideMargin = PaddingValues(0.dp),
                             pressFeedbackType = PressFeedbackType.Sink,
-                            colors = CardDefaults.defaultColors(
-                                color = if (isSelected) MiuixTheme.colorScheme.primary
-                                else if (dayIsDark) Color(0xFF505050) else Color(0xFFF7F7F7),
-                                contentColor = if (isSelected) Color.White else MiuixTheme.colorScheme.onSurfaceVariantSummary
+                            colors = if (isSelected) CardDefaults.defaultColors(
+                                color = MiuixTheme.colorScheme.primary,
+                                contentColor = Color.White
+                            ) else CardDefaults.defaultColors(
+                                color = if (isDark) Color(0xFF363636) else Color(0xFFF4F4F4)
                             ),
                             onClick = { onDayOfWeekChange(day) }
                         ) {
@@ -1007,9 +1003,7 @@ private fun AddCourseDialogContent(
                                         onIsSingleWeekChange(false)
                                     }
                                 },
-                                colors = CheckboxDefaults.checkboxColors(
-                                    uncheckedBackgroundColor = if (isDark) Color(0xFF505050) else Color(0xFFF7F7F7)
-                                )
+
                             )
                             Spacer(modifier = Modifier.width(4.dp))
                             Text(text = "全部", style = MiuixTheme.textStyles.body2, color = MiuixTheme.colorScheme.onSurfaceVariantSummary)
@@ -1042,9 +1036,7 @@ private fun AddCourseDialogContent(
                                         }
                                     }
                                 },
-                                colors = CheckboxDefaults.checkboxColors(
-                                    uncheckedBackgroundColor = if (isDark) Color(0xFF505050) else Color(0xFFF7F7F7)
-                                )
+
                             )
                             Spacer(modifier = Modifier.width(4.dp))
                             Text(text = "单周", style = MiuixTheme.textStyles.body2, color = MiuixTheme.colorScheme.onSurfaceVariantSummary)
@@ -1077,9 +1069,7 @@ private fun AddCourseDialogContent(
                                         }
                                     }
                                 },
-                                colors = CheckboxDefaults.checkboxColors(
-                                    uncheckedBackgroundColor = if (isDark) Color(0xFF505050) else Color(0xFFF7F7F7)
-                                )
+
                             )
                             Spacer(modifier = Modifier.width(4.dp))
                             Text(text = "双周", style = MiuixTheme.textStyles.body2, color = MiuixTheme.colorScheme.onSurfaceVariantSummary)
@@ -1097,7 +1087,6 @@ private fun AddCourseDialogContent(
                 val onSurfaceColor = MiuixTheme.colorScheme.onSurface
                 val onSurfaceSummaryColor = MiuixTheme.colorScheme.onSurfaceVariantSummary
                 val occupiedColor = if (isDark) Color(0xFF4A4A4A) else Color(0xFFF0F0F0)
-                val defaultCardColor = if (isDark) Color(0xFF505050) else Color(0xFFF7F7F7)
 
                 val weekStates = (1..totalWeeks).map { weekNum ->
                     val isSelected = weekNum in selectedWeeks
@@ -1128,10 +1117,9 @@ private fun AddCourseDialogContent(
                                         showIndication = !noDaySelected && !isOccupied,
                                         colors = CardDefaults.defaultColors(
                                             color = when {
-                                                noDaySelected -> defaultCardColor
                                                 isSelected -> primaryColor
                                                 isOccupied -> occupiedColor
-                                                else -> defaultCardColor
+                                                else -> if (isDark) Color(0xFF363636) else Color(0xFFF4F4F4)
                                             },
                                             contentColor = when {
                                                 noDaySelected -> outlineColor
@@ -1412,9 +1400,7 @@ private fun AddCourseDialogContent(
                     hapticFeedback.performHapticFeedback(HapticFeedbackType.Confirm)
                     onDeleteClick()
                 },
-                colors = if (isDark) ButtonDefaults.buttonColors(
-                    color = Color(0xFF2A2A2A)
-                ) else ButtonDefaults.buttonColors(),
+                colors = ButtonDefaults.buttonColors(),
             ) {
                 Icon(
                     imageVector = MiuixIcons.Delete,

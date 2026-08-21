@@ -3,8 +3,15 @@
 
 package top.yukonga.miuix.kmp.basic
 
+import android.annotation.SuppressLint
+import android.graphics.BlurMaskFilter
+import android.graphics.Paint
 import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.EnterExitState
 import androidx.compose.animation.core.Animatable
+import androidx.compose.animation.core.animateDp
+import androidx.compose.animation.core.animateFloat
+import androidx.compose.animation.core.tween
 import androidx.compose.animation.expandHorizontally
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
@@ -14,7 +21,6 @@ import androidx.compose.animation.slideOutHorizontally
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.detectTapGestures
-import androidx.compose.foundation.interaction.Interaction
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.interaction.collectIsFocusedAsState
 import androidx.compose.foundation.layout.Box
@@ -24,6 +30,7 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.text.KeyboardActions
@@ -36,12 +43,22 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.blur
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.focus.onFocusChanged
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.Outline
+import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.SolidColor
+import androidx.compose.ui.graphics.asAndroidPath
+import androidx.compose.ui.graphics.drawscope.drawIntoCanvas
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.graphics.lerp
+import androidx.compose.ui.graphics.nativeCanvas
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.semantics.onClick
@@ -49,12 +66,23 @@ import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.DpSize
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.navigationevent.NavigationEventInfo
 import androidx.navigationevent.compose.NavigationBackHandler
 import androidx.navigationevent.compose.rememberNavigationEventState
+import com.haooz.chedule.ui.effects.edgelight.edgeLight
+import com.haooz.chedule.ui.effects.edgelight.rememberLiquidTopBarButtonEdgeLight
+import com.haooz.chedule.ui.utils.isAppDarkTheme
+import com.kyant.backdrop.Backdrop
+import com.kyant.backdrop.drawBackdrop
+import com.kyant.backdrop.effects.blur
+import com.kyant.backdrop.effects.lens
+import com.kyant.backdrop.effects.vibrancy
+import com.kyant.shapes.Capsule
+import com.kyant.shapes.RoundedRectangle
 import kotlinx.coroutines.delay
 import top.yukonga.miuix.kmp.icon.MiuixIcons
 import top.yukonga.miuix.kmp.icon.basic.Search
@@ -62,19 +90,20 @@ import top.yukonga.miuix.kmp.icon.basic.SearchCleanup
 import top.yukonga.miuix.kmp.theme.LocalContentColor
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 import top.yukonga.miuix.kmp.utils.hasFocusReassignBug
+import kotlin.time.Duration.Companion.milliseconds
 
 /**
- * A [SearchBar] component with Miuix style.
+ * 搜索框组件
  *
- * @param inputField the input field to input a query in the [SearchBar].
- * @param onExpandedChange the callback to be invoked when the [SearchBar]'s expanded state is
- *   changed.
- * @param modifier the [Modifier] to be applied to the [SearchBar].
- * @param insideMargin The margin inside the [SearchBar].
- * @param expanded whether the [SearchBar] is expanded and showing search results.
- * @param outsideEndAction the action to be shown at the end side of the [SearchBar] when it is
- *   expanded.
- * @param content the content to be shown when the [SearchBar] is expanded.
+ * @param inputField 输入框组件
+ * @param onExpandedChange 展开状态变化回调
+ * @param modifier 修饰符
+ * @param insideMargin 内边距
+ * @param expanded 是否展开显示搜索结果
+ * @param actionIcon 展开时右侧显示的图标
+ * @param actionIconSize 图标大小
+ * @param onActionClick 图标点击回调
+ * @param content 展开时显示的内容
  */
 @Composable
 fun SearchBar(
@@ -83,11 +112,16 @@ fun SearchBar(
     modifier: Modifier = Modifier,
     insideMargin: DpSize = SearchBarDefaults.InsideMargin,
     expanded: Boolean = false,
-    outsideEndAction: @Composable (() -> Unit)? = null,
-    content: @Composable ColumnScope.() -> Unit,
+    actionIcon: ImageVector? = null,
+    actionIconSize: Dp = 23.dp,
+    onActionClick: (() -> Unit)? = null,
+    backdrop: Backdrop? = null,
+    backdropAlpha: Float = 0f,
+    content: @Composable ColumnScope.() -> Unit = {},
 ) {
     val currentOnExpandedChange by rememberUpdatedState(onExpandedChange)
     val navigationEventState = rememberNavigationEventState(currentInfo = NavigationEventInfo.None)
+
     Column(
         modifier = modifier,
     ) {
@@ -107,12 +141,85 @@ fun SearchBar(
                 enter = expandHorizontally() + slideInHorizontally(initialOffsetX = { it }),
                 exit = shrinkHorizontally() + slideOutHorizontally(targetOffsetX = { it }),
             ) {
-                outsideEndAction?.invoke()
+                val scale by transition.animateFloat(
+                    transitionSpec = { tween(durationMillis = 300) },
+                    label = "scale"
+                ) { enterExit ->
+                    if (enterExit == EnterExitState.Visible) 1f else 0.6f
+                }
+                val blur by transition.animateDp(
+                    transitionSpec = { tween(durationMillis = 300) },
+                    label = "blur"
+                ) { enterExit ->
+                    if (enterExit == EnterExitState.Visible) 0.dp else 7.dp
+                }
+
+                if (actionIcon != null && onActionClick != null) {
+
+                    Box(
+                        modifier = Modifier
+                            .padding(end = 12.dp)
+                            .size(SearchBarDefaults.InputFieldMinHeight)
+                            .blur(blur)
+                            .graphicsLayer {
+                                scaleX = scale
+                                scaleY = scale
+                                alpha = scale
+                            }
+                            .clip(CircleShape)
+                            .clickable { onActionClick() },
+                        contentAlignment = Alignment.Center
+                    ) {
+                        if (backdrop != null) {
+                            Box(
+                                modifier = Modifier
+                                    .matchParentSize()
+                                    .drawBackdrop(
+                                        backdrop = backdrop,
+                                        shape = { CircleShape },
+                                        effects = {
+                                            vibrancy()
+                                            blur(4f.dp.toPx())
+                                            lens(15f.dp.toPx(), 15f.dp.toPx())
+                                        },
+                                        highlight = null,
+                                        shadow = null,
+                                        layerBlock = { alpha = backdropAlpha },
+                                        onDrawSurface = {}
+                                    )
+                                    .edgeLight(shape = CircleShape, edgeLight = rememberLiquidTopBarButtonEdgeLight())
+                            )
+                        }
+                        Box(
+                            modifier = Modifier
+                                .matchParentSize()
+                                .background(
+                                    color = if (backdrop != null) {
+                                        MiuixTheme.colorScheme.surfaceContainerHigh.copy(alpha = 0.6f)
+                                    } else MiuixTheme.colorScheme.surfaceContainerHigh,
+                                    shape = CircleShape,
+                                ),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Icon(
+                                imageVector = actionIcon,
+                                contentDescription = null,
+                                modifier = Modifier.size(actionIconSize),
+                            )
+                        }
+                    }
+                }
             }
         }
 
         AnimatedVisibility(
             visible = expanded,
+            modifier = Modifier
+                .fillMaxWidth()
+                .background(
+                    color = MiuixTheme.colorScheme.surface,
+                )
+                .clip(RoundedRectangle(20.dp))
         ) {
             content()
         }
@@ -128,29 +235,22 @@ fun SearchBar(
 }
 
 /**
- * A text field to input a query in a search bar with Miuix style.
+ * 搜索输入框组件
  *
- * @param query the query text to be shown in the input field.
- * @param onQueryChange the callback to be invoked when the input service updates the query. An
- *   updated text comes as a parameter of the callback.
- * @param onSearch the callback to be invoked when the input service triggers the
- *   [ImeAction.Search] action. The current [query] comes as a parameter of the callback.
- * @param expanded whether the search bar is expanded and showing search results.
- * @param onExpandedChange the callback to be invoked when the search bar's expanded state is
- *   changed.
- * @param modifier the [Modifier] to be applied to this input field.
- * @param label the label to be shown when the input field is not focused.
- * @param enabled the enabled state of this input field. When `false`, this component will not
- *   respond to user input, and it will appear visually disabled and disabled to accessibility
- *   services.
- * @param textStyle Style configuration that applies at character level such as color, font etc.
- * @param leadingIcon the leading icon to be displayed at the start of the input field.
- * @param trailingIcon the trailing icon to be displayed at the end of the input field.
- * @param interactionSource an optional hoisted [MutableInteractionSource] for observing and
- *   emitting [Interaction]s for this input field. You can use this to change the search bar's
- *   appearance or preview the search bar in different states. Note that if `null` is provided,
- *   interactions will still happen internally.
+ * @param query 当前查询文本
+ * @param onQueryChange 查询文本变化回调
+ * @param onSearch 搜索触发回调
+ * @param expanded 是否展开
+ * @param onExpandedChange 展开状态变化回调
+ * @param modifier 修饰符
+ * @param label 输入框未聚焦时显示的提示文本
+ * @param enabled 是否启用
+ * @param textStyle 文本样式
+ * @param leadingIcon 前置图标
+ * @param trailingIcon 后置图标
+ * @param interactionSource 交互源
  */
+@SuppressLint("UseKtx")
 @Composable
 fun InputField(
     query: String,
@@ -165,20 +265,27 @@ fun InputField(
     leadingIcon: @Composable (() -> Unit)? = null,
     trailingIcon: @Composable (() -> Unit)? = null,
     interactionSource: MutableInteractionSource? = null,
+    backdrop: Backdrop? = null,
+    backdropAlpha: Float = 1f,
+    shadowAlpha: Float = 0f,
 ) {
     val currentOnQueryChange by rememberUpdatedState(onQueryChange)
     val currentOnSearch by rememberUpdatedState(onSearch)
     val currentOnExpandedChange by rememberUpdatedState(onExpandedChange)
     val internalInteractionSource = interactionSource ?: remember { MutableInteractionSource() }
-    val capsuleShape = CircleShape
+    val capsuleShape = Capsule()
 
     val actualLeadingIcon = leadingIcon ?: {
-        Icon(
-            modifier = Modifier.padding(start = SearchBarDefaults.LeadingIconStartPadding, end = SearchBarDefaults.LeadingIconEndPadding),
-            imageVector = MiuixIcons.Basic.Search,
-            tint = MiuixTheme.colorScheme.onSurfaceContainerHigh,
-            contentDescription = "Search",
-        )
+        Box(
+            modifier = Modifier.padding(start = SearchBarDefaults.LeadingIconStartPadding, end = SearchBarDefaults.LeadingIconEndPadding)
+        ) {
+            Icon(
+                modifier = Modifier.size(24.dp),
+                imageVector = MiuixIcons.Basic.Search,
+                tint = MiuixTheme.colorScheme.onSurfaceContainerHigh,
+                contentDescription = "搜索",
+            )
+        }
     }
 
     val actualTrailingIcon = trailingIcon ?: {
@@ -197,7 +304,7 @@ fun InputField(
                         .clickable { currentOnQueryChange("") },
                     imageVector = MiuixIcons.Basic.SearchCleanup,
                     tint = MiuixTheme.colorScheme.onSurfaceContainerHighest,
-                    contentDescription = "Search Cleanup",
+                    contentDescription = "清除",
                 )
             }
         }
@@ -219,9 +326,7 @@ fun InputField(
         derivedStateOf { if (!(query.isNotEmpty() || expanded)) label else "" }
     }
 
-    // On API 26-27, focus is incorrectly reassigned after clearFocus(), preventing the
-    // SearchBar from closing. Workaround: disable the TextField when collapsed and use
-    // pointerInput to handle tap-to-expand. https://issuetracker.google.com/issues/433382598
+    // API 26-27 的 bug 修复：收起时禁用 TextField 防止焦点错误重分配
     val workaroundEnabled = !hasFocusReassignBug || expanded
     val expandOnTapModifier = if (workaroundEnabled || !enabled) {
         Modifier
@@ -250,16 +355,85 @@ fun InputField(
         keyboardActions = KeyboardActions(onSearch = { currentOnSearch(query) }),
         interactionSource = internalInteractionSource,
         decorationBox = { innerTextField ->
+            val isLightTheme = !isAppDarkTheme()
+            val containerColor = if (isLightTheme) Color(0xFFFFFFFF).copy(0.76f)
+                else Color(0xFF242424).copy(0.84f)
+            val shadowColor = if (isLightTheme) android.graphics.Color.parseColor("#12000000")
+                else android.graphics.Color.parseColor("#20000000")
+
             Box(
                 modifier = Modifier
-                    .background(
-                        color = MiuixTheme.colorScheme.surfaceContainerHigh,
-                        shape = capsuleShape,
+                    .then(
+                        if (backdrop != null) {
+                            Modifier.drawBehind {
+                                if (shadowAlpha > 0.01f) {
+                                    val maxBlurRadius = 10f * density
+                                    val blurRadius = maxBlurRadius * shadowAlpha
+                                    val composePath = Path().apply {
+                                        val outline = capsuleShape.createOutline(size, layoutDirection, this@drawBehind)
+                                        when (outline) {
+                                            is Outline.Rounded -> addRoundRect(outline.roundRect)
+                                            is Outline.Generic -> addPath(outline.path)
+                                            is Outline.Rectangle -> addRect(outline.rect)
+                                        }
+                                    }
+                                    val path = composePath.asAndroidPath()
+                                    val paint = Paint().apply {
+                                        color = android.graphics.Color.argb(
+                                            (android.graphics.Color.alpha(shadowColor) * 1f).coerceAtMost(255f).toInt(),
+                                            android.graphics.Color.red(shadowColor),
+                                            android.graphics.Color.green(shadowColor),
+                                            android.graphics.Color.blue(shadowColor)
+                                        )
+                                        maskFilter = BlurMaskFilter(
+                                            blurRadius.coerceAtLeast(0.1f),
+                                            BlurMaskFilter.Blur.NORMAL
+                                        )
+                                    }
+                                    drawIntoCanvas { canvas ->
+                                        canvas.nativeCanvas.drawPath(path, paint)
+                                    }
+                                }
+                            }
+                        } else Modifier
                     ),
                 contentAlignment = Alignment.CenterStart,
             ) {
+                if (backdrop != null) {
+                    Box(
+                        modifier = Modifier
+                            .matchParentSize()
+                            .drawBackdrop(
+                                backdrop = backdrop,
+                                shape = { capsuleShape },
+                                effects = {
+                                    vibrancy()
+                                    blur(4f.dp.toPx())
+                                    lens(8f.dp.toPx(), 24f.dp.toPx())
+                                },
+                                highlight = null,
+                                shadow = null,
+                                layerBlock = {
+                                    alpha = backdropAlpha
+                                },
+                                onDrawSurface = {}
+                            )
+                            .edgeLight(shape = capsuleShape, edgeLight = rememberLiquidTopBarButtonEdgeLight())
+                    )
+                }
                 Row(
-                    modifier = Modifier.fillMaxWidth(),
+                    modifier = Modifier
+                        .background(
+                            color = if (backdrop != null) {
+                                lerp(
+                                    MiuixTheme.colorScheme.surfaceContainerHigh,
+                                    containerColor,
+                                    backdropAlpha
+                                )
+                            } else MiuixTheme.colorScheme.surfaceContainerHigh,
+                            shape = capsuleShape,
+                        )
+                        .fillMaxWidth(),
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
                     actualLeadingIcon()
@@ -289,12 +463,9 @@ fun InputField(
 
     LaunchedEffect(expanded) {
         if (expanded) {
-            // Explicitly request focus when expanded. On API 26-27, the workaround disables
-            // the TextField when collapsed, so the initial tap doesn't grant focus — this
-            // ensures the keyboard appears after the TextField becomes enabled again.
             focusRequester.requestFocus()
         } else if (focused) {
-            delay(100)
+            delay(100.milliseconds)
             if (query.isNotEmpty()) {
                 textAlpha.animateTo(0f)
                 currentOnQueryChange("")
@@ -305,26 +476,13 @@ fun InputField(
     }
 }
 
-/** Contains default values used by [SearchBar] and [InputField]. */
+/** 默认值配置 */
 object SearchBarDefaults {
-    /** The default inside margin of the [SearchBar]. */
-    val InsideMargin = DpSize(12.dp, 0.dp)
-
-    /** The default minimum height of the [InputField]. */
+    val InsideMargin = DpSize(10.dp, 0.dp)
     val InputFieldMinHeight = 45.dp
-
-    /** The default font size for the [InputField] label. */
-    val InputFieldFontSize = 17.sp
-
-    /** The start padding for the default leading icon. */
-    val LeadingIconStartPadding = 16.dp
-
-    /** The end padding for the default leading icon. */
+    val InputFieldFontSize = 16.sp
+    val LeadingIconStartPadding = 12.dp
     val LeadingIconEndPadding = 8.dp
-
-    /** The start padding for the default trailing icon. */
     val TrailingIconStartPadding = 8.dp
-
-    /** The end padding for the default trailing icon. */
     val TrailingIconEndPadding = 16.dp
 }

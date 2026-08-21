@@ -61,7 +61,7 @@ import top.yukonga.miuix.kmp.basic.Switch
 import top.yukonga.miuix.kmp.basic.TextButton
 import top.yukonga.miuix.kmp.blur.layerBackdrop
 import top.yukonga.miuix.kmp.blur.rememberLayerBackdrop
-import com.haooz.chedule.ui.basic.OverlayDialog
+import top.yukonga.miuix.kmp.overlay.OverlayDialog
 import top.yukonga.miuix.kmp.preference.ArrowPreference
 import com.haooz.chedule.ui.basic.OverlayDropdownMenu
 import top.yukonga.miuix.kmp.theme.MiuixTheme

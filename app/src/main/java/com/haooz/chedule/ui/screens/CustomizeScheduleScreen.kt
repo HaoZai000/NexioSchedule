@@ -85,10 +85,10 @@ import androidx.compose.ui.unit.sp
 import androidx.compose.ui.zIndex
 import com.haooz.chedule.data.CardContentAlignment
 import com.haooz.chedule.data.Combination
-import com.haooz.chedule.ui.basic.BlurBottomSheet
-import com.haooz.chedule.ui.basic.BlurBottomSheetTablet
+import top.yukonga.miuix.kmp.overlay.BlurBottomSheet
+import top.yukonga.miuix.kmp.overlay.BlurBottomSheetTablet
 import com.haooz.chedule.ui.basic.LiquidTopBarButton
-import com.haooz.chedule.ui.basic.LocalSheetTopBarMaterial
+import top.yukonga.miuix.kmp.overlay.LocalSheetTopBarMaterial
 import com.haooz.chedule.ui.basic.OverlayDropdownMenu
 import com.haooz.chedule.ui.effects.edgelight.edgeLight
 import com.haooz.chedule.ui.effects.edgelight.rememberDefaultEdgeLight

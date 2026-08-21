@@ -59,11 +59,11 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.haooz.chedule.data.Course
-import com.haooz.chedule.ui.basic.BlurBottomSheet
-import com.haooz.chedule.ui.basic.BlurBottomSheetTablet
+import top.yukonga.miuix.kmp.overlay.BlurBottomSheet
+import top.yukonga.miuix.kmp.overlay.BlurBottomSheetTablet
 import com.haooz.chedule.ui.basic.LiquidTopBarButton
-import com.haooz.chedule.ui.basic.LocalSheetTopBarMaterial
-import com.haooz.chedule.ui.basic.OverlayDialog
+import top.yukonga.miuix.kmp.overlay.LocalSheetTopBarMaterial
+import top.yukonga.miuix.kmp.overlay.OverlayDialog
 import com.haooz.chedule.ui.basic.SharedScrollBehavior
 import com.haooz.chedule.ui.components.DayColumn
 import com.haooz.chedule.ui.components.SectionColumn

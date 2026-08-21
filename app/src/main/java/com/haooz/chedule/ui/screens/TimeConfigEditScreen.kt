@@ -68,8 +68,8 @@ import com.haooz.chedule.data.CourseRepository
 import com.haooz.chedule.data.TimeConfig
 import com.haooz.chedule.ui.basic.CollapsibleTopAppBar
 import com.haooz.chedule.ui.basic.LiquidTopBarButton
-import com.haooz.chedule.ui.basic.NativeMiuixTextField
-import com.haooz.chedule.ui.basic.OverlayDialog
+import top.yukonga.miuix.kmp.basic.NativeMiuixTextField
+import top.yukonga.miuix.kmp.overlay.OverlayDialog
 import com.haooz.chedule.ui.basic.ProgressiveBlurTopBar
 import com.haooz.chedule.ui.basic.rememberSharedScrollBehavior
 import com.haooz.chedule.ui.effects.motion.OobeCubicOutEasing

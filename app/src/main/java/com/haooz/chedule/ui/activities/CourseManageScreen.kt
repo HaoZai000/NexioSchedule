@@ -56,8 +56,8 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.haooz.chedule.data.Course
-import com.haooz.chedule.ui.basic.NativeMiuixTextField
-import com.haooz.chedule.ui.basic.OverlayDialog
+import top.yukonga.miuix.kmp.basic.NativeMiuixTextField
+import top.yukonga.miuix.kmp.overlay.OverlayDialog
 import com.haooz.chedule.ui.basic.SharedScrollBehavior
 import com.haooz.chedule.ui.utils.isAppDarkTheme
 import com.haooz.chedule.ui.utils.overScrollVertical

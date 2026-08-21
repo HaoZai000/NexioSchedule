@@ -1,5 +1,5 @@
 /** 自定义模糊底部弹窗 - 支持全区域模糊背景 */
-package com.haooz.chedule.ui.basic
+package top.yukonga.miuix.kmp.overlay
 
 import android.os.Build
 import androidx.activity.compose.BackHandler
@@ -63,6 +63,9 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.Velocity
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.zIndex
+import com.haooz.chedule.ui.basic.ProgressiveBlurTopBar
+import com.haooz.chedule.ui.basic.rememberCollapsibleTopAppBarState
+import com.haooz.chedule.ui.basic.rememberSharedScrollBehavior
 import com.haooz.chedule.ui.effects.edgelight.edgeLight
 import com.haooz.chedule.ui.effects.edgelight.rememberDefaultEdgeLight
 import com.haooz.chedule.ui.utils.LocalOverScrollState

@@ -1,5 +1,5 @@
 /** 原生 EditText 包装，使用系统原生长按菜单样式 */
-package com.haooz.chedule.ui.basic
+package top.yukonga.miuix.kmp.basic
 
 import android.graphics.Typeface
 import android.text.Editable

@@ -36,7 +36,7 @@ import androidx.compose.ui.unit.dp
 import com.google.gson.GsonBuilder
 import com.haooz.chedule.data.CourseRepository
 import com.haooz.chedule.data.WebDavManager
-import com.haooz.chedule.ui.basic.NativeMiuixTextField
+import top.yukonga.miuix.kmp.basic.NativeMiuixTextField
 import com.haooz.chedule.ui.basic.SharedScrollBehavior
 import com.haooz.chedule.ui.screens.applyScheduleData
 import com.haooz.chedule.ui.screens.parseFullScheduleJson
@@ -53,7 +53,7 @@ import top.yukonga.miuix.kmp.basic.DropdownItem
 import top.yukonga.miuix.kmp.basic.Scaffold
 import top.yukonga.miuix.kmp.basic.SmallTitle
 import top.yukonga.miuix.kmp.basic.TextButton
-import com.haooz.chedule.ui.basic.OverlayDialog
+import top.yukonga.miuix.kmp.overlay.OverlayDialog
 import top.yukonga.miuix.kmp.preference.ArrowPreference
 import com.haooz.chedule.ui.basic.OverlayDropdownMenu
 import com.haooz.chedule.ui.utils.overScrollVertical

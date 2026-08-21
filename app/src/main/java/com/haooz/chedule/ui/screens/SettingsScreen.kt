@@ -51,7 +51,7 @@ import com.haooz.chedule.ui.activities.CourseReminderActivity
 import com.haooz.chedule.ui.activities.CourseTimeSettingsActivity
 import com.haooz.chedule.ui.activities.PreferenceSettingsActivity
 import com.haooz.chedule.ui.activities.WidgetIntroActivity
-import com.haooz.chedule.ui.basic.NativeMiuixTextField
+import top.yukonga.miuix.kmp.basic.NativeMiuixTextField
 import com.haooz.chedule.ui.utils.isAppDarkTheme
 import com.haooz.chedule.viewmodel.CourseViewModel
 import com.haooz.chedule.viewmodel.ScheduleViewModel
@@ -66,7 +66,7 @@ import top.yukonga.miuix.kmp.basic.SmallTitle
 import top.yukonga.miuix.kmp.basic.TextButton
 import top.yukonga.miuix.kmp.blur.layerBackdrop
 import top.yukonga.miuix.kmp.blur.rememberLayerBackdrop
-import com.haooz.chedule.ui.basic.OverlayDialog
+import top.yukonga.miuix.kmp.overlay.OverlayDialog
 import com.haooz.chedule.ui.basic.SharedScrollBehavior
 import top.yukonga.miuix.kmp.preference.ArrowPreference
 import top.yukonga.miuix.kmp.preference.CheckboxLocation

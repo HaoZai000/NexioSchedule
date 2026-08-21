@@ -95,7 +95,7 @@ import com.haooz.chedule.ui.basic.CollapsibleTopAppBar
 import com.haooz.chedule.ui.basic.LiquidGlassDropdownMenu
 import com.haooz.chedule.ui.basic.LiquidGlassDropdownMenuItem
 import com.haooz.chedule.ui.basic.LiquidTopBarButton
-import com.haooz.chedule.ui.basic.OverlayDialog
+import top.yukonga.miuix.kmp.overlay.OverlayDialog
 import com.haooz.chedule.ui.basic.ProgressiveBlurTopBar
 import com.haooz.chedule.ui.basic.SharedScrollBehavior
 import com.haooz.chedule.ui.basic.ShortcutMenu

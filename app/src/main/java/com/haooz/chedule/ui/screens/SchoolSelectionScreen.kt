@@ -48,8 +48,8 @@ import androidx.compose.ui.unit.sp
 import com.haooz.chedule.data.school.AdapterData
 import com.haooz.chedule.data.school.SchoolData
 import com.haooz.chedule.data.school.SchoolRepository
-import com.haooz.chedule.ui.basic.NativeMiuixTextField
-import com.haooz.chedule.ui.basic.OverlayDialog
+import top.yukonga.miuix.kmp.basic.NativeMiuixTextField
+import top.yukonga.miuix.kmp.overlay.OverlayDialog
 import com.haooz.chedule.ui.basic.SharedScrollBehavior
 import com.haooz.chedule.ui.utils.overScrollVertical
 import com.kyant.shapes.RoundedRectangle

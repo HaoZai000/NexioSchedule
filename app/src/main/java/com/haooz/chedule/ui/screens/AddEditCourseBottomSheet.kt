@@ -1,5 +1,5 @@
 /** 添加课程底部弹窗 */
-package com.haooz.chedule.ui.components
+package com.haooz.chedule.ui.screens
 
 import android.annotation.SuppressLint
 import androidx.compose.foundation.layout.Arrangement
@@ -39,25 +39,25 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.haooz.chedule.data.Course
-import com.haooz.chedule.ui.basic.BlurBottomSheet
-import com.haooz.chedule.ui.basic.BlurBottomSheetTablet
 import com.haooz.chedule.ui.basic.LiquidTopBarButton
-import com.haooz.chedule.ui.basic.LocalSheetTopBarMaterial
-import com.haooz.chedule.ui.basic.NativeTextField
-import com.haooz.chedule.ui.basic.OverlayDialog
 import com.haooz.chedule.ui.utils.isAppDarkTheme
 import com.haooz.chedule.ui.utils.overScrollVertical
+import com.kyant.backdrop.Backdrop
 import top.yukonga.miuix.kmp.basic.ButtonDefaults
 import top.yukonga.miuix.kmp.basic.Card
 import top.yukonga.miuix.kmp.basic.CardDefaults
 import top.yukonga.miuix.kmp.basic.Checkbox
-import top.yukonga.miuix.kmp.basic.CheckboxDefaults
+import top.yukonga.miuix.kmp.basic.NativeTextField
 import top.yukonga.miuix.kmp.basic.NumberPicker
 import top.yukonga.miuix.kmp.basic.TextButton
 import top.yukonga.miuix.kmp.blur.LayerBackdrop
 import top.yukonga.miuix.kmp.icon.MiuixIcons
 import top.yukonga.miuix.kmp.icon.extended.Close
 import top.yukonga.miuix.kmp.icon.extended.Ok
+import top.yukonga.miuix.kmp.overlay.BlurBottomSheet
+import top.yukonga.miuix.kmp.overlay.BlurBottomSheetTablet
+import top.yukonga.miuix.kmp.overlay.LocalSheetTopBarMaterial
+import top.yukonga.miuix.kmp.overlay.OverlayDialog
 import top.yukonga.miuix.kmp.preference.ArrowPreference
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 import top.yukonga.miuix.kmp.utils.PressFeedbackType
@@ -80,7 +80,7 @@ fun AddEditCourseBottomSheet(
     show: Boolean,
     courses: List<Course>,
     backdrop: LayerBackdrop?,
-    liquidGlassBackdrop: com.kyant.backdrop.Backdrop? = null,
+    liquidGlassBackdrop: Backdrop? = null,
     onDismissRequest: () -> Unit,
     onConfirm: (Course) -> Unit,
     editCourse: Course? = null,
@@ -89,7 +89,7 @@ fun AddEditCourseBottomSheet(
     val hapticFeedback = LocalHapticFeedback.current
     val totalWeeks = 20
     val totalSections = 12
-    var sheetContentBackdrop by remember { mutableStateOf<com.kyant.backdrop.Backdrop?>(null) }
+    var sheetContentBackdrop by remember { mutableStateOf<Backdrop?>(null) }
     val isEditMode = editCourse != null
 
     // 取最晚周次的课程作为默认地点和教师
@@ -380,11 +380,6 @@ fun AddEditCourseBottomSheet(
                         Checkbox(
                             state = if (isCustomTime) ToggleableState.On else ToggleableState.Off,
                             onClick = { isCustomTime = !isCustomTime },
-                            colors = CheckboxDefaults.checkboxColors(
-                                uncheckedBackgroundColor = if (isDark) Color(0xFF505050) else Color(
-                                    0xFFF7F7F7
-                                )
-                            )
                         )
                         Spacer(modifier = Modifier.width(4.dp))
                         Text(
@@ -410,7 +405,7 @@ fun AddEditCourseBottomSheet(
                                 pressFeedbackType = PressFeedbackType.Sink,
                                 colors = CardDefaults.defaultColors(
                                     color = if (isSelected) MiuixTheme.colorScheme.primary
-                                    else if (isDark) Color(0xFF505050) else Color(0xFFF7F7F7),
+                                    else if (isDark) Color(0xFF363636) else Color(0xFFF4F4F4),
                                     contentColor = if (isSelected) Color.White else MiuixTheme.colorScheme.onSurfaceVariantSummary
                                 ),
                                 onClick = {
@@ -537,11 +532,6 @@ fun AddEditCourseBottomSheet(
                                             }
                                         }
                                     },
-                                    colors = CheckboxDefaults.checkboxColors(
-                                        uncheckedBackgroundColor = if (isDark) Color(0xFF505050) else Color(
-                                            0xFFF7F7F7
-                                        )
-                                    )
                                 )
                                 Spacer(modifier = Modifier.width(4.dp))
                                 Text(
@@ -575,11 +565,6 @@ fun AddEditCourseBottomSheet(
                                             }
                                         }
                                     },
-                                    colors = CheckboxDefaults.checkboxColors(
-                                        uncheckedBackgroundColor = if (isDark) Color(0xFF505050) else Color(
-                                            0xFFF7F7F7
-                                        )
-                                    )
                                 )
                                 Spacer(modifier = Modifier.width(4.dp))
                                 Text(
@@ -613,11 +598,6 @@ fun AddEditCourseBottomSheet(
                                             }
                                         }
                                     },
-                                    colors = CheckboxDefaults.checkboxColors(
-                                        uncheckedBackgroundColor = if (isDark) Color(0xFF505050) else Color(
-                                            0xFFF7F7F7
-                                        )
-                                    )
                                 )
                                 Spacer(modifier = Modifier.width(4.dp))
                                 Text(
@@ -639,7 +619,7 @@ fun AddEditCourseBottomSheet(
                     val outlineColor = MiuixTheme.colorScheme.outline
                     val onSurfaceSummaryColor = MiuixTheme.colorScheme.onSurfaceVariantSummary
                     val occupiedColor = if (isDark) Color(0xFF4A4A4A) else Color(0xFFF0F0F0)
-                    val defaultCardColor = if (isDark) Color(0xFF505050) else Color(0xFFF7F7F7)
+                    val defaultCardColor = if (isDark) Color(0xFF363636) else Color(0xFFF4F4F4)
 
                     val weekStates = (1..totalWeeks).map { weekNum ->
                         val isSelected = weekNum in selectedWeeks

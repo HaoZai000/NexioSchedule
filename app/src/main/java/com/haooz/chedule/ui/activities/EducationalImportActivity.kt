@@ -50,8 +50,8 @@ import com.haooz.chedule.data.school.SchoolData
 import com.haooz.chedule.data.school.ScriptRepository
 import com.haooz.chedule.ui.basic.CollapsibleTopAppBar
 import com.haooz.chedule.ui.basic.CollapsibleTopAppBarDefaults.CollapsedHeight
-import com.haooz.chedule.ui.basic.InputField
-import com.haooz.chedule.ui.basic.SearchBar
+import top.yukonga.miuix.kmp.basic.InputField
+import top.yukonga.miuix.kmp.basic.SearchBar
 import com.haooz.chedule.ui.basic.rememberSharedScrollBehavior
 import com.haooz.chedule.ui.basic.LiquidTopBarButton
 import com.haooz.chedule.ui.basic.ProgressiveBlurTopBar
