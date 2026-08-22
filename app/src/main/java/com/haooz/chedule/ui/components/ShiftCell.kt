@@ -45,7 +45,7 @@ fun ShiftCell(
 
     Card(
         modifier = modifier.padding(horizontal = 2.dp, vertical = 2.dp),
-        cornerRadius = 8.dp,
+        cornerRadius = 10.dp,
         insideMargin = PaddingValues(0.dp),
         pressFeedbackType = PressFeedbackType.Sink,
         showIndication = true,

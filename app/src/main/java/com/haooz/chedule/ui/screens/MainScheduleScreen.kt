@@ -59,11 +59,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.haooz.chedule.data.Course
-import top.yukonga.miuix.kmp.overlay.BlurBottomSheet
-import top.yukonga.miuix.kmp.overlay.BlurBottomSheetTablet
 import com.haooz.chedule.ui.basic.LiquidTopBarButton
-import top.yukonga.miuix.kmp.overlay.LocalSheetTopBarMaterial
-import top.yukonga.miuix.kmp.overlay.OverlayDialog
 import com.haooz.chedule.ui.basic.SharedScrollBehavior
 import com.haooz.chedule.ui.components.DayColumn
 import com.haooz.chedule.ui.components.SectionColumn
@@ -87,6 +83,10 @@ import top.yukonga.miuix.kmp.blur.layerBackdrop
 import top.yukonga.miuix.kmp.blur.rememberLayerBackdrop
 import top.yukonga.miuix.kmp.icon.MiuixIcons
 import top.yukonga.miuix.kmp.icon.extended.Add
+import top.yukonga.miuix.kmp.overlay.BlurBottomSheet
+import top.yukonga.miuix.kmp.overlay.BlurBottomSheetTablet
+import top.yukonga.miuix.kmp.overlay.LocalSheetTopBarMaterial
+import top.yukonga.miuix.kmp.overlay.OverlayDialog
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 import top.yukonga.miuix.kmp.utils.PressFeedbackType
 import top.yukonga.miuix.kmp.utils.scrollEndHaptic
@@ -268,7 +268,7 @@ fun MainScheduleScreen(
     }
 
     // 壁纸 LayerBackdrop：捕获壁纸内容供课程卡片 textureBlur 使用
-    val wallpaperBackdropColor = if (isAppDarkTheme()) Color(0xFF101010) else Color(0xFFFAFAFA)
+    val wallpaperBackdropColor = if (isAppDarkTheme()) Color(0xFF000000) else Color(0xFFF7F7F7)
     val wallpaperBackdrop = rememberLayerBackdrop {
         drawRect(wallpaperBackdropColor)
         drawContent()
@@ -548,7 +548,7 @@ fun MainScheduleScreen(
                     val dividerLensStrengthPx = with(dividerDensity) { remember { 14f.dp.toPx() } }
                     val hasWallpaperDivider = wallpaperBitmap != null
                     // 无壁纸时用纯色背景；有壁纸时底色透明，由 drawBackdrop 绘制玻璃层
-                    val dividerBaseColor = if (hasWallpaperDivider) Color.Transparent else if (dividerIsDark) Color(0xFF171717) else Color(0xFFF3F3F3)
+                    val dividerBaseColor = if (hasWallpaperDivider) Color.Transparent else if (dividerIsDark) Color(0xFF121212) else Color(0xFFF0F0F0)
                     // 玻璃底色与反光覆盖层（同 CourseCard 的液态玻璃观感）
                     val dividerGlassColor = if (dividerIsDark) Color(0xFF323232).copy(alpha = 0.64f) else Color.White.copy(alpha = 0.5f)
                     val dividerOverlayColor = if (dividerIsDark) Color(0xFF323232).copy(alpha = 0.12f) else Color.White.copy(alpha = 0.1f)

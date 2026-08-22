@@ -237,47 +237,6 @@ fun DayColumn(
                 }
             }
 
-            // 3. 午休/晚休分界线
-            val dividerColor = if (cardBlurRadius > 0f) Color.Transparent else MiuixTheme.colorScheme.surfaceContainer
-
-            val dividerShape = ContinuousRoundedRectangle(12.dp)
-            if (showBreakDividers) {
-                Box(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .height(24.dp)
-                        .offset(y = (morningSections * cardHeightPerSection).toInt().dp),
-                    contentAlignment = Alignment.Center
-                ) {
-                    if (!isTablet) {
-                        Box(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .height(20.dp)
-                                .padding(horizontal = 4.dp)
-                                .background(dividerColor, dividerShape)
-                        )
-                    }
-                }
-                Box(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .height(24.dp)
-                        .offset(y = (morningSections * cardHeightPerSection + dividerGap + afternoonSections * cardHeightPerSection).toInt().dp),
-                    contentAlignment = Alignment.Center
-                ) {
-                    if (!isTablet) {
-                        Box(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .height(20.dp)
-                                .padding(horizontal = 4.dp)
-                                .background(dividerColor, dividerShape)
-                        )
-                    }
-                }
-            }
-
             // 课程卡片层 —— 独立组合函数，周切换时仅此层重组，静态网格骨架可被 Compose 跳过
             CourseCardsLayer(
                 courses = courses,

@@ -35,17 +35,18 @@ import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.unit.DpSize
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.haooz.chedule.data.Course
 import com.haooz.chedule.ui.components.SectionColumn
 import com.haooz.chedule.ui.components.ShiftDayColumn
 import com.haooz.chedule.ui.utils.isAppDarkTheme
+import com.kyant.capsule.ContinuousRoundedRectangle
 import com.haooz.chedule.viewmodel.ShiftViewModel
 import top.yukonga.miuix.kmp.basic.Card
 import top.yukonga.miuix.kmp.basic.CardDefaults
-import top.yukonga.miuix.kmp.overlay.OverlayBottomSheet
+import top.yukonga.miuix.kmp.overlay.BlurBottomSheet
+import top.yukonga.miuix.kmp.overlay.BlurBottomSheetTablet
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 import top.yukonga.miuix.kmp.utils.PressFeedbackType
 import com.haooz.chedule.ui.utils.overScrollVertical
@@ -92,7 +93,7 @@ fun ShiftScheduleScreen(
 
     if (!contentReady) return
 
-    val wallpaperBackdropColor = MiuixTheme.colorScheme.surface
+    val wallpaperBackdropColor = if (isDark) Color(0xFF000000) else Color(0xFFF7F7F7)
 
     Box(modifier = Modifier.fillMaxSize().background(wallpaperBackdropColor)) {
 
@@ -161,41 +162,38 @@ fun ShiftScheduleScreen(
                 val afternoonHeight = (maxAfternoon * cardHeightPerSection).toInt()
                 val dinnerBreakY = morningHeight + 24 + afternoonHeight
 
-                Box(
-                    modifier = Modifier.fillMaxWidth().offset(y = morningHeight.dp).height(24.dp),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Text(
-                        "午休",
-                        style = MiuixTheme.textStyles.footnote2,
-                        color = MiuixTheme.colorScheme.onSurfaceVariantActions
-                    )
-                }
+                val dividerShape = ContinuousRoundedRectangle(12.dp)
+                val dividerHorizontalPadding = if (isTablet) 24.dp else 4.dp
+                val dividerBaseColor = if (isDark) Color(0xFF121212) else Color(0xFFF0F0F0)
 
-                Box(
-                    modifier = Modifier.fillMaxWidth().offset(y = dinnerBreakY.dp).height(24.dp),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Text(
-                        "晚休",
-                        style = MiuixTheme.textStyles.footnote2,
-                        color = MiuixTheme.colorScheme.onSurfaceVariantActions
-                    )
+                @Composable
+                fun BreakDivider(offsetY: Int, text: String) {
+                    Box(
+                        modifier = Modifier.fillMaxWidth().offset(y = offsetY.dp)
+                            .height(24.dp)
+                            .padding(vertical = 2.dp)
+                            .padding(horizontal = dividerHorizontalPadding)
+                            .background(dividerBaseColor, dividerShape),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Text(
+                            text = text,
+                            style = MiuixTheme.textStyles.footnote2,
+                            color = MiuixTheme.colorScheme.onSurfaceVariantActions
+                        )
+                    }
                 }
+                BreakDivider(morningHeight, "午休")
+                BreakDivider(dinnerBreakY, "晚休")
             }
         }
     }
 
     } // wallpaper Box
 
-    OverlayBottomSheet(
-        show = showDetail,
-        title = "课表详情",
-        backgroundColor = if (isDark) Color(0xFF1E1E1E) else Color(0xFFF7F7F7),
-        cornerRadius = 36.dp,
-        insideMargin = DpSize(0.dp, 0.dp),
-        onDismissRequest = { showDetail = false }
-    ) {
+    val liquidGlassBackdrop = com.kyant.backdrop.backdrops.rememberLayerBackdrop()
+
+    val detailContent: @Composable () -> Unit = {
         Column(
             modifier = Modifier
                 .overScrollVertical()
@@ -205,6 +203,7 @@ fun ShiftScheduleScreen(
                 .verticalScroll(rememberScrollState()),
             verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
+            Spacer(modifier = Modifier.height(if (isTablet) 56.dp else 58.dp))
             detailCourses.forEach { (scheduleName, course) ->
 
                 Card(
@@ -242,5 +241,26 @@ fun ShiftScheduleScreen(
             }
             Spacer(modifier = Modifier.height(60.dp))
         }
+    }
+
+    if (isTablet) {
+        BlurBottomSheetTablet(
+            show = showDetail,
+            title = "课表详情",
+            dimBackground = true,
+            isBottomAligned = true,
+            liquidGlassBackdrop = liquidGlassBackdrop,
+            onDismissRequest = { showDetail = false },
+            content = detailContent
+        )
+    } else {
+        BlurBottomSheet(
+            show = showDetail,
+            title = "课表详情",
+            liquidGlassBackdrop = liquidGlassBackdrop,
+            dimBackground = true,
+            onDismissRequest = { showDetail = false },
+            content = detailContent
+        )
     }
 }

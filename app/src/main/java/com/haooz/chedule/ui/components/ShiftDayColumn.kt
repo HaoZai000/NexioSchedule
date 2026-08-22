@@ -13,7 +13,6 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import com.haooz.chedule.data.Course
-import top.yukonga.miuix.kmp.theme.MiuixTheme
 
 @Composable
 fun ShiftDayColumn(
@@ -92,16 +91,8 @@ fun ShiftDayColumn(
                 modifier = Modifier
                     .fillMaxWidth()
                     .height(24.dp)
-                    .offset(y = currentOffset.dp),
-                contentAlignment = Alignment.Center
-            ) {
-                Box(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .height(20.dp)
-                        .background(MiuixTheme.colorScheme.surfaceContainer)
-                )
-            }
+                    .offset(y = currentOffset.dp)
+            )
             currentOffset += 24
             for (section in (morningSections + 1)..(morningSections + afternoonSections)) {
                 Box(
@@ -116,16 +107,8 @@ fun ShiftDayColumn(
                 modifier = Modifier
                     .fillMaxWidth()
                     .height(24.dp)
-                    .offset(y = currentOffset.dp),
-                contentAlignment = Alignment.Center
-            ) {
-                Box(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .height(20.dp)
-                        .background(MiuixTheme.colorScheme.surfaceContainer)
-                )
-            }
+                    .offset(y = currentOffset.dp)
+            )
             currentOffset += 24
             for (section in (morningSections + afternoonSections + 1)..(morningSections + afternoonSections + eveningSections)) {
                 Box(
