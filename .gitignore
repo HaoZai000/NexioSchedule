@@ -21,6 +21,9 @@ Thumbs.db
 # --- 签名文件（敏感信息！） ---
 keystore/
 
+# --- 部署相关（敏感：SSH 私钥） ---
+.deploy/
+
 # --- Gradle 包装器缓存 ---
 .gradle/
 

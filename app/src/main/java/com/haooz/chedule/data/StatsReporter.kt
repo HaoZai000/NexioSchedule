@@ -10,7 +10,7 @@ import org.json.JSONObject
 import java.util.UUID
 
 object StatsReporter {
-    private const val API_URL = "https://nexio-stats.your-subdomain.workers.dev/api/stats/report"
+    private const val API_URL = "http://182.92.193.223:3000/api/stats/report"
     
     private var deviceId: String? = null
     private val client = OkHttpClient.Builder()
