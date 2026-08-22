@@ -59,56 +59,84 @@
 - 应用偏好设置（主题模式、首页默认页、应用风格）
 
 **UI 特色**
-- HyperOS3 风格 UI（基于 MiUiX 组件库）
+- HyperOS4 风格 UI（基于 MiUiX 组件库）
 - 液态玻璃（LiquidGlass）效果
 - 连续曲率圆角（Squircle）裁剪
-- 渐进模糊与平滑过渡动画
-- 平板与小窗模式适配
+- 渐进模糊、边缘光效与平滑过渡动画
+- 平板分屏模式适配
 
 ## 预览界面
 
-| 主课程表界面效果 | 添加/编辑课程页面 | 接入开源教务导入 | 桌面小部件及深色模式演示 |
-|----------|----------|------------|----------|
-| ![主课程表](picture/Screenshot_2026-06-30-15-33-20-100_com.haooz.chedule-edit.png) | ![添加课程](picture/Screenshot_2026-06-30-15-41-18-463_com.haooz.chedule-edit.png) | ![教务导入](picture/Screenshot_2026-06-30-15-35-28-017_com.haooz.chedule-edit.png) | ![小组件](picture/Screenshot_2026-06-30-15-35-39-075_com.haooz.chedule-edit.png) |
+| 主课程表 | 课表外观 | 添加课程 |
+|----------|----------|----------|
+| ![主课程表](docs/picture/主课程表.png) | ![课表外观](docs/picture/课表外观.png) | ![添加课程](docs/picture/添加课程.png) |
+| 教务导入 | 课程提醒 | 桌面小部件 |
+|----------|----------|----------|
+| ![教务导入](docs/picture/教务导入.png) | ![课程提醒](docs/picture/课程提醒.png) | ![桌面小部件](docs/picture/桌面小部件.png) |
 
 ## 项目结构
 
 ```
 app/src/main/java/com/haooz/chedule/
 ├── ui/
-│   ├── activities/            // Activity 页面
-│   │   ├── MainActivity.kt           // 主页面 - 应用入口
-│   │   ├── SwitchScheduleActivity.kt // 切换课程表
-│   │   ├── EducationalImportActivity.kt  // 教务系统导入
-│   │   ├── CourseTimeSettingsActivity.kt // 课程时间设置
-│   │   ├── CourseReminderActivity.kt     // 课程提醒设置
-│   │   ├── WebDavSettingsActivity.kt     // WebDAV 同步设置
-│   │   ├── PreferenceSettingsActivity.kt // 偏好设置
-│   │   ├── UpdateSettingsActivity.kt     // 应用更新设置
-│   │   ├── AboutActivity.kt              // 关于页面
-│   │   └── AppreciateAuthorActivity.kt   // 赞赏作者页面
-│   ├── screens/               // Compose 页面
-│   │   ├── SettingsScreen.kt     // 设置页（导入导出入口）
-│   │   ├── AddCourseDialog.kt    // 添加/编辑课程
-│   │   └── ShareImportDialog.kt  // 分享导入弹窗
-│   ├── components/            // 通用组件
-│   ├── theme/                 // 主题
-│   └── web/                   // WebView 兼容
+│   ├── activities/            // 各功能页面（Activity / Compose Screen）
+│   │   ├── MainActivity.kt              // 主页面 - 应用入口
+│   │   ├── SwitchScheduleActivity.kt    // 切换课程表
+│   │   ├── EducationalImportActivity.kt // 教务系统导入
+│   │   ├── CourseManageScreen.kt        // 课程管理
+│   │   ├── CourseTimeSettingsScreen.kt  // 课程时间设置
+│   │   ├── CourseReminderScreen.kt      // 课程提醒设置
+│   │   ├── WebDavSettingsScreen.kt      // WebDAV 同步设置
+│   │   ├── PreferenceSettingsScreen.kt  // 偏好设置
+│   │   ├── AiImportScreen.kt            // AI 文本导入
+│   │   ├── BackupAndMigrationScreen.kt  // 备份与迁移
+│   │   ├── LocalBackupScreen.kt         // 本地备份
+│   │   ├── ChangelogScreen.kt           // 更新日志
+│   │   ├── UpdateSettingsScreen.kt      // 应用更新设置
+│   │   ├── AboutActivity.kt             // 关于页面
+│   │   ├── AppreciateAuthorScreen.kt    // 赞赏作者
+│   │   └── WidgetIntroScreen.kt         // 小组件介绍
+│   ├── screens/               // 核心 Compose 页面
+│   │   ├── MainScheduleScreen.kt        // 周课表主界面
+│   │   ├── TodayScreen.kt               // 今日课程
+│   │   ├── TodayAssistant.kt            // 今日助手
+│   │   ├── ShiftScheduleScreen.kt       // 排班课表
+│   │   ├── CourseDetailScreen.kt        // 课程详情
+│   │   ├── AddCourseDialog.kt           // 添加课程
+│   │   ├── AddEditCourseBottomSheet.kt  // 添加/编辑课程 BottomSheet
+│   │   ├── CourseEditScreen.kt          // 课程编辑
+│   │   ├── CustomizeScheduleScreen.kt   // 课表外观自定义
+│   │   ├── SchoolSelectionScreen.kt     // 学校选择
+│   │   ├── TimeConfigEditScreen.kt      // 时间配置编辑
+│   │   ├── SettingsScreen.kt            // 设置页
+│   │   └── WebViewScreen.kt             // WebView 兼容
+│   ├── components/           // 通用组件（TopBar / BottomBar / CourseCard / DayColumn / LiquidAddButton 等）
+│   ├── basic/                 // 基础组件（渐隐顶栏 / 液态玻璃下拉菜单 / Overlay 弹窗 等）
+│   ├── theme/                 // 主题（Color / Type / Theme）
+│   ├── effects/               // 动效
+│   │   ├── liquidglass/       // 液态玻璃
+│   │   ├── miuix/             // MiUiX 特效
+│   │   ├── edgelight/         // 边缘光效
+│   │   └── background/        // HyperOS 背景特效
+│   ├── web/                   // WebView 兼容与 JS 桥接
+│   ├── data/                  // UI 层数据（更新日志 / 赞赏数据）
+│   └── utils/                 // 工具（更新检查 / 主题工具 / 边缘滚动 等）
 ├── data/                      // 数据层
-│   ├── Course.kt              // 课程数据模型
+│   ├── Course.kt / TimeConfig.kt / Combination.kt / AppearanceConfig.kt
 │   ├── CourseRepository.kt    // 课程数据仓库
-│   ├── Combination.kt         // 壁纸组合数据
-│   ├── SyncManager.kt         // 同步管理器
 │   ├── WebDavManager.kt       // WebDAV 同步管理
-│   └── school/                // 教务系统适配
-├── viewmodel/                 // ViewModel
+│   ├── SyncManager.kt         // 同步管理器
+│   ├── StatsReporter.kt       // 统计上报
+│   └── school/                // 教务系统适配（学校 / 脚本仓库）
+├── viewmodel/                 // 状态管理
 │   ├── CourseViewModel.kt     // 课程 ViewModel
 │   ├── ScheduleViewModel.kt   // 多课表管理 ViewModel
+│   ├── ShiftViewModel.kt      // 排班 ViewModel
 │   └── SettingsViewModel.kt   // 设置 ViewModel
-├── reminder/                  // 课程提醒
+├── reminder/                  // 课程提醒（闹钟 / 通知 / 岛区跳转 / 组件事件接收器）
+├── widget/                    // 桌面小组件（课程预览 / 今日课程，含 4x7 与标准尺寸）
 ├── shizuku/                   // Shizuku 特权服务
-├── effect/                    // 背景特效
-└── widget/                    // 桌面小组件
+├── embedding/                 // 平板分屏适配（WindowInitializer）
 ```
 
 ## 技术栈
@@ -120,7 +148,7 @@ app/src/main/java/com/haooz/chedule/
 - **数据存储**: SharedPreferences + Gson
 - **网络同步**: WebDAV
 - **脚本引擎**: Rhino (JavaScript)
-- **最低支持**: Android 13 (API 33)
+- **最低支持**: Android 12 (API 31)
 
 ## 特别致谢
 
