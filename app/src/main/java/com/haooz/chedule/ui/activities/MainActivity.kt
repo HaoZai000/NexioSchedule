@@ -226,6 +226,11 @@ class MainActivity : ComponentActivity() {
         // 初始化超级岛通知助手
         IslandNotificationHelper.init(this)
 
+        // 接入统计上报：active 每次启动上报；install 仅每个设备首次上报
+        com.haooz.chedule.data.StatsReporter.init(this)
+        com.haooz.chedule.data.StatsReporter.reportActive(this)
+        com.haooz.chedule.data.StatsReporter.reportInstallOnce(this)
+
         // 异步预加载当前搭配壁纸，避免阻塞主线程（Compose 侧已处理 cachedWallpaperBitmap=null 的情况）
         if (cachedWallpaperBitmap == null) {
             kotlinx.coroutines.CoroutineScope(Dispatchers.IO).launch {

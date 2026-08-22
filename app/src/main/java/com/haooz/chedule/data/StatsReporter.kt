@@ -25,9 +25,12 @@ object StatsReporter {
         }
     }
 
-    fun reportInstall(context: Context) {
+    /** 上报安装事件（仅每个设备首次上报，成功后才标记，避免重复/丢失） */
+    fun reportInstallOnce(context: Context) {
+        val prefs = context.getSharedPreferences("stats_prefs", Context.MODE_PRIVATE)
+        if (prefs.getBoolean("install_reported", false)) return
         if (deviceId == null) init(context)
-        
+
         CoroutineScope(Dispatchers.IO).launch {
             try {
                 val json = JSONObject().apply {
@@ -48,7 +51,10 @@ object StatsReporter {
                     .post(body)
                     .build()
 
-                client.newCall(request).execute()
+                val resp = client.newCall(request).execute()
+                if (resp.isSuccessful) {
+                    prefs.edit().putBoolean("install_reported", true).apply()
+                }
             } catch (_: Exception) {
             }
         }
