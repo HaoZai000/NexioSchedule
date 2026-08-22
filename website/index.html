@@ -1,0 +1,164 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Nexio 课程表</title>
+  <meta name="description" content="Nexio 课程表 - 基于 Jetpack Compose 的 Android 课程表应用">
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <div class="bg-glow bg-glow-1"></div>
+  <div class="bg-glow bg-glow-2"></div>
+
+  <nav class="navbar">
+    <div class="container nav-content">
+      <a href="#" class="logo"><span class="logo-n">N</span>exio</a>
+      <div class="nav-links">
+        <a href="#features">功能</a>
+        <a href="#preview">预览</a>
+        <a href="#download">下载</a>
+        <a href="https://github.com/HaoZai000/NexioSchedule" target="_blank" class="nav-cta">GitHub</a>
+      </div>
+    </div>
+  </nav>
+
+  <section class="hero">
+    <div class="container hero-grid">
+      <div class="hero-content">
+        <div class="hero-badge">v1.4.1 最新版本</div>
+        <h1 class="hero-title"><span class="line">重新定义</span><span class="line gradient-text">课程管理</span></h1>
+        <p class="hero-desc">基于 Jetpack Compose 打造，HyperOS3 风格设计<br>支持教务导入 · WebDAV 同步 · 桌面小组件</p>
+        <div class="hero-actions">
+          <a href="#download" class="btn btn-primary">立即下载</a>
+          <a href="https://github.com/HaoZai000/NexioSchedule" target="_blank" class="btn btn-glass">GitHub</a>
+        </div>
+        <div class="hero-stats">
+          <div class="stat"><span class="stat-num" id="stars-count">--</span><span class="stat-label">Stars</span></div>
+          <div class="stat-divider"></div>
+          <div class="stat"><span class="stat-num" id="downloads-count">--</span><span class="stat-label">下载量</span></div>
+          <div class="stat-divider"></div>
+          <div class="stat"><span class="stat-num">13+</span><span class="stat-label">功能模块</span></div>
+        </div>
+      </div>
+      <div class="hero-visual">
+        <div class="phone-frame">
+          <div class="phone-notch"></div>
+          <img src="../picture/Screenshot_2026-06-30-15-33-20-100_com.haooz.chedule-edit.png" alt="Nexio" class="phone-screenshot">
+          <div class="phone-glow"></div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section class="features" id="features">
+    <div class="container">
+      <div class="section-header">
+        <span class="section-tag">Features</span>
+        <h2>为学生打造的<span class="gradient-text">每一个细节</span></h2>
+      </div>
+      <div class="features-grid">
+        <div class="feature-card feature-wide">
+          <div class="fi">📅</div>
+          <h3>智能课表视图</h3>
+          <p>周视图快速切换，今日课程一目了然，支持自定义节数与时间</p>
+        </div>
+        <div class="feature-card">
+          <div class="fi">📚</div>
+          <h3>教务导入</h3>
+          <p>一键从教务系统导入课程，支持多所高校适配</p>
+        </div>
+        <div class="feature-card">
+          <div class="fi">📥</div>
+          <h3>多格式导入</h3>
+          <p>支持 JSON / ICS / 拾光格式，AI 文本智能解析</p>
+        </div>
+        <div class="feature-card">
+          <div class="fi">☁️</div>
+          <h3>WebDAV 同步</h3>
+          <p>云端备份恢复，多设备数据无缝切换</p>
+        </div>
+        <div class="feature-card">
+          <div class="fi">🔔</div>
+          <h3>课程提醒</h3>
+          <p>课前通知、次日提醒，支持超级岛 / 灵动岛</p>
+        </div>
+        <div class="feature-card feature-wide">
+          <div class="fi">📱</div>
+          <h3>桌面小组件</h3>
+          <p>课程预览与今日课程小组件，桌面直接查看课程安排</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section class="preview" id="preview">
+    <div class="container">
+      <div class="section-header">
+        <span class="section-tag">Preview</span>
+        <h2>精心打磨的<span class="gradient-text">每一帧</span></h2>
+      </div>
+      <div class="preview-showcase">
+        <div class="preview-item">
+          <div class="preview-card"><img src="../picture/Screenshot_2026-06-30-15-33-20-100_com.haooz.chedule-edit.png" alt="主课程表" loading="lazy"></div>
+          <span class="preview-label">主课程表</span>
+        </div>
+        <div class="preview-item">
+          <div class="preview-card"><img src="../picture/Screenshot_2026-06-30-15-41-18-463_com.haooz.chedule-edit.png" alt="添加课程" loading="lazy"></div>
+          <span class="preview-label">添加课程</span>
+        </div>
+        <div class="preview-item">
+          <div class="preview-card"><img src="../picture/Screenshot_2026-06-30-15-35-28-017_com.haooz.chedule-edit.png" alt="教务导入" loading="lazy"></div>
+          <span class="preview-label">教务导入</span>
+        </div>
+        <div class="preview-item">
+          <div class="preview-card"><img src="../picture/Screenshot_2026-06-30-15-35-39-075_com.haooz.chedule-edit.png" alt="小组件" loading="lazy"></div>
+          <span class="preview-label">小组件</span>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section class="download" id="download">
+    <div class="container">
+      <div class="section-header">
+        <span class="section-tag">Download</span>
+        <h2>开始使用<span class="gradient-text"> Nexio</span></h2>
+      </div>
+      <div class="download-grid">
+        <a href="https://github.com/HaoZai000/NexioSchedule/releases/latest" target="_blank" class="dl-card">
+          <div class="dl-icon">🐙</div>
+          <h3>GitHub Releases</h3>
+          <p>从 GitHub 下载最新版本 APK</p>
+        </a>
+        <a href="https://gitee.com/com_haooz_account/hyper_schedule/releases/latest" target="_blank" class="dl-card">
+          <div class="dl-icon">🦊</div>
+          <h3>Gitee 镜像</h3>
+          <p>国内用户高速下载</p>
+        </a>
+      </div>
+    </div>
+  </section>
+
+  <section class="community">
+    <div class="container">
+      <div class="community-inner">
+        <h2>加入社区</h2>
+        <p>交流与讨论</p>
+        <div class="community-links">
+          <a href="https://pd.qq.com/s/cfwkl5q9q?b=9" target="_blank" class="btn btn-glass">QQ 频道</a>
+          <a href="https://github.com/HaoZai000/NexioSchedule" target="_blank" class="btn btn-glass">GitHub</a>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <footer>
+    <div class="container">
+      <p>Nexio 课程表 &copy; 2026 &middot; MIT License &middot; Made with Jetpack Compose</p>
+    </div>
+  </footer>
+
+  <script src="script.js"></script>
+</body>
+</html>

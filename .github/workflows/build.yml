@@ -1,0 +1,84 @@
+name: Build APK
+
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          java-version: '17'
+          distribution: 'temurin'
+
+      - name: Setup Gradle
+        uses: gradle/actions/setup-gradle@v4
+
+      - name: Grant execute permission for gradlew
+        run: chmod +x gradlew
+
+      - name: Get version name
+        id: version
+        run: |
+          VERSION=$(grep 'versionName' app/build.gradle.kts | sed 's/.*"\(.*\)".*/\1/')
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+
+      - name: Extract Changelog
+        id: changelog
+        run: |
+          # 从 ChangelogData.kt 提取当前版本的更新日志
+          python3 << 'EOF'
+          import re
+          
+          with open('app/src/main/java/com/haooz/chedule/ui/data/ChangelogData.kt', 'r', encoding='utf-8') as f:
+              content = f.read()
+          
+          # 获取版本号
+          import subprocess
+          result = subprocess.run(['grep', 'versionName', 'app/build.gradle.kts'], capture_output=True, text=True)
+          version = re.search(r'"(.*?)"', result.stdout).group(1)
+          
+          # 找到对应的 ChangelogEntry
+          pattern = rf'ChangelogEntry\(\s*version = "v{re.escape(version)}".*?changes = listOf\((.*?)\)\s*\)'
+          match = re.search(pattern, content, re.DOTALL)
+          
+          if match:
+              changes_str = match.group(1)
+              # 提取所有变化项
+              changes = re.findall(r'"(.*?)"', changes_str)
+              
+              # 生成 Markdown
+              md = f"## v{version}\n\n"
+              for change in changes:
+                  md += f"- {change}\n"
+              
+              with open('RELEASE_NOTE.md', 'w', encoding='utf-8') as f:
+                  f.write(md)
+              
+              print(f"Changelog for v{version} extracted successfully")
+          else:
+              print(f"No changelog found for v{version}")
+              with open('RELEASE_NOTE.md', 'w', encoding='utf-8') as f:
+                  f.write(f"## v{version}\n\n- Release update")
+          EOF
+
+      - name: Build Release APK
+        run: ./gradlew assembleRelease
+
+      - name: Upload APK to Release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: app/build/outputs/apk/release/*.apk
+          body_path: RELEASE_NOTE.md
+          name: "Nexio课程表 v${{ steps.version.outputs.version }}"
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
