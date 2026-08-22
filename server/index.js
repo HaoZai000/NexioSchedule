@@ -14,6 +14,22 @@ const path = require('path');
 
 const PORT = parseInt(process.env.PORT, 10) || 3000;
 const STATS_FILE = process.env.STATS_FILE || path.join(__dirname, 'stats.json');
+// 仪表盘访问口令。未设置时查看接口不鉴权；设置后需通过 ?token= 或 Authorization: Bearer 提交
+const DASH_TOKEN = process.env.DASH_TOKEN || '';
+
+/** 校验查看类接口的访问口令（report 上报接口不在此列，App 直连无需口令） */
+function isAuthorized(url, headers) {
+  if (!DASH_TOKEN) return true;
+  const queryToken = url.searchParams.get('token');
+  if (queryToken === DASH_TOKEN) return true;
+  const auth = headers['authorization'] || '';
+  if (auth.startsWith('Bearer ') && auth.slice(7) === DASH_TOKEN) return true;
+  return false;
+}
+
+function denied(res) {
+  return json(res, 401, { error: 'Unauthorized: 需要访问口令' });
+}
 
 const CORS_HEADERS = {
   'Access-Control-Allow-Origin': '*',
@@ -99,9 +115,25 @@ const DASHBOARD_HTML = `<!DOCTYPE html>
   th { color:var(--sub); font-weight:500; }
   .err { color:#ff6b6b; }
   .tick { color:var(--good); }
+  .mask { position:fixed; inset:0; background:var(--bg); display:flex; align-items:center; justify-content:center; z-index:9; }
+  .login { background:var(--card); border:1px solid var(--line); border-radius:14px; padding:28px; width:min(320px,90vw); }
+  .login h2 { font-size:16px; margin-bottom:6px; }
+  .login p { color:var(--sub); font-size:12px; margin-bottom:16px; }
+  .login input { width:100%; padding:11px 12px; border-radius:9px; border:1px solid var(--line); background:#0a0c10; color:var(--text); font-size:14px; box-sizing:border-box; }
+  .login button { width:100%; margin-top:12px; padding:11px; border:none; border-radius:9px; background:var(--acc); color:#fff; font-size:14px; cursor:pointer; }
+  .login .err { font-size:12px; margin-top:10px; min-height:16px; }
 </style>
 </head>
 <body>
+  <div class="mask" id="mask">
+    <div class="login">
+      <h2>访问受限</h2>
+      <p>请输入仪表盘访问口令</p>
+      <input type="password" id="tok" placeholder="访问口令" autocomplete="current-password">
+      <button onclick="submitLogin()">进入</button>
+      <div class="err" id="l-err"></div>
+    </div>
+  </div>
   <h1>Nexio 统计仪表盘</h1>
   <div class="sub" id="status">加载中…</div>
   <div class="grid">
@@ -116,6 +148,20 @@ const DASHBOARD_HTML = `<!DOCTYPE html>
   <div class="panel"><h2>设备 / 用户明细</h2><div id="p-devices"><div class="sub">暂无数据</div></div></div>
 <script>
 function el(id){ return document.getElementById(id); }
+var TOKEN = '';
+try { TOKEN = sessionStorage.getItem('dash_token') || ''; } catch(e){}
+function hideLogin(){ if(el('mask')) el('mask').style.display='none'; }
+function showLogin(){ if(el('mask')) el('mask').style.display='flex'; }
+function submitLogin(){
+  var t = (el('tok').value||'').trim();
+  if(!t){ el('l-err').textContent='请输入口令'; return; }
+  TOKEN = t;
+  load(true);
+}
+function api(path){
+  return fetch(path + (TOKEN ? (path.indexOf('?')<0?'?':'&')+'token='+encodeURIComponent(TOKEN) : ''), { cache:'no-store' })
+    .then(function(r){ if(r.status===401){ if(TOKEN){ TOKEN=''; try{sessionStorage.removeItem('dash_token')}catch(e){} showLogin(); } throw new Error('口令无效或未授权'); } return r.json(); });
+}
 function barRows(obj){
   var keys = Object.keys(obj || {});
   if(!keys.length) return '<div class="sub">暂无数据</div>';
@@ -143,11 +189,13 @@ function devicesTable(list){
   html+='</tbody></table>';
   return html;
 }
-function load(){
+function load(fromLogin){
   var st = el('status');
+  if(!TOKEN){ showLogin(); return; }
+  if(fromLogin){ try{ sessionStorage.setItem('dash_token', TOKEN); }catch(e){} hideLogin(); }
   Promise.all([
-    fetch('/api/stats/dashboard').then(function(r){return r.json();}),
-    fetch('/api/stats/devices').then(function(r){return r.json();})
+    api('/api/stats/dashboard'),
+    api('/api/stats/devices')
   ]).then(function(rs){
     var d=rs[0], dev=rs[1];
     el('c-downloads').textContent=d.total_downloads;
@@ -183,6 +231,7 @@ const server = http.createServer(async (req, res) => {
 
   // GET /api/stats —— 完整统计数据
   if (pathname === '/api/stats' && method === 'GET') {
+    if (!isAuthorized(url, req.headers)) return denied(res);
     return json(res, 200, readStats());
   }
 
@@ -230,6 +279,7 @@ const server = http.createServer(async (req, res) => {
 
   // GET /api/stats/dashboard —— 仪表盘聚合数据
   if (pathname === '/api/stats/dashboard' && method === 'GET') {
+    if (!isAuthorized(url, req.headers)) return denied(res);
     const stats = readStats();
     const today = new Date().toISOString().slice(0, 10);
     const yesterday = new Date(Date.now() - 86400000).toISOString().slice(0, 10);
@@ -259,6 +309,7 @@ const server = http.createServer(async (req, res) => {
 
   // GET /api/stats/devices —— 详细设备/用户列表
   if (pathname === '/api/stats/devices' && method === 'GET') {
+    if (!isAuthorized(url, req.headers)) return denied(res);
     const stats = readStats();
     const devices = Object.values(stats.devices || {}).map((d) => Object.assign({}, d));
     return json(res, 200, { count: devices.length, devices });
