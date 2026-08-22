@@ -70,6 +70,105 @@ function readBody(req) {
   });
 }
 
+/** 网页版统计仪表盘（同源访问，无需跨域） */
+const DASHBOARD_HTML = `<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Nexio 统计仪表盘</title>
+<style>
+  :root { --bg:#0f1115; --card:#181b21; --line:#262b33; --text:#e8eaed; --sub:#9aa0a6; --acc:#4f8cff; --good:#34b37d; }
+  * { box-sizing:border-box; margin:0; padding:0; }
+  body { background:var(--bg); color:var(--text); font-family:-apple-system,"PingFang SC","Microsoft YaHei",Segoe UI,Roboto,sans-serif; padding:24px; }
+  h1 { font-size:20px; margin-bottom:4px; }
+  .sub { color:var(--sub); font-size:12px; margin-bottom:20px; }
+  .grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(150px,1fr)); gap:12px; margin-bottom:20px; }
+  .card { background:var(--card); border:1px solid var(--line); border-radius:12px; padding:16px; }
+  .card .num { font-size:30px; font-weight:700; margin-top:6px; }
+  .card .lbl { color:var(--sub); font-size:12px; }
+  .panel { background:var(--card); border:1px solid var(--line); border-radius:12px; padding:16px; margin-bottom:20px; }
+  .panel h2 { font-size:14px; margin-bottom:12px; color:var(--text); }
+  .row { display:flex; align-items:center; gap:10px; margin-bottom:8px; font-size:13px; }
+  .row .name { width:150px; color:var(--sub); flex:none; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  .row .bar-bg { flex:1; height:14px; background:#0a0c10; border-radius:7px; overflow:hidden; }
+  .row .bar { height:100%; background:linear-gradient(90deg,#4f8cff,#8a5fff); border-radius:7px; min-width:2px; transition:width .5s; }
+  .row .val { width:40px; text-align:right; color:var(--text); flex:none; }
+  table { width:100%; border-collapse:collapse; font-size:12px; }
+  th,td { text-align:left; padding:8px 10px; border-bottom:1px solid var(--line); white-space:nowrap; }
+  th { color:var(--sub); font-weight:500; }
+  .err { color:#ff6b6b; }
+  .tick { color:var(--good); }
+</style>
+</head>
+<body>
+  <h1>Nexio 统计仪表盘</h1>
+  <div class="sub" id="status">加载中…</div>
+  <div class="grid">
+    <div class="card"><div class="lbl">总下载</div><div class="num" id="c-downloads">-</div></div>
+    <div class="card"><div class="lbl">设备/用户数</div><div class="num" id="c-devices">-</div></div>
+    <div class="card"><div class="lbl">今日活跃</div><div class="num" id="c-today">-</div></div>
+    <div class="card"><div class="lbl">昨日活跃</div><div class="num" id="c-yesterday">-</div></div>
+  </div>
+  <div class="panel"><h2>机型分布</h2><div id="p-models"><div class="sub">暂无数据</div></div></div>
+  <div class="panel"><h2>安卓版本分布</h2><div id="p-android"><div class="sub">暂无数据</div></div></div>
+  <div class="panel"><h2>App 版本分布</h2><div id="p-versions"><div class="sub">暂无数据</div></div></div>
+  <div class="panel"><h2>设备 / 用户明细</h2><div id="p-devices"><div class="sub">暂无数据</div></div></div>
+<script>
+function el(id){ return document.getElementById(id); }
+function barRows(obj){
+  var keys = Object.keys(obj || {});
+  if(!keys.length) return '<div class="sub">暂无数据</div>';
+  var max = Math.max.apply(null, keys.map(function(k){return obj[k];}));
+  keys.sort(function(a,b){return obj[b]-obj[a];});
+  var html = '';
+  keys.forEach(function(k){
+    html += '<div class="row"><span class="name" title="'+k+'">'+k+'</span>' +
+            '<div class="bar-bg"><div class="bar" style="width:'+((obj[k]/max)*100).toFixed(1)+'%"></div></div>' +
+            '<span class="val">'+obj[k]+'</span></div>';
+  });
+  return html;
+}
+function fmtTime(t){
+  if(!t) return '未知';
+  try{ var d=new Date(t); return d.toLocaleString('zh-CN',{hour12:false}); }catch(e){ return t; }
+}
+function esc(s){ return String(s==null?'' : s).replace(/[&<>"]/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c];}); }
+function devicesTable(list){
+  if(!list || !list.length) return '<div class="sub">暂无数据</div>';
+  var html='<table><thead><tr><th>机型</th><th>安卓版本</th><th>App 版本</th><th>最后活跃</th></tr></thead><tbody>';
+  list.forEach(function(d){
+    html+='<tr><td>'+esc(d.device_model||'未知')+'</td><td>'+esc(d.android_version||'-')+'</td><td>'+esc(d.app_version||'-')+'</td><td>'+fmtTime(d.last_activity_at)+'</td></tr>';
+  });
+  html+='</tbody></table>';
+  return html;
+}
+function load(){
+  var st = el('status');
+  Promise.all([
+    fetch('/api/stats/dashboard').then(function(r){return r.json();}),
+    fetch('/api/stats/devices').then(function(r){return r.json();})
+  ]).then(function(rs){
+    var d=rs[0], dev=rs[1];
+    el('c-downloads').textContent=d.total_downloads;
+    el('c-devices').textContent=d.unique_devices;
+    el('c-today').textContent=d.today_active;
+    el('c-yesterday').textContent=d.yesterday_active;
+    el('p-models').innerHTML=barRows(d.device_models);
+    el('p-android').innerHTML=barRows(d.android_versions);
+    el('p-versions').innerHTML=barRows(d.app_versions);
+    el('p-devices').innerHTML=devicesTable(dev.devices);
+    st.innerHTML='最近更新：'+fmtTime(d.last_updated)+' <span class="tick">&#10003;</span>';
+  }).catch(function(e){
+    st.innerHTML='<span class="err">加载失败：'+esc(e.message)+'</span>';
+  });
+}
+load();
+setInterval(load, 30000);
+</script>
+</body>
+</html>`;
+
 const server = http.createServer(async (req, res) => {
   const url = new URL(req.url, `http://${req.headers.host || 'localhost'}`);
   const pathname = url.pathname;
@@ -163,6 +262,13 @@ const server = http.createServer(async (req, res) => {
     const stats = readStats();
     const devices = Object.values(stats.devices || {}).map((d) => Object.assign({}, d));
     return json(res, 200, { count: devices.length, devices });
+  }
+
+  // GET / 或 /dashboard —— 网页版统计仪表盘
+  if ((pathname === '/' || pathname === '/dashboard') && method === 'GET') {
+    res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' });
+    res.end(DASHBOARD_HTML);
+    return;
   }
 
   return json(res, 404, { error: 'Not Found' });
