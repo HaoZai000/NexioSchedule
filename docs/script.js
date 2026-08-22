@@ -46,3 +46,33 @@ document.addEventListener('DOMContentLoaded', () => {
 const style = document.createElement('style');
 style.textContent = '.visible{opacity:1!important;transform:translateY(0)!important}';
 document.head.appendChild(style);
+
+// 预览无缝循环滚动
+const showcase = document.querySelector('.preview-showcase');
+if (showcase) {
+  const items = Array.from(showcase.children);
+  if (items.length) {
+    // 复制一份内容实现无极循环（副本直接可见，避免未被 observer 置为隐藏）
+    items.forEach(it => {
+      const clone = it.cloneNode(true);
+      clone.classList.add('visible');
+      showcase.appendChild(clone);
+    });
+    let span = 0;
+    const spanOf = () => {
+      const first = showcase.children[0];
+      const last = showcase.children[items.length - 1];
+      return last.getBoundingClientRect().left - first.getBoundingClientRect().left + last.offsetWidth;
+    };
+    span = spanOf();
+    window.addEventListener('resize', () => { span = spanOf(); });
+    const speed = 0.25; // px/帧
+    let pos = 0;
+    (function tick() {
+      pos += speed;
+      if (pos >= span) pos -= span;
+      showcase.scrollLeft = Math.round(pos); // scrollLeft 为整数，用浮点 pos 累积再取整
+      requestAnimationFrame(tick);
+    })();
+  }
+}
