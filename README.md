@@ -8,7 +8,7 @@
 [![Total Downloads](https://img.shields.io/endpoint?url=https%3A%2F%2Fraw.githubusercontent.com%2FHaoZai000%2FNexioSchedule%2Fmaster%2F.github%2Fbadges%2Fdownloads-badge.json&style=flat-square)](https://github.com/HaoZai000/NexioSchedule/releases)
 [![Latest Release](https://img.shields.io/github/v/release/HaoZai000/NexioSchedule?style=flat-square&color=blue)](https://github.com/HaoZai000/NexioSchedule/releases/latest)
 
-#### 一起交流与讨论 [QQ频道](https://pd.qq.com/s/cfwkl5q9q?b=9)
+#### 一起交流与讨论：加入 [QQ频道](https://pd.qq.com/s/cfwkl5q9q?b=9) · [加入QQ群【Nexio课程表交流群】](https://qun.qq.com/universal-share/share?ac=1&authKey=WYfwJ8DnrMhTZKqVb3gcvB6DS2vUReemmQ3e5EnjKFLdErKvpfychIOGHbtG7ZJR&busi_data=eyJncm91cENvZGUiOiIxMDAxNTUxNzQxIiwidG9rZW4iOiJTQnFRNjJqUHlic0p5VVcySDBBSTFJazY0TU1udElDZlp6TjlCa3FXcmFKcjM5YUVxL2hFcktSb1FQcUtTWmt5IiwidWluIjoiNDM5MDg5NzAzIn0%3D&data=sPDFjZgIpm44b9AEDzaKAru_3W-z3w_t3XXP-N6O7DKkCSbdSyyZctJlzKDIbabYcLU7Qv8YeCKaJF_4rJYXtA&svctype=4&tempid=h5_group_info)
 
 </div>
 
