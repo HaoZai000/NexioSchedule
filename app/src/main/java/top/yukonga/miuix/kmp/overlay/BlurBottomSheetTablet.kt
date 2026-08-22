@@ -10,6 +10,7 @@ import androidx.compose.animation.core.CubicBezierEasing
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -37,6 +38,7 @@ import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.nestedscroll.NestedScrollConnection
 import androidx.compose.ui.input.nestedscroll.NestedScrollSource
 import androidx.compose.ui.input.nestedscroll.nestedScroll
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalWindowInfo
@@ -263,6 +265,10 @@ private fun BlurBottomSheetTabletContent(
                 .background(sheetBgColor.copy(alpha = sheetBackgroundAlpha ?: if (liquidGlassBackdrop != null)
                     if (Build.VERSION.SDK_INT >= 33) 0.92f else 1f
                 else 1f))
+                .pointerInput(Unit) {
+                    // 消费弹窗空白处的点击，防止事件穿透到背景层触发关闭
+                    detectTapGestures(onTap = {})
+                }
                 .semantics {
                     onClick(label = "Dismiss") {
                         onDismissRequest()

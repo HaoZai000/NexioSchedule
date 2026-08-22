@@ -14,6 +14,7 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.Orientation
 import androidx.compose.foundation.gestures.awaitFirstDown
+import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.gestures.draggable
 import androidx.compose.foundation.gestures.rememberDraggableState
 import androidx.compose.foundation.layout.Box
@@ -305,6 +306,10 @@ private fun BlurBottomSheetContent(
                 .background(sheetBgColor.copy(alpha = sheetBackgroundAlpha ?: if (liquidGlassBackdrop != null)
                     if (Build.VERSION.SDK_INT >= 33) 0.92f else 1f
                     else 1f))
+                .pointerInput(Unit) {
+                    // 消费弹窗空白处的点击，防止事件穿透到背景层触发关闭
+                    detectTapGestures(onTap = {})
+                }
                 .semantics {
                     onClick(label = "Dismiss") {
                         onDismissRequest()
