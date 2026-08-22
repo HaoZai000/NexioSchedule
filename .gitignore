@@ -24,6 +24,9 @@ keystore/
 # --- 部署相关（敏感：SSH 私钥） ---
 .deploy/
 
+# --- 后端服务（独立部署到 ECS，不进公开仓库） ---
+server/
+
 # --- Gradle 包装器缓存 ---
 .gradle/
 
