@@ -2218,6 +2218,40 @@ fun CourseScheduleApp() {
                             }
                         },
                     )
+                    // 后端公告弹窗：启动时拉取，未读则在 OverlayDialog 中展示，仅一个「完成」按钮
+                    var notice by remember { mutableStateOf<com.haooz.chedule.data.Notice?>(null) }
+                    LaunchedEffect(Unit) {
+                        val n = com.haooz.chedule.data.NoticeFetcher.fetch(context)
+                        if (n != null && com.haooz.chedule.data.NoticeFetcher.shouldShow(context, n)) {
+                            notice = n
+                        }
+                    }
+                    notice?.let { n ->
+                        OverlayDialog(
+                            title = n.title,
+                            summary = n.content.ifBlank { null },
+                            show = true,
+                            liquidGlassBackdrop = liquidGlassBackdrop,
+                            onDismissRequest = { notice = null }
+                        ) {
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(top = 16.dp),
+                                horizontalArrangement = Arrangement.spacedBy(12.dp)
+                            ) {
+                                TextButton(
+                                    text = "完成",
+                                    modifier = Modifier.weight(1f),
+                                    onClick = {
+                                        hapticFeedback.performHapticFeedback(HapticFeedbackType.Confirm)
+                                        com.haooz.chedule.data.NoticeFetcher.markSeen(context, n)
+                                        notice = null
+                                    }
+                                )
+                            }
+                        }
+                    }
                 }
             }
             // 始终用 MiuixTheme 包裹脚手架，保持组合结构恒定；

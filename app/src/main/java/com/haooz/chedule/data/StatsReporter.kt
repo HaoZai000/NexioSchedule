@@ -2,9 +2,13 @@ package com.haooz.chedule.data
 
 import android.content.Context
 import android.os.Build
-import kotlinx.coroutines.*
-import okhttp3.*
+import androidx.core.content.edit
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
 import okhttp3.MediaType.Companion.toMediaType
+import okhttp3.OkHttpClient
+import okhttp3.Request
 import okhttp3.RequestBody.Companion.toRequestBody
 import org.json.JSONObject
 import java.util.UUID
@@ -21,7 +25,7 @@ object StatsReporter {
     fun init(context: Context) {
         val prefs = context.getSharedPreferences("stats_prefs", Context.MODE_PRIVATE)
         deviceId = prefs.getString("device_id", null) ?: UUID.randomUUID().toString().also {
-            prefs.edit().putString("device_id", it).apply()
+            prefs.edit { putString("device_id", it) }
         }
     }
 
@@ -39,6 +43,8 @@ object StatsReporter {
                     put("timestamp", System.currentTimeMillis())
                     put("app_version", getAppVersion(context))
                     put("device_model", Build.MODEL)
+                    put("brand", Build.BRAND)
+                    put("manufacturer", Build.MANUFACTURER)
                     put("android_version", Build.VERSION.RELEASE)
                     put("sdk_level", Build.VERSION.SDK_INT)
                 }
@@ -53,7 +59,7 @@ object StatsReporter {
 
                 val resp = client.newCall(request).execute()
                 if (resp.isSuccessful) {
-                    prefs.edit().putBoolean("install_reported", true).apply()
+                    prefs.edit { putBoolean("install_reported", true) }
                 }
             } catch (_: Exception) {
             }
