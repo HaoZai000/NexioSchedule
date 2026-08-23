@@ -449,10 +449,11 @@ private fun BlurBottomSheetContent(
                     }
 
                     // 标题栏（zIndex 提升到顶层，消费触摸事件）
+                    // 标题栏固定高度，保证有无操作按钮时标题都垂直居中于同一位置
                     Box(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .padding(top = 18.dp, bottom = 16.dp)
+                            .height(76.dp)
                             .zIndex(2f),
                     ) {
                         Text(

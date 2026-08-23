@@ -32,6 +32,8 @@ private val ShiftBlue = Color(0xFF2196F3)
 @Composable
 fun ShiftCell(
     courses: List<Pair<String, Course>>,
+    isTablet: Boolean = false,
+    cardCornerRadius: Float = 10f,
     onClick: () -> Unit = {},
     @SuppressLint("ModifierParameter") modifier: Modifier = Modifier
 ) {
@@ -43,9 +45,11 @@ fun ShiftCell(
     val chipColor = ShiftBlue.copy(alpha = if (isDark) 0.16f else 0.14f)
     val textColor = ShiftBlue.copy(alpha = if (isDark) 0.9f else 0.85f)
 
+    val effectiveCornerRadius = if (isTablet) (cardCornerRadius * 1.3f) else cardCornerRadius
+
     Card(
         modifier = modifier.padding(horizontal = 2.dp, vertical = 2.dp),
-        cornerRadius = 10.dp,
+        cornerRadius = effectiveCornerRadius.dp,
         insideMargin = PaddingValues(0.dp),
         pressFeedbackType = PressFeedbackType.Sink,
         showIndication = true,
@@ -82,7 +86,7 @@ fun ShiftCell(
                 Box(
                     modifier = Modifier
                         .align(Alignment.BottomEnd)
-                        .padding(4.dp)
+                        .padding(if (isTablet) 6.dp else 5.dp)
                         .size(8.dp)
                         .background(
                             color = textColor,

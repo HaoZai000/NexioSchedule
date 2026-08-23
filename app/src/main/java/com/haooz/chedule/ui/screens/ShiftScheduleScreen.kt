@@ -32,24 +32,26 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
+import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.haooz.chedule.data.Course
+import com.haooz.chedule.ui.basic.SharedScrollBehavior
 import com.haooz.chedule.ui.components.SectionColumn
 import com.haooz.chedule.ui.components.ShiftDayColumn
 import com.haooz.chedule.ui.utils.isAppDarkTheme
-import com.kyant.capsule.ContinuousRoundedRectangle
+import com.haooz.chedule.ui.utils.overScrollVertical
 import com.haooz.chedule.viewmodel.ShiftViewModel
+import com.kyant.capsule.ContinuousRoundedRectangle
 import top.yukonga.miuix.kmp.basic.Card
 import top.yukonga.miuix.kmp.basic.CardDefaults
 import top.yukonga.miuix.kmp.overlay.BlurBottomSheet
 import top.yukonga.miuix.kmp.overlay.BlurBottomSheetTablet
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 import top.yukonga.miuix.kmp.utils.PressFeedbackType
-import com.haooz.chedule.ui.utils.overScrollVertical
 import top.yukonga.miuix.kmp.utils.scrollEndHaptic
 
 @SuppressLint("ConfigurationScreenWidthHeight")
@@ -59,6 +61,8 @@ fun ShiftScheduleScreen(
     settingsViewModel: com.haooz.chedule.viewmodel.SettingsViewModel,
     pagerState: androidx.compose.foundation.pager.PagerState,
     cardHeightPerSection: Float = 54f,
+    liquidGlassBackdrop: com.kyant.backdrop.Backdrop? = null,
+    scheduleScrollBehavior: SharedScrollBehavior? = null,
 ) {
     val shiftScheduleCourses by shiftViewModel.shiftScheduleCourses.collectAsState()
     val shiftScheduleSections by shiftViewModel.shiftScheduleSections.collectAsState()
@@ -74,10 +78,12 @@ fun ShiftScheduleScreen(
 
     var showDetail by remember { mutableStateOf(false) }
     var detailCourses by remember { mutableStateOf<List<Pair<String, Course>>>(emptyList()) }
-    var contentReady by remember { mutableStateOf(false) }
-
-    androidx.compose.runtime.LaunchedEffect(Unit) {
-        contentReady = true
+    var sheetContentBackdrop by remember { mutableStateOf<com.kyant.backdrop.Backdrop?>(null) }
+    var skipSheetEnterAnimation by remember { mutableStateOf(showDetail) }
+    androidx.compose.runtime.LaunchedEffect(showDetail) {
+        if (!showDetail) {
+            skipSheetEnterAnimation = false
+        }
     }
 
     val maxMorning = remember(shiftScheduleSections) {
@@ -90,8 +96,6 @@ fun ShiftScheduleScreen(
         shiftScheduleSections.values.maxOfOrNull { it.third } ?: 4
     }
     val totalSections = maxMorning + maxAfternoon + maxEvening
-
-    if (!contentReady) return
 
     val wallpaperBackdropColor = if (isDark) Color(0xFF000000) else Color(0xFFF7F7F7)
 
@@ -108,6 +112,10 @@ fun ShiftScheduleScreen(
         Column(
             modifier = Modifier
                 .fillMaxSize()
+                .then(
+                    if (scheduleScrollBehavior != null) Modifier.nestedScroll(scheduleScrollBehavior.nestedScrollConnection)
+                    else Modifier
+                )
                 .overScrollVertical()
                 .scrollEndHaptic(hapticFeedbackType = HapticFeedbackType.TextHandleMove)
                 .verticalScroll(scrollState)
@@ -153,6 +161,7 @@ fun ShiftScheduleScreen(
                                 showDetail = true
                             },
                             cardHeightPerSection = cardHeightPerSection,
+                            isTablet = isTablet,
                             modifier = Modifier.weight(1f)
                         )
                     }
@@ -191,7 +200,6 @@ fun ShiftScheduleScreen(
 
     } // wallpaper Box
 
-    val liquidGlassBackdrop = com.kyant.backdrop.backdrops.rememberLayerBackdrop()
 
     val detailContent: @Composable () -> Unit = {
         Column(
@@ -213,9 +221,9 @@ fun ShiftScheduleScreen(
                         .padding(horizontal = 16.dp),
                     insideMargin = PaddingValues(0.dp),
                     pressFeedbackType = PressFeedbackType.None,
-                    showIndication = false,
+                    showIndication = true,
                     colors = CardDefaults.defaultColors(
-                        color = if (isDark) Color(0xFF363636) else Color(0xFFFFFFFF),
+                        color = if (isDark) Color(0xFF363636).copy(alpha = 0.62f) else Color(0xFFFFFFFF).copy(alpha = 0.7f),
                         contentColor = MiuixTheme.colorScheme.onSurface
                     )
                 ) {
@@ -227,8 +235,8 @@ fun ShiftScheduleScreen(
                         Text(
                             text = scheduleName,
                             style = MiuixTheme.textStyles.body1.copy(fontSize = 17.sp),
-                            fontWeight = FontWeight.Bold,
-                            color = if (isDark) Color.White else Color.Black
+                            fontWeight = FontWeight.Medium,
+                            color = MiuixTheme.colorScheme.onSurface
                         )
                         Spacer(modifier = Modifier.height(4.dp))
                         Text(
@@ -239,7 +247,7 @@ fun ShiftScheduleScreen(
                     }
                 }
             }
-            Spacer(modifier = Modifier.height(60.dp))
+            Spacer(modifier = Modifier.height(if (isTablet) 0.dp else 260.dp))
         }
     }
 
@@ -251,6 +259,8 @@ fun ShiftScheduleScreen(
             isBottomAligned = true,
             liquidGlassBackdrop = liquidGlassBackdrop,
             onDismissRequest = { showDetail = false },
+            onSheetContentBackdropCreated = { sheetContentBackdrop = it },
+            skipEnterAnimation = skipSheetEnterAnimation,
             content = detailContent
         )
     } else {
@@ -260,6 +270,8 @@ fun ShiftScheduleScreen(
             liquidGlassBackdrop = liquidGlassBackdrop,
             dimBackground = true,
             onDismissRequest = { showDetail = false },
+            onSheetContentBackdropCreated = { sheetContentBackdrop = it },
+            skipEnterAnimation = skipSheetEnterAnimation,
             content = detailContent
         )
     }

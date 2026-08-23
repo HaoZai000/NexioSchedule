@@ -25,7 +25,6 @@ import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalDensity
-import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.DpOffset
 import androidx.compose.ui.unit.IntOffset
@@ -65,10 +64,10 @@ internal fun ScheduleTopBar(
     onOpenSwitchSchedule: () -> Unit,
     onMoreClick: () -> Unit = {},
     isTablet: Boolean = false,
+    isShiftMode: Boolean = false,
     liquidGlassBackdrop: com.kyant.backdrop.Backdrop?,
     scrollBehavior: SharedScrollBehavior? = null,
     showMorePopup: Boolean = false,
-    morePopupFraction: Animatable<Float, *>? = null,
 ) {
     if (!visible || liquidGlassBackdrop == null) return
 
@@ -86,8 +85,6 @@ internal fun ScheduleTopBar(
             )
         }
     }
-
-    val hapticFeedback = LocalHapticFeedback.current
 
     val titleText = when {
         isHoliday -> "放假中"
@@ -160,17 +157,19 @@ internal fun ScheduleTopBar(
                                 )
                             }
                         }
-                        LiquidTopBarButton(
-                            onClick = {
-                                onOpenSwitchSchedule()
-                            },
-                            backdrop = liquidGlassBackdrop,
-                            icon = MiuixIcons.Normal.ConvertFile,
-                            contentDescription = "课表切换",
-                            iconSize = 27.dp,
-                            backdropAlpha = backdropAlpha,
-                            shadowAlpha = shadowAlpha
-                        )
+                        if (!isShiftMode) {
+                            LiquidTopBarButton(
+                                onClick = {
+                                    onOpenSwitchSchedule()
+                                },
+                                backdrop = liquidGlassBackdrop,
+                                icon = MiuixIcons.Normal.ConvertFile,
+                                contentDescription = "课表切换",
+                                iconSize = 27.dp,
+                                backdropAlpha = backdropAlpha,
+                                shadowAlpha = shadowAlpha
+                            )
+                        }
                         LiquidTopBarButton(
                             onClick = {
                                 onMoreClick()

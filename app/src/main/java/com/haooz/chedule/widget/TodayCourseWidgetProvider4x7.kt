@@ -220,6 +220,7 @@ class TodayCourseWidgetProvider4x7 : AppWidgetProvider() {
     }
 
     private fun getCourseStartTime(course: Course, repository: CourseRepository): String? {
+        if (course.hasValidCustomTime()) return course.customStartTime
         val morningTimes = repository.getPeriodTimes("morning")
         val afternoonTimes = repository.getPeriodTimes("afternoon")
         val eveningTimes = repository.getPeriodTimes("evening")

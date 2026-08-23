@@ -2,14 +2,12 @@
 package com.haooz.chedule.ui.components
 
 import android.annotation.SuppressLint
-import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.offset
 import androidx.compose.runtime.Composable
-import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import com.haooz.chedule.data.Course
@@ -24,6 +22,8 @@ fun ShiftDayColumn(
     currentWeek: Int,
     onSlotClick: (dayOfWeek: Int, startSection: Int, courses: List<Pair<String, Course>>) -> Unit = { _, _, _ -> },
     cardHeightPerSection: Float = 54f,
+    isTablet: Boolean = false,
+    cardCornerRadius: Float = 10f,
     @SuppressLint("ModifierParameter") modifier: Modifier = Modifier
 ) {
     val totalHeight = ((morningSections + afternoonSections + eveningSections) * cardHeightPerSection + 24 * 2).toInt()
@@ -141,6 +141,8 @@ fun ShiftDayColumn(
                 val y = sectionToY(segStartSection)
                 ShiftCell(
                     courses = group.items,
+                    isTablet = isTablet,
+                    cardCornerRadius = cardCornerRadius,
                     onClick = { onSlotClick(dayOfWeek, group.startSection, group.items) },
                     modifier = Modifier
                         .fillMaxWidth()

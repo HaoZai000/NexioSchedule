@@ -231,20 +231,20 @@ private fun rememberCourseStatus(
         while (true) {
             val now = LocalTime.now()
             val current = courses.find { course ->
-                val startStr = sectionTimes[course.startSection]?.split("-")?.firstOrNull() ?: return@find false
-                val endStr = sectionTimes[course.endSection]?.split("-")?.lastOrNull() ?: return@find false
+                val startStr = course.getEffectiveStartTime(sectionTimes) ?: return@find false
+                val endStr = course.getEffectiveEndTime(sectionTimes) ?: return@find false
                 val start = parseTime(startStr) ?: return@find false
                 val end = parseTime(endStr) ?: return@find false
                 !now.isBefore(start) && !now.isAfter(end)
             }
             val next = courses.find { course ->
-                val startStr = sectionTimes[course.startSection]?.split("-")?.firstOrNull() ?: return@find false
+                val startStr = course.getEffectiveStartTime(sectionTimes) ?: return@find false
                 val start = parseTime(startStr) ?: return@find false
                 now.isBefore(start)
             }
             val message = when {
                 current != null -> {
-                    val endStr = sectionTimes[current.endSection]?.split("-")?.lastOrNull() ?: ""
+                    val endStr = current.getEffectiveEndTime(sectionTimes) ?: ""
                     val end = parseTime(endStr)
                     if (end != null) {
                         val minutes = java.time.Duration.between(now, end).toMinutes()
@@ -259,7 +259,7 @@ private fun rememberCourseStatus(
                     } else ""
                 }
                 next != null -> {
-                    val startStr = sectionTimes[next.startSection]?.split("-")?.firstOrNull() ?: ""
+                    val startStr = next.getEffectiveStartTime(sectionTimes) ?: ""
                     val start = parseTime(startStr)
                     if (start != null) {
                         val minutes = java.time.Duration.between(now, start).toMinutes()
@@ -296,8 +296,8 @@ private fun buildCourseTimeRanges(
     sectionTimes: Map<Int, String>
 ): List<CourseTimeRange> {
     return courses.mapNotNull { course ->
-        val startStr = sectionTimes[course.startSection]?.split("-")?.firstOrNull() ?: return@mapNotNull null
-        val endStr = sectionTimes[course.endSection]?.split("-")?.lastOrNull() ?: return@mapNotNull null
+        val startStr = course.getEffectiveStartTime(sectionTimes) ?: return@mapNotNull null
+        val endStr = course.getEffectiveEndTime(sectionTimes) ?: return@mapNotNull null
         val start = parseTime(startStr) ?: return@mapNotNull null
         val end = parseTime(endStr) ?: return@mapNotNull null
         CourseTimeRange(course, start, end)

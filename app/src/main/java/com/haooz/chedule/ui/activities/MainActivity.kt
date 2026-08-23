@@ -96,6 +96,8 @@ import com.haooz.chedule.ui.basic.LiquidGlassDropdownMenu
 import com.haooz.chedule.ui.basic.LiquidGlassDropdownMenuItem
 import com.haooz.chedule.ui.basic.LiquidTopBarButton
 import top.yukonga.miuix.kmp.overlay.OverlayDialog
+import top.yukonga.miuix.kmp.basic.NumberPicker
+import top.yukonga.miuix.kmp.basic.ButtonDefaults
 import com.haooz.chedule.ui.basic.ProgressiveBlurTopBar
 import com.haooz.chedule.ui.basic.SharedScrollBehavior
 import com.haooz.chedule.ui.basic.ShortcutMenu
@@ -559,6 +561,7 @@ private fun MorePopupMenus(
     onTodayMorePopupDismiss: () -> Unit,
     morePopupFraction: Animatable<Float, *>,
     liquidGlassBackdrop: com.kyant.backdrop.Backdrop,
+    isShiftMode: Boolean = false,
     onJumpWeek: () -> Unit,
     onCourseManage: () -> Unit,
     onEnterCustomize: () -> Unit,
@@ -616,21 +619,23 @@ private fun MorePopupMenus(
                     )
                 }
             )
-            LiquidGlassDropdownMenuItem(
-                text = "课程管理",
-                onClick = {
-                    onMorePopupDismiss()
-                    onCourseManage()
-                },
-                icon = {
-                    Icon(
-                        imageVector = MiuixIcons.Backup,
-                        contentDescription = null,
-                        tint = MiuixTheme.colorScheme.onSurface,
-                        modifier = Modifier.size(23.dp)
-                    )
-                }
-            )
+            if (!isShiftMode) {
+                LiquidGlassDropdownMenuItem(
+                    text = "课程管理",
+                    onClick = {
+                        onMorePopupDismiss()
+                        onCourseManage()
+                    },
+                    icon = {
+                        Icon(
+                            imageVector = MiuixIcons.Backup,
+                            contentDescription = null,
+                            tint = MiuixTheme.colorScheme.onSurface,
+                            modifier = Modifier.size(23.dp)
+                        )
+                    }
+                )
+            }
             LiquidGlassDropdownMenuItem(
                 text = "课表外观",
                 onClick = {
@@ -863,7 +868,8 @@ fun CourseScheduleApp() {
     val combIsLight = if (currentComb == null) initialCombWallpaperIsLight else currentCombIsLight
     val todayShowWallpaper = settingsViewModel.todayShowWallpaper.collectAsState().value
     val todayPageShowsWallpaper = selectedTab == 0 && todayShowWallpaper
-    val forcedDark = if (selectedTab == 2) null
+    val forcedDark = if (isShiftMode) null
+    else if (selectedTab == 2) null
     else if (selectedTab == 1 || todayPageShowsWallpaper) {
         if (combIsLight != null) !combIsLight else null
     } else null
@@ -1752,10 +1758,10 @@ fun CourseScheduleApp() {
                             },
                             onMoreClick = { showMorePopup = true },
                             isTablet = isTablet,
+                            isShiftMode = isShiftMode,
                             liquidGlassBackdrop = liquidGlassBackdrop,
                             scrollBehavior = scheduleScrollBehavior,
                             showMorePopup = showMorePopup,
-                            morePopupFraction = morePopupFraction,
                         )
                         // 设置页标题栏（Activity 层级渲染，避免 drawPlainBackdrop native crash）
                         if (selectedTab == 2 || (isShiftMode && selectedTab == 1)) {
@@ -2039,7 +2045,6 @@ fun CourseScheduleApp() {
                                                     target.first to (target.second..(target.second + sectionSpan))
                                                 } else null
                                             },
-                                            animateInCourseIds = animateInCourseIds,
                                             scheduleScrollBehavior = scheduleScrollBehavior,
                                             paddingValues = paddingValues,
                                             externalScrollState = scheduleScrollState,
@@ -2073,6 +2078,8 @@ fun CourseScheduleApp() {
                                         settingsViewModel = settingsViewModel,
                                         pagerState = pagerState,
                                         cardHeightPerSection = appearance.cardHeight,
+                                        liquidGlassBackdrop = liquidGlassBackdrop,
+                                        scheduleScrollBehavior = scheduleScrollBehavior,
                                     )
 
                                     1 -> SettingsScreen(
@@ -2127,6 +2134,65 @@ fun CourseScheduleApp() {
 
                     // 更新弹窗
                     UpdateDialog(liquidGlassBackdrop = liquidGlassBackdrop)
+
+                    // 跳转周数弹窗（提升到 MainActivity，排班/课程表均可用）
+                    val showJumpWeekDialog by viewModel.showJumpWeekDialog.collectAsState()
+                    var jumpWeekTemp by remember { mutableIntStateOf(1) }
+                    val hapticFeedback = LocalHapticFeedback.current
+                    LaunchedEffect(showJumpWeekDialog) {
+                        if (showJumpWeekDialog) {
+                            jumpWeekTemp = pagerState.currentPage + 1
+                        }
+                    }
+                    OverlayDialog(
+                        title = "跳转周数",
+                        show = showJumpWeekDialog,
+                        liquidGlassBackdrop = liquidGlassBackdrop,
+                        onDismissRequest = { viewModel.hideJumpWeekDialog() }
+                    ) {
+                        Column(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalAlignment = Alignment.CenterHorizontally
+                        ) {
+                            NumberPicker(
+                                value = jumpWeekTemp,
+                                onValueChange = { jumpWeekTemp = it },
+                                range = 1..totalWeeks,
+                                visibleItemCount = 3,
+                                itemHeight = 60.dp,
+                                textStyle = MiuixTheme.textStyles.title2,
+                                label = { "第${it}周" },
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(bottom = 20.dp)
+                            )
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.spacedBy(12.dp)
+                            ) {
+                                TextButton(
+                                    text = "取消",
+                                    onClick = {
+                                        hapticFeedback.performHapticFeedback(HapticFeedbackType.Confirm)
+                                        viewModel.hideJumpWeekDialog()
+                                    },
+                                    modifier = Modifier.weight(1f)
+                                )
+                                TextButton(
+                                    text = "确定",
+                                    onClick = {
+                                        hapticFeedback.performHapticFeedback(HapticFeedbackType.Confirm)
+                                        viewModel.hideJumpWeekDialog()
+                                        coroutineScope.launch {
+                                            pagerState.animateScrollToPage(jumpWeekTemp - 1)
+                                        }
+                                    },
+                                    colors = ButtonDefaults.textButtonColorsPrimary(),
+                                    modifier = Modifier.weight(1f)
+                                )
+                            }
+                        }
+                    }
 
                     // 添加课程对话框
                     val showAddDialog by viewModel.showAddDialog.collectAsState()
@@ -2433,6 +2499,7 @@ fun CourseScheduleApp() {
                     onTodayMorePopupDismiss = { showTodayMorePopup = false },
                     morePopupFraction = morePopupFraction,
                     liquidGlassBackdrop = liquidGlassBackdrop,
+                    isShiftMode = isShiftMode,
                     onJumpWeek = { viewModel.showJumpWeekDialog() },
                     onCourseManage = {
                         val intent = Intent(context, CourseManageActivity::class.java)

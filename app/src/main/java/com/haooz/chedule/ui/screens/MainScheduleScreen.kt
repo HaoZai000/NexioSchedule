@@ -36,7 +36,6 @@ import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.snapshotFlow
@@ -73,12 +72,8 @@ import com.kyant.backdrop.drawBackdrop
 import com.kyant.backdrop.effects.blur
 import com.kyant.backdrop.effects.lens
 import com.kyant.capsule.ContinuousRoundedRectangle
-import kotlinx.coroutines.launch
-import top.yukonga.miuix.kmp.basic.ButtonDefaults
 import top.yukonga.miuix.kmp.basic.Card
 import top.yukonga.miuix.kmp.basic.CardDefaults
-import top.yukonga.miuix.kmp.basic.NumberPicker
-import top.yukonga.miuix.kmp.basic.TextButton
 import top.yukonga.miuix.kmp.blur.layerBackdrop
 import top.yukonga.miuix.kmp.blur.rememberLayerBackdrop
 import top.yukonga.miuix.kmp.icon.MiuixIcons
@@ -86,7 +81,6 @@ import top.yukonga.miuix.kmp.icon.extended.Add
 import top.yukonga.miuix.kmp.overlay.BlurBottomSheet
 import top.yukonga.miuix.kmp.overlay.BlurBottomSheetTablet
 import top.yukonga.miuix.kmp.overlay.LocalSheetTopBarMaterial
-import top.yukonga.miuix.kmp.overlay.OverlayDialog
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 import top.yukonga.miuix.kmp.utils.PressFeedbackType
 import top.yukonga.miuix.kmp.utils.scrollEndHaptic
@@ -144,7 +138,6 @@ fun MainScheduleScreen(
     // 拖拽落点高亮：Pair(dayOfWeek, sectionRange)，sectionRange 为落点覆盖的节次区间
     dropHighlight: Pair<Int, IntRange>? = null,
     // 调课后需要淡入放大的课程ID集合
-    animateInCourseIds: Set<String> = emptySet(),
     onGridGeometryChange: (ScheduleGridGeometry) -> Unit = {},
     scheduleScrollBehavior: SharedScrollBehavior? = null,
     paddingValues: PaddingValues = androidx.compose.foundation.layout.PaddingValues(),
@@ -157,9 +150,7 @@ fun MainScheduleScreen(
 ) {
     val courses by viewModel.courses.collectAsState()
     val currentWeek by viewModel.currentWeek.collectAsState()
-    val totalWeeks by viewModel.totalWeeks.collectAsState()
     val showAddDialog by viewModel.showAddDialog.collectAsState()
-    val showJumpWeekDialog by viewModel.showJumpWeekDialog.collectAsState()
     val showNonCurrentWeek by settingsViewModel.showNonCurrentWeek.collectAsState()
     val smartWeekend by settingsViewModel.smartWeekend.collectAsState()
     val morningSections by settingsViewModel.morningSections.collectAsState()
@@ -195,8 +186,6 @@ fun MainScheduleScreen(
     var pendingDay by remember { mutableIntStateOf(-1) }
     var pendingSection by remember { mutableIntStateOf(-1) }
     var viewingWeek by remember { mutableIntStateOf(currentWeek) }
-    var jumpWeekTemp by remember { mutableIntStateOf(1) }
-    val coroutineScope = rememberCoroutineScope()
 
     LaunchedEffect(showAddDialog) {
         if (showAddDialog && pendingDay != -1) {
@@ -238,12 +227,6 @@ fun MainScheduleScreen(
         }
     }
 
-    LaunchedEffect(showJumpWeekDialog) {
-        if (showJumpWeekDialog) {
-            jumpWeekTemp = pagerState.currentPage + 1
-        }
-    }
-
     // 预计算每天的课程，避免在 HorizontalPager 内部重复过滤
     val allDays = (1..7).toList()
     val coursesByDay = remember(courses) {
@@ -269,10 +252,7 @@ fun MainScheduleScreen(
 
     // 壁纸 LayerBackdrop：捕获壁纸内容供课程卡片 textureBlur 使用
     val wallpaperBackdropColor = if (isAppDarkTheme()) Color(0xFF000000) else Color(0xFFF7F7F7)
-    val wallpaperBackdrop = rememberLayerBackdrop {
-        drawRect(wallpaperBackdropColor)
-        drawContent()
-    }
+
     // 全屏 LayerBackdrop：捕获全部内容供弹窗模糊使用
     val screenBackdrop = rememberLayerBackdrop {
         drawRect(wallpaperBackdropColor)
@@ -287,7 +267,7 @@ fun MainScheduleScreen(
     Box(modifier = Modifier.fillMaxSize().layerBackdrop(screenBackdrop)) {
         // 壁纸背景
         if (wallpaperBitmap != null) {
-            Box(modifier = Modifier.fillMaxSize().layerBackdrop(wallpaperBackdrop).kyantLayerBackdrop(courseCardBackdrop)) {
+            Box(modifier = Modifier.fillMaxSize().kyantLayerBackdrop(courseCardBackdrop)) {
                 val brightnessFilter = remember(wallpaperBrightness) {
                     if (wallpaperBrightness != 0f) {
                         val b = (1f + wallpaperBrightness / 50f).coerceIn(0f, 2f)
@@ -321,7 +301,7 @@ fun MainScheduleScreen(
                 )
             }
         } else {
-            Box(modifier = Modifier.fillMaxSize().layerBackdrop(wallpaperBackdrop).kyantLayerBackdrop(courseCardBackdrop).background(wallpaperBackdropColor))
+            Box(modifier = Modifier.fillMaxSize().kyantLayerBackdrop(courseCardBackdrop).background(wallpaperBackdropColor))
         }
 
         // 用于手势回调中读取最新值，避免 pointerInput(Unit) 捕获陈旧状态
@@ -846,56 +826,6 @@ fun MainScheduleScreen(
                 skipEnterAnimation = skipSheetEnterAnimation,
                 content = detailContent
             )
-        }
-
-        OverlayDialog(
-            title = "跳转周数",
-            show = showJumpWeekDialog,
-            liquidGlassBackdrop = liquidGlassBackdrop,
-            onDismissRequest = { viewModel.hideJumpWeekDialog() }
-        ) {
-            Column(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalAlignment = Alignment.CenterHorizontally
-            ) {
-                NumberPicker(
-                    value = jumpWeekTemp,
-                    onValueChange = { jumpWeekTemp = it },
-                    range = 1..totalWeeks,
-                    visibleItemCount = 3,
-                    itemHeight = 60.dp,
-                    textStyle = MiuixTheme.textStyles.title2,
-                    label = { "第${it}周" },
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(bottom = 20.dp)
-                )
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(12.dp)
-                ) {
-                    TextButton(
-                        text = "取消",
-                        onClick = {
-                            hapticFeedback.performHapticFeedback(HapticFeedbackType.Confirm)
-                            viewModel.hideJumpWeekDialog()
-                        },
-                        modifier = Modifier.weight(1f)
-                    )
-                    TextButton(
-                        text = "确定",
-                        onClick = {
-                            hapticFeedback.performHapticFeedback(HapticFeedbackType.Confirm)
-                            viewModel.hideJumpWeekDialog()
-                            coroutineScope.launch {
-                                pagerState.animateScrollToPage(jumpWeekTemp - 1)
-                            }
-                        },
-                        colors = ButtonDefaults.textButtonColorsPrimary(),
-                        modifier = Modifier.weight(1f)
-                    )
-                }
-            }
         }
     }
 }

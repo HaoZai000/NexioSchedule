@@ -363,11 +363,11 @@ private fun BlurBottomSheetTabletContent(
                         Box(modifier = Modifier.fillMaxWidth().height(60.dp))
                     }
 
-                    // 标题栏
+                    // 标题栏固定高度，保证有无操作按钮时标题都垂直居中于同一位置
                     Box(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .padding(top = 16.dp, bottom = 16.dp)
+                            .height(74.dp)
                             .zIndex(2f),
                     ) {
                         Text(
