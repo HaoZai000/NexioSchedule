@@ -29,7 +29,7 @@ object NoticeFetcher {
             try {
                 if (!resp.isSuccessful) return@withContext null
                 val json = JSONObject(resp.body?.string() ?: return@withContext null)
-                val id = json.optString("id")
+                val id = if (json.isNull("id")) "" else json.optString("id")
                 if (id.isBlank()) return@withContext null
                 Notice(id, json.optString("title"), json.optString("content"))
             } finally {
