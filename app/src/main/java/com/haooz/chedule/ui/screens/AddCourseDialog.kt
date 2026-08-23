@@ -55,12 +55,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.haooz.chedule.data.Course
-import top.yukonga.miuix.kmp.overlay.BlurBottomSheet
-import top.yukonga.miuix.kmp.overlay.BlurBottomSheetTablet
 import com.haooz.chedule.ui.basic.LiquidTopBarButton
-import top.yukonga.miuix.kmp.overlay.LocalSheetTopBarMaterial
-import top.yukonga.miuix.kmp.basic.NativeTextField
-import top.yukonga.miuix.kmp.overlay.OverlayDialog
 import com.haooz.chedule.ui.utils.LocalForcedDarkTheme
 import com.haooz.chedule.ui.utils.isAppDarkTheme
 import com.haooz.chedule.ui.utils.overScrollVertical
@@ -74,6 +69,7 @@ import top.yukonga.miuix.kmp.basic.CardDefaults
 import top.yukonga.miuix.kmp.basic.Checkbox
 import top.yukonga.miuix.kmp.basic.ColorPalette
 import top.yukonga.miuix.kmp.basic.Icon
+import top.yukonga.miuix.kmp.basic.NativeTextField
 import top.yukonga.miuix.kmp.basic.NumberPicker
 import top.yukonga.miuix.kmp.basic.TextButton
 import top.yukonga.miuix.kmp.icon.MiuixIcons
@@ -81,6 +77,10 @@ import top.yukonga.miuix.kmp.icon.extended.Add
 import top.yukonga.miuix.kmp.icon.extended.Close
 import top.yukonga.miuix.kmp.icon.extended.Delete
 import top.yukonga.miuix.kmp.icon.extended.Ok
+import top.yukonga.miuix.kmp.overlay.BlurBottomSheet
+import top.yukonga.miuix.kmp.overlay.BlurBottomSheetTablet
+import top.yukonga.miuix.kmp.overlay.LocalSheetTopBarMaterial
+import top.yukonga.miuix.kmp.overlay.OverlayDialog
 import top.yukonga.miuix.kmp.preference.ArrowPreference
 import top.yukonga.miuix.kmp.theme.ColorSchemeMode
 import top.yukonga.miuix.kmp.theme.MiuixTheme
@@ -436,39 +436,43 @@ fun AddCourseDialog(
     }
     } // end of if (isTablet) else
 
-    // 删除确认弹窗
+    // 删除确认弹窗（强制跟随应用主题）
     OverlayDialog(
         title = "删除课程",
         summary = "确定要删除课程「${course?.name}」吗？\n此操作不可撤销。",
         show = showDeleteDialog,
         onDismissRequest = { showDeleteDialog = false },
-        liquidGlassBackdrop = liquidGlassBackdrop
+        liquidGlassBackdrop = sheetContentBackdrop ?: liquidGlassBackdrop
     ) {
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(top = 16.dp),
-            horizontalArrangement = Arrangement.spacedBy(12.dp)
-        ) {
-            TextButton(
-                text = "取消",
-                onClick = {
-                    hapticFeedback.performHapticFeedback(HapticFeedbackType.Confirm)
-                    showDeleteDialog = false
-                },
-                modifier = Modifier.weight(1f)
-            )
-            TextButton(
-                text = "删除",
-                onClick = {
-                    hapticFeedback.performHapticFeedback(HapticFeedbackType.Confirm)
-                    course?.id?.let { onDelete(it) }
-                    showDeleteDialog = false
-                    onDismiss()
-                },
-                textColor = Color(0xFFF44336),
-                modifier = Modifier.weight(1f)
-            )
+        MiuixTheme(controller = appDialogController) {
+            CompositionLocalProvider(LocalForcedDarkTheme provides null) {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(top = 16.dp),
+                    horizontalArrangement = Arrangement.spacedBy(12.dp)
+                ) {
+                    TextButton(
+                        text = "取消",
+                        onClick = {
+                            hapticFeedback.performHapticFeedback(HapticFeedbackType.Confirm)
+                            showDeleteDialog = false
+                        },
+                        modifier = Modifier.weight(1f)
+                    )
+                    TextButton(
+                        text = "删除",
+                        onClick = {
+                            hapticFeedback.performHapticFeedback(HapticFeedbackType.Confirm)
+                            course?.id?.let { onDelete(it) }
+                            showDeleteDialog = false
+                            onDismiss()
+                        },
+                        textColor = Color(0xFFF44336),
+                        modifier = Modifier.weight(1f)
+                    )
+                }
+            }
         }
     }
 

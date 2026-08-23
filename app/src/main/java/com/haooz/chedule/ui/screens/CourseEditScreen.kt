@@ -149,7 +149,11 @@ data class CourseGroupKey(
     val weekType: Int,
     val startWeek: Int,
     val endWeek: Int,
-    val selectedWeeks: List<Int> = emptyList()
+    val selectedWeeks: List<Int> = emptyList(),
+    // 自定义时间的课程按实际起止时间区分分组，避免同名师不同时段的课程被误合并
+    val isCustomTime: Boolean = false,
+    val customStartTime: String? = null,
+    val customEndTime: String? = null
 )
 
 data class CourseGroup(
@@ -542,7 +546,10 @@ fun CourseEditScreen(
                                         weekType = course.weekType,
                                         startWeek = course.startWeek,
                                         endWeek = course.endWeek,
-                                        selectedWeeks = course.selectedWeeks
+                                        selectedWeeks = course.selectedWeeks,
+                                        isCustomTime = course.isCustomTime,
+                                        customStartTime = course.customStartTime,
+                                        customEndTime = course.customEndTime
                                     )
                                 }.map { (key, groupCourses) ->
                                     CourseGroup(key = key, courses = groupCourses)

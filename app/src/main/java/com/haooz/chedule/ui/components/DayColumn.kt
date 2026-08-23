@@ -297,11 +297,11 @@ private fun CourseCardsLayer(
     onPendingChange: (Int, Int) -> Unit
 ) {
     val courseRenderDataList = remember(courses, currentWeek, showBreakDividers, morningSections, afternoonSections, eveningSections) {
-        val coursesBySection = courses.groupBy { it.startSection }
+        val coursesBySection = courses.groupBy { courseSlotKey(it) }
         val displayedCourses = mutableListOf<Course>()
-        val hiddenCoursesMap = mutableMapOf<Int, List<Course>>()
+        val hiddenCoursesMap = mutableMapOf<String, List<Course>>()
 
-        coursesBySection.forEach { (startSection, sectionCourses) ->
+        coursesBySection.forEach { (slotKey, sectionCourses) ->
             val currentWeekCourses = sectionCourses.filter { it.isActiveInWeek(currentWeek) }
             val otherCourses = sectionCourses.filter { !it.isActiveInWeek(currentWeek) }
 
@@ -309,7 +309,7 @@ private fun CourseCardsLayer(
                 displayedCourses.add(currentWeekCourses.first())
                 val hidden = currentWeekCourses.drop(1) + otherCourses
                 if (hidden.isNotEmpty()) {
-                    hiddenCoursesMap[startSection] = hidden
+                    hiddenCoursesMap[slotKey] = hidden
                 }
             } else {
                 val allEnded = otherCourses.all { it.endWeek < currentWeek }
@@ -323,7 +323,7 @@ private fun CourseCardsLayer(
                 displayedCourses.add(courseToShow)
                 val hidden = otherCourses - courseToShow
                 if (hidden.isNotEmpty()) {
-                    hiddenCoursesMap[startSection] = hidden
+                    hiddenCoursesMap[slotKey] = hidden
                 }
             }
         }
@@ -332,7 +332,7 @@ private fun CourseCardsLayer(
 
         displayedCourses.map { course ->
             val isCurrentWeekCourse = course.isActiveInWeek(currentWeek)
-            val hasHiddenCourses = hiddenCoursesMap.containsKey(course.startSection)
+            val hasHiddenCourses = hiddenCoursesMap.containsKey(courseSlotKey(course))
 
             val segments = mutableListOf<Pair<Int, Int>>()
             if (showBreakDividers) {
@@ -553,6 +553,18 @@ private fun PendingSectionBox(
             }
         }
     }
+}
+
+/**
+ * 课程所在“格子槽位”的标识。
+ * 普通课程按节次号；自定义时间课程按实际起止时间，
+ * 避免同名师同日但不同时段（如上午/下午）的自定义时间课程被误判为同一槽位而折叠合并。
+ */
+private fun courseSlotKey(course: Course): String {
+    if (course.hasValidCustomTime()) {
+        return "custom|${course.customStartTime}|${course.customEndTime}"
+    }
+    return "section|${course.startSection}"
 }
 
 /**

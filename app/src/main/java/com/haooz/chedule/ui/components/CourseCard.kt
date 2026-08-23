@@ -399,21 +399,24 @@ fun CourseCard(
     }
 }
 
-// 溢出状态缓存，避免页面切换后重建导致闪烁
-private val overflowCache = java.util.concurrent.ConcurrentHashMap<String, Boolean>()
-
 @Composable
 private fun CardContent(course: Course, sectionCount: Int, textColor: Color, hasMultipleCourses: Boolean,
                         isTablet: Boolean = false, cardContentAlignment: com.haooz.chedule.data.CardContentAlignment = com.haooz.chedule.data.CardContentAlignment.CENTER_CENTER,
                         cardHeightDp: Float = 0f, cardHeightPerSection: Float = 54f) {
-    val footnote2Size = 10.5.sp
-    val smallSize = (footnote2Size.value - 1.7).sp
+    val infoFontSize = 11.sp
+    val infoLineHeight = 12.sp
+    val courseNameLineHeight = 14.2.sp
 
-    // 用全局缓存，页面切换后不会丢失状态
-    val classroomKey = "classroom_${course.id}"
-    val teacherKey = "teacher_${course.id}"
-    val classroomOverflow = remember { mutableStateOf(overflowCache[classroomKey] ?: false) }
-    val teacherOverflow = remember { mutableStateOf(overflowCache[teacherKey] ?: false) }
+    val showClassroom = sectionCount >= 2 && course.classroom.isNotEmpty()
+    val showTeacher = sectionCount >= 2 && course.teacher.isNotEmpty()
+
+    // 课程名称最多行数：卡片高度能放下几行就几行
+    val density = LocalDensity.current
+    val availableHeightDp = cardHeightDp - 16f
+    val courseNameLineH = with(density) { courseNameLineHeight.toDp().value }
+    val infoLineH = with(density) { infoLineHeight.toDp().value }
+    val reservedForInfo = ((if (showClassroom) 1 else 0) + (if (showTeacher) 1 else 0)) * infoLineH
+    val nameMaxLines = ((availableHeightDp - reservedForInfo) / courseNameLineH).toInt().coerceAtLeast(1)
 
     Box(modifier = Modifier.fillMaxSize()) {
         val verticalArrangement = when (cardContentAlignment) {
@@ -441,51 +444,39 @@ private fun CardContent(course: Course, sectionCount: Int, textColor: Color, has
             horizontalAlignment = horizontalAlignment,
             verticalArrangement = verticalArrangement
         ) {
+            // 课程名称：优先分配
             Text(
                 text = course.name,
                 fontWeight = FontWeight.Bold,
-                fontSize = 12.5.sp,
-                lineHeight = 14.2.sp,
+                fontSize = 12.7.sp,
+                lineHeight = courseNameLineHeight,
                 color = textColor,
                 textAlign = textAlign,
-                maxLines = 3,
+                maxLines = nameMaxLines,
                 overflow = TextOverflow.Ellipsis,
             )
-            if (sectionCount >= 2 && course.classroom.isNotEmpty()) {
+            // 教室：按剩余空间分配
+            if (showClassroom) {
                 Spacer(modifier = Modifier.height(2.dp))
                 Text(
                     text = "@${course.classroom}",
-                    fontSize = if (classroomOverflow.value) smallSize else footnote2Size,
-                    lineHeight = if (classroomOverflow.value) 11.sp else 12.sp,
+                    fontSize = infoFontSize,
+                    lineHeight = infoLineHeight,
                     color = textColor,
                     textAlign = textAlign,
-                    maxLines = 2,
                     overflow = TextOverflow.Ellipsis,
-                    onTextLayout = { textLayoutResult ->
-                        // 只缩不放：检测到溢出就锁定缩小，不再恢复
-                        if (!classroomOverflow.value && textLayoutResult.lineCount >= 2 && textLayoutResult.isLineEllipsized(1)) {
-                            classroomOverflow.value = true
-                            overflowCache[classroomKey] = true
-                        }
-                    }
                 )
             }
-            Spacer(modifier = Modifier.height(2.dp))
-            if (sectionCount >= 2 && course.teacher.isNotEmpty()) {
+            // 教师：按剩余空间分配
+            if (showTeacher) {
+                Spacer(modifier = Modifier.height(2.dp))
                 Text(
                     text = course.teacher,
-                    fontSize = if (teacherOverflow.value) smallSize else footnote2Size,
+                    fontSize = infoFontSize,
+                    lineHeight = infoLineHeight,
                     color = textColor,
                     textAlign = textAlign,
-                    maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
-                    onTextLayout = { textLayoutResult ->
-                        // 只缩不放：检测到溢出就锁定缩小，不再恢复
-                        if (!teacherOverflow.value && textLayoutResult.isLineEllipsized(0)) {
-                            teacherOverflow.value = true
-                            overflowCache[teacherKey] = true
-                        }
-                    }
                 )
             }
         }
