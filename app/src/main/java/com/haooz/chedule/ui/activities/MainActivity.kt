@@ -2316,7 +2316,9 @@ fun CourseScheduleApp() {
                             }
                         },
                     )
-                    // 后端公告弹窗：启动时拉取，未读则在 OverlayDialog 中展示，仅一个「完成」按钮
+                    // 后端公告弹窗：启动时拉取，未读则在 OverlayDialog 中展示，仅一个「完成」按钮。
+                    // 弹窗节点需常驻组合树、仅通过 show 控制显隐，才能让退出动画在 LaunchedEffect(show)
+                    // 观察到 false 后正常播放；若用条件渲染直接移除节点，动画会被一并销毁、弹窗瞬间消失。
                     var notice by remember { mutableStateOf<com.haooz.chedule.data.Notice?>(null) }
                     LaunchedEffect(Unit) {
                         val n = com.haooz.chedule.data.NoticeFetcher.fetch(context)
@@ -2324,20 +2326,21 @@ fun CourseScheduleApp() {
                             notice = n
                         }
                     }
-                    notice?.let { n ->
-                        OverlayDialog(
-                            title = n.title,
-                            summary = n.content.ifBlank { null },
-                            show = true,
-                            liquidGlassBackdrop = liquidGlassBackdrop,
-                            onDismissRequest = { notice = null }
+                    OverlayDialog(
+                        title = notice?.title,
+                        summary = notice?.content?.ifBlank { null },
+                        show = notice != null,
+                        liquidGlassBackdrop = liquidGlassBackdrop,
+                        onDismissRequest = { notice = null },
+                        onDismissFinished = { notice = null }
+                    ) {
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(top = 16.dp),
+                            horizontalArrangement = Arrangement.spacedBy(12.dp)
                         ) {
-                            Row(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .padding(top = 16.dp),
-                                horizontalArrangement = Arrangement.spacedBy(12.dp)
-                            ) {
+                            notice?.let { n ->
                                 TextButton(
                                     text = "完成",
                                     modifier = Modifier.weight(1f),
