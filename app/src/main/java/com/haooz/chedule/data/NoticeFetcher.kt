@@ -13,7 +13,7 @@ data class Notice(val id: String, val title: String, val content: String)
 
 /** 后端公告拉取与本地已读去重 */
 object NoticeFetcher {
-    private const val API_URL = "http://182.92.193.223:3000/api/notice"
+    private const val API_URL = "https://nexioschedule.icu/api/notice"
     private const val PREFS = "notice_prefs"
     private const val KEY_ID = "seen_id"
 
