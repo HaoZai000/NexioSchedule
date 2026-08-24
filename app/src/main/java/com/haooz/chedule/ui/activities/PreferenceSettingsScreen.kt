@@ -64,6 +64,15 @@ fun PreferenceSettingsScreen(
 
     val settingsViewModel = remember { SettingsViewModel(context.applicationContext as android.app.Application) }
     val defaultHomepage by settingsViewModel.defaultHomepage.collectAsState()
+    val islandNotification by settingsViewModel.islandNotification.collectAsState()
+    val reminderPrefs = remember { context.getSharedPreferences("course_reminder_prefs", Context.MODE_PRIVATE) }
+    var islandExpandGlowEnabled by remember {
+        mutableStateOf(reminderPrefs.getBoolean("island_expand_glow_enabled", true))
+    }
+    val appPrefs = remember { context.getSharedPreferences("app_preferences", Context.MODE_PRIVATE) }
+    var hideBackground by remember {
+        mutableStateOf(appPrefs.getBoolean("hide_background", false))
+    }
 
     val isTablet = LocalConfiguration.current.screenWidthDp >= 600
     val tabletHorizontalPadding = if (isTablet) {
@@ -173,6 +182,17 @@ fun PreferenceSettingsScreen(
                                 checked = todayShowWallpaper,
                                 onCheckedChange = { settingsViewModel.setTodayShowWallpaper(it) }
                             )
+                            if (islandNotification) {
+                                SwitchPreference(
+                                    title = "超级岛展开态发光",
+                                    summary = "在小米超级岛展开时显示系统发光效果",
+                                    checked = islandExpandGlowEnabled,
+                                    onCheckedChange = {
+                                        islandExpandGlowEnabled = it
+                                        reminderPrefs.edit { putBoolean("island_expand_glow_enabled", it) }
+                                    }
+                                )
+                            }
                         }
                     }
                 }
@@ -230,6 +250,16 @@ fun PreferenceSettingsScreen(
                         insideMargin = PaddingValues(0.dp)
                     ) {
                         Column(modifier = Modifier.fillMaxWidth()) {
+                            SwitchPreference(
+                                title = "隐藏后台",
+                                summary = "返回主页时退到后台，并隐藏最近任务卡片",
+                                checked = hideBackground,
+                                onCheckedChange = {
+                                    hideBackground = it
+                                    appPrefs.edit { putBoolean("hide_background", it) }
+                                    MainActivity.setTaskExcludedFromRecents(context, it)
+                                }
+                            )
                             val repoEntry = DropdownEntry(
                                 items = listOf(
                                     DropdownItem(
