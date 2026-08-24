@@ -33,10 +33,9 @@ import com.haooz.chedule.ui.basic.SharedScrollBehavior
 import com.haooz.chedule.ui.utils.overScrollVertical
 import com.haooz.chedule.viewmodel.SettingsViewModel
 import top.yukonga.miuix.kmp.basic.Card
+import top.yukonga.miuix.kmp.basic.DropdownDefaults
 import top.yukonga.miuix.kmp.basic.DropdownEntry
 import top.yukonga.miuix.kmp.basic.DropdownItem
-import top.yukonga.miuix.kmp.basic.DropdownColors
-import top.yukonga.miuix.kmp.basic.DropdownDefaults
 import top.yukonga.miuix.kmp.basic.Scaffold
 import top.yukonga.miuix.kmp.basic.SmallTitle
 import top.yukonga.miuix.kmp.blur.layerBackdrop
@@ -45,7 +44,6 @@ import top.yukonga.miuix.kmp.preference.RadioButtonPreference
 import top.yukonga.miuix.kmp.preference.SwitchPreference
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 import top.yukonga.miuix.kmp.utils.scrollEndHaptic
-import com.kyant.backdrop.backdrops.rememberLayerBackdrop as rememberLiquidGlassBackdrop
 
 @SuppressLint("ConfigurationScreenWidthHeight")
 @Composable
@@ -184,8 +182,8 @@ fun PreferenceSettingsScreen(
                             )
                             if (islandNotification) {
                                 SwitchPreference(
-                                    title = "超级岛展开态发光",
-                                    summary = "在小米超级岛展开时显示系统发光效果",
+                                    title = "超级岛展开态流光光效",
+                                    summary = "在小米超级岛展开时显示流光光效效果",
                                     checked = islandExpandGlowEnabled,
                                     onCheckedChange = {
                                         islandExpandGlowEnabled = it
@@ -252,7 +250,7 @@ fun PreferenceSettingsScreen(
                         Column(modifier = Modifier.fillMaxWidth()) {
                             SwitchPreference(
                                 title = "隐藏后台",
-                                summary = "返回主页时退到后台，并隐藏最近任务卡片",
+                                summary = "返回桌面时，隐藏应用的最近任务卡片",
                                 checked = hideBackground,
                                 onCheckedChange = {
                                     hideBackground = it
