@@ -19,7 +19,7 @@ class ScriptRepository(private val context: Context, private val repoUrl: String
         private const val INDEX_FILE_NAME = "school_index.pb"
 
         // 客户端支持的协议版本
-        private const val CLIENT_PROTOCOL_VERSION = 1
+        private const val CLIENT_PROTOCOL_VERSION = 2
 
         fun getRepoUrl(context: Context): String {
             val prefs = context.getSharedPreferences("edu_import_prefs", Context.MODE_PRIVATE)
