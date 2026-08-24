@@ -189,6 +189,12 @@
         </provider>
 
         <provider
+            android:name=".provider.TodayCoursesProvider"
+            android:authorities="${applicationId}.courses"
+            android:exported="true"
+            android:grantUriPermissions="false" />
+
+        <provider
             android:name="androidx.startup.InitializationProvider"
             android:authorities="${applicationId}.androidx-startup"
             android:exported="false"

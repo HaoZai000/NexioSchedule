@@ -26,6 +26,7 @@ object IslandNotificationHelper {
     private const val TAG = "IslandNotificationHelper"
     private const val CHANNEL_ID = "course_reminder_island"
     private const val CHANNEL_NAME = "课程提醒超级岛"
+    private const val KEY_ISLAND_EXPAND_GLOW_ENABLED = "island_expand_glow_enabled"
     // business: 运营场景标识（官方必选字段）
     private const val BUSINESS_TAG = "course_reminder"
     // 通知更新序号计数器：保证课前→已上课等多次更新不乱序（官方 sequence 字段）
@@ -142,6 +143,7 @@ object IslandNotificationHelper {
 
         // 读取超级岛左侧/右侧显示模式
         val prefs = context.getSharedPreferences("course_reminder_prefs", Context.MODE_PRIVATE)
+        val expandGlowEnabled = prefs.getBoolean(KEY_ISLAND_EXPAND_GLOW_ENABLED, true)
         val leftMode = prefs.getInt("island_left_mode", 0)
         val rightMode = prefs.getInt("island_right_mode", 1)
         val minutesPlus1 = (minutesUntil ?: 0) + 1
@@ -165,6 +167,8 @@ object IslandNotificationHelper {
             put("protocol", 1)
             put("enableFloat", true)
             put("updatable", true)
+            // HyperOS expanded-island glow effect.
+            put("outEffectSrc", if (expandGlowEnabled) "outer_glow" else "")
             // reopen=reopen：课前提醒→已上课切换会重发同 id 通知，需允许再次显示
             put("reopen", "reopen")
             // sequence：每次更新递增，避免课前态/已上课态展示乱序

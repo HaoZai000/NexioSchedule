@@ -2,6 +2,7 @@
 package com.haooz.chedule.ui.activities
 
 import android.annotation.SuppressLint
+import android.app.ActivityManager
 import android.content.Context
 import android.content.Intent
 import android.content.res.Configuration
@@ -180,6 +181,17 @@ class MainActivity : ComponentActivity() {
         @Volatile
         var cachedAppearance: com.haooz.chedule.data.AppearanceConfig =
             com.haooz.chedule.data.AppearanceConfig()
+
+        fun setTaskExcludedFromRecents(context: Context, hidden: Boolean) {
+            if (android.os.Build.VERSION.SDK_INT < android.os.Build.VERSION_CODES.LOLLIPOP) return
+            runCatching {
+                val manager = context.getSystemService(ActivityManager::class.java)
+                val appTask = manager.appTasks.firstOrNull { task ->
+                    task.taskInfo?.baseIntent?.component?.packageName == context.packageName
+                } ?: manager.appTasks.firstOrNull()
+                appTask?.setExcludeFromRecents(hidden)
+            }
+        }
     }
 
     var shareIntentUri: android.net.Uri? = null
@@ -209,8 +221,17 @@ class MainActivity : ComponentActivity() {
         isInFreeformWindow = isInMultiWindowMode
     }
 
+    fun applyHideFromRecents(hidden: Boolean) {
+        setTaskExcludedFromRecents(this, hidden)
+    }
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+
+        applyHideFromRecents(
+            getSharedPreferences("app_preferences", Context.MODE_PRIVATE)
+                .getBoolean("hide_background", false)
+        )
 
         enableEdgeToEdge(
             statusBarStyle = SystemBarStyle.light(
@@ -295,6 +316,17 @@ class MainActivity : ComponentActivity() {
         handleReminderSettingsIntent(intent)
         // 更新版本号触发 Compose 重组
         shareIntentVersion++
+    }
+
+    override fun onBackPressed() {
+        val hideBackground = getSharedPreferences("app_preferences", Context.MODE_PRIVATE)
+            .getBoolean("hide_background", false)
+        if (hideBackground) {
+            applyHideFromRecents(true)
+            moveTaskToBack(true)
+            return
+        }
+        super.onBackPressed()
     }
 
     private fun handleReminderSettingsIntent(intent: Intent?) {
