@@ -72,10 +72,16 @@ fun HolidaySettingsScreen(scrollBehavior: SharedScrollBehavior?, liquidGlassBack
             verticalArrangement = Arrangement.spacedBy(12.dp)
         ) {
             item {
-                SmallTitle("数据管理", Modifier.offset((-15).dp))
+                SmallTitle(text = "数据管理", modifier = Modifier.offset((-15).dp))
                 Card(cornerRadius = 20.dp, modifier = Modifier.fillMaxWidth(), insideMargin = PaddingValues(0.dp)) {
                     Column {
-                        val yearEntry = DropdownEntry((2024..2030).map { DropdownItem(it.toString(), it == year) { year = it; reload() } })
+                        val yearEntry = DropdownEntry((2024..2030).map { selectedYear ->
+                            DropdownItem(
+                                text = selectedYear.toString(),
+                                selected = selectedYear == year,
+                                onClick = { year = selectedYear; reload() },
+                            )
+                        })
                         OverlayDropdownMenu(
                             entry = yearEntry,
                             title = "年份",
@@ -98,7 +104,7 @@ fun HolidaySettingsScreen(scrollBehavior: SharedScrollBehavior?, liquidGlassBack
                     }
                 }
             }
-            item { SmallTitle("节假日与调休", Modifier.offset((-15).dp)) }
+            item { SmallTitle(text = "节假日与调休", modifier = Modifier.offset((-15).dp)) }
             if (entries.isEmpty()) item { Text(if (loading) "正在获取…" else "暂无数据，请获取网络数据或手动添加") }
             items(entries, key = { "${it.date}-${it.type}-${it.name}" }) { entry ->
                 Card(cornerRadius = 20.dp, modifier = Modifier.fillMaxWidth(), insideMargin = PaddingValues(0.dp)) {
@@ -112,8 +118,16 @@ fun HolidaySettingsScreen(scrollBehavior: SharedScrollBehavior?, liquidGlassBack
             item {
                 Card(cornerRadius = 20.dp, modifier = Modifier.fillMaxWidth(), insideMargin = PaddingValues(0.dp)) {
                     Column {
-                        ArrowPreference("添加节假日", "当天不发送课程提醒", onClick = { dialogType = HolidayManager.TYPE_HOLIDAY; date = "$year-01-01"; name = ""; showDialog = true })
-                        ArrowPreference("添加调休工作日", "按指定周次和星期匹配课程", onClick = { dialogType = HolidayManager.TYPE_WORKSWAP; date = "$year-01-01"; name = ""; showDialog = true })
+                        ArrowPreference(
+                            title = "添加节假日",
+                            summary = "当天不发送课程提醒",
+                            onClick = { dialogType = HolidayManager.TYPE_HOLIDAY; date = "$year-01-01"; name = ""; showDialog = true }
+                        )
+                        ArrowPreference(
+                            title = "添加调休工作日",
+                            summary = "按指定周次和星期匹配课程",
+                            onClick = { dialogType = HolidayManager.TYPE_WORKSWAP; date = "$year-01-01"; name = ""; showDialog = true }
+                        )
                     }
                 }
             }
