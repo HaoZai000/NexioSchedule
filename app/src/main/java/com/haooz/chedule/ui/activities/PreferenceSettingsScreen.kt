@@ -47,6 +47,7 @@ import androidx.core.content.edit
 import com.haooz.chedule.R
 import com.haooz.chedule.ui.basic.OverlayDropdownMenu
 import com.haooz.chedule.ui.basic.SharedScrollBehavior
+import com.haooz.chedule.ui.screens.invalidateWeatherCache
 import com.haooz.chedule.ui.utils.overScrollVertical
 import com.haooz.chedule.viewmodel.SettingsViewModel
 import top.yukonga.miuix.kmp.basic.Card
@@ -74,6 +75,9 @@ fun PreferenceSettingsScreen(
 
     val eduPrefs = remember { context.getSharedPreferences("edu_import_prefs", Context.MODE_PRIVATE) }
     var repoUrl by remember { mutableStateOf(eduPrefs.getString("repo_url", "https://gitee.com/XingHeYuZhuan-gh/shiguang_warehouse") ?: "https://gitee.com/XingHeYuZhuan-gh/shiguang_warehouse") }
+
+    val weatherPrefs = remember { context.getSharedPreferences("weather_prefs", Context.MODE_PRIVATE) }
+    var weatherSource by remember { mutableStateOf(weatherPrefs.getString("weather_source", "itboy") ?: "itboy") }
 
     val themePrefs = remember { context.getSharedPreferences("app_theme_prefs", Context.MODE_PRIVATE) }
     var themeMode by remember { mutableStateOf(themePrefs.getString("theme_mode", "system") ?: "system") }
@@ -109,8 +113,8 @@ fun PreferenceSettingsScreen(
     }
     // 液态玻璃效果的透明下拉颜色
     val liquidGlassDropdownColors = DropdownDefaults.dropdownColors(
-        containerColor = androidx.compose.ui.graphics.Color.Transparent,
-        selectedContainerColor = androidx.compose.ui.graphics.Color.Transparent,
+        containerColor = Color.Transparent,
+        selectedContainerColor = Color.Transparent,
     )
 
     Scaffold(
@@ -238,7 +242,7 @@ fun PreferenceSettingsScreen(
 
                 item {
                     SmallTitle(
-                        text = "启动设置",
+                        text = "应用设置",
                         modifier = Modifier.offset(x = (-15).dp)
                     )
                     Card(
@@ -275,19 +279,6 @@ fun PreferenceSettingsScreen(
                                 dropdownColors = liquidGlassDropdownColors,
                             )
                         }
-                    }
-                }
-
-                item {
-                    SmallTitle(
-                        text = "其他",
-                        modifier = Modifier.offset(x = (-15).dp)
-                    )
-                    Card(
-                        cornerRadius = 20.dp,
-                        modifier = Modifier.fillMaxWidth(),
-                        insideMargin = PaddingValues(0.dp)
-                    ) {
                         Column(modifier = Modifier.fillMaxWidth()) {
                             SwitchPreference(
                                 title = "隐藏后台",
@@ -299,6 +290,21 @@ fun PreferenceSettingsScreen(
                                     MainActivity.setTaskExcludedFromRecents(context, it)
                                 }
                             )
+                        }
+                    }
+                }
+
+                item {
+                    SmallTitle(
+                        text = "数据源",
+                        modifier = Modifier.offset(x = (-15).dp)
+                    )
+                    Card(
+                        cornerRadius = 20.dp,
+                        modifier = Modifier.fillMaxWidth(),
+                        insideMargin = PaddingValues(0.dp)
+                    ) {
+                        Column(modifier = Modifier.fillMaxWidth()) {
                             val repoEntry = DropdownEntry(
                                 items = listOf(
                                     DropdownItem(
@@ -324,6 +330,38 @@ fun PreferenceSettingsScreen(
                                 title = "数据仓库源",
                                 summary = "更新教务系统数据源的仓库",
                                 entry = repoEntry,
+                                collapseOnSelection = true,
+                                liquidGlassBackdrop = liquidGlassBackdrop,
+                                dropdownColors = liquidGlassDropdownColors,
+                            )
+
+                            val weatherSourceEntry = DropdownEntry(
+                                items = listOf(
+                                    DropdownItem(
+                                        text = "聚合接口（市级精度）",
+                                        selected = weatherSource == "itboy",
+                                        onClick = {
+                                            weatherSource = "itboy"
+                                            weatherPrefs.edit { putString("weather_source", "itboy") }
+                                            invalidateWeatherCache()
+                                        }
+                                    ),
+                                    DropdownItem(
+                                        text = "彩云天气（高精度）",
+                                        selected = weatherSource == "caiyun",
+                                        onClick = {
+                                            weatherSource = "caiyun"
+                                            weatherPrefs.edit { putString("weather_source", "caiyun") }
+                                            invalidateWeatherCache()
+                                        }
+                                    ),
+                                )
+                            )
+
+                            OverlayDropdownMenu(
+                                title = "天气数据源",
+                                summary = "今日页获取天气的数据来源",
+                                entry = weatherSourceEntry,
                                 collapseOnSelection = true,
                                 liquidGlassBackdrop = liquidGlassBackdrop,
                                 dropdownColors = liquidGlassDropdownColors,

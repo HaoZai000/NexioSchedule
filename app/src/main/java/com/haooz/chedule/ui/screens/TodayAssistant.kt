@@ -3,7 +3,15 @@ package com.haooz.chedule.ui.screens
 
 // ===================== 天气工具 =====================
 
+import android.Manifest
+import android.content.Context
+import android.content.pm.PackageManager
+import android.location.Geocoder
+import android.location.LocationManager
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -23,9 +31,11 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.core.content.ContextCompat
 import com.google.gson.Gson
 import com.haooz.chedule.R
 import com.haooz.chedule.data.Course
@@ -37,93 +47,33 @@ import okhttp3.Request
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 import java.time.LocalTime
 import java.time.format.DateTimeFormatter
+import java.util.Locale
 import java.util.concurrent.TimeUnit
 import kotlin.time.Duration.Companion.milliseconds
 
-private fun getWeatherIconRes(code: Int, isNight: Boolean = false): Int = when (code) {
-    0 -> if (isNight) R.drawable.icon_sunny_night else R.drawable.icon_sunny
-    1 -> if (isNight) R.drawable.icon_sunny_night else R.drawable.icon_sunny
-    2 -> if (isNight) R.drawable.icon_cloudy_night else R.drawable.icon_cloudy
-    3 -> R.drawable.icon_overcast
-    45, 48 -> R.drawable.icon_float_dirt
-    51, 53, 55 -> R.drawable.icon_light_rain
-    56, 57 -> R.drawable.icon_ice_rain
-    61 -> R.drawable.icon_light_rain
-    63 -> R.drawable.icon_moderate_rain
-    65 -> R.drawable.icon_heavy_rain
-    66, 67 -> R.drawable.icon_ice_rain
-    71 -> R.drawable.icon_light_snow
-    73 -> R.drawable.icon_moderate_snow
-    75 -> R.drawable.icon_heavy_snow
-    77 -> R.drawable.icon_light_snow
-    80 -> R.drawable.icon_light_rain
-    81 -> R.drawable.icon_moderate_rain
-    82 -> R.drawable.icon_heavy_rain
-    85 -> R.drawable.icon_light_snow
-    86 -> R.drawable.icon_heavy_snow
-    95, 96, 99 -> R.drawable.icon_t_storm
+// 中国天气网 type 字段（中文）→ 图标资源
+private fun getWeatherIconRes(type: String, isNight: Boolean = false): Int = when {
+    type.contains("冰雹") || type.contains("雷") -> R.drawable.icon_t_storm
+    type.contains("雾") || type.contains("霾") || type.contains("浮尘") ||
+        type.contains("扬沙") || type.contains("沙尘") -> R.drawable.icon_float_dirt
+    type.contains("冻雨") -> R.drawable.icon_ice_rain
+    type.contains("雨夹雪") -> R.drawable.icon_light_snow
+    type.contains("暴雨") || type.contains("大雨") -> R.drawable.icon_heavy_rain
+    type.contains("中雨") -> R.drawable.icon_moderate_rain
+    type.contains("小雨") || type.contains("阵雨") || type.contains("雨") -> R.drawable.icon_light_rain
+    type.contains("暴雪") || type.contains("大雪") -> R.drawable.icon_heavy_snow
+    type.contains("中雪") -> R.drawable.icon_moderate_snow
+    type.contains("小雪") || type.contains("雪") -> R.drawable.icon_light_snow
+    type.contains("阴") -> R.drawable.icon_overcast
+    type.contains("多云") -> if (isNight) R.drawable.icon_cloudy_night else R.drawable.icon_cloudy
+    type.contains("晴") -> if (isNight) R.drawable.icon_sunny_night else R.drawable.icon_sunny
     else -> if (isNight) R.drawable.icon_sunny_night else R.drawable.icon_sunny
 }
 
-private fun isRainy(code: Int): Boolean = code in 51..67 || code in 80..82
-
-private fun isSnowy(code: Int): Boolean = code in 71..77 || code in 85..86
-
-private fun isStormy(code: Int): Boolean = code in 95..99
-
-private fun isFoggy(code: Int): Boolean = code in 45..48
-
-private fun getWeatherCondition(code: Int): String = when (code) {
-    0 -> "晴天"
-    1 -> "大部晴朗"
-    2 -> "局部多云"
-    3 -> "阴天"
-    45, 48 -> "雾"
-    51, 53, 55 -> "毛毛雨"
-    56, 57 -> "冻雨"
-    61 -> "小雨"
-    63 -> "中雨"
-    65 -> "大雨"
-    66, 67 -> "冻雨"
-    71 -> "小雪"
-    73 -> "中雪"
-    75 -> "大雪"
-    77 -> "雪粒"
-    80 -> "小阵雨"
-    81 -> "中阵雨"
-    82 -> "暴阵雨"
-    85 -> "小阵雪"
-    86 -> "大阵雪"
-    95 -> "雷暴"
-    96 -> "雷暴伴冰雹"
-    99 -> "强雷暴"
-    else -> "未知"
-}
-
-private fun getWeatherAdvice(temp: Float, weatherCode: Int): String = when {
-    // 恶劣天气优先
-    isStormy(weatherCode) -> "雷暴天气，避免外出"
-    isFoggy(weatherCode) -> "能见度低，注意安全"
-    // 雨天
-    weatherCode == 56 || weatherCode == 57 -> "冻雨路滑，减少出行"
-    weatherCode == 66 || weatherCode == 67 -> "冻雨天气，注意安全"
-    weatherCode == 65 -> "大雨倾盆，带好雨具"
-    weatherCode in 61..63 || isRainy(weatherCode) -> "记得带伞"
-    // 雪天
-    weatherCode == 75 -> "大雪纷飞，注意保暖"
-    weatherCode == 86 -> "大阵雪，减少出行"
-    isSnowy(weatherCode) -> "雨雪天气，注意保暖"
-    // 温度
-    temp < 0f -> "严寒天气，注意防冻"
-    temp in 0f..5f -> "天气寒冷，注意保暖"
-    temp in 5f..10f -> "气温较低，注意保暖"
-    temp in 10f..15f -> "天气偏凉，适当添衣"
-    temp in 15f..20f -> "气温舒适"
-    temp in 20f..28f -> "适合出行"
-    temp in 28f..33f -> "天气炎热，注意防暑"
-    temp in 33f..35f -> "高温天气，减少户外活动"
-    temp > 35f -> "极端高温，避免外出"
-    else -> "适合出行"
+// 让外部（如设置页）能作废缓存，使下一次进入今日页时按新设置重新拉取
+fun invalidateWeatherCache() {
+    lastWeatherFetchTime = 0L
+    cachedWeather = null
 }
 
 private fun parseTime(timeStr: String): LocalTime? {
@@ -145,14 +95,47 @@ private val httpClient = OkHttpClient.Builder()
 
 private var lastWeatherFetchTime = 0L
 private var cachedWeather: WeatherData? = null
+private var hasAskedLocationPermissionThisSession = false
 private const val WEATHER_REFRESH_INTERVAL = 2 * 60 * 1000L // 2分钟
+
+// 城市名 → 中国天气网 citykey 映射（从 assets/city_code.json 懒加载，进程内缓存）
+private var cityCodeMap: Map<String, String>? = null
+private val cityCodeMapLock = Any()
+
+private fun getCityCodeMap(context: Context): Map<String, String> {
+    cityCodeMap?.let { return it }
+    synchronized(cityCodeMapLock) {
+        cityCodeMap?.let { return it }
+        val map = mutableMapOf<String, String>()
+        try {
+            context.assets.open("city_code.json").bufferedReader().use { reader ->
+                @Suppress("UNCHECKED_CAST")
+                val root = Gson().fromJson(reader.readText(), Map::class.java) as? Map<String, Any>
+                @Suppress("UNCHECKED_CAST")
+                val provinces = root?.get("城市代码") as? List<Map<String, Any>>
+                provinces?.forEach { province ->
+                    @Suppress("UNCHECKED_CAST")
+                    (province["市"] as? List<Map<String, Any>>)?.forEach { city ->
+                        val name = city["市名"] as? String
+                        val code = city["编码"] as? String
+                        if (!name.isNullOrBlank() && !code.isNullOrBlank()) map[name] = code
+                    }
+                }
+            }
+        } catch (_: Exception) { }
+        cityCodeMap = map
+        return map
+    }
+}
 
 private data class WeatherData(
     val temperature: Float = Float.NaN,
-    val weatherCode: Int = -1,
+    val weatherType: String = "",
     val sunset: String = "",
     val sunrise: String = "",
-    val loaded: Boolean = false
+    val notice: String = "",
+    val loaded: Boolean = false,
+    val needsLocation: Boolean = false
 ) {
     fun isNight(): Boolean {
         if (sunset.isBlank() || sunrise.isBlank()) return false
@@ -163,54 +146,196 @@ private data class WeatherData(
     }
 }
 
+// 共用：取最近一次已知位置。优先 GPS（需精确权限，精度高），回退 NETWORK（粗略即可）。无权限/未开定位/无记录都返回 null。
+@Suppress("MissingPermission")
+private fun getLastKnownLocation(context: Context, useLocation: Boolean): android.location.Location? {
+    if (!useLocation) return null
+    val fineGranted = ContextCompat.checkSelfPermission(
+        context, Manifest.permission.ACCESS_FINE_LOCATION
+    ) == PackageManager.PERMISSION_GRANTED
+    val coarseGranted = ContextCompat.checkSelfPermission(
+        context, Manifest.permission.ACCESS_COARSE_LOCATION
+    ) == PackageManager.PERMISSION_GRANTED
+    if (!fineGranted && !coarseGranted) return null
+    return try {
+        val lm = context.getSystemService(Context.LOCATION_SERVICE) as? LocationManager
+            ?: return null
+        val gps = if (fineGranted && lm.isProviderEnabled(LocationManager.GPS_PROVIDER))
+            lm.getLastKnownLocation(LocationManager.GPS_PROVIDER) else null
+        val net = if (coarseGranted && lm.isProviderEnabled(LocationManager.NETWORK_PROVIDER))
+            lm.getLastKnownLocation(LocationManager.NETWORK_PROVIDER) else null
+        gps ?: net
+    } catch (_: Exception) {
+        null
+    }
+}
+
+// 中国天气网源：城市名 → citykey。任何环节失败都返回 null（由 UI 提示需定位权限）。
+private fun resolveCityCode(context: Context, useLocation: Boolean): String? {
+    val map = getCityCodeMap(context)
+    val loc = getLastKnownLocation(context, useLocation) ?: return null
+    return try {
+        val geocoder = Geocoder(context, Locale.getDefault())
+        @Suppress("DEPRECATION")
+        val addresses = geocoder.getFromLocation(loc.latitude, loc.longitude, 1)
+        val addr = addresses?.firstOrNull()
+        // 候选城市名：locality(地级市) > subAdminArea > adminArea(直辖市兜底)
+        val candidates = listOfNotNull(
+            addr?.locality, addr?.subAdminArea, addr?.adminArea
+        ).filter { it.isNotBlank() }
+        for (raw in candidates) {
+            val cleaned = raw.removeSuffix("市")
+                .removeSuffix("地区").removeSuffix("自治州").removeSuffix("盟")
+            // 直辖市的 locality 可能是"海淀区"这类区名，剥掉"区"也能匹配到对应区码
+            val cleanedDistrict = if (cleaned.endsWith("区") && cleaned.length > 2)
+                cleaned.removeSuffix("区") else cleaned
+            map[cleanedDistrict]?.let { return it }
+            map[cleaned]?.let { return it }
+            map[raw]?.let { return it }
+        }
+        null
+    } catch (_: Exception) {
+        null
+    }
+}
+
+// 彩云天气源：取经纬度（lng, lat）。失败返回 null。
+private fun resolveCoordinates(context: Context, useLocation: Boolean): Pair<Double, Double>? {
+    val loc = getLastKnownLocation(context, useLocation) ?: return null
+    return Pair(loc.longitude, loc.latitude) // 彩云 URL 路径中经度在前
+}
+
 @Composable
-private fun rememberWeather(): WeatherData {
+private fun rememberWeather(): Pair<WeatherData, () -> Unit> {
+    val context = LocalContext.current
+    val weatherPrefs = remember { context.getSharedPreferences("weather_prefs", Context.MODE_PRIVATE) }
+    val weatherSource = weatherPrefs.getString("weather_source", "itboy") ?: "itboy"
+
     var weather by remember { mutableStateOf(cachedWeather ?: WeatherData()) }
-    LaunchedEffect(Unit) {
+    var hasLocationPermission by remember {
+        mutableStateOf(
+            ContextCompat.checkSelfPermission(
+                context, Manifest.permission.ACCESS_FINE_LOCATION
+            ) == PackageManager.PERMISSION_GRANTED ||
+            ContextCompat.checkSelfPermission(
+                context, Manifest.permission.ACCESS_COARSE_LOCATION
+            ) == PackageManager.PERMISSION_GRANTED
+        )
+    }
+    val permissionLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.RequestMultiplePermissions()
+    ) { grants ->
+        hasLocationPermission = grants.values.any { it }
+        if (hasLocationPermission) lastWeatherFetchTime = 0L // 授权后强制刷新一次
+    }
+
+    LaunchedEffect(hasLocationPermission, weatherSource) {
         val now = System.currentTimeMillis()
         if (now - lastWeatherFetchTime < WEATHER_REFRESH_INTERVAL && cachedWeather != null) {
             weather = cachedWeather!!
             return@LaunchedEffect
         }
         lastWeatherFetchTime = now
+        // 没权限时仅询问一次（本进程内），避免切换 tab 反复弹窗
+        if (!hasLocationPermission && !hasAskedLocationPermissionThisSession) {
+            hasAskedLocationPermissionThisSession = true
+            permissionLauncher.launch(arrayOf(Manifest.permission.ACCESS_FINE_LOCATION, Manifest.permission.ACCESS_COARSE_LOCATION))
+        }
         withContext(Dispatchers.IO) {
-            try {
-                val url = "https://api.open-meteo.com/v1/forecast" +
-                    "?latitude=23.585&longitude=116.459" +
-                    "&current=temperature_2m,weathercode" +
-                    "&daily=sunset,sunrise" +
-                    "&timezone=Asia/Shanghai" +
-                    "&forecast_days=1"
-                val request = Request.Builder().url(url).build()
-                val response = httpClient.newCall(request).execute()
-                response.use { resp ->
-                    val body = resp.body?.string() ?: return@use
-                    @Suppress("UNCHECKED_CAST")
-                    val json = Gson().fromJson(body, Map::class.java) as? Map<String, Any> ?: return@use
-                    @Suppress("UNCHECKED_CAST")
-                    val current = json["current"] as? Map<String, Any> ?: return@use
-                    val temp = (current["temperature_2m"] as? Number)?.toFloat() ?: Float.NaN
-                    val code = (current["weathercode"] as? Number)?.toInt() ?: -1
-                    @Suppress("UNCHECKED_CAST")
-                    val daily = json["daily"] as? Map<String, Any> ?: return@use
-                    @Suppress("UNCHECKED_CAST")
-                    val sunsetList = daily["sunset"] as? List<String> ?: emptyList()
-                    @Suppress("UNCHECKED_CAST")
-                    val sunriseList = daily["sunrise"] as? List<String> ?: emptyList()
-                    val sunset = sunsetList.firstOrNull() ?: ""
-                    val sunrise = sunriseList.firstOrNull() ?: ""
-                    val newData = WeatherData(temp, code, sunset, sunrise, true)
-                    cachedWeather = newData
-                    weather = newData
+            when (weatherSource) {
+                "caiyun" -> {
+                    // 彩云天气（apizero 免 Token 聚合源）：经纬度查询
+                    val coords = resolveCoordinates(context, hasLocationPermission)
+                    if (coords == null) {
+                        weather = WeatherData(needsLocation = true, loaded = true)
+                        return@withContext
+                    }
+                    try {
+                        val (lng, lat) = coords
+                        val url = "https://v1.apizero.cn/api/weather?location=$lng,$lat"
+                        val request = Request.Builder().url(url).build()
+                        httpClient.newCall(request).execute().use { resp ->
+                            val body = resp.body?.string() ?: return@use
+                            @Suppress("UNCHECKED_CAST")
+                            val json = Gson().fromJson(body, Map::class.java) as? Map<String, Any> ?: return@use
+                            val code = (json["code"] as? Number)?.toInt() ?: -1
+                            if (code != 0) {
+                                val errorData = WeatherData(loaded = true)
+                                cachedWeather = errorData
+                                weather = errorData
+                                return@use
+                            }
+                            @Suppress("UNCHECKED_CAST")
+                            val data = json["data"] as? Map<String, Any> ?: return@use
+                            @Suppress("UNCHECKED_CAST")
+                            val summary = data["summary"] as? Map<String, Any> ?: return@use
+                            val temp = (summary["temperature"] as? Number)?.toFloat() ?: Float.NaN
+                            val type = (summary["skycon"] as? String).orEmpty() // 已是中文
+                            val notice = (data["forecast_keypoint"] as? String).orEmpty()
+                            @Suppress("UNCHECKED_CAST")
+                            val daily = data["daily"] as? Map<String, Any> ?: return@use
+                            @Suppress("UNCHECKED_CAST")
+                            val astroList = daily["astro"] as? List<Map<String, Any>> ?: emptyList()
+                            val astro = astroList.firstOrNull() ?: return@use
+                            @Suppress("UNCHECKED_CAST")
+                            val sunriseObj = astro["sunrise"] as? Map<String, Any>
+                            @Suppress("UNCHECKED_CAST")
+                            val sunsetObj = astro["sunset"] as? Map<String, Any>
+                            val sunrise = (sunriseObj?.get("time") as? String).orEmpty()
+                            val sunset = (sunsetObj?.get("time") as? String).orEmpty()
+                            val newData = WeatherData(temp, type, sunset, sunrise, notice, true)
+                            cachedWeather = newData
+                            weather = newData
+                        }
+                    } catch (_: Exception) {
+                        val errorData = WeatherData(loaded = true)
+                        cachedWeather = errorData
+                        weather = errorData
+                    }
                 }
-            } catch (_: Exception) {
-                val errorData = WeatherData(loaded = true)
-                cachedWeather = errorData
-                weather = errorData
+                else -> {
+                    // 中国天气网源：定位 → citykey → 拉取
+                    val cityCode = resolveCityCode(context, hasLocationPermission)
+                    if (cityCode == null) {
+                        weather = WeatherData(needsLocation = true, loaded = true)
+                        return@withContext
+                    }
+                    try {
+                        val url = "http://t.weather.itboy.net/api/weather/city/$cityCode"
+                        val request = Request.Builder().url(url).build()
+                        httpClient.newCall(request).execute().use { resp ->
+                            val body = resp.body?.string() ?: return@use
+                            @Suppress("UNCHECKED_CAST")
+                            val json = Gson().fromJson(body, Map::class.java) as? Map<String, Any> ?: return@use
+                            @Suppress("UNCHECKED_CAST")
+                            val data = json["data"] as? Map<String, Any> ?: return@use
+                            val wendu = (data["wendu"] as? String).orEmpty()
+                            val temp = wendu.substringBefore("℃").trim().toFloatOrNull() ?: Float.NaN
+                            @Suppress("UNCHECKED_CAST")
+                            val forecast = data["forecast"] as? List<Map<String, Any>> ?: emptyList()
+                            val today = forecast.firstOrNull() ?: return@use
+                            val type = (today["type"] as? String).orEmpty()
+                            val sunrise = (today["sunrise"] as? String).orEmpty()
+                            val sunset = (today["sunset"] as? String).orEmpty()
+                            val notice = (today["notice"] as? String).orEmpty()
+                            val newData = WeatherData(temp, type, sunset, sunrise, notice, true)
+                            cachedWeather = newData
+                            weather = newData
+                        }
+                    } catch (_: Exception) {
+                        val errorData = WeatherData(loaded = true)
+                        cachedWeather = errorData
+                        weather = errorData
+                    }
+                }
             }
         }
     }
-    return weather
+    return weather to {
+        if (!hasLocationPermission) {
+            permissionLauncher.launch(arrayOf(Manifest.permission.ACCESS_FINE_LOCATION, Manifest.permission.ACCESS_COARSE_LOCATION))
+        }
+    }
 }
 
 // ===================== 课程状态（每秒更新） =====================
@@ -455,7 +580,7 @@ fun TodayAssistantCard(
     wallpaperBackdrop: com.kyant.backdrop.Backdrop? = null,
     blurRadius: Float = 0f
 ) {
-    val weather = rememberWeather()
+    val (weather, requestLocation) = rememberWeather()
     val courseStatus = rememberCourseStatus(courses, sectionTimes)
     var tick by remember { mutableLongStateOf(System.currentTimeMillis()) }
     LaunchedEffect(Unit) {
@@ -584,18 +709,31 @@ fun TodayAssistantCard(
                     if (weather.loaded && !weather.temperature.isNaN()) {
                         androidx.compose.foundation.Image(
                             painter = androidx.compose.ui.res.painterResource(
-                                id = getWeatherIconRes(weather.weatherCode, weather.isNight())
+                                id = getWeatherIconRes(weather.weatherType, weather.isNight())
                             ),
                             contentDescription = null,
                             modifier = Modifier.size(20.dp)
                         )
                         Spacer(modifier = Modifier.width(6.dp))
-                        val condition = getWeatherCondition(weather.weatherCode)
-                        val advice = getWeatherAdvice(weather.temperature, weather.weatherCode)
                         Text(
-                            text = "${weather.temperature.toInt()}°C $condition · $advice",
+                            text = "${weather.temperature.toInt()}°C ${weather.weatherType} · ${weather.notice}",
                             style = MiuixTheme.textStyles.body2,
                             color = MiuixTheme.colorScheme.onSurfaceVariantActions
+                        )
+                    } else if (weather.needsLocation) {
+                        androidx.compose.foundation.Image(
+                            painter = androidx.compose.ui.res.painterResource(
+                                id = R.drawable.ic_widget_location
+                            ),
+                            contentDescription = null,
+                            modifier = Modifier.size(20.dp)
+                        )
+                        Spacer(modifier = Modifier.width(6.dp))
+                        Text(
+                            text = "需要定位权限·点击授权",
+                            style = MiuixTheme.textStyles.body2,
+                            color = MiuixTheme.colorScheme.onSurfaceVariantActions,
+                            modifier = Modifier.clickable { requestLocation() }
                         )
                     } else {
                         androidx.compose.foundation.Image(
