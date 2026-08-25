@@ -400,7 +400,7 @@ private fun ThemeSelectionBox(
                 .squircleBorder(
                     width = 3.dp,
                     color = if (selected) MiuixTheme.colorScheme.primary else Color.Transparent,
-                    cornerRadius = 25.dp
+                    cornerRadius = 26.dp
                 )
                 .padding(6.dp)
         ) {
