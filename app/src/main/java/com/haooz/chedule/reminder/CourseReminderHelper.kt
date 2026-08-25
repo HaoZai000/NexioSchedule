@@ -16,6 +16,7 @@ import com.haooz.chedule.data.Course
 import com.haooz.chedule.data.CourseRepository
 import com.haooz.chedule.reminder.CourseReminderHelper.schedulePreClassAlarms
 import com.haooz.chedule.ui.activities.MainActivity
+import java.time.LocalDate
 import java.util.Calendar
 
 object CourseReminderHelper {
@@ -118,6 +119,21 @@ object CourseReminderHelper {
         scheduleWidgetRefresh(context, alarmManager)
     }
 
+    /**
+     * 判断学期是否已开始：开学日期所在周的周一 <= 今天。
+     * 即使 currentWeek 被误判为第 1 周，只要还没到开学周，课前/次日提醒都不应调度或发送。
+     */
+    fun isSemesterStarted(repository: CourseRepository): Boolean {
+        return try {
+            val start = LocalDate.parse(repository.getClassStartTime().replace("/", "-"))
+            val startMonday = start.minusDays((start.dayOfWeek.value - 1).toLong())
+            !LocalDate.now().isBefore(startMonday)
+        } catch (_: Exception) {
+            // 日期解析失败时保守放行，避免误屏蔽正常提醒
+            true
+        }
+    }
+
     fun stopReminderService(context: Context) {
         val alarmManager = context.getSystemService(Context.ALARM_SERVICE) as AlarmManager
         cancelAllAlarms(context, alarmManager)
@@ -200,6 +216,9 @@ object CourseReminderHelper {
         repository: CourseRepository,
         alarmManager: AlarmManager
     ) {
+        // 学期未开始（未到开学日期所在周的周一），不调度任何课前提醒
+        if (!isSemesterStarted(repository)) return
+
         val minutesBefore = repository.getPreClassReminderMinutes()
         val currentWeek = repository.getCurrentWeek()
         val totalWeeks = repository.getTotalWeeks()
@@ -259,7 +278,9 @@ object CourseReminderHelper {
             if (currentMinutes >= triggerMinutes) {
                 // 已过触发时间，对未开始的课程发送立即通知
                 // 去重依赖 isPreClassSentRecently，每门课独立判断，不再用 immediateSent 阻断
-                val dedupCourseId = "${course.name}|${course.getSectionText()}|$startTime"
+                // 使用 getTimeDisplayText() 与 AlarmReceiver 定时闹钟的 EXTRA_COURSE_SECTION 保持一致，
+                // 避免自定义时间课程（节次文本与时间文本不同）去重 ID 不匹配导致重复提醒
+                val dedupCourseId = "${course.name}|${course.getTimeDisplayText()}|$startTime"
                 if (currentMinutes < startTotalMinutes
                     && !isPreClassSentRecently(context, dedupCourseId)) {
                     recordPreClassSent(context, dedupCourseId)
@@ -382,6 +403,9 @@ object CourseReminderHelper {
         repository: CourseRepository,
         alarmManager: AlarmManager
     ) {
+        // 学期未开始（未到开学日期所在周的周一），不调度次日课程提醒
+        if (!isSemesterStarted(repository)) return
+
         // 学期未开始或已结束，不再调度明日课程提醒
         val currentWeek = repository.getCurrentWeek()
         val totalWeeks = repository.getTotalWeeks()

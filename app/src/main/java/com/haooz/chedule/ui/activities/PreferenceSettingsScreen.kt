@@ -182,8 +182,8 @@ fun PreferenceSettingsScreen(
                             )
                             if (islandNotification) {
                                 SwitchPreference(
-                                    title = "超级岛展开态流光光效",
-                                    summary = "在小米超级岛展开时显示流光光效效果",
+                                    title = "小米超级岛光效",
+                                    summary = "在小米超级岛展开态显示流动光效",
                                     checked = islandExpandGlowEnabled,
                                     onCheckedChange = {
                                         islandExpandGlowEnabled = it

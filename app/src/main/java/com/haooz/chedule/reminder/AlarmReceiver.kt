@@ -32,6 +32,13 @@ class AlarmReceiver : BroadcastReceiver() {
                     return
                 }
 
+                // 学期未开始（未到开学日期所在周的周一）：不发送，并重新调度清理残留闹钟
+                if (!CourseReminderHelper.isSemesterStarted(repository)) {
+                    Log.d("AlarmReceiver", "Semester not started yet, skipping pre-class notification for $courseName")
+                    CourseReminderHelper.startReminderService(context)
+                    return
+                }
+
                 if (useIsland) {
                     val minutesUntil = if (startTime.isNotEmpty()) {
                         val parts = startTime.split(":")
@@ -113,6 +120,12 @@ class AlarmReceiver : BroadcastReceiver() {
             }
 
             CourseReminderHelper.TYPE_NEXT_DAY -> {
+                // 学期未开始（未到开学日期所在周的周一）：不发送次日提醒
+                if (!CourseReminderHelper.isSemesterStarted(repository)) {
+                    CourseReminderHelper.startReminderService(context)
+                    return
+                }
+
                 val tomorrowCourses = CourseReminderHelper.getTomorrowCourses(context)
 
                 if (tomorrowCourses.isEmpty()) {
