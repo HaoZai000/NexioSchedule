@@ -194,7 +194,6 @@ fun AdapterSelectionBottomSheet(
         summary = "请输入要访问的教务系统网址",
         show = showUrlDialog,
         onDismissRequest = { showUrlDialog = false },
-        liquidGlassBackdrop = sheetContentBackdrop ?: liquidGlassBackdrop
     ) {
         Column(
             modifier = Modifier.fillMaxWidth(),
@@ -277,8 +276,6 @@ private fun AdapterRow(
                 text = adapter.description.ifBlank { "暂无详细描述" },
                 fontSize = 13.sp,
                 color = MiuixTheme.colorScheme.onSurfaceVariantActions,
-                maxLines = 2,
-                overflow = TextOverflow.Ellipsis
             )
             if (adapter.maintainer.isNotBlank()) {
                 Spacer(Modifier.height(4.dp))
