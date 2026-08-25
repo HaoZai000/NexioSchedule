@@ -9,7 +9,7 @@ import android.net.Uri
 import com.haooz.chedule.data.CourseRepository
 import com.haooz.chedule.reminder.CourseReminderHelper
 
-/** Read-only API for today's active courses. */
+/** Read-only API for today's and tomorrow's active courses. */
 class TodayCoursesProvider : ContentProvider() {
 
     override fun onCreate(): Boolean = context != null
@@ -21,7 +21,8 @@ class TodayCoursesProvider : ContentProvider() {
         selectionArgs: Array<out String>?,
         sortOrder: String?,
     ): Cursor {
-        require(uriMatcher.match(uri) == TODAY_COURSES) { "Unsupported URI: $uri" }
+        val match = uriMatcher.match(uri)
+        require(match == TODAY_COURSES || match == TOMORROW_COURSES) { "Unsupported URI: $uri" }
         require(selection == null && selectionArgs == null) { "Selection is not supported" }
 
         val appContext = requireNotNull(context)
@@ -29,8 +30,13 @@ class TodayCoursesProvider : ContentProvider() {
         val columns = projection?.toList() ?: DEFAULT_COLUMNS
         require(columns.all { it in DEFAULT_COLUMNS }) { "Unsupported column requested" }
 
+        val courses = if (match == TODAY_COURSES) {
+            CourseReminderHelper.getTodayCourses(appContext)
+        } else {
+            CourseReminderHelper.getTomorrowCourses(appContext)
+        }
         return MatrixCursor(columns.toTypedArray()).apply {
-            CourseReminderHelper.getTodayCourses(appContext).forEach { course ->
+            courses.forEach { course ->
                 val values = mapOf(
                     COLUMN_ID to course.id,
                     COLUMN_NAME to course.name,
@@ -48,7 +54,8 @@ class TodayCoursesProvider : ContentProvider() {
     }
 
     override fun getType(uri: Uri): String {
-        require(uriMatcher.match(uri) == TODAY_COURSES) { "Unsupported URI: $uri" }
+        val match = uriMatcher.match(uri)
+        require(match == TODAY_COURSES || match == TOMORROW_COURSES) { "Unsupported URI: $uri" }
         return "vnd.android.cursor.dir/vnd.com.haooz.chedule.course"
     }
 
@@ -70,7 +77,9 @@ class TodayCoursesProvider : ContentProvider() {
     private companion object {
         const val AUTHORITY = "com.haooz.chedule.courses"
         const val PATH_TODAY = "today"
+        const val PATH_TOMORROW = "tomorrow"
         const val TODAY_COURSES = 1
+        const val TOMORROW_COURSES = 2
 
         const val COLUMN_ID = "id"
         const val COLUMN_NAME = "name"
@@ -96,6 +105,7 @@ class TodayCoursesProvider : ContentProvider() {
 
         val uriMatcher = UriMatcher(UriMatcher.NO_MATCH).apply {
             addURI(AUTHORITY, PATH_TODAY, TODAY_COURSES)
+            addURI(AUTHORITY, PATH_TOMORROW, TOMORROW_COURSES)
         }
     }
 }

@@ -59,9 +59,10 @@ object HolidayManager {
         load(context, date.year).firstOrNull { it.type == TYPE_WORKSWAP && it.matches(date.toString()) }
 
     fun mergeApiEntries(context: Context, year: Int, apiEntries: List<Entry>) {
-        val custom = load(context, year).filter { it.custom }
-        val merged = (custom + apiEntries).distinctBy { "${it.date}|${it.type}|${it.name}" }
-        save(context, year, merged)
+        val existing = load(context, year)
+        val apiKeys = apiEntries.map { "${it.date}|${it.type}" }.toSet()
+        val preserved = existing.filter { it.custom || "${it.date}|${it.type}" !in apiKeys }
+        save(context, year, preserved + apiEntries)
     }
 
     fun clear(context: Context, year: Int) {
