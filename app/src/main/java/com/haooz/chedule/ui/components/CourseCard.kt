@@ -406,17 +406,26 @@ private fun CardContent(course: Course, sectionCount: Int, textColor: Color, has
     val infoFontSize = 11.sp
     val infoLineHeight = 12.sp
     val courseNameLineHeight = 14.2.sp
+    val courseNameFontSize = 12.7.sp
 
-    val showClassroom = sectionCount >= 2 && course.classroom.isNotEmpty()
-    val showTeacher = sectionCount >= 2 && course.teacher.isNotEmpty()
+    // 教室显示判断：不再根据课程节数判断；卡片高度 >= 70dp 时显示教室
+    val showClassroom = course.classroom.isNotBlank() && cardHeightDp >= 69.5f
+    // 教师显示判断：保持不变（节数 >= 2 且教师非空）
+    val showTeacher = sectionCount >= 2 && course.teacher.isNotBlank()
 
     // 课程名称最多行数：卡片高度能放下几行就几行
+    // 当卡片高度 >= 70dp 时课程名称最多占 2 行以保证教室显示；当 >= 92dp 时最多占 3 行（或按卡片剩余高度计算）
     val density = LocalDensity.current
     val availableHeightDp = cardHeightDp - 16f
     val courseNameLineH = with(density) { courseNameLineHeight.toDp().value }
     val infoLineH = with(density) { infoLineHeight.toDp().value }
     val reservedForInfo = ((if (showClassroom) 1 else 0) + (if (showTeacher) 1 else 0)) * infoLineH
-    val nameMaxLines = ((availableHeightDp - reservedForInfo) / courseNameLineH).toInt().coerceAtLeast(1)
+    val calculatedMaxLines = ((availableHeightDp - reservedForInfo) / courseNameLineH).toInt().coerceAtLeast(1)
+    val nameMaxLines = when {
+        cardHeightDp >= 91.5f -> calculatedMaxLines.coerceAtMost(3).coerceAtLeast(1)
+        cardHeightDp >= 69.5f -> calculatedMaxLines.coerceAtMost(2).coerceAtLeast(1)
+        else -> calculatedMaxLines
+    }
 
     Box(modifier = Modifier.fillMaxSize()) {
         val verticalArrangement = when (cardContentAlignment) {
@@ -448,7 +457,7 @@ private fun CardContent(course: Course, sectionCount: Int, textColor: Color, has
             Text(
                 text = course.name,
                 fontWeight = FontWeight.Bold,
-                fontSize = 12.7.sp,
+                fontSize = courseNameFontSize,
                 lineHeight = courseNameLineHeight,
                 color = textColor,
                 textAlign = textAlign,
