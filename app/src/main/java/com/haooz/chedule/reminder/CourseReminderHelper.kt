@@ -17,6 +17,7 @@ import com.haooz.chedule.data.CourseRepository
 import com.haooz.chedule.data.HolidayManager
 import com.haooz.chedule.reminder.CourseReminderHelper.schedulePreClassAlarms
 import com.haooz.chedule.ui.activities.MainActivity
+import java.time.LocalDate
 import java.util.Calendar
 
 object CourseReminderHelper {
@@ -26,6 +27,7 @@ object CourseReminderHelper {
     const val EXTRA_COURSE_CLASSROOM = "course_classroom"
     const val EXTRA_COURSE_SECTION = "course_section"
     const val EXTRA_COURSE_START_TIME = "course_start_time"
+    const val EXTRA_COURSE_END_TIME = "course_end_time"
     const val EXTRA_COURSE_TEACHER = "course_teacher"
     const val EXTRA_OPEN_REMINDER_SETTINGS = "open_reminder_settings"
     const val EXTRA_COURSE_START_MILLIS = "course_start_millis"
@@ -119,6 +121,21 @@ object CourseReminderHelper {
         scheduleWidgetRefresh(context, alarmManager)
     }
 
+    /**
+     * 判断学期是否已开始：开学日期所在周的周一 <= 今天。
+     * 即使 currentWeek 被误判为第 1 周，只要还没到开学周，课前/次日提醒都不应调度或发送。
+     */
+    fun isSemesterStarted(repository: CourseRepository): Boolean {
+        return try {
+            val start = LocalDate.parse(repository.getClassStartTime().replace("/", "-"))
+            val startMonday = start.minusDays((start.dayOfWeek.value - 1).toLong())
+            !LocalDate.now().isBefore(startMonday)
+        } catch (_: Exception) {
+            // 日期解析失败时保守放行，避免误屏蔽正常提醒
+            true
+        }
+    }
+
     fun stopReminderService(context: Context) {
         val alarmManager = context.getSystemService(Context.ALARM_SERVICE) as AlarmManager
         cancelAllAlarms(context, alarmManager)
@@ -201,6 +218,9 @@ object CourseReminderHelper {
         repository: CourseRepository,
         alarmManager: AlarmManager
     ) {
+        // 学期未开始（未到开学日期所在周的周一），不调度任何课前提醒
+        if (!isSemesterStarted(repository)) return
+
         val minutesBefore = repository.getPreClassReminderMinutes()
         var currentWeek = repository.getCurrentWeek()
         val totalWeeks = repository.getTotalWeeks()
@@ -269,18 +289,22 @@ object CourseReminderHelper {
             if (currentMinutes >= triggerMinutes) {
                 // 已过触发时间，对未开始的课程发送立即通知
                 // 去重依赖 isPreClassSentRecently，每门课独立判断，不再用 immediateSent 阻断
-                val dedupCourseId = "${course.name}|${course.getSectionText()}|$startTime"
+                // 使用 getTimeDisplayText() 与 AlarmReceiver 定时闹钟的 EXTRA_COURSE_SECTION 保持一致，
+                // 避免自定义时间课程（节次文本与时间文本不同）去重 ID 不匹配导致重复提醒
+                val dedupCourseId = "${course.name}|${course.getTimeDisplayText()}|$startTime"
                 if (currentMinutes < startTotalMinutes
                     && !isPreClassSentRecently(context, dedupCourseId)) {
                     recordPreClassSent(context, dedupCourseId)
                     if (useIsland) {
                         val minutesUntil = startTotalMinutes - currentMinutes
+                        val endTime = getCourseEndTime(course, repository)
                         IslandNotificationHelper.sendPreClassIslandNotification(
                             context = context,
                             courseName = course.name,
                             classroom = course.classroom,
                             section = course.getTimeDisplayText(),
                             startTime = startTime,
+                            endTime = endTime,
                             teacher = course.teacher,
                             minutesUntil = minutesUntil,
                             notificationId = 1003
@@ -298,6 +322,7 @@ object CourseReminderHelper {
                             putExtra(IslandExpandReceiver.EXTRA_CLASSROOM, course.classroom)
                             putExtra(IslandExpandReceiver.EXTRA_SECTION, course.getTimeDisplayText())
                             putExtra(IslandExpandReceiver.EXTRA_START_TIME, startTime)
+                            putExtra(IslandExpandReceiver.EXTRA_END_TIME, endTime ?: "")
                             putExtra(IslandExpandReceiver.EXTRA_NOTIFICATION_ID, 1003)
                         }
                         val expandPending = PendingIntent.getBroadcast(
@@ -345,6 +370,7 @@ object CourseReminderHelper {
                 putExtra(EXTRA_COURSE_CLASSROOM, course.classroom)
                 putExtra(EXTRA_COURSE_SECTION, course.getTimeDisplayText())
                 putExtra(EXTRA_COURSE_START_TIME, startTime)
+                putExtra(EXTRA_COURSE_END_TIME, getCourseEndTime(course, repository) ?: "")
                 putExtra(EXTRA_COURSE_TEACHER, course.teacher)
                 // courseStartMillis 必须是课程实际上课时间，与 alarmTime（触发时间）解耦
                 // 连堂课触发时间可能是上一节课的结束时间，不能用 alarmTime + minutesBefore
@@ -392,6 +418,9 @@ object CourseReminderHelper {
         repository: CourseRepository,
         alarmManager: AlarmManager
     ) {
+        // 学期未开始（未到开学日期所在周的周一），不调度次日课程提醒
+        if (!isSemesterStarted(repository)) return
+
         // 学期未开始或已结束，不再调度明日课程提醒
         val currentWeek = repository.getCurrentWeek()
         val totalWeeks = repository.getTotalWeeks()

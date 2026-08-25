@@ -155,6 +155,8 @@ class CourseViewModel(application: Application) : AndroidViewModel(application) 
         val calculatedWeek = calculateCurrentWeekFromDate(_classStartTime.value)
         _currentWeek.value = calculatedWeek
         _isHoliday.value = isWeekHoliday(calculatedWeek)
+        // 日期/周次可能变化，立即重调度提醒（含开学前取消残留闹钟）
+        rescheduleReminders()
     }
 
     /**
@@ -174,6 +176,8 @@ class CourseViewModel(application: Application) : AndroidViewModel(application) 
             _classStartTime.value = newStartDateStr
             repository.setClassStartTime(newStartDateStr)
         }
+        // 周次/开学日期已变化，立即重调度提醒
+        rescheduleReminders()
     }
 
     /**
@@ -187,6 +191,8 @@ class CourseViewModel(application: Application) : AndroidViewModel(application) 
         _currentWeek.value = newWeek
         repository.setCurrentWeek(newWeek)
         _isHoliday.value = isWeekHoliday(newWeek)
+        // 开学日期已变化，立即重调度提醒（开学前取消已注册的课前/次日闹钟）
+        rescheduleReminders()
     }
 
     /**

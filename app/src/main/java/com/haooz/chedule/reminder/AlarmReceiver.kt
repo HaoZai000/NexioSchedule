@@ -20,6 +20,7 @@ class AlarmReceiver : BroadcastReceiver() {
                 val classroom = intent.getStringExtra(CourseReminderHelper.EXTRA_COURSE_CLASSROOM) ?: ""
                 val section = intent.getStringExtra(CourseReminderHelper.EXTRA_COURSE_SECTION) ?: ""
                 val startTime = intent.getStringExtra(CourseReminderHelper.EXTRA_COURSE_START_TIME) ?: ""
+                val endTime = intent.getStringExtra(CourseReminderHelper.EXTRA_COURSE_END_TIME) ?: ""
                 val teacher = intent.getStringExtra(CourseReminderHelper.EXTRA_COURSE_TEACHER) ?: ""
 
                 // 根据课程名+节次生成去重ID（与 schedulePreClassAlarms 中 course.id 不同来源时也能匹配）
@@ -28,6 +29,13 @@ class AlarmReceiver : BroadcastReceiver() {
                 // 去重检查：如果该课程最近已发送过，跳过本次（避免闹钟触发后重新调度导致双发）
                 if (CourseReminderHelper.isPreClassSentRecently(context, courseId)) {
                     Log.d("AlarmReceiver", "Pre-class notification already sent recently for $courseName, skipping")
+                    CourseReminderHelper.startReminderService(context)
+                    return
+                }
+
+                // 学期未开始（未到开学日期所在周的周一）：不发送，并重新调度清理残留闹钟
+                if (!CourseReminderHelper.isSemesterStarted(repository)) {
+                    Log.d("AlarmReceiver", "Semester not started yet, skipping pre-class notification for $courseName")
                     CourseReminderHelper.startReminderService(context)
                     return
                 }
@@ -52,6 +60,7 @@ class AlarmReceiver : BroadcastReceiver() {
                         classroom = classroom,
                         section = section,
                         startTime = startTime,
+                        endTime = endTime,
                         teacher = teacher,
                         minutesUntil = minutesUntil,
                         notificationId = islandNotificationId
@@ -75,6 +84,7 @@ class AlarmReceiver : BroadcastReceiver() {
                                     putExtra(IslandExpandReceiver.EXTRA_CLASSROOM, classroom)
                                     putExtra(IslandExpandReceiver.EXTRA_SECTION, section)
                                     putExtra(IslandExpandReceiver.EXTRA_START_TIME, startTime)
+                                    putExtra(IslandExpandReceiver.EXTRA_END_TIME, endTime)
                                     putExtra(IslandExpandReceiver.EXTRA_NOTIFICATION_ID, islandNotificationId)
                                 }
                                 val expandPending = android.app.PendingIntent.getBroadcast(
@@ -113,6 +123,12 @@ class AlarmReceiver : BroadcastReceiver() {
             }
 
             CourseReminderHelper.TYPE_NEXT_DAY -> {
+                // 学期未开始（未到开学日期所在周的周一）：不发送次日提醒
+                if (!CourseReminderHelper.isSemesterStarted(repository)) {
+                    CourseReminderHelper.startReminderService(context)
+                    return
+                }
+
                 val tomorrowCourses = CourseReminderHelper.getTomorrowCourses(context)
 
                 if (tomorrowCourses.isEmpty()) {

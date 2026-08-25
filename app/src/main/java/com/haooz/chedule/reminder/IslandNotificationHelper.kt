@@ -135,6 +135,7 @@ object IslandNotificationHelper {
         courseName: String? = null,
         section: String? = null,
         startTime: String? = null,
+        endTime: String? = null,
         classroom: String? = null,
         minutesUntil: Int? = null,
         courseStartTimestamp: Long? = null
@@ -183,6 +184,10 @@ object IslandNotificationHelper {
                 // 第二行：上课时间｜课程节次
                 val contentText = buildString {
                     if (!startTime.isNullOrEmpty()) append(startTime)
+                    if (!endTime.isNullOrEmpty() && endTime != startTime) {
+                        if (isNotEmpty()) append(" - ")
+                        append(endTime)
+                    }
                     if (!section.isNullOrEmpty()) {
                         if (isNotEmpty()) append("｜")
                         append(section)
@@ -350,6 +355,7 @@ object IslandNotificationHelper {
         courseName: String? = null,
         section: String? = null,
         startTime: String? = null,
+        endTime: String? = null,
         classroom: String? = null,
         minutesUntil: Int? = null,
         courseStartTimestamp: Long? = null,
@@ -385,6 +391,7 @@ object IslandNotificationHelper {
             courseName = courseName,
             section = section,
             startTime = startTime,
+            endTime = endTime,
             classroom = classroom,
             minutesUntil = minutesUntil,
             courseStartTimestamp = courseStartTimestamp
@@ -420,6 +427,7 @@ object IslandNotificationHelper {
         section: String,
         startTime: String,
         teacher: String,
+        endTime: String? = null,
         minutesUntil: Int? = null,
         notificationId: Int = 1001
     ) {
@@ -458,6 +466,7 @@ object IslandNotificationHelper {
             courseName = courseName,
             section = section,
             startTime = startTime,
+            endTime = endTime,
             classroom = classroom,
             minutesUntil = minutesUntil,
             courseStartTimestamp = courseStartTimestamp
@@ -497,6 +506,7 @@ object IslandNotificationHelper {
 
         // 构建标题和内容
         val startTime = "09:00"
+        val endTime = "10:00"
         val title = "$courseName $startTime"
         val content = "第3~4节｜A201"
 
@@ -516,6 +526,7 @@ object IslandNotificationHelper {
             courseName = courseName,
             section = section,
             startTime = startTime,
+            endTime = endTime,
             classroom = classroom,
             minutesUntil = minutesUntil,
             courseStartTimestamp = courseStartTimestamp
@@ -559,6 +570,7 @@ object IslandNotificationHelper {
                     classroom = classroom,
                     section = section,
                     startTime = startTime ?: "",
+                    endTime = endTime,
                     notificationId = testNotificationId
                 )
             }
@@ -576,6 +588,7 @@ object IslandNotificationHelper {
         classroom: String,
         section: String,
         startTime: String,
+        endTime: String? = null,
         notificationId: Int = 1001
     ) {
         if (!isIslandSupported(context)) return
@@ -602,6 +615,7 @@ object IslandNotificationHelper {
             courseName = courseName,
             section = section,
             startTime = startTime,
+            endTime = endTime,
             classroom = classroom,
             minutesUntil = 0,  // 关键：传入 0 表示已上课
             useShizukuBypass = true

@@ -18,6 +18,7 @@ class IslandExpandReceiver : BroadcastReceiver() {
         const val EXTRA_CLASSROOM = "classroom"
         const val EXTRA_SECTION = "section"
         const val EXTRA_START_TIME = "start_time"
+        const val EXTRA_END_TIME = "end_time"
         const val EXTRA_NOTIFICATION_ID = "notification_id"
     }
 
@@ -28,6 +29,7 @@ class IslandExpandReceiver : BroadcastReceiver() {
         val classroom = intent.getStringExtra(EXTRA_CLASSROOM) ?: ""
         val section = intent.getStringExtra(EXTRA_SECTION) ?: ""
         val startTime = intent.getStringExtra(EXTRA_START_TIME) ?: ""
+        val endTime = intent.getStringExtra(EXTRA_END_TIME) ?: ""
         val notificationId = intent.getIntExtra(EXTRA_NOTIFICATION_ID, 1001)
 
         // 发送更新后的通知，触发展开态弹出
@@ -37,6 +39,7 @@ class IslandExpandReceiver : BroadcastReceiver() {
             classroom = classroom,
             section = section,
             startTime = startTime,
+            endTime = endTime,
             notificationId = notificationId
         )
     }
