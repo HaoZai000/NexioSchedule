@@ -202,10 +202,11 @@ data class Course(
         }
         if (startWeek <= 0 && endWeek <= 0) return ""
         val weekTypeStr = getWeekTypeText()
+        val weeks = if (startWeek == endWeek) "${startWeek}周" else "${startWeek}-${endWeek}周"
         return if (weekTypeStr.isNotEmpty()) {
-            "${startWeek}-${endWeek}周 ($weekTypeStr)"
+            "$weeks ($weekTypeStr)"
         } else {
-            "${startWeek}-${endWeek}周"
+            weeks
         }
     }
 
