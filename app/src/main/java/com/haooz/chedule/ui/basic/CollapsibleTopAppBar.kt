@@ -276,7 +276,7 @@ fun rememberSharedScrollBehavior(
 
 object CollapsibleTopAppBarDefaults {
     val CollapsedHeight = 52.dp
-    val TitlePadding = 26.dp
+    val TitlePadding = 28.dp
     val TitleWidthFraction = 0.9f
     val MaxLargeTitleBlur = 6.dp
     val MaxSmallTitleBlur = 6.dp

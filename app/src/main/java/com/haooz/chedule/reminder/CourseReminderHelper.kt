@@ -26,6 +26,7 @@ object CourseReminderHelper {
     const val EXTRA_COURSE_CLASSROOM = "course_classroom"
     const val EXTRA_COURSE_SECTION = "course_section"
     const val EXTRA_COURSE_START_TIME = "course_start_time"
+    const val EXTRA_COURSE_END_TIME = "course_end_time"
     const val EXTRA_COURSE_TEACHER = "course_teacher"
     const val EXTRA_OPEN_REMINDER_SETTINGS = "open_reminder_settings"
     const val EXTRA_COURSE_START_MILLIS = "course_start_millis"
@@ -286,12 +287,14 @@ object CourseReminderHelper {
                     recordPreClassSent(context, dedupCourseId)
                     if (useIsland) {
                         val minutesUntil = startTotalMinutes - currentMinutes
+                        val endTime = getCourseEndTime(course, repository)
                         IslandNotificationHelper.sendPreClassIslandNotification(
                             context = context,
                             courseName = course.name,
                             classroom = course.classroom,
                             section = course.getTimeDisplayText(),
                             startTime = startTime,
+                            endTime = endTime,
                             teacher = course.teacher,
                             minutesUntil = minutesUntil,
                             notificationId = 1003
@@ -309,6 +312,7 @@ object CourseReminderHelper {
                             putExtra(IslandExpandReceiver.EXTRA_CLASSROOM, course.classroom)
                             putExtra(IslandExpandReceiver.EXTRA_SECTION, course.getTimeDisplayText())
                             putExtra(IslandExpandReceiver.EXTRA_START_TIME, startTime)
+                            putExtra(IslandExpandReceiver.EXTRA_END_TIME, endTime ?: "")
                             putExtra(IslandExpandReceiver.EXTRA_NOTIFICATION_ID, 1003)
                         }
                         val expandPending = PendingIntent.getBroadcast(
@@ -356,6 +360,7 @@ object CourseReminderHelper {
                 putExtra(EXTRA_COURSE_CLASSROOM, course.classroom)
                 putExtra(EXTRA_COURSE_SECTION, course.getTimeDisplayText())
                 putExtra(EXTRA_COURSE_START_TIME, startTime)
+                putExtra(EXTRA_COURSE_END_TIME, getCourseEndTime(course, repository) ?: "")
                 putExtra(EXTRA_COURSE_TEACHER, course.teacher)
                 // courseStartMillis 必须是课程实际上课时间，与 alarmTime（触发时间）解耦
                 // 连堂课触发时间可能是上一节课的结束时间，不能用 alarmTime + minutesBefore

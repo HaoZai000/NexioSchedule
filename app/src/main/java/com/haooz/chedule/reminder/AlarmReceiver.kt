@@ -20,6 +20,7 @@ class AlarmReceiver : BroadcastReceiver() {
                 val classroom = intent.getStringExtra(CourseReminderHelper.EXTRA_COURSE_CLASSROOM) ?: ""
                 val section = intent.getStringExtra(CourseReminderHelper.EXTRA_COURSE_SECTION) ?: ""
                 val startTime = intent.getStringExtra(CourseReminderHelper.EXTRA_COURSE_START_TIME) ?: ""
+                val endTime = intent.getStringExtra(CourseReminderHelper.EXTRA_COURSE_END_TIME) ?: ""
                 val teacher = intent.getStringExtra(CourseReminderHelper.EXTRA_COURSE_TEACHER) ?: ""
 
                 // 根据课程名+节次生成去重ID（与 schedulePreClassAlarms 中 course.id 不同来源时也能匹配）
@@ -59,6 +60,7 @@ class AlarmReceiver : BroadcastReceiver() {
                         classroom = classroom,
                         section = section,
                         startTime = startTime,
+                        endTime = endTime,
                         teacher = teacher,
                         minutesUntil = minutesUntil,
                         notificationId = islandNotificationId
@@ -82,6 +84,7 @@ class AlarmReceiver : BroadcastReceiver() {
                                     putExtra(IslandExpandReceiver.EXTRA_CLASSROOM, classroom)
                                     putExtra(IslandExpandReceiver.EXTRA_SECTION, section)
                                     putExtra(IslandExpandReceiver.EXTRA_START_TIME, startTime)
+                                    putExtra(IslandExpandReceiver.EXTRA_END_TIME, endTime)
                                     putExtra(IslandExpandReceiver.EXTRA_NOTIFICATION_ID, islandNotificationId)
                                 }
                                 val expandPending = android.app.PendingIntent.getBroadcast(
