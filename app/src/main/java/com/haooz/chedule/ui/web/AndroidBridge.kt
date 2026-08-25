@@ -36,6 +36,14 @@ class AndroidBridge(
     private var colorIndex = 0
     private var currentToast: Toast? = null
 
+    /** 当前导入的目标课表ID（由执行导入前选择课表时设置，空表示导入到当前课表） */
+    private var importTableId: String? = null
+
+    /** 设置导入的目标课表ID */
+    fun setImportTableId(tableId: String?) {
+        this.importTableId = tableId
+    }
+
     /** JS 调用：显示短暂的 Toast 消息 */
     @JavascriptInterface
     fun showToast(message: String) {
@@ -174,7 +182,8 @@ class AndroidBridge(
                         colorRes = color,
                         isCustomTime = json.isCustomTime,
                         customStartTime = json.customStartTime,
-                        customEndTime = json.customEndTime
+                        customEndTime = json.customEndTime,
+                        scheduleId = importTableId ?: ""
                     )
                 }
 
@@ -248,6 +257,7 @@ class AndroidBridge(
     /** JS 调用：通知 Native 端 JS 任务已逻辑完成 */
     @JavascriptInterface
     fun notifyTaskCompletion() {
+        importTableId = null
         handler.post {
             onTaskCompleted()
         }

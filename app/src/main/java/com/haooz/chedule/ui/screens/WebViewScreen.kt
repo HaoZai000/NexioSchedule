@@ -132,6 +132,8 @@ fun WebViewScreen(
     assetJsPath: String?,
     isLiquidGlass: Boolean = false,
     liquidGlassBackdrop: LayerBackdrop? = null,
+    scheduleNames: List<String> = emptyList(),
+    currentScheduleName: String = "",
     onBack: () -> Unit,
     onImportComplete: (List<Course>) -> Unit,
     onDesktopModeChanged: (Boolean) -> Unit = {},
@@ -157,6 +159,7 @@ fun WebViewScreen(
     var alertData by remember { mutableStateOf<AlertData?>(null) }
     var promptData by remember { mutableStateOf<PromptData?>(null) }
     var selectionData by remember { mutableStateOf<SelectionData?>(null) }
+    var showCourseTablePicker by remember { mutableStateOf(false) }
 
     val webView = remember {
         WebView(context).apply {
@@ -245,6 +248,29 @@ fun WebViewScreen(
         )
     }
 
+    val onExecuteImport: () -> Unit = {
+        if (assetJsPath != null) {
+            showCourseTablePicker = true
+        } else {
+            Toast.makeText(context, "无导入脚本", Toast.LENGTH_LONG).show()
+        }
+    }
+
+    val executeImportWithTable: (String) -> Unit = { tableId ->
+        assetJsPath?.let { path ->
+            val scriptFile = File(context.filesDir, "repo/schools/resources/${school.resourceFolder}/$path")
+            if (scriptFile.exists()) {
+                val jsCode = scriptFile.readText()
+                androidBridge.setImportTableId(tableId)
+                val fullJsCode = "window.currentTableId = '$tableId';\n$jsCode"
+                webView.evaluateJavascript(fullJsCode, null)
+                Toast.makeText(context, "正在执行导入脚本...", Toast.LENGTH_SHORT).show()
+            } else {
+                Toast.makeText(context, "脚本文件不存在: $path", Toast.LENGTH_LONG).show()
+            }
+        } ?: Toast.makeText(context, "无导入脚本", Toast.LENGTH_LONG).show()
+    }
+
     // 单选列表对话框
     selectionData?.let { data ->
         WebSelectionDialog(
@@ -259,6 +285,20 @@ fun WebViewScreen(
             onDismiss = {
                 data.onResult(null)
                 selectionData = null
+            }
+        )
+    }
+
+    // 执行导入前的目标课表选择对话框
+    if (showCourseTablePicker) {
+        CourseTablePickerDialog(
+            scheduleNames = scheduleNames,
+            currentScheduleName = currentScheduleName,
+            tabletHorizontalPadding = tabletHorizontalPadding,
+            onDismissRequest = { showCourseTablePicker = false },
+            onTableSelected = { tableId ->
+                showCourseTablePicker = false
+                executeImportWithTable(tableId)
             }
         )
     }
@@ -372,19 +412,6 @@ fun WebViewScreen(
             webView.removeAllViews()
             webView.destroy()
         }
-    }
-
-    val onExecuteImport: () -> Unit = {
-        assetJsPath?.let { path ->
-            val scriptFile = File(context.filesDir, "repo/schools/resources/${school.resourceFolder}/$path")
-            if (scriptFile.exists()) {
-                val jsCode = scriptFile.readText()
-                webView.evaluateJavascript(jsCode, null)
-                Toast.makeText(context, "正在执行导入脚本...", Toast.LENGTH_SHORT).show()
-            } else {
-                Toast.makeText(context, "脚本文件不存在: $path", Toast.LENGTH_LONG).show()
-            }
-        } ?: Toast.makeText(context, "无导入脚本", Toast.LENGTH_LONG).show()
     }
 
     LaunchedEffect(onExecuteImportRef) { onExecuteImportRef?.invoke(onExecuteImport) }
@@ -786,6 +813,111 @@ private fun WebSelectionDialog(
                     TextButton(
                         text = "确定",
                         onClick = { onSelect(selectedIndex) },
+                        colors = ButtonDefaults.textButtonColorsPrimary(),
+                        modifier = Modifier.weight(1f)
+                    )
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun CourseTablePickerDialog(
+    scheduleNames: List<String>,
+    currentScheduleName: String,
+    tabletHorizontalPadding: Dp = 0.dp,
+    onDismissRequest: () -> Unit,
+    onTableSelected: (String) -> Unit
+) {
+    var selectedSchedule by remember { mutableStateOf(currentScheduleName.ifBlank { scheduleNames.firstOrNull() ?: "" }) }
+
+    Dialog(
+        onDismissRequest = onDismissRequest,
+        properties = DialogProperties(
+            dismissOnBackPress = true,
+            dismissOnClickOutside = true,
+            usePlatformDefaultWidth = false
+        )
+    ) {
+        Surface(
+            shape = ContinuousRoundedRectangle(28.dp),
+            color = MiuixTheme.colorScheme.background,
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 20.dp + tabletHorizontalPadding)
+                .heightIn(max = 400.dp)
+        ) {
+            Column(modifier = Modifier.padding(20.dp)) {
+                Text(
+                    text = "选择要导入的课表",
+                    fontSize = 20.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = MiuixTheme.colorScheme.onSurface
+                )
+                Spacer(Modifier.height(4.dp))
+                Text(
+                    text = "导入的课程将写入所选课表，当前课表不会受影响",
+                    fontSize = 13.sp,
+                    color = MiuixTheme.colorScheme.onSurfaceVariantActions
+                )
+                Spacer(Modifier.height(16.dp))
+                LazyColumn(modifier = Modifier.weight(1f, fill = false)) {
+                    itemsIndexed(scheduleNames) { index, name ->
+                        val isCurrent = name == currentScheduleName
+                        val isSelected = name == selectedSchedule
+                        Surface(
+                            shape = ContinuousRoundedRectangle(12.dp),
+                            color = if (isSelected)
+                                MiuixTheme.colorScheme.primary.copy(alpha = 0.12f)
+                            else
+                                Color.Transparent,
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clip(ContinuousRoundedRectangle(12.dp))
+                                .clickable {
+                                    selectedSchedule = name
+                                }
+                        ) {
+                            Row(
+                                modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp),
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.SpaceBetween
+                            ) {
+                                Text(
+                                    text = name,
+                                    fontSize = 16.sp,
+                                    color = if (isSelected)
+                                        MiuixTheme.colorScheme.primary
+                                    else
+                                        MiuixTheme.colorScheme.onSurface,
+                                    modifier = Modifier.weight(1f)
+                                )
+                                if (isCurrent) {
+                                    Text(
+                                        text = "当前",
+                                        fontSize = 12.sp,
+                                        color = MiuixTheme.colorScheme.onSurfaceVariantActions,
+                                        modifier = Modifier.padding(start = 8.dp)
+                                    )
+                                }
+                            }
+                        }
+                    }
+                }
+                Spacer(Modifier.height(16.dp))
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(12.dp)
+                ) {
+                    TextButton(
+                        text = "取消",
+                        onClick = onDismissRequest,
+                        modifier = Modifier.weight(1f)
+                    )
+                    TextButton(
+                        text = "确定",
+                        onClick = { onTableSelected(selectedSchedule) },
                         colors = ButtonDefaults.textButtonColorsPrimary(),
                         modifier = Modifier.weight(1f)
                     )

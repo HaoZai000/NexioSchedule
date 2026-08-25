@@ -327,7 +327,7 @@ fun PreferenceSettingsScreen(
                             )
 
                             OverlayDropdownMenu(
-                                title = "数据仓库源",
+                                title = "教务数据仓库源",
                                 summary = "更新教务系统数据源的仓库",
                                 entry = repoEntry,
                                 collapseOnSelection = true,
@@ -338,7 +338,7 @@ fun PreferenceSettingsScreen(
                             val weatherSourceEntry = DropdownEntry(
                                 items = listOf(
                                     DropdownItem(
-                                        text = "聚合接口（市级精度）",
+                                        text = "聚合接口",
                                         selected = weatherSource == "itboy",
                                         onClick = {
                                             weatherSource = "itboy"
@@ -347,7 +347,7 @@ fun PreferenceSettingsScreen(
                                         }
                                     ),
                                     DropdownItem(
-                                        text = "彩云天气（高精度）",
+                                        text = "彩云天气",
                                         selected = weatherSource == "caiyun",
                                         onClick = {
                                             weatherSource = "caiyun"

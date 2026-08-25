@@ -35,7 +35,7 @@ class WebDavManager(private val context: Context) {
         private const val KEY_USERNAME = "username"
         private const val KEY_PASSWORD = "password"
         private const val KEY_LAST_SYNC_TIME = "last_sync_time"
-        private const val BACKUP_DIR = "HyperSchedule"
+        private const val BACKUP_DIR = "NexioSchedule"
         private const val BACKUPS_DIR = "backups"
         private const val BACKUP_FILE_PREFIX = "backup_"
         private const val BACKUP_FILE_SUFFIX = ".json"

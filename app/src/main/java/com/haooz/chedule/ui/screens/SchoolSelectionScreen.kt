@@ -48,15 +48,11 @@ import androidx.compose.ui.unit.sp
 import com.haooz.chedule.data.school.AdapterData
 import com.haooz.chedule.data.school.SchoolData
 import com.haooz.chedule.data.school.SchoolRepository
-import top.yukonga.miuix.kmp.basic.NativeMiuixTextField
-import top.yukonga.miuix.kmp.overlay.OverlayDialog
 import com.haooz.chedule.ui.basic.SharedScrollBehavior
 import com.haooz.chedule.ui.utils.overScrollVertical
 import com.kyant.capsule.ContinuousRoundedRectangle
 import kotlinx.coroutines.launch
-import top.yukonga.miuix.kmp.basic.ButtonDefaults
 import top.yukonga.miuix.kmp.basic.CircularProgressIndicator
-import top.yukonga.miuix.kmp.basic.TextButton
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 import top.yukonga.miuix.kmp.utils.scrollEndHaptic
 
@@ -74,26 +70,29 @@ fun SchoolSelectionScreen(
     selectedTab: Int = 0,
     topContentPadding: Dp = 0.dp,
     liquidGlassBackdrop: com.kyant.backdrop.Backdrop? = null,
-    onSchoolSelected: (SchoolData, AdapterData) -> Unit
+    onAdapterSelected: (SchoolData, AdapterData) -> Unit
 ) {
     val context = LocalContext.current
     val hapticFeedback = LocalHapticFeedback.current
     val schoolRepository = remember { SchoolRepository(context) }
 
+    var selectedSchool by remember { mutableStateOf<SchoolData?>(null) }
+
     val allSchools = remember(dataVersion) { schoolRepository.getSchools() }
 
-    var showUrlDialog by remember { mutableStateOf(false) }
-    var pendingSchool by remember { mutableStateOf<SchoolData?>(null) }
-    var pendingAdapter by remember { mutableStateOf<AdapterData?>(null) }
-    var customUrl by remember { mutableStateOf("") }
-
-    val filteredSchools = remember(allSchools, selectedTab) {
+    val filteredSchools = remember(allSchools, selectedTab, searchQuery) {
+        val query = searchQuery.trim()
         allSchools.filter { school ->
-            when (selectedTab) {
+            val tabMatch = when (selectedTab) {
                 0 -> school.adapters.any { it.category == AdapterData.CATEGORY_BACHELOR || it.category == AdapterData.CATEGORY_POSTGRADUATE }
                 1 -> school.adapters.any { it.category == AdapterData.CATEGORY_GENERAL_TOOL }
                 else -> false
             }
+            val searchMatch = query.isEmpty() ||
+                school.name.contains(query, ignoreCase = true) ||
+                school.initial.contains(query, ignoreCase = true) ||
+                school.adapters.any { it.adapterName.contains(query, ignoreCase = true) }
+            tabMatch && searchMatch
         }.sortedBy { it.initial.uppercase() + it.name }
     }
 
@@ -272,34 +271,7 @@ fun SchoolSelectionScreen(
                                             hapticFeedback.performHapticFeedback(
                                                 HapticFeedbackType.VirtualKey
                                             )
-                                            val adapters =
-                                                schoolRepository.getAdaptersForSchool(
-                                                    school.id,
-                                                    AdapterData.CATEGORY_BACHELOR
-                                                )
-                                                    .ifEmpty {
-                                                        schoolRepository.getAdaptersForSchool(
-                                                            school.id,
-                                                            AdapterData.CATEGORY_POSTGRADUATE
-                                                        )
-                                                    }
-                                                    .ifEmpty {
-                                                        schoolRepository.getAdaptersForSchool(
-                                                            school.id,
-                                                            AdapterData.CATEGORY_GENERAL_TOOL
-                                                        )
-                                                    }
-                                            if (adapters.isNotEmpty()) {
-                                                val adapter = adapters.first()
-                                                if (adapter.category == AdapterData.CATEGORY_GENERAL_TOOL) {
-                                                    pendingSchool = school
-                                                    pendingAdapter = adapter
-                                                    customUrl = adapter.importUrl ?: ""
-                                                    showUrlDialog = true
-                                                } else {
-                                                    onSchoolSelected(school, adapter)
-                                                }
-                                            }
+                                            selectedSchool = school
                                         }
                                         .padding(vertical = 24.dp)
                                 ) {
@@ -463,51 +435,15 @@ fun SchoolSelectionScreen(
         }
     }
 
-    OverlayDialog(
-        title = "输入网址",
-        summary = "请输入要访问的教务系统网址",
-        show = showUrlDialog,
-        onDismissRequest = { showUrlDialog = false },
-        liquidGlassBackdrop = liquidGlassBackdrop
-    ) {
-        Column(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalAlignment = Alignment.CenterHorizontally
-        ) {
-            NativeMiuixTextField(
-                value = customUrl,
-                onValueChange = { customUrl = it },
-                label = "网址",
-                modifier = Modifier.fillMaxWidth()
-            )
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(top = 16.dp),
-                horizontalArrangement = Arrangement.spacedBy(12.dp)
-            ) {
-                TextButton(
-                    text = "取消",
-                    onClick = { showUrlDialog = false },
-                    modifier = Modifier.weight(1f)
-                )
-                TextButton(
-                    text = "确定",
-                    onClick = {
-                        if (customUrl.isNotBlank()) {
-                            pendingAdapter?.let { adapter ->
-                                onSchoolSelected(
-                                    pendingSchool!!,
-                                    adapter.copy(importUrl = customUrl)
-                                )
-                            }
-                            showUrlDialog = false
-                        }
-                    },
-                    colors = ButtonDefaults.textButtonColorsPrimary(),
-                    modifier = Modifier.weight(1f)
-                )
-            }
+    // 适配器选择底部弹窗（常驻组合，show 控制开合以播放动画）
+    AdapterSelectionBottomSheet(
+        show = selectedSchool != null,
+        school = selectedSchool,
+        liquidGlassBackdrop = liquidGlassBackdrop,
+        onDismissRequest = { selectedSchool = null },
+        onAdapterSelected = { school, adapter ->
+            selectedSchool = null
+            onAdapterSelected(school, adapter)
         }
-    }
+    )
 }

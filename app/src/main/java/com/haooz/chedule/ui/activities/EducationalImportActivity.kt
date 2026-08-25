@@ -216,6 +216,9 @@ class EducationalImportActivity : ComponentActivity() {
         val scheduleViewModel: ScheduleViewModel = viewModel()
         val settingsViewModel: SettingsViewModel = viewModel()
 
+        val scheduleNames by scheduleViewModel.scheduleNames.collectAsState()
+        val currentScheduleName by scheduleViewModel.currentScheduleName.collectAsState()
+
         val backgroundColor = MiuixTheme.colorScheme.surface
         val backdrop = rememberLayerBackdrop {
             drawRect(backgroundColor)
@@ -288,7 +291,7 @@ class EducationalImportActivity : ComponentActivity() {
                                     selectedTab = selectedTab,
                                     topContentPadding = paddingValues.calculateTopPadding() + topBarHeightDp + 100.dp,
                                     liquidGlassBackdrop = liquidGlassBackdrop,
-                                    onSchoolSelected = { school, adapter ->
+                                    onAdapterSelected = { school, adapter ->
                                         selectedSchool = school
                                         selectedAdapter = adapter
                                         currentScreen = "webview"
@@ -437,9 +440,20 @@ class EducationalImportActivity : ComponentActivity() {
                             assetJsPath = adapter.assetJsPath,
                             isLiquidGlass = true,
                             liquidGlassBackdrop = liquidGlassBackdrop,
-                            onBack = { currentScreen = "selection" },
+                            scheduleNames = scheduleNames,
+                            currentScheduleName = currentScheduleName,
+                            onBack = {
+                                selectedSchool = null
+                                currentScreen = "selection"
+                            },
                             onImportComplete = { courses ->
-                                courseViewModel.replaceCourses(courses)
+                                // AndroidBridge 已为导入课程设置 scheduleId（目标课表，空为当前课表）
+                                val targetScheduleId = courses.firstOrNull()?.scheduleId?.takeIf { it.isNotEmpty() }
+                                if (targetScheduleId != null && targetScheduleId != currentScheduleName) {
+                                    scheduleViewModel.saveCoursesToSchedule(targetScheduleId, courses)
+                                } else {
+                                    courseViewModel.replaceCourses(courses)
+                                }
                                 scheduleViewModel.refreshScheduleList()
                                 applyPresetTimeSlots(settingsViewModel)
                                 Toast.makeText(this@EducationalImportActivity, "课程已保存，共 ${courses.size} 门课程", Toast.LENGTH_SHORT).show()
