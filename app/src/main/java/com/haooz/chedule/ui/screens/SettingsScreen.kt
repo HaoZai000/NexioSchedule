@@ -51,6 +51,7 @@ import com.haooz.chedule.ui.activities.CourseReminderActivity
 import com.haooz.chedule.ui.activities.CourseTimeSettingsActivity
 import com.haooz.chedule.ui.activities.PreferenceSettingsActivity
 import com.haooz.chedule.ui.activities.WidgetIntroActivity
+import com.haooz.chedule.ui.activities.HolidaySettingsActivity
 import top.yukonga.miuix.kmp.basic.NativeMiuixTextField
 import com.haooz.chedule.ui.utils.isAppDarkTheme
 import com.haooz.chedule.viewmodel.CourseViewModel
@@ -343,6 +344,14 @@ fun SettingsScreen(
                                     onClick = {
                                         val intent = Intent(context, CourseReminderActivity::class.java)
                                         reminderSettingsLauncher.launch(intent)
+                                    }
+                                )
+                                ArrowPreference(
+                                    title = "假期调休设置",
+                                    summary = "管理节假日与调休课程规则",
+                                    holdDownState = activeSecondaryActivity == "HolidaySettingsActivity",
+                                    onClick = {
+                                        context.startActivity(Intent(context, HolidaySettingsActivity::class.java))
                                     }
                                 )
                                 ArrowPreference(

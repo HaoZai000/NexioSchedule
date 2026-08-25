@@ -14,6 +14,7 @@ import androidx.core.content.edit
 import com.haooz.chedule.R
 import com.haooz.chedule.data.Course
 import com.haooz.chedule.data.CourseRepository
+import com.haooz.chedule.data.HolidayManager
 import com.haooz.chedule.reminder.CourseReminderHelper.schedulePreClassAlarms
 import com.haooz.chedule.ui.activities.MainActivity
 import java.util.Calendar
@@ -201,10 +202,19 @@ object CourseReminderHelper {
         alarmManager: AlarmManager
     ) {
         val minutesBefore = repository.getPreClassReminderMinutes()
-        val currentWeek = repository.getCurrentWeek()
+        var currentWeek = repository.getCurrentWeek()
         val totalWeeks = repository.getTotalWeeks()
         val lastWeekWithCourses = repository.getLastWeekWithCourses()
-        val today = getTodayOfWeek()
+        val todayDate = java.time.LocalDate.now()
+        if (HolidayManager.isHoliday(context, todayDate)) return
+        val workSwap = HolidayManager.workSwap(context, todayDate)
+        var today = getTodayOfWeek()
+        val followWeek = workSwap?.followWeek ?: -1
+        val followWeekday = workSwap?.followWeekday ?: -1
+        if (followWeek > 0 && followWeekday > 0) {
+            currentWeek = followWeek
+            today = followWeekday
+        }
         val allCourses = repository.getAllCourses()
         val morningSections = repository.getMorningSections()
         val afternoonSections = repository.getAfternoonSections()
@@ -615,13 +625,19 @@ object CourseReminderHelper {
 
     fun getTomorrowCourses(context: Context): List<Course> {
         val repository = CourseRepository(context)
-        val currentWeek = repository.getCurrentWeek()
+        val todayDate = java.time.LocalDate.now()
+        val tomorrowDate = todayDate.plusDays(1)
+        if (HolidayManager.isHoliday(context, tomorrowDate)) return emptyList()
+        val todayEntry = HolidayManager.workSwap(context, todayDate)
+        val tomorrowEntry = HolidayManager.workSwap(context, tomorrowDate)
+        val currentWeek = todayEntry?.followWeek?.takeIf { it > 0 } ?: repository.getCurrentWeek()
         val totalWeeks = repository.getTotalWeeks()
         val lastWeekWithCourses = repository.getLastWeekWithCourses()
         val courses = repository.getAllCourses()
-        val today = getTodayOfWeek()
-        val tomorrowDayOfWeek = if (today == 7) 1 else today + 1
-        val tomorrowWeek = if (tomorrowDayOfWeek == 1) currentWeek + 1 else currentWeek
+        val tomorrowDayOfWeek = tomorrowEntry?.followWeekday?.takeIf { it in 1..7 }
+            ?: if (tomorrowDate.dayOfWeek.value == 7) 7 else tomorrowDate.dayOfWeek.value
+        val tomorrowWeek = tomorrowEntry?.followWeek?.takeIf { it > 0 }
+            ?: if (tomorrowDayOfWeek == 1) currentWeek + 1 else currentWeek
 
         if (tomorrowWeek < 1 || tomorrowWeek > totalWeeks || tomorrowWeek > lastWeekWithCourses) return emptyList()
 
@@ -632,8 +648,11 @@ object CourseReminderHelper {
 
     fun getTodayCourses(context: Context): List<Course> {
         val repository = CourseRepository(context)
-        val currentWeek = repository.getCurrentWeek()
-        val today = getTodayOfWeek()
+        val date = java.time.LocalDate.now()
+        if (HolidayManager.isHoliday(context, date)) return emptyList()
+        val workSwap = HolidayManager.workSwap(context, date)
+        val currentWeek = workSwap?.followWeek?.takeIf { it > 0 } ?: repository.getCurrentWeek()
+        val today = workSwap?.followWeekday?.takeIf { it in 1..7 } ?: getTodayOfWeek()
         val totalWeeks = repository.getTotalWeeks()
         val lastWeekWithCourses = repository.getLastWeekWithCourses()
         if (currentWeek > totalWeeks || currentWeek > lastWeekWithCourses) return emptyList()
