@@ -348,7 +348,6 @@ fun SettingsScreen(
                                 )
                                 ArrowPreference(
                                     title = "假期调休设置",
-                                    summary = "管理节假日与调休课程规则",
                                     holdDownState = activeSecondaryActivity == "HolidaySettingsActivity",
                                     onClick = {
                                         context.startActivity(Intent(context, HolidaySettingsActivity::class.java))

@@ -12,9 +12,12 @@ class WidgetRefreshReceiver : BroadcastReceiver() {
     }
 
     override fun onReceive(context: Context, intent: Intent) {
+        android.util.Log.d("CourseReminder", "WidgetRefreshReceiver: ${intent.action} ${java.text.SimpleDateFormat("HH:mm:ss", java.util.Locale.getDefault()).format(java.util.Date())}")
         if (intent.action == ACTION_REFRESH_WIDGET) {
             // 跨日检测：日期变化时重新调度闹钟（覆盖次日课程无提醒的场景）
             CourseReminderHelper.checkAndRescheduleOnDayChange(context)
+            // 兜底补发：若某门课闹钟未触发/丢失，在提醒窗口内立即补发（含超级岛通道）
+            CourseReminderHelper.checkPendingPreClassReminders(context)
             com.haooz.chedule.widget.CourseWidgetProvider.updateAllWidgets(context)
             com.haooz.chedule.widget.CourseWidgetProvider4x7.updateAllWidgets(context)
             com.haooz.chedule.widget.CourseWidgetProviderStandard.updateAllWidgets(context)

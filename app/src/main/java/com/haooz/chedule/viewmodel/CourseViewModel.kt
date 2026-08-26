@@ -83,6 +83,9 @@ class CourseViewModel(application: Application) : AndroidViewModel(application) 
         repository.onCourseChanged = { _, _ ->
             viewModelScope.launch(Dispatchers.IO) {
                 loadCourses()
+                // 课程增删改后重新调度提醒闹钟：新增/修改的课程也能及时注册精确闹钟，
+                // 并让 widget 刷新链按最新课程重新计算（否则新课程在提醒窗口内无任何驱动源）
+                rescheduleReminders()
             }
         }
         loadEssentialData()

@@ -11,6 +11,7 @@ class AlarmReceiver : BroadcastReceiver() {
 
     override fun onReceive(context: Context, intent: Intent) {
         val type = intent.getIntExtra(CourseReminderHelper.EXTRA_REMINDER_TYPE, 0)
+        Log.d("CourseReminder", "AlarmReceiver: type=$type ${java.text.SimpleDateFormat("HH:mm:ss", java.util.Locale.getDefault()).format(java.util.Date())}")
         val repository = CourseRepository(context)
         val useIsland = repository.getIslandNotification() && IslandNotificationHelper.isIslandSupported(context)
 

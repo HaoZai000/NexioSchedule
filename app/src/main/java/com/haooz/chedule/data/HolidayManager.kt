@@ -22,7 +22,9 @@ object HolidayManager {
         val followWeekday: Int = -1,
         val custom: Boolean = false,
     ) {
-        fun matches(target: String): Boolean = target >= date && (endDate.isBlank() || target <= endDate)
+        fun matches(target: String): Boolean =
+            if (endDate.isBlank()) target == date
+            else target >= date && target <= endDate
         fun toJson() = JSONObject().apply {
             put("date", date); put("endDate", endDate); put("name", name); put("type", type)
             put("followWeek", followWeek); put("followWeekday", followWeekday); put("custom", custom)
@@ -50,9 +52,15 @@ object HolidayManager {
         context.getSharedPreferences(PREFS, Context.MODE_PRIVATE).edit { putString("$KEY_PREFIX$year", array.toString()) }
     }
 
-    fun isHoliday(context: Context, date: LocalDate): Boolean =
-        (load(context, date.year) + load(context, date.year - 1))
-            .any { it.type == TYPE_HOLIDAY && it.matches(date.toString()) }
+    fun isHoliday(context: Context, date: LocalDate): Boolean {
+        val y2026 = load(context, date.year)
+        val y2025 = load(context, date.year - 1)
+        val hit = (y2026 + y2025)
+            .filter { it.type == TYPE_HOLIDAY }
+            .firstOrNull { it.matches(date.toString()) }
+        android.util.Log.d("CourseReminder", "isHoliday: date=$date y${date.year}=${y2026.size} y${date.year - 1}=${y2025.size} hit=${hit?.name ?: "none"} date=${hit?.date ?: "-"} end=${hit?.endDate ?: "-"}")
+        return hit != null
+    }
 
     fun workSwap(context: Context, date: LocalDate): Entry? =
         (load(context, date.year) + load(context, date.year - 1))

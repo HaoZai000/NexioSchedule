@@ -22,6 +22,8 @@ import java.util.Calendar
 
 object CourseReminderHelper {
 
+    private const val TAG = "CourseReminder"
+
     const val EXTRA_REMINDER_TYPE = "reminder_type"
     const val EXTRA_COURSE_NAME = "course_name"
     const val EXTRA_COURSE_CLASSROOM = "course_classroom"
@@ -225,7 +227,7 @@ object CourseReminderHelper {
         var currentWeek = repository.getCurrentWeek()
         val totalWeeks = repository.getTotalWeeks()
         val lastWeekWithCourses = repository.getLastWeekWithCourses()
-        val todayDate = java.time.LocalDate.now()
+        val todayDate = LocalDate.now()
         if (HolidayManager.isHoliday(context, todayDate)) return
         val workSwap = HolidayManager.workSwap(context, todayDate)
         var today = getTodayOfWeek()
@@ -239,11 +241,18 @@ object CourseReminderHelper {
         val morningSections = repository.getMorningSections()
         val afternoonSections = repository.getAfternoonSections()
 
-        if (currentWeek < 1 || currentWeek > totalWeeks || currentWeek > lastWeekWithCourses) return
+        android.util.Log.d(TAG, "schedulePre: entered week=$currentWeek today=$today total=$totalWeeks last=$lastWeekWithCourses semesterStarted=${isSemesterStarted(repository)} holiday=${HolidayManager.isHoliday(context, todayDate)} preReminder=${repository.getPreClassReminder()} minuteBefore=$minutesBefore")
+
+        if (currentWeek < 1 || currentWeek > totalWeeks || currentWeek > lastWeekWithCourses) {
+            android.util.Log.d(TAG, "schedulePre: RETURN weekOutOfRange cur=$currentWeek")
+            return
+        }
 
         val todayCourses = allCourses.filter { course ->
             course.dayOfWeek == today && course.isActiveInWeek(currentWeek)
-        }.sortedBy { it.startSection }
+        }.sortedBy { getCourseStartTime(it, repository).toMinutes() }
+        android.util.Log.d(TAG, "schedulePre: todayCourses=${todayCourses.size}")
+        todayCourses.forEach { android.util.Log.d(TAG, "schedulePre:   course=${it.name} day=${it.dayOfWeek} start=${getCourseStartTime(it, repository)} end=${getCourseEndTime(it, repository)}") }
 
         val useIsland = repository.getIslandNotification() && IslandNotificationHelper.isIslandSupported(context)
 
@@ -287,82 +296,17 @@ object CourseReminderHelper {
             }
 
             if (currentMinutes >= triggerMinutes) {
-                // 已过触发时间，对未开始的课程发送立即通知
-                // 去重依赖 isPreClassSentRecently，每门课独立判断，不再用 immediateSent 阻断
-                // 使用 getTimeDisplayText() 与 AlarmReceiver 定时闹钟的 EXTRA_COURSE_SECTION 保持一致，
-                // 避免自定义时间课程（节次文本与时间文本不同）去重 ID 不匹配导致重复提醒
-                val dedupCourseId = "${course.name}|${course.getTimeDisplayText()}|$startTime"
-                if (currentMinutes < startTotalMinutes
-                    && !isPreClassSentRecently(context, dedupCourseId)) {
-                    recordPreClassSent(context, dedupCourseId)
-                    if (useIsland) {
-                        val minutesUntil = startTotalMinutes - currentMinutes
-                        val endTime = getCourseEndTime(course, repository)
-                        IslandNotificationHelper.sendPreClassIslandNotification(
-                            context = context,
-                            courseName = course.name,
-                            classroom = course.classroom,
-                            section = course.getTimeDisplayText(),
-                            startTime = startTime,
-                            endTime = endTime,
-                            teacher = course.teacher,
-                            minutesUntil = minutesUntil,
-                            notificationId = 1003
-                        )
-
-                        // 安排课程开始时切换为"已上课"状态
-                        val courseStartMillis = Calendar.getInstance().apply {
-                            set(Calendar.HOUR_OF_DAY, startHour)
-                            set(Calendar.MINUTE, startMinute)
-                            set(Calendar.SECOND, 0)
-                            set(Calendar.MILLISECOND, 0)
-                        }.timeInMillis
-                        val expandIntent = Intent(context, IslandExpandReceiver::class.java).apply {
-                            putExtra(IslandExpandReceiver.EXTRA_COURSE_NAME, course.name)
-                            putExtra(IslandExpandReceiver.EXTRA_CLASSROOM, course.classroom)
-                            putExtra(IslandExpandReceiver.EXTRA_SECTION, course.getTimeDisplayText())
-                            putExtra(IslandExpandReceiver.EXTRA_START_TIME, startTime)
-                            putExtra(IslandExpandReceiver.EXTRA_END_TIME, endTime ?: "")
-                            putExtra(IslandExpandReceiver.EXTRA_NOTIFICATION_ID, 1003)
-                        }
-                        val expandPending = PendingIntent.getBroadcast(
-                            context, 1003, expandIntent,
-                            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
-                        )
-                        try {
-                            alarmManager.setExactAndAllowWhileIdle(
-                                AlarmManager.RTC_WAKEUP,
-                                courseStartMillis + 1000L,
-                                expandPending
-                            )
-                        } catch (_: SecurityException) { }
-                    } else {
-                        val startMillis = Calendar.getInstance().apply {
-                            set(Calendar.HOUR_OF_DAY, startHour)
-                            set(Calendar.MINUTE, startMinute)
-                            set(Calendar.SECOND, 0)
-                            set(Calendar.MILLISECOND, 0)
-                        }.timeInMillis
-                        val endMillisStr = getCourseEndTime(course, repository)
-                        val endMillis = if (endMillisStr != null) {
-                            val parts = endMillisStr.split(":")
-                            if (parts.size == 2) {
-                                Calendar.getInstance().apply {
-                                    set(Calendar.HOUR_OF_DAY, parts[0].toInt())
-                                    set(Calendar.MINUTE, parts[1].toInt())
-                                    set(Calendar.SECOND, 0)
-                                    set(Calendar.MILLISECOND, 0)
-                                }.timeInMillis
-                            } else 0L
-                        } else 0L
-                        showPreClassCountdownNotification(
-                            context, course.name, course.classroom, course.getTimeDisplayText(),
-                            startTime, startMillis, endMillis
-                        )
-                    }
+                // 已过触发时间，对未开始的课程发送立即通知（补发）。
+                // 去重依赖 isPreClassSentRecently：使用 getTimeDisplayText() 与 AlarmReceiver
+                // 与兜底补发（checkPendingPreClassReminders）保持一致，避免自定义时间课程双发/漏发。
+                android.util.Log.d(TAG, "schedulePre: immediate-branch ${course.name} cur=$currentMinutes trigger=$triggerMinutes start=$startTotalMinutes inWindow=${currentMinutes < startTotalMinutes}")
+                if (currentMinutes < startTotalMinutes) {
+                    sendPreClassNotification(context, alarmManager, repository, course, startTime, useIsland)
+                    android.util.Log.d(TAG, "schedulePre: immediate-SENT ${course.name}")
                 }
                 continue
             }
+            android.util.Log.d(TAG, "schedulePre: scheduling-alarm ${course.name} trigger=$triggerMinutes start=$startTotalMinutes")
 
             val intent = Intent(context, AlarmReceiver::class.java).apply {
                 putExtra(EXTRA_REMINDER_TYPE, TYPE_PRE_CLASS)
@@ -486,7 +430,11 @@ object CourseReminderHelper {
         val countdownPrefs = context.getSharedPreferences("countdown_state", Context.MODE_PRIVATE)
         val hasActiveCountdown = countdownPrefs.getBoolean("active", false)
 
-        // 检查是否有课程正在进行或即将开始（5分钟内）
+        // 检查是否有课程正在进行或即将开始（课前提醒窗口内）
+        // 使用课前提醒提前量作为窗口，保证补发与倒计时在整个提醒窗口内每分钟被驱动
+        val minutesBefore = repository.getPreClassReminderMinutes()
+        android.util.Log.d(TAG, "computeNext: entered cur=$currentMinutes b=$minutesBefore todayCourses=${todayCourses.size} countdown=$hasActiveCountdown")
+        todayCourses.forEach { android.util.Log.d(TAG, "computeNext:   c=${it.name} s=${getCourseStartTime(it, repository)} e=${getCourseEndTime(it, repository)}") }
         var hasActiveCourse = hasActiveCountdown
         var nextEventTime: Long? = null  // 下一个课程开始/结束时间
 
@@ -508,9 +456,10 @@ object CourseReminderHelper {
                 break
             }
 
-            // 课程即将开始（5分钟内）
+            // 课程即将开始（课前提醒窗口内）：整个窗口保持每分钟刷新，
+            // 保证补发（checkPendingPreClassReminders）与倒计时都能及时驱动，不被单点闹钟错过
             val minutesToStart = startMin - currentMinutes
-            if (minutesToStart in 0..5) {
+            if (minutesToStart >= 0 && minutesToStart <= minutesBefore) {
                 hasActiveCourse = true
                 break
             }
@@ -531,7 +480,7 @@ object CourseReminderHelper {
             }
         }
 
-        return if (hasActiveCourse) {
+        val result = if (hasActiveCourse) {
             // 有课进行中：下一分钟整点刷新（对齐到分钟边界，确保倒计时及时变化）
             val nextMinute = Calendar.getInstance().apply {
                 add(Calendar.MINUTE, 1)
@@ -549,6 +498,8 @@ object CourseReminderHelper {
             // 今日无课或课程已全部结束：30 分钟后刷新（用于跨日检测）
             now + 30 * 60 * 1000L
         }
+        android.util.Log.d(TAG, "computeNext: RESULT active=$hasActiveCourse nextEvent=$nextEventTime ret=${java.text.SimpleDateFormat("HH:mm:ss", java.util.Locale.getDefault()).format(java.util.Date(result))}")
+        return result
     }
 
     /**
@@ -654,7 +605,7 @@ object CourseReminderHelper {
 
     fun getTomorrowCourses(context: Context): List<Course> {
         val repository = CourseRepository(context)
-        val todayDate = java.time.LocalDate.now()
+        val todayDate = LocalDate.now()
         val tomorrowDate = todayDate.plusDays(1)
         if (HolidayManager.isHoliday(context, tomorrowDate)) return emptyList()
         val todayEntry = HolidayManager.workSwap(context, todayDate)
@@ -672,22 +623,29 @@ object CourseReminderHelper {
 
         return courses.filter { course ->
             course.dayOfWeek == tomorrowDayOfWeek && course.isActiveInWeek(tomorrowWeek)
-        }.sortedBy { it.startSection }
+        }.sortedBy { getCourseStartTime(it, repository).toMinutes() }
     }
 
     fun getTodayCourses(context: Context): List<Course> {
         val repository = CourseRepository(context)
-        val date = java.time.LocalDate.now()
-        if (HolidayManager.isHoliday(context, date)) return emptyList()
+        val date = LocalDate.now()
+        if (HolidayManager.isHoliday(context, date)) {
+            android.util.Log.d(TAG, "getToday: RETURN holiday")
+            return emptyList()
+        }
         val workSwap = HolidayManager.workSwap(context, date)
         val currentWeek = workSwap?.followWeek?.takeIf { it > 0 } ?: repository.getCurrentWeek()
         val today = workSwap?.followWeekday?.takeIf { it in 1..7 } ?: getTodayOfWeek()
         val totalWeeks = repository.getTotalWeeks()
         val lastWeekWithCourses = repository.getLastWeekWithCourses()
-        if (currentWeek > totalWeeks || currentWeek > lastWeekWithCourses) return emptyList()
+        android.util.Log.d(TAG, "getToday: date=$date week=$currentWeek today=$today total=$totalWeeks lastWeek=$lastWeekWithCourses all=${repository.getAllCourses().size}")
+        if (currentWeek > totalWeeks || currentWeek > lastWeekWithCourses) {
+            android.util.Log.d(TAG, "getToday: RETURN weekOutOfRange cur=$currentWeek total=$totalWeeks last=$lastWeekWithCourses")
+            return emptyList()
+        }
         return repository.getAllCourses()
             .filter { it.dayOfWeek == today && it.isActiveInWeek(currentWeek) }
-            .sortedBy { it.startSection }
+            .sortedBy { getCourseStartTime(it, repository).toMinutes() }
     }
 
     fun findNextCourseToday(context: Context): Course? {
@@ -1056,5 +1014,163 @@ object CourseReminderHelper {
 
         // 记录本次显示的分钟数
         prefs.edit { putInt("last_displayed_minutes", minutesUntilStart) }
+    }
+
+    /**
+     * 立即补发课前提醒（含去重记录）。调用方负责判断是否处于提醒窗口内。
+     */
+    private fun sendPreClassNotification(
+        context: Context,
+        alarmManager: AlarmManager,
+        repository: CourseRepository,
+        course: Course,
+        startTime: String,
+        useIsland: Boolean
+    ) {
+        val dedupId = "${course.name}|${course.getTimeDisplayText()}|$startTime"
+        recordPreClassSent(context, dedupId)
+
+        val startParts = startTime.split(":")
+        if (startParts.size != 2) return
+        val startHour = startParts[0].toIntOrNull() ?: return
+        val startMinute = startParts[1].toIntOrNull() ?: return
+
+        if (useIsland) {
+            val now = Calendar.getInstance()
+            val currentMinutes = now.get(Calendar.HOUR_OF_DAY) * 60 + now.get(Calendar.MINUTE)
+            val minutesUntil = startHour * 60 + startMinute - currentMinutes
+            val endTime = getCourseEndTime(course, repository)
+            IslandNotificationHelper.sendPreClassIslandNotification(
+                context = context,
+                courseName = course.name,
+                classroom = course.classroom,
+                section = course.getTimeDisplayText(),
+                startTime = startTime,
+                endTime = endTime,
+                teacher = course.teacher,
+                minutesUntil = minutesUntil,
+                notificationId = 1003
+            )
+
+            // 课程开始时切换为"已上课"状态
+            val courseStartMillis = Calendar.getInstance().apply {
+                set(Calendar.HOUR_OF_DAY, startHour)
+                set(Calendar.MINUTE, startMinute)
+                set(Calendar.SECOND, 0)
+                set(Calendar.MILLISECOND, 0)
+            }.timeInMillis
+            val expandIntent = Intent(context, IslandExpandReceiver::class.java).apply {
+                putExtra(IslandExpandReceiver.EXTRA_COURSE_NAME, course.name)
+                putExtra(IslandExpandReceiver.EXTRA_CLASSROOM, course.classroom)
+                putExtra(IslandExpandReceiver.EXTRA_SECTION, course.getTimeDisplayText())
+                putExtra(IslandExpandReceiver.EXTRA_START_TIME, startTime)
+                putExtra(IslandExpandReceiver.EXTRA_END_TIME, endTime ?: "")
+                putExtra(IslandExpandReceiver.EXTRA_NOTIFICATION_ID, 1003)
+            }
+            val expandPending = PendingIntent.getBroadcast(
+                context, 1003, expandIntent,
+                PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+            )
+            try {
+                alarmManager.setExactAndAllowWhileIdle(
+                    AlarmManager.RTC_WAKEUP,
+                    courseStartMillis + 1000L,
+                    expandPending
+                )
+            } catch (_: SecurityException) { }
+        } else {
+            val startMillis = Calendar.getInstance().apply {
+                set(Calendar.HOUR_OF_DAY, startHour)
+                set(Calendar.MINUTE, startMinute)
+                set(Calendar.SECOND, 0)
+                set(Calendar.MILLISECOND, 0)
+            }.timeInMillis
+            val endMillisStr = getCourseEndTime(course, repository)
+            val endMillis = if (endMillisStr != null) {
+                val parts = endMillisStr.split(":")
+                if (parts.size == 2) {
+                    Calendar.getInstance().apply {
+                        set(Calendar.HOUR_OF_DAY, parts[0].toInt())
+                        set(Calendar.MINUTE, parts[1].toInt())
+                        set(Calendar.SECOND, 0)
+                        set(Calendar.MILLISECOND, 0)
+                    }.timeInMillis
+                } else 0L
+            } else 0L
+            showPreClassCountdownNotification(
+                context, course.name, course.classroom, course.getTimeDisplayText(),
+                startTime, startMillis, endMillis
+            )
+        }
+    }
+
+    /**
+     * 每分钟由 WidgetRefreshReceiver 调用（兜底补发）。
+     * 当某门课因闹钟未触发/丢失而漏发时，只要仍在"课前提醒窗口内"[startTime - 提前量, startTime)并未发送，
+     * 立即补发（含超级岛通道）。开销极低：优先按 10 分钟去重窗口短路。
+     */
+    fun checkPendingPreClassReminders(context: Context) {
+        val repository = CourseRepository(context)
+        if (!repository.getPreClassReminder()) {
+            android.util.Log.d(TAG, "checkPending: preClassReminder OFF")
+            return
+        }
+        if (!isSemesterStarted(repository)) {
+            android.util.Log.d(TAG, "checkPending: semesterNotStarted")
+            return
+        }
+        val today9 = LocalDate.now()
+        if (HolidayManager.isHoliday(context, today9)) {
+            android.util.Log.d(TAG, "checkPending: holiday")
+            return
+        }
+        val workSwap = HolidayManager.workSwap(context, today9)
+        var currentWeek = repository.getCurrentWeek()
+        var todayOfWeek = getTodayOfWeek()
+        if (workSwap != null && workSwap.followWeek > 0 && workSwap.followWeekday > 0) {
+            currentWeek = workSwap.followWeek
+            todayOfWeek = workSwap.followWeekday
+        }
+        val totalWeeks3 = repository.getTotalWeeks()
+        val lastWeekWithCourses3 = repository.getLastWeekWithCourses()
+        if (currentWeek < 1 || currentWeek > totalWeeks3 || currentWeek > lastWeekWithCourses3) {
+            android.util.Log.d(TAG, "checkPending: weekOutOfRange cur=$currentWeek total=$totalWeeks3 last=$lastWeekWithCourses3")
+            return
+        }
+
+        val alarmManager = context.getSystemService(Context.ALARM_SERVICE) as AlarmManager
+        val minutesBefore = repository.getPreClassReminderMinutes()
+        val useIsland = repository.getIslandNotification() && IslandNotificationHelper.isIslandSupported(context)
+        val now = Calendar.getInstance()
+        val currentMinutes = now.get(Calendar.HOUR_OF_DAY) * 60 + now.get(Calendar.MINUTE)
+
+        val courses = repository.getAllCourses()
+            .filter { it.dayOfWeek == todayOfWeek && it.isActiveInWeek(currentWeek) }
+            .sortedBy { getCourseStartTime(it, repository).toMinutes() }
+        android.util.Log.d(TAG, "checkPending: RUN week=$currentWeek weekday=$todayOfWeek minutesBefore=$minutesBefore current=$currentMinutes courses=${courses.size}")
+
+        for (course in courses) {
+            val startTime = getCourseStartTime(course, repository) ?: continue
+            val startTotal = startTime.toMinutes()
+            if (startTotal == Int.MAX_VALUE) continue
+            val windowStart = startTotal - minutesBefore
+            val inWindow = currentMinutes >= windowStart && currentMinutes < startTotal
+            val dedupId11 = "${course.name}|${course.getTimeDisplayText()}|$startTime"
+            val dedupHit = isPreClassSentRecently(context, dedupId11)
+            android.util.Log.d(TAG, "checkPending: ${course.name} start=$startTime cur=$currentMinutes win=[$windowStart,$startTotal) inWindow=$inWindow dedupHit=$dedupHit")
+            if (!inWindow || dedupHit) continue
+            sendPreClassNotification(context, alarmManager, repository, course, startTime, useIsland)
+            android.util.Log.d(TAG, "checkPending: SENT ${course.name}")
+        }
+    }
+
+    /** "HH:mm" -> 分钟数，用于排序；null/非法返回 Int.MAX_VALUE 排到末尾 */
+    private fun String?.toMinutes(): Int {
+        if (this.isNullOrBlank()) return Int.MAX_VALUE
+        val parts = this.split(":")
+        if (parts.size != 2) return Int.MAX_VALUE
+        val h = parts[0].toIntOrNull() ?: return Int.MAX_VALUE
+        val m = parts[1].toIntOrNull() ?: return Int.MAX_VALUE
+        return h * 60 + m
     }
 }

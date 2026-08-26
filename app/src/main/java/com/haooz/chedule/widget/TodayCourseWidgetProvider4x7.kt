@@ -63,7 +63,7 @@ class TodayCourseWidgetProvider4x7 : AppWidgetProvider() {
         val today = getTodayOfWeek()
         val courses = repository.getAllCourses()
         val todayCourses = courses.filter { it.dayOfWeek == today && it.isActiveInWeek(currentWeek) }
-            .sortedBy { it.startSection }
+            .sortedBy { getCourseStartTime(it, repository).toMinutes() }
 
         val calendar = Calendar.getInstance()
         val currentMinutes = calendar.get(Calendar.HOUR_OF_DAY) * 60 + calendar.get(Calendar.MINUTE)
@@ -96,7 +96,7 @@ class TodayCourseWidgetProvider4x7 : AppWidgetProvider() {
         }
 
         val targetCourses = courses.filter { it.dayOfWeek == dayOfWeek && it.isActiveInWeek(targetWeek) }
-            .sortedBy { it.startSection }
+            .sortedBy { getCourseStartTime(it, repository).toMinutes() }
 
         val totalWeeks = repository.getTotalWeeks()
         val lastWeekWithCourses = repository.getLastWeekWithCourses()
@@ -264,5 +264,14 @@ class TodayCourseWidgetProvider4x7 : AppWidgetProvider() {
     private fun getTodayOfWeek(): Int {
         val calendar = Calendar.getInstance()
         return (calendar.get(Calendar.DAY_OF_WEEK) + 5) % 7 + 1
+    }
+
+    private fun String?.toMinutes(): Int {
+        if (this.isNullOrBlank()) return Int.MAX_VALUE
+        val parts = this.split(":")
+        if (parts.size != 2) return Int.MAX_VALUE
+        val h = parts[0].toIntOrNull() ?: return Int.MAX_VALUE
+        val m = parts[1].toIntOrNull() ?: return Int.MAX_VALUE
+        return h * 60 + m
     }
 }
