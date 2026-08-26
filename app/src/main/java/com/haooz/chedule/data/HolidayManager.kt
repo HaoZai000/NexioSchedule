@@ -4,9 +4,7 @@ import android.content.Context
 import androidx.core.content.edit
 import org.json.JSONArray
 import org.json.JSONObject
-import java.text.SimpleDateFormat
 import java.time.LocalDate
-import java.util.Locale
 
 /** 节假日与调休数据。假期跳过提醒，调休按配置的课表周次和星期调度。 */
 object HolidayManager {
@@ -53,10 +51,12 @@ object HolidayManager {
     }
 
     fun isHoliday(context: Context, date: LocalDate): Boolean =
-        load(context, date.year).any { it.type == TYPE_HOLIDAY && it.matches(date.toString()) }
+        (load(context, date.year) + load(context, date.year - 1))
+            .any { it.type == TYPE_HOLIDAY && it.matches(date.toString()) }
 
     fun workSwap(context: Context, date: LocalDate): Entry? =
-        load(context, date.year).firstOrNull { it.type == TYPE_WORKSWAP && it.matches(date.toString()) }
+        (load(context, date.year) + load(context, date.year - 1))
+            .firstOrNull { it.type == TYPE_WORKSWAP && it.matches(date.toString()) }
 
     fun mergeApiEntries(context: Context, year: Int, apiEntries: List<Entry>) {
         val existing = load(context, year)
