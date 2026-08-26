@@ -407,8 +407,8 @@ private fun CardContent(course: Course, sectionCount: Int, textColor: Color, has
     val infoLineHeight = 12.sp
     val courseNameLineHeight = 14.2.sp
 
-    val showClassroom = sectionCount >= 2 && course.classroom.isNotEmpty()
-    val showTeacher = sectionCount >= 2 && course.teacher.isNotEmpty()
+    val showClassroom = course.classroom.isNotEmpty()
+    val showTeacher = course.teacher.isNotEmpty()
 
     // 课程名称最多行数：卡片高度能放下几行就几行
     val density = LocalDensity.current
