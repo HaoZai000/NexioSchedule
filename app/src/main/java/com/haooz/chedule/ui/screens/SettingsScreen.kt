@@ -49,18 +49,21 @@ import com.haooz.chedule.data.TimeConfig
 import com.haooz.chedule.ui.activities.AboutActivity
 import com.haooz.chedule.ui.activities.CourseReminderActivity
 import com.haooz.chedule.ui.activities.CourseTimeSettingsActivity
+import com.haooz.chedule.ui.activities.HolidaySettingsActivity
 import com.haooz.chedule.ui.activities.PreferenceSettingsActivity
 import com.haooz.chedule.ui.activities.WidgetIntroActivity
-import com.haooz.chedule.ui.activities.HolidaySettingsActivity
-import top.yukonga.miuix.kmp.basic.NativeMiuixTextField
+import com.haooz.chedule.ui.basic.SharedScrollBehavior
 import com.haooz.chedule.ui.utils.isAppDarkTheme
+import com.haooz.chedule.ui.utils.overScrollVertical
 import com.haooz.chedule.viewmodel.CourseViewModel
 import com.haooz.chedule.viewmodel.ScheduleViewModel
 import com.haooz.chedule.viewmodel.SettingsViewModel
 import com.haooz.chedule.viewmodel.ShiftViewModel
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import top.yukonga.miuix.kmp.basic.ButtonDefaults
 import top.yukonga.miuix.kmp.basic.Card
+import top.yukonga.miuix.kmp.basic.NativeMiuixTextField
 import top.yukonga.miuix.kmp.basic.NumberPicker
 import top.yukonga.miuix.kmp.basic.Scaffold
 import top.yukonga.miuix.kmp.basic.SmallTitle
@@ -68,14 +71,11 @@ import top.yukonga.miuix.kmp.basic.TextButton
 import top.yukonga.miuix.kmp.blur.layerBackdrop
 import top.yukonga.miuix.kmp.blur.rememberLayerBackdrop
 import top.yukonga.miuix.kmp.overlay.OverlayDialog
-import com.haooz.chedule.ui.basic.SharedScrollBehavior
 import top.yukonga.miuix.kmp.preference.ArrowPreference
 import top.yukonga.miuix.kmp.preference.CheckboxLocation
 import top.yukonga.miuix.kmp.preference.CheckboxPreference
 import top.yukonga.miuix.kmp.preference.SwitchPreference
 import top.yukonga.miuix.kmp.theme.MiuixTheme
-import com.haooz.chedule.ui.utils.overScrollVertical
-import kotlinx.coroutines.delay
 import top.yukonga.miuix.kmp.utils.scrollEndHaptic
 import java.time.LocalDate
 import java.time.temporal.ChronoUnit
@@ -309,7 +309,7 @@ fun SettingsScreen(
 
                             // 课表时间设置（包含节数设置）
                             ArrowPreference(
-                                title = "课程节数与时间",
+                                title = "课表节数与时间",
                                 summary = "管理不同课表的节数与课程时间",
                                 holdDownState = activeSecondaryActivity == "CourseTimeSettingsActivity",
                                 onClick = {

@@ -195,8 +195,8 @@ class CourseTimeSettingsActivity : ComponentActivity() {
                                         blurAlpha = topBarBlurAlpha,
                                     ) {
                                         CollapsibleTopAppBar(
-                                            title = "课程节数与时间",
-                                            largeTitle = "课程节数与时间",
+                                            title = "课表节数与时间",
+                                            largeTitle = "课表节数与时间",
                                             modifier = Modifier.zIndex(1f),
                                             scrollBehavior = scrollBehavior,
                                             contentPadding = { height -> topBarHeight = height },

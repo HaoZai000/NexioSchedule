@@ -1,61 +1,81 @@
 package com.haooz.chedule.ui.activities
 
+import android.content.Context
 import android.widget.Toast
+import androidx.compose.foundation.Image
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.ColorFilter
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.IntOffset
+import androidx.compose.ui.unit.IntRect
+import androidx.compose.ui.unit.IntSize
+import androidx.compose.ui.unit.LayoutDirection
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.haooz.chedule.data.CourseRepository
 import com.haooz.chedule.data.HolidayManager
 import com.haooz.chedule.reminder.CourseReminderHelper
 import com.haooz.chedule.ui.basic.OverlayDropdownMenu
 import com.haooz.chedule.ui.basic.SharedScrollBehavior
 import com.haooz.chedule.ui.utils.overScrollVertical
 import com.kyant.backdrop.Backdrop
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.launch
-import kotlinx.coroutines.withContext
+import com.kyant.capsule.ContinuousRoundedRectangle
 import top.yukonga.miuix.kmp.basic.ButtonDefaults
 import top.yukonga.miuix.kmp.basic.Card
 import top.yukonga.miuix.kmp.basic.DropdownDefaults
 import top.yukonga.miuix.kmp.basic.DropdownEntry
 import top.yukonga.miuix.kmp.basic.DropdownItem
+import top.yukonga.miuix.kmp.basic.ListPopupColumn
 import top.yukonga.miuix.kmp.basic.NativeMiuixTextField
 import top.yukonga.miuix.kmp.basic.NumberPicker
+import top.yukonga.miuix.kmp.basic.PopupPositionProvider
+import top.yukonga.miuix.kmp.basic.PopupPositionResult
 import top.yukonga.miuix.kmp.basic.Scaffold
 import top.yukonga.miuix.kmp.basic.SmallTitle
 import top.yukonga.miuix.kmp.basic.Text
 import top.yukonga.miuix.kmp.basic.TextButton
+import top.yukonga.miuix.kmp.icon.MiuixIcons
+import top.yukonga.miuix.kmp.icon.extended.Delete
+import top.yukonga.miuix.kmp.icon.extended.Info
+import top.yukonga.miuix.kmp.layout.liquidDropdownPositionProvider
 import top.yukonga.miuix.kmp.overlay.OverlayDialog
+import top.yukonga.miuix.kmp.overlay.OverlayListPopup
 import top.yukonga.miuix.kmp.preference.ArrowPreference
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 import top.yukonga.miuix.kmp.utils.scrollEndHaptic
-import java.net.HttpURLConnection
-import java.net.URL
 import java.time.LocalDate
+import java.time.temporal.ChronoUnit
 
 private val YEAR_RANGE = 2024..2035
 private val WEEKDAYS = listOf(
@@ -68,7 +88,6 @@ private val WEEKDAYS = listOf(
     "星期日",
 )
 
-private fun yearLabel(value: Int): String = "${value}年"
 private fun monthLabel(value: Int): String = "${value}月"
 private fun dayLabel(value: Int): String = "${value}日"
 
@@ -76,19 +95,16 @@ private fun dayLabel(value: Int): String = "${value}日"
 fun HolidaySettingsScreen(
     scrollBehavior: SharedScrollBehavior?,
     liquidGlassBackdrop: Backdrop?,
+    year: Int,
+    entries: List<HolidayManager.Entry>,
+    onYearChange: (Int) -> Unit,
+    reload: () -> Unit,
 ) {
     val context = LocalContext.current
-    val scope = rememberCoroutineScope()
     val haptic = LocalHapticFeedback.current
-    val currentDate = remember { LocalDate.now() }
-
-    // 列表数据
-    var year by remember { mutableIntStateOf(currentDate.year) }
-    var entries by remember { mutableStateOf(HolidayManager.load(context, year)) }
-    var loading by remember { mutableStateOf(false) }
-
     // 编辑弹窗
     var showDialog by remember { mutableStateOf(false) }
+    var showDeleteConfirm by remember { mutableStateOf(false) }
     var dialogType by remember { mutableIntStateOf(HolidayManager.TYPE_HOLIDAY) }
     var editingEntry by remember { mutableStateOf<HolidayManager.Entry?>(null) }
     var name by remember { mutableStateOf("") }
@@ -101,43 +117,17 @@ fun HolidaySettingsScreen(
     var followWeek by remember { mutableStateOf("1") }
     var followWeekday by remember { mutableStateOf("1") }
 
-    fun reload() {
-        entries = HolidayManager.load(context, year)
-    }
-
-    fun requestYear(targetYear: Int, automatic: Boolean = false) {
-        if (loading) return
-        loading = true
-        scope.launch(Dispatchers.IO) {
-            val result = runCatching {
-                val conn = URL("https://unpkg.com/holiday-calendar@1.3.0/data/CN/$targetYear.json")
-                    .openConnection() as HttpURLConnection
-                conn.connectTimeout = 10_000
-                conn.readTimeout = 10_000
-                val text = conn.inputStream.bufferedReader().use { it.readText() }
-                conn.disconnect()
-                HolidayManager.parseApiResponse(text)
-            }.getOrDefault(emptyList())
-            withContext(Dispatchers.Main) {
-                HolidayManager.mergeApiEntries(context, targetYear, result)
-                if (targetYear == year) reload()
-                loading = false
-                if (!automatic) {
-                    val message = if (result.isEmpty()) {
-                        "获取失败或暂无数据"
-                    } else {
-                        "已更新 ${result.size} 条记录"
-                    }
-                    Toast.makeText(context, message, Toast.LENGTH_SHORT).show()
-                }
-            }
-        }
-    }
-
-    fun clearYear() {
-        HolidayManager.clear(context, year)
-        reload()
-        CourseReminderHelper.startReminderService(context)
+    // 根据开始日期计算其对应课表的默认周次
+    fun weekOfDate(year: Int, month: Int, day: Int): String {
+        val classStartTime = CourseRepository.getInstance(context).getClassStartTime()
+        return try {
+            val start = LocalDate.parse(classStartTime.replace("/", "-"))
+            val startMonday = start.minusDays((start.dayOfWeek.value - 1).toLong())
+            val date = LocalDate.of(year, month, day)
+            ChronoUnit.DAYS.between(startMonday, date).floorDiv(7).toInt() + 1
+        } catch (_: Exception) {
+            1
+        }.toString()
     }
 
     fun startAdding(type: Int) {
@@ -150,7 +140,11 @@ fun HolidaySettingsScreen(
         endYear = year
         endMonth = 1
         endDay = 1
-        followWeek = "1"
+        followWeek = if (type == HolidayManager.TYPE_WORKSWAP) {
+            weekOfDate(startYear, startMonth, startDay)
+        } else {
+            "1"
+        }
         followWeekday = "1"
         showDialog = true
     }
@@ -169,8 +163,8 @@ fun HolidaySettingsScreen(
         endYear = end.year
         endMonth = end.monthValue
         endDay = end.dayOfMonth
-        followWeek = if (entry.followWeek > 0) {
-            entry.followWeek.toString()
+        followWeek = if (entry.type == HolidayManager.TYPE_WORKSWAP) {
+            weekOfDate(startYear, startMonth, startDay)
         } else {
             "1"
         }
@@ -226,24 +220,26 @@ fun HolidaySettingsScreen(
     }
 
     fun deleteEntry() {
-        val old = editingEntry ?: return
-        val remaining = HolidayManager.load(context, year).filterNot {
-            it.date == old.date &&
-                it.type == old.type &&
-                it.name == old.name
+        val all = HolidayManager.load(context, year).toMutableList()
+        editingEntry?.let { old ->
+            all.removeAll {
+                it.date == old.date &&
+                    it.type == old.type &&
+                    it.name == old.name
+            }
         }
-        HolidayManager.save(context, year, remaining)
+        HolidayManager.save(context, year, all)
         reload()
         CourseReminderHelper.startReminderService(context)
+        showDeleteConfirm = false
         showDialog = false
         editingEntry = null
+        haptic.performHapticFeedback(HapticFeedbackType.Confirm)
     }
 
     val listState = rememberLazyListState()
-
-    LaunchedEffect(Unit) {
-        if (entries.isEmpty()) requestYear(year, automatic = true)
-    }
+    val holidayEntries = entries.filter { it.type == HolidayManager.TYPE_HOLIDAY }
+    val workswapEntries = entries.filter { it.type == HolidayManager.TYPE_WORKSWAP }
 
     Scaffold(topBar = {}) { padding ->
         val topBarHeightDp = with(LocalDensity.current) {
@@ -252,7 +248,7 @@ fun HolidaySettingsScreen(
         LazyColumn(
             state = listState,
             modifier = Modifier
-                .fillMaxWidth()
+                .fillMaxSize()
                 .overScrollVertical()
                 .scrollEndHaptic(hapticFeedbackType = HapticFeedbackType.TextHandleMove)
                 .then(
@@ -261,45 +257,33 @@ fun HolidaySettingsScreen(
                 ),
             contentPadding = PaddingValues(
                 16.dp,
-                padding.calculateTopPadding() + topBarHeightDp,
+                padding.calculateTopPadding() + topBarHeightDp + 12.dp,
                 16.dp,
-                48.dp,
+                60.dp,
             ),
             verticalArrangement = Arrangement.spacedBy(12.dp),
         ) {
             item {
                 DataManagementCard(
                     year = year,
-                    loading = loading,
-                    currentDate = currentDate,
                     liquidGlassBackdrop = liquidGlassBackdrop,
-                    onYearChange = { newYear ->
-                        year = newYear
-                        reload()
-                    },
-                    onRequestData = { requestYear(year) },
-                    onClear = { clearYear() },
+                    onYearChange = onYearChange,
                 )
             }
 
-            if (entries.isEmpty()) {
-                item {
-                    EmptyPlaceholderCard(loading = loading, year = year)
+            item {
+                SectionTitleRow(
+                    text = "节假日",
+                    description = "• 处于假期范围内的日期不会发送课程提醒\n• 可在此手动添加或编辑放假日期",
+                    liquidGlassBackdrop = liquidGlassBackdrop,
+                )
+                if (holidayEntries.isNotEmpty()) {
+                    HolidayEntriesCard(
+                        entries = holidayEntries,
+                        onEdit = { startEditing(it) },
+                    )
+                    Spacer(modifier = Modifier.fillMaxWidth().height(12.dp))
                 }
-            }
-
-            item {
-                SmallTitle(text = "节假日", modifier = Modifier.offset((-15).dp))
-            }
-            item {
-                HolidayEntriesCard(
-                    type = HolidayManager.TYPE_HOLIDAY,
-                    emptyText = "暂无 节假日",
-                    entries = entries,
-                    onEdit = { startEditing(it) },
-                )
-            }
-            item {
                 AddEntryCard(
                     type = HolidayManager.TYPE_HOLIDAY,
                     onAdd = { startAdding(HolidayManager.TYPE_HOLIDAY) },
@@ -307,17 +291,18 @@ fun HolidaySettingsScreen(
             }
 
             item {
-                SmallTitle(text = "调休工作日", modifier = Modifier.offset((-15).dp))
-            }
-            item {
-                HolidayEntriesCard(
-                    type = HolidayManager.TYPE_WORKSWAP,
-                    emptyText = "暂无 调休工作日",
-                    entries = entries,
-                    onEdit = { startEditing(it) },
+                SectionTitleRow(
+                    text = "调休工作日",
+                    description = "• 原本的日常休息日因调休需要补课\n• 可在此指定某一天作为补班课程安排",
+                    liquidGlassBackdrop = liquidGlassBackdrop,
                 )
-            }
-            item {
+                if (workswapEntries.isNotEmpty()) {
+                    HolidayEntriesCard(
+                        entries = workswapEntries,
+                        onEdit = { startEditing(it) },
+                    )
+                    Spacer(modifier = Modifier.fillMaxWidth().height(12.dp))
+                }
                 AddEntryCard(
                     type = HolidayManager.TYPE_WORKSWAP,
                     onAdd = { startAdding(HolidayManager.TYPE_WORKSWAP) },
@@ -326,47 +311,192 @@ fun HolidaySettingsScreen(
         }
     }
 
-    if (showDialog) {
-        EntryEditDialog(
-            dialogTitle = if (editingEntry == null) {
-                if (dialogType == HolidayManager.TYPE_HOLIDAY) {
-                    "添加节假日"
-                } else {
-                    "添加调休工作日"
-                }
+    EntryEditDialog(
+        show = showDialog,
+        dialogTitle = if (editingEntry == null) {
+            if (dialogType == HolidayManager.TYPE_HOLIDAY) {
+                "添加节假日"
             } else {
-                val suffix = if (dialogType == HolidayManager.TYPE_HOLIDAY) {
-                    "节假日"
-                } else {
-                    "调休工作日"
-                }
-                "编辑$suffix"
-            },
-            dialogType = dialogType,
-            editingEntry = editingEntry,
-            name = name,
-            onNameChange = { name = it },
-            startYear = startYear,
-            startMonth = startMonth,
-            startDay = startDay,
-            onStartYearChange = { startYear = it },
-            onStartMonthChange = { startMonth = it },
-            onStartDayChange = { startDay = it },
-            endYear = endYear,
-            endMonth = endMonth,
-            endDay = endDay,
-            onEndYearChange = { endYear = it },
-            onEndMonthChange = { endMonth = it },
-            onEndDayChange = { endDay = it },
-            followWeek = followWeek,
-            followWeekday = followWeekday,
-            onFollowWeekChange = { followWeek = it },
-            onFollowWeekdayChange = { followWeekday = it },
-            liquidGlassBackdrop = liquidGlassBackdrop,
-            onDismiss = { showDialog = false },
-            onSave = { saveEntry() },
-            onDelete = { deleteEntry() },
+                "添加调休工作日"
+            }
+        } else {
+            val suffix = if (dialogType == HolidayManager.TYPE_HOLIDAY) {
+                "节假日"
+            } else {
+                "调休工作日"
+            }
+            "编辑$suffix"
+        },
+        dialogType = dialogType,
+        name = name,
+        onNameChange = { name = it },
+        startYear = startYear,
+        startMonth = startMonth,
+        startDay = startDay,
+        onStartYearChange = { startYear = it },
+        onStartMonthChange = { startMonth = it },
+        onStartDayChange = { startDay = it },
+        endYear = endYear,
+        endMonth = endMonth,
+        endDay = endDay,
+        onEndYearChange = { endYear = it },
+        onEndMonthChange = { endMonth = it },
+        onEndDayChange = { endDay = it },
+        followWeek = followWeek,
+        followWeekday = followWeekday,
+        onFollowWeekChange = { followWeek = it },
+        onFollowWeekdayChange = { followWeekday = it },
+        liquidGlassBackdrop = liquidGlassBackdrop,
+        canDelete = editingEntry != null,
+        onDeleteClick = { showDeleteConfirm = true },
+        onDismiss = { showDialog = false },
+        onSave = { saveEntry() },
+    )
+
+    OverlayDialog(
+        title = "删除记录",
+        summary = "确定要删除这条${if (dialogType == HolidayManager.TYPE_HOLIDAY) "节假日" else "调休工作日"}记录吗？\n此操作不可撤销。",
+        show = showDeleteConfirm,
+        liquidGlassBackdrop = liquidGlassBackdrop,
+        onDismissRequest = { showDeleteConfirm = false },
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(top = 16.dp),
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+        ) {
+            TextButton(
+                "取消",
+                {
+                    haptic.performHapticFeedback(HapticFeedbackType.Confirm)
+                    showDeleteConfirm = false
+                },
+                modifier = Modifier.weight(1f),
+            )
+            TextButton(
+                "删除",
+                { deleteEntry() },
+                textColor = Color(0xFFF44336),
+                modifier = Modifier.weight(1f),
+            )
+        }
+    }
+}
+
+// ---------- 区块标题（含功能说明） ----------
+
+/**
+ * 基于默认下拉位置，再沿展开方向外推 offsetPx（向下展开往下、向上展开往上）。
+ */
+private fun expandDirectionOffsetProvider(offsetPx: Int): PopupPositionProvider {
+    val base = liquidDropdownPositionProvider()
+    return object : PopupPositionProvider {
+        override fun calculatePosition(
+            anchorBounds: IntRect,
+            windowBounds: IntRect,
+            layoutDirection: LayoutDirection,
+            popupContentSize: IntSize,
+            popupMargin: IntRect,
+            alignment: PopupPositionProvider.Align,
+        ): PopupPositionResult {
+            val result = base.calculatePosition(
+                anchorBounds,
+                windowBounds,
+                layoutDirection,
+                popupContentSize,
+                popupMargin,
+                alignment,
+            )
+            val deltaY = when {
+                result.showBelow -> offsetPx
+                result.showAbove -> -offsetPx
+                else -> 0
+            }
+            val clampedY = (result.offset.y + deltaY).coerceIn(
+                windowBounds.top + popupMargin.top,
+                windowBounds.bottom - popupContentSize.height - popupMargin.bottom,
+            )
+            return PopupPositionResult(
+                IntOffset(result.offset.x, clampedY),
+                result.showBelow,
+                result.showAbove,
+            )
+        }
+
+        override fun getMargins(): PaddingValues = base.getMargins()
+    }
+}
+
+@Composable
+private fun SectionTitleRow(
+    text: String,
+    description: String,
+    liquidGlassBackdrop: Backdrop?,
+) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .offset((-16).dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        SmallTitle(
+            text = text,
+            modifier = Modifier.weight(1f),
         )
+        InfoDropdown(
+            description = description,
+            liquidGlassBackdrop = liquidGlassBackdrop,
+        )
+    }
+}
+
+@Composable
+private fun InfoDropdown(
+    description: String,
+    liquidGlassBackdrop: Backdrop?,
+) {
+    var expanded by remember { mutableStateOf(false) }
+    val infoColor = MiuixTheme.colorScheme.primary
+    val density = LocalDensity.current
+    val positionProvider = remember {
+        expandDirectionOffsetProvider(with(density) { 16.dp.roundToPx() })
+    }
+    Box(
+        modifier = Modifier
+            .size(36.dp)
+
+            .clickable(
+                interactionSource = remember { MutableInteractionSource() },
+                indication = null,
+                onClick = { expanded = !expanded },
+            ),
+        contentAlignment = Alignment.CenterEnd,
+    ) {
+        Image(
+            imageVector = MiuixIcons.Info,
+            contentDescription = null,
+            colorFilter = ColorFilter.tint(infoColor),
+            modifier = Modifier.size(20.dp),
+        )
+        OverlayListPopup(
+            show = expanded,
+            alignment = PopupPositionProvider.Align.End,
+            onDismissRequest = { expanded = false },
+            popupPositionProvider = positionProvider,
+            liquidGlassBackdrop = liquidGlassBackdrop,
+        ) {
+            ListPopupColumn {
+                Text(
+                    text = description,
+                    fontSize = 14.2.sp,
+                    color = MiuixTheme.colorScheme.onSurfaceVariantSummary,
+                    modifier = Modifier
+                        .width(200.dp)
+                        .padding(horizontal = 16.dp, vertical = 14.dp),
+                )
+            }
+        }
     }
 }
 
@@ -375,12 +505,8 @@ fun HolidaySettingsScreen(
 @Composable
 private fun DataManagementCard(
     year: Int,
-    loading: Boolean,
-    currentDate: LocalDate,
     liquidGlassBackdrop: Backdrop?,
     onYearChange: (Int) -> Unit,
-    onRequestData: () -> Unit,
-    onClear: () -> Unit,
 ) {
     val dropdownColors = DropdownDefaults.dropdownColors(
         containerColor = Color.Transparent,
@@ -391,74 +517,28 @@ private fun DataManagementCard(
         modifier = Modifier.fillMaxWidth(),
         insideMargin = PaddingValues(0.dp),
     ) {
-        Column {
-            if (currentDate.monthValue == 12) {
-                OverlayDropdownMenu(
-                    entry = DropdownEntry(
-                        (currentDate.year..currentDate.year + 1).map { selectedYear ->
-                            DropdownItem(
-                                text = selectedYear.toString(),
-                                selected = selectedYear == year,
-                                onClick = { onYearChange(selectedYear) },
-                            )
-                        }
-                    ),
-                    title = "年份",
-                    summary = year.toString(),
-                    collapseOnSelection = true,
-                    liquidGlassBackdrop = liquidGlassBackdrop,
-                    dropdownColors = dropdownColors,
-                )
-            }
-            Row(
-                Modifier.fillMaxWidth().padding(12.dp),
-                horizontalArrangement = Arrangement.spacedBy(8.dp),
-            ) {
-                TextButton(
-                    if (loading) "正在获取" else "获取网络数据",
-                    onRequestData,
-                    modifier = Modifier.weight(1f),
-                    colors = ButtonDefaults.textButtonColorsPrimary(),
-                )
-                TextButton(
-                    "清空",
-                    onClear,
-                    modifier = Modifier.weight(1f),
-                )
-            }
-        }
-    }
-}
-
-@Composable
-private fun EmptyPlaceholderCard(loading: Boolean, year: Int) {
-    Card(
-        cornerRadius = 20.dp,
-        modifier = Modifier.fillMaxWidth(),
-        insideMargin = PaddingValues(20.dp),
-    ) {
-        Column(
-            horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.spacedBy(6.dp),
-            modifier = Modifier.fillMaxWidth(),
-        ) {
-            Text(
-                if (loading) "正在获取 $year 年数据" else "暂无 $year 年节假日数据",
-                style = MiuixTheme.textStyles.body1,
-            )
-            Text(
-                if (loading) "请稍候" else "可以获取网络数据，或使用下方入口手动添加",
-                style = MiuixTheme.textStyles.body2,
-                color = MiuixTheme.colorScheme.onSurfaceSecondary,
-            )
-        }
+        OverlayDropdownMenu(
+            entry = DropdownEntry(
+                listOf(year - 1, year, year + 1)
+                    .filter { it in YEAR_RANGE }
+                    .map { selectedYear ->
+                        DropdownItem(
+                            text = selectedYear.toString(),
+                            selected = selectedYear == year,
+                            onClick = { onYearChange(selectedYear) },
+                        )
+                    }
+            ),
+            title = "年份",
+            collapseOnSelection = true,
+            liquidGlassBackdrop = liquidGlassBackdrop,
+            dropdownColors = dropdownColors,
+        )
     }
 }
 
 @Composable
 private fun HolidayEntriesCard(
-    type: Int,
-    emptyText: String,
     entries: List<HolidayManager.Entry>,
     onEdit: (HolidayManager.Entry) -> Unit,
 ) {
@@ -467,19 +547,9 @@ private fun HolidayEntriesCard(
         modifier = Modifier.fillMaxWidth(),
         insideMargin = PaddingValues(0.dp),
     ) {
-        val filtered = entries.filter { it.type == type }
-        if (filtered.isEmpty()) {
-            Text(
-                emptyText,
-                style = MiuixTheme.textStyles.body2,
-                color = MiuixTheme.colorScheme.onSurfaceSecondary,
-                modifier = Modifier.padding(16.dp),
-            )
-        } else {
-            Column {
-                filtered.forEach { entry ->
-                    EntryRow(entry = entry, onEdit = onEdit)
-                }
+        Column {
+            entries.forEach { entry ->
+                EntryRow(entry = entry, onEdit = onEdit)
             }
         }
     }
@@ -497,21 +567,47 @@ private fun EntryRow(
     )
 }
 
+private fun displayDate(value: String): String {
+    val parts = value.split("-")
+    if (parts.size != 3) return value
+    val (y, m, d) = parts
+    return "${y}/${m.padStart(2, '0')}/${d.padStart(2, '0')}"
+}
+
+// 根据指定周次和星期，计算其对应的真实日期（以开学所在周的周一作为第 1 周起点）
+private fun followDate(
+    context: Context,
+    followWeek: String,
+    followWeekday: String,
+): LocalDate? {
+    val week = followWeek.toIntOrNull() ?: return null
+    val weekday = followWeekday.toIntOrNull() ?: return null
+    if (week < 1 || weekday !in 1..7) return null
+    val classStartTime = CourseRepository.getInstance(context).getClassStartTime()
+    return try {
+        val start = LocalDate.parse(classStartTime.replace("/", "-"))
+        val startMonday = start.minusDays((start.dayOfWeek.value - 1).toLong())
+        startMonday.plusDays((week - 1) * 7L + (weekday - 1))
+    } catch (_: Exception) {
+        null
+    }
+}
+
 private fun entrySummary(entry: HolidayManager.Entry): String {
     return if (entry.type == HolidayManager.TYPE_HOLIDAY) {
         val endSuffix = if (entry.endDate.isNotBlank()) {
-            " 至 ${entry.endDate}"
+            " 至 ${displayDate(entry.endDate)}"
         } else {
             ""
         }
-        "${entry.date}$endSuffix"
+        "${displayDate(entry.date)}$endSuffix"
     } else {
         val mapping = if (entry.followWeek > 0 && entry.followWeekday in 1..7) {
             "第${entry.followWeek}周${WEEKDAYS[entry.followWeekday - 1]}"
         } else {
             "待配置补班课程"
         }
-        "${entry.date} · $mapping"
+        "${displayDate(entry.date)} · $mapping"
     }
 }
 
@@ -525,7 +621,6 @@ private fun AddEntryCard(type: Int, onAdd: () -> Unit) {
     ) {
         ArrowPreference(
             title = if (isHoliday) "添加节假日" else "添加调休工作日",
-            summary = if (isHoliday) "当天不发送课程提醒" else "按指定周次和星期匹配课程",
             onClick = onAdd,
         )
     }
@@ -535,9 +630,9 @@ private fun AddEntryCard(type: Int, onAdd: () -> Unit) {
 
 @Composable
 private fun EntryEditDialog(
+    show: Boolean,
     dialogTitle: String,
     dialogType: Int,
-    editingEntry: HolidayManager.Entry?,
     name: String,
     onNameChange: (String) -> Unit,
     startYear: Int,
@@ -557,21 +652,33 @@ private fun EntryEditDialog(
     onFollowWeekChange: (String) -> Unit,
     onFollowWeekdayChange: (String) -> Unit,
     liquidGlassBackdrop: Backdrop?,
+    canDelete: Boolean,
+    onDeleteClick: () -> Unit,
     onDismiss: () -> Unit,
     onSave: () -> Unit,
-    onDelete: () -> Unit,
 ) {
     val isHoliday = dialogType == HolidayManager.TYPE_HOLIDAY
+    val hapticFeedback = LocalHapticFeedback.current
+    val context = LocalContext.current
     OverlayDialog(
         title = dialogTitle,
         summary = null,
-        show = true,
+        show = show,
         liquidGlassBackdrop = liquidGlassBackdrop,
         onDismissRequest = onDismiss,
     ) {
+        Box(
+            modifier = Modifier.fillMaxWidth(),
+        ) {
         Column(
             verticalArrangement = Arrangement.spacedBy(10.dp),
         ) {
+            NativeMiuixTextField(
+                name,
+                onNameChange,
+                label = "名称",
+                modifier = Modifier.fillMaxWidth(),
+            )
             LabeledDatePickerRow(
                 text = "开始日期",
                 year = startYear,
@@ -592,17 +699,30 @@ private fun EntryEditDialog(
                     onDayChange = onEndDayChange,
                 )
             }
-            NativeMiuixTextField(
-                name,
-                onNameChange,
-                label = "名称",
-                modifier = Modifier.fillMaxWidth(),
-            )
             if (!isHoliday) {
-                Text(
-                    "跟随课程",
-                    style = MiuixTheme.textStyles.body1.copy(fontWeight = FontWeight.Normal),
-                )
+                val date = followDate(context, followWeek, followWeekday)
+                Row(
+                    Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Text(
+                        "跟随课程",
+                        style = MiuixTheme.textStyles.body1.copy(fontWeight = FontWeight.Normal),
+                        modifier = Modifier
+                            .weight(1f)
+                            .padding(start = 16.dp),
+                    )
+                    if (date != null) {
+                        Text(
+                            "${date.year}/${date.monthValue}/${date.dayOfMonth}",
+                            style = MiuixTheme.textStyles.body1.copy(
+                                fontSize = 15.sp,
+                                color = MiuixTheme.colorScheme.onSurfaceVariantSummary,
+                            ),
+                            modifier = Modifier.padding(end = 16.dp),
+                        )
+                    }
+                }
                 Row(
                     Modifier.fillMaxWidth(),
                     verticalAlignment = Alignment.CenterVertically,
@@ -625,7 +745,7 @@ private fun EntryEditDialog(
                         itemHeight = 44.dp,
                         textStyle = pickerTextStyle(),
                         label = { WEEKDAYS[it - 1] },
-                        modifier = Modifier.weight(1.2f),
+                        modifier = Modifier.weight(1f),
                     )
                 }
             }
@@ -634,19 +754,49 @@ private fun EntryEditDialog(
                 horizontalArrangement = Arrangement.spacedBy(8.dp),
             ) {
                 TextButton(
+                    "取消",
+                    {
+                        hapticFeedback.performHapticFeedback(HapticFeedbackType.Confirm)
+                        onDismiss()
+                    },
+                    modifier = Modifier.weight(1f),
+                )
+                TextButton(
                     "保存",
-                    onSave,
+                    {
+                        hapticFeedback.performHapticFeedback(HapticFeedbackType.Confirm)
+                        onSave()
+                    },
+                    enabled = name.isNotBlank(),
                     colors = ButtonDefaults.textButtonColorsPrimary(),
                     modifier = Modifier.weight(1f),
                 )
-                if (editingEntry != null) {
-                    TextButton(
-                        "删除",
-                        onDelete,
-                        modifier = Modifier.weight(1f),
-                    )
-                }
             }
+        }
+        if (canDelete) {
+            Box(
+                modifier = Modifier
+                    .align(Alignment.TopEnd)
+                    .offset(y = (-42).dp)
+                    .size(36.dp)
+                    .clip(ContinuousRoundedRectangle(20))
+                    .clickable(
+                        interactionSource = remember { MutableInteractionSource() },
+                        indication = null,
+                    ) {
+                        hapticFeedback.performHapticFeedback(HapticFeedbackType.Confirm)
+                        onDeleteClick()
+                    },
+                contentAlignment = Alignment.Center,
+            ) {
+                Image(
+                    imageVector = MiuixIcons.Delete,
+                    contentDescription = "删除",
+                    colorFilter = ColorFilter.tint(Color(0xFFF44336)),
+                    modifier = Modifier.size(23.dp),
+                )
+            }
+        }
         }
     }
 }
@@ -664,8 +814,11 @@ private fun LabeledDatePickerRow(
     Text(
         text,
         style = MiuixTheme.textStyles.body1.copy(fontWeight = FontWeight.Normal),
+        modifier = Modifier.padding(start = 16.dp),
     )
     val maxDay = LocalDate.of(year, month, 1).lengthOfMonth()
+    val currentYear = remember { LocalDate.now().year }
+    val yearRange = (currentYear - 1)..(currentYear + 1)
     Row(
         Modifier.fillMaxWidth(),
         verticalAlignment = Alignment.CenterVertically,
@@ -677,12 +830,11 @@ private fun LabeledDatePickerRow(
                 onYearChange(newYear)
                 onDayChange(day.coerceAtMost(LocalDate.of(newYear, month, 1).lengthOfMonth()))
             },
-            range = YEAR_RANGE,
+            range = yearRange,
             visibleItemCount = 3,
             itemHeight = 44.dp,
             textStyle = pickerTextStyle(),
-            label = { yearLabel(it) },
-            modifier = Modifier.weight(1.35f),
+            modifier = Modifier.weight(1f),
         )
         NumberPicker(
             month,
@@ -695,7 +847,7 @@ private fun LabeledDatePickerRow(
             itemHeight = 44.dp,
             textStyle = pickerTextStyle(),
             label = { monthLabel(it) },
-            modifier = Modifier.weight(0.9f),
+            modifier = Modifier.weight(1f),
         )
         NumberPicker(
             day,
@@ -705,13 +857,13 @@ private fun LabeledDatePickerRow(
             itemHeight = 44.dp,
             textStyle = pickerTextStyle(),
             label = { dayLabel(it) },
-            modifier = Modifier.weight(0.9f),
+            modifier = Modifier.weight(1f),
         )
     }
 }
 
 @Composable
 private fun pickerTextStyle() = MiuixTheme.textStyles.body1.copy(
-    fontSize = 18.sp,
-    fontWeight = FontWeight.Normal,
+    fontSize = 22.sp,
+    fontWeight = FontWeight.Medium,
 )
