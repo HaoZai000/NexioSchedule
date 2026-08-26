@@ -9,7 +9,6 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.LazyListScope
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -236,20 +235,45 @@ fun HolidaySettingsScreen(
             }
             if (entries.isEmpty()) item { EmptyPlaceholderCard(loading = loading, year = year) }
 
-            categoryBlock(
-                type = HolidayManager.TYPE_HOLIDAY,
-                title = "节假日",
-                entries = entries,
-                onEdit = { startEditing(it) },
-                onAdd = { startAdding(HolidayManager.TYPE_HOLIDAY) },
-            )
-            categoryBlock(
-                type = HolidayManager.TYPE_WORKSWAP,
-                title = "调休工作日",
-                entries = entries,
-                onEdit = { startEditing(it) },
-                onAdd = { startAdding(HolidayManager.TYPE_WORKSWAP) },
-            )
+            item { SmallTitle(text = "节假日", modifier = Modifier.offset((-15).dp)) }
+            item {
+                val filtered = entries.filter { it.type == HolidayManager.TYPE_HOLIDAY }
+                Card(cornerRadius = 20.dp, modifier = Modifier.fillMaxWidth(), insideMargin = PaddingValues(0.dp)) {
+                    if (filtered.isEmpty()) {
+                        Text(
+                            "暂无 节假日",
+                            style = MiuixTheme.textStyles.body2,
+                            color = MiuixTheme.colorScheme.onSurfaceSecondary,
+                            modifier = Modifier.padding(16.dp),
+                        )
+                    } else {
+                        Column {
+                            filtered.forEach { entry -> EntryRow(entry = entry, onEdit = { startEditing(it) }) }
+                        }
+                    }
+                }
+            }
+            item { AddEntryCard(type = HolidayManager.TYPE_HOLIDAY, onAdd = { startAdding(HolidayManager.TYPE_HOLIDAY) }) }
+
+            item { SmallTitle(text = "调休工作日", modifier = Modifier.offset((-15).dp)) }
+            item {
+                val filtered = entries.filter { it.type == HolidayManager.TYPE_WORKSWAP }
+                Card(cornerRadius = 20.dp, modifier = Modifier.fillMaxWidth(), insideMargin = PaddingValues(0.dp)) {
+                    if (filtered.isEmpty()) {
+                        Text(
+                            "暂无 调休工作日",
+                            style = MiuixTheme.textStyles.body2,
+                            color = MiuixTheme.colorScheme.onSurfaceSecondary,
+                            modifier = Modifier.padding(16.dp),
+                        )
+                    } else {
+                        Column {
+                            filtered.forEach { entry -> EntryRow(entry = entry, onEdit = { startEditing(it) }) }
+                        }
+                    }
+                }
+            }
+            item { AddEntryCard(type = HolidayManager.TYPE_WORKSWAP, onAdd = { startAdding(HolidayManager.TYPE_WORKSWAP) }) }
         }
     }
 
@@ -353,36 +377,6 @@ private fun EmptyPlaceholderCard(loading: Boolean, year: Int) {
             )
         }
     }
-}
-
-private fun LazyListScope.categoryBlock(
-    type: Int,
-    title: String,
-    entries: List<HolidayManager.Entry>,
-    onEdit: (HolidayManager.Entry) -> Unit,
-    onAdd: () -> Unit,
-) {
-    val filtered = entries.filter { it.type == type }
-    item { SmallTitle(text = title, modifier = Modifier.offset((-15).dp)) }
-    item {
-        Card(cornerRadius = 20.dp, modifier = Modifier.fillMaxWidth(), insideMargin = PaddingValues(0.dp)) {
-            if (filtered.isEmpty()) {
-                Text(
-                    "暂无 $title",
-                    style = MiuixTheme.textStyles.body2,
-                    color = MiuixTheme.colorScheme.onSurfaceSecondary,
-                    modifier = Modifier.padding(16.dp),
-                )
-            } else {
-                Column {
-                    filtered.forEach { entry ->
-                        EntryRow(entry = entry, onEdit = onEdit)
-                    }
-                }
-            }
-        }
-    }
-    item { AddEntryCard(type = type, onAdd = onAdd) }
 }
 
 @Composable
