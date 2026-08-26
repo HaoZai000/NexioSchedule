@@ -10,7 +10,6 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
@@ -154,44 +153,46 @@ fun HolidaySettingsScreen(scrollBehavior: SharedScrollBehavior?, liquidGlassBack
             listOf(HolidayManager.TYPE_HOLIDAY to "节假日", HolidayManager.TYPE_WORKSWAP to "调休工作日").forEach { (type, title) ->
                 val filtered = entries.filter { it.type == type }
                 item { SmallTitle(text = title, modifier = Modifier.offset((-15).dp)) }
-                if (filtered.isEmpty() && entries.isNotEmpty()) item {
-                    Card(cornerRadius = 20.dp, modifier = Modifier.fillMaxWidth(), insideMargin = PaddingValues(16.dp)) {
-                        Text("暂无$title", style = MiuixTheme.textStyles.body2, color = MiuixTheme.colorScheme.onSurfaceSecondary)
+                item {
+                    Card(cornerRadius = 20.dp, modifier = Modifier.fillMaxWidth(), insideMargin = PaddingValues(0.dp)) {
+                        if (filtered.isEmpty()) {
+                            Text("暂无$title", style = MiuixTheme.textStyles.body2, color = MiuixTheme.colorScheme.onSurfaceSecondary, modifier = Modifier.padding(16.dp))
+                        } else {
+                            Column {
+                                filtered.forEach { entry ->
+                                    ArrowPreference(
+                                        title = entry.name,
+                                        summary = if (type == HolidayManager.TYPE_HOLIDAY) "${entry.date}${if (entry.endDate.isNotBlank()) " 至 ${entry.endDate}" else ""}" else {
+                                            val weekdays = listOf("星期一", "星期二", "星期三", "星期四", "星期五", "星期六", "星期日")
+                                            val mapping = if (entry.followWeek > 0 && entry.followWeekday in 1..7) "第${entry.followWeek}周${weekdays[entry.followWeekday - 1]}" else "待配置补班课程"
+                                            "${entry.date} · $mapping"
+                                        },
+                                        onClick = {
+                                            editingEntry = entry; dialogType = type; date = entry.date; name = entry.name
+                                            runCatching { LocalDate.parse(entry.date) }.getOrNull()?.let { dateYear = it.year; dateMonth = it.monthValue; dateDay = it.dayOfMonth }
+                                            val end = runCatching { LocalDate.parse(entry.endDate.ifBlank { entry.date }) }.getOrNull() ?: LocalDate.of(dateYear, dateMonth, dateDay)
+                                            endDateYear = end.year; endDateMonth = end.monthValue; endDateDay = end.dayOfMonth
+                                            followWeek = if (entry.followWeek > 0) entry.followWeek.toString() else "1"
+                                            followWeekday = if (entry.followWeekday > 0) entry.followWeekday.toString() else "1"; showDialog = true
+                                        }
+                                    )
+                                }
+                            }
+                        }
                     }
                 }
-                items(filtered, key = { "${it.date}-${it.type}-${it.name}" }) { entry ->
+                item {
                     Card(cornerRadius = 20.dp, modifier = Modifier.fillMaxWidth(), insideMargin = PaddingValues(0.dp)) {
                         ArrowPreference(
-                            title = entry.name,
-                            summary = if (entry.type == HolidayManager.TYPE_HOLIDAY) "${entry.date}${if (entry.endDate.isNotBlank()) " 至 ${entry.endDate}" else ""}" else {
-                                val weekdays = listOf("星期一", "星期二", "星期三", "星期四", "星期五", "星期六", "星期日")
-                                val mapping = if (entry.followWeek > 0 && entry.followWeekday in 1..7) "第${entry.followWeek}周${weekdays[entry.followWeekday - 1]}" else "待配置补班课程"
-                                "${entry.date} · $mapping"
-                            },
+                            title = if (type == HolidayManager.TYPE_HOLIDAY) "添加节假日" else "添加调休工作日",
+                            summary = if (type == HolidayManager.TYPE_HOLIDAY) "当天不发送课程提醒" else "按指定周次和星期匹配课程",
                             onClick = {
-                                editingEntry = entry; dialogType = entry.type; date = entry.date; name = entry.name
-                                runCatching { LocalDate.parse(entry.date) }.getOrNull()?.let { dateYear = it.year; dateMonth = it.monthValue; dateDay = it.dayOfMonth }
-                                val end = runCatching { LocalDate.parse(entry.endDate.ifBlank { entry.date }) }.getOrNull() ?: LocalDate.of(dateYear, dateMonth, dateDay)
-                                endDateYear = end.year; endDateMonth = end.monthValue; endDateDay = end.dayOfMonth
-                                followWeek = if (entry.followWeek > 0) entry.followWeek.toString() else "1"
-                                followWeekday = if (entry.followWeekday > 0) entry.followWeekday.toString() else "1"; showDialog = true
+                                if (type == HolidayManager.TYPE_HOLIDAY) {
+                                    dialogType = HolidayManager.TYPE_HOLIDAY; date = "$year-01-01"; dateYear = year; dateMonth = 1; dateDay = 1; endDateYear = year; endDateMonth = 1; endDateDay = 1; name = ""; editingEntry = null; showDialog = true
+                                } else {
+                                    dialogType = HolidayManager.TYPE_WORKSWAP; date = "$year-01-01"; dateYear = year; dateMonth = 1; dateDay = 1; name = ""; followWeek = "1"; followWeekday = "1"; editingEntry = null; showDialog = true
+                                }
                             }
-                        )
-                    }
-                }
-            }
-            item {
-                Card(cornerRadius = 20.dp, modifier = Modifier.fillMaxWidth(), insideMargin = PaddingValues(0.dp)) {
-                    Column {
-                        ArrowPreference(
-                            title = "添加节假日",
-                            summary = "当天不发送课程提醒",
-                            onClick = { dialogType = HolidayManager.TYPE_HOLIDAY; date = "$year-01-01"; dateYear = year; dateMonth = 1; dateDay = 1; endDateYear = year; endDateMonth = 1; endDateDay = 1; name = ""; editingEntry = null; showDialog = true }
-                        )
-                        ArrowPreference(
-                            title = "添加调休工作日",
-                            summary = "按指定周次和星期匹配课程",
-                            onClick = { dialogType = HolidayManager.TYPE_WORKSWAP; date = "$year-01-01"; dateYear = year; dateMonth = 1; dateDay = 1; name = ""; followWeek = "1"; followWeekday = "1"; editingEntry = null; showDialog = true }
                         )
                     }
                 }
