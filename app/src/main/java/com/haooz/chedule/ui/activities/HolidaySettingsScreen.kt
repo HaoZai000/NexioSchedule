@@ -45,6 +45,7 @@ import top.yukonga.miuix.kmp.basic.NumberPicker
 import top.yukonga.miuix.kmp.blur.layerBackdrop
 import top.yukonga.miuix.kmp.preference.ArrowPreference
 import top.yukonga.miuix.kmp.theme.MiuixTheme
+import top.yukonga.miuix.kmp.utils.scrollEndHaptic
 import java.net.HttpURLConnection
 import java.net.URL
 import java.time.LocalDate
@@ -106,7 +107,9 @@ fun HolidaySettingsScreen(scrollBehavior: SharedScrollBehavior?, liquidGlassBack
         val topBarHeightDp = with(density) { (scrollBehavior?.currentHeightPx ?: 0f).toDp() }
         LazyColumn(
             state = listState,
-            modifier = Modifier.fillMaxWidth().overScrollVertical().then(scrollBehavior?.let { Modifier.nestedScroll(it.nestedScrollConnection) } ?: Modifier),
+            modifier = Modifier.fillMaxWidth().overScrollVertical().scrollEndHaptic(
+                hapticFeedbackType = HapticFeedbackType.TextHandleMove
+            ).then(scrollBehavior?.let { Modifier.nestedScroll(it.nestedScrollConnection) } ?: Modifier),
             contentPadding = PaddingValues(16.dp, padding.calculateTopPadding() + topBarHeightDp, 16.dp, 48.dp),
             verticalArrangement = Arrangement.spacedBy(12.dp)
         ) {
