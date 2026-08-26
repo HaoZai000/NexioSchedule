@@ -258,7 +258,7 @@
         <receiver
             android:name=".widget.CourseWidgetProviderStandard"
             android:exported="true"
-            android:label="课程提醒(标准)">
+            android:label="课程提醒">
             <intent-filter>
                 <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
             </intent-filter>
@@ -268,33 +268,9 @@
         </receiver>
 
         <receiver
-            android:name=".widget.CourseWidgetProvider"
-            android:exported="true"
-            android:label="课程提醒(4×6)">
-            <intent-filter>
-                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
-            </intent-filter>
-            <meta-data
-                android:name="android.appwidget.provider"
-                android:resource="@xml/appwidget_course_schedule" />
-        </receiver>
-
-        <receiver
-            android:name=".widget.CourseWidgetProvider4x7"
-            android:exported="true"
-            android:label="课程提醒(4×7)">
-            <intent-filter>
-                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
-            </intent-filter>
-            <meta-data
-                android:name="android.appwidget.provider"
-                android:resource="@xml/appwidget_course_schedule_4x7" />
-        </receiver>
-
-        <receiver
             android:name=".widget.TodayCourseWidgetProviderStandard"
             android:exported="true"
-            android:label="今日课程(标准)">
+            android:label="今日课程">
             <intent-filter>
                 <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
             </intent-filter>
@@ -304,27 +280,27 @@
         </receiver>
 
         <receiver
-            android:name=".widget.TodayCourseWidgetProvider"
+            android:name=".widget.CourseWidgetProviderPad"
             android:exported="true"
-            android:label="今日课程(4×6)">
+            android:label="课程提醒(Pad)">
             <intent-filter>
                 <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
             </intent-filter>
             <meta-data
                 android:name="android.appwidget.provider"
-                android:resource="@xml/appwidget_today_course" />
+                android:resource="@xml/appwidget_course_reminder_pad" />
         </receiver>
 
         <receiver
-            android:name=".widget.TodayCourseWidgetProvider4x7"
+            android:name=".widget.TodayCourseWidgetProviderPad"
             android:exported="true"
-            android:label="今日课程(4×7)">
+            android:label="今日课程(Pad)">
             <intent-filter>
                 <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
             </intent-filter>
             <meta-data
                 android:name="android.appwidget.provider"
-                android:resource="@xml/appwidget_today_course_4x7" />
+                android:resource="@xml/appwidget_today_course_pad" />
         </receiver>
     </application>
 

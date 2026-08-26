@@ -101,6 +101,7 @@ class CourseRepository private constructor(context: Context) {
         private const val KEY_DEFAULT_HOMEPAGE = "default_homepage"
         private const val KEY_NAV_BAR_STYLE = "nav_bar_style"
         private const val KEY_TODAY_SHOW_WALLPAPER = "today_show_wallpaper"
+        private const val KEY_WIDGET_PADDING_MODE = "widget_padding_mode"
         @Suppress("UNUSED") private const val KEY_WALLPAPER_OFFSET_X = "wallpaper_offset_x"
         @Suppress("UNUSED") private const val KEY_WALLPAPER_OFFSET_Y = "wallpaper_offset_y"
         @Suppress("UNUSED") private const val KEY_WALLPAPER_SCALE = "wallpaper_scale"
@@ -1242,6 +1243,16 @@ class CourseRepository private constructor(context: Context) {
 
     fun setNextDayReminderMinute(minute: Int) {
         prefs.edit { putInt(KEY_NEXT_DAY_REMINDER_MINUTE, minute) }
+    }
+
+    /** 获取今日课程/课程提醒标准版小组件的 padding 档位（0=标准, 1=4×6, 2=4×7） */
+    fun getWidgetPaddingMode(): Int {
+        return safeGetInt(KEY_WIDGET_PADDING_MODE, 1)
+    }
+
+    /** 设置今日课程/课程提醒标准版小组件的 padding 档位（0=标准, 1=4×6, 2=4×7） */
+    fun setWidgetPaddingMode(mode: Int) {
+        prefs.edit { putInt(KEY_WIDGET_PADDING_MODE, mode) }
     }
 
     fun getIslandNotification(): Boolean {

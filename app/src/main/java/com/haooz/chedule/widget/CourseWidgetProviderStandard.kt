@@ -56,9 +56,10 @@ class CourseWidgetProviderStandard : AppWidgetProvider() {
         appWidgetManager: AppWidgetManager,
         appWidgetId: Int
     ) {
-        val views = RemoteViews(context.packageName, R.layout.widget_course_reminder_standard)
-
         val repository = CourseRepository(context)
+        val views = RemoteViews(context.packageName, R.layout.widget_course_reminder_standard)
+        applyWidgetMode(views, repository, context)
+
         val currentWeek = repository.getCurrentWeek()
         val today = getTodayOfWeek()
         val courses = repository.getAllCourses()
@@ -206,6 +207,27 @@ class CourseWidgetProviderStandard : AppWidgetProvider() {
         views.setOnClickPendingIntent(R.id.widget_empty, refreshPending)
 
         appWidgetManager.updateAppWidget(appWidgetId, views)
+    }
+
+    private fun applyWidgetMode(
+        views: RemoteViews,
+        repository: CourseRepository,
+        context: Context
+    ) {
+        // 0=标准(0/0), 1=4×6(12/14), 2=4×7(8/10)
+        val (top, bottom) = when (repository.getWidgetPaddingMode()) {
+            1 -> 12f to 14f
+            2 -> 8f to 10f
+            else -> 0f to 0f
+        }
+        val density = context.resources.displayMetrics.density
+        views.setViewPadding(
+            R.id.widget_standard_root,
+            0,
+            (top * density).toInt(),
+            0,
+            (bottom * density).toInt()
+        )
     }
 
     private fun isCourseActive(startTime: String, endTime: String, currentMinutes: Int): Boolean {

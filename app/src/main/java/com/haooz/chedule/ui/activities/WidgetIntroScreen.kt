@@ -24,6 +24,7 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
@@ -34,6 +35,7 @@ import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.platform.LocalConfiguration
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.text.font.FontFamily
@@ -41,16 +43,23 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.haooz.chedule.R
+import com.haooz.chedule.data.CourseRepository
+import com.haooz.chedule.ui.basic.OverlayDropdownMenu
 import com.haooz.chedule.ui.basic.SharedScrollBehavior
 import com.haooz.chedule.ui.utils.isAppDarkTheme
+import com.haooz.chedule.ui.utils.overScrollVertical
+import com.haooz.chedule.widget.CourseWidgetProviderStandard
+import com.haooz.chedule.widget.TodayCourseWidgetProviderStandard
 import top.yukonga.miuix.kmp.basic.Card
+import top.yukonga.miuix.kmp.basic.DropdownDefaults
+import top.yukonga.miuix.kmp.basic.DropdownEntry
+import top.yukonga.miuix.kmp.basic.DropdownItem
 import top.yukonga.miuix.kmp.basic.Scaffold
 import top.yukonga.miuix.kmp.basic.TextButton
 import top.yukonga.miuix.kmp.blur.layerBackdrop
 import top.yukonga.miuix.kmp.blur.rememberLayerBackdrop
 import top.yukonga.miuix.kmp.overlay.OverlayDialog
 import top.yukonga.miuix.kmp.theme.MiuixTheme
-import com.haooz.chedule.ui.utils.overScrollVertical
 import androidx.compose.ui.graphics.Color as ComposeColor
 
 @SuppressLint("ConfigurationScreenWidthHeight")
@@ -146,6 +155,23 @@ fun WidgetIntroScreen(
                     FeatureItem("进行中课程高亮", "正在上课的课程高亮显示剩余时间")
                     FeatureItem("智能显示状态", "智能提醒今日课程当前状态")
                 }
+
+                Spacer(modifier = Modifier.height(24.dp))
+
+                val context = LocalContext.current
+                val repository = remember { CourseRepository(context) }
+                var paddingMode by remember { mutableIntStateOf(repository.getWidgetPaddingMode()) }
+                WidgetPaddingSelector(
+                    selectedMode = paddingMode,
+                    liquidGlassBackdrop = liquidGlassBackdrop,
+                    onSelect = { mode ->
+                        hapticFeedback.performHapticFeedback(HapticFeedbackType.VirtualKey)
+                        paddingMode = mode
+                        repository.setWidgetPaddingMode(mode)
+                        TodayCourseWidgetProviderStandard.updateAllWidgets(context)
+                        CourseWidgetProviderStandard.updateAllWidgets(context)
+                    }
+                )
 
                 Spacer(modifier = Modifier.height(120.dp))
             }
@@ -439,5 +465,50 @@ private fun FeatureItem(title: String, description: String) {
             Spacer(modifier = Modifier.height(2.dp))
             Text(description, fontSize = 14.sp, color = MiuixTheme.colorScheme.onSurfaceVariantActions)
         }
+    }
+}
+
+@Composable
+private fun WidgetPaddingSelector(
+    selectedMode: Int,
+    liquidGlassBackdrop: com.kyant.backdrop.Backdrop?,
+    onSelect: (Int) -> Unit
+) {
+    val entry = DropdownEntry(
+        items = listOf(
+            DropdownItem(
+                text = "标准",
+                selected = selectedMode == 0,
+                onClick = { onSelect(0) }
+            ),
+            DropdownItem(
+                text = "4×6",
+                selected = selectedMode == 1,
+                onClick = { onSelect(1) }
+            ),
+            DropdownItem(
+                text = "4×7",
+                selected = selectedMode == 2,
+                onClick = { onSelect(2) }
+            ),
+        )
+    )
+    val liquidGlassDropdownColors = DropdownDefaults.dropdownColors(
+        containerColor = ComposeColor.Transparent,
+        selectedContainerColor = ComposeColor.Transparent,
+    )
+    Card(
+        cornerRadius = 20.dp,
+        modifier = Modifier
+            .fillMaxWidth(),
+        insideMargin = PaddingValues(0.dp)
+    ) {
+        OverlayDropdownMenu(
+            title = "小组件适应布局",
+            entry = entry,
+            collapseOnSelection = true,
+            liquidGlassBackdrop = liquidGlassBackdrop,
+            dropdownColors = liquidGlassDropdownColors,
+        )
     }
 }

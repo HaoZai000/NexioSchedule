@@ -6,11 +6,7 @@ import androidx.lifecycle.viewModelScope
 import com.haooz.chedule.data.Course
 import com.haooz.chedule.data.CourseRepository
 import com.haooz.chedule.reminder.CourseReminderHelper
-import com.haooz.chedule.widget.CourseWidgetProvider
-import com.haooz.chedule.widget.CourseWidgetProvider4x7
 import com.haooz.chedule.widget.CourseWidgetProviderStandard
-import com.haooz.chedule.widget.TodayCourseWidgetProvider
-import com.haooz.chedule.widget.TodayCourseWidgetProvider4x7
 import com.haooz.chedule.widget.TodayCourseWidgetProviderStandard
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -125,11 +121,7 @@ class CourseViewModel(application: Application) : AndroidViewModel(application) 
 
     private fun updateWidgets() {
         viewModelScope.launch {
-            CourseWidgetProvider.updateAllWidgets(getApplication())
-            CourseWidgetProvider4x7.updateAllWidgets(getApplication())
             CourseWidgetProviderStandard.updateAllWidgets(getApplication())
-            TodayCourseWidgetProvider.updateAllWidgets(getApplication())
-            TodayCourseWidgetProvider4x7.updateAllWidgets(getApplication())
             TodayCourseWidgetProviderStandard.updateAllWidgets(getApplication())
         }
     }
