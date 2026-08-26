@@ -46,6 +46,9 @@
         <SplitPairFilter
             window:primaryActivityName=".ui.activities.MainActivity"
             window:secondaryActivityName=".ui.activities.CourseManageActivity" />
+        <SplitPairFilter
+            window:primaryActivityName=".ui.activities.MainActivity"
+            window:secondaryActivityName=".ui.activities.HolidaySettingsActivity" />
 
         <!-- 三级页面：从二级页面启动，仍留在右侧（替换原 secondary） -->
         <SplitPairFilter
