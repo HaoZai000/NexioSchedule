@@ -85,17 +85,27 @@
 
                 <TextView
                     android:id="@+id/widget_time_start1"
-                    android:layout_width="wrap_content"
+                    android:layout_width="match_parent"
                     android:layout_height="wrap_content"
                     android:textSize="12sp"
+                    android:maxLines="1"
+                    android:autoSizeTextType="uniform"
+                    android:autoSizeMinTextSize="8sp"
+                    android:autoSizeMaxTextSize="12sp"
+                    android:autoSizeStepGranularity="1sp"
                     android:textColor="@color/widget_time_start_color"
                     android:fontFamily="sans-serif-medium" />
 
                 <TextView
                     android:id="@+id/widget_time_end1"
-                    android:layout_width="wrap_content"
+                    android:layout_width="match_parent"
                     android:layout_height="wrap_content"
                     android:textSize="12sp"
+                    android:maxLines="1"
+                    android:autoSizeTextType="uniform"
+                    android:autoSizeMinTextSize="8sp"
+                    android:autoSizeMaxTextSize="12sp"
+                    android:autoSizeStepGranularity="1sp"
                     android:textColor="@color/widget_time_end_color"
                     android:fontFamily="sans-serif-medium" />
             </LinearLayout>
@@ -171,17 +181,27 @@
 
                 <TextView
                     android:id="@+id/widget_time_start2"
-                    android:layout_width="wrap_content"
+                    android:layout_width="match_parent"
                     android:layout_height="wrap_content"
                     android:textSize="12sp"
+                    android:maxLines="1"
+                    android:autoSizeTextType="uniform"
+                    android:autoSizeMinTextSize="8sp"
+                    android:autoSizeMaxTextSize="12sp"
+                    android:autoSizeStepGranularity="1sp"
                     android:textColor="@color/widget_time_start_color"
                     android:fontFamily="sans-serif-medium" />
 
                 <TextView
                     android:id="@+id/widget_time_end2"
-                    android:layout_width="wrap_content"
+                    android:layout_width="match_parent"
                     android:layout_height="wrap_content"
                     android:textSize="12sp"
+                    android:maxLines="1"
+                    android:autoSizeTextType="uniform"
+                    android:autoSizeMinTextSize="8sp"
+                    android:autoSizeMaxTextSize="12sp"
+                    android:autoSizeStepGranularity="1sp"
                     android:textColor="@color/widget_time_end_color"
                     android:fontFamily="sans-serif-medium" />
             </LinearLayout>
