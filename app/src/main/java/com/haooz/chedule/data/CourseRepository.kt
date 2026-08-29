@@ -5,6 +5,7 @@ import android.content.SharedPreferences
 import androidx.core.content.edit
 import com.google.gson.Gson
 import com.google.gson.reflect.TypeToken
+import java.time.LocalDate
 
 /**
  * 课程数据仓库 - 使用 SharedPreferences 存储（单例）
@@ -877,10 +878,27 @@ class CourseRepository private constructor(context: Context) {
     }
 
     /**
-     * 检查当前课表中指定周次、星期是否有课程
+     * 检查当前课表中指定周次、星期是否有课程（含调休补班日）
+     * 智能周末据此决定是否显示该周末天
      */
     fun hasCoursesOnDayInWeek(dayOfWeek: Int, week: Int): Boolean {
-        return getAllCourses().any { it.dayOfWeek == dayOfWeek && it.isActiveInWeek(week) }
+        if (getAllCourses().any { it.dayOfWeek == dayOfWeek && it.isActiveInWeek(week) }) return true
+        // 调休补班日：该天有被调来的课程，也视为“有课”
+        return hasWorkSwapOnDay(dayOfWeek, week)
+    }
+
+    /**
+     * 指定周次、星期是否为调休补班日（该天有已配置补班课的 WORKSWAP 条目）
+     * 待配置补班课程（followWeekday 未设置）不视为有课，避免智能周末误显示
+     */
+    fun hasWorkSwapOnDay(dayOfWeek: Int, week: Int): Boolean {
+        val start = runCatching {
+            LocalDate.parse(getClassStartTime().replace("/", "-"))
+        }.getOrNull() ?: return false
+        val monday = start.minusDays((start.dayOfWeek.value - 1).toLong())
+        val date = monday.plusWeeks((week - 1).toLong()).plusDays((dayOfWeek - 1).toLong())
+        val swap = HolidayManager.workSwap(appContext, date) ?: return false
+        return swap.followWeekday in 1..7
     }
 
     /**

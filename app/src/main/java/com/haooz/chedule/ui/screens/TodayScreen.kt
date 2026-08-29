@@ -279,7 +279,11 @@ private fun CourseItemContent(course: Course, sectionTimes: Map<Int, String>, pa
             )
             Spacer(modifier = Modifier.height(4.dp))
             Text(
-                text = "${course.getTimeDisplayText()} | ${course.classroom} | ${course.teacher}",
+                text = buildString {
+                    append(course.getTimeDisplayText())
+                    if (course.classroom.isNotEmpty()) append(" | ").append(course.classroom)
+                    if (course.teacher.isNotEmpty()) append(" | ").append(course.teacher)
+                },
                 style = MiuixTheme.textStyles.footnote1,
                 color = MiuixTheme.colorScheme.onBackgroundVariant
             )

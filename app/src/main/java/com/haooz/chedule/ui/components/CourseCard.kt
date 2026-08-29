@@ -64,6 +64,8 @@ import android.graphics.Color as AndroidColor
 fun CourseCard(
     course: Course,
     isCurrentWeek: Boolean = true,
+    isHoliday: Boolean = false,
+    isWorkSwap: Boolean = false,
     hasMultipleCourses: Boolean = false,
     wallpaperBackdrop: Backdrop? = null,
     cardBlurRadius: Float = 0f,
@@ -93,15 +95,16 @@ fun CourseCard(
     val localDensity = LocalDensity.current
 
     val effectiveAlpha = if (hasBlur) cardAlpha * 1.6f else cardAlpha
-    val cardColor = remember(course.colorRes, isCurrentWeek, effectiveAlpha) {
-        if (isCurrentWeek) {
+    // 假期课程与调休课程沿用非本周课程的灰色，不再使用课程自身颜色
+    val cardColor = remember(course.colorRes, isCurrentWeek, isHoliday, effectiveAlpha) {
+        if (isCurrentWeek && !isHoliday) {
             Color(course.colorRes).copy(alpha = effectiveAlpha)
         } else {
             Color(0xFF9E9E9E).copy(alpha = effectiveAlpha * 0.7f)
         }
     }
-    val textColor = remember(course.colorRes, isCurrentWeek, hasBlur, isDark) {
-        if (isCurrentWeek) {
+    val textColor = remember(course.colorRes, isCurrentWeek, isHoliday, hasBlur, isDark) {
+        if (isCurrentWeek && !isHoliday) {
             if (hasBlur) Color(course.colorRes).let { c ->
                 val hsv = FloatArray(3)
                 AndroidColor.RGBToHSV((c.red * 255).toInt(), (c.green * 255).toInt(), (c.blue * 255).toInt(), hsv)
@@ -272,7 +275,8 @@ fun CourseCard(
                 contentAlignment = Alignment.Center
             ) {
                 CardContent(course, sectionCount, textColor, hasMultipleCourses,
-                    isTablet, cardContentAlignment, cardHeight.value, cardHeightPerSection)
+                    isTablet, cardContentAlignment, cardHeight.value, cardHeightPerSection,
+                    isHoliday, isWorkSwap, isCurrentWeek)
             }
         }
     } else {
@@ -393,7 +397,8 @@ fun CourseCard(
                 onClick = {}
             ) {
                 CardContent(course, sectionCount, textColor, hasMultipleCourses,
-                    isTablet, cardContentAlignment, cardHeight.value, cardHeightPerSection)
+                    isTablet, cardContentAlignment, cardHeight.value, cardHeightPerSection,
+                    isHoliday, isWorkSwap, isCurrentWeek)
             }
         }
     }
@@ -402,7 +407,8 @@ fun CourseCard(
 @Composable
 private fun CardContent(course: Course, sectionCount: Int, textColor: Color, hasMultipleCourses: Boolean,
                         isTablet: Boolean = false, cardContentAlignment: com.haooz.chedule.data.CardContentAlignment = com.haooz.chedule.data.CardContentAlignment.CENTER_CENTER,
-                        cardHeightDp: Float = 0f, cardHeightPerSection: Float = 54f) {
+                        cardHeightDp: Float = 0f, cardHeightPerSection: Float = 54f,
+                        isHoliday: Boolean = false, isWorkSwap: Boolean = false, isCurrentWeek: Boolean = true) {
     val infoFontSize = 11.sp
     val infoLineHeight = 12.sp
     val courseNameLineHeight = 14.2.sp
@@ -488,6 +494,37 @@ private fun CardContent(course: Course, sectionCount: Int, textColor: Color, has
                     .padding(if (isTablet) 6.dp else 5.dp)
                     .size(8.dp)
                     .background(color = textColor, shape = CircleShape)
+            )
+        }
+
+        // 假期“假”/调休“调”角标：固定在卡片右上角；“调”角标背景跟随课程颜色
+        val badgeText = when {
+            isHoliday -> "假"
+            isWorkSwap -> "调"
+            else -> null
+        }
+        if (badgeText != null) {
+            // 角标背景：本周被调课程→课程颜色；假期/非本周被调课程→灰色；alpha 统一降低避免过于抢眼
+            val badgeBackground = if (isWorkSwap && isCurrentWeek) {
+                Color(course.colorRes).copy(alpha = 0.32f)
+            } else {
+                if (isAppDarkTheme()) Color.White.copy(alpha = 0.1f) else Color.Black.copy(alpha = 0.08f)
+            }
+            Text(
+                text = badgeText,
+                fontSize = 9.sp,
+                fontWeight = FontWeight.Medium,
+                color = if (isWorkSwap && isCurrentWeek) {
+                    if (isAppDarkTheme()) Color.White.copy(alpha = 0.8f) else Color.White
+                } else {
+                    if (isAppDarkTheme()) Color.White.copy(alpha = 0.4f) else Color.Black.copy(alpha = 0.4f)},
+                modifier = Modifier
+                    .align(Alignment.TopEnd)
+                    .padding(if (isTablet) 6.dp else 5.dp)
+                    .clip(RoundedCornerShape(4.dp))
+                    .background(badgeBackground)
+                    .padding(horizontal = 2.dp, vertical = 1.dp),
+                maxLines = 1
             )
         }
 

@@ -10,6 +10,7 @@ import java.time.LocalDate
 object HolidayManager {
     private const val PREFS = "holiday_settings"
     private const val KEY_PREFIX = "entries_"
+    private const val KEY_VERSION = "version"
     const val TYPE_HOLIDAY = 0
     const val TYPE_WORKSWAP = 1
 
@@ -49,7 +50,15 @@ object HolidayManager {
 
     fun save(context: Context, year: Int, entries: List<Entry>) {
         val array = JSONArray().apply { entries.sortedBy { it.date }.forEach { put(it.toJson()) } }
-        context.getSharedPreferences(PREFS, Context.MODE_PRIVATE).edit { putString("$KEY_PREFIX$year", array.toString()) }
+        context.getSharedPreferences(PREFS, Context.MODE_PRIVATE).edit {
+            putString("$KEY_PREFIX$year", array.toString())
+            putLong(KEY_VERSION, System.currentTimeMillis())
+        }
+    }
+
+    /** 假期/调休数据的版本号，保存时更新，供 UI 判断是否需要刷新 */
+    fun getVersion(context: Context): Long {
+        return context.getSharedPreferences(PREFS, Context.MODE_PRIVATE).getLong(KEY_VERSION, 0L)
     }
 
     fun isHoliday(context: Context, date: LocalDate): Boolean {

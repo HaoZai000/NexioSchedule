@@ -58,6 +58,7 @@ class TodayCourseWidgetProviderPad : AppWidgetProvider() {
     ) {
         val repository = CourseRepository(context)
         val views = RemoteViews(context.packageName, R.layout.widget_today_course_standard)
+        WidgetTextSizes.applyTodayCourse(context, views)
 
         val currentWeek = repository.getCurrentWeek()
         val today = getTodayOfWeek()

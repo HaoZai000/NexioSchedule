@@ -1,8 +1,10 @@
 /** 偏好设置页面 - Screen */
 package com.haooz.chedule.ui.activities
 
+import android.Manifest
 import android.annotation.SuppressLint
 import android.content.Context
+import android.content.pm.PackageManager
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
@@ -43,6 +45,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.core.content.ContextCompat
 import androidx.core.content.edit
 import com.haooz.chedule.R
 import com.haooz.chedule.ui.basic.OverlayDropdownMenu
@@ -78,6 +81,21 @@ fun PreferenceSettingsScreen(
 
     val weatherPrefs = remember { context.getSharedPreferences("weather_prefs", Context.MODE_PRIVATE) }
     var weatherSource by remember { mutableStateOf(weatherPrefs.getString("weather_source", "itboy") ?: "itboy") }
+    // 天气定位摘要：有定位权限显示当前定位，否则回退显示上次定位
+    val lastLocationName = weatherPrefs.getString("last_location_name", null)
+    val weatherHasPermission = ContextCompat.checkSelfPermission(
+        context, Manifest.permission.ACCESS_FINE_LOCATION
+    ) == PackageManager.PERMISSION_GRANTED ||
+        ContextCompat.checkSelfPermission(
+            context, Manifest.permission.ACCESS_COARSE_LOCATION
+        ) == PackageManager.PERMISSION_GRANTED
+    val weatherLocationSummary = when {
+        weatherHasPermission ->
+            if (lastLocationName != null) "当前定位：$lastLocationName"
+            else "当前定位：未获取"
+        lastLocationName != null -> "上次定位：$lastLocationName"
+        else -> "未获取定位，开启定位权限后显示天气"
+    }
 
     val themePrefs = remember { context.getSharedPreferences("app_theme_prefs", Context.MODE_PRIVATE) }
     var themeMode by remember { mutableStateOf(themePrefs.getString("theme_mode", "system") ?: "system") }
@@ -360,7 +378,7 @@ fun PreferenceSettingsScreen(
 
                             OverlayDropdownMenu(
                                 title = "天气数据源",
-                                summary = "今日页获取天气的数据来源",
+                                summary = weatherLocationSummary,
                                 entry = weatherSourceEntry,
                                 collapseOnSelection = true,
                                 liquidGlassBackdrop = liquidGlassBackdrop,

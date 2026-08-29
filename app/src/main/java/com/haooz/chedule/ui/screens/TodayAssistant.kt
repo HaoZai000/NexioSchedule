@@ -6,10 +6,15 @@ package com.haooz.chedule.ui.screens
 import android.Manifest
 import android.content.Context
 import android.content.pm.PackageManager
+import android.graphics.Bitmap
+import android.graphics.BlurMaskFilter
+import android.graphics.Canvas
+import android.graphics.Paint
 import android.location.Geocoder
 import android.location.LocationManager
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -31,11 +36,17 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.asImageBitmap
+import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.core.content.ContextCompat
+import androidx.core.graphics.createBitmap
 import com.google.gson.Gson
 import com.haooz.chedule.R
 import com.haooz.chedule.data.Course
@@ -49,6 +60,7 @@ import java.time.LocalTime
 import java.time.format.DateTimeFormatter
 import java.util.Locale
 import java.util.concurrent.TimeUnit
+import kotlin.math.roundToInt
 import kotlin.time.Duration.Companion.milliseconds
 
 // 中国天气网 type 字段（中文）→ 图标资源
@@ -68,6 +80,74 @@ private fun getWeatherIconRes(type: String, isNight: Boolean = false): Int = whe
     type.contains("多云") -> if (isNight) R.drawable.icon_cloudy_night else R.drawable.icon_cloudy
     type.contains("晴") -> if (isNight) R.drawable.icon_sunny_night else R.drawable.icon_sunny
     else -> if (isNight) R.drawable.icon_sunny_night else R.drawable.icon_sunny
+}
+
+/**
+ * 天气图标（贴合轮廓的模糊投影）。
+ * 通过把图标位图的 alpha 蒙版用 BlurMaskFilter 模糊成阴影，
+ * 使阴影严格跟随图标轮廓，避免半透明图标透出圆形底边界。
+ */
+@Composable
+private fun WeatherIcon(
+    resourceId: Int,
+    size: Dp,
+    shadowColor: Color,
+    shadowRadius: Dp
+) {
+    val context = LocalContext.current
+    val density = LocalDensity.current
+    val iconPx = with(density) { size.roundToPx() }.coerceAtLeast(1)
+    val radiusPx = with(density) { shadowRadius.toPx() }.coerceAtLeast(1f)
+    // 为模糊投影预留外溢边距，避免阴影被画布裁切
+    val marginPx = (radiusPx * 1.1f).roundToInt().coerceAtLeast(2)
+    val totalPx = iconPx + marginPx * 2
+    val shadowArgb = shadowColor.toArgb()
+    val shadowBitmap = remember(resourceId, totalPx, radiusPx, shadowArgb) {
+        createWeatherShadowBitmap(
+            source = renderWeatherIconBitmap(context, resourceId, totalPx, marginPx),
+            radiusPx = radiusPx,
+            shadowArgb = shadowArgb
+        )
+    }
+    val iconBitmap = remember(resourceId, totalPx, marginPx) {
+        renderWeatherIconBitmap(context, resourceId, totalPx, marginPx)
+    }
+    val totalDp = with(density) { totalPx.toDp() }
+    Canvas(modifier = Modifier.size(totalDp)) {
+        drawImage(shadowBitmap.asImageBitmap())
+        drawImage(iconBitmap.asImageBitmap())
+    }
+}
+
+/** 将图标资源居中渲染到带边距的 ARGB 位图中，边距供模糊投影外溢 */
+private fun renderWeatherIconBitmap(context: Context, resourceId: Int, totalPx: Int, insetPx: Int): Bitmap {
+    val drawable = ContextCompat.getDrawable(context, resourceId)
+    val bitmap = createBitmap(totalPx, totalPx)
+    if (drawable != null) {
+        val canvas = Canvas(bitmap)
+        drawable.setBounds(insetPx, insetPx, totalPx - insetPx, totalPx - insetPx)
+        drawable.draw(canvas)
+    }
+    return bitmap
+}
+
+/** 由图标位图生成贴合其轮廓的模糊阴影位图 */
+private fun createWeatherShadowBitmap(source: Bitmap, radiusPx: Float, shadowArgb: Int): Bitmap {
+    // 1. 提取图标不透明区域的 alpha 蒙版
+    val alphaMask = createBitmap(source.width, source.height, Bitmap.Config.ALPHA_8)
+    Canvas(alphaMask).drawBitmap(source, 0f, 0f, null)
+    // 2. 用蒙版画出纯色阴影，并做模糊，使阴影贴合轮廓
+    val shadow = createBitmap(source.width, source.height)
+    Canvas(shadow).drawBitmap(
+        alphaMask,
+        0f,
+        0f,
+        Paint().apply {
+            color = shadowArgb
+            maskFilter = BlurMaskFilter(radiusPx, BlurMaskFilter.Blur.NORMAL)
+        }
+    )
+    return shadow
 }
 
 // 让外部（如设置页）能作废缓存，使下一次进入今日页时按新设置重新拉取
@@ -95,7 +175,6 @@ private val httpClient = OkHttpClient.Builder()
 
 private var lastWeatherFetchTime = 0L
 private var cachedWeather: WeatherData? = null
-private var hasAskedLocationPermissionThisSession = false
 private const val WEATHER_REFRESH_INTERVAL = 2 * 60 * 1000L // 2分钟
 
 // 城市名 → 中国天气网 citykey 映射（从 assets/city_code.json 懒加载，进程内缓存）
@@ -170,10 +249,40 @@ private fun getLastKnownLocation(context: Context, useLocation: Boolean): androi
     }
 }
 
-// 中国天气网源：城市名 → citykey。任何环节失败都返回 null（由 UI 提示需定位权限）。
+// 记录「上次定位」：城市名 + citykey/经纬度，供关闭定位权限后回退使用
+private fun saveLastLocation(
+    context: Context,
+    name: String,
+    cityCode: String? = null,
+    lngLat: String? = null
+) {
+    val prefs = context.getSharedPreferences("weather_prefs", Context.MODE_PRIVATE).edit()
+    prefs.putString("last_location_name", name)
+    if (cityCode != null) prefs.putString("last_city_code", cityCode)
+    if (lngLat != null) prefs.putString("last_lnglat", lngLat)
+    prefs.apply()
+}
+
+// 读取上次定位的经纬度（无权限时彩云源回退用）。无记录返回 null。
+private fun readLastLngLat(context: Context): Pair<Double, Double>? {
+    val s = context.getSharedPreferences("weather_prefs", Context.MODE_PRIVATE)
+        .getString("last_lnglat", null) ?: return null
+    val parts = s.split(",")
+    if (parts.size != 2) return null
+    val lng = parts[0].toDoubleOrNull() ?: return null
+    val lat = parts[1].toDoubleOrNull() ?: return null
+    return Pair(lng, lat)
+}
+
+// 中国天气网源：城市名 → citykey。成功后记录「上次定位」。无权限/无实时定位时回退到上次定位的 citykey；仍无则返回 null。
 private fun resolveCityCode(context: Context, useLocation: Boolean): String? {
     val map = getCityCodeMap(context)
-    val loc = getLastKnownLocation(context, useLocation) ?: return null
+    val loc = getLastKnownLocation(context, useLocation)
+    if (loc == null) {
+        // 无定位权限/无实时定位时，使用上次定位
+        return context.getSharedPreferences("weather_prefs", Context.MODE_PRIVATE)
+            .getString("last_city_code", null)
+    }
     return try {
         val geocoder = Geocoder(context, Locale.getDefault())
         @Suppress("DEPRECATION")
@@ -189,9 +298,11 @@ private fun resolveCityCode(context: Context, useLocation: Boolean): String? {
             // 直辖市的 locality 可能是"海淀区"这类区名，剥掉"区"也能匹配到对应区码
             val cleanedDistrict = if (cleaned.endsWith("区") && cleaned.length > 2)
                 cleaned.removeSuffix("区") else cleaned
-            map[cleanedDistrict]?.let { return it }
-            map[cleaned]?.let { return it }
-            map[raw]?.let { return it }
+            val code = map[cleanedDistrict] ?: map[cleaned] ?: map[raw]
+            if (code != null) {
+                saveLastLocation(context, raw, cityCode = code)
+                return code
+            }
         }
         null
     } catch (_: Exception) {
@@ -199,10 +310,25 @@ private fun resolveCityCode(context: Context, useLocation: Boolean): String? {
     }
 }
 
-// 彩云天气源：取经纬度（lng, lat）。失败返回 null。
+// 彩云天气源：取经纬度（lng, lat）。成功后记录「上次定位」。无权限/无实时定位时回退到上次定位的经纬度；仍无则返回 null。
 private fun resolveCoordinates(context: Context, useLocation: Boolean): Pair<Double, Double>? {
-    val loc = getLastKnownLocation(context, useLocation) ?: return null
-    return Pair(loc.longitude, loc.latitude) // 彩云 URL 路径中经度在前
+    val loc = getLastKnownLocation(context, useLocation)
+    // 无定位权限/无实时定位时，使用上次定位
+    if (loc == null) return readLastLngLat(context)
+    val lng = loc.longitude
+    val lat = loc.latitude
+    val name = try {
+        val geocoder = Geocoder(context, Locale.getDefault())
+        @Suppress("DEPRECATION")
+        val addresses = geocoder.getFromLocation(lat, lng, 1)
+        val addr = addresses?.firstOrNull()
+        listOfNotNull(addr?.locality, addr?.subAdminArea, addr?.adminArea)
+            .firstOrNull { it.isNotBlank() }
+    } catch (_: Exception) {
+        null
+    }
+    saveLastLocation(context, name ?: "%.2f,%.2f".format(lat, lng), lngLat = "$lng,$lat")
+    return Pair(lng, lat) // 彩云 URL 路径中经度在前
 }
 
 @Composable
@@ -236,11 +362,6 @@ private fun rememberWeather(): Pair<WeatherData, () -> Unit> {
             return@LaunchedEffect
         }
         lastWeatherFetchTime = now
-        // 没权限时仅询问一次（本进程内），避免切换 tab 反复弹窗
-        if (!hasLocationPermission && !hasAskedLocationPermissionThisSession) {
-            hasAskedLocationPermissionThisSession = true
-            permissionLauncher.launch(arrayOf(Manifest.permission.ACCESS_FINE_LOCATION, Manifest.permission.ACCESS_COARSE_LOCATION))
-        }
         withContext(Dispatchers.IO) {
             when (weatherSource) {
                 "caiyun" -> {
@@ -454,6 +575,10 @@ private fun generateSmartTip(
     val ranges = buildCourseTimeRanges(courses, sectionTimes)
     val tomorrowRanges = buildCourseTimeRanges(tomorrowCourses, sectionTimes)
     if (ranges.isEmpty()) {
+        // 今天有课程但时间信息不完整/无法解析，避免误报“今天没课”
+        if (courses.isNotEmpty()) {
+            return "今天有 ${courses.size} 节课，但课程时间不完整，去课表里补充一下吧"
+        }
         val greeting = getGreeting()
         val hour = now.hour
         val tomorrowCount = tomorrowCourses.size
@@ -478,7 +603,7 @@ private fun generateSmartTip(
         }
     }
 
-    val ongoing = ranges.find { now in it.start..it.end }
+    val ongoing = ranges.find { now >= it.start && now < it.end }
     val next = ranges.find { now.isBefore(it.start) }
     val prev = ranges.lastOrNull { now.isAfter(it.end) }
 
@@ -492,35 +617,47 @@ private fun generateSmartTip(
             val remaining = java.time.Duration.between(now, ongoing.end).toMinutes()
             val nextAfter = ranges.find { it.start > ongoing.end }
             val gap = nextAfter?.let { java.time.Duration.between(ongoing.end, it.start).toMinutes() }
-            val course = ongoing.course
             when {
-                remaining <= 1 -> "马上就要下课了，再坚持一下"
-                remaining <= 3 -> "还有 $remaining 分钟，快下课了"
-                remaining <= 5 -> "还有 $remaining 分钟下课"
-                remaining <= 10 -> "${course.name} 还有 $remaining 分钟，认真听讲"
-                remaining <= 15 -> "认真听讲，${course.name} 还有 $remaining 分钟"
-                remaining <= 30 -> "正在上${course.name}，还有 $remaining 分钟"
-                gap != null && gap <= 3 -> "下课只有 $gap 分钟，抓紧休息"
+                // 临近下课且课间紧张时，优先提示赶场
+                gap != null && gap <= 3 && remaining <= 15 -> "下课只有 $gap 分钟，冲刺去下一间教室！"
+                gap != null && gap <= 10 && remaining <= 15 -> "下课后休息 $gap 分钟，抓紧充电"
+                gap != null && gap <= 15 && remaining <= 15 -> "下课后有 $gap 分钟休息，喝口水吧"
+                remaining <= 1 -> "还有1分钟就下课了，胜利在望！"
+                remaining <= 3 -> "冲刺时刻！还有 $remaining 分钟下课"
+                remaining <= 5 -> "马上要下课啦，还有 $remaining 分钟"
+                remaining <= 10 -> "还有 $remaining 分钟下课，坚持就是胜利"
+                remaining <= 15 -> "距下课还有 $remaining 分钟，笔记补完了吗？"
+                remaining <= 20 -> "这节课还有 $remaining 分钟，喝口水缓一缓"
+                remaining <= 30 -> "这节课还剩 $remaining 分钟，保持专注"
+                remaining <= 45 -> "已过半程，还有 $remaining 分钟下课"
+                remaining <= 60 -> "这节课还有 $remaining 分钟，稳住我们能赢"
+                remaining <= 75 -> "这节课还有 $remaining 分钟，按自己的节奏来"
+                remaining <= 90 -> "这节长课还有 $remaining 分钟，耐心听讲"
+                remaining <= 105 -> "时间还充裕，这节还有 $remaining 分钟"
+                remaining <= 120 -> "刚开课不久，还有 $remaining 分钟，进入状态吧"
+                // 超长课（>120 分钟）时，提前预告课间安排
+                gap != null && gap <= 3 -> "下课后只有 $gap 分钟，记得提前收拾"
                 gap != null && gap <= 10 -> "下课后休息 $gap 分钟"
                 gap != null && gap <= 15 -> "下课后有 $gap 分钟休息时间"
-                else -> "正在上${course.name}"
+                else -> "认真听课，离下课还有 $remaining 分钟"
             }
         }
 
         prev != null && next != null -> {
             val breakMinutes = java.time.Duration.between(prev.end, next.start).toMinutes()
-            val nextCourse = next.course
+            val nextClassroom = next.course.classroom
             when {
-                breakMinutes <= 1 -> "马上开始${nextCourse.name}"
-                breakMinutes <= 3 -> "还有 $breakMinutes 分钟上${nextCourse.name}"
-                breakMinutes <= 5 -> "还有 $breakMinutes 分钟，准备上${nextCourse.name}"
-                breakMinutes <= 10 -> "课间休息中，下一节是${nextCourse.name}"
-                breakMinutes <= 15 -> "休息一下，$breakMinutes 分钟后上${nextCourse.name}"
-                breakMinutes <= 20 -> "还有 $breakMinutes 分钟，可以去${nextCourse.classroom}"
-                breakMinutes <= 30 -> "休息时间还剩 $breakMinutes 分钟"
-                breakMinutes <= 60 -> "休息中，$breakMinutes 分钟后${nextCourse.name}"
-                breakMinutes in 61..120 -> "距${nextCourse.name}还有 $breakMinutes 分钟"
-                else -> "距${nextCourse.name}还有 $breakMinutes 分钟，时间充裕"
+                breakMinutes <= 1 -> "下节课马上开始，快回座位！"
+                breakMinutes <= 3 -> "还有 $breakMinutes 分钟，准备迎接下一节课"
+                breakMinutes <= 5 -> "还有 $breakMinutes 分钟，把桌面收拾利索"
+                breakMinutes <= 10 -> "课间休息中，还有 $breakMinutes 分钟"
+                breakMinutes <= 15 -> "休息一下，$breakMinutes 分钟后上课"
+                breakMinutes <= 20 -> "还有 $breakMinutes 分钟，可以出发去${nextClassroom}了"
+                breakMinutes <= 30 -> "休息时间还剩 $breakMinutes 分钟，伸个懒腰"
+                breakMinutes <= 45 -> "课间还有 $breakMinutes 分钟，让眼睛放松一下"
+                breakMinutes <= 60 -> "休息中，$breakMinutes 分钟后再战"
+                breakMinutes in 61..120 -> "大课间，还有 $breakMinutes 分钟才上课"
+                else -> "距下节课还有 $breakMinutes 分钟，时间很充裕"
             }
         }
 
@@ -549,18 +686,20 @@ private fun generateSmartTip(
 
         next != null -> {
             val minutes = java.time.Duration.between(now, next.start).toMinutes()
-            val nextCourse = next.course
+            val nextClassroom = next.course.classroom
             val greeting = getGreeting()
             when {
-                minutes > 180 -> "$greeting，今天共 $totalCount 节课"
-                minutes in 121..180 -> "$greeting，还有 $minutes 分钟上${nextCourse.name}"
-                minutes in 61..120 -> "$greeting，还有 $minutes 分钟上${nextCourse.name}"
-                minutes in 30..60 -> "$greeting，还有 $minutes 分钟，可以准备出发了"
-                minutes in 15..29 -> "还有 $minutes 分钟上${nextCourse.name}，该出发了"
-                minutes in 10..14 -> "还有 $minutes 分钟，准备去${nextCourse.classroom}"
-                minutes in 5..9 -> "还有 $minutes 分钟，${nextCourse.name}要开始了"
-                minutes in 2..4 -> "快 $minutes 分钟了，抓紧时间"
-                else -> "马上要上${nextCourse.name}了"
+                minutes > 180 -> "$greeting，今天共 $totalCount 节课，安排得明明白白"
+                minutes in 121..180 -> "$greeting，还有 $minutes 分钟才上课，从容准备"
+                minutes in 91..120 -> "$greeting，还有 $minutes 分钟上课，时间够用"
+                minutes in 61..90 -> "$greeting，还有 $minutes 分钟，翻翻书预习一下"
+                minutes in 45..60 -> "$greeting，还有 $minutes 分钟，准备出发吧"
+                minutes in 30..44 -> "$greeting，还有 $minutes 分钟，该收拾东西了"
+                minutes in 15..29 -> "还有 $minutes 分钟上课，该出发啦"
+                minutes in 10..14 -> "还有 $minutes 分钟，准备去${nextClassroom}"
+                minutes in 5..9 -> "还有 $minutes 分钟就要上课了，抓紧时间"
+                minutes in 2..4 -> "快上课了，还有 $minutes 分钟，冲！"
+                else -> "马上上课，抓紧时间就位！"
             }
         }
 
@@ -605,7 +744,7 @@ fun TodayAssistantCard(
         Column(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(16.dp),
+                .padding(start = 16.dp, top = 16.dp, end = 16.dp, bottom = 8.dp),
             verticalArrangement = Arrangement.spacedBy(6.dp)
         ) {
             val currentCourse = courseStatus.currentCourse
@@ -630,7 +769,11 @@ fun TodayAssistantCard(
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
+                // 左侧：标签 + 课程名（weight 限制宽度，课程名过长时换行显示，右侧剩余时间保持完整）
+                Row(
+                    modifier = Modifier.weight(1f),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
                     if (label.isNotBlank()) {
                         Text(
                             text = label,
@@ -707,14 +850,13 @@ fun TodayAssistantCard(
                 }
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     if (weather.loaded && !weather.temperature.isNaN()) {
-                        androidx.compose.foundation.Image(
-                            painter = androidx.compose.ui.res.painterResource(
-                                id = getWeatherIconRes(weather.weatherType, weather.isNight())
-                            ),
-                            contentDescription = null,
-                            modifier = Modifier.size(20.dp)
+                        WeatherIcon(
+                            resourceId = getWeatherIconRes(weather.weatherType, weather.isNight()),
+                            size = 23.dp,
+                            shadowColor = Color.Black.copy(alpha = 0.24f),
+                            shadowRadius = 5.dp
                         )
-                        Spacer(modifier = Modifier.width(6.dp))
+                        Spacer(modifier = Modifier.width(4.dp))
                         Text(
                             text = "${weather.temperature.toInt()}°C ${weather.weatherType} · ${weather.notice}",
                             style = MiuixTheme.textStyles.body2,
@@ -726,7 +868,7 @@ fun TodayAssistantCard(
                                 id = R.drawable.ic_widget_location
                             ),
                             contentDescription = null,
-                            modifier = Modifier.size(20.dp)
+                            modifier = Modifier.size(18.dp)
                         )
                         Spacer(modifier = Modifier.width(6.dp))
                         Text(
@@ -736,14 +878,13 @@ fun TodayAssistantCard(
                             modifier = Modifier.clickable { requestLocation() }
                         )
                     } else {
-                        androidx.compose.foundation.Image(
-                            painter = androidx.compose.ui.res.painterResource(
-                                id = R.drawable.icon_overcast
-                            ),
-                            contentDescription = null,
-                            modifier = Modifier.size(20.dp)
+                        WeatherIcon(
+                            resourceId = R.drawable.icon_overcast,
+                            size = 23.dp,
+                            shadowColor = Color.Black.copy(alpha = 0.24f),
+                            shadowRadius = 5.dp
                         )
-                        Spacer(modifier = Modifier.width(6.dp))
+                        Spacer(modifier = Modifier.width(4.dp))
                         Text(
                             text = "加载中...",
                             style = MiuixTheme.textStyles.body2,

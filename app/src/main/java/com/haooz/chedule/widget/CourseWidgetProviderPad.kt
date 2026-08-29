@@ -58,6 +58,7 @@ class CourseWidgetProviderPad : AppWidgetProvider() {
     ) {
         val repository = CourseRepository(context)
         val views = RemoteViews(context.packageName, R.layout.widget_course_reminder_standard)
+        WidgetTextSizes.applyCourseReminder(context, views)
 
         val currentWeek = repository.getCurrentWeek()
         val today = getTodayOfWeek()
@@ -153,11 +154,7 @@ class CourseWidgetProviderPad : AppWidgetProvider() {
             if (remaining1 != null) views.setTextViewText(R.id.widget_now1, "${remaining1}分钟结束")
             views.setInt(R.id.widget_course1, "setBackgroundResource",
                 if (remaining1 != null) R.drawable.widget_card_active_background else R.drawable.widget_card_background)
-            views.setTextViewText(R.id.widget_info1, buildString {
-                append(c1.getTimeDisplayText())
-                if (c1.classroom.isNotEmpty()) append("｜").append(c1.classroom)
-                if (c1.teacher.isNotEmpty()) append("｜").append(c1.teacher)
-            })
+            views.setTextViewText(R.id.widget_info1, buildCourseInfo(c1))
 
             if (displayCourses.size >= 2) {
                 val c2 = displayCourses[1]
@@ -172,11 +169,7 @@ class CourseWidgetProviderPad : AppWidgetProvider() {
                 if (remaining2 != null) views.setTextViewText(R.id.widget_now2, "${remaining2}分钟结束")
                 views.setInt(R.id.widget_course2, "setBackgroundResource",
                     if (remaining2 != null) R.drawable.widget_card_active_background else R.drawable.widget_card_background)
-                views.setTextViewText(R.id.widget_info2, buildString {
-                    append(c2.getTimeDisplayText())
-                    if (c2.classroom.isNotEmpty()) append("｜").append(c2.classroom)
-                    if (c2.teacher.isNotEmpty()) append("｜").append(c2.teacher)
-                })
+                views.setTextViewText(R.id.widget_info2, buildCourseInfo(c2))
             } else {
                 views.setTextViewText(R.id.widget_name2, "")
                 views.setBitmap(R.id.widget_color2, "setImageBitmap", Bitmap.createBitmap(1, 1, Bitmap.Config.ARGB_8888))
@@ -274,6 +267,13 @@ class CourseWidgetProviderPad : AppWidgetProvider() {
         canvas.drawRoundRect(0f, 0f, width.toFloat(), height.toFloat(), radius, radius, paint)
         return bitmap
     }
+
+    /** 拼接课程信息：节次（自定义时间课程跳过）+ 教室 + 教师，非空项间用「｜」分隔 */
+    private fun buildCourseInfo(course: Course): String = buildList {
+        if (!course.hasValidCustomTime()) add(course.getTimeDisplayText())
+        if (course.classroom.isNotEmpty()) add(course.classroom)
+        if (course.teacher.isNotEmpty()) add(course.teacher)
+    }.joinToString("｜")
 
     private fun getTodayOfWeek(): Int {
         val calendar = Calendar.getInstance()

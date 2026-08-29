@@ -31,6 +31,7 @@ class CourseViewModel(application: Application) : AndroidViewModel(application) 
 
     // 数据版本号，每次重新加载数据时递增，用于强制 UI 重组
     private val _dataVersion = MutableStateFlow(0)
+    val dataVersion: StateFlow<Int> = _dataVersion.asStateFlow()
 
     // 当前周次
     private val _currentWeek = MutableStateFlow(1)

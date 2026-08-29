@@ -154,7 +154,21 @@ data class CourseGroupKey(
     val isCustomTime: Boolean = false,
     val customStartTime: String? = null,
     val customEndTime: String? = null
-)
+) {
+    // 唯一标识：包含全部区分字段，避免同名不同时段的课程分组在 LazyStaggeredGrid 中 key 冲突
+    fun uniqueKey(): String = buildString {
+        append(dayOfWeek).append('_')
+        append(startSection).append('_')
+        append(endSection).append('_')
+        append(weekType).append('_')
+        append(startWeek).append('_')
+        append(endWeek).append('_')
+        if (selectedWeeks.isNotEmpty()) append(selectedWeeks)
+        if (isCustomTime) {
+            append("_t_").append(customStartTime).append('-').append(customEndTime)
+        }
+    }
+}
 
 data class CourseGroup(
     val key: CourseGroupKey,
@@ -892,11 +906,10 @@ fun CourseEditScreen(
 
                                 items(
                                     items = courseGroups,
-                                    key = { "${it.key.dayOfWeek}_${it.key.startSection}_${it.key.startWeek}" },
+                                    key = { it.key.uniqueKey() },
                                     contentType = { "CourseGroupCard" }
                                 ) { group ->
-                                    val groupKey =
-                                        "${group.key.dayOfWeek}_${group.key.startSection}_${group.key.startWeek}"
+                                    val groupKey = group.key.uniqueKey()
                                     val isDeleting = deletingGroupId == groupKey
 
                                     AnimatedVisibility(
@@ -1051,8 +1064,7 @@ fun CourseEditScreen(
                                     showDeleteDialog = false
                                     pendingDeleteGroup?.let { group ->
                                         pendingDeleteCourseIds = group.courses.map { it.id }
-                                        deletingGroupId =
-                                            "${group.key.dayOfWeek}_${group.key.startSection}_${group.key.startWeek}"
+                                        deletingGroupId = group.key.uniqueKey()
                                     }
                                 },
                                 textColor = Color(0xFFF44336),

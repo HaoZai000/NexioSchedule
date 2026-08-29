@@ -68,6 +68,8 @@ fun DayColumn(
     eveningSections: Int = 3,
     sectionTimes: Map<Int, String> = Course.defaultSectionTimes,
     currentWeek: Int = 1,
+    isHoliday: Boolean = false,
+    isWorkSwap: Boolean = false,
     pendingDay: Int = -1,
     pendingSection: Int = -1,
     onPendingChange: (day: Int, section: Int) -> Unit = { _, _ -> },
@@ -239,6 +241,8 @@ fun DayColumn(
             CourseCardsLayer(
                 courses = courses,
                 currentWeek = currentWeek,
+                isHoliday = isHoliday,
+                isWorkSwap = isWorkSwap,
                 showBreakDividers = showBreakDividers,
                 morningSections = morningSections,
                 afternoonSections = afternoonSections,
@@ -273,6 +277,8 @@ fun DayColumn(
 private fun CourseCardsLayer(
     courses: List<Course>,
     currentWeek: Int,
+    isHoliday: Boolean,
+    isWorkSwap: Boolean,
     showBreakDividers: Boolean,
     morningSections: Int,
     afternoonSections: Int,
@@ -376,6 +382,8 @@ private fun CourseCardsLayer(
                     CourseCard(
                         course = course,
                         isCurrentWeek = isCurrentWeekCourse,
+                        isHoliday = isHoliday,
+                        isWorkSwap = isWorkSwap,
                         hasMultipleCourses = renderData.hasHiddenCourses,
                         wallpaperBackdrop = wallpaperBackdrop,
                         cardBlurRadius = cardBlurRadius,
@@ -414,6 +422,8 @@ private fun CourseCardsLayer(
                 CourseCard(
                     course = displayCourse,
                     isCurrentWeek = isCurrentWeekCourse,
+                    isHoliday = isHoliday,
+                    isWorkSwap = isWorkSwap,
                     hasMultipleCourses = idx == 0 && renderData.hasHiddenCourses,
                     wallpaperBackdrop = wallpaperBackdrop,
                     cardBlurRadius = cardBlurRadius,

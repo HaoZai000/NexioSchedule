@@ -52,12 +52,15 @@ import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.layout.positionInRoot
 import androidx.compose.ui.platform.LocalConfiguration
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.haooz.chedule.data.Course
+import com.haooz.chedule.data.CourseRepository
+import com.haooz.chedule.data.HolidayManager
 import com.haooz.chedule.ui.basic.LiquidTopBarButton
 import com.haooz.chedule.ui.basic.SharedScrollBehavior
 import com.haooz.chedule.ui.components.DayColumn
@@ -84,6 +87,7 @@ import top.yukonga.miuix.kmp.overlay.LocalSheetTopBarMaterial
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 import top.yukonga.miuix.kmp.utils.PressFeedbackType
 import top.yukonga.miuix.kmp.utils.scrollEndHaptic
+import java.time.LocalDate
 import java.util.Calendar
 import kotlin.time.Duration.Companion.milliseconds
 import com.kyant.backdrop.backdrops.layerBackdrop as kyantLayerBackdrop
@@ -150,6 +154,8 @@ fun MainScheduleScreen(
 ) {
     val courses by viewModel.courses.collectAsState()
     val currentWeek by viewModel.currentWeek.collectAsState()
+    val totalWeeks by viewModel.totalWeeks.collectAsState()
+    val dataVersion by viewModel.dataVersion.collectAsState()
     val showAddDialog by viewModel.showAddDialog.collectAsState()
     val showNonCurrentWeek by settingsViewModel.showNonCurrentWeek.collectAsState()
     val smartWeekend by settingsViewModel.smartWeekend.collectAsState()
@@ -236,10 +242,34 @@ fun MainScheduleScreen(
         }
     }
 
+    val scheduleContext = LocalContext.current
+    // 开学周的周一，用于把 (周次, 星期) 换算成具体日期
+    val semesterStartMonday = remember(scheduleContext, dataVersion) {
+        val start = runCatching {
+            LocalDate.parse(
+                CourseRepository.getInstance(scheduleContext).getClassStartTime().replace("/", "-")
+            )
+        }.getOrNull() ?: LocalDate.now()
+        start.minusDays((start.dayOfWeek.value - 1).toLong())
+    }
+    // 一次性加载课表覆盖年份的假期/调休数据，避免逐日重复解析
+    val holidayVersion = HolidayManager.getVersion(scheduleContext)
+    val holidayEntries = remember(
+        scheduleContext, dataVersion, holidayVersion, semesterStartMonday, totalWeeks
+    ) {
+        val lastDate = semesterStartMonday.plusWeeks((totalWeeks - 1).toLong()).plusDays(6)
+        (semesterStartMonday.year..lastDate.year).flatMap { year ->
+            HolidayManager.load(scheduleContext, year)
+        }
+    }
+
     // 按需缓存：仅在 pager 内部访问时计算，不在顶层读取 pagerState.currentPage
+    // 值：dayOfWeek -> (displayWeek, 该日课程)，displayWeek 为调休映射后的显示周次
     @Suppress("RedundantInitializer")
-    val filteredCoursesCache = remember(coursesByDay, showNonCurrentWeek) {
-        mutableMapOf<Int, Map<Int, List<Course>>>()
+    val filteredCoursesCache = remember(
+        coursesByDay, showNonCurrentWeek, dataVersion, holidayVersion
+    ) {
+        mutableMapOf<Int, Map<Int, Pair<Int, List<Course>>>>()
     }
 
     @Suppress("RedundantInitializer")
@@ -385,26 +415,52 @@ fun MainScheduleScreen(
                         )
 
                         // 按周计算要显示的天数范围（智能周末模式下，不同周可能显示不同天数）
+                        // 调休补班日由 getWeekendDaysForWeek 内部的 hasCoursesOnDayInWeek 感知，视为“有课”显示
                         val pageDayRange = remember(week, smartWeekend, courses.size) {
                             (1..5).toList() + settingsViewModel.getWeekendDaysForWeek(week).filter { it in 6..7 }
                         }
 
                         pageDayRange.forEach { dayOfWeek ->
                             // 按需计算并缓存：仅在访问时计算，不在顶层读取 pagerState.currentPage
-                            val filteredDayCourses = filteredCoursesCache.getOrPut(page) {
+                            // 调休日返回映射后的 displayWeek，使该日课程按映射周次判断“本周”，避免显示成灰色
+                            val (displayWeekForDay, filteredDayCourses) = filteredCoursesCache.getOrPut(page) {
                                 val weekForPage = page + 1
                                 allDays.associateWith { dayOfWeek ->
-                                    val dayCourses = coursesByDay[dayOfWeek] ?: emptyList()
-                                    if (showNonCurrentWeek) dayCourses
-                                    else dayCourses.filter { it.isActiveInWeek(weekForPage) }
+                                    val dateForDay = semesterStartMonday
+                                        .plusWeeks((weekForPage - 1).toLong())
+                                        .plusDays((dayOfWeek - 1).toLong())
+                                    // 调休日按被调星期/周次展示对应课程；仅已配置补班课的条目才生效（未配置时保持原课表）
+                                    val swapForDay = holidayEntries.firstOrNull {
+                                        it.type == HolidayManager.TYPE_WORKSWAP && it.matches(dateForDay.toString())
+                                    }
+                                    val swapConfigured = swapForDay?.followWeekday?.takeIf { it in 1..7 } != null
+                                    val displayDay = swapForDay?.followWeekday?.takeIf { it in 1..7 } ?: dayOfWeek
+                                    val displayWeek = swapForDay?.followWeek?.takeIf { it > 0 } ?: weekForPage
+                                    val dayCourses = coursesByDay[displayDay] ?: emptyList()
+                                    // 调休日整天替换：显示被调那天的完整课表（含非本周课程），不再按周次过滤
+                                    val courses = if (showNonCurrentWeek || swapConfigured) dayCourses
+                                    else dayCourses.filter { it.isActiveInWeek(displayWeek) }
+                                    displayWeek to courses
                                 }
-                            }.getOrElse(dayOfWeek) { emptyList() }
+                            }.getOrElse(dayOfWeek) { week to emptyList() }
+                            val dateForDay = semesterStartMonday
+                                .plusWeeks((week - 1).toLong())
+                                .plusDays((dayOfWeek - 1).toLong())
+                            val isHoliday = holidayEntries.any {
+                                it.type == HolidayManager.TYPE_HOLIDAY && it.matches(dateForDay.toString())
+                            }
+                            // 仅已配置补班课的调休日才标记“调”，未配置（待配置补班）时按普通课表显示
+                            val isWorkSwap = holidayEntries.firstOrNull {
+                                it.type == HolidayManager.TYPE_WORKSWAP && it.matches(dateForDay.toString())
+                            }?.followWeekday?.takeIf { it in 1..7 } != null
                             val stableOnCourseClick: (Course) -> Unit =
-                                remember(page, dayOfWeek, week) {
+                                remember(page, dayOfWeek, week, displayWeekForDay) {
                                     { course ->
+                                        // 调休日整天替换后：用课程归属星期（被调那天的星期）+ 映射周次查询槽位，
+                                        // 避免弹出“没调课前的”原始课程
                                         val coursesAtSlot = viewModel.getCoursesAtSlot(
-                                            week,
-                                            dayOfWeek,
+                                            displayWeekForDay,
+                                            course.dayOfWeek,
                                             course.startSection,
                                             course.endSection
                                         )
@@ -434,7 +490,9 @@ fun MainScheduleScreen(
                                 afternoonSections = afternoonSections,
                                 eveningSections = eveningSections,
                                 sectionTimes = sectionTimes,
-                                currentWeek = week,
+                                currentWeek = displayWeekForDay,
+                                isHoliday = isHoliday,
+                                isWorkSwap = isWorkSwap,
                                 pendingDay = pendingDay,
                                 pendingSection = pendingSection,
                                 onPendingChange = onPendingChange,
