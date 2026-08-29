@@ -10,6 +10,16 @@ val changelogData = listOf(
         version = "v1.4.6-0830",
         date = "2026-08-30",
         changes = listOf(
+            "",
+            "",
+            "优化小部件显示效果",
+            "修复部分界面UI颜色异常",
+        )
+    ),
+    ChangelogEntry(
+        version = "v1.4.6-0830",
+        date = "2026-08-30",
+        changes = listOf(
             "新增课程表显示假期/调休课程状态",
             "新增今日助手获取定位后自动存储",
             "优化今日助手提示内容，更生动合理",

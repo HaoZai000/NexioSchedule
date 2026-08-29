@@ -340,7 +340,7 @@ fun UpdateSettingsScreen(
                                     Text(
                                         text = "最新版本: ${latestRelease!!.tagName}",
                                         fontSize = 14.sp,
-                                        color = MiuixTheme.colorScheme.onSurfaceVariantSummary
+                                        color = MiuixTheme.colorScheme.onSurfaceVariantActions
                                     )
                                     if (latestRelease!!.body.isNotBlank()) {
                                         Spacer(modifier = Modifier.height(4.dp))
