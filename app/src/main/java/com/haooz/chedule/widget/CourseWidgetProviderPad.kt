@@ -9,6 +9,7 @@ import android.content.Context
 import android.content.Intent
 import android.graphics.Bitmap
 import android.graphics.Canvas
+import android.graphics.Color
 import android.graphics.Paint
 import android.view.View
 import android.widget.RemoteViews
@@ -22,6 +23,9 @@ class CourseWidgetProviderPad : AppWidgetProvider() {
 
     companion object {
         const val ACTION_UPDATE_WIDGET = "com.haooz.chedule.UPDATE_WIDGET_PAD"
+
+        // 进行中课程卡片(#1A2196F3)叠加在根背景(#F7F7F7)上的不透明等效色，用于色条位图背景
+        val ACTIVE_CARD_OPAQUE_BG: Int = Color.rgb(0xE1, 0xED, 0xF7)
 
         fun updateAllWidgets(context: Context) {
             val intent = Intent(context, CourseWidgetProviderPad::class.java).apply {
@@ -59,7 +63,7 @@ class CourseWidgetProviderPad : AppWidgetProvider() {
     ) {
         val repository = CourseRepository(context)
         val views = RemoteViews(context.packageName, R.layout.widget_course_reminder_standard)
-        WidgetTextSizes.applyCourseReminder(context, views)
+        WidgetTextSizes.applyCourseReminder(views)
 
         val currentWeek = repository.getCurrentWeek()
         val today = getTodayOfWeek()
@@ -145,12 +149,15 @@ class CourseWidgetProviderPad : AppWidgetProvider() {
             val c1 = displayCourses[0]
             views.setViewVisibility(R.id.widget_course1, View.VISIBLE)
             views.setTextViewText(R.id.widget_name1, c1.name)
-            views.setBitmap(R.id.widget_color1, "setImageBitmap", createColorBarBitmap(context, c1.colorRes.toInt()))
             val start1 = getCourseStartTime(c1, repository) ?: ""
             val end1 = getCourseEndTime(c1, repository) ?: ""
             views.setTextViewText(R.id.widget_time_start1, start1)
             views.setTextViewText(R.id.widget_time_end1, end1)
             val remaining1 = if (showTomorrow) null else getRemainingMinutes(start1, end1, currentMinutes)
+            // 色条位图使用不透明卡片底色填充，避免透明像素在部分桌面被渲染成灰色框
+            views.setBitmap(R.id.widget_color1, "setImageBitmap",
+                createColorBarBitmap(c1.colorRes.toInt(),
+                    if (remaining1 != null) ACTIVE_CARD_OPAQUE_BG else Color.WHITE))
             views.setViewVisibility(R.id.widget_now1, if (remaining1 != null) View.VISIBLE else View.GONE)
             if (remaining1 != null) views.setTextViewText(R.id.widget_now1, "${remaining1}分钟结束")
             views.setInt(R.id.widget_course1, "setBackgroundResource",
@@ -159,21 +166,25 @@ class CourseWidgetProviderPad : AppWidgetProvider() {
 
             if (displayCourses.size >= 2) {
                 val c2 = displayCourses[1]
+                views.setViewVisibility(R.id.widget_color2, View.VISIBLE)
                 views.setTextViewText(R.id.widget_name2, c2.name)
-                views.setBitmap(R.id.widget_color2, "setImageBitmap", createColorBarBitmap(context, c2.colorRes.toInt()))
                 val start2 = getCourseStartTime(c2, repository) ?: ""
                 val end2 = getCourseEndTime(c2, repository) ?: ""
                 views.setTextViewText(R.id.widget_time_start2, start2)
                 views.setTextViewText(R.id.widget_time_end2, end2)
                 val remaining2 = if (showTomorrow) null else getRemainingMinutes(start2, end2, currentMinutes)
+                views.setBitmap(R.id.widget_color2, "setImageBitmap",
+                    createColorBarBitmap(c2.colorRes.toInt(),
+                        if (remaining2 != null) ACTIVE_CARD_OPAQUE_BG else Color.WHITE))
                 views.setViewVisibility(R.id.widget_now2, if (remaining2 != null) View.VISIBLE else View.GONE)
                 if (remaining2 != null) views.setTextViewText(R.id.widget_now2, "${remaining2}分钟结束")
                 views.setInt(R.id.widget_course2, "setBackgroundResource",
                     if (remaining2 != null) R.drawable.widget_card_active_background else R.drawable.widget_card_background)
                 views.setTextViewText(R.id.widget_info2, buildCourseInfo(c2))
             } else {
+                // 无课时直接隐藏色条，不再塞占位位图，避免灰色竖杆/矩形残留
+                views.setViewVisibility(R.id.widget_color2, View.GONE)
                 views.setTextViewText(R.id.widget_name2, "")
-                views.setBitmap(R.id.widget_color2, "setImageBitmap", createBitmap(1, 1))
                 views.setTextViewText(R.id.widget_time_start2, "")
                 views.setTextViewText(R.id.widget_time_end2, "")
                 views.setTextViewText(R.id.widget_info2, "")
@@ -255,11 +266,12 @@ class CourseWidgetProviderPad : AppWidgetProvider() {
         return timeMap[relativeSection]?.split("-")?.lastOrNull()?.trim()
     }
 
-    private fun createColorBarBitmap(context: Context, color: Int): Bitmap {
-        val density = context.resources.displayMetrics.density
+    private fun createColorBarBitmap(color: Int, background: Int): Bitmap {
+        val density = WidgetTextSizes.REFERENCE_DENSITY
         val width = (4 * density).toInt()
         val height = (28 * density).toInt()
-        val bitmap = createBitmap(width, height)
+        // 用不透明卡片底色填充整张位图，避免任何透明像素被桌面渲染成灰色框
+        val bitmap = createBitmap(width, height).apply { eraseColor(background) }
         val canvas = Canvas(bitmap)
         val paint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
             this.color = color

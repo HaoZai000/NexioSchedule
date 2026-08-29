@@ -43,16 +43,18 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.core.content.FileProvider
 import androidx.core.content.edit
+import com.haooz.chedule.ui.basic.OverlayDropdownMenu
 import com.haooz.chedule.ui.basic.SharedScrollBehavior
 import com.haooz.chedule.ui.utils.isAppDarkTheme
+import com.haooz.chedule.ui.utils.overScrollVertical
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import top.yukonga.miuix.kmp.basic.Button
+import top.yukonga.miuix.kmp.basic.ButtonDefaults
 import top.yukonga.miuix.kmp.basic.Card
-import top.yukonga.miuix.kmp.basic.DropdownEntry
-import top.yukonga.miuix.kmp.basic.DropdownColors
 import top.yukonga.miuix.kmp.basic.DropdownDefaults
+import top.yukonga.miuix.kmp.basic.DropdownEntry
 import top.yukonga.miuix.kmp.basic.DropdownItem
 import top.yukonga.miuix.kmp.basic.LinearProgressIndicator
 import top.yukonga.miuix.kmp.basic.Scaffold
@@ -63,10 +65,8 @@ import top.yukonga.miuix.kmp.blur.layerBackdrop
 import top.yukonga.miuix.kmp.blur.rememberLayerBackdrop
 import top.yukonga.miuix.kmp.overlay.OverlayDialog
 import top.yukonga.miuix.kmp.preference.ArrowPreference
-import com.haooz.chedule.ui.basic.OverlayDropdownMenu
+import top.yukonga.miuix.kmp.preference.SwitchPreference
 import top.yukonga.miuix.kmp.theme.MiuixTheme
-import com.haooz.chedule.ui.utils.overScrollVertical
-import top.yukonga.miuix.kmp.basic.ButtonDefaults
 import top.yukonga.miuix.kmp.utils.scrollEndHaptic
 import java.io.File
 import java.io.FileOutputStream
@@ -326,7 +326,7 @@ fun UpdateSettingsScreen(
                                 Text(
                                     text = "v$currentVersion",
                                     fontSize = 14.sp,
-                                    color = MiuixTheme.colorScheme.onSurfaceVariantActions
+                                    color = MiuixTheme.colorScheme.onSurfaceVariantSummary
                                 )
                             }
 
@@ -340,7 +340,7 @@ fun UpdateSettingsScreen(
                                     Text(
                                         text = "最新版本: ${latestRelease!!.tagName}",
                                         fontSize = 14.sp,
-                                        color = MiuixTheme.colorScheme.onSurfaceVariantActions
+                                        color = MiuixTheme.colorScheme.onSurfaceVariantSummary
                                     )
                                     if (latestRelease!!.body.isNotBlank()) {
                                         Spacer(modifier = Modifier.height(4.dp))

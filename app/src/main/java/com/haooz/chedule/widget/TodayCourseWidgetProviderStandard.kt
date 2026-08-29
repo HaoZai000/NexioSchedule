@@ -9,6 +9,7 @@ import android.content.Context
 import android.content.Intent
 import android.graphics.Bitmap
 import android.graphics.Canvas
+import android.graphics.Color
 import android.graphics.Paint
 import android.view.View
 import android.widget.RemoteViews
@@ -59,8 +60,8 @@ class TodayCourseWidgetProviderStandard : AppWidgetProvider() {
     ) {
         val repository = CourseRepository(context)
         val views = RemoteViews(context.packageName, R.layout.widget_today_course_standard)
-        applyWidgetMode(views, repository, context)
-        WidgetTextSizes.applyTodayCourse(context, views)
+        applyWidgetMode(views, repository)
+        WidgetTextSizes.applyTodayCourse(views)
 
         val currentWeek = repository.getCurrentWeek()
         val today = getTodayOfWeek()
@@ -213,8 +214,7 @@ class TodayCourseWidgetProviderStandard : AppWidgetProvider() {
 
     private fun applyWidgetMode(
         views: RemoteViews,
-        repository: CourseRepository,
-        context: Context
+        repository: CourseRepository
     ) {
         // 0=标准(0/0), 1=4×6(12/14), 2=4×7(8/10)
         val (top, bottom) = when (repository.getWidgetPaddingMode()) {
@@ -222,19 +222,19 @@ class TodayCourseWidgetProviderStandard : AppWidgetProvider() {
             2 -> 8f to 10f
             else -> 0f to 0f
         }
-        val density = context.resources.displayMetrics.density
         views.setViewPadding(
             R.id.widget_standard_root,
             0,
-            (top * density).toInt(),
+            (top * WidgetTextSizes.REFERENCE_DENSITY).toInt(),
             0,
-            (bottom * density).toInt()
+            (bottom * WidgetTextSizes.REFERENCE_DENSITY).toInt()
         )
     }
 
     private fun createCircleBitmap(color: Int): Bitmap {
         val size = 24
-        val bitmap = createBitmap(size, size)
+        // 用不透明的白色底填充，避免透明像素被桌面渲染成灰色方块
+        val bitmap = createBitmap(size, size).apply { eraseColor(Color.WHITE) }
         val canvas = Canvas(bitmap)
         val paint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
             this.color = color

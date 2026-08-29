@@ -9,6 +9,7 @@ import android.content.Context
 import android.content.Intent
 import android.graphics.Bitmap
 import android.graphics.Canvas
+import android.graphics.Color
 import android.graphics.Paint
 import android.view.View
 import android.widget.RemoteViews
@@ -59,7 +60,7 @@ class TodayCourseWidgetProviderPad : AppWidgetProvider() {
     ) {
         val repository = CourseRepository(context)
         val views = RemoteViews(context.packageName, R.layout.widget_today_course_standard)
-        WidgetTextSizes.applyTodayCourse(context, views)
+        WidgetTextSizes.applyTodayCourse(views)
 
         val currentWeek = repository.getCurrentWeek()
         val today = getTodayOfWeek()
@@ -212,7 +213,8 @@ class TodayCourseWidgetProviderPad : AppWidgetProvider() {
 
     private fun createCircleBitmap(color: Int): Bitmap {
         val size = 24
-        val bitmap = createBitmap(size, size)
+        // 用不透明的白色底填充，避免透明像素被桌面渲染成灰色方块
+        val bitmap = createBitmap(size, size).apply { eraseColor(Color.WHITE) }
         val canvas = Canvas(bitmap)
         val paint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
             this.color = color
