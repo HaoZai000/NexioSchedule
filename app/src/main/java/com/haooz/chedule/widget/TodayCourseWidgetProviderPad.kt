@@ -12,6 +12,7 @@ import android.graphics.Canvas
 import android.graphics.Paint
 import android.view.View
 import android.widget.RemoteViews
+import androidx.core.graphics.createBitmap
 import com.haooz.chedule.R
 import com.haooz.chedule.data.Course
 import com.haooz.chedule.data.CourseRepository
@@ -153,7 +154,7 @@ class TodayCourseWidgetProviderPad : AppWidgetProvider() {
                 R.id.widget_dot5, R.id.widget_dot6, R.id.widget_dot7, R.id.widget_dot8
             )
 
-            val dotCourses = if (!showTomorrow && displayCourse != null) {
+            val dotCourses = if (!showTomorrow) {
                 val start = getCourseStartTime(displayCourse, repository)
                 val end = getCourseEndTime(displayCourse, repository)
                 if (start != null && end != null) {
@@ -211,7 +212,7 @@ class TodayCourseWidgetProviderPad : AppWidgetProvider() {
 
     private fun createCircleBitmap(color: Int): Bitmap {
         val size = 24
-        val bitmap = Bitmap.createBitmap(size, size, Bitmap.Config.ARGB_8888)
+        val bitmap = createBitmap(size, size)
         val canvas = Canvas(bitmap)
         val paint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
             this.color = color

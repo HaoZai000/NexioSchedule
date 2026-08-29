@@ -12,6 +12,7 @@ import android.graphics.Canvas
 import android.graphics.Paint
 import android.view.View
 import android.widget.RemoteViews
+import androidx.core.graphics.createBitmap
 import com.haooz.chedule.R
 import com.haooz.chedule.data.Course
 import com.haooz.chedule.data.CourseRepository
@@ -172,7 +173,7 @@ class CourseWidgetProviderPad : AppWidgetProvider() {
                 views.setTextViewText(R.id.widget_info2, buildCourseInfo(c2))
             } else {
                 views.setTextViewText(R.id.widget_name2, "")
-                views.setBitmap(R.id.widget_color2, "setImageBitmap", Bitmap.createBitmap(1, 1, Bitmap.Config.ARGB_8888))
+                views.setBitmap(R.id.widget_color2, "setImageBitmap", createBitmap(1, 1))
                 views.setTextViewText(R.id.widget_time_start2, "")
                 views.setTextViewText(R.id.widget_time_end2, "")
                 views.setTextViewText(R.id.widget_info2, "")
@@ -257,8 +258,8 @@ class CourseWidgetProviderPad : AppWidgetProvider() {
     private fun createColorBarBitmap(context: Context, color: Int): Bitmap {
         val density = context.resources.displayMetrics.density
         val width = (4 * density).toInt()
-        val height = (40 * density).toInt()
-        val bitmap = Bitmap.createBitmap(width, height, Bitmap.Config.ARGB_8888)
+        val height = (28 * density).toInt()
+        val bitmap = createBitmap(width, height)
         val canvas = Canvas(bitmap)
         val paint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
             this.color = color
