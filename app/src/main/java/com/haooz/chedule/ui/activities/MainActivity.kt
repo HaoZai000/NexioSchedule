@@ -875,6 +875,11 @@ fun CourseScheduleApp() {
     val customizeExitScale = remember { Animatable(1f) }
     val customizeExitAlpha = remember { Animatable(1f) }
     var isWindowCutoutActive by remember { mutableStateOf(false) }
+    // 进出场全屏快照覆盖层：进入时用主界面快照盖住开洞过渡；退出-取消时盖住回退过程（不保存）。
+    // 动画只作用于这一层，避免"主界面+页面双缩放+快照"叠加导致的闪烁。
+    var customizeCoverActive by remember { mutableStateOf(false) }
+    val customizeCoverScale = remember { Animatable(1f) }
+    val customizeCoverAlpha = remember { Animatable(1f) }
     val wallpaperRepository = remember { com.haooz.chedule.data.CourseRepository(context) }
     // 多搭配支持
     var combinations by remember { mutableStateOf(listOf<com.haooz.chedule.data.Combination>()) }
@@ -928,8 +933,9 @@ fun CourseScheduleApp() {
     var originalSnapshot by remember { mutableStateOf<android.graphics.Bitmap?>(null) }
     // 记录进入搭配页时原始搭配的壁纸亮暗结果，用于退出（非应用）时还原主题锁定
     var originalWallpaperIsLight by remember { mutableStateOf<Boolean?>(null) }
+    // 记录进入搭配页时的原始搭配快照，取消退出时整体还原，避免编辑回调造成的字段残留
+    var originalCombination by remember { mutableStateOf<com.haooz.chedule.data.Combination?>(null) }
     var isApplyingCustomize by remember { mutableStateOf(false) }
-    var isNewCombinationCreated by remember { mutableStateOf(false) }
     // 新建搭配后自动进入编辑模式的触发器
     var pendingEnterCutout by remember { mutableStateOf(false) }
     // 启动时迁移旧数据并加载所有搭配
@@ -1012,8 +1018,14 @@ fun CourseScheduleApp() {
             MainActivity.cachedCurrentCombinationIndex = currentIndex
         }
 
+        // 单搭配模式：只保留当前选中的那个搭配，其余旧搭配数据不再加载，
+        // 避免主界面与进入课表外观时读取的组合不一致（随机出现旧搭配）。
+        val currentCombOnly = combinations.getOrNull(currentCombinationIndex)
+        combinations = if (currentCombOnly != null) listOf(currentCombOnly) else emptyList()
+        currentCombinationIndex = 0
+
         // 同步当前搭配状态到 wallpaperBitmap/Offset/Scale（主界面使用）
-        val curr = combinations.getOrNull(currentIndex)
+        val curr = combinations.getOrNull(0)
         if (curr != null) {
             wallpaperBitmap = curr.bitmap
             wallpaperOffset = curr.offset
@@ -1028,27 +1040,12 @@ fun CourseScheduleApp() {
             originalWallpaperOffset = curr.offset
             originalWallpaperScale = wallpaperScale
         }
-
-        // Phase 2：后台逐张解码其余搭配的壁纸
-        withContext(Dispatchers.IO) {
-            ids.forEachIndexed { index, id ->
-                if (index == currentIndex) return@forEachIndexed
-                val bmp = wallpaperRepository.loadCombinationWallpaper(id) ?: return@forEachIndexed
-                withContext(Dispatchers.Main) {
-                    val cur = combinations.getOrNull(index)
-                    if (cur != null && cur.id == id && cur.bitmap == null) {
-                        combinations = combinations.toMutableList().also {
-                            it[index] = cur.copy(bitmap = bmp)
-                        }
-                    }
-                }
-            }
-        }
     }
     val cutoutMainScale = remember { Animatable(1f) }
     var cutoutCenterYRatio by remember { mutableFloatStateOf(0.5f) }
-    // 弹窗打开时的同步上移偏移（直接 translationY，与 CustomizeScheduleScreen 同帧）
-    var sheetOffsetY by remember { mutableFloatStateOf(0f) }
+    // 弹窗打开时的同步上移 Animatable（与 CustomizeScheduleScreen 共享同一实例，直接读 .value 同帧同步）
+    // 位移在 graphicsLayer 中按当前缩放比例用同一表达式计算，与开洞中心保持一致
+    val sheetOffsetY = remember { Animatable(0f) }
     LaunchedEffect(isWindowCutoutActive) {
         if (isWindowCutoutActive) {
             // 进入编辑模式时，同步当前搭配的值到 live 状态
@@ -1431,128 +1428,70 @@ fun CourseScheduleApp() {
         }
     }
 
-    // 进入"自定义课表"搭配页：捕获当前及相邻搭配快照后打开搭配页。
+    // 进入"自定义课表"搭配页：捕获当前搭配快照后打开搭配页（单搭配）。
     // 由顶栏"课表外观"菜单和长按"自定义课表"按钮共用。
     val enterCustomizePage: () -> Unit = {
         coroutineScope.launch {
             val screenW = windowInfo.containerSize.width.toFloat()
             customizeExitTargetScale = (screenW * 0.65f) / screenW
-            // 重排序：将当前搭配移到 index 0（加号卡右侧），其余保持相对顺序
-            if (currentCombinationIndex > 0 && combinations.isNotEmpty()) {
-                val list = combinations.toMutableList()
-                val curr = list.removeAt(currentCombinationIndex)
-                list.add(0, curr)
-                combinations = list.toList()
-                currentCombinationIndex = 0
-            }
             // 清除所有旧快照（每次进入搭配页时重新捕获）
             combinations = combinations.map { it.copy(snapshot = null) }
             // 先加载模糊设置，确保快照捕获时包含模糊效果
-            appearance = combinations.getOrNull(currentCombinationIndex)?.let {
+            appearance = combinations.getOrNull(0)?.let {
                 com.haooz.chedule.data.AppearanceConfig.fromCombination(it)
             } ?: appearance
             delay(50.milliseconds)
-            // 截取当前搭配快照
-            val currentSnapshot = screenGraphicsLayer.toImageBitmap().asAndroidBitmap()
+            // 截取当前搭配快照。
+            // 注意：toImageBitmap() 捕获的是绑定源 RenderNode 的硬件位图；若直接画回根图层，
+            // 会与 Mi 背景模糊链形成渲染树自引用，导致 RenderNode::prepareTreeImpl 无限递归
+            // 栈溢出（RenderThread SIGSEGV）。因此立即复制为独立 ARGB_8888 位图，切断对源层的引用。
+            val captured = screenGraphicsLayer.toImageBitmap().asAndroidBitmap()
+            val currentSnapshot = captured.copy(android.graphics.Bitmap.Config.ARGB_8888, false)
+                ?: captured
             customizeSnapshot = currentSnapshot
             if (combinations.isNotEmpty()) {
                 combinations = combinations.toMutableList().also {
                     it[0] = it[0].copy(snapshot = currentSnapshot)
                 }
             }
-            // 立即捕获相邻搭配快照（相邻卡片已可见）
-            if (combinations.size > 1) {
-                // 用当前搭配快照遮挡，避免用户看到壁纸切换
-                snapshotCoverBitmap = customizeSnapshot
-                val nextComb = combinations[1]
-                val savedWp2 = wallpaperBitmap
-                val savedOf2 = wallpaperOffset
-                val savedSc2 = wallpaperScale
-                val savedAppear2 = appearance
-                val savedOrigWp2 = originalWallpaperBitmap
-                val savedOrigOf2 = originalWallpaperOffset
-                val savedOrigSc2 = originalWallpaperScale
-                val savedOrigAppear2 = originalAppearance
-                wallpaperBitmap = nextComb.bitmap
-                wallpaperOffset = nextComb.offset
-                val minScale2 = computeWallpaperMinScale(nextComb.bitmap, screenWPx, screenHPx)
-                wallpaperScale = maxOf(nextComb.scale, minScale2)
-                appearance = com.haooz.chedule.data.AppearanceConfig.fromCombination(nextComb)
-                originalWallpaperBitmap = nextComb.bitmap
-                originalWallpaperOffset = nextComb.offset
-                originalWallpaperScale = nextComb.scale
-                originalAppearance =
-                    com.haooz.chedule.data.AppearanceConfig.fromCombination(nextComb)
-                // 切换主题跟随该搭配的壁纸亮暗，保证快照正确反映深浅色
-                captureThemeActive = true
-                captureThemeIsDark = nextComb.wallpaperIsLight?.let { !it }
-                delay(120.milliseconds)
-                val nextSnap = screenGraphicsLayer.toImageBitmap().asAndroidBitmap()
-                combinations = combinations.toMutableList().also {
-                    it[1] = it[1].copy(snapshot = nextSnap)
-                }
-                captureThemeActive = false
-                captureThemeIsDark = null
-                wallpaperBitmap = savedWp2
-                wallpaperOffset = savedOf2
-                wallpaperScale = savedSc2
-                appearance = savedAppear2
-                originalWallpaperBitmap = savedOrigWp2
-                originalWallpaperOffset = savedOrigOf2
-                originalWallpaperScale = savedOrigSc2
-                originalAppearance = savedOrigAppear2
-                snapshotCoverBitmap = null
-            }
-            // 立即打开搭配页（用户看到当前搭配的正确快照）
+            // 立即打开搭配页并直接进入开洞(编辑)态：不再有落地卡片页
             customizeExitScale.snapTo(1f)
             customizeExitAlpha.snapTo(1f)
             showCustomizePage = true
-            isNewCombinationCreated = false
-            // 记录进入搭配页时的原始搭配（重排序后当前搭配在 index 0）
+            // 触发 MainActivity 主内容缩到开洞大小、CustomizeScheduleScreen 进入编辑态
+            isWindowCutoutActive = true
+            pendingEnterCutout = true
+            // 用主界面整屏快照盖住开洞过渡：快照从满屏连贯缩小到开洞处，
+            // 与背后主内容缩放同步（transformOrigin 对齐开洞中心），到位后淡出快照露出实时内容
+            customizeCoverActive = true
+            customizeCoverScale.snapTo(1f)
+            customizeCoverAlpha.snapTo(1f)
+            delay(520.milliseconds)
+            launch {
+                // 同步主界面的开洞缩放(0.75)，transformOrigin 对齐开洞中心
+                customizeCoverScale.animateTo(
+                    0.75f,
+                    tween(400, easing = CubicBezierEasing(0.3f, 0.72f, 0.2f, 1.0f))
+                )
+            }
+            launch {
+                // 缩放到位后淡出快照，露出开洞后的实时内容
+                delay(400)
+                customizeCoverAlpha.animateTo(
+                    0f,
+                    tween(120, easing = FastOutSlowInEasing)
+                )
+                customizeCoverActive = false
+            }
+            // 记录进入搭配页时的原始搭配
             originalCombinationIndex = 0
             originalWallpaperBitmap = wallpaperBitmap
             originalWallpaperOffset = wallpaperOffset
             originalWallpaperScale = wallpaperScale
             originalAppearance = appearance
-            originalSnapshot = combinations.getOrNull(currentCombinationIndex)?.snapshot
-            originalWallpaperIsLight =
-                combinations.getOrNull(currentCombinationIndex)?.wallpaperIsLight
-            // 后台逐个捕获其他搭配快照（等打开动画结束后再开始，避免动画期间主界面壁纸跳变）
-            delay(500.milliseconds)
-            val savedWp = wallpaperBitmap
-            val savedOf = wallpaperOffset
-            val savedSc = wallpaperScale
-            val savedAppear = appearance
-            for (i in 1 until combinations.size) {
-                val comb = combinations[i]
-                wallpaperBitmap = comb.bitmap
-                wallpaperOffset = comb.offset
-                val minScale3 = computeWallpaperMinScale(comb.bitmap, screenWPx, screenHPx)
-                wallpaperScale = maxOf(comb.scale, minScale3)
-                appearance = com.haooz.chedule.data.AppearanceConfig.fromCombination(comb)
-                originalWallpaperBitmap = comb.bitmap
-                originalWallpaperOffset = comb.offset
-                originalWallpaperScale = comb.scale
-                originalAppearance = com.haooz.chedule.data.AppearanceConfig.fromCombination(comb)
-                // 切换主题跟随该搭配的壁纸亮暗，保证快照正确反映深浅色
-                captureThemeActive = true
-                captureThemeIsDark = comb.wallpaperIsLight?.let { !it }
-                delay(120.milliseconds)
-                val snap = screenGraphicsLayer.toImageBitmap().asAndroidBitmap()
-                combinations = combinations.toMutableList().also {
-                    it[i] = it[i].copy(snapshot = snap)
-                }
-                captureThemeActive = false
-                captureThemeIsDark = null
-            }
-            wallpaperBitmap = savedWp
-            wallpaperOffset = savedOf
-            wallpaperScale = savedSc
-            appearance = savedAppear
-            originalWallpaperBitmap = savedWp
-            originalWallpaperOffset = savedOf
-            originalWallpaperScale = savedSc
-            originalAppearance = savedAppear
+            originalSnapshot = combinations.getOrNull(0)?.snapshot
+            originalWallpaperIsLight = combinations.getOrNull(0)?.wallpaperIsLight
+            originalCombination = combinations.getOrNull(0)
         }
     }
 
@@ -1678,8 +1617,8 @@ fun CourseScheduleApp() {
                         else 1f
                     val exitScale = if (isCustomizeExiting) customizeExitScale.value else 1f
                     val cutoutScale = cutoutMainScale.value
-                    // 应用时从开洞状态退出，主界面仅由 cutoutScale 控制（0.75→1.0）
-                    // 避免与 exitScale 相乘导致双重缩放
+                    // 开洞编辑时主界面由 cutoutScale（0.75）控制；其余场景由 exitScale/cutoutMainScale 控制。
+                    // 进出场动画统一由全屏快照覆盖层处理，这里不再叠加 enterScale，避免闪烁。
                     val effectiveScale = if (isCustomizeExiting && isWindowCutoutActive) {
                         cutoutScale
                     } else {
@@ -1688,9 +1627,11 @@ fun CourseScheduleApp() {
                     scaleX = baseScale * effectiveScale * shortcutMenuPageScale.value
                     scaleY = baseScale * effectiveScale * shortcutMenuPageScale.value
                     alpha = mainContentAlpha
-                    // 弹窗打开时同步上移（直接 translationY，与 CustomizeScheduleScreen 同帧）
-                    // cutout 区域的偏移贡献为 sheetOffsetY * (1-scaleProg)，scale=0.75 时 = 0.7143
-                    translationY = sheetOffsetY * 0.7143f
+                    // 弹窗打开时同步上移：读取与 CustomizeScheduleScreen 共享的同一 Animatable，像素级同帧。
+                    // 位移按缩放比例换算（与开洞中心 1-scaleProg 同一表达式，基于 cutoutMainScale 计算）
+                    val sheetScale = cutoutMainScale.value
+                    val sheetScaleProg = ((sheetScale - 0.65f) / (1f - 0.65f)).coerceIn(0f, 1f)
+                    translationY = sheetOffsetY.value * (1f - sheetScaleProg)
                     if (isCustomizeExiting) {
                         transformOrigin = TransformOrigin(0.5f, 0.58f)
                     }
@@ -2581,55 +2522,33 @@ fun CourseScheduleApp() {
                 isApplyingCustomize = false
                 coroutineScope.launch {
                     blurSnapshotJob?.cancel()
-                    // 如果本次会话创建了新搭配，退出时需删除它
-                    if (isNewCombinationCreated) {
-                        val newComb = combinations.getOrNull(currentCombinationIndex)
-                        if (newComb != null) {
-                            withContext(Dispatchers.IO) {
-                                wallpaperRepository.deleteCombination(newComb.id)
-                            }
-                            combinations = combinations.toMutableList().also {
-                                it.removeAt(currentCombinationIndex)
-                            }
-                            currentCombinationIndex =
-                                (originalCombinationIndex - 1).coerceAtLeast(0)
-                            originalCombinationIndex = currentCombinationIndex
-                            // 恢复原始搭配状态
-                            wallpaperBitmap = savedWallpaperBitmap
-                            wallpaperOffset = savedWallpaperOffset
-                            wallpaperScale = savedWallpaperScale
-                            appearance = savedAppearance
-                            // 恢复原始搭配的快照
-                            if (originalSnapshot != null) {
-                                combinations = combinations.toMutableList().also {
-                                    val idx = currentCombinationIndex
-                                    if (idx in it.indices) {
-                                        it[idx] = it[idx].copy(snapshot = originalSnapshot)
-                                    }
-                                }
-                                customizeSnapshot = originalSnapshot
-                            }
-                        }
-                        isNewCombinationCreated = false
-                    } else {
-                        // 退出动画开始前恢复原搭配壁纸/外观，并用 captureTheme 锁定原搭配主题，
-                        // 避免动画期间主题跟随预览搭配；不恢复 currentCombinationIndex，防止 pager 提前回滚
-                        wallpaperBitmap = originalWallpaperBitmap
-                        wallpaperOffset = originalWallpaperOffset
-                        wallpaperScale = originalWallpaperScale
-                        appearance = originalAppearance
-                        captureThemeActive = true
-                        // 用进入时记录的原始壁纸亮暗锁定原搭配主题，避免动画期间跟随被编辑过的深色壁纸
-                        captureThemeIsDark = originalWallpaperIsLight?.let { !it }
-                    }
-                    customizeExitScale.snapTo(customizeExitTargetScale)
+                    // 不在此恢复主界面内容：动画期间主界面保持被编辑后的实时状态，
+                    // 待退出动画结束（快照刚要消失）时由 LaunchedEffect(isCustomizeExiting) 统一恢复修改前。
+                    // 仅锁定原搭配主题，避免动画期间主题跟随被编辑过的壁纸
+                    captureThemeActive = true
+                    captureThemeIsDark = originalWallpaperIsLight?.let { !it }
+                    // 复用进入时的那张快照：从开洞大小放大回全屏，盖住页面放大淡出与主内容回退。
+                    // 快照始终放在 MainActivity 本层（覆盖层），外观页面自身仅做与应用时一致的「放大淡出」动画。
+                    customizeCoverActive = true
+                    customizeCoverScale.stop()
+                    customizeCoverScale.snapTo(cutoutMainScale.value)
+                    // 快照从透明淡入，配合从开洞处放大，盖住页面淡出
+                    customizeCoverAlpha.stop()
+                    customizeCoverAlpha.snapTo(0f)
+                    // 外观页面自身执行与应用时一致的「放大淡出」动画，由 LaunchedEffect(isCustomizeExiting) 统一驱动
+                    customizeExitScale.stop()
+                    customizeExitScale.snapTo(cutoutMainScale.value)
+                    customizeExitAlpha.stop()
                     customizeExitAlpha.snapTo(1f)
                     isCustomizeExiting = true
+                    // 关闭/复位统一由 LaunchedEffect(isCustomizeExiting) 动画结束后处理
+                    // 主界面内容与组合对象仅在动画结束（快照刚要消失）时才恢复修改前状态
+                    windowInsetsController?.isAppearanceLightStatusBars = true
+                    windowInsetsController?.isAppearanceLightNavigationBars = true
                 }
             }
             val applyCustomize: () -> Unit = {
                 coroutineScope.launch {
-                    isNewCombinationCreated = false
                     // 持久化当前搭配到磁盘（在 IO 线程异步执行，不阻塞 UI）
                     val bitmap = wallpaperBitmap
                     val combId = combinations.getOrNull(currentCombinationIndex)?.id ?: 0L
@@ -2707,13 +2626,14 @@ fun CourseScheduleApp() {
                     isCustomizeExiting = true
                 }
             }
-            Box(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .graphicsLayer {
-                        alpha = customizeExitAlpha.value
-                    }
-            ) {
+            // 搭配页容器：进出场动画由全屏快照覆盖层处理，这里页面自身仅退出时淡出
+                Box(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .graphicsLayer {
+                            alpha = customizeExitAlpha.value
+                        }
+                ) {
                 CustomizeScheduleScreen(
                     snapshot = customizeSnapshot,
                     screenCornerRadius = screenCornerRadius,
@@ -2728,223 +2648,20 @@ fun CourseScheduleApp() {
                             )
                         )
                     },
-                    onCreateNewCombination = {
-                        if (combinations.size >= 5) {
-                            android.widget.Toast.makeText(
-                                context,
-                                "最多创建5个搭配",
-                                android.widget.Toast.LENGTH_SHORT
-                            ).show()
-                            return@CustomizeScheduleScreen
-                        }
-                        isNewCombinationCreated = true
-                        // 在插入新搭配之前，保存原始快照（customizeSnapshot 保存的是当前搭配的快照）
-                        val savedOrigSnapshot = customizeSnapshot
-                        // 创建新搭配：持久化并插入到 index 0（加号卡右侧），新搭配无背景
-                        val newId = wallpaperRepository.addCombination()
-                        val newComb = com.haooz.chedule.data.Combination(
-                            id = newId,
-                            bitmap = null,
-                            offset = Offset.Zero,
-                            scale = 1f
-                        )
-                        // 新搭配插入到列表头部，永远在加号卡右侧
-                        combinations = listOf(newComb) + combinations
-                        currentCombinationIndex = 0
-                        // 原始搭配被推到 index 1，更新原始索引
-                        originalCombinationIndex += 1
-                        // 保存原搭配状态，快照捕获后恢复
-                        val savedOrigWp = originalWallpaperBitmap
-                        val savedOrigOf = originalWallpaperOffset
-                        val savedOrigSc = originalWallpaperScale
-                        val savedOrigAppear = originalAppearance
-                        // 新搭配无背景，临时清除壁纸以截取无壁纸快照
-                        wallpaperBitmap = null
-                        wallpaperOffset = Offset.Zero
-                        wallpaperScale = 1f
-                        appearance = com.haooz.chedule.data.AppearanceConfig()
-                        // 同步更新 original* 让 MainScheduleScreen 渲染空状态
-                        originalWallpaperBitmap = null
-                        originalWallpaperOffset = Offset.Zero
-                        originalWallpaperScale = 1f
-                        originalAppearance = com.haooz.chedule.data.AppearanceConfig()
-                        coroutineScope.launch {
-                            delay(150.milliseconds)
-                            val newSnapshot = screenGraphicsLayer.toImageBitmap().asAndroidBitmap()
-                            customizeSnapshot = newSnapshot
-                            combinations = combinations.toMutableList().also {
-                                if (it.isNotEmpty()) it[0] = it[0].copy(snapshot = newSnapshot)
-                            }
-                            // 恢复原搭配状态
-                            wallpaperBitmap = savedOrigWp
-                            wallpaperOffset = savedOrigOf
-                            wallpaperScale = savedOrigSc
-                            appearance = savedOrigAppear
-                            originalWallpaperBitmap = savedOrigWp
-                            originalWallpaperOffset = savedOrigOf
-                            originalWallpaperScale = savedOrigSc
-                            originalAppearance = savedOrigAppear
-                            // 恢复原始搭配的快照
-                            if (savedOrigSnapshot != null) {
-                                combinations = combinations.toMutableList().also {
-                                    val origIdx = originalCombinationIndex
-                                    if (origIdx in it.indices) {
-                                        it[origIdx] = it[origIdx].copy(snapshot = savedOrigSnapshot)
-                                    }
-                                }
-                            }
-                            // 触发自动进入编辑模式
-                            isWindowCutoutActive = true
-                            pendingEnterCutout = true
-                        }
-                    },
                     pendingEnterCutout = pendingEnterCutout,
                     onCutoutEntered = { pendingEnterCutout = false },
                     combinations = combinations,
                     currentCombinationIndex = currentCombinationIndex,
-                    onCombinationPageChange = { newPage ->
-                        // pager 页面切换：page 0 是"+"卡，page 1..n 对应 combinations[0..n-1]
-                        val combIdx = newPage - 1
-                        if (combIdx in combinations.indices && combIdx != currentCombinationIndex) {
-                            // 取消模糊快照防抖任务，避免切换后错误捕获
-                            blurSnapshotJob?.cancel()
-                            currentCombinationIndex = combIdx
-                            val c = combinations[combIdx]
-                            wallpaperBitmap = c.bitmap
-                            wallpaperOffset = c.offset
-                            val minScale = computeWallpaperMinScale(c.bitmap, screenWPx, screenHPx)
-                            wallpaperScale = maxOf(c.scale, minScale)
-                            appearance = com.haooz.chedule.data.AppearanceConfig.fromCombination(c)
-                            // 同步更新 savedWallpaper*：编辑取消时需回退到"当前查看搭配"的未编辑状态，
-                            // 切换搭配时必须同步，否则取消编辑会闪回原搭配
-                            savedWallpaperBitmap = c.bitmap
-                            savedWallpaperOffset = c.offset
-                            savedWallpaperScale = wallpaperScale
-                            savedAppearance =
-                                com.haooz.chedule.data.AppearanceConfig.fromCombination(c)
-                            // 如果已有快照，立即更新 customizeSnapshot（无延迟）
-                            if (c.snapshot != null) {
-                                customizeSnapshot = c.snapshot
-                            }
-                            // 后台捕获新当前搭配的快照及下一个相邻搭配的快照
-                            coroutineScope.launch {
-                                delay(150.milliseconds)
-                                // 捕获当前搭配快照（如尚未有）
-                                if (combinations.getOrNull(combIdx)?.snapshot == null) {
-                                    val snap = screenGraphicsLayer.toImageBitmap().asAndroidBitmap()
-                                    combinations = combinations.toMutableList().also {
-                                        if (combIdx < it.size) it[combIdx] =
-                                            it[combIdx].copy(snapshot = snap)
-                                    }
-                                    // 仅当用户仍停留在该搭配时才更新 customizeSnapshot，
-                                    // 避免快速切换时旧协程覆盖为非当前搭配的快照
-                                    if (combIdx == currentCombinationIndex) {
-                                        customizeSnapshot = snap
-                                    }
-                                }
-                            }
-                        }
-                    },
-                    onDeleteCombination = { combId ->
-                        // 删除指定搭配：从磁盘移除并从列表移除
-                        coroutineScope.launch {
-                            launch(Dispatchers.IO) {
-                                wallpaperRepository.deleteCombination(combId)
-                            }
-                            val deleteIdx = combinations.indexOfFirst { it.id == combId }
-                            if (deleteIdx >= 0) {
-                                val list = combinations.toMutableList()
-                                list.removeAt(deleteIdx)
-                                combinations = list
-                                // 调整当前搭配索引
-                                if (combinations.isEmpty()) {
-                                    // 删光后立即关闭搭配页
-                                    currentCombinationIndex = 0
-                                    isApplyingCustomize = false
-                                    customizeExitScale.snapTo(customizeExitTargetScale)
-                                    customizeExitAlpha.snapTo(1f)
-                                    isCustomizeExiting = true
-                                } else {
-                                    // 若删除的是当前搭配，切换到第一个
-                                    currentCombinationIndex =
-                                        if (deleteIdx == 0) 0 else (deleteIdx - 1).coerceAtLeast(0)
-                                    val c = combinations[currentCombinationIndex]
-                                    wallpaperBitmap = c.bitmap
-                                    wallpaperOffset = c.offset
-                                    val minScaleDel =
-                                        computeWallpaperMinScale(c.bitmap, screenWPx, screenHPx)
-                                    wallpaperScale = maxOf(c.scale, minScaleDel)
-                                    savedWallpaperBitmap = c.bitmap
-                                    savedWallpaperOffset = c.offset
-                                    savedWallpaperScale = wallpaperScale
-                                    savedAppearance =
-                                        com.haooz.chedule.data.AppearanceConfig.fromCombination(c)
-                                    appearance =
-                                        com.haooz.chedule.data.AppearanceConfig.fromCombination(c)
-                                    // 无条件更新原始搭配值，确保 MainScheduleScreen 显示正确
-                                    originalWallpaperBitmap = c.bitmap
-                                    originalWallpaperOffset = c.offset
-                                    originalWallpaperScale = wallpaperScale
-                                    originalAppearance =
-                                        com.haooz.chedule.data.AppearanceConfig.fromCombination(c)
-                                    // 若删除的是原始搭配，更新原始追踪器到新的当前搭配
-                                    if (deleteIdx == originalCombinationIndex) {
-                                        originalCombinationIndex = currentCombinationIndex
-                                    } else if (deleteIdx < originalCombinationIndex) {
-                                        // 删除的在原始之前，原始索引前移
-                                        originalCombinationIndex =
-                                            (originalCombinationIndex - 1).coerceAtLeast(0)
-                                    }
-                                    // 同步当前搭配到磁盘
-                                    wallpaperRepository.setCurrentCombinationId(c.id)
-                                    // 更新实时快照
-                                    delay(150.milliseconds)
-                                    customizeSnapshot =
-                                        screenGraphicsLayer.toImageBitmap().asAndroidBitmap()
-                                }
-                            }
-                        }
-                    },
                     exitScale = customizeExitScale.value,
                     isExiting = isCustomizeExiting,
                     isApplying = isApplyingCustomize,
                     isApplyingCustomize = isApplyingCustomize,
                     onRevertWallpaper = {
-                        // 如果本次会话创建了新搭配，取消时需删除它并回退到原始搭配
-                        if (isNewCombinationCreated) {
-                            val newComb = combinations.getOrNull(currentCombinationIndex)
-                            if (newComb != null) {
-                                // 删除新搭配的持久化数据
-                                coroutineScope.launch(Dispatchers.IO) {
-                                    wallpaperRepository.deleteCombination(newComb.id)
-                                }
-                                // 从列表移除新搭配
-                                combinations = combinations.toMutableList().also {
-                                    it.removeAt(currentCombinationIndex)
-                                }
-                                // 回退到原始搭配（新搭配插入在头部，原始搭配 index +1）
-                                currentCombinationIndex =
-                                    (originalCombinationIndex - 1).coerceAtLeast(0)
-                                originalCombinationIndex = currentCombinationIndex
-                                // 恢复原始搭配的快照
-                                if (originalSnapshot != null) {
-                                    combinations = combinations.toMutableList().also {
-                                        val idx = currentCombinationIndex
-                                        if (idx in it.indices) {
-                                            it[idx] = it[idx].copy(snapshot = originalSnapshot)
-                                        }
-                                    }
-                                    customizeSnapshot = originalSnapshot
-                                }
-                            }
-                            isNewCombinationCreated = false
-                        }
                         wallpaperBitmap = savedWallpaperBitmap
                         wallpaperOffset = savedWallpaperOffset
                         wallpaperScale = savedWallpaperScale
                         appearance = savedAppearance
-                        // 同步恢复 combinations[originalCombinationIndex] 的编辑字段，
-                        // 避免退出时将旧值写入已滑动到的其他搭配
+                        // 同步恢复 combinations[originalCombinationIndex] 的编辑字段
                         val idx = originalCombinationIndex
                         if (idx in combinations.indices) {
                             combinations = combinations.toMutableList().also {
@@ -2979,7 +2696,7 @@ fun CourseScheduleApp() {
                         }
                     },
                     onCutoutCenterChange = { cutoutCenterYRatio = it },
-                    onSheetOffsetChange = { sheetOffsetY = it },
+                    sheetOffsetShared = sheetOffsetY,
                     onEffectValueChange = { blur, alpha ->
                         appearance = appearance.copy(cardBlurRadius = blur, cardAlpha = alpha)
                         val idx = currentCombinationIndex
@@ -3051,6 +2768,38 @@ fun CourseScheduleApp() {
             )
         }
 
+        // 全屏快照覆盖层：进入开洞时盖住开洞过渡、退出-取消时盖住回退过程。
+        // 复用进入时捕获的 customizeSnapshot，动画只作用于这一层，避免叠加闪烁。
+        if (customizeCoverActive && customizeSnapshot != null) {
+            Image(
+                bitmap = customizeSnapshot!!.asImageBitmap(),
+                contentDescription = null,
+                modifier = Modifier
+                    .fillMaxSize()
+                    .graphicsLayer {
+                        alpha = customizeCoverAlpha.value
+                        scaleX = customizeCoverScale.value
+                        scaleY = customizeCoverScale.value
+                        // 以开洞中心为缩放锚点：进入时快照落进开洞，退出时从开洞放大回全屏
+                        transformOrigin = TransformOrigin(0.5f, cutoutCenterYRatio)
+                    }
+                    // 给快照裁切屏幕圆角，与主界面开洞圆角一致
+                    .drawWithContent {
+                        val path = Path().apply {
+                            addSquircleRect(
+                                width = size.width,
+                                height = size.height,
+                                cornerRadius = screenCornerRadius
+                            )
+                        }
+                        clipPath(path) {
+                            this@drawWithContent.drawContent()
+                        }
+                    },
+                contentScale = ContentScale.Crop
+            )
+        }
+
         // 退出动画：真实界面从卡片大小缩放回全屏，搭配界面淡出
         LaunchedEffect(isCustomizeExiting) {
             if (isCustomizeExiting && customizeSnapshot != null) {
@@ -3064,7 +2813,28 @@ fun CourseScheduleApp() {
                             )
                         )
                     }
-                    // 应用时不淡出搭配页面，动画结束后直接消失
+                    // 取消退出时：快照从开洞处淡入放大回全屏，与页面放大淡出同步
+                    if (!isApplyingCustomize) {
+                        launch {
+                            customizeCoverScale.animateTo(
+                                targetValue = 1f,
+                                animationSpec = tween(
+                                    500,
+                                    easing = CubicBezierEasing(0.3f, 0.72f, 0.2f, 1.0f)
+                                )
+                            )
+                        }
+                        launch {
+                            customizeCoverAlpha.animateTo(
+                                targetValue = 1f,
+                                animationSpec = tween(
+                                    400,
+                                    easing = CubicBezierEasing(0.3f, 0.72f, 0.2f, 1.0f)
+                                )
+                            )
+                        }
+                    }
+                    // 取消退出时淡出外观页面；应用时页面直接放大到全屏，动画结束后消失
                     if (!isApplyingCustomize) {
                         launch {
                             customizeExitAlpha.animateTo(
@@ -3076,23 +2846,22 @@ fun CourseScheduleApp() {
                             )
                         }
                     }
-                    // 应用时，主界面从开洞大小（0.75）放大到全屏
-                    if (isApplyingCustomize) {
-                        launch {
-                            cutoutMainScale.animateTo(
-                                targetValue = 1f,
-                                animationSpec = tween(
-                                    500,
-                                    easing = CubicBezierEasing(0.3f, 0.72f, 0.2f, 1.0f)
-                                )
+                    // 主界面从开洞大小（0.75）放大到全屏（应用与取消共用）
+                    launch {
+                        cutoutMainScale.animateTo(
+                            targetValue = 1f,
+                            animationSpec = tween(
+                                500,
+                                easing = CubicBezierEasing(0.3f, 0.72f, 0.2f, 1.0f)
                             )
-                        }
+                        )
                     }
                 }
                 // 动画完成，真正关闭
                 isCustomizeExiting = false
                 showCustomizePage = false
                 customizeSnapshot = null
+                customizeCoverActive = false
                 isWindowCutoutActive = false
                 // 动画结束后 currentCombinationIndex 已恢复原搭配，forcedDark 自然接管，释放 captureTheme
                 captureThemeActive = false
@@ -3104,15 +2873,12 @@ fun CourseScheduleApp() {
                     wallpaperScale = originalWallpaperScale
                     appearance = originalAppearance
                     currentCombinationIndex = originalCombinationIndex
-                    // 还原 combinations 列表中被 onCardSelfPermissionChange / onShowBreakDividersChange 等 callback 修改的值
+                    // 整体还原原始搭配对象，覆盖 onWallpaperOffsetChange 等编辑回调修改的所有字段
                     val restoreIdx = originalCombinationIndex
-                    if (restoreIdx in combinations.indices) {
+                    val restored = originalCombination
+                    if (restoreIdx in combinations.indices && restored != null) {
                         combinations = combinations.toMutableList().also {
-                            it[restoreIdx] = it[restoreIdx].copy(
-                                showBreakDividers = originalAppearance.showBreakDividers,
-                                cardContentAlignment = originalAppearance.cardContentAlignment,
-                                wallpaperIsLight = originalWallpaperIsLight
-                            )
+                            it[restoreIdx] = restored
                         }
                     }
                 }

@@ -150,11 +150,8 @@ fun CustomizeScheduleScreen(
     onCustomize: () -> Unit = {},
     onCancelCutout: () -> Unit = {},
     onPickWallpaper: () -> Unit = {},
-    onCreateNewCombination: () -> Unit = {},
     combinations: List<Combination> = emptyList(),
     currentCombinationIndex: Int = 0,
-    onCombinationPageChange: (Int) -> Unit = {},
-    onDeleteCombination: (Long) -> Unit = {},
     exitScale: Float = 1f,
     isExiting: Boolean = false,
     isApplying: Boolean = false,
@@ -166,7 +163,8 @@ fun CustomizeScheduleScreen(
     onWallpaperOffsetChange: (Offset) -> Unit = {},
     onWallpaperScaleChange: (Float) -> Unit = {},
     onCutoutCenterChange: (Float) -> Unit = {},
-    onSheetOffsetChange: (Float) -> Unit = {},
+    // 弹窗开合时开洞与主界面共用的位移驱动器：两边直接读同一 Animatable.value，保证同帧同步
+    sheetOffsetShared: androidx.compose.animation.core.Animatable<Float, androidx.compose.animation.core.AnimationVector1D> = androidx.compose.animation.core.Animatable(0f),
     pendingEnterCutout: Boolean = false,
     onCutoutEntered: () -> Unit = {},
     onEffectValueChange: (Float, Float) -> Unit = { _, _ -> },
@@ -215,19 +213,26 @@ fun CustomizeScheduleScreen(
     // 模糊支持检测（API 31+ 支持 graphicsLayer blurRadius）
     val blurSupported = isRuntimeShaderSupported()
 
-    // 液态玻璃支持
-    val liquidGlassBackdrop = com.kyant.backdrop.backdrops.rememberLayerBackdrop()
+    // 液态玻璃支持（空采样：不采样实时底层内容，仅保留轻量着色效果）。
+    // 页面背景/顶底栏下方表面本身已不透明，无需真实模糊；且避免 MIUI 的
+    // MiBackgroundBlurBlend 采样含自身图层的渲染内容，导致渲染树无限递归（SIGSEGV）。
+    // 两个 BlurBottomSheet 保留真实模糊，经由独立的 onSheetContentBackdropCreated 上报。
+    val liquidGlassBackdrop = com.kyant.backdrop.backdrops.rememberLayerBackdrop {
+        drawRect(Color.Transparent)
+    }
     // 液态玻璃效果的透明下拉颜色
     val liquidGlassDropdownColors = DropdownDefaults.dropdownColors(
         containerColor = Color.Transparent,
         selectedContainerColor =  Color.Transparent,
     )
 
-    // 弹窗模糊 backdrop
+    // 页面根层背景 backdrop（空采样：只画表面色，不采样实时内容）。
+    // 页面背景下方表面本身已不透明，无需真实模糊；避免 MIUI 的 MiBackgroundBlurBlend
+    // 采样含自身图层的渲染内容，导致渲染树无限递归（SIGSEGV）。
+    // 两个 BlurBottomSheet 保留真实模糊，经由独立的 onSheetContentBackdropCreated 上报。
     val sheetBackdropColor = MiuixTheme.colorScheme.surface
     val sheetBackdrop = rememberLayerBackdrop {
         drawRect(sheetBackdropColor)
-        drawContent()
     }
 
     val primaryColor = MiuixTheme.colorScheme.primary
@@ -303,57 +308,15 @@ fun CustomizeScheduleScreen(
     }
 
     // --- 删除流程状态 ---
-    // 长按删除遮罩：记录当前处于删除态的搭配 id（null 表示无遮罩）
-    var deleteTargetCombId by remember { mutableStateOf<Long?>(null) }
-    // 模糊跟踪 id：进入删除态时同步设置；退出时等 alpha 动画归零后再清空，
-    // 避免退出瞬间 isDeleteTarget=false 导致模糊跳变（模糊需从最大值渐变到 0）
-    var blurringCombId by remember { mutableStateOf<Long?>(null) }
-    // 删除遮罩淡入淡出动画
-    val deleteMaskAlpha = remember { Animatable(0f) }
-    LaunchedEffect(deleteTargetCombId) {
-        if (deleteTargetCombId != null) {
-            blurringCombId = deleteTargetCombId
-            deleteMaskAlpha.snapTo(0f)
-            deleteMaskAlpha.animateTo(1f, tween(300))
-        } else {
-            deleteMaskAlpha.animateTo(0f, tween(200))
-            blurringCombId = null
-        }
-    }
-    // 删除时的卡片消失动画：缩小到 0.6f 同时淡出
-    var disappearingCombId by remember { mutableStateOf<Long?>(null) }
-    val disappearScale = remember { Animatable(1f) }
-    val disappearAlpha = remember { Animatable(1f) }
-    // 删除进行中标志：阻止 LaunchedEffect 的二次滚动干扰删除补位动画
-    var isDeleting by remember { mutableStateOf(false) }
     // "自定义"按钮淡入淡出动画（进入编辑模式时淡出，退出时淡入）
     val customizeButtonAlpha = remember { Animatable(1f) }
 
     // ================================================================
-    // 三、Pager 状态与页面切换监听
+    // 三、Pager 状态（单页：仅渲染一个搭配卡）
     // ================================================================
-    // pager: page 0 = "+"卡，page 1..n = combinations[0..n-1]
-    val pageCount = 1 + combinations.size
-    val initialPage = currentCombinationIndex + 1
+    val pageCount = combinations.size.coerceAtLeast(1)
+    val initialPage = 0
     val pagerState = rememberPagerState(initialPage = initialPage, pageCount = { pageCount })
-
-    // 监听页面切换，通知 MainActivity 更新当前搭配
-    // isDeleting 守卫：删除补位滚动时 currentPage 会变化，但不应触发搭配切换
-    LaunchedEffect(pagerState.currentPage) {
-        if (isDeleting) return@LaunchedEffect
-        if (pagerState.currentPage != initialPage || combinations.size > 1) {
-            onCombinationPageChange(pagerState.currentPage)
-        }
-    }
-
-    // 当 currentCombinationIndex 外部变化（如删除搭配后）且与当前页不一致时，滚动到目标页
-    LaunchedEffect(currentCombinationIndex, pageCount) {
-        if (isDeleting) return@LaunchedEffect
-        val targetPage = currentCombinationIndex + 1
-        if (targetPage in 0 until pageCount && pagerState.currentPage != targetPage) {
-            pagerState.animateScrollToPage(targetPage)
-        }
-    }
 
     // ================================================================
     // 四、动画状态声明
@@ -381,8 +344,8 @@ fun CustomizeScheduleScreen(
     val buttonAlphaAnim = remember { Animatable(1f) }
     val titleAlphaAnim = remember { Animatable(1f) }
     val cutoutOffsetY = remember { Animatable(0f) }
-    // 弹窗打开时，开洞区域与 MainActivity 同步上移的额外偏移
-    val sheetOffsetY = remember { Animatable(0f) }
+    // 弹窗打开时，开洞区域与 MainActivity 同步上移的额外偏移（共享到 MainActivity，同帧同步）
+    val sheetOffsetY = sheetOffsetShared
     // 编辑模式进入/退出进度：驱动相邻卡片放大缩小
     val cutoutEnterProgress = remember { Animatable(0f) }
 
@@ -453,6 +416,16 @@ fun CustomizeScheduleScreen(
                     )
                 }
                 launch { titleFadeAnim.animateTo(0f, tween(150)) }
+                // 取消退出时开洞一并放大到全屏，与应用时行为一致
+                // （应用时由 LaunchedEffect(isApplying) 负责 cardScaleAnim → 1，此处仅处理取消路径）
+                if (!isApplying) {
+                    launch {
+                        cardScaleAnim.animateTo(
+                            1f,
+                            tween(500, easing = CubicBezierEasing(0.3f, 0.72f, 0.2f, 1.0f))
+                        )
+                    }
+                }
             }
         }
     }
@@ -513,7 +486,7 @@ fun CustomizeScheduleScreen(
                         tween(400, easing = CubicBezierEasing(0.3f, 0.72f, 0.2f, 1.0f))
                     )
                 }
-                launch { pagerState.animateScrollToPage(currentCombinationIndex + 1) }
+                launch { pagerState.animateScrollToPage(currentCombinationIndex) }
             }
         }
     }
@@ -568,34 +541,16 @@ fun CustomizeScheduleScreen(
             }
         }
     }
-    // 实时同步 sheetOffsetY 到 MainActivity，避免通过 ratio 回调的帧延迟
-    LaunchedEffect(sheetOffsetY.value) {
-        onSheetOffsetChange(sheetOffsetY.value)
-    }
 
     // ================================================================
     // 六、返回键处理
     // ================================================================
     BackHandler {
         when {
-            isDeleting -> { /* 删除补位动画进行中，不响应 */
-            }
-
-            deleteTargetCombId != null -> deleteTargetCombId = null
             isPageAnimating -> { /* 页面进入动画中，不响应 */
             }
 
             isCutoutAnimating -> { /* 编辑模式动画中，不响应 */
-            }
-
-            isCutoutActive -> {
-                isCutoutActive = false
-                sheetResetKey++  // 重置弹窗内部状态，丢弃编辑中的拖动值
-                onRevertWallpaper()
-                scope.launch {
-                    delay(400.milliseconds)
-                    onCancelCutout()
-                }
             }
 
             else -> onDismiss()
@@ -616,8 +571,6 @@ fun CustomizeScheduleScreen(
     // 八、UI 渲染
     // ================================================================
 
-    // 点击空白区域取消删除态的交互源
-    val cancelDeleteInteractionSource = remember { MutableInteractionSource() }
     Scaffold(
         modifier = Modifier.fillMaxSize(),
         containerColor = Color.Transparent
@@ -626,12 +579,6 @@ fun CustomizeScheduleScreen(
             modifier = Modifier
                 .fillMaxSize()
                 .layerBackdrop(sheetBackdrop)
-                .clickable(
-                    interactionSource = cancelDeleteInteractionSource,
-                    indication = null,
-                    enabled = deleteTargetCombId != null,
-                    onClick = { deleteTargetCombId = null }
-                )
                 // -------- 8.1 背景裁剪遮罩：在背景上挖出卡片形状的洞，露出底层 MainActivity 内容 --------
                 .drawBehind {
                     val snapshotW = snapshot?.width?.toFloat() ?: size.width
@@ -708,7 +655,7 @@ fun CustomizeScheduleScreen(
                         .graphicsLayer { alpha = if (cardHidden) 0f else 1f },
                     beyondViewportPageCount = 1,
                     pageSpacing = pagerSpacing.value.dp,
-                    userScrollEnabled = !cardHidden && animDone && deleteTargetCombId == null && !isDeleting
+                    userScrollEnabled = false
                 ) { page ->
                     val pageOffset =
                         ((pagerState.currentPage - page) + pagerState.currentPageOffsetFraction).absoluteValue
@@ -753,11 +700,8 @@ fun CustomizeScheduleScreen(
                         val cardBaseOffsetY =
                             screenH * 0.028f + cutoutOffsetY.value + sheetOffsetY.value
                         val cardOffsetY = cardBaseOffsetY * (1f - cardScaleProg)
-                        // 删除消失动画：仅对该卡片生效
-                        val comb = if (page > 0) combinations.getOrNull(page - 1) else null
-                        val isDisappearing = comb?.id != null && comb.id == disappearingCombId
-                        val extraScale = if (isDisappearing) disappearScale.value else 1f
-                        val extraAlpha = if (isDisappearing) disappearAlpha.value else 1f
+                        val comb = combinations.getOrNull(page)
+                        val isCurrentComb = page == currentCombinationIndex
                         // 缩放中心始终为屏幕中心（0.5, 0.58），卡片从外侧缩向屏幕中心
                         // 稳态也用同一中心，动画结束与最终位置完全一致，无跳变
                         val signedRelativePosition =
@@ -772,282 +716,68 @@ fun CustomizeScheduleScreen(
                                 .height(cardHeightDp)
                                 .offset(y = with(densityObj) { cardOffsetY.toDp() })
                                 .graphicsLayer {
-                                    scaleX = cardScale * extraScale
-                                    scaleY = cardScale * extraScale
+                                    scaleX = cardScale
+                                    scaleY = cardScale
                                     transformOrigin = TransformOrigin(pivotOriginX, pivotOriginY)
-                                    alpha = baseCardAlpha * extraAlpha
+                                    alpha = baseCardAlpha
                                 }
                                 .clip(ContinuousRoundedRectangle(screenRadiusDp * cardScaleAnim.value))
                         ) {
-                            if (page == 0) {
-                                // 左侧"+"占位卡：点击创建新搭配
-                                Box(
-                                    modifier = Modifier
-                                        .fillMaxSize()
-                                        .background(Color(0xFF363636))
-                                        .clickable { onCreateNewCombination() },
-                                    contentAlignment = Alignment.Center
-                                ) {
-                                    Icon(
-                                        imageVector = MiuixIcons.Add,
-                                        tint = Color.White,
-                                        modifier = Modifier.size(32.dp),
-                                        contentDescription = "添加"
+                            // 搭配卡：单卡（page 0 恒为当前搭配）
+                            val combIdx = page
+                            Box(
+                                modifier = Modifier
+                                    .fillMaxSize()
+                                    .clickable(
+                                        enabled = !cardHidden && !isCutoutActive,
+                                        onClick = {}
                                     )
-                                }
-                            } else {
-                                // 搭配卡：page 1..n 对应 combinations[0..n-1]
-                                val combIdx = page - 1
-                                val isCurrentComb = combIdx == currentCombinationIndex
-                                // 视觉上的删除态：用 blurringCombId 判断，退出时持续到 alpha 动画归零，
-                                // 让模糊能从 50 平滑渐变到 0，而非瞬间消失
-                                val isDeleteTarget = comb?.id != null && comb.id == blurringCombId
-                                val cardClickInteractionSource =
-                                    remember { MutableInteractionSource() }
-                                Box(
-                                    modifier = Modifier
-                                        .fillMaxSize()
-                                        .combinedClickable(
-                                            interactionSource = cardClickInteractionSource,
-                                            indication = null,
-                                            enabled = !cardHidden && !isCutoutActive,
-                                            onClick = {
-                                                // 若当前处于删除态，点击取消
-                                                if (deleteTargetCombId != null) {
-                                                    deleteTargetCombId = null
-                                                }
-                                            },
-                                            onLongClick = {
-                                                // 长按当前搭配卡：进入删除态（仅剩一个搭配时不允许删除）
-                                                if (isCurrentComb && comb != null) {
-                                                    if (combinations.size > 1) {
-                                                        deleteTargetCombId = comb.id
-                                                    } else {
-                                                        Toast.makeText(
-                                                            context,
-                                                            "当前应用搭配不可删除",
-                                                            Toast.LENGTH_SHORT
-                                                        ).show()
-                                                    }
-                                                }
-                                            }
+                            ) {
+                                if (isCurrentComb && snapshot != null && animDone && !cardHidden) {
+                                    // 当前搭配：实时快照（包含当前课表+壁纸的完整预览）
+                                    Image(
+                                        bitmap = snapshot.asImageBitmap(),
+                                        contentDescription = null,
+                                        modifier = Modifier.fillMaxSize(),
+                                        contentScale = ContentScale.Crop
+                                    )
+                                } else if (comb?.snapshot != null) {
+                                    // 使用已保存的完整背景快照（课表+壁纸）
+                                    val combSnapshot = comb.snapshot!!
+                                    Image(
+                                        bitmap = combSnapshot.asImageBitmap(),
+                                        contentDescription = null,
+                                        modifier = Modifier.fillMaxSize(),
+                                        contentScale = ContentScale.Crop
+                                    )
+                                } else if (comb?.bitmap != null) {
+                                    // 兼容旧数据：仅有壁纸时回退使用壁纸
+                                    val combBitmap = comb.bitmap!!
+                                    Image(
+                                        bitmap = combBitmap.asImageBitmap(),
+                                        contentDescription = null,
+                                        modifier = Modifier.fillMaxSize(),
+                                        contentScale = ContentScale.Crop
+                                    )
+                                } else {
+                                    // 无背景且无快照的搭配：显示纯色占位
+                                    Box(
+                                        modifier = Modifier
+                                            .fillMaxSize()
+                                            .background(Color(0xFF363636)),
+                                        contentAlignment = Alignment.Center
+                                    ) {
+                                        Text(
+                                            text = "搭配 ${combIdx + 1}",
+                                            color = Color.White.copy(alpha = 0.6f),
+                                            fontSize = 16.sp
                                         )
-                                ) {
-                                    // 删除态下对内容应用模糊（逐渐加深，最大 20）
-                                    val contentBlurDp =
-                                        if (isDeleteTarget && blurSupported) (20f * deleteMaskAlpha.value).dp else 0.dp
-                                    if (isCurrentComb && snapshot != null && animDone && !cardHidden) {
-                                        // 当前搭配：实时快照（包含当前课表+壁纸的完整预览）
-                                        Image(
-                                            bitmap = snapshot.asImageBitmap(),
-                                            contentDescription = null,
-                                            modifier = Modifier
-                                                .fillMaxSize()
-                                                .blur(contentBlurDp),
-                                            contentScale = ContentScale.Crop
-                                        )
-                                    } else if (comb?.snapshot != null) {
-                                        // 非当前搭配：使用已保存的完整背景快照（课表+壁纸）
-                                        val combSnapshot = comb.snapshot!!
-                                        Image(
-                                            bitmap = combSnapshot.asImageBitmap(),
-                                            contentDescription = null,
-                                            modifier = Modifier
-                                                .fillMaxSize()
-                                                .blur(contentBlurDp),
-                                            contentScale = ContentScale.Crop
-                                        )
-                                    } else if (comb?.bitmap != null) {
-                                        // 兼容旧数据：仅有壁纸时回退使用壁纸
-                                        val combBitmap = comb.bitmap!!
-                                        Image(
-                                            bitmap = combBitmap.asImageBitmap(),
-                                            contentDescription = null,
-                                            modifier = Modifier
-                                                .fillMaxSize()
-                                                .blur(contentBlurDp),
-                                            contentScale = ContentScale.Crop
-                                        )
-                                    } else {
-                                        // 无背景且无快照的搭配：显示纯色占位
-                                        Box(
-                                            modifier = Modifier
-                                                .fillMaxSize()
-                                                .background(Color(0xFF363636)),
-                                            contentAlignment = Alignment.Center
-                                        ) {
-                                            Text(
-                                                text = "搭配 ${combIdx + 1}",
-                                                color = Color.White.copy(alpha = 0.6f),
-                                                fontSize = 16.sp
-                                            )
-                                        }
-                                    }
-                                    // 删除遮罩：删除按钮（仅模糊内容作为视觉压暗），仅在该卡片处于删除态时显示
-                                    if (isDeleteTarget) {
-                                        Box(
-                                            modifier = Modifier
-                                                .fillMaxSize()
-                                                .graphicsLayer { alpha = deleteMaskAlpha.value },
-                                            contentAlignment = Alignment.Center
-                                        ) {
-                                            Column(
-                                                horizontalAlignment = Alignment.CenterHorizontally,
-                                                verticalArrangement = Arrangement.spacedBy(10.dp)
-                                            ) {
-                                                Box(
-                                                    modifier = Modifier
-                                                        .size(56.dp)
-                                                        .clip(CircleShape)
-                                                        .background(Color(0xFFE53935).copy(alpha = deleteMaskAlpha.value))
-                                                        .clickable {
-                                                            // 触发删除：先做缩小消失动画，再补位
-                                                            val targetId = comb.id
-                                                            val totalSize = combinations.size
-                                                            deleteTargetCombId = null
-                                                            isDeleting = true
-                                                            scope.launch {
-                                                                try {
-                                                                    // 1. 卡片缩小消失动画：缩小到 0.6f 同时淡出
-                                                                    disappearingCombId = targetId
-                                                                    coroutineScope {
-                                                                        launch {
-                                                                            disappearScale.animateTo(
-                                                                                0.6f,
-                                                                                tween(
-                                                                                    280,
-                                                                                    easing = CubicBezierEasing(
-                                                                                        0.3f,
-                                                                                        0.72f,
-                                                                                        0.2f,
-                                                                                        1.0f
-                                                                                    )
-                                                                                )
-                                                                            )
-                                                                        }
-                                                                        launch {
-                                                                            disappearAlpha.animateTo(
-                                                                                0f,
-                                                                                tween(
-                                                                                    280,
-                                                                                    easing = CubicBezierEasing(
-                                                                                        0.3f,
-                                                                                        0.72f,
-                                                                                        0.2f,
-                                                                                        1.0f
-                                                                                    )
-                                                                                )
-                                                                            )
-                                                                        }
-                                                                    }
-                                                                    // 2. 补位滚动（延迟到消失动画结束后）
-                                                                    if (currentCombinationIndex == 0 && totalSize > 1) {
-                                                                        // 删除第一个：先滚动到 page 2（B 从右侧滑入），删除后立即跳回 page 1（B）
-                                                                        if (2 < pageCount) {
-                                                                            pagerState.animateScrollToPage(
-                                                                                2
-                                                                            )
-                                                                        }
-                                                                        val oldSize =
-                                                                            combinations.size
-                                                                        onDeleteCombination(targetId)
-                                                                        // 等待 combinations 列表更新（带超时保护，避免 onDeleteCombination
-                                                                        // 未收缩列表时 isDeleting 永久卡死，导致返回键失效和编辑模式无法退出）
-                                                                        withTimeoutOrNull(500.milliseconds) {
-                                                                            snapshotFlow { combinations.size }.first { it < oldSize }
-                                                                        }
-                                                                        // 立即跳到 page 1（B），避免显示 page 2（C）
-                                                                        pagerState.scrollToPage(1)
-                                                                    } else if (currentCombinationIndex > 0) {
-                                                                        // 删除非第一个：滚动到左侧搭配所在页（page = combIdx），
-                                                                        // 让左侧搭配向右滑入补位；删除后该页正好对应新的当前搭配
-                                                                        // 该分支无需等待列表更新：MainActivity 会将 currentCombinationIndex
-                                                                        // 设为 combIdx-1，目标页 = combIdx-1+1 = combIdx，与当前页一致，不会触发冲突滚动
-                                                                        val targetPage =
-                                                                            currentCombinationIndex
-                                                                        if (targetPage != pagerState.currentPage) {
-                                                                            pagerState.animateScrollToPage(
-                                                                                targetPage
-                                                                            )
-                                                                        }
-                                                                        onDeleteCombination(targetId)
-                                                                    }
-                                                                } finally {
-                                                                    // 3. 重置状态（finally 确保异常时也能恢复）
-                                                                    isDeleting = false
-                                                                    disappearingCombId = null
-                                                                    disappearScale.snapTo(1f)
-                                                                    disappearAlpha.snapTo(1f)
-                                                                }
-                                                            }
-                                                        },
-                                                    contentAlignment = Alignment.Center
-                                                ) {
-                                                    Icon(
-                                                        imageVector = MiuixIcons.Delete,
-                                                        contentDescription = "删除搭配",
-                                                        tint = Color.White,
-                                                        modifier = Modifier.size(28.dp)
-                                                    )
-                                                }
-                                                Text(
-                                                    text = "删除",
-                                                    color = MiuixTheme.colorScheme.onSurfaceVariantActions,
-                                                    fontSize = 14.sp,
-                                                    fontWeight = FontWeight.Medium
-                                                )
-                                            }
-                                        }
                                     }
                                 }
                             }
                         }
                     }
                 }
-
-                // 自定义按钮：仅在搭配卡（非"+"卡）显示，进入编辑模式时淡出
-                if (pagerState.currentPage > 0) {
-                    Box(
-                        modifier = Modifier
-                            .fillMaxSize()
-                            .graphicsLayer {
-                                alpha = customizeButtonAlpha.value
-                                scaleX = buttonScale
-                                scaleY = buttonScale
-                                transformOrigin = TransformOrigin(0.5f, 0.5f)
-                            },
-                        contentAlignment = Alignment.BottomCenter
-                    ) {
-                        Button(
-                            modifier = Modifier
-                                .offset(y = (-60).dp)
-                                .width(200.dp)
-                                .height(48.dp)
-                                .clip(ContinuousRoundedRectangle(24.dp)),
-                            enabled = !isCutoutActive,
-                            onClick = {
-                                // 进入开洞前先清除删除态，让模糊随 alpha 一起淡出
-                                deleteTargetCombId = null
-                                isCutoutActive = true
-                                onCustomize()
-                            },
-                            colors = ButtonDefaults.buttonColors(
-                                color = Color(0xFF363636),
-                                disabledColor = Color(0xFF363636)
-                            )
-                        ) {
-                            Text(
-                                "自定义",
-                                color = Color.White,
-                                fontSize = 17.sp,
-                                fontWeight = FontWeight.Medium
-                            )
-                        }
-                    }
-                }
-            }
-
-            // -------- 8.4 壁纸编辑手势层 --------
             // 开洞模式下拦截拖拽/缩放手势，直接更新壁纸状态
             // 放在标题/按钮之前，确保顶部和底部按钮的点击不被拦截
             if (isCutoutActive && cardHidden && wallpaperBitmap != null) {
@@ -1222,14 +952,6 @@ fun CustomizeScheduleScreen(
                                 onClick = {
                                     hapticFeedback.performHapticFeedback(HapticFeedbackType.VirtualKey)
                                     if (isPageAnimating || isCutoutAnimating) { /* 动画中不响应 */
-                                    } else if (isCutoutActive) {
-                                        isCutoutActive = false
-                                        sheetResetKey++
-                                        onRevertWallpaper()
-                                        scope.launch {
-                                            delay(400.milliseconds)
-                                            onCancelCutout()
-                                        }
                                     } else onDismiss()
                                 }
                             )
@@ -1238,7 +960,7 @@ fun CustomizeScheduleScreen(
                         contentAlignment = Alignment.Center
                     ) {
                         Text(
-                            text = if (isCutoutActive) "取消" else "退出",
+                            text = "取消",
                             color = exitIconColor, fontSize = 16.sp, fontWeight = FontWeight.Medium
                         )
                     }
@@ -1434,8 +1156,9 @@ fun CustomizeScheduleScreen(
             }
 
             // -------- 8.10 退出快照放大层：从卡片大小放大回全屏 --------
-            // 应用时不显示退出快照，让用户直接看到壁纸放大的真实界面
-            if (isExiting && snapshot != null && !isApplying) {
+            // 快照放大由 MainActivity 的覆盖层统一处理，外观页面仅执行「放大淡出」（isExiting/customizeExitAlpha），
+            // 自身不再渲染快照，避免在页面内重复放出一张快照。
+            if (false && isExiting && snapshot != null && !isApplying) {
                 Box(
                     modifier = Modifier.fillMaxSize(),
                     contentAlignment = Alignment.Center
@@ -2063,4 +1786,5 @@ fun CustomizeScheduleScreen(
             } // end if (isTablet) else for 自定义弹窗
         }
     } // Scaffold
+}
 }
