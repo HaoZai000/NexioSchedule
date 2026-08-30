@@ -3,7 +3,6 @@ package com.haooz.chedule.ui.screens
 
 import android.annotation.SuppressLint
 import android.graphics.Bitmap
-import android.widget.Toast
 import androidx.activity.compose.BackHandler
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.Animatable
@@ -15,12 +14,10 @@ import androidx.compose.animation.slideOutVertically
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.gestures.awaitEachGesture
 import androidx.compose.foundation.gestures.awaitFirstDown
 import androidx.compose.foundation.gestures.calculatePan
 import androidx.compose.foundation.gestures.calculateZoom
-import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
@@ -55,13 +52,11 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
-import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.blur
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.drawBehind
-import androidx.compose.ui.draw.drawWithContent
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.graphics.Color
@@ -69,13 +64,11 @@ import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.PathFillType
 import androidx.compose.ui.graphics.TransformOrigin
 import androidx.compose.ui.graphics.asImageBitmap
-import androidx.compose.ui.graphics.drawscope.clipPath
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalConfiguration
-import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.semantics.Role
@@ -85,10 +78,7 @@ import androidx.compose.ui.unit.sp
 import androidx.compose.ui.zIndex
 import com.haooz.chedule.data.CardContentAlignment
 import com.haooz.chedule.data.Combination
-import top.yukonga.miuix.kmp.overlay.BlurBottomSheet
-import top.yukonga.miuix.kmp.overlay.BlurBottomSheetTablet
 import com.haooz.chedule.ui.basic.LiquidTopBarButton
-import top.yukonga.miuix.kmp.overlay.LocalSheetTopBarMaterial
 import com.haooz.chedule.ui.basic.OverlayDropdownMenu
 import com.haooz.chedule.ui.effects.edgelight.edgeLight
 import com.haooz.chedule.ui.effects.edgelight.rememberDefaultEdgeLight
@@ -104,11 +94,7 @@ import com.kyant.capsule.ContinuousCapsule
 import com.kyant.capsule.ContinuousRoundedRectangle
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.delay
-import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
-import kotlinx.coroutines.withTimeoutOrNull
-import top.yukonga.miuix.kmp.basic.Button
-import top.yukonga.miuix.kmp.basic.ButtonDefaults
 import top.yukonga.miuix.kmp.basic.Card
 import top.yukonga.miuix.kmp.basic.CardDefaults
 import top.yukonga.miuix.kmp.basic.DropdownDefaults
@@ -123,13 +109,13 @@ import top.yukonga.miuix.kmp.basic.VerticalDivider
 import top.yukonga.miuix.kmp.blur.layerBackdrop
 import top.yukonga.miuix.kmp.blur.rememberLayerBackdrop
 import top.yukonga.miuix.kmp.icon.MiuixIcons
-import top.yukonga.miuix.kmp.icon.extended.Add
 import top.yukonga.miuix.kmp.icon.extended.Background
 import top.yukonga.miuix.kmp.icon.extended.Close
-import top.yukonga.miuix.kmp.icon.extended.Delete
 import top.yukonga.miuix.kmp.icon.extended.GridView
 import top.yukonga.miuix.kmp.icon.extended.Image
-import top.yukonga.miuix.kmp.shader.isRuntimeShaderSupported
+import top.yukonga.miuix.kmp.overlay.BlurBottomSheet
+import top.yukonga.miuix.kmp.overlay.BlurBottomSheetTablet
+import top.yukonga.miuix.kmp.overlay.LocalSheetTopBarMaterial
 import top.yukonga.miuix.kmp.squircle.addSquircleRect
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 import kotlin.math.absoluteValue
@@ -147,16 +133,12 @@ fun CustomizeScheduleScreen(
     screenCornerRadius: Float,
     onDismiss: () -> Unit,
     onApply: () -> Unit,
-    onCustomize: () -> Unit = {},
-    onCancelCutout: () -> Unit = {},
     onPickWallpaper: () -> Unit = {},
     combinations: List<Combination> = emptyList(),
     currentCombinationIndex: Int = 0,
-    exitScale: Float = 1f,
     isExiting: Boolean = false,
     isApplying: Boolean = false,
     isApplyingCustomize: Boolean = false,
-    onRevertWallpaper: () -> Unit = {},
     wallpaperBitmap: Bitmap? = null,
     wallpaperOffset: Offset = Offset.Zero,
     wallpaperScale: Float = 1f,
@@ -164,7 +146,7 @@ fun CustomizeScheduleScreen(
     onWallpaperScaleChange: (Float) -> Unit = {},
     onCutoutCenterChange: (Float) -> Unit = {},
     // 弹窗开合时开洞与主界面共用的位移驱动器：两边直接读同一 Animatable.value，保证同帧同步
-    sheetOffsetShared: androidx.compose.animation.core.Animatable<Float, androidx.compose.animation.core.AnimationVector1D> = androidx.compose.animation.core.Animatable(0f),
+    sheetOffsetShared: Animatable<Float, androidx.compose.animation.core.AnimationVector1D> = Animatable(0f),
     pendingEnterCutout: Boolean = false,
     onCutoutEntered: () -> Unit = {},
     onEffectValueChange: (Float, Float) -> Unit = { _, _ -> },
@@ -185,15 +167,13 @@ fun CustomizeScheduleScreen(
     // 一、基础环境与尺寸计算
     // ================================================================
     val densityObj = LocalDensity.current
-    val context = LocalContext.current
     val density = densityObj.density
     val screenRadiusDp = (screenCornerRadius / density).dp
     // 开洞时卡片上移的目标像素值
     val cutoutOffsetTargetPx = with(densityObj) { 10.dp.toPx() }
     // 弹窗打开时开洞区域上移的目标像素值
-    val sheetOffsetTargetPx = with(densityObj) { 80.dp.toPx() }
+    val sheetOffsetTargetPx = with(densityObj) { 90.dp.toPx() }
     val statusBarPadding = WindowInsets.statusBars.asPaddingValues().calculateTopPadding()
-    val scope = rememberCoroutineScope()
     val configuration = LocalConfiguration.current
     val isTablet = configuration.screenWidthDp >= 600
     val screenHPx = with(densityObj) { configuration.screenHeightDp.dp.toPx() }
@@ -211,7 +191,6 @@ fun CustomizeScheduleScreen(
     }
 
     // 模糊支持检测（API 31+ 支持 graphicsLayer blurRadius）
-    val blurSupported = isRuntimeShaderSupported()
 
     // 液态玻璃支持（空采样：不采样实时底层内容，仅保留轻量着色效果）。
     // 页面背景/顶底栏下方表面本身已不透明，无需真实模糊；且避免 MIUI 的
@@ -348,6 +327,13 @@ fun CustomizeScheduleScreen(
     val sheetOffsetY = sheetOffsetShared
     // 编辑模式进入/退出进度：驱动相邻卡片放大缩小
     val cutoutEnterProgress = remember { Animatable(0f) }
+    // 底部工具栏动画（三个按钮 + 竖杠）：进入时轻微上移 + 淡入 + 模糊 8f→0f；退出反向
+    // 初始为进入前状态：透明、下移、模糊8f；进入后淡入上移并去模糊
+    // 上移高度：40dp（转 px）
+    val toolOffsetTargetPx = with(densityObj) { 80.dp.toPx() }
+    val toolAlphaAnim = remember { Animatable(0f) }
+    val toolOffsetYAnim = remember { Animatable(toolOffsetTargetPx) }
+    val toolBlurAnim = remember { Animatable(8f) }
 
     // ================================================================
     // 五、动画执行（LaunchedEffect 集中区）
@@ -373,19 +359,30 @@ fun CustomizeScheduleScreen(
                 animDone = true
                 isPageAnimating = false
             }
-            // 按钮缩放：1.5→1.0，与进入动画同步
-            launch {
-                buttonScaleAnim.animateTo(
-                    1f,
-                    tween(450, easing = CubicBezierEasing(0.3f, 0.72f, 0.2f, 1.0f))
-                )
-            }
             // 卡片间距：-140 → -10
             launch {
                 pagerSpacing.animateTo(
                     -10f,
                     tween(500, easing = CubicBezierEasing(0.3f, 0.72f, 0.2f, 1.0f))
                 )
+            }
+            // 按钮缩小（1.5→1.0）：延迟 200ms 开始，与快照过渡动画并行
+            launch {
+                delay(200.milliseconds)
+                buttonScaleAnim.animateTo(
+                    1f,
+                    tween(450, easing = CubicBezierEasing(0.3f, 0.72f, 0.2f, 1.0f))
+                )
+            }
+            // 底部工具栏（三个按钮 + 竖杠）：进入时轻微上移 + 淡入 + 模糊8f→0f。
+            // 与按钮缩小同一 200ms 延迟同步开始，同节奏并行运行
+            launch {
+                delay(200.milliseconds)
+                coroutineScope {
+                    launch { toolAlphaAnim.animateTo(1f, tween(450, easing = CubicBezierEasing(0.3f, 0.72f, 0.2f, 1.0f))) }
+                    launch { toolOffsetYAnim.animateTo(0f, tween(450, easing = CubicBezierEasing(0.3f, 0.72f, 0.2f, 1.0f))) }
+                    launch { toolBlurAnim.animateTo(0f, tween(450, easing = CubicBezierEasing(0.3f, 0.72f, 0.2f, 1.0f))) }
+                }
             }
             // 延迟 100ms 后淡入标题，与进入动画并行
             launch {
@@ -416,6 +413,14 @@ fun CustomizeScheduleScreen(
                     )
                 }
                 launch { titleFadeAnim.animateTo(0f, tween(150)) }
+                // 底部工具栏反向动画：退出时下移 + 淡出 + 模糊0f→8f
+                launch {
+                    coroutineScope {
+                        launch { toolAlphaAnim.animateTo(0f, tween(500, easing = CubicBezierEasing(0.3f, 0.72f, 0.2f, 1.0f))) }
+                        launch { toolOffsetYAnim.animateTo(toolOffsetTargetPx, tween(500, easing = CubicBezierEasing(0.3f, 0.72f, 0.2f, 1.0f))) }
+                        launch { toolBlurAnim.animateTo(8f, tween(500, easing = CubicBezierEasing(0.3f, 0.72f, 0.2f, 1.0f))) }
+                    }
+                }
                 // 取消退出时开洞一并放大到全屏，与应用时行为一致
                 // （应用时由 LaunchedEffect(isApplying) 负责 cardScaleAnim → 1，此处仅处理取消路径）
                 if (!isApplying) {
@@ -525,7 +530,7 @@ fun CustomizeScheduleScreen(
                 launch {
                     sheetOffsetY.animateTo(
                         -sheetOffsetTargetPx,
-                        tween(350, easing = CubicBezierEasing(0.3f, 0.72f, 0.2f, 1.0f))
+                        tween(400, easing = CubicBezierEasing(0.3f, 0.5f, 0.2f, 1.0f))
                     )
                 }
             }
@@ -1066,64 +1071,96 @@ fun CustomizeScheduleScreen(
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .padding(bottom = 30.dp),
+                        .padding(bottom = 30.dp)
+                        .offset(y = 7.dp)
+                        .graphicsLayer {
+                            alpha = toolAlphaAnim.value
+                            translationY = toolOffsetYAnim.value
+                        },
                     horizontalArrangement = Arrangement.Center,
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    // 壁纸按钮
+                    // 壁纸按钮：外层 Box 留 padding 承载模糊向外扩散空间，
+                    // Modifier.blur 让模糊自然溢出圆形边界（边缘渐变正确），
+                    // 内层 Box 保持圆形裁剪并可点击，避免 RenderEffect + clip 在边界裁切出尖角。
                     Box(
                         modifier = Modifier
-                            .size(56.dp)
-                            .clip(CircleShape)
-                            .background(Color(0xFF363636))
-                            .clickable { onPickWallpaper() },
-                        contentAlignment = Alignment.Center
+                            .padding(7.dp)
+                            .blur(radius = toolBlurAnim.value.dp)
                     ) {
-                        Icon(
-                            imageVector = MiuixIcons.Image,
-                            contentDescription = "壁纸",
-                            modifier = Modifier.size(26.dp),
-                            tint = Color.White
+                        Box(
+                            modifier = Modifier
+                                .size(56.dp)
+                                .clip(CircleShape)
+                                .background(Color(0xFF363636))
+                                .clickable { onPickWallpaper() },
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Icon(
+                                imageVector = MiuixIcons.Image,
+                                contentDescription = "壁纸",
+                                modifier = Modifier.size(26.dp),
+                                tint = Color.White
+                            )
+                        }
+                    }
+                    Spacer(modifier = Modifier.width(4.dp))
+                    // 竖杠：同按钮方案——外层 padding 承载模糊扩散，blur 在外层自然溢出两端圆角
+                    Box(
+                        modifier = Modifier
+                            .padding(7.dp)
+                            .blur(radius = toolBlurAnim.value.dp)
+                    ) {
+                        VerticalDivider(
+                            Modifier
+                                .height(36.dp)
+                                .clip(CircleShape),
+                            thickness = 2.dp,
+                            color = Color(0xFF363636)
                         )
                     }
-                    Spacer(modifier = Modifier.width(18.dp))
-                    VerticalDivider(
-                        Modifier
-                            .height(36.dp)
-                            .clip(CircleShape),
-                        thickness = 2.dp,
-                        color = Color(0xFF363636)
-                    )
-                    Spacer(modifier = Modifier.width(18.dp))
+                    Spacer(modifier = Modifier.width(4.dp))
                     Box(
                         modifier = Modifier
-                            .size(56.dp)
-                            .clip(CircleShape)
-                            .background(Color(0xFF363636))
-                            .clickable { showEffectSheet = true },
-                        contentAlignment = Alignment.Center
+                            .padding(7.dp)
+                            .blur(radius = toolBlurAnim.value.dp)
                     ) {
-                        Icon(
-                            imageVector = MiuixIcons.Background,
-                            contentDescription = "效果",
-                            modifier = Modifier.size(28.dp),
-                            tint = Color.White
-                        )
+                        Box(
+                            modifier = Modifier
+                                .size(56.dp)
+                                .clip(CircleShape)
+                                .background(Color(0xFF363636))
+                                .clickable { showEffectSheet = true },
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Icon(
+                                imageVector = MiuixIcons.Background,
+                                contentDescription = "效果",
+                                modifier = Modifier.size(28.dp),
+                                tint = Color.White
+                            )
+                        }
                     }
-                    Spacer(modifier = Modifier.width(24.dp))
+                    Spacer(modifier = Modifier.width(10.dp))
                     Box(
                         modifier = Modifier
-                            .size(56.dp)
-                            .clip(CircleShape)
-                            .background(Color(0xFF363636))
-                            .clickable { showCustomizeSheet = true },
-                        contentAlignment = Alignment.Center
+                            .padding(7.dp)
+                            .blur(radius = toolBlurAnim.value.dp)
                     ) {
-                        Icon(
-                            imageVector = MiuixIcons.GridView,
-                            contentDescription = "自定义",
-                            tint = Color.White
-                        )
+                        Box(
+                            modifier = Modifier
+                                .size(56.dp)
+                                .clip(CircleShape)
+                                .background(Color(0xFF363636))
+                                .clickable { showCustomizeSheet = true },
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Icon(
+                                imageVector = MiuixIcons.GridView,
+                                contentDescription = "自定义",
+                                tint = Color.White
+                            )
+                        }
                     }
                 }
             }
@@ -1158,37 +1195,8 @@ fun CustomizeScheduleScreen(
             // -------- 8.10 退出快照放大层：从卡片大小放大回全屏 --------
             // 快照放大由 MainActivity 的覆盖层统一处理，外观页面仅执行「放大淡出」（isExiting/customizeExitAlpha），
             // 自身不再渲染快照，避免在页面内重复放出一张快照。
-            if (false && isExiting && snapshot != null && !isApplying) {
-                Box(
-                    modifier = Modifier.fillMaxSize(),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Image(
-                        bitmap = snapshot.asImageBitmap(),
-                        contentDescription = null,
-                        modifier = Modifier
-                            .fillMaxSize()
-                            .graphicsLayer {
-                                scaleX = exitScale
-                                scaleY = exitScale
-                                transformOrigin = TransformOrigin(0.5f, 0.58f)
-                            }
-                            .drawWithContent {
-                                val clipPath = Path().apply {
-                                    addSquircleRect(
-                                        width = size.width,
-                                        height = size.height,
-                                        cornerRadius = screenRadiusDp.toPx()
-                                    )
-                                }
-                                clipPath(clipPath) { this@drawWithContent.drawContent() }
-                            },
-                        contentScale = ContentScale.Crop
-                    )
-                }
-            }
 
-            // -------- 8.11 效果弹窗 --------
+                // -------- 8.11 效果弹窗 --------
             if (isTablet) {
                 BlurBottomSheetTablet(
                     show = showEffectSheet,

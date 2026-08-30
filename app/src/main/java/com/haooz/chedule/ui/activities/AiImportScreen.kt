@@ -488,6 +488,11 @@ fun AiImportScreen(
                                 if (cfg.morningTimes.isNotEmpty()) settingsViewModel.saveMorningTimes(cfg.morningTimes)
                                 if (cfg.afternoonTimes.isNotEmpty()) settingsViewModel.saveAfternoonTimes(cfg.afternoonTimes)
                                 if (cfg.eveningTimes.isNotEmpty()) settingsViewModel.saveEveningTimes(cfg.eveningTimes)
+                                // 同步覆盖当前课表绑定的时间配置，避免之后被旧配置盖回
+                                settingsViewModel.applyTimeImportToCurrentSchedule(
+                                    cfg.morningCount, cfg.afternoonCount, cfg.eveningCount,
+                                    cfg.morningTimes, cfg.afternoonTimes, cfg.eveningTimes
+                                )
                             }
                             viewModel.replaceCourses(parsedCourses.toList())
                             Toast.makeText(

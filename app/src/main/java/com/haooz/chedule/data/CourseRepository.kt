@@ -3,6 +3,7 @@ package com.haooz.chedule.data
 import android.content.Context
 import android.content.SharedPreferences
 import androidx.core.content.edit
+import androidx.core.graphics.scale
 import com.google.gson.Gson
 import com.google.gson.reflect.TypeToken
 import java.time.LocalDate
@@ -23,10 +24,6 @@ class CourseRepository private constructor(context: Context) {
 
     // 占用周次缓存：避免每次编辑都重新计算
     private val occupiedWeeksCache = mutableMapOf<String, Set<Int>>()
-
-    // 课程分组缓存：避免每次编辑页都重新分组
-    private var cachedCourseGroups: Map<String, List<Course>>? = null
-    private var cachedCourseGroupsScheduleId: String? = null
 
     // 壁纸内存缓存：避免每次进入搭配页都重新解码 PNG（解码耗时是主要瓶颈）
     // 按可用内存的 1/8 计算，单位为字节
@@ -234,29 +231,10 @@ class CourseRepository private constructor(context: Context) {
             val courses = sanitizeCourses(gson.fromJson(json, type) ?: emptyList())
             courseCache[scheduleId] = courses
             preWarmOccupiedWeeksCache(courses)
-            preWarmCourseGroupsCache(courses, scheduleId)
             courses
         } catch (_: Exception) {
             emptyList()
         }
-    }
-
-    /**
-     * 获取课程分组（带缓存）
-     * 返回 Map<分组键字符串, List<Course>>
-     */
-    fun getCourseGroups(scheduleId: String? = null): Map<String, List<Course>> {
-        val sid = scheduleId ?: getCurrentScheduleId()
-        if (cachedCourseGroupsScheduleId == sid && cachedCourseGroups != null) {
-            return cachedCourseGroups!!
-        }
-        val courses = getCoursesForSchedule(sid)
-        val groups = courses.groupBy { course ->
-            "${course.dayOfWeek}_${course.startSection}_${course.endSection}_${course.weekType}_${course.startWeek}_${course.endWeek}_${course.selectedWeeks.hashCode()}"
-        }
-        cachedCourseGroups = groups
-        cachedCourseGroupsScheduleId = sid
-        return groups
     }
 
     /**
@@ -287,16 +265,6 @@ class CourseRepository private constructor(context: Context) {
     }
 
     /**
-     * 预热课程分组缓存
-     */
-    private fun preWarmCourseGroupsCache(courses: List<Course>, scheduleId: String) {
-        cachedCourseGroups = courses.groupBy { course ->
-            "${course.dayOfWeek}_${course.startSection}_${course.endSection}_${course.weekType}_${course.startWeek}_${course.endWeek}_${course.selectedWeeks.hashCode()}"
-        }
-        cachedCourseGroupsScheduleId = scheduleId
-    }
-
-    /**
      * 保存课程列表
      */
     fun saveCourses(courses: List<Course>, notify: Boolean = true) {
@@ -306,7 +274,6 @@ class CourseRepository private constructor(context: Context) {
         prefs.edit { putString(key, json) }
         courseCache[scheduleId] = courses
         occupiedWeeksCache.clear() // 课程变化时清空占用周次缓存
-        cachedCourseGroups = null // 清空课程分组缓存
         if (notify) onCourseChanged?.invoke("bulk", "")
     }
 
@@ -1415,6 +1382,7 @@ class CourseRepository private constructor(context: Context) {
     /**
      * 获取指定时间段的所有课程（用于显示多课程详情）
      */
+    @Suppress("UNUSED_PARAMETER") // week: 槽位共享所有周次，同槽冲突课程无论周次均需展示
     fun getCoursesAtSlot(
         week: Int,
         dayOfWeek: Int,
@@ -1484,6 +1452,24 @@ class CourseRepository private constructor(context: Context) {
     }
 
     /**
+     * 为指定课表新建一个默认(4/4/4)专属时间配置并绑定，配置名跟随课表名。
+     * 用于手动新建课表时自动生成独立时间ID，避免多个课表共享同一份默认配置。
+     */
+    fun createDefaultTimeConfigForSchedule(name: String) {
+        val existingConfigId = getScheduleTimeConfigId(name)
+        if (existingConfigId != 0L) return // 已有专属配置则不重复创建
+        val newId = addTimeConfig(
+            TimeConfig(
+                name = name,
+                morningSections = 4,
+                afternoonSections = 4,
+                eveningSections = 4
+            )
+        )
+        setScheduleTimeConfigId(name, newId)
+    }
+
+    /**
      * 创建新学期课表：复制当前课表的所有设置（不含课程数据）到新课表
      */
     fun createNewSemesterSchedule(name: String): List<String> {
@@ -1521,7 +1507,7 @@ class CourseRepository private constructor(context: Context) {
                 putLong("$SCHEDULE_TIME_CONFIG_PREFIX$name", currentTimeConfigId)
             }
             // 将开始上课日期设为今天，当前周数设为第1周
-            val today = java.time.LocalDate.now()
+            val today = LocalDate.now()
             val todayStr =
                 String.format(java.util.Locale.ROOT, "%04d/%02d/%02d", today.year, today.monthValue, today.dayOfMonth)
             putString("$newPrefix$KEY_CLASS_START_TIME", todayStr)
@@ -1707,50 +1693,6 @@ class CourseRepository private constructor(context: Context) {
         prefs.edit { putLong(KEY_CURRENT_COMBINATION_ID, id) }
     }
 
-    /** 添加新搭配，返回新 ID */
-    fun addCombination(): Long {
-        val ids = getCombinationIds().toMutableList()
-        val newId = (ids.maxOrNull() ?: -1L) + 1L
-        ids.add(newId)
-        prefs.edit {
-            putString(KEY_COMBINATION_IDS, ids.joinToString(","))
-                .putFloat("${KEY_COMBINATION_OFFSET_X_PREFIX}$newId", 0f)
-                .putFloat("${KEY_COMBINATION_OFFSET_Y_PREFIX}$newId", 0f)
-                .putFloat("${KEY_COMBINATION_SCALE_PREFIX}$newId", 1f)
-        }
-        return newId
-    }
-
-    /** 删除指定搭配，包括其壁纸、快照和 SharedPreferences 中的状态 */
-    fun deleteCombination(id: Long) {
-        val ids = getCombinationIds().toMutableList()
-        if (!ids.remove(id)) return
-        prefs.edit {
-            putString(KEY_COMBINATION_IDS, ids.joinToString(","))
-                .remove("${KEY_COMBINATION_OFFSET_X_PREFIX}$id")
-                .remove("${KEY_COMBINATION_OFFSET_Y_PREFIX}$id")
-                .remove("${KEY_COMBINATION_SCALE_PREFIX}$id")
-                .remove("${KEY_COMBINATION_CARD_BLUR_PREFIX}$id")
-                .remove("${KEY_COMBINATION_CARD_ALPHA_PREFIX}$id")
-                .remove("${KEY_COMBINATION_WALLPAPER_BRIGHTNESS_PREFIX}$id")
-                .remove("${KEY_COMBINATION_SHOW_BREAK_DIVIDERS_PREFIX}$id")
-        }
-        // 删除壁纸与快照文件（webp 优先，同时清理旧版 png）
-        java.io.File(appContext.filesDir, "${COMBINATION_WALLPAPER_PREFIX}$id.webp").delete()
-        java.io.File(appContext.filesDir, "${COMBINATION_WALLPAPER_PREFIX}$id.png").delete()
-        java.io.File(appContext.filesDir, "${COMBINATION_SNAPSHOT_PREFIX}$id.png").delete()
-        // 同步清理内存缓存，防止读到已删除搭配的旧 bitmap
-        wallpaperCache.remove(id)
-        // 若删除的是当前搭配，且仍有其他搭配，则切换到第一个
-        if (ids.isNotEmpty() && getCurrentCombinationId() == id) {
-            setCurrentCombinationId(ids.first())
-        } else if (ids.isEmpty()) {
-            // 删光后重新创建一个默认搭配 id=0
-            prefs.edit {putString(KEY_COMBINATION_IDS, "0") }
-            setCurrentCombinationId(0L)
-        }
-    }
-
     /** 壁纸的目标存储/解码分辨率（屏幕分辨率），用于平衡显示质量与内存占用 */
     private fun wallpaperTargetBounds(): Pair<Int, Int> {
         val metrics = appContext.resources.displayMetrics
@@ -1777,8 +1719,7 @@ class CourseRepository private constructor(context: Context) {
             // 超出屏幕分辨率时先等比缩小，避免存储超大图占用磁盘与内存
             val scaled = if (bitmap.width > targetW || bitmap.height > targetH) {
                 val scale = minOf(targetW / bitmap.width.toFloat(), targetH / bitmap.height.toFloat())
-                android.graphics.Bitmap.createScaledBitmap(
-                    bitmap,
+                bitmap.scale(
                     (bitmap.width * scale).toInt().coerceAtLeast(1),
                     (bitmap.height * scale).toInt().coerceAtLeast(1),
                     true
@@ -1946,7 +1887,8 @@ class CourseRepository private constructor(context: Context) {
 
     /** 获取当前选中的时间配置 ID */
     fun getCurrentTimeConfigId(): Long {
-        return prefs.getLong(KEY_CURRENT_TIME_CONFIG_ID, 0L)
+        // 统一以"当前课表绑定的时间配置"为唯一来源，避免与全局指针出现漂移
+        return getScheduleTimeConfigId(getCurrentScheduleId())
     }
 
     /** 设置当前选中的时间配置 ID */
@@ -2009,12 +1951,6 @@ class CourseRepository private constructor(context: Context) {
         }
     }
 
-    /** 重命名时间配置 */
-    fun renameTimeConfig(id: Long, newName: String) {
-        val config = getTimeConfig(id)
-        saveTimeConfig(config.copy(name = newName))
-    }
-
     /** 获取当前时间配置 */
     fun getCurrentTimeConfig(): TimeConfig {
         return getTimeConfig(getCurrentTimeConfigId())
@@ -2056,8 +1992,51 @@ class CourseRepository private constructor(context: Context) {
     }
 
     /**
+     * 教务/AI 等"软导入"：把导入的节数与节次时间就地覆盖到当前课表绑定的时间配置对象，
+     * 使绑定配置与课表设置保持一致，避免此后切换/重应用时被旧配置盖回。
+     * 若当前课表仅回退到共享默认配置(id0)，则为其新建专属配置并绑定，以免影响其他课表。
+     */
+    fun applyTimeImportToCurrentSchedule(
+        morningSections: Int, afternoonSections: Int, eveningSections: Int,
+        morningTimes: Map<Int, String>, afternoonTimes: Map<Int, String>, eveningTimes: Map<Int, String>
+    ) {
+        val scheduleId = getCurrentScheduleId()
+        val configId = getScheduleTimeConfigId(scheduleId)
+        val sectionTimes = buildMap {
+            morningTimes.forEach { (k, v) -> put("morning_$k", v) }
+            afternoonTimes.forEach { (k, v) -> put("afternoon_$k", v) }
+            eveningTimes.forEach { (k, v) -> put("evening_$k", v) }
+        }
+        if (configId != 0L) {
+            // 就地覆盖当前课表绑定的专属配置
+            val base = getTimeConfig(configId)
+            saveTimeConfig(
+                base.copy(
+                    name = base.name.ifBlank { scheduleId },
+                    morningSections = morningSections,
+                    afternoonSections = afternoonSections,
+                    eveningSections = eveningSections,
+                    sectionTimes = sectionTimes
+                )
+            )
+        } else {
+            // 当前课表仅回退到共享默认配置：新建专属配置并绑定，避免覆盖影响其他课表
+            val newId = addTimeConfig(
+                TimeConfig(
+                    name = scheduleId,
+                    morningSections = morningSections,
+                    afternoonSections = afternoonSections,
+                    eveningSections = eveningSections,
+                    sectionTimes = sectionTimes
+                )
+            )
+            setScheduleTimeConfigId(scheduleId, newId)
+        }
+    }
+
+    /**
      * 节次数量变化时，保持每门课在原时段内的相对位置不变，重映射当前课表的课程。
-     * 例如上午 5 节改为 4 节时，"上午第 5 节"的课程保持在第 4 节（钳制），不会掉到下午。
+     * 相对位置不向上钳制，因此缩小节数后会暂时落在新网格之外、恢复节数后自动回到原位。
      */
     private fun remapCoursesForNewSectionCounts(
         newMorning: Int, newAfternoon: Int, newEvening: Int
@@ -2071,12 +2050,10 @@ class CourseRepository private constructor(context: Context) {
         var changed = false
         val remapped = getCoursesForSchedule(scheduleId).map { course ->
             val newStart = remapSection(
-                course.startSection, oldMorning, oldAfternoon, oldEvening,
-                newMorning, newAfternoon, newEvening
+                course.startSection, oldMorning, oldAfternoon, newMorning, newAfternoon
             )
             val newEnd = remapSection(
-                course.endSection, oldMorning, oldAfternoon, oldEvening,
-                newMorning, newAfternoon, newEvening
+                course.endSection, oldMorning, oldAfternoon, newMorning, newAfternoon
             )
             if (newStart != course.startSection || newEnd != course.endSection) {
                 changed = true
@@ -2090,44 +2067,34 @@ class CourseRepository private constructor(context: Context) {
 
     /**
      * 将单个节次号从旧节数映射到新节数，保持所在时段（上午/下午/晚上）及时段内相对位置不变。
-     * 若新时段数量为 0，则保留相对位置（该课程暂时超出网格不显示，恢复节数后自动回归）。
+     * 相对位置不向上钳制：若新时段节数变少，课程会暂时落在新网格之外（不显示），恢复节数后自动回到原位。
      */
     private fun remapSection(
         section: Int,
-        oldMorning: Int, oldAfternoon: Int, oldEvening: Int,
-        newMorning: Int, newAfternoon: Int, newEvening: Int
+        oldMorning: Int, oldAfternoon: Int,
+        newMorning: Int, newAfternoon: Int
     ): Int {
-        // 旧配置下的时段起始节、节数与时段编号（0 上午 / 1 下午 / 2 晚上）
+        // 旧配置下的时段起始节与时段编号（0 上午 / 1 下午 / 2 晚上）
         val oldStart: Int
-        val oldCount: Int
         val period: Int
         when {
-            section <= oldMorning -> { oldStart = 1; oldCount = oldMorning; period = 0 }
+            section <= oldMorning -> { oldStart = 1; period = 0 }
             section <= oldMorning + oldAfternoon -> {
-                oldStart = oldMorning + 1; oldCount = oldAfternoon; period = 1
+                oldStart = oldMorning + 1; period = 1
             }
             else -> {
-                oldStart = oldMorning + oldAfternoon + 1; oldCount = oldEvening; period = 2
+                oldStart = oldMorning + oldAfternoon + 1; period = 2
             }
         }
-        val relative = (section - oldStart).coerceIn(0, maxOf(oldCount - 1, 0))
-        // 新配置下该时段的起始节与节数
-        val newStart: Int
-        val newCount: Int
-        when (period) {
-            0 -> { newStart = 1; newCount = newMorning }
-            1 -> { newStart = newMorning + 1; newCount = newAfternoon }
-            else -> { newStart = newMorning + newAfternoon + 1; newCount = newEvening }
+        val relative = (section - oldStart).coerceAtLeast(0)
+        // 新配置下该时段的起始节
+        val newStart = when (period) {
+            0 -> 1
+            1 -> newMorning + 1
+            else -> newMorning + newAfternoon + 1
         }
-        if (newCount <= 0) return newStart + relative
-        return newStart + relative.coerceIn(0, newCount - 1)
-    }
-
-    /** 基于当前配置创建新时间配置 */
-    fun createTimeConfigFromCurrent(name: String): Long {
-        val current = getCurrentTimeConfig()
-        val newConfig = current.copy(id = 0L, name = name)
-        return addTimeConfig(newConfig)
+        // 不向上钳制，保留原相对位置；新时段节数不足时课程暂落在网格外，恢复节数后回归原位
+        return newStart + relative
     }
 
     /** 将时间配置应用到当前课表的设置 */
@@ -2283,7 +2250,6 @@ class CourseRepository private constructor(context: Context) {
         // 清除缓存，确保 UI 刷新
         courseCache.clear()
         occupiedWeeksCache.clear()
-        cachedCourseGroups = null
         onCourseChanged?.invoke("restore", "")
     }
 
@@ -2352,7 +2318,6 @@ class CourseRepository private constructor(context: Context) {
         // 清除缓存，确保 UI 刷新
         courseCache.clear()
         occupiedWeeksCache.clear()
-        cachedCourseGroups = null
 
         // 为新课表创建时间配置并绑定
         val existingConfigId = getScheduleTimeConfigId(scheduleName)
@@ -2364,13 +2329,15 @@ class CourseRepository private constructor(context: Context) {
                 (timeConfigData["sectionTimes"] as? Map<String, String>)?.forEach { (k, v) ->
                     sectionTimesMap[k] = v
                 }
+                @Suppress("UNCHECKED_CAST")
+                val importedSectionNames = (timeConfigData["sectionNames"] as? Map<String, String>) ?: emptyMap()
                 TimeConfig(
                     name = scheduleName,
                     morningSections = (timeConfigData["morningSections"] as? Number)?.toInt() ?: 4,
                     afternoonSections = (timeConfigData["afternoonSections"] as? Number)?.toInt() ?: 4,
                     eveningSections = (timeConfigData["eveningSections"] as? Number)?.toInt() ?: 4,
                     sectionTimes = sectionTimesMap,
-                    sectionNames = (timeConfigData["sectionNames"] as? Map<String, String>) ?: emptyMap()
+                    sectionNames = importedSectionNames
                 )
             } else {
                 // 没有导入时间配置，复制当前课表的

@@ -96,9 +96,6 @@ import com.haooz.chedule.ui.basic.CollapsibleTopAppBar
 import com.haooz.chedule.ui.basic.LiquidGlassDropdownMenu
 import com.haooz.chedule.ui.basic.LiquidGlassDropdownMenuItem
 import com.haooz.chedule.ui.basic.LiquidTopBarButton
-import top.yukonga.miuix.kmp.overlay.OverlayDialog
-import top.yukonga.miuix.kmp.basic.NumberPicker
-import top.yukonga.miuix.kmp.basic.ButtonDefaults
 import com.haooz.chedule.ui.basic.ProgressiveBlurTopBar
 import com.haooz.chedule.ui.basic.SharedScrollBehavior
 import com.haooz.chedule.ui.basic.ShortcutMenu
@@ -135,7 +132,9 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import top.yukonga.miuix.kmp.basic.ButtonDefaults
 import top.yukonga.miuix.kmp.basic.NavigationRailDefaults
+import top.yukonga.miuix.kmp.basic.NumberPicker
 import top.yukonga.miuix.kmp.basic.Scaffold
 import top.yukonga.miuix.kmp.basic.TextButton
 import top.yukonga.miuix.kmp.basic.rememberNavigationRailState
@@ -149,6 +148,7 @@ import top.yukonga.miuix.kmp.icon.extended.Delete
 import top.yukonga.miuix.kmp.icon.extended.Edit
 import top.yukonga.miuix.kmp.icon.extended.More
 import top.yukonga.miuix.kmp.icon.extended.Reset
+import top.yukonga.miuix.kmp.overlay.OverlayDialog
 import top.yukonga.miuix.kmp.squircle.addSquircleRect
 import top.yukonga.miuix.kmp.theme.ColorSchemeMode
 import top.yukonga.miuix.kmp.theme.MiuixTheme
@@ -229,7 +229,7 @@ class MainActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
 
         applyHideFromRecents(
-            getSharedPreferences("app_preferences", Context.MODE_PRIVATE)
+            getSharedPreferences("app_preferences", MODE_PRIVATE)
                 .getBoolean("hide_background", false)
         )
 
@@ -319,7 +319,7 @@ class MainActivity : ComponentActivity() {
     }
 
     override fun onBackPressed() {
-        val hideBackground = getSharedPreferences("app_preferences", Context.MODE_PRIVATE)
+        val hideBackground = getSharedPreferences("app_preferences", MODE_PRIVATE)
             .getBoolean("hide_background", false)
         if (hideBackground) {
             applyHideFromRecents(true)
@@ -1466,7 +1466,7 @@ fun CourseScheduleApp() {
             customizeCoverActive = true
             customizeCoverScale.snapTo(1f)
             customizeCoverAlpha.snapTo(1f)
-            delay(520.milliseconds)
+            delay(280.milliseconds)
             launch {
                 // 同步主界面的开洞缩放(0.75)，transformOrigin 对齐开洞中心
                 customizeCoverScale.animateTo(
@@ -1476,7 +1476,7 @@ fun CourseScheduleApp() {
             }
             launch {
                 // 缩放到位后淡出快照，露出开洞后的实时内容
-                delay(400)
+                delay(400.milliseconds)
                 customizeCoverAlpha.animateTo(
                     0f,
                     tween(120, easing = FastOutSlowInEasing)
@@ -2639,8 +2639,6 @@ fun CourseScheduleApp() {
                     screenCornerRadius = screenCornerRadius,
                     onDismiss = dismissCustomize,
                     onApply = applyCustomize,
-                    onCustomize = { isWindowCutoutActive = true },
-                    onCancelCutout = { isWindowCutoutActive = false },
                     onPickWallpaper = {
                         wallpaperPickerLauncher.launch(
                             androidx.activity.result.PickVisualMediaRequest(
@@ -2652,28 +2650,9 @@ fun CourseScheduleApp() {
                     onCutoutEntered = { pendingEnterCutout = false },
                     combinations = combinations,
                     currentCombinationIndex = currentCombinationIndex,
-                    exitScale = customizeExitScale.value,
                     isExiting = isCustomizeExiting,
                     isApplying = isApplyingCustomize,
                     isApplyingCustomize = isApplyingCustomize,
-                    onRevertWallpaper = {
-                        wallpaperBitmap = savedWallpaperBitmap
-                        wallpaperOffset = savedWallpaperOffset
-                        wallpaperScale = savedWallpaperScale
-                        appearance = savedAppearance
-                        // 同步恢复 combinations[originalCombinationIndex] 的编辑字段
-                        val idx = originalCombinationIndex
-                        if (idx in combinations.indices) {
-                            combinations = combinations.toMutableList().also {
-                                it[idx] = savedAppearance.applyToCombination(it[idx]).copy(
-                                    bitmap = savedWallpaperBitmap,
-                                    offset = savedWallpaperOffset,
-                                    scale = savedWallpaperScale
-                                )
-                            }
-                        }
-                        blurSnapshotJob?.cancel()
-                    },
                     wallpaperBitmap = wallpaperBitmap,
                     wallpaperOffset = wallpaperOffset,
                     wallpaperScale = wallpaperScale,

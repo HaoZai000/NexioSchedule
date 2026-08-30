@@ -216,7 +216,6 @@ fun HolidaySettingsScreen(
         CourseReminderHelper.startReminderService(context)
         showDialog = false
         editingEntry = null
-        haptic.performHapticFeedback(HapticFeedbackType.Confirm)
     }
 
     fun deleteEntry() {
@@ -234,7 +233,6 @@ fun HolidaySettingsScreen(
         showDeleteConfirm = false
         showDialog = false
         editingEntry = null
-        haptic.performHapticFeedback(HapticFeedbackType.Confirm)
     }
 
     val listState = rememberLazyListState()

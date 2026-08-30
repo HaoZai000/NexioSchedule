@@ -503,6 +503,12 @@ class EducationalImportActivity : ComponentActivity() {
             if (morningTimes.isNotEmpty()) settingsViewModel.saveMorningTimes(morningTimes)
             if (afternoonTimes.isNotEmpty()) settingsViewModel.saveAfternoonTimes(afternoonTimes)
             if (eveningTimes.isNotEmpty()) settingsViewModel.saveEveningTimes(eveningTimes)
+            // 同步覆盖当前课表绑定的时间配置，避免之后被旧配置盖回
+            settingsViewModel.applyTimeImportToCurrentSchedule(
+                morningSections, afternoonSections,
+                settingsViewModel.eveningSections.value,
+                morningTimes, afternoonTimes, eveningTimes
+            )
 
             prefs.edit {remove("preset_time_slots")}
             Log.d("EduImport", "预设时间段应用成功: 上午${morningTimes.size}节, 下午${afternoonTimes.size}节, 晚上${eveningTimes.size}节")

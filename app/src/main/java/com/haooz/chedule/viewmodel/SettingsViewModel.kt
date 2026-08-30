@@ -240,6 +240,17 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
         repository.savePeriodTimes("evening", times)
     }
 
+    /** 教务/AI 软导入：同步更新当前课表绑定的时间配置对象，避免之后被旧配置盖回 */
+    fun applyTimeImportToCurrentSchedule(
+        morningSections: Int, afternoonSections: Int, eveningSections: Int,
+        morningTimes: Map<Int, String>, afternoonTimes: Map<Int, String>, eveningTimes: Map<Int, String>
+    ) {
+        repository.applyTimeImportToCurrentSchedule(
+            morningSections, afternoonSections, eveningSections,
+            morningTimes, afternoonTimes, eveningTimes
+        )
+    }
+
     fun resetSectionTimes() {
         val defaults = com.haooz.chedule.data.Course
         _morningTimes.value = defaults.defaultMorningTimes

@@ -784,6 +784,8 @@ fun SwitchScheduleScreen(
                                 showAddDialog = false
                                 newScheduleName = ""
                                 scheduleNames = repository.addSchedule(name)
+                                // 手动新建课表：自动新建默认专属时间配置（跟随课表名）
+                                repository.createDefaultTimeConfigForSchedule(name)
                                 currentScheduleId = name
                                 repository.switchToSchedule(name)
                                 onScheduleChanged()
