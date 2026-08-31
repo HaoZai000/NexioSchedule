@@ -123,6 +123,7 @@
                 android:layout_height="match_parent"
                 android:layout_weight="1"
                 android:orientation="vertical"
+                android:gravity="center_vertical"
                 android:paddingStart="30px">
 
                 <TextView
@@ -138,15 +139,10 @@
                 <TextView
                     android:id="@+id/widget_info1"
                     android:layout_width="match_parent"
-                    android:layout_height="0px"
-                    android:layout_weight="1"
+                    android:layout_height="wrap_content"
                     android:layout_marginTop="6px"
-                    android:maxLines="2"
+                    android:maxLines="1"
                     android:ellipsize="end"
-                    android:autoSizeTextType="uniform"
-                    android:autoSizeMinTextSize="24px"
-                    android:autoSizeMaxTextSize="36px"
-                    android:autoSizeStepGranularity="1px"
                     android:textSize="36px"
                     android:textColor="@color/widget_time_end_color"
                     android:fontFamily="sans-serif-medium" />
@@ -226,6 +222,7 @@
                 android:layout_height="match_parent"
                 android:layout_weight="1"
                 android:orientation="vertical"
+                android:gravity="center_vertical"
                 android:paddingStart="30px">
 
                 <TextView
@@ -241,15 +238,10 @@
                 <TextView
                     android:id="@+id/widget_info2"
                     android:layout_width="match_parent"
-                    android:layout_height="0px"
-                    android:layout_weight="1"
+                    android:layout_height="wrap_content"
                     android:layout_marginTop="6px"
-                    android:maxLines="2"
+                    android:maxLines="1"
                     android:ellipsize="end"
-                    android:autoSizeTextType="uniform"
-                    android:autoSizeMinTextSize="24px"
-                    android:autoSizeMaxTextSize="36px"
-                    android:autoSizeStepGranularity="1px"
                     android:textSize="36px"
                     android:textColor="@color/widget_time_end_color"
                     android:fontFamily="sans-serif-medium" />

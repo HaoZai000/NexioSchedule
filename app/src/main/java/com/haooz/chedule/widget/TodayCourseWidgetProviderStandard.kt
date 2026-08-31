@@ -9,7 +9,6 @@ import android.content.Context
 import android.content.Intent
 import android.graphics.Bitmap
 import android.graphics.Canvas
-import android.graphics.Color
 import android.graphics.Paint
 import android.view.View
 import android.widget.RemoteViews
@@ -59,6 +58,7 @@ class TodayCourseWidgetProviderStandard : AppWidgetProvider() {
         appWidgetId: Int
     ) {
         val repository = CourseRepository(context)
+        val dark = WidgetTextSizes.isDark(context)
         val views = RemoteViews(context.packageName, R.layout.widget_today_course_standard)
         applyWidgetMode(views, repository)
         WidgetTextSizes.applyTodayCourse(views)
@@ -175,7 +175,8 @@ class TodayCourseWidgetProviderStandard : AppWidgetProvider() {
             for (i in dotIds.indices) {
                 if (i < dotCourses.size) {
                     views.setViewVisibility(dotIds[i], View.VISIBLE)
-                    views.setImageViewBitmap(dotIds[i], createCircleBitmap(dotCourses[i].colorRes.toInt()))
+                    views.setImageViewBitmap(dotIds[i], createCircleBitmap(dotCourses[i].colorRes.toInt(),
+                        if (dark) WidgetTextSizes.TODAY_BG_DARK else WidgetTextSizes.TODAY_BG_LIGHT))
                 } else {
                     views.setViewVisibility(dotIds[i], View.GONE)
                 }
@@ -231,10 +232,10 @@ class TodayCourseWidgetProviderStandard : AppWidgetProvider() {
         )
     }
 
-    private fun createCircleBitmap(color: Int): Bitmap {
+    private fun createCircleBitmap(color: Int, background: Int): Bitmap {
         val size = 24
-        // 用不透明的白色底填充，避免透明像素被桌面渲染成灰色方块
-        val bitmap = createBitmap(size, size).apply { eraseColor(Color.WHITE) }
+        // 用不透明的卡片底色填充，避免透明像素被桌面渲染成灰色方块
+        val bitmap = createBitmap(size, size).apply { eraseColor(background) }
         val canvas = Canvas(bitmap)
         val paint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
             this.color = color

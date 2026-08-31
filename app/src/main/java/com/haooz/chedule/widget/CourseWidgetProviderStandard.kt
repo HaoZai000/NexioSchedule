@@ -9,7 +9,6 @@ import android.content.Context
 import android.content.Intent
 import android.graphics.Bitmap
 import android.graphics.Canvas
-import android.graphics.Color
 import android.graphics.Paint
 import android.view.View
 import android.widget.RemoteViews
@@ -24,8 +23,9 @@ class CourseWidgetProviderStandard : AppWidgetProvider() {
     companion object {
         const val ACTION_UPDATE_WIDGET = "com.haooz.chedule.UPDATE_WIDGET_STANDARD"
 
-        // 进行中课程卡片(#1A2196F3)叠加在根背景(#F7F7F7)上的不透明等效色，用于色条位图背景
-        val ACTIVE_CARD_OPAQUE_BG: Int = Color.rgb(0xE1, 0xED, 0xF7)
+        // 进行中课程卡片(#1A2196F3)叠加在卡片底上的不透明等效色，用于色条位图背景
+        val ACTIVE_CARD_OPAQUE_BG_LIGHT: Int = WidgetTextSizes.CARD_ACTIVE_OPAQUE_BG_LIGHT
+        val ACTIVE_CARD_OPAQUE_BG_DARK: Int = WidgetTextSizes.CARD_ACTIVE_OPAQUE_BG_DARK
 
         fun updateAllWidgets(context: Context) {
             val intent = Intent(context, CourseWidgetProviderStandard::class.java).apply {
@@ -62,6 +62,7 @@ class CourseWidgetProviderStandard : AppWidgetProvider() {
         appWidgetId: Int
     ) {
         val repository = CourseRepository(context)
+        val dark = WidgetTextSizes.isDark(context)
         val views = RemoteViews(context.packageName, R.layout.widget_course_reminder_standard)
         applyWidgetMode(views, repository)
         WidgetTextSizes.applyCourseReminder(views)
@@ -158,7 +159,11 @@ class CourseWidgetProviderStandard : AppWidgetProvider() {
             // 色条位图使用不透明卡片底色填充，避免透明像素在部分桌面被渲染成灰色框
             views.setBitmap(R.id.widget_color1, "setImageBitmap",
                 createColorBarBitmap(c1.colorRes.toInt(),
-                    if (remaining1 != null) ACTIVE_CARD_OPAQUE_BG else Color.WHITE))
+                    if (remaining1 != null) {
+                        if (dark) ACTIVE_CARD_OPAQUE_BG_DARK else ACTIVE_CARD_OPAQUE_BG_LIGHT
+                    } else {
+                        if (dark) WidgetTextSizes.CARD_INACTIVE_BG_DARK else WidgetTextSizes.CARD_INACTIVE_BG_LIGHT
+                    }))
             views.setViewVisibility(R.id.widget_now1, if (remaining1 != null) View.VISIBLE else View.GONE)
             if (remaining1 != null) views.setTextViewText(R.id.widget_now1, "${remaining1}分钟结束")
             views.setInt(R.id.widget_course1, "setBackgroundResource",
@@ -176,7 +181,11 @@ class CourseWidgetProviderStandard : AppWidgetProvider() {
                 val remaining2 = if (showTomorrow) null else getRemainingMinutes(start2, end2, currentMinutes)
                 views.setBitmap(R.id.widget_color2, "setImageBitmap",
                     createColorBarBitmap(c2.colorRes.toInt(),
-                        if (remaining2 != null) ACTIVE_CARD_OPAQUE_BG else Color.WHITE))
+                        if (remaining2 != null) {
+                            if (dark) ACTIVE_CARD_OPAQUE_BG_DARK else ACTIVE_CARD_OPAQUE_BG_LIGHT
+                        } else {
+                            if (dark) WidgetTextSizes.CARD_INACTIVE_BG_DARK else WidgetTextSizes.CARD_INACTIVE_BG_LIGHT
+                        }))
                 views.setViewVisibility(R.id.widget_now2, if (remaining2 != null) View.VISIBLE else View.GONE)
                 if (remaining2 != null) views.setTextViewText(R.id.widget_now2, "${remaining2}分钟结束")
                 views.setInt(R.id.widget_course2, "setBackgroundResource",
