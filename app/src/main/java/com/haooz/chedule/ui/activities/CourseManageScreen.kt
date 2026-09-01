@@ -73,6 +73,8 @@ import top.yukonga.miuix.kmp.basic.Icon
 import top.yukonga.miuix.kmp.basic.Scaffold
 import top.yukonga.miuix.kmp.basic.TextButton
 import top.yukonga.miuix.kmp.blur.layerBackdrop
+import top.yukonga.miuix.kmp.squircle.squircleBorder
+import top.yukonga.miuix.kmp.squircle.squircleClip
 import top.yukonga.miuix.kmp.blur.rememberLayerBackdrop
 import top.yukonga.miuix.kmp.icon.MiuixIcons
 import top.yukonga.miuix.kmp.icon.extended.Add
@@ -414,42 +416,23 @@ fun CourseManageScreen(
                                         },
                                     contentAlignment = Alignment.Center
                                 ) {
+                                    // 选中态：沿外圈绘制主题色描边，描边内侧留空，内部填课程色（保留原 alpha）
                                     Box(
                                         modifier = Modifier
                                             .fillMaxSize()
-                                            .graphicsLayer { alpha = borderAlpha }
-                                            .clip(ContinuousRoundedRectangle(12.dp))
-                                            .background(primaryColor)
+                                            .squircleBorder(
+                                                width = 2.dp,
+                                                color = primaryColor.copy(alpha = borderAlpha),
+                                                cornerRadius = 12.dp
+                                            )
+                                            .padding(4.dp)
+                                            .squircleClip(8.dp)
+                                            .background(Color(color).copy(alpha = if (isDark) 0.22f else 0.16f))
                                     )
-                                    Box(
-                                        modifier = Modifier
-                                            .fillMaxSize()
-                                            .padding(if (isSelected) 2.dp else 0.dp)
-                                            .clip(ContinuousRoundedRectangle(10.dp))
-                                            .background(if (isDark) ComposeColor(0xFF1F1F1F) else ComposeColor(0xFFFEFEFE))
-                                    )
-                                    Box(
-                                        modifier = Modifier
-                                            .fillMaxSize()
-                                            .padding(4.dp),
-                                        contentAlignment = Alignment.Center
-                                    ) {
-                                        Card(
-                                            modifier = Modifier.fillMaxSize(),
-                                            cornerRadius = 8.dp,
-                                            insideMargin = PaddingValues(0.dp),
-                                            colors = CardDefaults.defaultColors(
-                                                color = Color(color).copy(alpha = if (isDark) 0.22f else 0.16f),
-                                                contentColor = ComposeColor.White
-                                            ),
-                                            onClick = { newCourseColor = color }
-                                        ) {}
-                                    }
                                 }
                             } else if (colorIndex == allColors.size) {
                                 // 自定义颜色按钮
                                 val isCustomColor = newCourseColor !in allColors
-                                val bgColor = if (isDark) Color(0xFF242424) else Color(0xFFF2F2F2)
                                 val hintColor = MiuixTheme.colorScheme.onSurfaceVariantSummary
                                 val primaryColor = MiuixTheme.colorScheme.primary
                                 var isCustomPressed by remember { mutableStateOf(false) }
@@ -495,59 +478,30 @@ fun CourseManageScreen(
                                         },
                                     contentAlignment = Alignment.Center
                                 ) {
+                                    // 选中态：沿外圈绘制主题色描边，描边内侧留空
                                     Box(
                                         modifier = Modifier
                                             .fillMaxSize()
-                                            .graphicsLayer { alpha = customBorderAlpha }
-                                            .clip(ContinuousRoundedRectangle(12.dp))
-                                            .background(primaryColor)
-                                    )
-                                    Box(
-                                        modifier = Modifier
-                                            .fillMaxSize()
-                                            .padding(if (isCustomColor) 2.dp else 0.dp)
-                                            .clip(ContinuousRoundedRectangle(10.dp))
-                                            .background(if (isDark) ComposeColor(0xFF1F1F1F) else ComposeColor(0xFFFEFEFE))
-                                    )
-                                    Box(
-                                        modifier = Modifier
-                                            .fillMaxSize()
-                                            .padding(4.dp),
+                                            .squircleBorder(
+                                                width = 2.dp,
+                                                color = primaryColor.copy(alpha = customBorderAlpha),
+                                                cornerRadius = 12.dp
+                                            )
+                                            .padding(4.dp)
+                                            .squircleClip(8.dp)
+                                            .background(
+                                                if (isCustomColor) Color(newCourseColor).copy(alpha = if (isDark) 0.22f else 0.16f)
+                                                else if (isDark) ComposeColor(0xFF1F1F1F) else ComposeColor(0xFFFEFEFE)
+                                            ),
                                         contentAlignment = Alignment.Center
                                     ) {
-                                        Card(
-                                            modifier = Modifier.fillMaxSize(),
-                                            cornerRadius = 8.dp,
-                                            insideMargin = PaddingValues(0.dp),
-                                            colors = CardDefaults.defaultColors(
-                                                color = bgColor,
-                                                contentColor = hintColor
-                                            ),
-                                            onClick = {
-                                                customColor = Color(newCourseColor)
-                                                showCustomColorDialog = true
-                                            }
-                                        ) {
-                                            Box(
-                                                modifier = Modifier.fillMaxSize(),
-                                                contentAlignment = Alignment.Center
-                                            ) {
-                                                if (isCustomColor) {
-                                                    Box(
-                                                        modifier = Modifier
-                                                            .size(24.dp)
-                                                            .clip(ContinuousRoundedRectangle(6.dp))
-                                                            .background(Color(newCourseColor))
-                                                    )
-                                                } else {
-                                                    Icon(
-                                                        imageVector = MiuixIcons.Add,
-                                                        contentDescription = "自定义颜色",
-                                                        modifier = Modifier.size(18.dp),
-                                                        tint = hintColor
-                                                    )
-                                                }
-                                            }
+                                        if (!isCustomColor) {
+                                            Icon(
+                                                imageVector = MiuixIcons.Add,
+                                                contentDescription = "自定义颜色",
+                                                modifier = Modifier.size(18.dp),
+                                                tint = hintColor
+                                            )
                                         }
                                     }
                                 }

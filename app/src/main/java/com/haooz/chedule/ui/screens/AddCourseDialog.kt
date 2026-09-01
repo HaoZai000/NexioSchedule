@@ -40,7 +40,6 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
-import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
@@ -61,7 +60,6 @@ import com.haooz.chedule.ui.utils.isAppDarkTheme
 import com.haooz.chedule.ui.utils.overScrollVertical
 import com.haooz.chedule.ui.utils.rememberAppSettingDark
 import com.kyant.backdrop.Backdrop
-import com.kyant.capsule.ContinuousRoundedRectangle
 import top.yukonga.miuix.kmp.basic.Button
 import top.yukonga.miuix.kmp.basic.ButtonDefaults
 import top.yukonga.miuix.kmp.basic.Card
@@ -82,6 +80,8 @@ import top.yukonga.miuix.kmp.overlay.BlurBottomSheetTablet
 import top.yukonga.miuix.kmp.overlay.LocalSheetTopBarMaterial
 import top.yukonga.miuix.kmp.overlay.OverlayDialog
 import top.yukonga.miuix.kmp.preference.ArrowPreference
+import top.yukonga.miuix.kmp.squircle.squircleBorder
+import top.yukonga.miuix.kmp.squircle.squircleClip
 import top.yukonga.miuix.kmp.theme.ColorSchemeMode
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 import top.yukonga.miuix.kmp.theme.ThemeController
@@ -642,50 +642,54 @@ fun AddCourseDialog(
         }
     }
 
-    // 自定义颜色选择弹窗
+    // 自定义颜色选择弹窗（强制跟随应用主题，与节次/时间/删除弹窗一致）
     OverlayDialog(
         title = "选择颜色",
         show = showColorDialog,
         onDismissRequest = { showColorDialog = false },
         liquidGlassBackdrop = liquidGlassBackdrop
     ) {
-        Column(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalAlignment = Alignment.CenterHorizontally
-        ) {
-            ColorPalette(
-                color = customColor,
-                onColorChanged = { customColor = it },
-                cornerRadius = 20.dp,
-                indicatorRadius = 12.dp
-            )
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(top = 16.dp),
-                horizontalArrangement = Arrangement.spacedBy(12.dp)
-            ) {
-                TextButton(
-                    text = "取消",
-                    onClick = {
-                        hapticFeedback.performHapticFeedback(HapticFeedbackType.Confirm)
-                        showColorDialog = false
-                    },
-                    modifier = Modifier.weight(1f)
-                )
-                TextButton(
-                    text = "确定",
-                    onClick = {
-                        hapticFeedback.performHapticFeedback(HapticFeedbackType.Confirm)
-                        selectedColor = (customColor.alpha * 255).toInt().toLong() shl 24 or
-                                ((customColor.red * 255).toInt().toLong() shl 16) or
-                                ((customColor.green * 255).toInt().toLong() shl 8) or
-                                (customColor.blue * 255).toInt().toLong()
-                        showColorDialog = false
-                    },
-                    colors = ButtonDefaults.textButtonColorsPrimary(),
-                    modifier = Modifier.weight(1f)
-                )
+        MiuixTheme(controller = appDialogController) {
+            CompositionLocalProvider(LocalForcedDarkTheme provides null) {
+                Column(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalAlignment = Alignment.CenterHorizontally
+                ) {
+                    ColorPalette(
+                        color = customColor,
+                        onColorChanged = { customColor = it },
+                        cornerRadius = 20.dp,
+                        indicatorRadius = 12.dp
+                    )
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(top = 16.dp),
+                        horizontalArrangement = Arrangement.spacedBy(12.dp)
+                    ) {
+                        TextButton(
+                            text = "取消",
+                            onClick = {
+                                hapticFeedback.performHapticFeedback(HapticFeedbackType.Confirm)
+                                showColorDialog = false
+                            },
+                            modifier = Modifier.weight(1f)
+                        )
+                        TextButton(
+                            text = "确定",
+                            onClick = {
+                                hapticFeedback.performHapticFeedback(HapticFeedbackType.Confirm)
+                                selectedColor = (customColor.alpha * 255).toInt().toLong() shl 24 or
+                                        ((customColor.red * 255).toInt().toLong() shl 16) or
+                                        ((customColor.green * 255).toInt().toLong() shl 8) or
+                                        (customColor.blue * 255).toInt().toLong()
+                                showColorDialog = false
+                            },
+                            colors = ButtonDefaults.textButtonColorsPrimary(),
+                            modifier = Modifier.weight(1f)
+                        )
+                    }
+                }
             }
         }
     }
@@ -736,6 +740,18 @@ private fun AddCourseDialogContent(
     val statusBarsPadding = WindowInsets.statusBars.asPaddingValues().calculateTopPadding()
     val isTablet = LocalConfiguration.current.screenWidthDp >= 600
 
+    // 稳定化回调：解析/编辑课程名等文字输入触发的父级重组会重建这些内联 lambda，
+    // 此处固定其引用，使周次/星期/颜色网格等重卡在参数未变时被 Compose 跳过重组。
+    val stableOnDayOfWeekChange = remember { onDayOfWeekChange }
+    val stableOnIsCustomTimeChange = remember { onIsCustomTimeChange }
+    val stableOnShowTimeDialog = remember { onShowTimeDialog }
+    val stableOnShowSectionDialog = remember { onShowSectionDialog }
+    val stableOnIsSingleWeekChange = remember { onIsSingleWeekChange }
+    val stableOnIsDoubleWeekChange = remember { onIsDoubleWeekChange }
+    val stableOnSelectedColorChange = remember { onSelectedColorChange }
+    val stableOnShowColorDialog = remember { onShowColorDialog }
+    val stableOnDeleteClick = remember { onDeleteClick }
+
     Column(
         modifier = Modifier
             .fillMaxWidth()
@@ -750,651 +766,65 @@ private fun AddCourseDialogContent(
         Spacer(modifier = Modifier.height(if (isTablet) 56.dp else 58.dp))
 
         // 基本信息卡片
-        Card(
-            cornerRadius = 20.dp,
-            modifier = Modifier.fillMaxWidth(),
-            colors = CardDefaults.defaultColors(
-                color = if (isDark) Color(0xFF363636).copy(alpha = 0.62f) else Color(0xFFFFFFFF).copy(alpha = 0.7f),
-                contentColor = MiuixTheme.colorScheme.onSurface
-            )
-        ) {
-            Column(modifier = Modifier.fillMaxWidth()) {
-                // 课程名称
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(start = 16.dp, end = 16.dp, top = 17.dp, bottom = 14.dp),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Text(
-                        text = "课程名称",
-                        modifier = Modifier.weight(1f),
-                        fontSize = 17.sp,
-                        fontWeight = FontWeight.Medium,
-                        color = MiuixTheme.colorScheme.onSurface
-                    )
-                    NativeTextField(
-                        value = name,
-                        onValueChange = onNameChange,
-                        modifier = Modifier.fillMaxWidth(0.65f),
-                        hint = "必填",
-                        singleLine = true,
-                        textAlign = TextAlign.End,
-                        textStyle = TextStyle(
-                            fontSize = 17.sp,
-                            fontWeight = FontWeight.Medium
-                        )
-                    )
-                }
-
-                // 教室
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(start = 16.dp, end = 16.dp, top = 14.dp, bottom = 14.dp),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Text(
-                        text = "地点",
-                        modifier = Modifier.weight(1f),
-                        fontSize = 17.sp,
-                        fontWeight = FontWeight.Medium,
-                        color = MiuixTheme.colorScheme.onSurface
-                    )
-                    NativeTextField(
-                        value = classroom,
-                        onValueChange = onClassroomChange,
-                        modifier = Modifier.fillMaxWidth(0.65f),
-                        hint = "非必填",
-                        singleLine = true,
-                        textAlign = TextAlign.End,
-                        textStyle = TextStyle(
-                            fontSize = 17.sp,
-                            fontWeight = FontWeight.Medium
-                        )
-                    )
-                }
-
-                // 教师
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(start = 16.dp, end = 16.dp, top = 14.dp, bottom = 17.dp),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Text(
-                        text = "教师",
-                        modifier = Modifier.weight(1f),
-                        fontSize = 17.sp,
-                        fontWeight = FontWeight.Medium,
-                        color = MiuixTheme.colorScheme.onSurface
-                    )
-                    NativeTextField(
-                        value = teacher,
-                        onValueChange = onTeacherChange,
-                        modifier = Modifier.fillMaxWidth(0.65f),
-                        hint = "非必填",
-                        singleLine = true,
-                        textAlign = TextAlign.End,
-                        textStyle = TextStyle(
-                            fontSize = 17.sp,
-                            fontWeight = FontWeight.Medium
-                        )
-                    )
-                }
-            }
-        }
+        BasicInfoCard(
+            isDark = isDark,
+            name = name,
+            onNameChange = onNameChange,
+            classroom = classroom,
+            onClassroomChange = onClassroomChange,
+            teacher = teacher,
+            onTeacherChange = onTeacherChange,
+        )
 
         // 上课星期卡片
-        Card(
-            cornerRadius = 20.dp,
-            modifier = Modifier.fillMaxWidth(),
-            colors = CardDefaults.defaultColors(
-                color = if (isDark) Color(0xFF363636).copy(alpha = 0.62f) else Color(0xFFFFFFFF).copy(alpha = 0.7f),
-                contentColor = MiuixTheme.colorScheme.onSurface
-            )
-        ) {
-            Column(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(vertical = 17.dp, horizontal = 16.dp)
-            ) {
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(bottom = 10.dp),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Text(
-                        text = "上课星期",
-                        fontSize = 17.sp,
-                        fontWeight = FontWeight.Medium,
-                        color = MiuixTheme.colorScheme.onSurface,
-                        modifier = Modifier.weight(1f)
-                    )
-                    Checkbox(
-                        state = if (isCustomTime) ToggleableState.On else ToggleableState.Off,
-                        onClick = { onIsCustomTimeChange(!isCustomTime) }
-                    )
-                    Spacer(modifier = Modifier.width(4.dp))
-                    Text(
-                        text = "自定义时间",
-                        fontSize = 15.sp,
-                        color = MiuixTheme.colorScheme.onSurfaceVariantSummary
-                    )
-                }
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(6.dp)
-                ) {
-                    val dayLabels = remember { listOf("一", "二", "三", "四", "五", "六", "日") }
-                    for (day in 1..7) {
-                        val isSelected = day == dayOfWeek
-                        Card(
-                            modifier = Modifier
-                                .weight(1f)
-                                .height(32.dp),
-                            cornerRadius = 10.dp,
-                            insideMargin = PaddingValues(0.dp),
-                            pressFeedbackType = PressFeedbackType.Sink,
-                            colors = if (isSelected) CardDefaults.defaultColors(
-                                color = MiuixTheme.colorScheme.primary,
-                                contentColor = Color.White
-                            ) else CardDefaults.defaultColors(
-                                color = if (isDark) Color(0xFF363636) else Color(0xFFF2F2F2)
-                            ),
-                            onClick = { onDayOfWeekChange(day) }
-                        ) {
-                            Box(
-                                modifier = Modifier.fillMaxSize(),
-                                contentAlignment = Alignment.Center
-                            ) {
-                                Text(
-                                    text = dayLabels[day - 1],
-                                    fontSize = 14.sp,
-                                    color = if (isSelected) Color.White else MiuixTheme.colorScheme.onSurfaceVariantSummary
-                                )
-                            }
-                        }
-                    }
-                }
-            }
-        }
+        WeekdayCard(
+            isDark = isDark,
+            isCustomTime = isCustomTime,
+            onIsCustomTimeChange = stableOnIsCustomTimeChange,
+            dayOfWeek = dayOfWeek,
+            onDayOfWeekChange = stableOnDayOfWeekChange,
+        )
 
         // 节次范围 / 上课时间（勾选自定义时间后切换为时间选择）
-        Card(
-            cornerRadius = 20.dp,
-            modifier = Modifier.fillMaxWidth(),
-            colors = CardDefaults.defaultColors(
-                color = if (isDark) Color(0xFF363636).copy(alpha = 0.62f) else Color(0xFFFFFFFF).copy(alpha = 0.7f),
-                contentColor = MiuixTheme.colorScheme.onSurface
-            )
-        ) {
-            if (isCustomTime) {
-                ArrowPreference(
-                    title = "上课时间",
-                    endActions = {
-                        Text(
-                            text = if (customStartTime.isNotBlank() && customEndTime.isNotBlank())
-                                "$customStartTime - $customEndTime" else "未设置",
-                            fontSize = 14.5.sp,
-                            color = MiuixTheme.colorScheme.onSurfaceVariantActions
-                        )
-                    },
-                    onClick = onShowTimeDialog,
-                )
-            } else {
-                ArrowPreference(
-                    title = "上课节次",
-                    endActions = {
-                        Text(
-                            text = "第${startSection} - ${endSection}节",
-                            fontSize = 14.5.sp,
-                            color = MiuixTheme.colorScheme.onSurfaceVariantActions
-                        )
-                    },
-                    onClick = onShowSectionDialog,
-                )
-            }
-        }
+        SectionTimeCard(
+            isDark = isDark,
+            isCustomTime = isCustomTime,
+            customStartTime = customStartTime,
+            customEndTime = customEndTime,
+            onShowTimeDialog = stableOnShowTimeDialog,
+            startSection = startSection,
+            endSection = endSection,
+            onShowSectionDialog = stableOnShowSectionDialog,
+        )
 
         // 周次设置
-        val noDaySelected = dayOfWeek == 0
-        Card(
-            cornerRadius = 20.dp,
-            modifier = Modifier.fillMaxWidth().alpha(if (noDaySelected) 0.5f else 1f),
-            colors = CardDefaults.defaultColors(
-                color = if (isDark) Color(0xFF363636).copy(alpha = 0.62f) else Color(0xFFFFFFFF).copy(alpha = 0.7f),
-                contentColor = MiuixTheme.colorScheme.onSurface
-            )
-        ) {
-            Column(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(16.dp)
-            ) {
-                val hasMixedSelection = someSelectableOddSelected && someSelectableEvenSelected
-
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Text(
-                        text = "上课周次",
-                        modifier = Modifier.weight(1f),
-                        fontSize = 17.sp,
-                        fontWeight = FontWeight.Medium,
-                        color = MiuixTheme.colorScheme.onSurface
-                    )
-                    Row(
-                        horizontalArrangement = Arrangement.spacedBy(8.dp),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        // 全部
-                        Row(
-                            verticalAlignment = Alignment.CenterVertically,
-                        ) {
-                            Checkbox(
-                                state = if (allSelectableSelected) ToggleableState.On else ToggleableState.Off,
-                                onClick = if (noDaySelected) null else {
-                                    {
-                                        if (allSelectableSelected) {
-                                            selectedWeeks.clear()
-                                        } else {
-                                            selectedWeeks.clear()
-                                            selectedWeeks.addAll(selectableWeeks)
-                                        }
-                                        onIsSingleWeekChange(false)
-                                    }
-                                },
-
-                            )
-                            Spacer(modifier = Modifier.width(4.dp))
-                            Text(text = "全部", fontSize = 15.sp, color = MiuixTheme.colorScheme.onSurfaceVariantSummary)
-                        }
-
-                        // 单周
-                        Row(
-                            verticalAlignment = Alignment.CenterVertically,
-                        ) {
-                            Checkbox(
-                                state = when {
-                                    hasMixedSelection -> ToggleableState.Off
-                                    allSelectableOddSelected && !hasOccupiedOddWeeks -> ToggleableState.On
-                                    someSelectableOddSelected -> ToggleableState.Indeterminate
-                                    else -> ToggleableState.Off
-                                },
-                                onClick = if (noDaySelected) null else {
-                                    {
-                                        if (hasMixedSelection) {
-                                            selectedWeeks.clear()
-                                            selectedWeeks.addAll(selectableOddWeeks)
-                                            onIsSingleWeekChange(true)
-                                        } else if (allSelectableOddSelected) {
-                                            selectedWeeks.clear()
-                                            onIsSingleWeekChange(false)
-                                        } else {
-                                            selectedWeeks.clear()
-                                            selectedWeeks.addAll(selectableOddWeeks)
-                                            onIsSingleWeekChange(true)
-                                        }
-                                    }
-                                },
-
-                            )
-                            Spacer(modifier = Modifier.width(4.dp))
-                            Text(text = "单周", fontSize = 15.sp, color = MiuixTheme.colorScheme.onSurfaceVariantSummary)
-                        }
-
-                        // 双周
-                        Row(
-                            verticalAlignment = Alignment.CenterVertically,
-                        ) {
-                            Checkbox(
-                                state = when {
-                                    hasMixedSelection -> ToggleableState.Off
-                                    allSelectableEvenSelected && !hasOccupiedEvenWeeks -> ToggleableState.On
-                                    someSelectableEvenSelected -> ToggleableState.Indeterminate
-                                    else -> ToggleableState.Off
-                                },
-                                onClick = if (noDaySelected) null else {
-                                    {
-                                        if (hasMixedSelection) {
-                                            selectedWeeks.clear()
-                                            selectedWeeks.addAll(selectableEvenWeeks)
-                                            onIsDoubleWeekChange(true)
-                                        } else if (allSelectableEvenSelected) {
-                                            selectedWeeks.clear()
-                                            onIsDoubleWeekChange(false)
-                                        } else {
-                                            selectedWeeks.clear()
-                                            selectedWeeks.addAll(selectableEvenWeeks)
-                                            onIsDoubleWeekChange(true)
-                                        }
-                                    }
-                                },
-
-                            )
-                            Spacer(modifier = Modifier.width(4.dp))
-                            Text(text = "双周", fontSize = 15.sp, color = MiuixTheme.colorScheme.onSurfaceVariantSummary)
-                        }
-                    }
-                }
-
-                Spacer(modifier = Modifier.height(10.dp))
-
-                // 周次网格
-                val columns = 6
-                val rows = remember(totalWeeks, columns) { (totalWeeks + columns - 1) / columns }
-                val primaryColor = MiuixTheme.colorScheme.primary
-                val outlineColor = MiuixTheme.colorScheme.outline
-                val onSurfaceColor = MiuixTheme.colorScheme.onSurface
-                val onSurfaceSummaryColor = MiuixTheme.colorScheme.onSurfaceVariantSummary
-                val occupiedColor = if (isDark) Color(0xFF4A4A4A) else Color(0xFFF0F0F0)
-
-                val weekStates = (1..totalWeeks).map { weekNum ->
-                    val isSelected = weekNum in selectedWeeks
-                    val isOccupied = weekNum in currentOccupiedWeeks
-                    Triple(weekNum, isSelected, isOccupied)
-                }
-
-                Column(
-                    modifier = Modifier.fillMaxWidth(),
-                    verticalArrangement = Arrangement.spacedBy(6.dp)
-                ) {
-                    for (row in 0 until rows) {
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.spacedBy(6.dp)
-                        ) {
-                            for (col in 0 until columns) {
-                                val idx = row * columns + col
-                                if (idx < weekStates.size) {
-                                    val (weekNum, isSelected, isOccupied) = weekStates[idx]
-                                    Card(
-                                        modifier = Modifier
-                                            .weight(1f)
-                                            .height(32.dp),
-                                        cornerRadius = 10.dp,
-                                        insideMargin = PaddingValues(0.dp),
-                                        pressFeedbackType = PressFeedbackType.Sink,
-                                        showIndication = !noDaySelected && !isOccupied,
-                                        colors = CardDefaults.defaultColors(
-                                            color = when {
-                                                isSelected -> primaryColor
-                                                isOccupied -> occupiedColor
-                                                else -> if (isDark) Color(0xFF363636) else Color(0xFFF2F2F2)
-                                            },
-                                            contentColor = when {
-                                                noDaySelected -> outlineColor
-                                                isSelected -> Color.White
-                                                isOccupied -> outlineColor
-                                                else -> onSurfaceColor
-                                            }
-                                        ),
-                                        onClick = if (noDaySelected || isOccupied) null else {
-                                            {
-                                                if (isSelected) {
-                                                    selectedWeeks.remove(weekNum)
-                                                } else {
-                                                    selectedWeeks.add(weekNum)
-                                                }
-                                                onIsSingleWeekChange(false)
-                                            }
-                                        }
-                                    ) {
-                                        Box(
-                                            modifier = Modifier.fillMaxSize(),
-                                            contentAlignment = Alignment.Center
-                                        ) {
-                                            Text(
-                                                text = "$weekNum",
-                                                fontSize = 13.sp,
-                                                color = when {
-                                                    noDaySelected -> if (isDark) Color(0xFF606060) else outlineColor
-                                                    isSelected -> Color.White
-                                                    isOccupied -> if (isDark) Color(0xFF606060) else outlineColor
-                                                    else -> onSurfaceSummaryColor
-                                                }
-                                            )
-                                        }
-                                    }
-                                } else {
-                                    Spacer(modifier = Modifier.weight(1f))
-                                }
-                            }
-                        }
-                    }
-                }
-            }
-        }
+        WeekSettingCard(
+            isDark = isDark,
+            dayOfWeek = dayOfWeek,
+            onIsSingleWeekChange = stableOnIsSingleWeekChange,
+            onIsDoubleWeekChange = stableOnIsDoubleWeekChange,
+            selectedWeeks = selectedWeeks,
+            selectableWeeks = selectableWeeks,
+            selectableOddWeeks = selectableOddWeeks,
+            selectableEvenWeeks = selectableEvenWeeks,
+            allSelectableSelected = allSelectableSelected,
+            allSelectableOddSelected = allSelectableOddSelected,
+            allSelectableEvenSelected = allSelectableEvenSelected,
+            someSelectableOddSelected = someSelectableOddSelected,
+            someSelectableEvenSelected = someSelectableEvenSelected,
+            hasOccupiedOddWeeks = hasOccupiedOddWeeks,
+            hasOccupiedEvenWeeks = hasOccupiedEvenWeeks,
+            currentOccupiedWeeks = currentOccupiedWeeks,
+            totalWeeks = totalWeeks,
+        )
 
         // 课程颜色选择
-        Card(
-            cornerRadius = 20.dp,
-            modifier = Modifier.fillMaxWidth(),
-            colors = CardDefaults.defaultColors(
-                color = if (isDark) Color(0xFF363636).copy(alpha = 0.62f) else Color(0xFFFFFFFF).copy(alpha = 0.7f),
-                contentColor = MiuixTheme.colorScheme.onSurface
-            )
-        ) {
-            Column(modifier = Modifier.fillMaxWidth()) {
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(vertical = 14.dp, horizontal = 16.dp),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Text(
-                        text = "课程颜色",
-                        modifier = Modifier.weight(1f),
-                        fontSize = 17.sp,
-                        fontWeight = FontWeight.Medium,
-                        color = MiuixTheme.colorScheme.onSurface
-                    )
-                }
-                Column(
-                    modifier = Modifier.fillMaxWidth().padding(start = 16.dp, end = 16.dp, bottom = 12.dp),
-                    verticalArrangement = Arrangement.spacedBy(12.dp)
-                ) {
-                    val colorColumns = 6
-                    val allColors = remember { Course.courseColors }
-                    val totalItems = remember(allColors) { allColors.size + 1 }
-                    val colorRows = remember(totalItems, colorColumns) { (totalItems + colorColumns - 1) / colorColumns }
-                    for (row in 0 until colorRows) {
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.spacedBy(12.dp)
-                        ) {
-                            for (col in 0 until colorColumns) {
-                                val colorIndex = row * colorColumns + col
-                                if (colorIndex < allColors.size) {
-                                    val color = allColors[colorIndex]
-                                    val isSelected = color == selectedColor
-                                    var isPressed by remember { mutableStateOf(false) }
-                                    val primaryColor = MiuixTheme.colorScheme.primary
-                                    val scale = remember { Animatable(1f) }
-                                    val borderAlpha by animateFloatAsState(
-                                        targetValue = if (isSelected) 1f else 0f,
-                                        animationSpec = tween(durationMillis = 200),
-                                        label = "borderAlpha"
-                                    )
-                                    LaunchedEffect(isPressed) {
-                                        if (isPressed) {
-                                            scale.animateTo(
-                                                targetValue = 0.94f,
-                                                animationSpec = tween(durationMillis = 100)
-                                            )
-                                        } else {
-                                            scale.animateTo(
-                                                targetValue = 1f,
-                                                animationSpec = tween(durationMillis = 180)
-                                            )
-                                        }
-                                    }
-                                    Box(
-                                        modifier = Modifier
-                                            .weight(1f)
-                                            .aspectRatio(1f)
-                                            .graphicsLayer {
-                                                scaleX = scale.value
-                                                scaleY = scale.value
-                                            }
-                                            .pointerInput(Unit) {
-                                                awaitPointerEventScope {
-                                                    while (true) {
-                                                        val event = awaitPointerEvent()
-                                                        val anyPressed = event.changes.any { it.pressed }
-                                                        isPressed = anyPressed
-                                                        if (!anyPressed) {
-                                                            onSelectedColorChange(color)
-                                                        }
-                                                    }
-                                                }
-                                            },
-                                        contentAlignment = Alignment.Center
-                                    ) {
-                                        Box(
-                                            modifier = Modifier
-                                                .fillMaxSize()
-                                                .graphicsLayer { alpha = borderAlpha }
-                                                .clip(ContinuousRoundedRectangle(12.dp))
-                                                .background(primaryColor)
-                                        )
-                                        Box(
-                                            modifier = Modifier
-                                                .fillMaxSize()
-                                                .padding(if (isSelected) 2.dp else 0.dp)
-                                                .clip(ContinuousRoundedRectangle(10.dp))
-                                                .background(if (isDark) Color(0xFF2B2B2B) else Color(0xFFFBFBFB))
-                                        )
-                                        Box(
-                                            modifier = Modifier
-                                                .fillMaxSize()
-                                                .padding(4.dp),
-                                            contentAlignment = Alignment.Center
-                                        ) {
-                                            Card(
-                                                modifier = Modifier.fillMaxSize(),
-                                                cornerRadius = 8.dp,
-                                                insideMargin = PaddingValues(0.dp),
-                                                colors = CardDefaults.defaultColors(
-                                                    color = Color(color).copy(alpha = if (isDark) 0.22f else 0.16f),
-                                                    contentColor = Color.White
-                                                ),
-                                                onClick = { onSelectedColorChange(color) }
-                                            ) {}
-                                        }
-                                    }
-                                } else if (colorIndex == allColors.size) {
-                                    val isCustomColor = selectedColor !in allColors
-                                    val bgColor = if (isDark) Color(0xFF242424) else Color(0xFFF2F2F2)
-                                    val hintColor = MiuixTheme.colorScheme.onSurfaceVariantSummary
-                                    val primaryColor = MiuixTheme.colorScheme.primary
-                                    var isCustomPressed by remember { mutableStateOf(false) }
-                                    val customScale = remember { Animatable(1f) }
-                                    val customBorderAlpha by animateFloatAsState(
-                                        targetValue = if (isCustomColor) 1f else 0f,
-                                        animationSpec = tween(durationMillis = 200),
-                                        label = "customBorderAlpha"
-                                    )
-                                    LaunchedEffect(isCustomPressed) {
-                                        if (isCustomPressed) {
-                                            customScale.animateTo(
-                                                targetValue = 0.94f,
-                                                animationSpec = tween(durationMillis = 100)
-                                            )
-                                        } else {
-                                            customScale.animateTo(
-                                                targetValue = 1f,
-                                                animationSpec = tween(durationMillis = 180)
-                                            )
-                                        }
-                                    }
-                                    Box(
-                                        modifier = Modifier
-                                            .weight(1f)
-                                            .aspectRatio(1f)
-                                            .graphicsLayer {
-                                                scaleX = customScale.value
-                                                scaleY = customScale.value
-                                            }
-                                            .pointerInput(Unit) {
-                                                awaitPointerEventScope {
-                                                    while (true) {
-                                                        val event = awaitPointerEvent()
-                                                        val anyPressed = event.changes.any { it.pressed }
-                                                        isCustomPressed = anyPressed
-                                                        if (!anyPressed) {
-                                                            onShowColorDialog()
-                                                        }
-                                                    }
-                                                }
-                                            },
-                                        contentAlignment = Alignment.Center
-                                    ) {
-                                        Box(
-                                            modifier = Modifier
-                                                .fillMaxSize()
-                                                .graphicsLayer { alpha = customBorderAlpha }
-                                                .clip(ContinuousRoundedRectangle(12.dp))
-                                                .background(primaryColor)
-                                        )
-                                        Box(
-                                            modifier = Modifier
-                                                .fillMaxSize()
-                                                .padding(if (isCustomColor) 2.dp else 0.dp)
-                                                .clip(ContinuousRoundedRectangle(10.dp))
-                                                .background(if (isDark) Color(0xFF2B2B2B) else Color(0xFFFBFBFB))
-                                        )
-                                        Box(
-                                            modifier = Modifier
-                                                .fillMaxSize()
-                                                .padding(4.dp),
-                                            contentAlignment = Alignment.Center
-                                        ) {
-                                            Card(
-                                                modifier = Modifier.fillMaxSize(),
-                                                cornerRadius = 8.dp,
-                                                insideMargin = PaddingValues(0.dp),
-                                                colors = CardDefaults.defaultColors(
-                                                    color = bgColor,
-                                                    contentColor = hintColor
-                                                ),
-                                                onClick = onShowColorDialog
-                                            ) {
-                                                Box(
-                                                    modifier = Modifier.fillMaxSize(),
-                                                    contentAlignment = Alignment.Center
-                                                ) {
-                                                    if (isCustomColor) {
-                                                        Box(
-                                                            modifier = Modifier
-                                                                .fillMaxSize(0.7f)
-                                                                .clip(ContinuousRoundedRectangle(4.dp))
-                                                                .background(Color(selectedColor).copy(alpha = if (isDark) 0.22f else 0.16f))
-                                                        )
-                                                    } else {
-                                                        Icon(
-                                                            imageVector = MiuixIcons.Add,
-                                                            contentDescription = "自定义颜色",
-                                                            modifier = Modifier.size(18.dp),
-                                                            tint = hintColor
-                                                        )
-                                                    }
-                                                }
-                                            }
-                                        }
-                                    }
-                                } else {
-                                    Spacer(modifier = Modifier.weight(1f))
-                                }
-                            }
-                        }
-                    }
-                }
-            }
-        }
+        ColorCard(
+            isDark = isDark,
+            selectedColor = selectedColor,
+            onSelectedColorChange = stableOnSelectedColorChange,
+            onShowColorDialog = stableOnShowColorDialog,
+        )
 
         // 删除按钮（仅编辑模式）
         if (isEdit) {
@@ -1402,7 +832,7 @@ private fun AddCourseDialogContent(
                 modifier = Modifier.fillMaxWidth().height(50.dp),
                 onClick = {
                     hapticFeedback.performHapticFeedback(HapticFeedbackType.Confirm)
-                    onDeleteClick()
+                    stableOnDeleteClick()
                 },
                 colors = ButtonDefaults.buttonColors(),
             ) {
@@ -1419,6 +849,669 @@ private fun AddCourseDialogContent(
         val configuration = LocalConfiguration.current
         val isTablet = configuration.screenWidthDp >= 600
         Spacer(modifier = Modifier.height(if (isTablet) 4.dp else statusBarsPadding + 65.dp))
+    }
+}
+
+/** 基本信息卡片：课程名称 / 地点 / 教师 文本框。独立组件使敲键仅重组本卡。 */
+@Composable
+private fun BasicInfoCard(
+    isDark: Boolean,
+    name: String,
+    onNameChange: (String) -> Unit,
+    classroom: String,
+    onClassroomChange: (String) -> Unit,
+    teacher: String,
+    onTeacherChange: (String) -> Unit,
+) {
+    Card(
+        cornerRadius = 20.dp,
+        modifier = Modifier.fillMaxWidth(),
+        colors = CardDefaults.defaultColors(
+            color = if (isDark) Color(0xFF363636).copy(alpha = 0.62f) else Color(0xFFFFFFFF).copy(alpha = 0.7f),
+            contentColor = MiuixTheme.colorScheme.onSurface
+        )
+    ) {
+        Column(modifier = Modifier.fillMaxWidth()) {
+            // 课程名称
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(start = 16.dp, end = 16.dp, top = 17.dp, bottom = 14.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(
+                    text = "课程名称",
+                    modifier = Modifier.weight(1f),
+                    fontSize = 17.sp,
+                    fontWeight = FontWeight.Medium,
+                    color = MiuixTheme.colorScheme.onSurface
+                )
+                NativeTextField(
+                    value = name,
+                    onValueChange = onNameChange,
+                    modifier = Modifier.fillMaxWidth(0.65f),
+                    hint = "必填",
+                    singleLine = true,
+                    textAlign = TextAlign.End,
+                    textStyle = TextStyle(
+                        fontSize = 17.sp,
+                        fontWeight = FontWeight.Medium
+                    )
+                )
+            }
+
+            // 教室
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(start = 16.dp, end = 16.dp, top = 14.dp, bottom = 14.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(
+                    text = "地点",
+                    modifier = Modifier.weight(1f),
+                    fontSize = 17.sp,
+                    fontWeight = FontWeight.Medium,
+                    color = MiuixTheme.colorScheme.onSurface
+                )
+                NativeTextField(
+                    value = classroom,
+                    onValueChange = onClassroomChange,
+                    modifier = Modifier.fillMaxWidth(0.65f),
+                    hint = "非必填",
+                    singleLine = true,
+                    textAlign = TextAlign.End,
+                    textStyle = TextStyle(
+                        fontSize = 17.sp,
+                        fontWeight = FontWeight.Medium
+                    )
+                )
+            }
+
+            // 教师
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(start = 16.dp, end = 16.dp, top = 14.dp, bottom = 17.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(
+                    text = "教师",
+                    modifier = Modifier.weight(1f),
+                    fontSize = 17.sp,
+                    fontWeight = FontWeight.Medium,
+                    color = MiuixTheme.colorScheme.onSurface
+                )
+                NativeTextField(
+                    value = teacher,
+                    onValueChange = onTeacherChange,
+                    modifier = Modifier.fillMaxWidth(0.65f),
+                    hint = "非必填",
+                    singleLine = true,
+                    textAlign = TextAlign.End,
+                    textStyle = TextStyle(
+                        fontSize = 17.sp,
+                        fontWeight = FontWeight.Medium
+                    )
+                )
+            }
+        }
+    }
+}
+
+/** 上课星期卡片：自定义时间勾选 + 星期按钮行。 */
+@Composable
+private fun WeekdayCard(
+    isDark: Boolean,
+    isCustomTime: Boolean,
+    onIsCustomTimeChange: (Boolean) -> Unit,
+    dayOfWeek: Int,
+    onDayOfWeekChange: (Int) -> Unit,
+) {
+    Card(
+        cornerRadius = 20.dp,
+        modifier = Modifier.fillMaxWidth(),
+        colors = CardDefaults.defaultColors(
+            color = if (isDark) Color(0xFF363636).copy(alpha = 0.62f) else Color(0xFFFFFFFF).copy(alpha = 0.7f),
+            contentColor = MiuixTheme.colorScheme.onSurface
+        )
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(vertical = 17.dp, horizontal = 16.dp)
+        ) {
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(bottom = 10.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(
+                    text = "上课星期",
+                    fontSize = 17.sp,
+                    fontWeight = FontWeight.Medium,
+                    color = MiuixTheme.colorScheme.onSurface,
+                    modifier = Modifier.weight(1f)
+                )
+                Checkbox(
+                    state = if (isCustomTime) ToggleableState.On else ToggleableState.Off,
+                    onClick = { onIsCustomTimeChange(!isCustomTime) }
+                )
+                Spacer(modifier = Modifier.width(4.dp))
+                Text(
+                    text = "自定义时间",
+                    fontSize = 15.sp,
+                    color = MiuixTheme.colorScheme.onSurfaceVariantSummary
+                )
+            }
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(6.dp)
+            ) {
+                val dayLabels = remember { listOf("一", "二", "三", "四", "五", "六", "日") }
+                for (day in 1..7) {
+                    val isSelected = day == dayOfWeek
+                    Card(
+                        modifier = Modifier
+                            .weight(1f)
+                            .height(32.dp),
+                        cornerRadius = 10.dp,
+                        insideMargin = PaddingValues(0.dp),
+                        pressFeedbackType = PressFeedbackType.Sink,
+                        colors = if (isSelected) CardDefaults.defaultColors(
+                            color = MiuixTheme.colorScheme.primary,
+                            contentColor = Color.White
+                        ) else CardDefaults.defaultColors(
+                            color = if (isDark) Color(0xFF363636) else Color(0xFFF2F2F2)
+                        ),
+                        onClick = { onDayOfWeekChange(day) }
+                    ) {
+                        Box(
+                            modifier = Modifier.fillMaxSize(),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Text(
+                                text = dayLabels[day - 1],
+                                fontSize = 14.sp,
+                                color = if (isSelected) Color.White else MiuixTheme.colorScheme.onSurfaceVariantSummary
+                            )
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+/** 节次范围 / 上课时间卡片（勾选自定义时间后切换为时间选择）。 */
+@Composable
+private fun SectionTimeCard(
+    isDark: Boolean,
+    isCustomTime: Boolean,
+    customStartTime: String,
+    customEndTime: String,
+    onShowTimeDialog: () -> Unit,
+    startSection: Int,
+    endSection: Int,
+    onShowSectionDialog: () -> Unit,
+) {
+    Card(
+        cornerRadius = 20.dp,
+        modifier = Modifier.fillMaxWidth(),
+        colors = CardDefaults.defaultColors(
+            color = if (isDark) Color(0xFF363636).copy(alpha = 0.62f) else Color(0xFFFFFFFF).copy(alpha = 0.7f),
+            contentColor = MiuixTheme.colorScheme.onSurface
+        )
+    ) {
+        if (isCustomTime) {
+            ArrowPreference(
+                title = "上课时间",
+                endActions = {
+                    Text(
+                        text = if (customStartTime.isNotBlank() && customEndTime.isNotBlank())
+                            "$customStartTime - $customEndTime" else "未设置",
+                        fontSize = 14.5.sp,
+                        color = MiuixTheme.colorScheme.onSurfaceVariantActions
+                    )
+                },
+                onClick = onShowTimeDialog,
+            )
+        } else {
+            ArrowPreference(
+                title = "上课节次",
+                endActions = {
+                    Text(
+                        text = "第${startSection} - ${endSection}节",
+                        fontSize = 14.5.sp,
+                        color = MiuixTheme.colorScheme.onSurfaceVariantActions
+                    )
+                },
+                onClick = onShowSectionDialog,
+            )
+        }
+    }
+}
+
+/** 周次设置卡片：全部/单周/双周勾选 + 周次网格。 */
+@Composable
+private fun WeekSettingCard(
+    isDark: Boolean,
+    dayOfWeek: Int,
+    onIsSingleWeekChange: (Boolean) -> Unit,
+    onIsDoubleWeekChange: (Boolean) -> Unit,
+    selectedWeeks: MutableSet<Int>,
+    selectableWeeks: List<Int>,
+    selectableOddWeeks: List<Int>,
+    selectableEvenWeeks: List<Int>,
+    allSelectableSelected: Boolean,
+    allSelectableOddSelected: Boolean,
+    allSelectableEvenSelected: Boolean,
+    someSelectableOddSelected: Boolean,
+    someSelectableEvenSelected: Boolean,
+    hasOccupiedOddWeeks: Boolean,
+    hasOccupiedEvenWeeks: Boolean,
+    currentOccupiedWeeks: Set<Int>,
+    totalWeeks: Int,
+) {
+    val noDaySelected = dayOfWeek == 0
+    Card(
+        cornerRadius = 20.dp,
+        modifier = Modifier.fillMaxWidth().alpha(if (noDaySelected) 0.5f else 1f),
+        colors = CardDefaults.defaultColors(
+            color = if (isDark) Color(0xFF363636).copy(alpha = 0.62f) else Color(0xFFFFFFFF).copy(alpha = 0.7f),
+            contentColor = MiuixTheme.colorScheme.onSurface
+        )
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(16.dp)
+        ) {
+            val hasMixedSelection = someSelectableOddSelected && someSelectableEvenSelected
+
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(
+                    text = "上课周次",
+                    modifier = Modifier.weight(1f),
+                    fontSize = 17.sp,
+                    fontWeight = FontWeight.Medium,
+                    color = MiuixTheme.colorScheme.onSurface
+                )
+                Row(
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    // 全部
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        Checkbox(
+                            state = if (allSelectableSelected) ToggleableState.On else ToggleableState.Off,
+                            onClick = if (noDaySelected) null else {
+                                {
+                                    if (allSelectableSelected) {
+                                        selectedWeeks.clear()
+                                    } else {
+                                        selectedWeeks.clear()
+                                        selectedWeeks.addAll(selectableWeeks)
+                                    }
+                                    onIsSingleWeekChange(false)
+                                }
+                            },
+
+                        )
+                        Spacer(modifier = Modifier.width(4.dp))
+                        Text(text = "全部", fontSize = 15.sp, color = MiuixTheme.colorScheme.onSurfaceVariantSummary)
+                    }
+
+                    // 单周
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        Checkbox(
+                            state = when {
+                                hasMixedSelection -> ToggleableState.Off
+                                allSelectableOddSelected && !hasOccupiedOddWeeks -> ToggleableState.On
+                                someSelectableOddSelected -> ToggleableState.Indeterminate
+                                else -> ToggleableState.Off
+                            },
+                            onClick = if (noDaySelected) null else {
+                                {
+                                    if (hasMixedSelection) {
+                                        selectedWeeks.clear()
+                                        selectedWeeks.addAll(selectableOddWeeks)
+                                        onIsSingleWeekChange(true)
+                                    } else if (allSelectableOddSelected) {
+                                        selectedWeeks.clear()
+                                        onIsSingleWeekChange(false)
+                                    } else {
+                                        selectedWeeks.clear()
+                                        selectedWeeks.addAll(selectableOddWeeks)
+                                        onIsSingleWeekChange(true)
+                                    }
+                                }
+                            },
+
+                        )
+                        Spacer(modifier = Modifier.width(4.dp))
+                        Text(text = "单周", fontSize = 15.sp, color = MiuixTheme.colorScheme.onSurfaceVariantSummary)
+                    }
+
+                    // 双周
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        Checkbox(
+                            state = when {
+                                hasMixedSelection -> ToggleableState.Off
+                                allSelectableEvenSelected && !hasOccupiedEvenWeeks -> ToggleableState.On
+                                someSelectableEvenSelected -> ToggleableState.Indeterminate
+                                else -> ToggleableState.Off
+                            },
+                            onClick = if (noDaySelected) null else {
+                                {
+                                    if (hasMixedSelection) {
+                                        selectedWeeks.clear()
+                                        selectedWeeks.addAll(selectableEvenWeeks)
+                                        onIsDoubleWeekChange(true)
+                                    } else if (allSelectableEvenSelected) {
+                                        selectedWeeks.clear()
+                                        onIsDoubleWeekChange(false)
+                                    } else {
+                                        selectedWeeks.clear()
+                                        selectedWeeks.addAll(selectableEvenWeeks)
+                                        onIsDoubleWeekChange(true)
+                                    }
+                                }
+                            },
+
+                        )
+                        Spacer(modifier = Modifier.width(4.dp))
+                        Text(text = "双周", fontSize = 15.sp, color = MiuixTheme.colorScheme.onSurfaceVariantSummary)
+                    }
+                }
+            }
+
+            Spacer(modifier = Modifier.height(10.dp))
+
+            // 周次网格
+            val columns = 6
+            val rows = remember(totalWeeks, columns) { (totalWeeks + columns - 1) / columns }
+            val primaryColor = MiuixTheme.colorScheme.primary
+            val outlineColor = MiuixTheme.colorScheme.outline
+            val onSurfaceColor = MiuixTheme.colorScheme.onSurface
+            val onSurfaceSummaryColor = MiuixTheme.colorScheme.onSurfaceVariantSummary
+            val occupiedColor = if (isDark) Color(0xFF4A4A4A) else Color(0xFFF0F0F0)
+
+            val weekStates = (1..totalWeeks).map { weekNum ->
+                val isSelected = weekNum in selectedWeeks
+                val isOccupied = weekNum in currentOccupiedWeeks
+                Triple(weekNum, isSelected, isOccupied)
+            }
+
+            Column(
+                modifier = Modifier.fillMaxWidth(),
+                verticalArrangement = Arrangement.spacedBy(6.dp)
+            ) {
+                for (row in 0 until rows) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(6.dp)
+                    ) {
+                        for (col in 0 until columns) {
+                            val idx = row * columns + col
+                            if (idx < weekStates.size) {
+                                val (weekNum, isSelected, isOccupied) = weekStates[idx]
+                                Card(
+                                    modifier = Modifier
+                                        .weight(1f)
+                                        .height(32.dp),
+                                    cornerRadius = 10.dp,
+                                    insideMargin = PaddingValues(0.dp),
+                                    pressFeedbackType = PressFeedbackType.Sink,
+                                    showIndication = !noDaySelected && !isOccupied,
+                                    colors = CardDefaults.defaultColors(
+                                        color = when {
+                                            isSelected -> primaryColor
+                                            isOccupied -> occupiedColor
+                                            else -> if (isDark) Color(0xFF363636) else Color(0xFFF2F2F2)
+                                        },
+                                        contentColor = when {
+                                            noDaySelected -> outlineColor
+                                            isSelected -> Color.White
+                                            isOccupied -> outlineColor
+                                            else -> onSurfaceColor
+                                        }
+                                    ),
+                                    onClick = if (noDaySelected || isOccupied) null else {
+                                        {
+                                            if (isSelected) {
+                                                selectedWeeks.remove(weekNum)
+                                            } else {
+                                                selectedWeeks.add(weekNum)
+                                            }
+                                            onIsSingleWeekChange(false)
+                                        }
+                                    }
+                                ) {
+                                    Box(
+                                        modifier = Modifier.fillMaxSize(),
+                                        contentAlignment = Alignment.Center
+                                    ) {
+                                        Text(
+                                            text = "$weekNum",
+                                            fontSize = 13.sp,
+                                            color = when {
+                                                noDaySelected -> if (isDark) Color(0xFF606060) else outlineColor
+                                                isSelected -> Color.White
+                                                isOccupied -> if (isDark) Color(0xFF606060) else outlineColor
+                                                else -> onSurfaceSummaryColor
+                                            }
+                                        )
+                                    }
+                                }
+                            } else {
+                                Spacer(modifier = Modifier.weight(1f))
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+/** 课程颜色选择卡片。 */
+@Composable
+private fun ColorCard(
+    isDark: Boolean,
+    selectedColor: Long,
+    onSelectedColorChange: (Long) -> Unit,
+    onShowColorDialog: () -> Unit,
+) {
+    Card(
+        cornerRadius = 20.dp,
+        modifier = Modifier.fillMaxWidth(),
+        colors = CardDefaults.defaultColors(
+            color = if (isDark) Color(0xFF363636).copy(alpha = 0.62f) else Color(0xFFFFFFFF).copy(alpha = 0.7f),
+            contentColor = MiuixTheme.colorScheme.onSurface
+        )
+    ) {
+        Column(modifier = Modifier.fillMaxWidth()) {
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(vertical = 14.dp, horizontal = 16.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(
+                    text = "课程颜色",
+                    modifier = Modifier.weight(1f),
+                    fontSize = 17.sp,
+                    fontWeight = FontWeight.Medium,
+                    color = MiuixTheme.colorScheme.onSurface
+                )
+            }
+            Column(
+                modifier = Modifier.fillMaxWidth().padding(start = 16.dp, end = 16.dp, bottom = 12.dp),
+                verticalArrangement = Arrangement.spacedBy(12.dp)
+            ) {
+                val colorColumns = 6
+                val allColors = remember { Course.courseColors }
+                val totalItems = remember(allColors) { allColors.size + 1 }
+                val colorRows = remember(totalItems, colorColumns) { (totalItems + colorColumns - 1) / colorColumns }
+                for (row in 0 until colorRows) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(12.dp)
+                    ) {
+                        for (col in 0 until colorColumns) {
+                            val colorIndex = row * colorColumns + col
+                            if (colorIndex < allColors.size) {
+                                val color = allColors[colorIndex]
+                                val isSelected = color == selectedColor
+                                var isPressed by remember { mutableStateOf(false) }
+                                val primaryColor = MiuixTheme.colorScheme.primary
+                                val scale = remember { Animatable(1f) }
+                                val borderAlpha by animateFloatAsState(
+                                    targetValue = if (isSelected) 1f else 0f,
+                                    animationSpec = tween(durationMillis = 200),
+                                    label = "borderAlpha"
+                                )
+                                LaunchedEffect(isPressed) {
+                                    if (isPressed) {
+                                        scale.animateTo(
+                                            targetValue = 0.94f,
+                                            animationSpec = tween(durationMillis = 100)
+                                        )
+                                    } else {
+                                        scale.animateTo(
+                                            targetValue = 1f,
+                                            animationSpec = tween(durationMillis = 180)
+                                        )
+                                    }
+                                }
+                                Box(
+                                    modifier = Modifier
+                                        .weight(1f)
+                                        .aspectRatio(1f)
+                                        .graphicsLayer {
+                                            scaleX = scale.value
+                                            scaleY = scale.value
+                                        }
+                                        .pointerInput(Unit) {
+                                            awaitPointerEventScope {
+                                                while (true) {
+                                                    val event = awaitPointerEvent()
+                                                    val anyPressed = event.changes.any { it.pressed }
+                                                    isPressed = anyPressed
+                                                    if (!anyPressed) {
+                                                        onSelectedColorChange(color)
+                                                    }
+                                                }
+                                            }
+                                        },
+                                    contentAlignment = Alignment.Center
+                                ) {
+                                    // 选中态：沿外圈绘制主题色描边，描边内侧留空，内部填课程色（保留原 alpha）
+                                    Box(
+                                        modifier = Modifier
+                                            .fillMaxSize()
+                                            .squircleBorder(
+                                                width = 2.dp,
+                                                color = primaryColor.copy(alpha = borderAlpha),
+                                                cornerRadius = 12.dp
+                                            )
+                                            .padding(4.dp)
+                                            .squircleClip(8.dp)
+                                            .background(Color(color).copy(alpha = if (isDark) 0.22f else 0.16f))
+                                    )
+                                }
+                            } else if (colorIndex == allColors.size) {
+                                val isCustomColor = selectedColor !in allColors
+                                val hintColor = MiuixTheme.colorScheme.onSurfaceVariantSummary
+                                val primaryColor = MiuixTheme.colorScheme.primary
+                                var isCustomPressed by remember { mutableStateOf(false) }
+                                val customScale = remember { Animatable(1f) }
+                                val customBorderAlpha by animateFloatAsState(
+                                    targetValue = if (isCustomColor) 1f else 0f,
+                                    animationSpec = tween(durationMillis = 200),
+                                    label = "customBorderAlpha"
+                                )
+                                LaunchedEffect(isCustomPressed) {
+                                    if (isCustomPressed) {
+                                        customScale.animateTo(
+                                            targetValue = 0.94f,
+                                            animationSpec = tween(durationMillis = 100)
+                                        )
+                                    } else {
+                                        customScale.animateTo(
+                                            targetValue = 1f,
+                                            animationSpec = tween(durationMillis = 180)
+                                        )
+                                    }
+                                }
+                                Box(
+                                    modifier = Modifier
+                                        .weight(1f)
+                                        .aspectRatio(1f)
+                                        .graphicsLayer {
+                                            scaleX = customScale.value
+                                            scaleY = customScale.value
+                                        }
+                                        .pointerInput(Unit) {
+                                            awaitPointerEventScope {
+                                                while (true) {
+                                                    val event = awaitPointerEvent()
+                                                    val anyPressed = event.changes.any { it.pressed }
+                                                    isCustomPressed = anyPressed
+                                                    if (!anyPressed) {
+                                                        onShowColorDialog()
+                                                    }
+                                                }
+                                            }
+                                        },
+                                    contentAlignment = Alignment.Center
+                                ) {
+                                    // 选中态：沿外圈绘制主题色描边，描边内侧留空
+                                    Box(
+                                        modifier = Modifier
+                                            .fillMaxSize()
+                                            .squircleBorder(
+                                                width = 2.dp,
+                                                color = primaryColor.copy(alpha = customBorderAlpha),
+                                                cornerRadius = 12.dp
+                                            )
+                                            .padding(4.dp)
+                                            .squircleClip(8.dp)
+                                            .background(
+                                                if (isCustomColor) Color(selectedColor).copy(alpha = if (isDark) 0.22f else 0.16f)
+                                                else if (isDark) Color(0xFF2B2B2B) else Color(0xFFFBFBFB)
+                                            ),
+                                        contentAlignment = Alignment.Center
+                                    ) {
+                                        if (!isCustomColor) {
+                                            Icon(
+                                                imageVector = MiuixIcons.Add,
+                                                contentDescription = "自定义颜色",
+                                                modifier = Modifier.size(18.dp),
+                                                tint = hintColor
+                                            )
+                                        }
+                                    }
+                                }
+                            } else {
+                                Spacer(modifier = Modifier.weight(1f))
+                            }
+                        }
+                    }
+                }
+            }
+        }
     }
 }
 
