@@ -1082,7 +1082,11 @@ private fun androidx.compose.foundation.lazy.LazyListScope.addCourseSections(
     if (morningCourses.isNotEmpty()) {
         item {
             Column {
-                SmallTitle(text = "上午课程", modifier = Modifier.offset(x = (-15).dp))
+                SmallTitle(
+                    text = "上午课程",
+                    modifier = Modifier.offset(x = (-15).dp),
+                    hasWallpaper = wallpaperBackdrop != null && blurRadius > 0f
+                )
                 BlurCard(cornerRadius = 20.dp, wallpaperBackdrop = wallpaperBackdrop, blurRadius = blurRadius, modifier = Modifier.fillMaxWidth()) {
                     Column {
                         morningCourses.forEach { course ->
@@ -1096,7 +1100,11 @@ private fun androidx.compose.foundation.lazy.LazyListScope.addCourseSections(
     if (afternoonCourses.isNotEmpty()) {
         item {
             Column {
-                SmallTitle(text = "下午课程", modifier = Modifier.offset(x = (-15).dp))
+                SmallTitle(
+                    text = "下午课程",
+                    modifier = Modifier.offset(x = (-15).dp),
+                    hasWallpaper = wallpaperBackdrop != null && blurRadius > 0f
+                )
                 BlurCard(cornerRadius = 20.dp, wallpaperBackdrop = wallpaperBackdrop, blurRadius = blurRadius, modifier = Modifier.fillMaxWidth()) {
                     Column {
                         afternoonCourses.forEach { course ->
@@ -1110,7 +1118,11 @@ private fun androidx.compose.foundation.lazy.LazyListScope.addCourseSections(
     if (eveningCourses.isNotEmpty()) {
         item {
             Column {
-                SmallTitle(text = "晚上课程", modifier = Modifier.offset(x = (-15).dp))
+                SmallTitle(
+                    text = "晚上课程",
+                    modifier = Modifier.offset(x = (-15).dp),
+                    hasWallpaper = wallpaperBackdrop != null && blurRadius > 0f
+                )
                 BlurCard(cornerRadius = 20.dp, wallpaperBackdrop = wallpaperBackdrop, blurRadius = blurRadius, modifier = Modifier.fillMaxWidth()) {
                     Column {
                         eveningCourses.forEach { course ->

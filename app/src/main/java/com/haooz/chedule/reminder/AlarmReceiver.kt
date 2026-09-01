@@ -9,6 +9,17 @@ import com.haooz.chedule.data.CourseRepository
 
 class AlarmReceiver : BroadcastReceiver() {
 
+    /** 把 1..23 的整数转成中文数字（如 8 -> "八"，23 -> "二十三"），用于"早八"式文案 */
+    private fun chineseNumberHour(n: Int): String {
+        if (n <= 0 || n > 23) return n.toString()
+        val digit = listOf("", "一", "二", "三", "四", "五", "六", "七", "八", "九")
+        return when {
+            n < 10 -> digit[n]
+            n < 20 -> "十" + digit[n - 10]
+            else -> digit[n / 10] + "十" + digit[n % 10]
+        }
+    }
+
     override fun onReceive(context: Context, intent: Intent) {
         val type = intent.getIntExtra(CourseReminderHelper.EXTRA_REMINDER_TYPE, 0)
         Log.d("CourseReminder", "AlarmReceiver: type=$type ${java.text.SimpleDateFormat("HH:mm:ss", java.util.Locale.getDefault()).format(java.util.Date())}")
@@ -140,7 +151,7 @@ class AlarmReceiver : BroadcastReceiver() {
                     val firstStart = CourseReminderHelper.getCourseStartTime(firstCourse, repository)
                     val firstHour = firstStart?.split(":")?.firstOrNull()?.toIntOrNull() ?: 9
                     val details = when {
-                        firstHour < 9 -> "明早有早$firstHour，${firstCourse.name}"
+                        firstHour < 9 -> "明早有早${chineseNumberHour(firstHour)}，${firstCourse.name}"
                         firstHour < 12 -> "明早有课，${firstCourse.name} $firstStart"
                         firstHour < 18 -> "下午有课，${firstCourse.name} $firstStart"
                         else -> "晚上有课，${firstCourse.name} $firstStart"

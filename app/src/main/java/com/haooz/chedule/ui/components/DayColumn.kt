@@ -89,6 +89,7 @@ fun DayColumn(
     showBreakDividers: Boolean = true,
     isTablet: Boolean = false,
     cardContentAlignment: com.haooz.chedule.data.CardContentAlignment = com.haooz.chedule.data.CardContentAlignment.CENTER_CENTER,
+    cardTextColor: com.haooz.chedule.data.CardTextColor = com.haooz.chedule.data.CardTextColor.COLORFUL,
     draggingCourseIds: Set<String> = emptySet(),
     onCourseLongPress: (course: Course, cardLeft: Float, cardTop: Float, width: Float, height: Float, backdrop: Backdrop?, currentWeek: Int) -> Unit = { _, _, _, _, _, _, _ -> },
     onCourseDragStart: (courseId: String) -> Unit = { _ -> },
@@ -268,6 +269,7 @@ fun DayColumn(
                 cardAlpha = cardAlpha,
                 isTablet = isTablet,
                 cardContentAlignment = cardContentAlignment,
+                cardTextColor = cardTextColor,
                 wallpaperBackdrop = wallpaperBackdrop,
                 cardBlurRadius = cardBlurRadius,
                 draggingCourseIds = draggingCourseIds,
@@ -305,6 +307,7 @@ private fun CourseCardsLayer(
     cardAlpha: Float,
     isTablet: Boolean,
     cardContentAlignment: com.haooz.chedule.data.CardContentAlignment,
+    cardTextColor: com.haooz.chedule.data.CardTextColor,
     wallpaperBackdrop: Backdrop?,
     cardBlurRadius: Float,
     draggingCourseIds: Set<String>,
@@ -410,6 +413,7 @@ private fun CourseCardsLayer(
                         cardCornerRadius = cardCornerRadius,
                         isTablet = isTablet,
                         cardContentAlignment = cardContentAlignment,
+                        cardTextColor = cardTextColor,
                         isDragging = isDragging,
                         onClick = {
                             onPendingChange(-1, -1)
@@ -444,6 +448,7 @@ private fun CourseCardsLayer(
                     cardCornerRadius = cardCornerRadius,
                     isTablet = isTablet,
                     cardContentAlignment = cardContentAlignment,
+                    cardTextColor = cardTextColor,
                     isDragging = isDragging,
                     onClick = {
                         onPendingChange(-1, -1)
@@ -760,7 +765,7 @@ private fun SpecialBandContent(name: String, color: Color) {
         Text(
             text = name,
             style = MiuixTheme.textStyles.body2.copy(fontWeight = FontWeight.Medium),
-            color = if (isAppDarkTheme()) Color(0xFFD5DAE1) else Color(0xFF1F2937),
+            color = if (isAppDarkTheme()) Color.White.copy(alpha = 0.74f) else Color.Black.copy(alpha = 0.74f),
             maxLines = 2,
             textAlign = TextAlign.Center
         )

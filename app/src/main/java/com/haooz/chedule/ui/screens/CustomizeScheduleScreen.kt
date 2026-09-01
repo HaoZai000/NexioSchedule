@@ -78,6 +78,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.zIndex
 import com.haooz.chedule.data.CardContentAlignment
+import com.haooz.chedule.data.CardTextColor
 import com.haooz.chedule.data.Combination
 import com.haooz.chedule.ui.basic.LiquidTopBarButton
 import com.haooz.chedule.ui.basic.OverlayDropdownMenu
@@ -165,6 +166,8 @@ fun CustomizeScheduleScreen(
     initialShowBreakDividers: Boolean = true,
     onCardContentAlignmentChange: (CardContentAlignment) -> Unit = {},
     initialCardContentAlignment: CardContentAlignment = CardContentAlignment.CENTER_CENTER,
+    onCardTextColorChange: (CardTextColor) -> Unit = {},
+    initialCardTextColor: CardTextColor = CardTextColor.COLORFUL,
     hasWallpaper: Boolean = false,
 ) {
     // ================================================================
@@ -289,6 +292,11 @@ fun CustomizeScheduleScreen(
             cardContentAlignmentValue
         )
     }
+    var cardTextColorValue by remember(
+        currentCombinationIndex,
+        sheetResetKey
+    ) { mutableStateOf(initialCardTextColor) }
+    LaunchedEffect(cardTextColorValue) { onCardTextColorChange(cardTextColorValue) }
 
     // --- 删除流程状态 ---
     // "自定义"按钮淡入淡出动画（进入编辑模式时淡出，退出时淡入）
@@ -1342,6 +1350,25 @@ fun CustomizeScheduleScreen(
                         OverlayDropdownMenu(
                             title = "卡片内容对齐方式",
                             entry = contentAlignmentEntry,
+                            collapseOnSelection = true,
+                            liquidGlassBackdrop = sheetContentBackdrop
+                                ?: liquidGlassBackdrop,
+                            dropdownColors = liquidGlassDropdownColors,
+                        )
+                    }
+                    SheetCard {
+                        val textColorEntry = DropdownEntry(
+                            items = CardTextColor.entries.map { color ->
+                                DropdownItem(
+                                    text = color.label,
+                                    selected = cardTextColorValue == color,
+                                    onClick = { cardTextColorValue = color }
+                                )
+                            }
+                        )
+                        OverlayDropdownMenu(
+                            title = "卡片文字颜色",
+                            entry = textColorEntry,
                             collapseOnSelection = true,
                             liquidGlassBackdrop = sheetContentBackdrop
                                 ?: liquidGlassBackdrop,

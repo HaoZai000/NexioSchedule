@@ -140,6 +140,7 @@ fun MainScheduleScreen(
     wallpaperBrightness: Float = 0f,
     showBreakDividers: Boolean = true,
     cardContentAlignment: com.haooz.chedule.data.CardContentAlignment = com.haooz.chedule.data.CardContentAlignment.CENTER_CENTER,
+    cardTextColor: com.haooz.chedule.data.CardTextColor = com.haooz.chedule.data.CardTextColor.COLORFUL,
     liquidGlassBackdrop: com.kyant.backdrop.Backdrop? = null,
     // 拖拽落点高亮：Pair(dayOfWeek, sectionRange)，sectionRange 为落点覆盖的节次区间
     dropHighlight: Pair<Int, IntRange>? = null,
@@ -552,6 +553,7 @@ fun MainScheduleScreen(
                                 showBreakDividers = showBreakDividers,
                                 isTablet = isTablet,
                                 cardContentAlignment = cardContentAlignment,
+                                cardTextColor = cardTextColor,
                                 draggingCourseIds = draggingCourseIds,
                                 onCourseLongPress = stableOnCourseLongPress,
                                 onCourseDragStart = onCourseDragStart,

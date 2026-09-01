@@ -14,6 +14,7 @@ import androidx.compose.animation.shrinkVertically
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -25,6 +26,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.material3.Text
@@ -33,6 +35,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.State
 import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -44,6 +47,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.ColorFilter
 import androidx.compose.ui.graphics.Outline
 import androidx.compose.ui.graphics.Shape
 import androidx.compose.ui.graphics.TransformOrigin
@@ -96,6 +100,7 @@ import top.yukonga.miuix.kmp.blur.layerBackdrop
 import top.yukonga.miuix.kmp.blur.rememberLayerBackdrop
 import top.yukonga.miuix.kmp.icon.MiuixIcons
 import top.yukonga.miuix.kmp.icon.extended.Close
+import top.yukonga.miuix.kmp.icon.extended.Delete
 import top.yukonga.miuix.kmp.icon.extended.Ok
 import top.yukonga.miuix.kmp.overlay.OverlayDialog
 import top.yukonga.miuix.kmp.preference.ArrowPreference
@@ -559,7 +564,7 @@ fun TimeConfigEditScreen(
             ) {
                 Scaffold(
                     topBar = {
-                        var topBarBlurAlpha by remember { mutableStateOf(0f) }
+                        var topBarBlurAlpha by remember { mutableFloatStateOf(0f) }
                         ProgressiveBlurTopBar(
                             backdrop = liquidGlassBackdrop!!,
                             blurAlpha = topBarBlurAlpha,
@@ -1073,7 +1078,6 @@ fun TimeConfigEditScreen(
                                     SmallTitle(
                                         text = "特殊课程",
                                         modifier = Modifier.offset(x = (-16).dp),
-                                        textColor = MiuixTheme.colorScheme.primary
                                     )
                                     Card(
                                         cornerRadius = 20.dp,
@@ -1543,6 +1547,9 @@ fun TimeConfigEditScreen(
                             onDismissRequest = { showSpecialDialog = false },
                             liquidGlassBackdrop = liquidGlassBackdrop
                         ) {
+                            Box(
+                                modifier = Modifier.fillMaxWidth()
+                            ) {
                             Column(
                                 modifier = Modifier.fillMaxWidth(),
                                 verticalArrangement = Arrangement.spacedBy(10.dp)
@@ -1672,6 +1679,32 @@ fun TimeConfigEditScreen(
                                     )
                                 }
                             }
+                            // 右上角删除按钮（与调休页面弹窗一致）
+                            if (editingSpecialIndex != -1) {
+                                Box(
+                                    modifier = Modifier
+                                        .align(Alignment.TopEnd)
+                                        .offset(y = (-42).dp)
+                                        .size(36.dp)
+                                        .clip(ContinuousRoundedRectangle(20))
+                                        .clickable(
+                                            interactionSource = remember { MutableInteractionSource() },
+                                            indication = null,
+                                        ) {
+                                            hapticFeedback.performHapticFeedback(HapticFeedbackType.Confirm)
+                                            showSpecialDeleteConfirm = true
+                                        },
+                                    contentAlignment = Alignment.Center,
+                                ) {
+                                    Image(
+                                        imageVector = MiuixIcons.Delete,
+                                        contentDescription = "删除",
+                                        colorFilter = ColorFilter.tint(Color(0xFFF44336)),
+                                        modifier = Modifier.size(23.dp),
+                                    )
+                                }
+                            }
+                            }
                         }
 
                         // 删除特殊课程确认弹窗
@@ -1704,6 +1737,7 @@ fun TimeConfigEditScreen(
                                             }
                                         }
                                         showSpecialDeleteConfirm = false
+                                        showSpecialDialog = false
                                     },
                                     textColor = Color(0xFFF44336),
                                     modifier = Modifier.weight(1f)
@@ -1843,7 +1877,7 @@ fun TimeConfigEditScreen(
                                             if (endMinutes <= startMinutes) {
                                                 Toast.makeText(
                                                     context,
-                                                    "结束时间不能小于或等于开始时间",
+                                                    "结束时间需晚于开始时间",
                                                     Toast.LENGTH_SHORT
                                                 ).show()
                                                 return@TextButton

@@ -121,6 +121,7 @@ class CourseRepository private constructor(context: Context) {
         private const val KEY_COMBINATION_WALLPAPER_IS_LIGHT_PREFIX = "comb_wp_is_light_"
         private const val KEY_COMBINATION_SHOW_BREAK_DIVIDERS_PREFIX = "comb_break_div_"
         private const val KEY_COMBINATION_CARD_CONTENT_ALIGNMENT_PREFIX = "comb_card_align_"
+        private const val KEY_COMBINATION_CARD_TEXT_COLOR_PREFIX = "comb_card_text_color_"
         // 多时间配置支持
         private const val KEY_TIME_CONFIG_IDS = "time_config_ids"
         private const val KEY_CURRENT_TIME_CONFIG_ID = "current_time_config_id"
@@ -1738,6 +1739,15 @@ class CourseRepository private constructor(context: Context) {
         }
     }
 
+    /** 清除指定搭配的壁纸：删除磁盘文件并移除内存缓存（配合内存中 bitmap=null 实现"清除壁纸"持久化） */
+    fun clearCombinationWallpaper(id: Long) {
+        wallpaperCache.remove(id)
+        val webpFile = java.io.File(appContext.filesDir, "${COMBINATION_WALLPAPER_PREFIX}$id.webp")
+        if (webpFile.exists()) webpFile.delete()
+        val pngFile = java.io.File(appContext.filesDir, "${COMBINATION_WALLPAPER_PREFIX}$id.png")
+        if (pngFile.exists()) pngFile.delete()
+    }
+
     /** 加载指定搭配的壁纸图片（带内存缓存，命中时零延迟；解码时按屏幕分辨率降采样） */
     fun loadCombinationWallpaper(id: Long): android.graphics.Bitmap? {
         // 1. 缓存命中：直接返回，避免重复解码
@@ -1843,6 +1853,15 @@ class CourseRepository private constructor(context: Context) {
 
     fun getCombinationCardContentAlignment(id: Long): CardContentAlignment =
         CardContentAlignment.fromOrdinal(prefs.getInt("${KEY_COMBINATION_CARD_CONTENT_ALIGNMENT_PREFIX}$id", CardContentAlignment.CENTER_CENTER.ordinal))
+
+    fun saveCombinationCardTextColor(id: Long, color: CardTextColor) {
+        prefs.edit {
+                putInt("${KEY_COMBINATION_CARD_TEXT_COLOR_PREFIX}$id", color.ordinal)
+        }
+    }
+
+    fun getCombinationCardTextColor(id: Long): CardTextColor =
+        CardTextColor.fromOrdinal(prefs.getInt("${KEY_COMBINATION_CARD_TEXT_COLOR_PREFIX}$id", CardTextColor.COLORFUL.ordinal))
 
     /** 迁移：如果只有旧的单搭配数据（无 combination_ids），将其作为 id=0 的搭配 */
     fun migrateToCombinationsIfNeeded() {

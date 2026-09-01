@@ -284,7 +284,8 @@ class MainActivity : ComponentActivity() {
                             showBreakDividers = repo.getCombinationShowBreakDividers(currentIdValue),
                             cardContentAlignment = repo.getCombinationCardContentAlignment(
                                 currentIdValue
-                            )
+                            ),
+                            cardTextColor = repo.getCombinationCardTextColor(currentIdValue)
                         )
                     }
                 } catch (_: Exception) {
@@ -969,6 +970,7 @@ fun CourseScheduleApp() {
                     wallpaperBrightness = wallpaperRepository.getCombinationWallpaperBrightness(id),
                     showBreakDividers = wallpaperRepository.getCombinationShowBreakDividers(id),
                     cardContentAlignment = wallpaperRepository.getCombinationCardContentAlignment(id),
+                    cardTextColor = wallpaperRepository.getCombinationCardTextColor(id),
                     wallpaperIsLight = wallpaperRepository.getCombinationWallpaperIsLight(id)
                 )
             }
@@ -1004,6 +1006,7 @@ fun CourseScheduleApp() {
                         cardContentAlignment = wallpaperRepository.getCombinationCardContentAlignment(
                             id
                         ),
+                        cardTextColor = wallpaperRepository.getCombinationCardTextColor(id),
                         wallpaperIsLight = wallpaperRepository.getCombinationWallpaperIsLight(id)
                     )
                 }
@@ -2007,6 +2010,7 @@ fun CourseScheduleApp() {
                                             wallpaperBrightness = displayAppearance.wallpaperBrightness,
                                             showBreakDividers = displayAppearance.showBreakDividers,
                                             cardContentAlignment = displayAppearance.cardContentAlignment,
+                                            cardTextColor = displayAppearance.cardTextColor,
                                             liquidGlassBackdrop = liquidGlassBackdrop,
                                             onGridGeometryChange = { geom -> gridGeometry = geom },
                                             dropHighlight = run {
@@ -2381,6 +2385,7 @@ fun CourseScheduleApp() {
                                 cardCornerRadius = displayAppearance.cardCornerRadius,
                                 isTablet = isTablet,
                                 cardContentAlignment = displayAppearance.cardContentAlignment,
+                                cardTextColor = displayAppearance.cardTextColor,
                                 disablePadding = true,
                                 onClick = {}
                             )
@@ -2559,6 +2564,9 @@ fun CourseScheduleApp() {
                     val saveJob = launch(Dispatchers.IO) {
                         if (bitmap != null) {
                             wallpaperRepository.saveCombinationWallpaper(combId, bitmap)
+                        } else {
+                            // 清除壁纸：删除磁盘文件，否则旧壁纸会在再次应用/重启后恢复
+                            wallpaperRepository.clearCombinationWallpaper(combId)
                         }
                         wallpaperRepository.saveCombinationState(
                             combId,
@@ -2589,6 +2597,10 @@ fun CourseScheduleApp() {
                             combId,
                             appearance.cardContentAlignment
                         )
+                        wallpaperRepository.saveCombinationCardTextColor(
+                            combId,
+                            appearance.cardTextColor
+                        )
                         wallpaperRepository.setCurrentCombinationId(combId)
                     }
                     // 同步到当前搭配对象（快照仅存内存）
@@ -2607,6 +2619,7 @@ fun CourseScheduleApp() {
                                 wallpaperBrightness = appearance.wallpaperBrightness,
                                 showBreakDividers = appearance.showBreakDividers,
                                 cardContentAlignment = appearance.cardContentAlignment,
+                                cardTextColor = appearance.cardTextColor,
                                 wallpaperIsLight = isLight
                             )
                         }
@@ -2733,6 +2746,16 @@ fun CourseScheduleApp() {
                         }
                     },
                     initialCardContentAlignment = appearance.cardContentAlignment,
+                    onCardTextColorChange = { color ->
+                        appearance = appearance.copy(cardTextColor = color)
+                        val idx = currentCombinationIndex
+                        if (idx in combinations.indices) {
+                            combinations = combinations.toMutableList().also {
+                                it[idx] = it[idx].copy(cardTextColor = color)
+                            }
+                        }
+                    },
+                    initialCardTextColor = appearance.cardTextColor,
                     hasWallpaper = wallpaperBitmap != null,
                     onCustomizeValueChange = { height, cornerRadius ->
                         appearance =

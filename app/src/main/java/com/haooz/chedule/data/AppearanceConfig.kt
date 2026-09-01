@@ -16,7 +16,8 @@ data class AppearanceConfig(
     val cardCornerRadius: Float = 10f,
     val wallpaperBrightness: Float = 0f,
     val showBreakDividers: Boolean = true,
-    val cardContentAlignment: CardContentAlignment = CardContentAlignment.CENTER_CENTER
+    val cardContentAlignment: CardContentAlignment = CardContentAlignment.CENTER_CENTER,
+    val cardTextColor: CardTextColor = CardTextColor.COLORFUL
 ) {
     /** 将此外观配置应用到 Combination，返回新副本 */
     fun applyToCombination(comb: Combination): Combination = comb.copy(
@@ -26,7 +27,8 @@ data class AppearanceConfig(
         cardCornerRadius = cardCornerRadius,
         wallpaperBrightness = wallpaperBrightness,
         showBreakDividers = showBreakDividers,
-        cardContentAlignment = cardContentAlignment
+        cardContentAlignment = cardContentAlignment,
+        cardTextColor = cardTextColor
     )
 
     companion object {
@@ -38,7 +40,8 @@ data class AppearanceConfig(
             cardCornerRadius = c.cardCornerRadius,
             wallpaperBrightness = c.wallpaperBrightness,
             showBreakDividers = c.showBreakDividers,
-            cardContentAlignment = c.cardContentAlignment
+            cardContentAlignment = c.cardContentAlignment,
+            cardTextColor = c.cardTextColor
         )
     }
 }

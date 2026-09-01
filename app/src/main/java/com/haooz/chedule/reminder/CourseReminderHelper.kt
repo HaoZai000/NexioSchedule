@@ -45,36 +45,82 @@ object CourseReminderHelper {
     const val CHANNEL_LIVE_ID = "course_reminder_live"
     const val CHANNEL_LIVE_NAME = "课程提醒实况"
 
+    // 发送去重统一存储：JSON map(courseId -> 最近发送时间戳) + 日期串，跨日自动失效。
+    // 语义：
+    //   - 常规倒计时 / 立即补发：同一课程在 60 分钟窗口内不重复发送（覆盖课前提醒倒计时窗口，
+    //     避免倒计时过程中周期重发触发超级岛再次弹出）
+    //   - 超级岛：同一课程当天只发一次（倒计时是原生 ChronometerCountDown，发一次系统即可自行跳秒，
+    //     无需随每分钟刷新重发，否则重发会触发岛重新弹出）
     private const val PREF_SENT_HISTORY = "reminder_sent_history"
-    private const val KEY_LAST_SENT_COURSE = "last_sent_course"
-    private const val KEY_LAST_SENT_TIME = "last_sent_time"
-    // 同课程在 10 分钟内不重复发送立即通知
-    private const val SENT_DEDUP_WINDOW_MS = 10 * 60 * 1000L
+    private const val KEY_SENT_DAY = "reminder_sent_day"
+    private const val KEY_SENT_MAP = "reminder_sent_map"
+    private const val SENT_DEDUP_WINDOW_MS = 60 * 60 * 1000L
 
     // 跨日重调度检测
     private const val PREF_DAY_CHANGE = "day_change_state"
     private const val KEY_LAST_SCHEDULE_DATE = "last_schedule_date"
 
     /**
-     * 记录已发送课前提醒的课程（去重用）
+     * 记录已发送课前提醒的课程（统一的发送去重存储）。
+     * 存储为 JSON map(courseId -> 最近发送时间戳)，同时记录对应日期；
+     * 跨日后所有判空自动失效，从而保证"每个课程按窗口/当天粒度最多发送一次"。
      */
     fun recordPreClassSent(context: Context, courseId: String) {
-        context.getSharedPreferences(PREF_SENT_HISTORY, Context.MODE_PRIVATE)
-            .edit {
-                putString(KEY_LAST_SENT_COURSE, courseId)
-                    .putLong(KEY_LAST_SENT_TIME, System.currentTimeMillis())
+        val prefs = context.getSharedPreferences(PREF_SENT_HISTORY, Context.MODE_PRIVATE)
+        val today = getTodayDateString()
+        val day = prefs.getString(KEY_SENT_DAY, null)
+        val mapStr = prefs.getString(KEY_SENT_MAP, null)
+        val json = if (day == today && !mapStr.isNullOrEmpty()) {
+            try {
+                org.json.JSONObject(mapStr)
+            } catch (_: Exception) {
+                org.json.JSONObject()
             }
+        } else {
+            org.json.JSONObject()
+        }
+        json.put(courseId, System.currentTimeMillis())
+        prefs.edit {
+            putString(KEY_SENT_DAY, today)
+            putString(KEY_SENT_MAP, json.toString())
+        }
     }
 
     /**
-     * 判断该课程是否在去重窗口内已发送过
+     * 判断该课程（按 courseId 精确匹配）是否在 60 分钟去重窗口内已发送过。
+     * 用于常规倒计时 / 立即补发：同一课程在自身发送窗口内不重复发送。
+     * courseId 按"课程名+时间段+当天开始时间"生成，不同课程互不相同，
+     * 因此一门课已发送的记录不会影响其他课程的判断与补发（按各自 key 独立匹配）。
+     * 同一日内的真正失效约束是上面的 60 分钟窗口；
+     * "跨日"仅作兜底：存储日期非今天时整份记录视为未发送（自动重置），以便次日重新提醒。
      */
     fun isPreClassSentRecently(context: Context, courseId: String): Boolean {
         val prefs = context.getSharedPreferences(PREF_SENT_HISTORY, Context.MODE_PRIVATE)
-        val lastCourse = prefs.getString(KEY_LAST_SENT_COURSE, null) ?: return false
-        val lastTime = prefs.getLong(KEY_LAST_SENT_TIME, 0L)
-        if (lastCourse != courseId) return false
+        if (prefs.getString(KEY_SENT_DAY, null) != getTodayDateString()) return false
+        val mapStr = prefs.getString(KEY_SENT_MAP, null) ?: return false
+        val lastTime = try {
+            org.json.JSONObject(mapStr).optLong(courseId, 0L)
+        } catch (_: Exception) {
+            0L
+        }
+        if (lastTime <= 0L) return false
         return System.currentTimeMillis() - lastTime < SENT_DEDUP_WINDOW_MS
+    }
+
+    /**
+     * 判断超级岛倒计时当天是否已发送过：倒计时是原生 ChronometerCountDown，
+     * 发一次系统即可自行跳秒，无需随每分钟刷新重发，否则重发会触发岛重新弹出。
+     * 复用统一去重存储，按"当天 map 中已存在该课程"判定，跨日后自动失效。
+     */
+    fun hasIslandPreClassSentToday(context: Context, courseId: String): Boolean {
+        val prefs = context.getSharedPreferences(PREF_SENT_HISTORY, Context.MODE_PRIVATE)
+        if (prefs.getString(KEY_SENT_DAY, null) != getTodayDateString()) return false
+        val mapStr = prefs.getString(KEY_SENT_MAP, null) ?: return false
+        return try {
+            org.json.JSONObject(mapStr).has(courseId)
+        } catch (_: Exception) {
+            false
+        }
     }
 
     /**
@@ -297,12 +343,19 @@ object CourseReminderHelper {
 
             if (currentMinutes >= triggerMinutes) {
                 // 已过触发时间，对未开始的课程发送立即通知（补发）。
-                // 去重依赖 isPreClassSentRecently：使用 getTimeDisplayText() 与 AlarmReceiver
-                // 与兜底补发（checkPendingPreClassReminders）保持一致，避免自定义时间课程双发/漏发。
+                // 去重依赖统一的 isPreClassSentRecently / hasIslandPreClassSentToday：
+                // 使用与 AlarmReceiver / checkPendingPreClassReminders 一致的 dedupId，
+                // 避免自定义时间课程双发/漏发，也避免 startReminderService 重入（闹钟触发后、
+                // 设置变更后）导致同一课程在短窗口内重复发送。
                 android.util.Log.d(TAG, "schedulePre: immediate-branch ${course.name} cur=$currentMinutes trigger=$triggerMinutes start=$startTotalMinutes inWindow=${currentMinutes < startTotalMinutes}")
                 if (currentMinutes < startTotalMinutes) {
-                    sendPreClassNotification(context, alarmManager, repository, course, startTime, useIsland)
-                    android.util.Log.d(TAG, "schedulePre: immediate-SENT ${course.name}")
+                    val dedupId = "${course.name}|${course.getTimeDisplayText()}|$startTime"
+                    val alreadySent = isPreClassSentRecently(context, dedupId) ||
+                        (useIsland && hasIslandPreClassSentToday(context, dedupId))
+                    if (!alreadySent) {
+                        sendPreClassNotification(context, alarmManager, repository, course, startTime, useIsland)
+                        android.util.Log.d(TAG, "schedulePre: immediate-SENT ${course.name}")
+                    }
                 }
                 continue
             }
@@ -1154,11 +1207,13 @@ object CourseReminderHelper {
             val startTotal = startTime.toMinutes()
             if (startTotal == Int.MAX_VALUE) continue
             val windowStart = startTotal - minutesBefore
-            val inWindow = currentMinutes >= windowStart && currentMinutes < startTotal
+            val inWindow = currentMinutes in windowStart until startTotal
             val dedupId11 = "${course.name}|${course.getTimeDisplayText()}|$startTime"
             val dedupHit = isPreClassSentRecently(context, dedupId11)
-            android.util.Log.d(TAG, "checkPending: ${course.name} start=$startTime cur=$currentMinutes win=[$windowStart,$startTotal) inWindow=$inWindow dedupHit=$dedupHit")
-            if (!inWindow || dedupHit) continue
+            // 超级岛倒计时已发送过则当天不再重发（原生倒计时自行跳秒，重发会触发岛重新弹出）
+            val islandHit = useIsland && hasIslandPreClassSentToday(context, dedupId11)
+            android.util.Log.d(TAG, "checkPending: ${course.name} start=$startTime cur=$currentMinutes win=[$windowStart,$startTotal) inWindow=$inWindow dedupHit=$dedupHit islandHit=$islandHit")
+            if (!inWindow || dedupHit || islandHit) continue
             sendPreClassNotification(context, alarmManager, repository, course, startTime, useIsland)
             android.util.Log.d(TAG, "checkPending: SENT ${course.name}")
         }

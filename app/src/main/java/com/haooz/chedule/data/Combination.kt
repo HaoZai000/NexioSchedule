@@ -19,6 +19,19 @@ data class Combination(
     var wallpaperBrightness: Float = 0f,
     var showBreakDividers: Boolean = true,
     var cardContentAlignment: CardContentAlignment = CardContentAlignment.CENTER_CENTER,
+    var cardTextColor: CardTextColor = CardTextColor.COLORFUL,
     // 壁纸均匀测光结果：true=亮色壁纸，false=暗色壁纸，null=无壁纸/未测光
     var wallpaperIsLight: Boolean? = null
 )
+
+/** 卡片文字颜色模式 */
+enum class CardTextColor(val label: String) {
+    COLORFUL("彩色"),
+    SOLID("纯色");
+
+    companion object {
+        fun fromOrdinal(ordinal: Int): CardTextColor {
+            return entries.getOrElse(ordinal) { COLORFUL }
+        }
+    }
+}

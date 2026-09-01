@@ -46,6 +46,7 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.core.content.ContextCompat
+import androidx.core.content.edit
 import androidx.core.graphics.createBitmap
 import com.google.gson.Gson
 import com.haooz.chedule.R
@@ -256,11 +257,11 @@ private fun saveLastLocation(
     cityCode: String? = null,
     lngLat: String? = null
 ) {
-    val prefs = context.getSharedPreferences("weather_prefs", Context.MODE_PRIVATE).edit()
-    prefs.putString("last_location_name", name)
-    if (cityCode != null) prefs.putString("last_city_code", cityCode)
-    if (lngLat != null) prefs.putString("last_lnglat", lngLat)
-    prefs.apply()
+    context.getSharedPreferences("weather_prefs", Context.MODE_PRIVATE).edit {
+        putString("last_location_name", name)
+        if (cityCode != null) putString("last_city_code", cityCode)
+        if (lngLat != null) putString("last_lnglat", lngLat)
+    }
 }
 
 // 读取上次定位的经纬度（无权限时彩云源回退用）。无记录返回 null。

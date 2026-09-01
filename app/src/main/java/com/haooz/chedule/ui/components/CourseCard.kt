@@ -76,6 +76,7 @@ fun CourseCard(
     cardCornerRadius: Float = 10f,
     isTablet: Boolean = false,
     cardContentAlignment: com.haooz.chedule.data.CardContentAlignment = com.haooz.chedule.data.CardContentAlignment.CENTER_CENTER,
+    cardTextColor: com.haooz.chedule.data.CardTextColor = com.haooz.chedule.data.CardTextColor.COLORFUL,
     isDragging: Boolean = false,
     disablePadding: Boolean = false,
     onClick: () -> Unit,
@@ -103,8 +104,13 @@ fun CourseCard(
             Color(0xFF9E9E9E).copy(alpha = effectiveAlpha * 0.7f)
         }
     }
-    val textColor = remember(course.colorRes, isCurrentWeek, isHoliday, hasBlur, isDark) {
-        if (isCurrentWeek && !isHoliday) {
+    val textColor = remember(course.colorRes, isCurrentWeek, isHoliday, hasBlur, isDark, cardTextColor) {
+        // 纯色模式仅作用于本周课程：文字统一为黑/白 0.74f；非本周/假期沿用原有灰色
+        if (isCurrentWeek && !isHoliday &&
+            cardTextColor == com.haooz.chedule.data.CardTextColor.SOLID
+        ) {
+            if (isDark) Color.White.copy(alpha = 0.74f) else Color.Black.copy(alpha = 0.74f)
+        } else if (isCurrentWeek && !isHoliday) {
             if (hasBlur) Color(course.colorRes).let { c ->
                 val hsv = FloatArray(3)
                 AndroidColor.RGBToHSV((c.red * 255).toInt(), (c.green * 255).toInt(), (c.blue * 255).toInt(), hsv)
