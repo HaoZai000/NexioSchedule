@@ -2,14 +2,14 @@
 package com.haooz.chedule.ui.screens
 
 import android.annotation.SuppressLint
-import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.WindowInsets
@@ -29,7 +29,6 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableLongStateOf
@@ -41,7 +40,6 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalConfiguration
@@ -85,7 +83,6 @@ import top.yukonga.miuix.kmp.squircle.squircleClip
 import top.yukonga.miuix.kmp.theme.ColorSchemeMode
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 import top.yukonga.miuix.kmp.theme.ThemeController
-import top.yukonga.miuix.kmp.utils.PressFeedbackType
 import top.yukonga.miuix.kmp.utils.scrollEndHaptic
 import java.util.UUID
 
@@ -138,24 +135,16 @@ fun AddCourseDialog(
     var tempEndHour by remember(show) { mutableIntStateOf(parseTimeHour(course?.customEndTime)) }
     var tempEndMinute by remember(show) { mutableIntStateOf(parseTimeMinute(course?.customEndTime)) }
 
-    val currentOccupiedWeeks by remember(
-        dayOfWeek,
-        startSection,
-        endSection,
-        isCustomTime,
-        customStartTime,
-        customEndTime
-    ) {
-        derivedStateOf {
-            getOccupiedWeeks(
-                dayOfWeek,
-                startSection,
-                endSection,
-                listOfNotNull(course?.id),
-                if (isCustomTime) customStartTime.ifBlank { null } else null,
-                if (isCustomTime) customEndTime.ifBlank { null } else null
-            )
-        }
+    var currentOccupiedWeeks by remember { mutableStateOf<Set<Int>>(emptySet()) }
+    LaunchedEffect(dayOfWeek, startSection, endSection, isCustomTime, customStartTime, customEndTime) {
+        currentOccupiedWeeks = getOccupiedWeeks(
+            dayOfWeek,
+            startSection,
+            endSection,
+            listOfNotNull(course?.id),
+            if (isCustomTime) customStartTime.ifBlank { null } else null,
+            if (isCustomTime) customEndTime.ifBlank { null } else null
+        )
     }
 
     val selectedWeeks = remember(show) {
@@ -1012,31 +1001,29 @@ private fun WeekdayCard(
                 val dayLabels = remember { listOf("一", "二", "三", "四", "五", "六", "日") }
                 for (day in 1..7) {
                     val isSelected = day == dayOfWeek
-                    Card(
+                    val bgColor = if (isSelected) MiuixTheme.colorScheme.primary
+                        else if (isDark) Color(0xFF363636) else Color(0xFFF2F2F2)
+                    val textColor = if (isSelected) Color.White
+                        else MiuixTheme.colorScheme.onSurfaceVariantSummary
+                    Box(
                         modifier = Modifier
                             .weight(1f)
-                            .height(32.dp),
-                        cornerRadius = 10.dp,
-                        insideMargin = PaddingValues(0.dp),
-                        pressFeedbackType = PressFeedbackType.Sink,
-                        colors = if (isSelected) CardDefaults.defaultColors(
-                            color = MiuixTheme.colorScheme.primary,
-                            contentColor = Color.White
-                        ) else CardDefaults.defaultColors(
-                            color = if (isDark) Color(0xFF363636) else Color(0xFFF2F2F2)
-                        ),
-                        onClick = { onDayOfWeekChange(day) }
+                            .height(32.dp)
+                            .squircleClip(10.dp)
+                            .background(bgColor)
+                            .clickable(
+                                interactionSource = null,
+                                indication = null,
+                            ) {
+                                onDayOfWeekChange(day)
+                            },
+                        contentAlignment = Alignment.Center
                     ) {
-                        Box(
-                            modifier = Modifier.fillMaxSize(),
-                            contentAlignment = Alignment.Center
-                        ) {
-                            Text(
-                                text = dayLabels[day - 1],
-                                fontSize = 14.sp,
-                                color = if (isSelected) Color.White else MiuixTheme.colorScheme.onSurfaceVariantSummary
-                            )
-                        }
+                        Text(
+                            text = dayLabels[day - 1],
+                            fontSize = 14.sp,
+                            color = textColor
+                        )
                     }
                 }
             }
@@ -1266,53 +1253,44 @@ private fun WeekSettingCard(
                             val idx = row * columns + col
                             if (idx < weekStates.size) {
                                 val (weekNum, isSelected, isOccupied) = weekStates[idx]
-                                Card(
+                                val bgColor = when {
+                                    isSelected -> primaryColor
+                                    isOccupied -> occupiedColor
+                                    else -> if (isDark) Color(0xFF363636) else Color(0xFFF2F2F2)
+                                }
+                                val contentTextColor = when {
+                                    noDaySelected -> outlineColor
+                                    isSelected -> Color.White
+                                    isOccupied -> outlineColor
+                                    else -> onSurfaceSummaryColor
+                                }
+                                Box(
                                     modifier = Modifier
                                         .weight(1f)
-                                        .height(32.dp),
-                                    cornerRadius = 10.dp,
-                                    insideMargin = PaddingValues(0.dp),
-                                    pressFeedbackType = PressFeedbackType.Sink,
-                                    showIndication = !noDaySelected && !isOccupied,
-                                    colors = CardDefaults.defaultColors(
-                                        color = when {
-                                            isSelected -> primaryColor
-                                            isOccupied -> occupiedColor
-                                            else -> if (isDark) Color(0xFF363636) else Color(0xFFF2F2F2)
-                                        },
-                                        contentColor = when {
-                                            noDaySelected -> outlineColor
-                                            isSelected -> Color.White
-                                            isOccupied -> outlineColor
-                                            else -> onSurfaceColor
-                                        }
-                                    ),
-                                    onClick = if (noDaySelected || isOccupied) null else {
-                                        {
-                                            if (isSelected) {
-                                                selectedWeeks.remove(weekNum)
-                                            } else {
-                                                selectedWeeks.add(weekNum)
+                                        .height(32.dp)
+                                        .squircleClip(10.dp)
+                                        .background(bgColor)
+                                        .then(
+                                            if (noDaySelected || isOccupied) Modifier
+                                            else Modifier.clickable(
+                                                interactionSource = null,
+                                                indication = null,
+                                            ) {
+                                                if (isSelected) {
+                                                    selectedWeeks.remove(weekNum)
+                                                } else {
+                                                    selectedWeeks.add(weekNum)
+                                                }
+                                                onIsSingleWeekChange(false)
                                             }
-                                            onIsSingleWeekChange(false)
-                                        }
-                                    }
+                                        ),
+                                    contentAlignment = Alignment.Center
                                 ) {
-                                    Box(
-                                        modifier = Modifier.fillMaxSize(),
-                                        contentAlignment = Alignment.Center
-                                    ) {
-                                        Text(
-                                            text = "$weekNum",
-                                            fontSize = 13.sp,
-                                            color = when {
-                                                noDaySelected -> if (isDark) Color(0xFF606060) else outlineColor
-                                                isSelected -> Color.White
-                                                isOccupied -> if (isDark) Color(0xFF606060) else outlineColor
-                                                else -> onSurfaceSummaryColor
-                                            }
-                                        )
-                                    }
+                                    Text(
+                                        text = "$weekNum",
+                                        fontSize = 13.sp,
+                                        color = contentTextColor
+                                    )
                                 }
                             } else {
                                 Spacer(modifier = Modifier.weight(1f))
@@ -1374,46 +1352,18 @@ private fun ColorCard(
                             if (colorIndex < allColors.size) {
                                 val color = allColors[colorIndex]
                                 val isSelected = color == selectedColor
-                                var isPressed by remember { mutableStateOf(false) }
                                 val primaryColor = MiuixTheme.colorScheme.primary
-                                val scale = remember { Animatable(1f) }
                                 val borderAlpha by animateFloatAsState(
                                     targetValue = if (isSelected) 1f else 0f,
                                     animationSpec = tween(durationMillis = 200),
                                     label = "borderAlpha"
                                 )
-                                LaunchedEffect(isPressed) {
-                                    if (isPressed) {
-                                        scale.animateTo(
-                                            targetValue = 0.94f,
-                                            animationSpec = tween(durationMillis = 100)
-                                        )
-                                    } else {
-                                        scale.animateTo(
-                                            targetValue = 1f,
-                                            animationSpec = tween(durationMillis = 180)
-                                        )
-                                    }
-                                }
                                 Box(
                                     modifier = Modifier
                                         .weight(1f)
                                         .aspectRatio(1f)
-                                        .graphicsLayer {
-                                            scaleX = scale.value
-                                            scaleY = scale.value
-                                        }
                                         .pointerInput(Unit) {
-                                            awaitPointerEventScope {
-                                                while (true) {
-                                                    val event = awaitPointerEvent()
-                                                    val anyPressed = event.changes.any { it.pressed }
-                                                    isPressed = anyPressed
-                                                    if (!anyPressed) {
-                                                        onSelectedColorChange(color)
-                                                    }
-                                                }
-                                            }
+                                            detectTapGestures { onSelectedColorChange(color) }
                                         },
                                     contentAlignment = Alignment.Center
                                 ) {
@@ -1435,45 +1385,17 @@ private fun ColorCard(
                                 val isCustomColor = selectedColor !in allColors
                                 val hintColor = MiuixTheme.colorScheme.onSurfaceVariantSummary
                                 val primaryColor = MiuixTheme.colorScheme.primary
-                                var isCustomPressed by remember { mutableStateOf(false) }
-                                val customScale = remember { Animatable(1f) }
                                 val customBorderAlpha by animateFloatAsState(
                                     targetValue = if (isCustomColor) 1f else 0f,
                                     animationSpec = tween(durationMillis = 200),
                                     label = "customBorderAlpha"
                                 )
-                                LaunchedEffect(isCustomPressed) {
-                                    if (isCustomPressed) {
-                                        customScale.animateTo(
-                                            targetValue = 0.94f,
-                                            animationSpec = tween(durationMillis = 100)
-                                        )
-                                    } else {
-                                        customScale.animateTo(
-                                            targetValue = 1f,
-                                            animationSpec = tween(durationMillis = 180)
-                                        )
-                                    }
-                                }
                                 Box(
                                     modifier = Modifier
                                         .weight(1f)
                                         .aspectRatio(1f)
-                                        .graphicsLayer {
-                                            scaleX = customScale.value
-                                            scaleY = customScale.value
-                                        }
                                         .pointerInput(Unit) {
-                                            awaitPointerEventScope {
-                                                while (true) {
-                                                    val event = awaitPointerEvent()
-                                                    val anyPressed = event.changes.any { it.pressed }
-                                                    isCustomPressed = anyPressed
-                                                    if (!anyPressed) {
-                                                        onShowColorDialog()
-                                                    }
-                                                }
-                                            }
+                                            detectTapGestures { onShowColorDialog() }
                                         },
                                     contentAlignment = Alignment.Center
                                 ) {
@@ -1490,7 +1412,7 @@ private fun ColorCard(
                                             .squircleClip(8.dp)
                                             .background(
                                                 if (isCustomColor) Color(selectedColor).copy(alpha = if (isDark) 0.22f else 0.16f)
-                                                else if (isDark) Color(0xFF2B2B2B) else Color(0xFFFBFBFB)
+                                                else if (isDark) Color(0xFF424242) else Color(0xFFF0F0F0)
                                             ),
                                         contentAlignment = Alignment.Center
                                     ) {

@@ -12,6 +12,7 @@ import androidx.compose.animation.fadeOut
 import androidx.compose.animation.shrinkVertically
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
+import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -645,58 +646,20 @@ fun CourseEditScreen(
                                                         if (colorIndex < allColors.size) {
                                                             val color = allColors[colorIndex]
                                                             val isSelected = color == selectedColor
-                                                            var isPressed by remember {
-                                                                mutableStateOf(
-                                                                    false
-                                                                )
-                                                            }
                                                             val primaryColor =
                                                                 MiuixTheme.colorScheme.primary
-                                                            val scale = remember { Animatable(1f) }
                                                             val borderAlpha by animateFloatAsState(
                                                                 targetValue = if (isSelected) 1f else 0f,
                                                                 animationSpec = tween(durationMillis = 200),
                                                                 label = "borderAlpha"
                                                             )
-                                                            LaunchedEffect(isPressed) {
-                                                                if (isPressed) {
-                                                                    scale.animateTo(
-                                                                        targetValue = 0.94f,
-                                                                        animationSpec = tween(
-                                                                            durationMillis = 100
-                                                                        )
-                                                                    )
-                                                                } else {
-                                                                    scale.animateTo(
-                                                                        targetValue = 1f,
-                                                                        animationSpec = tween(
-                                                                            durationMillis = 180
-                                                                        )
-                                                                    )
-                                                                }
-                                                            }
                                                             Box(
                                                                 modifier = Modifier
                                                                     .weight(1f)
                                                                     .aspectRatio(1f)
-                                                                    .graphicsLayer {
-                                                                        scaleX = scale.value
-                                                                        scaleY = scale.value
-                                                                    }
                                                                     .pointerInput(Unit) {
-                                                                        awaitPointerEventScope {
-                                                                            while (true) {
-                                                                                val event =
-                                                                                    awaitPointerEvent()
-                                                                                val anyPressed =
-                                                                                    event.changes.any { it.pressed }
-                                                                                isPressed =
-                                                                                    anyPressed
-                                                                                if (!anyPressed) {
-                                                                                    selectedColor =
-                                                                                        color
-                                                                                }
-                                                                            }
+                                                                        detectTapGestures {
+                                                                            selectedColor = color
                                                                         }
                                                                     },
                                                                 contentAlignment = Alignment.Center
@@ -729,61 +692,21 @@ fun CourseEditScreen(
                                                                 MiuixTheme.colorScheme.onSurfaceVariantSummary
                                                             val primaryColor =
                                                                 MiuixTheme.colorScheme.primary
-                                                            var isCustomPressed by remember {
-                                                                mutableStateOf(
-                                                                    false
-                                                                )
-                                                            }
-                                                            val customScale =
-                                                                remember { Animatable(1f) }
                                                             val customBorderAlpha by animateFloatAsState(
                                                                 targetValue = if (isCustomColor) 1f else 0f,
                                                                 animationSpec = tween(durationMillis = 200),
                                                                 label = "customBorderAlpha"
                                                             )
-                                                            LaunchedEffect(isCustomPressed) {
-                                                                if (isCustomPressed) {
-                                                                    customScale.animateTo(
-                                                                        targetValue = 0.94f,
-                                                                        animationSpec = tween(
-                                                                            durationMillis = 100
-                                                                        )
-                                                                    )
-                                                                } else {
-                                                                    customScale.animateTo(
-                                                                        targetValue = 1f,
-                                                                        animationSpec = tween(
-                                                                            durationMillis = 180
-                                                                        )
-                                                                    )
-                                                                }
-                                                            }
                                                             Box(
                                                                 modifier = Modifier
                                                                     .weight(1f)
                                                                     .aspectRatio(1f)
-                                                                    .graphicsLayer {
-                                                                        scaleX = customScale.value
-                                                                        scaleY = customScale.value
-                                                                    }
                                                                     .pointerInput(Unit) {
-                                                                        awaitPointerEventScope {
-                                                                            while (true) {
-                                                                                val event =
-                                                                                    awaitPointerEvent()
-                                                                                val anyPressed =
-                                                                                    event.changes.any { it.pressed }
-                                                                                isCustomPressed =
-                                                                                    anyPressed
-                                                                                if (!anyPressed) {
-                                                                                    customColor =
-                                                                                        Color(
-                                                                                            selectedColor
-                                                                                        )
-                                                                                    showColorDialog =
-                                                                                        true
-                                                                                }
-                                                                            }
+                                                                        detectTapGestures {
+                                                                            customColor = Color(
+                                                                                selectedColor
+                                                                            )
+                                                                            showColorDialog = true
                                                                         }
                                                                     },
                                                                 contentAlignment = Alignment.Center
@@ -808,8 +731,8 @@ fun CourseEditScreen(
                                                                                 alpha = if (isDark) 0.22f else 0.16f
                                                                             )
                                                                             else if (isDark) Color(
-                                                                                0xFF242424
-                                                                            ) else Color(0xFFFFFFFF)
+                                                                                0xFF363636
+                                                                            ) else Color(0xFFF7F7F7)
                                                                         ),
                                                                     contentAlignment = Alignment.Center
                                                                 ) {

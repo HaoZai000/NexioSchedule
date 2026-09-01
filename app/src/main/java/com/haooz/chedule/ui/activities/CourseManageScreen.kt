@@ -14,6 +14,7 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.aspectRatio
@@ -373,46 +374,18 @@ fun CourseManageScreen(
                             if (colorIndex < allColors.size) {
                                 val color = allColors[colorIndex]
                                 val isSelected = color == newCourseColor
-                                var isPressed by remember { mutableStateOf(false) }
                                 val primaryColor = MiuixTheme.colorScheme.primary
-                                val scale = remember { Animatable(1f) }
                                 val borderAlpha by animateFloatAsState(
                                     targetValue = if (isSelected) 1f else 0f,
                                     animationSpec = tween(durationMillis = 200),
                                     label = "borderAlpha"
                                 )
-                                LaunchedEffect(isPressed) {
-                                    if (isPressed) {
-                                        scale.animateTo(
-                                            targetValue = 0.94f,
-                                            animationSpec = tween(durationMillis = 100)
-                                        )
-                                    } else {
-                                        scale.animateTo(
-                                            targetValue = 1f,
-                                            animationSpec = tween(durationMillis = 180)
-                                        )
-                                    }
-                                }
                                 Box(
                                     modifier = Modifier
                                         .weight(1f)
                                         .aspectRatio(1f)
-                                        .graphicsLayer {
-                                            scaleX = scale.value
-                                            scaleY = scale.value
-                                        }
                                         .pointerInput(Unit) {
-                                            awaitPointerEventScope {
-                                                while (true) {
-                                                    val event = awaitPointerEvent()
-                                                    val anyPressed = event.changes.any { it.pressed }
-                                                    isPressed = anyPressed
-                                                    if (!anyPressed) {
-                                                        newCourseColor = color
-                                                    }
-                                                }
-                                            }
+                                            detectTapGestures { newCourseColor = color }
                                         },
                                     contentAlignment = Alignment.Center
                                 ) {
@@ -435,45 +408,19 @@ fun CourseManageScreen(
                                 val isCustomColor = newCourseColor !in allColors
                                 val hintColor = MiuixTheme.colorScheme.onSurfaceVariantSummary
                                 val primaryColor = MiuixTheme.colorScheme.primary
-                                var isCustomPressed by remember { mutableStateOf(false) }
-                                val customScale = remember { Animatable(1f) }
                                 val customBorderAlpha by animateFloatAsState(
                                     targetValue = if (isCustomColor) 1f else 0f,
                                     animationSpec = tween(durationMillis = 200),
                                     label = "customBorderAlpha"
                                 )
-                                LaunchedEffect(isCustomPressed) {
-                                    if (isCustomPressed) {
-                                        customScale.animateTo(
-                                            targetValue = 0.94f,
-                                            animationSpec = tween(durationMillis = 100)
-                                        )
-                                    } else {
-                                        customScale.animateTo(
-                                            targetValue = 1f,
-                                            animationSpec = tween(durationMillis = 180)
-                                        )
-                                    }
-                                }
                                 Box(
                                     modifier = Modifier
                                         .weight(1f)
                                         .aspectRatio(1f)
-                                        .graphicsLayer {
-                                            scaleX = customScale.value
-                                            scaleY = customScale.value
-                                        }
                                         .pointerInput(Unit) {
-                                            awaitPointerEventScope {
-                                                while (true) {
-                                                    val event = awaitPointerEvent()
-                                                    val anyPressed = event.changes.any { it.pressed }
-                                                    isCustomPressed = anyPressed
-                                                    if (!anyPressed) {
-                                                        customColor = Color(newCourseColor)
-                                                        showCustomColorDialog = true
-                                                    }
-                                                }
+                                            detectTapGestures {
+                                                customColor = Color(newCourseColor)
+                                                showCustomColorDialog = true
                                             }
                                         },
                                     contentAlignment = Alignment.Center
@@ -491,7 +438,7 @@ fun CourseManageScreen(
                                             .squircleClip(8.dp)
                                             .background(
                                                 if (isCustomColor) Color(newCourseColor).copy(alpha = if (isDark) 0.22f else 0.16f)
-                                                else if (isDark) ComposeColor(0xFF1F1F1F) else ComposeColor(0xFFFEFEFE)
+                                                else if (isDark) ComposeColor(0xFF424242) else ComposeColor(0xFFF0F0F0)
                                             ),
                                         contentAlignment = Alignment.Center
                                     ) {

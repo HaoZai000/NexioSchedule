@@ -2,13 +2,13 @@
 package com.haooz.chedule.ui.screens
 
 import android.annotation.SuppressLint
+import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.offset
@@ -59,8 +59,8 @@ import top.yukonga.miuix.kmp.overlay.BlurBottomSheetTablet
 import top.yukonga.miuix.kmp.overlay.LocalSheetTopBarMaterial
 import top.yukonga.miuix.kmp.overlay.OverlayDialog
 import top.yukonga.miuix.kmp.preference.ArrowPreference
+import top.yukonga.miuix.kmp.squircle.squircleClip
 import top.yukonga.miuix.kmp.theme.MiuixTheme
-import top.yukonga.miuix.kmp.utils.PressFeedbackType
 import top.yukonga.miuix.kmp.utils.scrollEndHaptic
 import java.util.UUID
 
@@ -131,15 +131,9 @@ fun AddEditCourseBottomSheet(
     var tempEndMinute by remember(show) { mutableIntStateOf(parseTimeMinute(editCourse?.customEndTime)) }
 
     // 根据当前选择的星期、节次和自定义时间动态计算已占用的周次（排除自身）
-    val currentOccupiedWeeks = remember(
-        dayOfWeek,
-        startSection,
-        endSection,
-        isCustomTime,
-        customStartTime,
-        customEndTime
-    ) {
-        getOccupiedWeeks(
+    var currentOccupiedWeeks by remember { mutableStateOf<Set<Int>>(emptySet()) }
+    LaunchedEffect(dayOfWeek, startSection, endSection, isCustomTime, customStartTime, customEndTime) {
+        currentOccupiedWeeks = getOccupiedWeeks(
             dayOfWeek,
             startSection,
             endSection,
@@ -396,33 +390,30 @@ fun AddEditCourseBottomSheet(
                             remember { listOf("一", "二", "三", "四", "五", "六", "日") }
                         for (day in 1..7) {
                             val isSelected = day == dayOfWeek
-                            Card(
+                            val bgColor = if (isSelected) MiuixTheme.colorScheme.primary
+                                else if (isDark) Color(0xFF363636) else Color(0xFFF2F2F2)
+                            val textColor = if (isSelected) Color.White
+                                else MiuixTheme.colorScheme.onSurfaceVariantSummary
+                            Box(
                                 modifier = Modifier
                                     .weight(1f)
-                                    .height(32.dp),
-                                cornerRadius = 10.dp,
-                                insideMargin = PaddingValues(0.dp),
-                                pressFeedbackType = PressFeedbackType.Sink,
-                                colors = CardDefaults.defaultColors(
-                                    color = if (isSelected) MiuixTheme.colorScheme.primary
-                                    else if (isDark) Color(0xFF363636) else Color(0xFFF2F2F2),
-                                    contentColor = if (isSelected) Color.White else MiuixTheme.colorScheme.onSurfaceVariantSummary
-                                ),
-                                onClick = {
-                                    dayOfWeek = day
-                                    selectedWeeks.clear()
-                                }
+                                    .height(32.dp)
+                                    .squircleClip(10.dp)
+                                    .background(bgColor)
+                                    .clickable(
+                                        interactionSource = null,
+                                        indication = null,
+                                    ) {
+                                        dayOfWeek = day
+                                        selectedWeeks.clear()
+                                    },
+                                contentAlignment = Alignment.Center
                             ) {
-                                Box(
-                                    modifier = Modifier.fillMaxSize(),
-                                    contentAlignment = Alignment.Center
-                                ) {
-                                    Text(
-                                        text = dayLabels[day - 1],
-                                        fontSize = 14.sp,
-                                        color = if (isSelected) Color.White else MiuixTheme.colorScheme.onSurfaceVariantSummary
-                                    )
-                                }
+                                Text(
+                                    text = dayLabels[day - 1],
+                                    fontSize = 14.sp,
+                                    color = textColor
+                                )
                             }
                         }
                     }
@@ -652,38 +643,32 @@ fun AddEditCourseBottomSheet(
                                             isOccupied -> if (isDark) Color(0xFF606060) else outlineColor
                                             else -> onSurfaceSummaryColor
                                         }
-                                        Card(
+                                        Box(
                                             modifier = Modifier
                                                 .weight(1f)
-                                                .height(32.dp),
-                                            cornerRadius = 10.dp,
-                                            insideMargin = PaddingValues(0.dp),
-                                            pressFeedbackType = PressFeedbackType.Sink,
-                                            showIndication = !noDaySelected && !isOccupied,
-                                            colors = CardDefaults.defaultColors(
-                                                color = cardColor,
-                                                contentColor = if (isSelected) Color.White else outlineColor
-                                            ),
-                                            onClick = if (noDaySelected || isOccupied) null else {
-                                                {
-                                                    if (isSelected) {
-                                                        selectedWeeks.remove(weekNum)
-                                                    } else {
-                                                        selectedWeeks.add(weekNum)
+                                                .height(32.dp)
+                                                .squircleClip(10.dp)
+                                                .background(cardColor)
+                                                .then(
+                                                    if (noDaySelected || isOccupied) Modifier
+                                                    else Modifier.clickable(
+                                                        interactionSource = null,
+                                                        indication = null,
+                                                    ) {
+                                                        if (isSelected) {
+                                                            selectedWeeks.remove(weekNum)
+                                                        } else {
+                                                            selectedWeeks.add(weekNum)
+                                                        }
                                                     }
-                                                }
-                                            }
+                                                ),
+                                            contentAlignment = Alignment.Center
                                         ) {
-                                            Box(
-                                                modifier = Modifier.fillMaxSize(),
-                                                contentAlignment = Alignment.Center
-                                            ) {
-                                                Text(
-                                                    text = "$weekNum",
-                                                    fontSize = 13.sp,
-                                                    color = textColor
-                                                )
-                                            }
+                                            Text(
+                                                text = "$weekNum",
+                                                fontSize = 13.sp,
+                                                color = textColor
+                                            )
                                         }
                                     } else {
                                         Spacer(modifier = Modifier.weight(1f))
