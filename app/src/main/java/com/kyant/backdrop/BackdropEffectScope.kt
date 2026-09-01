@@ -8,8 +8,8 @@ import androidx.compose.ui.unit.Density
 import androidx.compose.ui.unit.LayoutDirection
 
 // 离屏模糊缓冲的降采样比例。模糊/折射在低分辨率缓冲上运算后放大回原尺寸，
-// 可显著降低 GPU 采样成本（成本按 1/scale² 下降）。0.45f 为固定降采样。
-internal const val DOWNSAMPLE_SCALE = 0.45f
+// 可显著降低 GPU 采样成本（成本按 1/scale² 下降）。0.42f 为固定降采样。
+internal const val DOWNSAMPLE_SCALE = 0.42f
 
 sealed interface BackdropEffectScope : Density, RuntimeShaderCache {
 

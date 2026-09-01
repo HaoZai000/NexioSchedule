@@ -1905,8 +1905,26 @@ class CourseRepository private constructor(context: Context) {
 
     /** 获取当前选中的时间配置 ID */
     fun getCurrentTimeConfigId(): Long {
-        // 统一以"当前课表绑定的时间配置"为唯一来源，避免与全局指针出现漂移
-        return getScheduleTimeConfigId(getCurrentScheduleId())
+        val scheduleId = getCurrentScheduleId()
+        // 优先使用课表绑定的时间配置
+        val boundKey = "$SCHEDULE_TIME_CONFIG_PREFIX$scheduleId"
+        val bound = prefs.getLong(boundKey, 0L)
+        if (prefs.contains(boundKey) && bound in getTimeConfigIds()) {
+            return bound
+        }
+        // 课表从未绑定（升级自旧版本：旧版只维护单一"当前时间配置"全局指针）：
+        // 回退到旧全局指针指向的有效配置，避免升级后节数/时间被重置为默认；
+        // 顺手把解析结果补绑到该课表，避免后续重复回退
+        val resolved = resolveLegacyCurrentTimeConfigId()
+        setScheduleTimeConfigId(scheduleId, resolved)
+        return resolved
+    }
+
+    /** 升级兼容：优先沿用旧版单一"当前时间配置"全局指针，无效时取第一个可用配置 */
+    private fun resolveLegacyCurrentTimeConfigId(): Long {
+        val legacy = prefs.getLong(KEY_CURRENT_TIME_CONFIG_ID, 0L)
+        if (legacy in getTimeConfigIds()) return legacy
+        return getTimeConfigIds().firstOrNull() ?: 0L
     }
 
     /** 设置当前选中的时间配置 ID */

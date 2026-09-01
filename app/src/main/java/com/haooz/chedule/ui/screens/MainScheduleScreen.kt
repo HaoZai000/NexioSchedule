@@ -28,6 +28,7 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.collectAsState
@@ -92,6 +93,8 @@ import java.util.Calendar
 import kotlin.time.Duration.Companion.milliseconds
 import com.kyant.backdrop.backdrops.layerBackdrop as kyantLayerBackdrop
 import com.kyant.backdrop.backdrops.rememberLayerBackdrop as rememberKyantLayerBackdrop
+import com.kyant.backdrop.backdrops.SharedBlurBackdrop
+import com.kyant.backdrop.isRenderEffectSupported
 
 /**
  * 课表网格几何信息，供拖拽调课时落点检测使用。
@@ -307,6 +310,14 @@ fun MainScheduleScreen(
         drawContent()
     }
 
+    // 共享模糊 Backdrop：预渲染壁纸到降采样+模糊层，所有卡片共享
+    val sharedBlurManager = remember { SharedBlurBackdrop(courseCardBackdrop) }
+    val hasSharedBlur = wallpaperBitmap != null && isRenderEffectSupported() && cardBlurRadius > 0f
+
+    DisposableEffect(Unit) {
+        onDispose { sharedBlurManager.release() }
+    }
+
     Box(modifier = Modifier.fillMaxSize()) {
         // 壁纸背景
         if (wallpaperBitmap != null) {
@@ -345,6 +356,18 @@ fun MainScheduleScreen(
             }
         } else {
             Box(modifier = Modifier.fillMaxSize().kyantLayerBackdrop(courseCardBackdrop).background(wallpaperBackdropColor))
+        }
+
+        // 不可见预渲染 Box：将壁纸录制到降采样+模糊层，供所有课程卡片共享采样
+        if (hasSharedBlur) {
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .graphicsLayer { alpha = 0f }
+                    .then(sharedBlurManager.preRenderModifier(
+                        blurRadiusPx = with(density) { cardBlurRadius.dp.toPx() }
+                    ))
+            )
         }
 
         // 用于手势回调中读取最新值，避免 pointerInput(Unit) 捕获陈旧状态
@@ -428,7 +451,9 @@ fun MainScheduleScreen(
                                 cardCornerRadius = cardCornerRadius,
                                 cardBlurRadius = cardBlurRadius,
                                 cardAlpha = cardAlpha,
-                                wallpaperBackdrop = if (wallpaperBitmap != null) courseCardBackdrop else null
+                                wallpaperBackdrop = if (wallpaperBitmap != null) {
+                                    if (hasSharedBlur) sharedBlurManager else courseCardBackdrop
+                                } else null
                             )
                         }
                     }
@@ -518,7 +543,8 @@ fun MainScheduleScreen(
                             val stableOnCourseLongPress: (Course, Float, Float, Float, Float, com.kyant.backdrop.Backdrop?, Int) -> Unit =
                                 remember(page, dayOfWeek) {
                                     { course, left, top, width, height, _, cWeek ->
-                                        onCourseLongPress(course, left, top, width, height, courseCardBackdrop, cWeek)
+                                        val backdrop = if (hasSharedBlur) sharedBlurManager else courseCardBackdrop
+                                        onCourseLongPress(course, left, top, width, height, backdrop, cWeek)
                                     }
                                 }
                             DayColumn(
@@ -538,7 +564,9 @@ fun MainScheduleScreen(
                                 pendingDay = pendingDay,
                                 pendingSection = pendingSection,
                                 onPendingChange = onPendingChange,
-                                wallpaperBackdrop = if (wallpaperBitmap != null) courseCardBackdrop else null,
+                                wallpaperBackdrop = if (wallpaperBitmap != null) {
+                                    if (hasSharedBlur) sharedBlurManager else courseCardBackdrop
+                                } else null,
                                 cardBlurRadius = cardBlurRadius,
                                 cardAlpha = cardAlpha,
                                 cardHeightPerSection = cardHeightPerSection,
@@ -653,11 +681,14 @@ fun MainScheduleScreen(
                                 .background(dividerFgBase, dividerShape)
                                 .then(
                                     if (hasWallpaperDivider) {
+                                        val dividerBackdrop = if (hasSharedBlur) sharedBlurManager else courseCardBackdrop
                                         Modifier.drawBackdrop(
-                                            backdrop = courseCardBackdrop,
+                                            backdrop = dividerBackdrop,
                                             shape = { dividerBlurShape },
                                             effects = {
-                                                blur(dividerBlurPx)
+                                                if (dividerBackdrop !is SharedBlurBackdrop) {
+                                                    blur(dividerBlurPx)
+                                                }
                                                 lens(dividerLensRadiusPx, dividerLensStrengthPx)
                                             },
                                             highlight = null,

@@ -17,6 +17,7 @@ import androidx.compose.ui.layout.LayoutCoordinates
 import androidx.compose.ui.layout.Measurable
 import androidx.compose.ui.layout.MeasureResult
 import androidx.compose.ui.layout.MeasureScope
+import androidx.compose.ui.layout.positionInWindow
 import androidx.compose.ui.node.DrawModifierNode
 import androidx.compose.ui.node.GlobalPositionAwareModifierNode
 import androidx.compose.ui.node.LayoutModifierNode
@@ -28,8 +29,8 @@ import androidx.compose.ui.platform.InspectorInfo
 import androidx.compose.ui.unit.Constraints
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.IntSize
-import kotlin.math.roundToInt
 import com.kyant.backdrop.backdrops.LayerBackdrop
+import com.kyant.backdrop.backdrops.SharedBlurBackdrop
 import com.kyant.backdrop.highlight.Highlight
 import com.kyant.backdrop.highlight.HighlightElement
 import com.kyant.backdrop.internal.ShapeProvider
@@ -38,6 +39,7 @@ import com.kyant.backdrop.shadow.InnerShadow
 import com.kyant.backdrop.shadow.InnerShadowElement
 import com.kyant.backdrop.shadow.Shadow
 import com.kyant.backdrop.shadow.ShadowElement
+import kotlin.math.roundToInt
 
 private val DefaultHighlight = { Highlight.Default }
 private val DefaultShadow = { Shadow.Default }
@@ -295,17 +297,58 @@ private class DrawBackdropNode(
             val size = size
             val scaledPadding = padding * DOWNSAMPLE_SCALE
 
-            recordLayer(
-                this@DrawBackdropNode,
-                layer,
-                size = IntSize(
-                    ((size.width + padding * 2) * DOWNSAMPLE_SCALE)
-                        .roundToInt().coerceAtLeast(1),
-                    ((size.height + padding * 2) * DOWNSAMPLE_SCALE)
-                        .roundToInt().coerceAtLeast(1)
-                ),
-                block = recordBackdropBlock
+            val cardBufferSize = IntSize(
+                ((size.width + padding * 2) * DOWNSAMPLE_SCALE)
+                    .roundToInt().coerceAtLeast(1),
+                ((size.height + padding * 2) * DOWNSAMPLE_SCALE)
+                    .roundToInt().coerceAtLeast(1)
             )
+
+            // 检查是否有共享降采样层
+            val sharedLayer = backdrop.sharedSampledLayer
+            val sharedBackdrop = backdrop as? SharedBlurBackdrop
+            val sourceCoords = sharedBackdrop?.sourceLayerCoordinates
+            val cardCoords = layoutCoordinates
+            val useSharedMode = sharedLayer != null && cardCoords != null && sourceCoords != null
+
+            if (useSharedMode) {
+                // ===== 共享模式：从共享预渲染层采样 =====
+                val cardPos = cardCoords
+                val sourcePos = sourceCoords
+                val offset = try {
+                    sourcePos.localPositionOf(cardPos)
+                } catch (_: Exception) {
+                    cardPos.positionInWindow() - sourcePos.positionInWindow()
+                }
+
+                val sharedLayerNonNull = sharedLayer
+                recordLayer(
+                    this@DrawBackdropNode,
+                    layer,
+                    size = cardBufferSize,
+                    block = {
+                        val canvas = drawContext.canvas
+                        canvas.save()
+                        // 共享层和录制 buffer 都在 DOWNSAMPLE_SCALE 分辨率下
+                        // 只需平移将共享层中卡片对应区域对齐到 buffer 原点
+                        // 公式：buffer_point = shared_point - offset * DOWNSAMPLE_SCALE
+                        canvas.translate(
+                            -offset.x * DOWNSAMPLE_SCALE + scaledPadding,
+                            -offset.y * DOWNSAMPLE_SCALE + scaledPadding
+                        )
+                        drawLayer(sharedLayerNonNull)
+                        canvas.restore()
+                    }
+                )
+            } else {
+                // ===== 原有模式：独立录制壁纸 =====
+                recordLayer(
+                    this@DrawBackdropNode,
+                    layer,
+                    size = cardBufferSize,
+                    block = recordBackdropBlock
+                )
+            }
 
             layer.topLeft = IntOffset.Zero
             // 将降采样缓冲放大回原尺寸：先 scale(1/scale) 再平移，使内容对齐卡片原点。

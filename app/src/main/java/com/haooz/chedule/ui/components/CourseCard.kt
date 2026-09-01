@@ -47,6 +47,7 @@ import com.haooz.chedule.ui.effects.edgelight.edgeLight
 import com.haooz.chedule.ui.effects.edgelight.rememberCourseCardEdgeLight
 import com.haooz.chedule.ui.utils.isAppDarkTheme
 import com.kyant.backdrop.Backdrop
+import com.kyant.backdrop.backdrops.SharedBlurBackdrop
 import com.kyant.backdrop.drawBackdrop
 import com.kyant.backdrop.effects.blur
 import com.kyant.backdrop.effects.lens
@@ -181,7 +182,9 @@ fun CourseCard(
                         backdrop = wallpaperBackdrop,
                         shape = { backdropShape },
                         effects = {
-                            blur(blurPx)
+                            if (wallpaperBackdrop !is SharedBlurBackdrop) {
+                                blur(blurPx)
+                            }
                             lens(lensRadiusPx, lensStrengthPx)
                         },
                         highlight = null,
