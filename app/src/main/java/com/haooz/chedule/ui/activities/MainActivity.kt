@@ -2646,6 +2646,22 @@ fun CourseScheduleApp() {
                             )
                         )
                     },
+                    onClearWallpaper = {
+                        wallpaperBitmap = null
+                        wallpaperOffset = Offset.Zero
+                        wallpaperScale = 1f
+                        val idx = currentCombinationIndex
+                        if (idx in combinations.indices) {
+                            combinations = combinations.toMutableList().also { list ->
+                                list[idx] = list[idx].copy(
+                                    bitmap = null,
+                                    offset = Offset.Zero,
+                                    scale = 1f,
+                                    wallpaperIsLight = null
+                                )
+                            }
+                        }
+                    },
                     pendingEnterCutout = pendingEnterCutout,
                     onCutoutEntered = { pendingEnterCutout = false },
                     combinations = combinations,

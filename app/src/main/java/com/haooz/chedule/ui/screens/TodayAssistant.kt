@@ -577,7 +577,7 @@ private fun generateSmartTip(
     if (ranges.isEmpty()) {
         // 今天有课程但时间信息不完整/无法解析，避免误报“今天没课”
         if (courses.isNotEmpty()) {
-            return "今天有 ${courses.size} 节课，但课程时间不完整，去课表里补充一下吧"
+            return "今天有 ${courses.size} 节课，但课程时间残缺得跟你的人生规划似的，去课表补一下！"
         }
         val greeting = getGreeting()
         val hour = now.hour
@@ -585,20 +585,20 @@ private fun generateSmartTip(
         val tomorrowInfo = if (tomorrowCount > 0) {
             val firstCourse = tomorrowRanges.firstOrNull()?.course
             when {
-                firstCourse != null && hour in 20..23 -> "，明天有 $tomorrowCount 节课，${firstCourse.name}是第一节课"
-                hour in 20..23 -> "，明天有 $tomorrowCount 节课"
+                firstCourse != null && hour in 20..23 -> "，明天${tomorrowCount}节，${firstCourse.name}带头，躲不掉"
+                hour in 20..23 -> "，明天${tomorrowCount}节，别想逃"
                 else -> ""
             }
         } else if (hour in 20..23) {
-            "，明天也没课"
+            "，明天没课，乐一下"
         } else ""
         return when (hour) {
-            in 6..8 -> "$greeting，今天没有课，可以睡个懒觉$tomorrowInfo"
-            in 9..11 -> "$greeting，今天没有课，自由安排吧$tomorrowInfo"
-            in 12..14 -> "$greeting，今天下午也没课，好好享受$tomorrowInfo"
-            in 14..17 -> "$greeting，今天没课，做点自己想做的事$tomorrowInfo"
-            in 18..19 -> "$greeting，今天没有课，可以放松一下$tomorrowInfo"
-            in 20..22 -> "$greeting，今天没课，早点休息养精蓄锐$tomorrowInfo"
+            in 6..8 -> "$greeting，今天没课，放心睡，反正也没人指望你$tomorrowInfo"
+            in 9..11 -> "$greeting，今天没课，自由安排——别自由到把一天废了就行$tomorrowInfo"
+            in 12..14 -> "$greeting，今天下午也没课，好好享（摆）受（烂）吧$tomorrowInfo"
+            in 14..17 -> "$greeting，今天没课，做点想做的事，别又想了一下午啥也没干$tomorrowInfo"
+            in 18..19 -> "$greeting，今天没课，放松一下，别放松到最后还是又刷手机又焦虑$tomorrowInfo"
+            in 20..22 -> "$greeting，今天没课，早点休息——你确定忍得住不摸手机？$tomorrowInfo"
             else -> "$greeting，今天没有课$tomorrowInfo"
         }
     }
@@ -619,27 +619,27 @@ private fun generateSmartTip(
             val gap = nextAfter?.let { java.time.Duration.between(ongoing.end, it.start).toMinutes() }
             when {
                 // 临近下课且课间紧张时，优先提示赶场
-                gap != null && gap <= 3 && remaining <= 15 -> "下课只有 $gap 分钟，冲刺去下一间教室！"
-                gap != null && gap <= 10 && remaining <= 15 -> "下课后休息 $gap 分钟，抓紧充电"
-                gap != null && gap <= 15 && remaining <= 15 -> "下课后有 $gap 分钟休息，喝口水吧"
-                remaining <= 1 -> "还有1分钟就下课了，胜利在望！"
-                remaining <= 3 -> "冲刺时刻！还有 $remaining 分钟下课"
-                remaining <= 5 -> "马上要下课啦，还有 $remaining 分钟"
-                remaining <= 10 -> "还有 $remaining 分钟下课，坚持就是胜利"
-                remaining <= 15 -> "距下课还有 $remaining 分钟，笔记补完了吗？"
-                remaining <= 20 -> "这节课还有 $remaining 分钟，喝口水缓一缓"
-                remaining <= 30 -> "这节课还剩 $remaining 分钟，保持专注"
-                remaining <= 45 -> "已过半程，还有 $remaining 分钟下课"
-                remaining <= 60 -> "这节课还有 $remaining 分钟，稳住我们能赢"
-                remaining <= 75 -> "这节课还有 $remaining 分钟，按自己的节奏来"
-                remaining <= 90 -> "这节长课还有 $remaining 分钟，耐心听讲"
-                remaining <= 105 -> "时间还充裕，这节还有 $remaining 分钟"
-                remaining <= 120 -> "刚开课不久，还有 $remaining 分钟，进入状态吧"
+                gap != null && gap <= 3 && remaining <= 15 -> "下课只有 $gap 分钟！赶场冲刺，慢了半节课都白听了"
+                gap != null && gap <= 10 && remaining <= 15 -> "下课后只剩 $gap 分钟，赶紧补口血，别把魂放出去忘了回收"
+                gap != null && gap <= 15 && remaining <= 15 -> "下课后有 $gap 分钟，喝口水，但别顺带把精神也放了"
+                remaining <= 1 -> "1分钟下课！坐直点，别让老师看你如释重负的样子"
+                remaining <= 3 -> "冲刺！还有 $remaining 分钟，别瘫桌上装尸体"
+                remaining <= 5 -> "还有 $remaining 分钟下课，眼皮抬起来，撑住这最后一程"
+                remaining <= 10 -> "还有 $remaining 分钟下课，坚持就是胜利——坚持不住也得装到底"
+                remaining <= 15 -> "距下课 $remaining 分钟，笔记补完没？没补等死吧（开个玩笑……但真会死）"
+                remaining <= 20 -> "还有 $remaining 分钟，喝口水缓一缓，别第十分钟就开始坐不住"
+                remaining <= 30 -> "还剩 $remaining 分钟，专注点，你走神的对象又不给你发工资"
+                remaining <= 45 -> "过半了，还有 $remaining 分钟，半场刚打完，别提前庆祝"
+                remaining <= 60 -> "还有 $remaining 分钟，稳住我们能赢——至少口号不能输"
+                remaining <= 75 -> "还有 $remaining 分钟，按自己的节奏来，但别把节奏定成睡着"
+                remaining <= 90 -> "长课还有 $remaining 分钟，耐心点，老师讲得比你听得还累"
+                remaining <= 105 -> "时间充裕，还有 $remaining 分钟，慢慢听，别把重点漏了"
+                remaining <= 120 -> "刚开课，还有 $remaining 分钟，进入状态吧——别第一分钟就开始数秒表"
                 // 超长课（>120 分钟）时，提前预告课间安排
-                gap != null && gap <= 3 -> "下课后只有 $gap 分钟，记得提前收拾"
-                gap != null && gap <= 10 -> "下课后休息 $gap 分钟"
-                gap != null && gap <= 15 -> "下课后有 $gap 分钟休息时间"
-                else -> "认真听课，离下课还有 $remaining 分钟"
+                gap != null && gap <= 3 -> "下课后只有 $gap 分钟，提前收拾好东西，别聊着聊着就迟到了"
+                gap != null && gap <= 10 -> "下课后休息 $gap 分钟，够你喝口水，别指望补个觉"
+                gap != null && gap <= 15 -> "下课后有 $gap 分钟休息，抓紧眯会儿也行"
+                else -> "认真听课，离下课还有 $remaining 分钟——认真不认真都是坐着听，不如装得像点"
             }
         }
 
@@ -647,17 +647,17 @@ private fun generateSmartTip(
             val breakMinutes = java.time.Duration.between(prev.end, next.start).toMinutes()
             val nextClassroom = next.course.classroom
             when {
-                breakMinutes <= 1 -> "下节课马上开始，快回座位！"
-                breakMinutes <= 3 -> "还有 $breakMinutes 分钟，准备迎接下一节课"
-                breakMinutes <= 5 -> "还有 $breakMinutes 分钟，把桌面收拾利索"
-                breakMinutes <= 10 -> "课间休息中，还有 $breakMinutes 分钟"
-                breakMinutes <= 15 -> "休息一下，$breakMinutes 分钟后上课"
-                breakMinutes <= 20 -> "还有 $breakMinutes 分钟，可以出发去${nextClassroom}了"
-                breakMinutes <= 30 -> "休息时间还剩 $breakMinutes 分钟，伸个懒腰"
-                breakMinutes <= 45 -> "课间还有 $breakMinutes 分钟，让眼睛放松一下"
-                breakMinutes <= 60 -> "休息中，$breakMinutes 分钟后再战"
-                breakMinutes in 61..120 -> "大课间，还有 $breakMinutes 分钟才上课"
-                else -> "距下节课还有 $breakMinutes 分钟，时间很充裕"
+                breakMinutes <= 1 -> "下节课马上开始，快滚回座位！别卡着点挑战老师底线"
+                breakMinutes <= 3 -> "还有 $breakMinutes 分钟，歇够没？够了就回座位，别磨"
+                breakMinutes <= 5 -> "还有 $breakMinutes 分钟，把桌面收拾利索，别一摊烂桌面迎接下节课"
+                breakMinutes <= 10 -> "课间 $breakMinutes 分钟，抓紧，别刷着刷着忘了上课"
+                breakMinutes <= 15 -> "还有 $breakMinutes 分钟，回来吧，人到了魂也先归个位"
+                breakMinutes <= 20 -> "还有 $breakMinutes 分钟，该出发去${nextClassroom}了，别磨"
+                breakMinutes <= 30 -> "休息还剩 $breakMinutes 分钟，伸个懒腰，别把腰也一起睡没"
+                breakMinutes <= 45 -> "课间 $breakMinutes 分钟，看看远方，别盯手机把眼盯瞎"
+                breakMinutes <= 60 -> "休息 $breakMinutes 分钟，养精蓄锐，待会才好继续被虐"
+                breakMinutes in 61..120 -> "大课间 $breakMinutes 分钟，够你睡个回笼，但别真睡，醒了自己都怕"
+                else -> "距下节课还有 $breakMinutes 分钟，时间充裕到你能把手机充个电再接着玩"
             }
         }
 
@@ -667,20 +667,20 @@ private fun generateSmartTip(
             val tomorrowCount = tomorrowCourses.size
             val tomorrowInfo = if (tomorrowCount > 0 && hour >= 21) {
                 val firstCourse = tomorrowRanges.firstOrNull()?.course
-                if (firstCourse != null) "，明天有 $tomorrowCount 节课，${firstCourse.name}是第一节课"
-                else "，明天有 $tomorrowCount 节课"
+                if (firstCourse != null) "，明天${tomorrowCount}节，${firstCourse.name}带头，跑不掉"
+                else "，明天${tomorrowCount}节，别想躲"
             } else if (tomorrowCount == 0 && hour >= 21) {
-                "，明天没课"
+                "，明天没课，随便熬"
             } else ""
             when {
-                completedCount == totalCount && hour >= 22 -> "$greeting，今天 $totalCount 节课都上完了，早点休息$tomorrowInfo"
-                completedCount == totalCount && hour in 18..21 -> "$greeting，今天 $totalCount 节课都上完了，辛苦了$tomorrowInfo"
-                completedCount == totalCount -> "$greeting，今天 $totalCount 节课都上完了$tomorrowInfo"
-                completedCount > 0 && hour >= 22 -> "$greeting，已经上了 $completedCount/$totalCount 节课，早点休息$tomorrowInfo"
-                completedCount > 0 -> "$greeting，已经上了 $completedCount/$totalCount 节课$tomorrowInfo"
-                afternoonCount > 0 && hour in 12..14 -> "$greeting，下午还有 $afternoonCount 节课"
-                eveningCount > 0 && hour in 14..17 -> "$greeting，晚上还有 $eveningCount 节课"
-                else -> "$greeting，今天还有 $totalCount 节课"
+                completedCount == totalCount && hour >= 22 -> "$greeting，今天 $totalCount 节课终于上完了，奖励自己躺平，但别躺到天亮$tomorrowInfo"
+                completedCount == totalCount && hour in 18..21 -> "$greeting，今天 $totalCount 节课都熬完了，辛苦的不止今天，还有昨晚你那顿夜$tomorrowInfo"
+                completedCount == totalCount -> "$greeting，今天 $totalCount 节课总算上完了，债还清了$tomorrowInfo"
+                completedCount > 0 && hour >= 22 -> "$greeting，已经上了 $completedCount/$totalCount 节，累了就睡，别拿'再刷一会'自欺欺人$tomorrowInfo"
+                completedCount > 0 -> "$greeting，已上完 $completedCount/$totalCount 节，剩下那几节可得撑住，别逃$tomorrowInfo"
+                afternoonCount > 0 && hour in 12..14 -> "$greeting，下午还有 $afternoonCount 节课，别被午饭骗得忘了"
+                eveningCount > 0 && hour in 14..17 -> "$greeting，晚上还有 $eveningCount 节课，别天真地以为下午就解放了"
+                else -> "$greeting，今天还有 $totalCount 节课，认命吧，跑不掉的"
             }
         }
 
@@ -689,21 +689,21 @@ private fun generateSmartTip(
             val nextClassroom = next.course.classroom
             val greeting = getGreeting()
             when {
-                minutes > 180 -> "$greeting，今天共 $totalCount 节课，安排得明明白白"
-                minutes in 121..180 -> "$greeting，还有 $minutes 分钟才上课，从容准备"
-                minutes in 91..120 -> "$greeting，还有 $minutes 分钟上课，时间够用"
-                minutes in 61..90 -> "$greeting，还有 $minutes 分钟，翻翻书预习一下"
-                minutes in 45..60 -> "$greeting，还有 $minutes 分钟，准备出发吧"
-                minutes in 30..44 -> "$greeting，还有 $minutes 分钟，该收拾东西了"
-                minutes in 15..29 -> "还有 $minutes 分钟上课，该出发啦"
-                minutes in 10..14 -> "还有 $minutes 分钟，准备去${nextClassroom}"
-                minutes in 5..9 -> "还有 $minutes 分钟就要上课了，抓紧时间"
-                minutes in 2..4 -> "快上课了，还有 $minutes 分钟，冲！"
-                else -> "马上上课，抓紧时间就位！"
+                minutes > 180 -> "$greeting，今天共 $totalCount 节课，安排得明明白白——明白你也得照样躺"
+                minutes in 121..180 -> "$greeting，还有 $minutes 分钟才上课，够你从容准备，也够你从容拖延"
+                minutes in 91..120 -> "$greeting，还有 $minutes 分钟上课，时间够用？是够你用手机用完"
+                minutes in 61..90 -> "$greeting，还有 $minutes 分钟，翻翻书预习一下——别看了，就翻翻"
+                minutes in 45..60 -> "$greeting，还有 $minutes 分钟，准备出发吧，别走到半路又折回来拿手机"
+                minutes in 30..44 -> "$greeting，还有 $minutes 分钟，该收拾东西了，等下别怪课不等人"
+                minutes in 15..29 -> "还有 $minutes 分钟上课，该出发啦，别到时候演一出'马上到'"
+                minutes in 10..14 -> "还有 $minutes 分钟，动身去${nextClassroom}，别迟到了被老师眼神处刑"
+                minutes in 5..9 -> "还有 $minutes 分钟上课，跑起来，你现在的速度决定你的体面"
+                minutes in 2..4 -> "$minutes 分钟倒计时！冲！没到教室就等着全校看你表演迟到"
+                else -> "上课铃都快响了，还坐这？？起来，滚去教室"
             }
         }
 
-        else -> "美好的一天开始了"
+        else -> "美好的一天开始了——信不信，随你"
     }
 }
 

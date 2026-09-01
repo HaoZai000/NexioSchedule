@@ -89,10 +89,7 @@
                     android:layout_height="wrap_content"
                     android:textSize="36px"
                     android:maxLines="1"
-                    android:autoSizeTextType="uniform"
-                    android:autoSizeMinTextSize="24px"
-                    android:autoSizeMaxTextSize="36px"
-                    android:autoSizeStepGranularity="1px"
+                    android:ellipsize="end"
                     android:textColor="@color/widget_time_start_color"
                     android:fontFamily="sans-serif-medium" />
 
@@ -102,10 +99,7 @@
                     android:layout_height="wrap_content"
                     android:textSize="36px"
                     android:maxLines="1"
-                    android:autoSizeTextType="uniform"
-                    android:autoSizeMinTextSize="24px"
-                    android:autoSizeMaxTextSize="36px"
-                    android:autoSizeStepGranularity="1px"
+                    android:ellipsize="end"
                     android:textColor="@color/widget_time_end_color"
                     android:fontFamily="sans-serif-medium" />
             </LinearLayout>
@@ -188,10 +182,7 @@
                     android:layout_height="wrap_content"
                     android:textSize="36px"
                     android:maxLines="1"
-                    android:autoSizeTextType="uniform"
-                    android:autoSizeMinTextSize="24px"
-                    android:autoSizeMaxTextSize="36px"
-                    android:autoSizeStepGranularity="1px"
+                    android:ellipsize="end"
                     android:textColor="@color/widget_time_start_color"
                     android:fontFamily="sans-serif-medium" />
 
@@ -201,10 +192,7 @@
                     android:layout_height="wrap_content"
                     android:textSize="36px"
                     android:maxLines="1"
-                    android:autoSizeTextType="uniform"
-                    android:autoSizeMinTextSize="24px"
-                    android:autoSizeMaxTextSize="36px"
-                    android:autoSizeStepGranularity="1px"
+                    android:ellipsize="end"
                     android:textColor="@color/widget_time_end_color"
                     android:fontFamily="sans-serif-medium" />
             </LinearLayout>

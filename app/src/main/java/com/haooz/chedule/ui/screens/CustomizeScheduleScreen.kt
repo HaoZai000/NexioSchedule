@@ -135,6 +135,7 @@ fun CustomizeScheduleScreen(
     onDismiss: () -> Unit,
     onApply: () -> Unit,
     onPickWallpaper: () -> Unit = {},
+    onClearWallpaper: () -> Unit = {},
     combinations: List<Combination> = emptyList(),
     currentCombinationIndex: Int = 0,
     isExiting: Boolean = false,
@@ -1130,6 +1131,7 @@ fun CustomizeScheduleScreen(
                         // 壁纸按钮：外层 Box 留 padding 承载模糊向外扩散空间，
                         // Modifier.blur 让模糊自然溢出圆形边界（边缘渐变正确），
                         // 内层 Box 保持圆形裁剪并可点击，避免 RenderEffect + clip 在边界裁切出尖角。
+                        // 有壁纸时图标变为“叉”，点击清除壁纸；无壁纸时正常选择壁纸。
                         Box(
                             modifier = Modifier
                                 .padding(7.dp)
@@ -1139,13 +1141,15 @@ fun CustomizeScheduleScreen(
                                 modifier = Modifier
                                     .size(56.dp)
                                     .clip(CircleShape)
-                                    .background(Color(0xFF363636))
-                                    .clickable { onPickWallpaper() },
+                                    .background(if (hasWallpaper) Color(0xFFB71C1C) else Color(0xFF363636))
+                                    .clickable {
+                                        if (hasWallpaper) onClearWallpaper() else onPickWallpaper()
+                                    },
                                 contentAlignment = Alignment.Center
                             ) {
                                 Icon(
-                                    imageVector = MiuixIcons.Image,
-                                    contentDescription = "壁纸",
+                                    imageVector = if (hasWallpaper) MiuixIcons.Normal.Close else MiuixIcons.Image,
+                                    contentDescription = if (hasWallpaper) "清除壁纸" else "壁纸",
                                     modifier = Modifier.size(26.dp),
                                     tint = Color.White
                                 )
