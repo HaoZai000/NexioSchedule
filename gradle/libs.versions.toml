@@ -16,8 +16,8 @@ startupRuntime = "1.2.0"              # App Startup（自动初始化 Activity �
 
 # 第三方 UI
 miuix = "0.9.3"                       # Miuix 小米风格组件库
+# Backdrop 已 fork 到本地源码，不再声明远程依赖
 
-backdrop = "2.0.0"                    # Backdrop 模糊背景库
 materialKolor = "4.1.1"               # Material Color for Multiplatform（miuix theme 依赖）
 
 # 序列化 / 网络
@@ -77,8 +77,7 @@ navigationevent-compose = { group = "androidx.navigationevent", name = "navigati
 
 
 
-# Backdrop
-backdrop = { group = "io.github.kyant0", name = "backdrop", version.ref = "backdrop" }                             # 模糊背景库
+# Backdrop（已 fork 到本地源码 app/src/main/java/com/kyant/backdrop，移除远程 jar 依赖）
 materialKolor-utilities = { group = "com.materialkolor", name = "material-color-utilities", version.ref = "materialKolor" } # Material Color（miuix theme 依赖）
 
 [plugins]

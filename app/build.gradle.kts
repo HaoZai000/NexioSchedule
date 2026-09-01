@@ -104,8 +104,9 @@ dependencies {
 
     // ===== 形状库 =====
     // 形状使用本地 fork 的 capsule 库（ContinuousRoundedRectangle / ContinuousCapsule）
-    // Backdrop 模糊背景
-    implementation(libs.backdrop)
+    // Backdrop 模糊背景已 fork 到本地源码，不再使用 jar 依赖
+    // 其编译的 AGSL 运行时需要 org.jetbrains 注解（org.intellij.lang.annotations.Language）
+    implementation("org.jetbrains:annotations:26.1.0")
     // Material Color（miuix theme 依赖）
     implementation(libs.materialKolor.utilities)
 
