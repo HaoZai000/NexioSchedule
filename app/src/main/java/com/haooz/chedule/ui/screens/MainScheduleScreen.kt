@@ -65,6 +65,8 @@ import com.haooz.chedule.ui.basic.LiquidTopBarButton
 import com.haooz.chedule.ui.basic.SharedScrollBehavior
 import com.haooz.chedule.ui.components.DayColumn
 import com.haooz.chedule.ui.components.SectionColumn
+import com.haooz.chedule.ui.components.SpecialBandOverlay
+import com.haooz.chedule.ui.components.computeSpecialGridLayout
 import com.haooz.chedule.ui.effects.edgelight.edgeLight
 import com.haooz.chedule.ui.effects.edgelight.rememberCourseCardEdgeLight
 import com.haooz.chedule.ui.utils.isAppDarkTheme
@@ -164,6 +166,7 @@ fun MainScheduleScreen(
     val eveningSections by settingsViewModel.eveningSections.collectAsState()
     val sectionTimes by settingsViewModel.sectionTimes.collectAsState()
     val sectionNames by settingsViewModel.sectionNames.collectAsState()
+    val specialBlocks by settingsViewModel.specialBlocks.collectAsState()
     val hapticFeedback = LocalHapticFeedback.current
     val configuration = LocalConfiguration.current
     val isTablet = configuration.screenWidthDp >= 600
@@ -202,6 +205,22 @@ fun MainScheduleScreen(
     }
 
     val totalSections = morningSections + afternoonSections + eveningSections
+
+    // 含特殊课程块的网格几何（用于午休/晚休分界带定位；列内几何由 SectionColumn/DayColumn 各自计算）
+    val specialGrid = remember(
+        totalSections, morningSections, afternoonSections, eveningSections,
+        specialBlocks, sectionTimes, cardHeightPerSection, showBreakDividers
+    ) {
+        computeSpecialGridLayout(
+            morningSections = morningSections,
+            afternoonSections = afternoonSections,
+            eveningSections = eveningSections,
+            specialBlocks = specialBlocks,
+            sectionTimes = sectionTimes,
+            cardHeightPerSection = cardHeightPerSection,
+            dividerGap = if (showBreakDividers) 24 else 0
+        )
+    }
 
     // 计算当前节次：根据当前时间和节次时间配置，判断当前处于第几节课
     val currentSection = remember(sectionTimes, totalSections) {
@@ -393,6 +412,33 @@ fun MainScheduleScreen(
                     // 收集每列在 root 中的 x 区间与顶部 y，供拖拽落点检测使用
                     val dayBoundsArray = remember { arrayOfNulls<FloatArray>(8) }
                     var lastDayBoundsVersion by remember { mutableIntStateOf(0) }
+                    // 特殊课程：横贯整个课表的横色带（覆盖周一到周日所有星期列）。
+                    // 作为 Row 下层的背景条带，起止时间由左侧时间列（SectionColumn）标注。
+                    specialGrid.specialBands.forEach { band ->
+                        // 只在周一到周日课表列范围内渲染横带，不覆盖左侧时间轴列；
+                        // 起止时间由图例时间列（SectionColumn 的 SpecialTimeLabel）单独显示
+                        Box(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .height(band.height.dp)
+                                .offset(y = band.top.dp)
+                                .padding(
+                                    start = (if (isTablet) 24.dp else 0.dp) + (if (isTablet) 56.dp else 36.dp),
+                                    end = if (isTablet) 24.dp else 4.dp
+                                )
+                        ) {
+                            SpecialBandOverlay(
+                                name = band.name,
+                                hasBlur = wallpaperBitmap != null,
+                                isDark = isAppDarkTheme(),
+                                cardCornerRadius = cardCornerRadius,
+                                cardBlurRadius = cardBlurRadius,
+                                cardAlpha = cardAlpha,
+                                wallpaperBackdrop = if (wallpaperBitmap != null) courseCardBackdrop else null
+                            )
+                        }
+                    }
+
                     Row(
                         modifier = Modifier
                             .fillMaxWidth()
@@ -407,6 +453,7 @@ fun MainScheduleScreen(
                             eveningSections = eveningSections,
                             sectionTimes = sectionTimes,
                             sectionNames = sectionNames,
+                            specialBlocks = specialBlocks,
                             cardHeightPerSection = cardHeightPerSection,
                             showBreakDividers = showBreakDividers,
                             currentSection = if (week == currentWeek) currentSection else -1,
@@ -490,6 +537,7 @@ fun MainScheduleScreen(
                                 afternoonSections = afternoonSections,
                                 eveningSections = eveningSections,
                                 sectionTimes = sectionTimes,
+                                specialBlocks = specialBlocks,
                                 currentWeek = displayWeekForDay,
                                 isHoliday = isHoliday,
                                 isWorkSwap = isWorkSwap,
@@ -570,10 +618,11 @@ fun MainScheduleScreen(
                         }
                     }
 
-                    val morningHeight = (morningSections * cardHeightPerSection).toInt()
+                    val morningHeight = specialGrid.dividerY.getOrNull(0)?.toInt() ?: (morningSections * cardHeightPerSection).toInt()
                     val afternoonHeight = (afternoonSections * cardHeightPerSection).toInt()
                     val dividerOffset = if (showBreakDividers) 24 else 0
-                    val dinnerBreakY = morningHeight + dividerOffset + afternoonHeight
+                    val dinnerBreakY = specialGrid.dividerY.getOrNull(1)?.toInt()
+                        ?: (morningHeight + dividerOffset + afternoonHeight)
 
                     if (showBreakDividers) {
                     val dividerShape = ContinuousRoundedRectangle(12.dp)
@@ -595,12 +644,18 @@ fun MainScheduleScreen(
 
                     @Composable
                     fun BreakDivider(offsetY: Int, text: String) {
+                        // 跟随“卡片不透明度”：以默认 0.15 为基准等比缩放分界带可见度，保持默认观感不变。
+                        // 因子基于原始 cardAlpha（不带模糊 1.6 系数），确保默认时因子恒为 1
+                        val dividerAlphaFactor = cardAlpha / 0.15f
+                        val dividerFgBase = dividerBaseColor.copy(alpha = (dividerBaseColor.alpha * dividerAlphaFactor).coerceIn(0f, 1f))
+                        val dividerFgGlass = dividerGlassColor.copy(alpha = (dividerGlassColor.alpha * dividerAlphaFactor).coerceIn(0f, 1f))
+                        val dividerFgOverlay = dividerOverlayColor.copy(alpha = (dividerOverlayColor.alpha * dividerAlphaFactor).coerceIn(0f, 1f))
                         Box(
                             modifier = Modifier.fillMaxWidth().offset(y = offsetY.dp)
                                 .height(24.dp)
                                 .padding(vertical = 2.dp)
                                 .padding(horizontal = dividerHorizontalPadding)
-                                .background(dividerBaseColor, dividerShape)
+                                .background(dividerFgBase, dividerShape)
                                 .then(
                                     if (hasWallpaperDivider) {
                                         Modifier.drawBackdrop(
@@ -612,8 +667,8 @@ fun MainScheduleScreen(
                                             },
                                             highlight = null,
                                             onDrawSurface = {
-                                                drawRect(dividerGlassColor)
-                                                drawRect(dividerOverlayColor)
+                                                drawRect(dividerFgGlass)
+                                                drawRect(dividerFgOverlay)
                                             }
                                         ).edgeLight(shape = dividerEdgeLightShape, edgeLight = rememberCourseCardEdgeLight())
                                     } else Modifier

@@ -159,6 +159,10 @@ fun CourseReminderScreen(
             shizukuRunning = ShizukuManager.isShizukuRunning()
             shizukuAuthorized = ShizukuManager.checkSelfPermission()
             isIslandSupported = IslandNotificationHelper.isIslandSupported(context)
+            // 非 HyperOS 设备不支持超级岛，若存在残留开关则自动关闭，避免隐藏入口又残留脏数据
+            if (!isIslandSupported && islandNotification) {
+                settingsViewModel.setIslandNotification(false)
+            }
         }
     }
 
@@ -361,9 +365,10 @@ fun CourseReminderScreen(
                         }
                     }
 
-                    // 超级岛设置
-                    item {
-                        val islandVisible = masterEnabled && isIslandSupported
+                    // 超级岛设置（仅支持超级岛的设备才渲染，非 HyperOS 完全隐藏不占高度，避免空白区域）
+                    if (isIslandSupported) {
+                        item {
+                        val islandVisible = masterEnabled
                         val islandScale = remember { Animatable(if (islandVisible) 1f else 0.8f) }
                         val islandAlpha = remember { Animatable(if (islandVisible) 1f else 0f) }
                         LaunchedEffect(islandVisible) {
@@ -463,6 +468,7 @@ fun CourseReminderScreen(
                                 }
                             }
                         }
+                    }
                     }
 
 

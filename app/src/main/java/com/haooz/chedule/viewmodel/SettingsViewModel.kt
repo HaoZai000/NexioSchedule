@@ -71,6 +71,10 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
     private val _sectionNames = MutableStateFlow(repository.getSectionNames())
     val sectionNames: StateFlow<Map<Int, String>> = _sectionNames.asStateFlow()
 
+    // 特殊课程块（无编号，如早读/大课间/眼保健操），来源于当前时间配置
+    private val _specialBlocks = MutableStateFlow(repository.getCurrentTimeConfig().specialBlocks)
+    val specialBlocks: StateFlow<List<com.haooz.chedule.data.SpecialBlock>> = _specialBlocks.asStateFlow()
+
     // 课前提醒开关
     private val _preClassReminder = MutableStateFlow(repository.getPreClassReminder())
     val preClassReminder: StateFlow<Boolean> = _preClassReminder.asStateFlow()
@@ -156,6 +160,9 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
 
         val newSectionNames = repository.getSectionNames()
         if (_sectionNames.value != newSectionNames) _sectionNames.value = newSectionNames
+
+        val newSpecialBlocks = repository.getCurrentTimeConfig().specialBlocks
+        if (_specialBlocks.value != newSpecialBlocks) _specialBlocks.value = newSpecialBlocks
 
         val newPreClassReminder = repository.getPreClassReminder()
         if (_preClassReminder.value != newPreClassReminder) _preClassReminder.value = newPreClassReminder

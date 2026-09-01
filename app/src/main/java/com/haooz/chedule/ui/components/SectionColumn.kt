@@ -33,6 +33,7 @@ fun SectionColumn(
     eveningSections: Int = 3,
     sectionTimes: Map<Int, String> = Course.defaultSectionTimes,
     sectionNames: Map<Int, String> = emptyMap(),
+    specialBlocks: List<com.haooz.chedule.data.SpecialBlock> = emptyList(),
     cardHeightPerSection: Float = 54f,
     showBreakDividers: Boolean = true,
     currentSection: Int = -1,
@@ -49,7 +50,22 @@ fun SectionColumn(
         }
     }
 
-    val totalHeight = (totalSections * cardHeightPerSection + (if (showBreakDividers) 24 * 2 else 0)).toInt()
+    // 特殊课程为时间轴浮层：节次保持固定位置，时间列在对应高度显示特殊课程起止时间
+    val grid = remember(
+        totalSections, morningSections, afternoonSections, eveningSections,
+        specialBlocks, sectionTimes, cardHeightPerSection, showBreakDividers
+    ) {
+        computeSpecialGridLayout(
+            morningSections = morningSections,
+            afternoonSections = afternoonSections,
+            eveningSections = eveningSections,
+            specialBlocks = specialBlocks,
+            sectionTimes = sectionTimes,
+            cardHeightPerSection = cardHeightPerSection,
+            dividerGap = if (showBreakDividers) 24 else 0
+        )
+    }
+    val totalHeight = grid.totalHeight.toInt()
 
     val sectionWidth = if (isTablet) 56.dp else 36.dp
 
@@ -58,37 +74,38 @@ fun SectionColumn(
             .width(sectionWidth)
             .height(totalHeight.dp)
     ) {
-        var currentOffset = 0
-
         // 上午节次
         (1..morningSections).forEach { section ->
             val (startTime, endTime) = timePairs[section - 1]
-            SectionItem(section, startTime, endTime, currentOffset, cardHeightPerSection, section == currentSection, hasWallpaper, sectionNames)
-            currentOffset += cardHeightPerSection.toInt()
+            SectionItem(section, startTime, endTime, grid.sectionTop[section]?.toInt() ?: 0, cardHeightPerSection, section == currentSection, hasWallpaper, sectionNames)
         }
-
-        // 午休/晚休分界线由主分界线（MainScheduleScreen）全宽绘制并覆盖时间列，此处仅保留 24dp 占位以保证时间对齐
-        currentOffset += if (showBreakDividers) 24 else 0
 
         // 下午节次
         val afternoonStart = morningSections + 1
         val afternoonEnd = morningSections + afternoonSections
         (afternoonStart..afternoonEnd).forEach { section ->
             val (startTime, endTime) = timePairs[section - 1]
-            SectionItem(section, startTime, endTime, currentOffset, cardHeightPerSection, section == currentSection, hasWallpaper, sectionNames)
-            currentOffset += cardHeightPerSection.toInt()
+            SectionItem(section, startTime, endTime, grid.sectionTop[section]?.toInt() ?: 0, cardHeightPerSection, section == currentSection, hasWallpaper, sectionNames)
         }
-
-        // 晚休分界线（同午休）由主分界线（MainScheduleScreen）全宽绘制并覆盖时间列，此处仅保留 24dp 占位以保证时间对齐
-        currentOffset += if (showBreakDividers) 24 else 0
 
         // 晚上节次
         val eveningStart = morningSections + afternoonSections + 1
         val eveningEnd = morningSections + afternoonSections + eveningSections
         (eveningStart..eveningEnd).forEach { section ->
             val (startTime, endTime) = timePairs[section - 1]
-            SectionItem(section, startTime, endTime, currentOffset, cardHeightPerSection, section == currentSection, hasWallpaper, sectionNames)
-            currentOffset += cardHeightPerSection.toInt()
+            SectionItem(section, startTime, endTime, grid.sectionTop[section]?.toInt() ?: 0, cardHeightPerSection, section == currentSection, hasWallpaper, sectionNames)
+        }
+
+        // 特殊课程：无编号，左侧时间列在对应高度显示其起止时间
+        grid.specialBands.forEach { band ->
+            SpecialTimeLabel(
+                startTime = band.startTime,
+                endTime = band.endTime,
+                top = band.top,
+                height = band.height,
+                hasWallpaper = hasWallpaper,
+                sectionWidth = sectionWidth
+            )
         }
     }
 }
@@ -129,6 +146,37 @@ private fun SectionItem(section: Int, startTime: String, endTime: String, yOffse
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
             OutlinedText(displayText, nameStyle, sectionColor, hasWallpaper)
+            OutlinedText(startTime, timeStyle, timeColor, hasWallpaper)
+            OutlinedText(endTime, timeStyle, timeColor, hasWallpaper)
+        }
+    }
+}
+
+/**
+ * 特殊课程左侧时间标签：在时间轴对应高度（top..top+height）显示起止时间，无节次号。
+ */
+@Composable
+private fun SpecialTimeLabel(
+    startTime: String,
+    endTime: String,
+    top: Float,
+    height: Float,
+    hasWallpaper: Boolean,
+    sectionWidth: androidx.compose.ui.unit.Dp
+) {
+    val baseFootnote2 = MiuixTheme.textStyles.footnote2
+    val timeStyle = remember(baseFootnote2) { baseFootnote2.copy(fontSize = 10.sp) }
+    val timeColor = MiuixTheme.colorScheme.onSurfaceVariantActions
+    Box(
+        modifier = Modifier
+            .width(sectionWidth)
+            .height(height.dp)
+            .offset(y = top.dp),
+        contentAlignment = Alignment.Center
+    ) {
+        Column(
+            horizontalAlignment = Alignment.CenterHorizontally
+        ) {
             OutlinedText(startTime, timeStyle, timeColor, hasWallpaper)
             OutlinedText(endTime, timeStyle, timeColor, hasWallpaper)
         }

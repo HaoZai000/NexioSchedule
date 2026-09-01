@@ -43,6 +43,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.geometry.Size
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Outline
 import androidx.compose.ui.graphics.Shape
 import androidx.compose.ui.graphics.TransformOrigin
@@ -65,11 +66,10 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.haooz.chedule.data.Course
 import com.haooz.chedule.data.CourseRepository
+import com.haooz.chedule.data.SpecialBlock
 import com.haooz.chedule.data.TimeConfig
 import com.haooz.chedule.ui.basic.CollapsibleTopAppBar
 import com.haooz.chedule.ui.basic.LiquidTopBarButton
-import top.yukonga.miuix.kmp.basic.NativeMiuixTextField
-import top.yukonga.miuix.kmp.overlay.OverlayDialog
 import com.haooz.chedule.ui.basic.ProgressiveBlurTopBar
 import com.haooz.chedule.ui.basic.rememberSharedScrollBehavior
 import com.haooz.chedule.ui.effects.motion.OobeCubicOutEasing
@@ -86,6 +86,7 @@ import kotlinx.coroutines.launch
 import top.yukonga.miuix.kmp.basic.ButtonDefaults
 import top.yukonga.miuix.kmp.basic.Card
 import top.yukonga.miuix.kmp.basic.CardDefaults
+import top.yukonga.miuix.kmp.basic.NativeMiuixTextField
 import top.yukonga.miuix.kmp.basic.NumberPicker
 import top.yukonga.miuix.kmp.basic.Scaffold
 import top.yukonga.miuix.kmp.basic.SmallTitle
@@ -96,6 +97,7 @@ import top.yukonga.miuix.kmp.blur.rememberLayerBackdrop
 import top.yukonga.miuix.kmp.icon.MiuixIcons
 import top.yukonga.miuix.kmp.icon.extended.Close
 import top.yukonga.miuix.kmp.icon.extended.Ok
+import top.yukonga.miuix.kmp.overlay.OverlayDialog
 import top.yukonga.miuix.kmp.preference.ArrowPreference
 import top.yukonga.miuix.kmp.squircle.squircleSurface
 import top.yukonga.miuix.kmp.theme.MiuixTheme
@@ -156,6 +158,20 @@ private fun parseTimeRange(timeStr: String): Pair<Pair<Int, Int>, Pair<Int, Int>
         Pair(Pair(8, 0), Pair(8, 45))
     }
 }
+
+/** 解析 "HH:mm" 为 (小时, 分钟)，解析失败返回 (8, 0) */
+private fun parseTimeHm(time: String): Pair<Int, Int> {
+    return try {
+        val parts = time.split(":")
+        Pair(parts[0].toInt(), parts[1].toInt())
+    } catch (_: Exception) {
+        Pair(8, 0)
+    }
+}
+
+/** 特殊时段块列表项的摘要文本 */
+private fun specialBlockSummary(block: SpecialBlock): String
+= "${block.startTime}-${block.endTime}"
 
 @SuppressLint("DefaultLocale", "AutoboxingStateValueProperty", "ConfigurationScreenWidthHeight")
 @Composable
@@ -232,6 +248,19 @@ fun TimeConfigEditScreen(
 
     // 节数设置弹窗状态
     var showSectionCountDialog by remember { mutableStateOf(false) }
+
+    // 特殊时段块弹窗状态
+    var specialBlocks by remember { mutableStateOf(timeConfig.specialBlocks) }
+    var showSpecialDialog by remember { mutableStateOf(false) }
+    var editingSpecialIndex by remember { mutableIntStateOf(-1) } // -1 表示新增
+    var tempSpecialName by remember { mutableStateOf("") }
+    var tempSpecialStartHour by remember { mutableIntStateOf(8) }
+    var tempSpecialStartMinute by remember { mutableIntStateOf(0) }
+    var tempSpecialEndHour by remember { mutableIntStateOf(8) }
+    var tempSpecialEndMinute by remember { mutableIntStateOf(40) }
+
+    // 删除特殊时段确认弹窗状态
+    var showSpecialDeleteConfirm by remember { mutableStateOf(false) }
 
     // 时间重叠检查弹窗状态
     var showOverlapDialog by remember { mutableStateOf(false) }
@@ -627,7 +656,8 @@ fun TimeConfigEditScreen(
                                                 eveningStartHour = eveningStartHour,
                                                 eveningStartMinute = eveningStartMinute,
                                                 sectionTimes = finalSectionTimes,
-                                                sectionNames = finalSectionNames
+                                                sectionNames = finalSectionNames,
+                                                specialBlocks = specialBlocks
                                             )
                                             triggerExitAndBack(onSavePending = { onSave(newConfig) })
                                         },
@@ -1038,6 +1068,55 @@ fun TimeConfigEditScreen(
                                     }
                                 }
 
+                                // 特殊课程（无编号时段块）
+                                item(key = "special_courses") {
+                                    SmallTitle(
+                                        text = "特殊课程",
+                                        modifier = Modifier.offset(x = (-16).dp),
+                                        textColor = MiuixTheme.colorScheme.primary
+                                    )
+                                    Card(
+                                        cornerRadius = 20.dp,
+                                        modifier = Modifier.fillMaxWidth(),
+                                        insideMargin = PaddingValues(0.dp)
+                                    ) {
+                                        Column(modifier = Modifier.fillMaxWidth()) {
+                                            if (specialBlocks.isEmpty()) {
+                                                ArrowPreference(
+                                                    title = "暂无特殊课程",
+                                                    summary = "点击添加早读、眼保健操等无编号时段",
+                                                    onClick = {
+                                                        editingSpecialIndex = -1
+                                                        showSpecialDialog = true
+                                                    }
+                                                )
+                                            } else {
+                                                specialBlocks.forEachIndexed { index, block ->
+                                                    ArrowPreference(
+                                                        title = if (block.name.isNotBlank()) block.name else "特殊课程",
+                                                        summary = specialBlockSummary(block),
+                                                        onClick = {
+                                                            editingSpecialIndex = index
+                                                            tempSpecialName = block.name
+                                                            val (sh, sm) = parseTimeHm(block.startTime)
+                                                            tempSpecialStartHour = sh; tempSpecialStartMinute = sm
+                                                            val (eh, em) = parseTimeHm(block.endTime)
+                                                            tempSpecialEndHour = eh; tempSpecialEndMinute = em
+                                                            showSpecialDialog = true
+                                                        }
+                                                    )
+                                                }
+                                                ArrowPreference(
+                                                    title = "添加特殊课程",
+                                                    onClick = {
+                                                        editingSpecialIndex = -1
+                                                        showSpecialDialog = true
+                                                    }
+                                                )
+                                            }
+                                        }
+                                    }
+                                }
                                 // 上午
                                 item(key = "morning") {
                                     SmallTitle(
@@ -1269,7 +1348,7 @@ fun TimeConfigEditScreen(
                                 } else {
                                     val options = when (quickEditType) {
                                         "duration" -> listOf(40, 45, 50, 55, 60)
-                                        "short_break" -> listOf(5, 10, 15, 20, 25)
+                                        "short_break" -> listOf(0, 5, 10, 15, 20, 25)
                                         else -> listOf(5, 10, 15, 20, 25, 30)
                                     }
                                     val currentIndex =
@@ -1453,6 +1532,182 @@ fun TimeConfigEditScreen(
                                         modifier = Modifier.weight(1f)
                                     )
                                 }
+                            }
+                        }
+
+                        // 特殊课程编辑弹窗
+                        OverlayDialog(
+                            title = if (editingSpecialIndex == -1) "添加特殊课程" else "编辑特殊课程",
+                            summary = null,
+                            show = showSpecialDialog,
+                            onDismissRequest = { showSpecialDialog = false },
+                            liquidGlassBackdrop = liquidGlassBackdrop
+                        ) {
+                            Column(
+                                modifier = Modifier.fillMaxWidth(),
+                                verticalArrangement = Arrangement.spacedBy(10.dp)
+                            ) {
+                                NativeMiuixTextField(
+                                    value = tempSpecialName,
+                                    onValueChange = { tempSpecialName = it },
+                                    label = "特殊课程",
+                                    useLabelAsPlaceholder = true,
+                                    singleLine = true,
+                                    modifier = Modifier.fillMaxWidth()
+                                )
+                                // 起止时间（与"第×节时间设置"弹窗一致的循环滚动样式）
+                                Row(
+                                    modifier = Modifier.fillMaxWidth().padding(top = 4.dp),
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.Center
+                                ) {
+                                    NumberPicker(
+                                        value = tempSpecialStartHour,
+                                        onValueChange = { tempSpecialStartHour = it },
+                                        range = 0..23,
+                                        visibleItemCount = 3,
+                                        itemHeight = 60.dp,
+                                        label = { String.format("%02d", it) },
+                                        wrapAround = true,
+                                        textStyle = MiuixTheme.textStyles.title2,
+                                        modifier = Modifier.weight(1f)
+                                    )
+                                    Text(
+                                        ":",
+                                        style = MiuixTheme.textStyles.paragraph,
+                                        fontWeight = FontWeight.Bold,
+                                        color = MiuixTheme.colorScheme.onSurface,
+                                        modifier = Modifier.padding().offset(y = (-2).dp)
+                                    )
+                                    val sMinIdx = minuteValues.indexOf(tempSpecialStartMinute).coerceAtLeast(0)
+                                    NumberPicker(
+                                        value = sMinIdx,
+                                        onValueChange = { tempSpecialStartMinute = minuteValues[it] },
+                                        range = minuteValues.indices,
+                                        visibleItemCount = 3,
+                                        itemHeight = 60.dp,
+                                        label = { String.format("%02d", minuteValues[it]) },
+                                        wrapAround = true,
+                                        textStyle = MiuixTheme.textStyles.title2,
+                                        modifier = Modifier.weight(1f)
+                                    )
+                                    Text(
+                                        "-",
+                                        style = MiuixTheme.textStyles.title2,
+                                        color = MiuixTheme.colorScheme.onSurface,
+                                        modifier = Modifier.padding()
+                                    )
+                                    NumberPicker(
+                                        value = tempSpecialEndHour,
+                                        onValueChange = { tempSpecialEndHour = it },
+                                        range = 0..23,
+                                        visibleItemCount = 3,
+                                        itemHeight = 60.dp,
+                                        label = { String.format("%02d", it) },
+                                        wrapAround = true,
+                                        textStyle = MiuixTheme.textStyles.title2,
+                                        modifier = Modifier.weight(1f)
+                                    )
+                                    Text(
+                                        ":",
+                                        style = MiuixTheme.textStyles.paragraph,
+                                        fontWeight = FontWeight.Bold,
+                                        color = MiuixTheme.colorScheme.onSurface,
+                                        modifier = Modifier.padding().offset(y = (-2).dp)
+                                    )
+                                    val eMinIdx = minuteValues.indexOf(tempSpecialEndMinute).coerceAtLeast(0)
+                                    NumberPicker(
+                                        value = eMinIdx,
+                                        onValueChange = { tempSpecialEndMinute = minuteValues[it] },
+                                        range = minuteValues.indices,
+                                        visibleItemCount = 3,
+                                        itemHeight = 60.dp,
+                                        label = { String.format("%02d", minuteValues[it]) },
+                                        wrapAround = true,
+                                        textStyle = MiuixTheme.textStyles.title2,
+                                        modifier = Modifier.weight(1f)
+                                    )
+                                }
+                                Row(
+                                    modifier = Modifier.fillMaxWidth().padding(top = 4.dp),
+                                    horizontalArrangement = Arrangement.spacedBy(12.dp)
+                                ) {
+                                    TextButton(
+                                        text = "取消",
+                                        onClick = {
+                                            hapticFeedback.performHapticFeedback(HapticFeedbackType.Confirm)
+                                            showSpecialDialog = false
+                                        },
+                                        modifier = Modifier.weight(1f)
+                                    )
+                                    TextButton(
+                                        text = "保存",
+                                        onClick = {
+                                            hapticFeedback.performHapticFeedback(HapticFeedbackType.Confirm)
+                                            val startMinutes = tempSpecialStartHour * 60 + tempSpecialStartMinute
+                                            val endMinutes = tempSpecialEndHour * 60 + tempSpecialEndMinute
+                                            if (endMinutes <= startMinutes) {
+                                                Toast.makeText(context, "结束时间需晚于开始时间", Toast.LENGTH_SHORT).show()
+                                                return@TextButton
+                                            }
+                                            val startStr = String.format("%02d:%02d", tempSpecialStartHour, tempSpecialStartMinute)
+                                            val endStr = String.format("%02d:%02d", tempSpecialEndHour, tempSpecialEndMinute)
+                                            val block = SpecialBlock(
+                                                id = if (editingSpecialIndex == -1) System.currentTimeMillis() else specialBlocks[editingSpecialIndex].id,
+                                                name = tempSpecialName,
+                                                startTime = startStr,
+                                                endTime = endStr
+                                            )
+                                            val updated = specialBlocks.toMutableList()
+                                            if (editingSpecialIndex == -1) {
+                                                updated.add(block)
+                                            } else {
+                                                updated[editingSpecialIndex] = block
+                                            }
+                                            specialBlocks = updated
+                                            showSpecialDialog = false
+                                        },
+                                        colors = ButtonDefaults.textButtonColorsPrimary(),
+                                        modifier = Modifier.weight(1f)
+                                    )
+                                }
+                            }
+                        }
+
+                        // 删除特殊课程确认弹窗
+                        OverlayDialog(
+                            title = "删除特殊课程",
+                            summary = "确定要删除这条特殊课程吗？\n此操作不可撤销。",
+                            show = showSpecialDeleteConfirm,
+                            liquidGlassBackdrop = liquidGlassBackdrop,
+                            onDismissRequest = { showSpecialDeleteConfirm = false }
+                        ) {
+                            Row(
+                                modifier = Modifier.fillMaxWidth().padding(top = 16.dp),
+                                horizontalArrangement = Arrangement.spacedBy(8.dp)
+                            ) {
+                                TextButton(
+                                    "取消",
+                                    {
+                                        hapticFeedback.performHapticFeedback(HapticFeedbackType.Confirm)
+                                        showSpecialDeleteConfirm = false
+                                    },
+                                    modifier = Modifier.weight(1f)
+                                )
+                                TextButton(
+                                    "删除",
+                                    {
+                                        hapticFeedback.performHapticFeedback(HapticFeedbackType.Confirm)
+                                        if (editingSpecialIndex in specialBlocks.indices) {
+                                            specialBlocks = specialBlocks.toMutableList().apply {
+                                                removeAt(editingSpecialIndex)
+                                            }
+                                        }
+                                        showSpecialDeleteConfirm = false
+                                    },
+                                    textColor = Color(0xFFF44336),
+                                    modifier = Modifier.weight(1f)
+                                )
                             }
                         }
 

@@ -4,6 +4,7 @@ import android.annotation.SuppressLint
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
@@ -12,6 +13,7 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.key
 import androidx.compose.runtime.remember
@@ -26,7 +28,10 @@ import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalHapticFeedback
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import com.haooz.chedule.data.Course
 import com.haooz.chedule.ui.effects.edgelight.edgeLight
 import com.haooz.chedule.ui.effects.edgelight.rememberCourseCardEdgeLight
@@ -34,12 +39,14 @@ import com.haooz.chedule.ui.utils.isAppDarkTheme
 import com.kyant.backdrop.Backdrop
 import com.kyant.backdrop.drawBackdrop
 import com.kyant.backdrop.effects.blur
+import com.kyant.backdrop.effects.lens
 import com.kyant.capsule.ContinuousRoundedRectangle
 import top.yukonga.miuix.kmp.basic.Card
 import top.yukonga.miuix.kmp.basic.CardDefaults
 import top.yukonga.miuix.kmp.basic.Icon
 import top.yukonga.miuix.kmp.icon.MiuixIcons
 import top.yukonga.miuix.kmp.icon.extended.Add
+import top.yukonga.miuix.kmp.theme.MiuixTheme
 import top.yukonga.miuix.kmp.utils.PressFeedbackType
 
 /**
@@ -67,6 +74,7 @@ fun DayColumn(
     afternoonSections: Int = 4,
     eveningSections: Int = 3,
     sectionTimes: Map<Int, String> = Course.defaultSectionTimes,
+    specialBlocks: List<com.haooz.chedule.data.SpecialBlock> = emptyList(),
     currentWeek: Int = 1,
     isHoliday: Boolean = false,
     isWorkSwap: Boolean = false,
@@ -92,13 +100,28 @@ fun DayColumn(
     // 调课后需要淡入放大的课程ID集合
     @SuppressLint("ModifierParameter") modifier: Modifier = Modifier
 ) {
-    val totalHeight = ((morningSections + afternoonSections + eveningSections) * cardHeightPerSection + (if (showBreakDividers) 24 * 2 else 0)).toInt()
+    val totalSectionsGrid = morningSections + afternoonSections + eveningSections
+    // 特殊课程为时间轴浮层：节次保持固定位置，特殊课程按起止时间插值成一整条长卡片
+    val grid = remember(
+        totalSectionsGrid, morningSections, afternoonSections, eveningSections,
+        specialBlocks, sectionTimes, cardHeightPerSection, showBreakDividers
+    ) {
+        computeSpecialGridLayout(
+            morningSections = morningSections,
+            afternoonSections = afternoonSections,
+            eveningSections = eveningSections,
+            specialBlocks = specialBlocks,
+            sectionTimes = sectionTimes,
+            cardHeightPerSection = cardHeightPerSection,
+            dividerGap = if (showBreakDividers) 24 else 0
+        )
+    }
+    val totalHeight = grid.totalHeight.toInt()
     val isDark = isAppDarkTheme()
     val hasBlur = wallpaperBackdrop != null
     val isPendingDay = pendingDay == dayOfWeek
     val hapticFeedback = LocalHapticFeedback.current
 
-    val totalSectionsGrid = morningSections + afternoonSections + eveningSections
     // 已占用的节次：普通课程按节次范围，自定义时间课程按其时间区间覆盖到的节次
     val occupiedSections = remember(courses, sectionTimes, totalSectionsGrid) {
         buildSet {
@@ -145,17 +168,9 @@ fun DayColumn(
             val totalSectionsGrid = morningSections + afternoonSections + eveningSections
             val density = LocalDensity.current
             val perSectionPx = with(density) { cardHeightPerSection.dp.toPx() }
-            val dividerPx = if (showBreakDividers) with(density) { 24.dp.toPx() } else 0f
-            val dividerGap = if (showBreakDividers) 24 else 0
 
-            // 节次顶部偏移（dp）换算，与 CourseCardsLayer 的 segOffset 逻辑保持一致
-            fun sectionTopDp(section: Int): Float = when {
-                section <= morningSections -> (section - 1) * cardHeightPerSection
-                section <= morningSections + afternoonSections ->
-                    morningSections * cardHeightPerSection + dividerGap + (section - morningSections - 1) * cardHeightPerSection
-                else ->
-                    (morningSections + afternoonSections) * cardHeightPerSection + 2 * dividerGap + (section - morningSections - afternoonSections - 1) * cardHeightPerSection
-            }
+            // 节次顶部偏移（dp）换算，与 CourseCardsLayer 的 segOffset 逻辑保持一致（含特殊课程块挤占偏移）
+            fun sectionTopDp(section: Int): Float = grid.sectionTop[section] ?: 0f
 
             // 1. 空节次交互层 —— 单节点承载所有空节次的点击/长按，依据 Y 坐标换算节次，
             //    并将拖拽落点高亮一并绘制于此，减少每页布局节点数（原每个节次一个 Box）
@@ -186,22 +201,18 @@ fun DayColumn(
                         }
                         drawPath(path, dropHighlightColor)
                     }
-                    .pointerInput(dayOfWeek, occupiedSections, morningSections, afternoonSections, eveningSections, showBreakDividers, perSectionPx, dividerPx) {
+                    .pointerInput(dayOfWeek, occupiedSections, totalSectionsGrid, perSectionPx, specialBlocks, grid) {
                         detectTapGestures(
                             onTap = { offset ->
                                 val y = offset.y
-                                val morningPx = morningSections * perSectionPx
-                                val section = when {
-                                    y < morningPx -> (y / perSectionPx).toInt() + 1
-                                    y < morningPx + dividerPx -> -1
-                                    y < morningPx + dividerPx + afternoonSections * perSectionPx -> {
-                                        val s = ((y - morningPx - dividerPx) / perSectionPx).toInt()
-                                        morningSections + s + 1
-                                    }
-                                    y < morningPx + dividerPx + afternoonSections * perSectionPx + dividerPx -> -1
-                                    else -> {
-                                        val s = ((y - morningPx - dividerPx - afternoonSections * perSectionPx - dividerPx) / perSectionPx).toInt()
-                                        morningSections + afternoonSections + s + 1
+                                // 依据实际节次顶部偏移（含特殊课程块挤占）反查落点节次，分界带/特殊块区域无匹配则忽略
+                                var section = -1
+                                for (s in 1..totalSectionsGrid) {
+                                    val topDp = grid.sectionTop[s] ?: continue
+                                    val topPx = with(density) { topDp.dp.toPx() }
+                                    if (y >= topPx && y < topPx + perSectionPx) {
+                                        section = s
+                                        break
                                     }
                                 }
                                 if (section in 1..totalSectionsGrid && section !in occupiedSections) {
@@ -237,6 +248,9 @@ fun DayColumn(
                 }
             }
 
+            // 特殊课程横带统一在整表层（MainScheduleScreen）按时间插值横贯所有星期列渲染，
+            // 此处不再逐列绘制，避免“每天一个卡片”。grid.specialBands 仅用于其它几何计算。
+
             // 课程卡片层 —— 独立组合函数，周切换时仅此层重组，静态网格骨架可被 Compose 跳过
             CourseCardsLayer(
                 courses = courses,
@@ -248,6 +262,7 @@ fun DayColumn(
                 afternoonSections = afternoonSections,
                 eveningSections = eveningSections,
                 sectionTimes = sectionTimes,
+                grid = grid,
                 cardHeightPerSection = cardHeightPerSection,
                 cardCornerRadius = cardCornerRadius,
                 cardAlpha = cardAlpha,
@@ -284,6 +299,7 @@ private fun CourseCardsLayer(
     afternoonSections: Int,
     eveningSections: Int,
     sectionTimes: Map<Int, String>,
+    grid: SpecialGridLayout,
     cardHeightPerSection: Float,
     cardCornerRadius: Float,
     cardAlpha: Float,
@@ -371,7 +387,8 @@ private fun CourseCardsLayer(
                 eveningSections = eveningSections,
                 cardHeightPerSection = cardHeightPerSection,
                 dividerGap = if (showBreakDividers) 24 else 0,
-                sectionTimes = sectionTimes
+                sectionTimes = sectionTimes,
+                grid = grid
             )
             if (layout != null) {
                 Box(
@@ -407,12 +424,7 @@ private fun CourseCardsLayer(
 
         renderData.segments.forEachIndexed { idx, (segStartSection, segEndSection) ->
             val displayCourse = course.copy(startSection = segStartSection, endSection = segEndSection)
-            val dividerGap = if (showBreakDividers) 24 else 0
-            val segOffset = when {
-                segStartSection <= morningSections -> ((segStartSection - 1) * cardHeightPerSection).toInt()
-                segStartSection <= morningSections + afternoonSections -> (morningSections * cardHeightPerSection + dividerGap + (segStartSection - morningSections - 1) * cardHeightPerSection).toInt()
-                else -> (morningSections * cardHeightPerSection + dividerGap + afternoonSections * cardHeightPerSection + dividerGap + (segStartSection - morningSections - afternoonSections - 1) * cardHeightPerSection).toInt()
-            }
+            val segOffset = (grid.sectionTop[segStartSection] ?: 0f).toInt()
 
             Box(
                 modifier = Modifier
@@ -610,19 +622,15 @@ private fun computeCustomTimeLayout(
     eveningSections: Int,
     cardHeightPerSection: Float,
     dividerGap: Int,
-    sectionTimes: Map<Int, String>
+    sectionTimes: Map<Int, String>,
+    grid: SpecialGridLayout
 ): CustomTimeLayout? {
     val cs = parseMinutes(customStart)
     val ce = parseMinutes(customEnd)
     if (cs < 0 || ce < 0 || ce <= cs) return null
 
     val totalSections = morningSections + afternoonSections + eveningSections
-    val morningHeight = morningSections * cardHeightPerSection
-    val afternoonHeight = afternoonSections * cardHeightPerSection
-    val eveningHeight = eveningSections * cardHeightPerSection
-    val afternoonTop = morningHeight + dividerGap
-    val eveningTop = afternoonTop + afternoonHeight + dividerGap
-    val columnBottom = eveningTop + eveningHeight
+    val columnBottom = grid.totalHeight
 
     // 收集所有节次的起止时间
     data class SectionInfo(val start: Int, val end: Int, val index: Int)
@@ -643,15 +651,7 @@ private fun computeCustomTimeLayout(
         // 找到该时间所在的节次
         for (info in sections) {
             if (minutes <= info.end) {
-                val section = info.index
-                val sectionTop = when {
-                    section <= morningSections -> (section - 1) * cardHeightPerSection
-                    section <= morningSections + afternoonSections ->
-                        morningSections * cardHeightPerSection + dividerGap + (section - morningSections - 1) * cardHeightPerSection
-                    else ->
-                        morningSections * cardHeightPerSection + dividerGap + afternoonSections * cardHeightPerSection + dividerGap +
-                                (section - morningSections - afternoonSections - 1) * cardHeightPerSection
-                }
+                val sectionTop = grid.sectionTop[info.index] ?: 0f
                 // 在该节次内按时间比例插值
                 val fraction = if (info.end > info.start) {
                     ((minutes - info.start).toFloat() / (info.end - info.start)).coerceIn(0f, 1f)
@@ -672,4 +672,97 @@ private fun computeCustomTimeLayout(
     val top = timeToYClamped(cs)
     val bottom = timeToYClamped(ce)
     return CustomTimeLayout(top, (bottom - top).coerceAtLeast(0f))
+}
+
+/**
+ * 特殊课程长条（无编号，如早读/大课间/眼保健操）的渲染：显示名称居中。
+ * 时间为时间轴浮层，起止时间显示在左侧时间列，此处仅显示名称。
+ */
+@Composable
+fun SpecialBandOverlay(
+    name: String,
+    hasBlur: Boolean,
+    isDark: Boolean,
+    cardCornerRadius: Float,
+    cardBlurRadius: Float,
+    cardAlpha: Float,
+    wallpaperBackdrop: Backdrop?
+) {
+    val shownName = name.ifBlank { "特殊课程" }
+    val contentColor = if (isDark) Color(0xFF9FA8B5) else Color(0xFF46525F)
+    // 跟随“卡片不透明度”：以默认 0.15 为基准等比缩放横带底色的可见度，保持默认观感不变。
+    // 因子基于原始 cardAlpha（不带模糊 1.6 系数），确保默认时因子恒为 1；仅对最终 alpha 做 0~1 保护
+    val alphaFactor = cardAlpha / 0.15f
+    val bgColor = if (isDark) {
+        Color.White.copy(alpha = (0.06f * alphaFactor).coerceIn(0f, 1f))
+    } else {
+        Color.Black.copy(alpha = (0.04f * alphaFactor).coerceIn(0f, 1f))
+    }
+
+    if (hasBlur && wallpaperBackdrop != null) {
+        key(cardCornerRadius) {
+            val backdropShape = remember(cardCornerRadius) { ContinuousRoundedRectangle((cardCornerRadius).dp) }
+            val edgeLightShape = remember(cardCornerRadius) { ContinuousRoundedRectangle(cardCornerRadius.dp) }
+            val density = LocalDensity.current
+            val blurPx = with(density) { remember(cardBlurRadius) { cardBlurRadius.dp.toPx() } }
+            val lensRadiusPx = with(density) { remember { 6f.dp.toPx() } }
+            val lensStrengthPx = with(density) { remember { 14f.dp.toPx() } }
+            val overlayColor = remember(isDark, alphaFactor) {
+                if (isDark) Color.Black.copy(alpha = (0.15f * alphaFactor).coerceIn(0f, 1f))
+                else Color.White.copy(alpha = (0.17f * alphaFactor).coerceIn(0f, 1f))
+            }
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(horizontal = 2.dp, vertical = 2.dp)
+                    .drawBackdrop(
+                        backdrop = wallpaperBackdrop,
+                        shape = { backdropShape },
+                        effects = {
+                            blur(blurPx)
+                            lens(lensRadiusPx, lensStrengthPx)
+                        },
+                        highlight = null,
+                        onDrawSurface = {
+                            drawRect(bgColor)
+                            drawRect(overlayColor)
+                        }
+                    )
+                    .edgeLight(shape = edgeLightShape, edgeLight = rememberCourseCardEdgeLight())
+            ) {
+                SpecialBandContent(shownName, contentColor)
+            }
+        }
+    } else {
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(horizontal = 2.dp, vertical = 2.dp)
+                .drawBehind {
+                    val cornerPx = cardCornerRadius.dp.toPx()
+                    drawRoundRect(
+                        color = bgColor,
+                        cornerRadius = CornerRadius(cornerPx)
+                    )
+                }
+        ) {
+            SpecialBandContent(shownName, contentColor)
+        }
+    }
+}
+
+@Composable
+private fun SpecialBandContent(name: String, color: Color) {
+    Box(
+        modifier = Modifier.fillMaxSize(),
+        contentAlignment = Alignment.Center
+    ) {
+        Text(
+            text = name,
+            style = MiuixTheme.textStyles.body2.copy(fontWeight = FontWeight.Medium),
+            color = if (isAppDarkTheme()) Color(0xFFD5DAE1) else Color(0xFF1F2937),
+            maxLines = 2,
+            textAlign = TextAlign.Center
+        )
+    }
 }

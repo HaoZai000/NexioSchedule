@@ -10,7 +10,6 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.size
-import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableIntStateOf
@@ -76,7 +75,7 @@ class HolidaySettingsActivity : ComponentActivity() {
                     entries = HolidayManager.load(context, year)
                 }
 
-                fun requestYear(targetYear: Int, automatic: Boolean = false) {
+                fun requestYear(targetYear: Int) {
                     if (loading) return
                     loading = true
                     scope.launch(Dispatchers.IO) {
@@ -94,20 +93,14 @@ class HolidaySettingsActivity : ComponentActivity() {
                             HolidayManager.mergeApiEntries(context, targetYear, result)
                             if (targetYear == year) reload()
                             loading = false
-                            if (!automatic) {
-                                val message = if (result.isEmpty()) {
-                                    "获取失败或暂无数据"
-                                } else {
-                                    "已更新 ${result.size} 条记录"
-                                }
-                                Toast.makeText(context, message, Toast.LENGTH_SHORT).show()
+                            val message = if (result.isEmpty()) {
+                                "获取失败或暂无数据"
+                            } else {
+                                "已更新 ${result.size} 条记录"
                             }
+                            Toast.makeText(context, message, Toast.LENGTH_SHORT).show()
                         }
                     }
-                }
-
-                LaunchedEffect(Unit) {
-                    if (entries.isEmpty()) requestYear(year, automatic = true)
                 }
 
                 Scaffold(

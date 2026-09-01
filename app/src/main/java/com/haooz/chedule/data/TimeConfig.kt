@@ -1,6 +1,17 @@
 package com.haooz.chedule.data
 
 /**
+ * 特殊时段块（无编号，如早读/大课间/眼保健操）。
+ * 按自定义起止时间沿时间轴定位，挤出让出纵向空间，不计入课程提醒。
+ */
+data class SpecialBlock(
+    val id: Long = 0L,
+    val name: String = "",          // 如"早读""眼保健操"
+    val startTime: String = "08:00",
+    val endTime: String = "08:40"
+)
+
+/**
  * 时间配置数据类 - 存储多套时间设置
  */
 data class TimeConfig(
@@ -39,7 +50,10 @@ data class TimeConfig(
     val sectionTimes: Map<String, String> = emptyMap(),
 
     // 自定义节次名称（key 同 sectionTimes，如 "morning_1" -> "早自习"）
-    val sectionNames: Map<String, String> = emptyMap()
+    val sectionNames: Map<String, String> = emptyMap(),
+
+    // 特殊时段块（无编号，如早读/大课间/眼保健操），不计入课程提醒
+    val specialBlocks: List<SpecialBlock> = emptyList()
 ) {
 
     /**
