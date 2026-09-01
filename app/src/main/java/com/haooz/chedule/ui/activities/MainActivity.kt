@@ -183,7 +183,6 @@ class MainActivity : ComponentActivity() {
             com.haooz.chedule.data.AppearanceConfig()
 
         fun setTaskExcludedFromRecents(context: Context, hidden: Boolean) {
-            if (android.os.Build.VERSION.SDK_INT < android.os.Build.VERSION_CODES.LOLLIPOP) return
             runCatching {
                 val manager = context.getSystemService(ActivityManager::class.java)
                 val appTask = manager.appTasks.firstOrNull { task ->
@@ -319,6 +318,7 @@ class MainActivity : ComponentActivity() {
         shareIntentVersion++
     }
 
+    @SuppressLint("GestureBackNavigation")
     override fun onBackPressed() {
         val hideBackground = getSharedPreferences("app_preferences", MODE_PRIVATE)
             .getBoolean("hide_background", false)

@@ -109,7 +109,6 @@ class CourseRepository private constructor(context: Context) {
         private const val KEY_COMBINATION_IDS = "combination_ids"
         private const val KEY_CURRENT_COMBINATION_ID = "current_combination_id"
         private const val COMBINATION_WALLPAPER_PREFIX = "combination_wallpaper_"
-        private const val COMBINATION_SNAPSHOT_PREFIX = "combination_snapshot_"
         private const val KEY_COMBINATION_OFFSET_X_PREFIX = "comb_offset_x_"
         private const val KEY_COMBINATION_OFFSET_Y_PREFIX = "comb_offset_y_"
         private const val KEY_COMBINATION_SCALE_PREFIX = "comb_scale_"

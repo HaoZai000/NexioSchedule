@@ -4,7 +4,6 @@ import android.annotation.SuppressLint
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
@@ -31,7 +30,6 @@ import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 import com.haooz.chedule.data.Course
 import com.haooz.chedule.ui.effects.edgelight.edgeLight
 import com.haooz.chedule.ui.effects.edgelight.rememberCourseCardEdgeLight
@@ -130,7 +128,7 @@ fun DayColumn(
                 if (course.hasValidCustomTime()) {
                     val cs = parseMinutes(course.customStartTime)
                     val ce = parseMinutes(course.customEndTime)
-                    if (cs >= 0 && ce > cs) {
+                    if (cs in 0..<ce) {
                         for (section in 1..totalSectionsGrid) {
                             val timeStr = sectionTimes[section] ?: continue
                             val parts = timeStr.split("-")
@@ -389,7 +387,6 @@ private fun CourseCardsLayer(
                 afternoonSections = afternoonSections,
                 eveningSections = eveningSections,
                 cardHeightPerSection = cardHeightPerSection,
-                dividerGap = if (showBreakDividers) 24 else 0,
                 sectionTimes = sectionTimes,
                 grid = grid
             )
@@ -626,7 +623,6 @@ private fun computeCustomTimeLayout(
     afternoonSections: Int,
     eveningSections: Int,
     cardHeightPerSection: Float,
-    dividerGap: Int,
     sectionTimes: Map<Int, String>,
     grid: SpecialGridLayout
 ): CustomTimeLayout? {
@@ -694,9 +690,7 @@ fun SpecialBandOverlay(
     wallpaperBackdrop: Backdrop?
 ) {
     val shownName = name.ifBlank { "特殊课程" }
-    val contentColor = if (isDark) Color(0xFF9FA8B5) else Color(0xFF46525F)
-    // 跟随“卡片不透明度”：以默认 0.15 为基准等比缩放横带底色的可见度，保持默认观感不变。
-    // 因子基于原始 cardAlpha（不带模糊 1.6 系数），确保默认时因子恒为 1；仅对最终 alpha 做 0~1 保护
+    // 因子基于原始 cardAlpha，确保默认时因子恒为 1；仅对最终 alpha 做 0~1 保护
     val alphaFactor = cardAlpha / 0.15f
     val bgColor = if (isDark) {
         Color.White.copy(alpha = (0.06f * alphaFactor).coerceIn(0f, 1f))
@@ -735,7 +729,7 @@ fun SpecialBandOverlay(
                     )
                     .edgeLight(shape = edgeLightShape, edgeLight = rememberCourseCardEdgeLight())
             ) {
-                SpecialBandContent(shownName, contentColor)
+                SpecialBandContent(shownName)
             }
         }
     } else {
@@ -751,13 +745,13 @@ fun SpecialBandOverlay(
                     )
                 }
         ) {
-            SpecialBandContent(shownName, contentColor)
+            SpecialBandContent(shownName)
         }
     }
 }
 
 @Composable
-private fun SpecialBandContent(name: String, color: Color) {
+private fun SpecialBandContent(name: String) {
     Box(
         modifier = Modifier.fillMaxSize(),
         contentAlignment = Alignment.Center

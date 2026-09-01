@@ -71,7 +71,6 @@ fun computeSpecialGridLayout(
         cursor += cardHeightPerSection
         if (g in dividerAfter) cursor += dividerGap
     }
-    val origBottom = cursor
 
     // 2) 节次时间信息，用于时间插值
     data class SecInfo(val start: Int, val end: Int, val index: Int)

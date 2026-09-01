@@ -1,5 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools"
     android:id="@+id/widget_standard_root"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
@@ -18,7 +19,8 @@
         android:paddingEnd="33px"
         android:paddingTop="27px"
         android:paddingBottom="9px"
-        android:background="@drawable/widget_background">
+        android:background="@drawable/widget_background"
+        tools:ignore="PxUsage,UselessParent">
 
         <!-- Header -->
         <LinearLayout
@@ -37,7 +39,8 @@
                 android:src="@drawable/ic_miuix_logo"
                 android:scaleY="-1"
                 android:alpha="0.8"
-                android:layout_marginEnd="18px" />
+                android:layout_marginEnd="18px"
+                tools:ignore="ContentDescription" />
 
             <TextView
                 android:id="@+id/widget_title"
@@ -110,7 +113,8 @@
                 android:layout_height="match_parent"
                 android:layout_marginTop="18px"
                 android:layout_marginBottom="18px"
-                android:scaleType="fitXY" />
+                android:scaleType="fitXY"
+                tools:ignore="ContentDescription" />
 
             <LinearLayout
                 android:layout_width="0px"
@@ -118,7 +122,8 @@
                 android:layout_weight="1"
                 android:orientation="vertical"
                 android:gravity="center_vertical"
-                android:paddingStart="30px">
+                android:paddingStart="30px"
+                tools:ignore="NestedWeights,RtlSymmetry">
 
                 <TextView
                     android:id="@+id/widget_name1"
@@ -203,7 +208,8 @@
                 android:layout_height="match_parent"
                 android:layout_marginTop="18px"
                 android:layout_marginBottom="18px"
-                android:scaleType="fitXY" />
+                android:scaleType="fitXY"
+                tools:ignore="ContentDescription" />
 
             <LinearLayout
                 android:layout_width="0px"
@@ -211,7 +217,8 @@
                 android:layout_weight="1"
                 android:orientation="vertical"
                 android:gravity="center_vertical"
-                android:paddingStart="30px">
+                android:paddingStart="30px"
+                tools:ignore="NestedWeights,RtlSymmetry">
 
                 <TextView
                     android:id="@+id/widget_name2"

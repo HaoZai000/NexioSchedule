@@ -19,17 +19,6 @@ data class AppearanceConfig(
     val cardContentAlignment: CardContentAlignment = CardContentAlignment.CENTER_CENTER,
     val cardTextColor: CardTextColor = CardTextColor.COLORFUL
 ) {
-    /** 将此外观配置应用到 Combination，返回新副本 */
-    fun applyToCombination(comb: Combination): Combination = comb.copy(
-        cardBlurRadius = cardBlurRadius,
-        cardAlpha = cardAlpha,
-        cardHeight = cardHeight,
-        cardCornerRadius = cardCornerRadius,
-        wallpaperBrightness = wallpaperBrightness,
-        showBreakDividers = showBreakDividers,
-        cardContentAlignment = cardContentAlignment,
-        cardTextColor = cardTextColor
-    )
 
     companion object {
         /** 从 Combination 提取外观配置 */
