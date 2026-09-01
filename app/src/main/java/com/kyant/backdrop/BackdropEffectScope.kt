@@ -7,9 +7,21 @@ import androidx.compose.ui.graphics.drawscope.DrawScope
 import androidx.compose.ui.unit.Density
 import androidx.compose.ui.unit.LayoutDirection
 
+// 离屏模糊缓冲的降采样比例。模糊/折射在低分辨率缓冲上运算后放大回原尺寸，
+// 可显著降低 GPU 采样成本（成本按 1/scale² 下降）。0.45f 为固定降采样。
+internal const val DOWNSAMPLE_SCALE = 0.45f
+
 sealed interface BackdropEffectScope : Density, RuntimeShaderCache {
 
     val size: Size
+
+    /**
+     * 当前离屏模糊缓冲的降采样比例。
+     *
+     * 当 effect（尤其自定义 runtimeShader）以像素坐标在缓冲上计算时，
+     * 需据此把 size/offset 等均匀缩放，保证放大回原尺寸后视觉效果一致。
+     */
+    val downsampleScale: Float
 
     val layoutDirection: LayoutDirection
 
@@ -28,6 +40,7 @@ internal abstract class BackdropEffectScopeImpl : BackdropEffectScope, RuntimeSh
     override var layoutDirection: LayoutDirection = LayoutDirection.Ltr
     override var padding: Float = 0f
     override var renderEffect: RenderEffect? = null
+    override val downsampleScale: Float = DOWNSAMPLE_SCALE
 
     private val runtimeShaderCache = RuntimeShaderCacheImpl()
 

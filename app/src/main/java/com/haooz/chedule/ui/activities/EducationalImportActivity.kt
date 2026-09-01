@@ -456,6 +456,7 @@ class EducationalImportActivity : ComponentActivity() {
                                 }
                                 scheduleViewModel.refreshScheduleList()
                                 applyPresetTimeSlots(settingsViewModel)
+                                applyImportedScheduleConfig(courseViewModel)
                                 Toast.makeText(this@EducationalImportActivity, "课程已保存，共 ${courses.size} 门课程", Toast.LENGTH_SHORT).show()
                             },
                             onDesktopModeChanged = { isDesktopMode = it },
@@ -514,6 +515,30 @@ class EducationalImportActivity : ComponentActivity() {
             Log.d("EduImport", "预设时间段应用成功: 上午${morningTimes.size}节, 下午${afternoonTimes.size}节, 晚上${eveningTimes.size}节")
         } catch (e: Exception) {
             Log.e("EduImport", "应用预设时间段失败: ${e.message}")
+        }
+    }
+
+    /**
+     * 应用教务脚本通过 saveCourseConfig 传回的课表配置（开学时间、总周数）。
+     * 与 applyPresetTimeSlots 一致，仅在导入完成时消费一次性标记，避免重复/旧数据覆盖。
+     */
+    private fun applyImportedScheduleConfig(courseViewModel: CourseViewModel) {
+        val prefs = getSharedPreferences("edu_import_prefs", MODE_PRIVATE)
+        val startDate = prefs.getString("semester_start_date", null)
+        val totalWeeks = prefs.getInt("semester_total_weeks", -1)
+
+        var applied = false
+        if (!startDate.isNullOrBlank()) {
+            courseViewModel.setClassStartTime(startDate)
+            applied = true
+        }
+        if (totalWeeks > 0) {
+            courseViewModel.setTotalWeeks(totalWeeks)
+            applied = true
+        }
+        if (applied) {
+            prefs.edit { remove("semester_start_date"); remove("semester_total_weeks") }
+            Log.d("EduImport", "应用课表配置成功: 开学时间=$startDate, 总周数=$totalWeeks")
         }
     }
 }

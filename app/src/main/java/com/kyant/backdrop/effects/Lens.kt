@@ -7,6 +7,7 @@ import androidx.compose.ui.unit.LayoutDirection
 import androidx.compose.ui.util.fastCoerceAtLeast
 import androidx.compose.ui.util.fastCoerceAtMost
 import com.kyant.backdrop.BackdropEffectScope
+import com.kyant.backdrop.DOWNSAMPLE_SCALE
 import com.kyant.backdrop.internal.RoundedRectRefractionShaderString
 import com.kyant.backdrop.internal.RoundedRectRefractionWithDispersionShaderString
 import com.kyant.backdrop.internal.RuntimeShaderEffect
@@ -41,12 +42,21 @@ fun BackdropEffectScope.lens(
                         RoundedRectRefractionWithDispersionShaderString
                     )
                 }
+            // 折射 shader 在降采样缓冲上执行，所有像素空间 uniform 需同步 ×scale，
+            // 等比例缩放可保持 SDF 比例与折射位移在放大回原尺寸后与未降采样一致。
+            val scale = DOWNSAMPLE_SCALE
             shader.apply {
-                setFloatUniform("size", size.width, size.height)
-                setFloatUniform("offset", -padding, -padding)
-                setFloatUniform("cornerRadii", cornerRadii)
-                setFloatUniform("refractionHeight", refractionHeight)
-                setFloatUniform("refractionAmount", -refractionAmount)
+                setFloatUniform("size", size.width * scale, size.height * scale)
+                setFloatUniform("offset", -padding * scale, -padding * scale)
+                setFloatUniform(
+                    "cornerRadii",
+                    cornerRadii[0] * scale,
+                    cornerRadii[1] * scale,
+                    cornerRadii[2] * scale,
+                    cornerRadii[3] * scale
+                )
+                setFloatUniform("refractionHeight", refractionHeight * scale)
+                setFloatUniform("refractionAmount", -refractionAmount * scale)
                 setFloatUniform("depthEffect", if (depthEffect) 1f else 0f)
                 if (chromaticAberration) {
                     setFloatUniform("chromaticAberration", 1f)

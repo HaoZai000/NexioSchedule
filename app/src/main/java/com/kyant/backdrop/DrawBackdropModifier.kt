@@ -28,6 +28,7 @@ import androidx.compose.ui.platform.InspectorInfo
 import androidx.compose.ui.unit.Constraints
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.IntSize
+import kotlin.math.roundToInt
 import com.kyant.backdrop.backdrops.LayerBackdrop
 import com.kyant.backdrop.highlight.Highlight
 import com.kyant.backdrop.highlight.HighlightElement
@@ -265,6 +266,10 @@ private class DrawBackdropNode(
         val canvas = drawContext.canvas
         val padding = padding
 
+        // 在缩放坐标下绘制内容：离屏缓冲按 DOWNSAMPLE_SCALE 缩小，内容随之缩放铺满，
+        // 缓冲边缘仍保留 padding×scale 的扩展区给模糊扩散，视觉范围与未降采样一致。
+        canvas.save()
+        canvas.scale(DOWNSAMPLE_SCALE, DOWNSAMPLE_SCALE)
         if (padding != 0f) {
             canvas.translate(padding, padding)
         }
@@ -280,26 +285,35 @@ private class DrawBackdropNode(
         if (padding != 0f) {
             canvas.translate(-padding, -padding)
         }
+        canvas.restore()
     }
 
     private val drawBackdropLayer: DrawScope.() -> Unit = {
         val layer = graphicsLayer
         if (layer != null) {
             val padding = padding
+            val size = size
+            val scaledPadding = padding * DOWNSAMPLE_SCALE
 
             recordLayer(
+                this@DrawBackdropNode,
                 layer,
                 size = IntSize(
-                    size.width.toInt() + padding.toInt() * 2,
-                    size.height.toInt() + padding.toInt() * 2
+                    ((size.width + padding * 2) * DOWNSAMPLE_SCALE)
+                        .roundToInt().coerceAtLeast(1),
+                    ((size.height + padding * 2) * DOWNSAMPLE_SCALE)
+                        .roundToInt().coerceAtLeast(1)
                 ),
                 block = recordBackdropBlock
             )
 
-            layer.topLeft =
-                if (padding != 0f) IntOffset(-padding.toInt(), -padding.toInt())
-                else IntOffset.Zero
+            layer.topLeft = IntOffset.Zero
+            // 将降采样缓冲放大回原尺寸：先 scale(1/scale) 再平移，使内容对齐卡片原点。
+            drawContext.canvas.save()
+            drawContext.canvas.scale(1f / DOWNSAMPLE_SCALE, 1f / DOWNSAMPLE_SCALE)
+            drawContext.canvas.translate(-scaledPadding, -scaledPadding)
             drawLayer(layer)
+            drawContext.canvas.restore()
         }
     }
 
@@ -325,7 +339,7 @@ private class DrawBackdropNode(
         onDrawFront?.invoke(this)
 
         exportedBackdrop?.graphicsLayer?.let { layer ->
-            recordLayer(layer) {
+            recordLayer(this@DrawBackdropNode, layer) {
                 onDrawBehind?.invoke(this)
                 drawBackdropLayer()
                 onDrawSurface?.invoke(this)
@@ -363,7 +377,12 @@ private class DrawBackdropNode(
         if (!isRenderEffectSupported()) return
 
         effectScope.apply(effects)
-        graphicsLayer?.renderEffect = effectScope.renderEffect
+        // C3：同一份 RenderEffect 对象不重复赋值，避免多余的图层失效与重新合成。
+        // 仅在对象引用真正变化（重建了不同的 effect 链）时才写回 graphicsLayer。
+        val newRenderEffect = effectScope.renderEffect
+        if (graphicsLayer?.renderEffect != newRenderEffect) {
+            graphicsLayer?.renderEffect = newRenderEffect
+        }
         padding = effectScope.padding
     }
 

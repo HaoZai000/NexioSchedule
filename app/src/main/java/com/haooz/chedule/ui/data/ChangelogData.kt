@@ -17,7 +17,7 @@ val changelogData = listOf(
             "优化小部件显示效果",
             "优化课程提醒稳定性",
             "修复部分界面UI与颜色异常",
-            ""
+            "修复教务导入无法导入开学时间"
         )
     ),
     ChangelogEntry(

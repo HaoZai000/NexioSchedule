@@ -83,7 +83,12 @@ fun ProgressiveBlurTopBar(
     }""",
                                 "content"
                             ) {
-                                setFloatUniform("size", size.width, size.height)
+                                // size uniform 需按降采样比例缩放，与模糊缓冲的实际像素范围对齐
+                                setFloatUniform(
+                                    "size",
+                                    size.width * downsampleScale,
+                                    size.height * downsampleScale
+                                )
                                 setColorUniform("tint", tintColor)
                                 setFloatUniform("tintIntensity", tintIntensity)
                             }

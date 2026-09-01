@@ -7,8 +7,8 @@ import androidx.compose.ui.node.requireDensity
 import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.unit.toIntSize
 
-context(node: DelegatableNode)
 internal fun DrawScope.recordLayer(
+    node: DelegatableNode,
     layer: GraphicsLayer,
     size: IntSize = this.size.toIntSize(),
     block: DrawScope.() -> Unit
