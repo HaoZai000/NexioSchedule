@@ -79,8 +79,6 @@ import com.kyant.backdrop.effects.lens
 import com.kyant.capsule.ContinuousRoundedRectangle
 import top.yukonga.miuix.kmp.basic.Card
 import top.yukonga.miuix.kmp.basic.CardDefaults
-import top.yukonga.miuix.kmp.blur.layerBackdrop
-import top.yukonga.miuix.kmp.blur.rememberLayerBackdrop
 import top.yukonga.miuix.kmp.icon.MiuixIcons
 import top.yukonga.miuix.kmp.icon.extended.Add
 import top.yukonga.miuix.kmp.overlay.BlurBottomSheet
@@ -303,18 +301,13 @@ fun MainScheduleScreen(
     // 壁纸 LayerBackdrop：捕获壁纸内容供课程卡片 textureBlur 使用
     val wallpaperBackdropColor = if (isAppDarkTheme()) Color(0xFF000000) else Color(0xFFF7F7F7)
 
-    // 全屏 LayerBackdrop：捕获全部内容供弹窗模糊使用
-    val screenBackdrop = rememberLayerBackdrop {
-        drawRect(wallpaperBackdropColor)
-        drawContent()
-    }
     // Kyant Backdrop：供课程卡片 drawBackdrop 使用
     val courseCardBackdrop = rememberKyantLayerBackdrop {
         drawRect(wallpaperBackdropColor)
         drawContent()
     }
 
-    Box(modifier = Modifier.fillMaxSize().layerBackdrop(screenBackdrop)) {
+    Box(modifier = Modifier.fillMaxSize()) {
         // 壁纸背景
         if (wallpaperBitmap != null) {
             Box(modifier = Modifier.fillMaxSize().kyantLayerBackdrop(courseCardBackdrop)) {
