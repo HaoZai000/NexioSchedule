@@ -33,6 +33,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
@@ -305,13 +306,17 @@ fun MainScheduleScreen(
     val wallpaperBackdropColor = if (isAppDarkTheme()) Color(0xFF000000) else Color(0xFFF7F7F7)
 
     // Kyant Backdrop：供课程卡片 drawBackdrop 使用
-    val courseCardBackdrop = rememberKyantLayerBackdrop {
-        drawRect(wallpaperBackdropColor)
-        drawContent()
+    // 添加 wallpaperBitmap 作为 key，当壁纸变化时强制重建 backdrop，确保重新录制壁纸内容
+    val courseCardBackdrop = key(wallpaperBitmap) {
+        rememberKyantLayerBackdrop {
+            drawRect(wallpaperBackdropColor)
+            drawContent()
+        }
     }
 
     // 共享模糊 Backdrop：预渲染壁纸到降采样+模糊层，所有卡片共享
-    val sharedBlurManager = remember { SharedBlurBackdrop(courseCardBackdrop) }
+    // 添加 courseCardBackdrop 作为依赖，当 backdrop 重建时同步重建
+    val sharedBlurManager = remember(courseCardBackdrop) { SharedBlurBackdrop(courseCardBackdrop) }
     val hasSharedBlur = wallpaperBitmap != null && isRenderEffectSupported() && cardBlurRadius > 0f
 
     DisposableEffect(Unit) {
