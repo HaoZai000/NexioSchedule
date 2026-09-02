@@ -1812,41 +1812,55 @@ fun CourseScheduleApp() {
                                 )
                         ) {
                             if (!isShiftMode) {
-                                when (selectedTab) {
-                                    0 -> TodayScreen(
-                                        viewModel = viewModel,
-                                        settingsViewModel = settingsViewModel,
-                                        hiddenCourseIds = hiddenCourseIds,
-                                        onCourseClick = { courses, left, top, width, height, _, courseIdToHide ->
-                                            openCourseDetail(
-                                                courses,
-                                                left,
-                                                top,
-                                                width,
-                                                height,
-                                                fromToday = true,
-                                                courseIdToHide = courseIdToHide
-                                            )
-                                        },
-                                        pagerState = todayPagerState,
-                                        navBarStyle = navBarStyle,
-                                        onScrollYChanged = { todayScrollY = it },
-                                        settingsScrollBehavior = todayScrollBehavior,
-                                        onSelectedDayChanged = { todaySelectedDayOfWeek = it },
-                                        onSelectedDateChanged = { todayIsToday = it },
-                                        scrollToTodayTrigger = scrollToTodayTrigger,
-                                        jumpToDateTrigger = todayJumpToDateTrigger,
-                                        onJumpToDateProcessed = { todayJumpToDateTrigger = 0 },
-                                        wallpaperBitmap = if (showCustomizePage && !isWindowCutoutActive) originalWallpaperBitmap else wallpaperBitmap,
-                                        wallpaperOffset = if (showCustomizePage && !isWindowCutoutActive) originalWallpaperOffset else wallpaperOffset,
-                                        wallpaperScale = if (showCustomizePage && !isWindowCutoutActive) originalWallpaperScale else wallpaperScale,
-                                        wallpaperBrightness = displayAppearance.wallpaperBrightness,
-                                        cardBlurRadius = displayAppearance.cardBlurRadius,
-                                        liquidGlassBackdrop = liquidGlassBackdrop,
-                                        externalListState = todayListState,
-                                    )
+                                // 始终渲染所有 tab，用 alpha 控制显隐，避免切换时重建导致延迟
+                                // zIndex 确保当前 tab 在最上层接收事件
+                                Box(modifier = Modifier.fillMaxSize()) {
+                                    Box(
+                                        modifier = Modifier
+                                            .fillMaxSize()
+                                            .zIndex(if (selectedTab == 0) 2f else 0f)
+                                            .graphicsLayer { alpha = if (selectedTab == 0) 1f else 0f }
+                                    ) {
+                                        TodayScreen(
+                                            viewModel = viewModel,
+                                            settingsViewModel = settingsViewModel,
+                                            hiddenCourseIds = hiddenCourseIds,
+                                            onCourseClick = { courses, left, top, width, height, _, courseIdToHide ->
+                                                openCourseDetail(
+                                                    courses,
+                                                    left,
+                                                    top,
+                                                    width,
+                                                    height,
+                                                    fromToday = true,
+                                                    courseIdToHide = courseIdToHide
+                                                )
+                                            },
+                                            pagerState = todayPagerState,
+                                            navBarStyle = navBarStyle,
+                                            onScrollYChanged = { todayScrollY = it },
+                                            settingsScrollBehavior = todayScrollBehavior,
+                                            onSelectedDayChanged = { todaySelectedDayOfWeek = it },
+                                            onSelectedDateChanged = { todayIsToday = it },
+                                            scrollToTodayTrigger = scrollToTodayTrigger,
+                                            jumpToDateTrigger = todayJumpToDateTrigger,
+                                            onJumpToDateProcessed = { todayJumpToDateTrigger = 0 },
+                                            wallpaperBitmap = if (showCustomizePage && !isWindowCutoutActive) originalWallpaperBitmap else wallpaperBitmap,
+                                            wallpaperOffset = if (showCustomizePage && !isWindowCutoutActive) originalWallpaperOffset else wallpaperOffset,
+                                            wallpaperScale = if (showCustomizePage && !isWindowCutoutActive) originalWallpaperScale else wallpaperScale,
+                                            wallpaperBrightness = displayAppearance.wallpaperBrightness,
+                                            cardBlurRadius = displayAppearance.cardBlurRadius,
+                                            liquidGlassBackdrop = liquidGlassBackdrop,
+                                            externalListState = todayListState,
+                                        )
+                                    }
 
-                                    1 -> {
+                                    Box(
+                                        modifier = Modifier
+                                            .fillMaxSize()
+                                            .zIndex(if (selectedTab == 1) 2f else 0f)
+                                            .graphicsLayer { alpha = if (selectedTab == 1) 1f else 0f }
+                                    ) {
                                         MainScheduleScreen(
                                             viewModel = viewModel,
                                             settingsViewModel = settingsViewModel,
@@ -2057,21 +2071,28 @@ fun CourseScheduleApp() {
                                         )
                                     }
 
-                                    2 -> SettingsScreen(
-                                        viewModel = viewModel,
-                                        scheduleViewModel = scheduleViewModel,
-                                        settingsViewModel = settingsViewModel,
-                                        shiftViewModel = shiftViewModel,
-                                        onEnterShiftMode = {
-                                            showShiftLoading = true
-                                            isExitingShift = false
-                                        },
-                                        navBarStyle = navBarStyle,
-                                        onScrollYChanged = { settingsScrollY = it },
-                                        settingsScrollBehavior = settingsScrollBehavior,
-                                        activeSecondaryActivity = activeSecondaryActivity,
-                                        liquidGlassBackdrop = liquidGlassBackdrop,
-                                    )
+                                    Box(
+                                        modifier = Modifier
+                                            .fillMaxSize()
+                                            .zIndex(if (selectedTab == 2) 2f else 0f)
+                                            .graphicsLayer { alpha = if (selectedTab == 2) 1f else 0f }
+                                    ) {
+                                        SettingsScreen(
+                                            viewModel = viewModel,
+                                            scheduleViewModel = scheduleViewModel,
+                                            settingsViewModel = settingsViewModel,
+                                            shiftViewModel = shiftViewModel,
+                                            onEnterShiftMode = {
+                                                showShiftLoading = true
+                                                isExitingShift = false
+                                            },
+                                            navBarStyle = navBarStyle,
+                                            onScrollYChanged = { settingsScrollY = it },
+                                            settingsScrollBehavior = settingsScrollBehavior,
+                                            activeSecondaryActivity = activeSecondaryActivity,
+                                            liquidGlassBackdrop = liquidGlassBackdrop,
+                                        )
+                                    }
                                 }
                             } else {
                                 when (selectedTab) {
