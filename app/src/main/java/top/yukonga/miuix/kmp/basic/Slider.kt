@@ -20,7 +20,6 @@ import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.Immutable
 import androidx.compose.runtime.Stable
@@ -56,6 +55,7 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.LayoutDirection
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.util.lerp
+import com.kyant.capsule.ContinuousCapsule
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 import kotlin.math.abs
 import kotlin.math.roundToInt
@@ -843,7 +843,7 @@ private fun SliderTrack(
 
     Canvas(
         modifier = modifier
-            .clip(CircleShape)
+            .clip(ContinuousCapsule())
             .drawBehind {
                 drawRect(backgroundColor)
                 drawRect(Color.Black, alpha = backgroundAlpha)
@@ -956,7 +956,7 @@ private fun RangeSliderTrack(
 
     Canvas(
         modifier = modifier
-            .clip(CircleShape)
+            .clip(ContinuousCapsule())
             .drawBehind {
                 drawRect(backgroundColor)
                 drawRect(Color.Black, alpha = backgroundAlpha)

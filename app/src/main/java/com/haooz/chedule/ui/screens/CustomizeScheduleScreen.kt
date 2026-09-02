@@ -57,6 +57,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.blur
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.drawBehind
+import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.graphics.Color
@@ -72,7 +73,9 @@ import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -103,6 +106,7 @@ import top.yukonga.miuix.kmp.basic.DropdownDefaults
 import top.yukonga.miuix.kmp.basic.DropdownEntry
 import top.yukonga.miuix.kmp.basic.DropdownItem
 import top.yukonga.miuix.kmp.basic.InfiniteProgressIndicator
+import top.yukonga.miuix.kmp.basic.NativeTextField
 import top.yukonga.miuix.kmp.basic.Scaffold
 import top.yukonga.miuix.kmp.basic.Slider
 import top.yukonga.miuix.kmp.basic.SliderDefaults
@@ -1272,51 +1276,116 @@ fun CustomizeScheduleScreen(
                         shadowAlpha = material.shadowAlpha,
                     )
                 }
-                // 效果弹窗内容（3 个滑块）
+                // 效果弹窗内容：壁纸亮度置顶；课程卡片模糊 + 卡片不透明度放入同一卡片
                 val effectSheetContent: @Composable () -> Unit = {
+                    // 壁纸亮度置顶
                     SliderCard(
-                        label = if (hasWallpaper) "课程卡片模糊: ${effectValue.roundToInt()}.dp" else "课程卡片模糊: 需设置壁纸",
-                        value = effectValue,
-                        valueRange = 0f..20f,
-                        keyPoints = listOf(4f),
-                        enabled = hasWallpaper,
-                        onValueChange = { if (hasWallpaper) effectValue = it }
-                    )
-                    SliderCard(
-                        label = "卡片不透明度: ${(cardAlphaValue * 100).roundToInt()}%",
-                        value = cardAlphaValue,
-                        valueRange = 0f..1f,
-                        keyPoints = listOf(0.15f),
-                        enabled = true,
-                        onValueChange = { cardAlphaValue = it }
-                    )
-                    SliderCard(
-                        label = "壁纸亮度: ${wallpaperBrightnessValue.roundToInt()}",
+                        label = "壁纸亮度",
                         value = wallpaperBrightnessValue,
                         valueRange = -50f..50f,
                         keyPoints = listOf(0f),
-                        enabled = true,
-                        onValueChange = { wallpaperBrightnessValue = it }
+                        enabled = hasWallpaper,
+                        onValueChange = { if (hasWallpaper) wallpaperBrightnessValue = it },
+                        displayValue = { it.roundToInt().toString() },
+                        parseInput = { it.toFloatOrNull()?.coerceIn(-50f, 50f) }
                     )
+                    // 课程卡片模糊 + 卡片不透明度：同一卡片内
+                    SheetCard {
+                        Column {
+                            SliderItem(
+                                label = "卡片模糊",
+                                value = effectValue,
+                                valueRange = 0f..20f,
+                                keyPoints = listOf(4f),
+                                enabled = hasWallpaper,
+                                onValueChange = { if (hasWallpaper) effectValue = it },
+                                suffix = "dp",
+                                displayValue = { it.roundToInt().toString() },
+                                parseInput = { it.toFloatOrNull()?.coerceIn(0f, 20f) }
+                            )
+                            SliderItem(
+                                label = "卡片不透明度",
+                                value = cardAlphaValue,
+                                valueRange = 0f..1f,
+                                keyPoints = listOf(0.15f),
+                                enabled = true,
+                                onValueChange = { cardAlphaValue = it },
+                                suffix = "%",
+                                displayValue = { (it * 100).roundToInt().toString() },
+                                parseInput = { it.toFloatOrNull()?.let { v -> (v / 100f).coerceIn(0f, 1f) } }
+                            )
+                        }
+                    }
                 }
-                // 自定义弹窗内容（2 滑块 + 分界线开关 + 对齐方式下拉）
+                // 自定义弹窗内容：高度 + 圆角合并；对齐方式 + 文字颜色合并；分界线移至最底
                 val customizeSheetContent: @Composable () -> Unit = {
-                    SliderCard(
-                        label = "课程卡片高度: ${cardHeightValue.roundToInt()}.dp",
-                        value = cardHeightValue,
-                        valueRange = 34f..92f,
-                        keyPoints = listOf(54f),
-                        enabled = true,
-                        onValueChange = { cardHeightValue = (it.roundToInt() / 2 * 2).toFloat() }
-                    )
-                    SliderCard(
-                        label = "课程卡片圆角: ${cardCornerRadiusValue.roundToInt()}.dp",
-                        value = cardCornerRadiusValue,
-                        valueRange = 0f..48f,
-                        keyPoints = listOf(10f),
-                        enabled = true,
-                        onValueChange = { cardCornerRadiusValue = it }
-                    )
+                    // 课程卡片高度 + 课程卡片圆角：同一卡片内
+                    SheetCard {
+                        Column {
+                            SliderItem(
+                                label = "课程卡片高度",
+                                value = cardHeightValue,
+                                valueRange = 34f..92f,
+                                keyPoints = listOf(54f),
+                                enabled = true,
+                                onValueChange = { cardHeightValue = (it.roundToInt() / 2 * 2).toFloat() },
+                                suffix = "dp",
+                                displayValue = { it.roundToInt().toString() },
+                                parseInput = { it.toFloatOrNull()?.coerceIn(34f, 92f) }
+                            )
+                            SliderItem(
+                                label = "课程卡片圆角",
+                                value = cardCornerRadiusValue,
+                                valueRange = 0f..48f,
+                                keyPoints = listOf(10f),
+                                enabled = true,
+                                onValueChange = { cardCornerRadiusValue = it },
+                                suffix = "dp",
+                                displayValue = { it.roundToInt().toString() },
+                                parseInput = { it.toFloatOrNull()?.coerceIn(0f, 48f) }
+                            )
+                        }
+                    }
+                    // 卡片内容对齐方式 + 卡片文字颜色：同一卡片内
+                    SheetCard {
+                        Column {
+                            val contentAlignmentEntry = DropdownEntry(
+                                items = CardContentAlignment.entries.map { alignment ->
+                                    DropdownItem(
+                                        text = alignment.label,
+                                        selected = cardContentAlignmentValue == alignment,
+                                        onClick = { cardContentAlignmentValue = alignment }
+                                    )
+                                }
+                            )
+                            OverlayDropdownMenu(
+                                title = "卡片内容对齐方式",
+                                entry = contentAlignmentEntry,
+                                collapseOnSelection = true,
+                                liquidGlassBackdrop = sheetContentBackdrop
+                                    ?: liquidGlassBackdrop,
+                                dropdownColors = liquidGlassDropdownColors,
+                            )
+                            val textColorEntry = DropdownEntry(
+                                items = CardTextColor.entries.map { color ->
+                                    DropdownItem(
+                                        text = color.label,
+                                        selected = cardTextColorValue == color,
+                                        onClick = { cardTextColorValue = color }
+                                    )
+                                }
+                            )
+                            OverlayDropdownMenu(
+                                title = "卡片文字颜色",
+                                entry = textColorEntry,
+                                collapseOnSelection = true,
+                                liquidGlassBackdrop = sheetContentBackdrop
+                                    ?: liquidGlassBackdrop,
+                                dropdownColors = liquidGlassDropdownColors,
+                            )
+                        }
+                    }
+                    // 午休晚休分界线：移至最底部
                     SheetCard {
                         Row(
                             modifier = Modifier
@@ -1336,44 +1405,6 @@ fun CustomizeScheduleScreen(
                                 onCheckedChange = { showBreakDividersValue = it }
                             )
                         }
-                    }
-                    SheetCard {
-                        val contentAlignmentEntry = DropdownEntry(
-                            items = CardContentAlignment.entries.map { alignment ->
-                                DropdownItem(
-                                    text = alignment.label,
-                                    selected = cardContentAlignmentValue == alignment,
-                                    onClick = { cardContentAlignmentValue = alignment }
-                                )
-                            }
-                        )
-                        OverlayDropdownMenu(
-                            title = "卡片内容对齐方式",
-                            entry = contentAlignmentEntry,
-                            collapseOnSelection = true,
-                            liquidGlassBackdrop = sheetContentBackdrop
-                                ?: liquidGlassBackdrop,
-                            dropdownColors = liquidGlassDropdownColors,
-                        )
-                    }
-                    SheetCard {
-                        val textColorEntry = DropdownEntry(
-                            items = CardTextColor.entries.map { color ->
-                                DropdownItem(
-                                    text = color.label,
-                                    selected = cardTextColorValue == color,
-                                    onClick = { cardTextColorValue = color }
-                                )
-                            }
-                        )
-                        OverlayDropdownMenu(
-                            title = "卡片文字颜色",
-                            entry = textColorEntry,
-                            collapseOnSelection = true,
-                            liquidGlassBackdrop = sheetContentBackdrop
-                                ?: liquidGlassBackdrop,
-                            dropdownColors = liquidGlassDropdownColors,
-                        )
                     }
                 }
 
@@ -1495,7 +1526,94 @@ private fun SheetCard(
     ) { content() }
 }
 
-// 通用滑块设置卡片：标题 + Slider
+// 通用滑块设置项：单行（标题 + 可原地编辑的数值 + Slider），供单独或分组卡片复用
+@Composable
+private fun SliderItem(
+    label: String,
+    value: Float,
+    valueRange: ClosedFloatingPointRange<Float>,
+    keyPoints: List<Float>,
+    enabled: Boolean,
+    onValueChange: (Float) -> Unit,
+    suffix: String = "",
+    displayValue: (Float) -> String = { it.roundToInt().toString() },
+    parseInput: (String) -> Float? = { it.toFloatOrNull() },
+) {
+    // 数值输入框本地文本：跟随外部 value 更新（聚焦编辑期间不回写，避免打断输入）
+    var textInput by remember { mutableStateOf(displayValue(value)) }
+    var isInputFocused by remember { mutableStateOf(false) }
+    LaunchedEffect(value) {
+        if (!isInputFocused) textInput = displayValue(value)
+    }
+    val textColor = if (enabled) MiuixTheme.colorScheme.onSurface
+    else MiuixTheme.colorScheme.onSurface.copy(alpha = 0.4f)
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 14.dp, vertical = 15.dp)
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(start = 2.dp, end = 2.dp, bottom = 8.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Text(
+                text = label,
+                fontWeight = FontWeight.Medium,
+                fontSize = 17.sp,
+                color = textColor,
+                modifier = Modifier.weight(1f)
+            )
+            if (enabled) {
+                NativeTextField(
+                    value = textInput,
+                    onValueChange = { input ->
+                        textInput = input
+                        parseInput(input)?.let(onValueChange)
+                    },
+                    modifier = Modifier
+                        .width(56.dp)
+                        .onFocusChanged { isInputFocused = it.isFocused },
+                    singleLine = true,
+                    textAlign = TextAlign.End,
+                    textStyle = TextStyle(
+                        fontSize = 17.sp,
+                        fontWeight = FontWeight.Medium
+                    )
+                )
+                if (suffix.isNotEmpty()) {
+                    Spacer(modifier = Modifier.width(4.dp))
+                    Text(
+                        text = suffix,
+                        fontWeight = FontWeight.Medium,
+                        fontSize = 17.sp,
+                        color = textColor
+                    )
+                }
+            } else {
+                Text(
+                    text = "需设置壁纸",
+                    fontSize = 14.sp,
+                    color = textColor
+                )
+            }
+        }
+        Slider(
+            value = value,
+            onValueChange = onValueChange,
+            valueRange = valueRange,
+            showKeyPoints = true,
+            keyPoints = keyPoints,
+            magnetThreshold = 0.05f,
+            modifier = Modifier.fillMaxWidth(),
+            hapticEffect = SliderDefaults.SliderHapticEffect.Step,
+            enabled = enabled
+        )
+    }
+}
+
+// 通用滑块设置卡片：单个标题 + Slider
 @Composable
 private fun SliderCard(
     label: String,
@@ -1503,30 +1621,22 @@ private fun SliderCard(
     valueRange: ClosedFloatingPointRange<Float>,
     keyPoints: List<Float>,
     enabled: Boolean,
-    onValueChange: (Float) -> Unit
+    onValueChange: (Float) -> Unit,
+    suffix: String = "",
+    displayValue: (Float) -> String = { it.roundToInt().toString() },
+    parseInput: (String) -> Float? = { it.toFloatOrNull() },
 ) {
     SheetCard {
-        Column(modifier = Modifier.padding(16.dp)) {
-            Text(
-                text = label,
-                fontWeight = FontWeight.Medium,
-                fontSize = 15.sp,
-                color = if (enabled) MiuixTheme.colorScheme.onSurface else MiuixTheme.colorScheme.onSurface.copy(
-                    alpha = 0.4f
-                ),
-                modifier = Modifier.padding(bottom = 8.dp, start = 4.dp)
-            )
-            Slider(
-                value = value,
-                onValueChange = onValueChange,
-                valueRange = valueRange,
-                showKeyPoints = true,
-                keyPoints = keyPoints,
-                magnetThreshold = 0.05f,
-                modifier = Modifier.fillMaxWidth(),
-                hapticEffect = SliderDefaults.SliderHapticEffect.Step,
-                enabled = enabled
-            )
-        }
+        SliderItem(
+            label = label,
+            value = value,
+            valueRange = valueRange,
+            keyPoints = keyPoints,
+            enabled = enabled,
+            onValueChange = onValueChange,
+            suffix = suffix,
+            displayValue = displayValue,
+            parseInput = parseInput
+        )
     }
 }
