@@ -1,6 +1,7 @@
 package com.haooz.chedule.ui.effects.edgelight
 
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Outline
 import androidx.compose.ui.graphics.Paint
 import androidx.compose.ui.graphics.PaintingStyle
@@ -18,6 +19,7 @@ import androidx.compose.ui.node.requireGraphicsContext
 import androidx.compose.ui.platform.InspectorInfo
 import androidx.compose.ui.unit.Density
 import androidx.compose.ui.unit.IntSize
+import androidx.compose.ui.unit.LayoutDirection
 import kotlin.math.ceil
 
 internal class EdgeLightElement(
@@ -73,6 +75,21 @@ internal class EdgeLightNode(
 
     private val shaderCache = EdgeLightShaderCache()
 
+    private var cachedBlurRadius: Float = -1f
+    private var cachedBlurMaskFilter: android.graphics.BlurMaskFilter? = null
+    private var cachedSafeSize: IntSize = IntSize(0, 0)
+    private var cachedSize: Size? = null
+
+    private var recordedSize: Size? = null
+    private var recordedBlurRadius: Float = -1f
+    private var recordedStrokeWidth: Float = -1f
+    private var recordedColor: androidx.compose.ui.graphics.Color? = null
+    private var recordedIntensity: Float = -1f
+    private var recordedBlendMode: androidx.compose.ui.graphics.BlendMode? = null
+    private var recordedShaderKey: String? = null
+    private var recordedOutlineHashCode: Int = 0
+    private var needsRecord = true
+
     override fun ContentDrawScope.draw() {
         val edgeLight = edgeLight()
         if (edgeLight == null || edgeLight.width.value <= 0f) {
@@ -87,13 +104,19 @@ internal class EdgeLightNode(
             val density: Density = this
             val layoutDirection = layoutDirection
 
-            val safeSize =
-                IntSize(
+            val safeSize = if (cachedSize != size) {
+                cachedSize = size
+                cachedSafeSize = IntSize(
                     ceil(size.width).toInt() + 2,
                     ceil(size.height).toInt() + 2
                 )
+                cachedSafeSize
+            } else {
+                cachedSafeSize
+            }
 
             val outline = shape.createOutline(size, layoutDirection, density)
+
             val clipPath =
                 if (outline is Outline.Rounded) {
                     clipPath ?: Path().also { clipPath = it }
@@ -103,17 +126,52 @@ internal class EdgeLightNode(
 
             configurePaint(edgeLight)
 
-            edgeLightLayer.alpha = edgeLight.intensity
-            edgeLightLayer.blendMode = edgeLight.style.blendMode
-            edgeLightLayer.record(safeSize) {
-                translate(1f, 1f) {
-                    val canvas = drawContext.canvas
-                    canvas.save()
-                    canvas.clipOutline(outline, clipPath)
-                    canvas.drawOutline(outline, paint)
-                    canvas.restore()
+            val strokeWidth = ceil(edgeLight.width.toPx().coerceAtMost(size.minDimension / 2f)) * 2f
+            val blurRadius = edgeLight.blurRadius.toPx()
+            val color = edgeLight.style.color
+            val intensity = edgeLight.intensity
+            val blendMode = edgeLight.style.blendMode
+            val shaderKey = if (isRuntimeShaderSupported() && edgeLight.style !is EdgeLightStyle.Uniform) {
+                edgeLight.style::class.simpleName
+            } else null
+
+            edgeLightLayer.alpha = 1f
+            edgeLightLayer.blendMode = blendMode
+
+            val outlineHashCode = outline.hashCode()
+            val paramsChanged = recordedOutlineHashCode != outlineHashCode
+                    || recordedSize != size
+                    || recordedBlurRadius != blurRadius
+                    || recordedStrokeWidth != strokeWidth
+                    || recordedColor != color
+                    || recordedIntensity != intensity
+                    || recordedBlendMode != blendMode
+                    || recordedShaderKey != shaderKey
+                    || needsRecord
+
+            if (paramsChanged) {
+                recordedOutlineHashCode = outlineHashCode
+                recordedSize = size
+                recordedBlurRadius = blurRadius
+                recordedStrokeWidth = strokeWidth
+                recordedColor = color
+                recordedIntensity = intensity
+                recordedBlendMode = blendMode
+                recordedShaderKey = shaderKey
+                needsRecord = false
+
+                edgeLightLayer.record(safeSize) {
+                    translate(1f, 1f) {
+                        val canvas = drawContext.canvas
+                        canvas.save()
+                        canvas.clipOutline(outline, clipPath)
+                        canvas.drawOutline(outline, paint)
+                        canvas.restore()
+                    }
                 }
             }
+
+            edgeLightLayer.alpha = intensity
 
             translate(-1f, -1f) {
                 drawLayer(edgeLightLayer)
@@ -134,12 +192,26 @@ internal class EdgeLightNode(
         }
         clipPath = null
         shaderCache.clear()
+        cachedBlurMaskFilter = null
+        needsRecord = true
     }
 
     private fun DrawScope.configurePaint(edgeLight: EdgeLight) {
         paint.color = edgeLight.style.color
-        paint.strokeWidth = ceil(edgeLight.width.toPx().coerceAtMost(size.minDimension / 2f)) * 2f
-        paint.blur(edgeLight.blurRadius.toPx())
+
+        val strokeWidth = ceil(edgeLight.width.toPx().coerceAtMost(size.minDimension / 2f)) * 2f
+        paint.strokeWidth = strokeWidth
+
+        val blurRadius = edgeLight.blurRadius.toPx()
+        val cachedFilter = cachedBlurMaskFilter
+        if (cachedFilter == null || cachedBlurRadius != blurRadius) {
+            cachedBlurRadius = blurRadius
+            cachedBlurMaskFilter = if (blurRadius > 0f) {
+                android.graphics.BlurMaskFilter(blurRadius, android.graphics.BlurMaskFilter.Blur.NORMAL)
+            } else null
+        }
+        paint.asFrameworkPaint().maskFilter = cachedBlurMaskFilter
+
         if (isRuntimeShaderSupported() && edgeLight.style !is EdgeLightStyle.Uniform) {
             val shader = createEdgeLightShader(
                 edgeLight = edgeLight,
