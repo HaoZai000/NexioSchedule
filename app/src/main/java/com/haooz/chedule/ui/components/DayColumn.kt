@@ -501,6 +501,14 @@ private fun PendingSectionBox(
                 val density = LocalDensity.current
                 val blurPx = with(density) { remember(cardBlurRadius) { cardBlurRadius.dp.toPx() } }
                 val surfaceColor = remember(isDark) { if (isDark) Color(0xFF242424).copy(alpha = 0.64f) else Color(0xFFF0F0F0).copy(alpha = 0.5f) }
+                val isSharedBlur = wallpaperBackdrop is SharedBlurBackdrop
+                val pendingEffects: com.kyant.backdrop.BackdropEffectScope.() -> Unit = remember(isSharedBlur, blurPx) {
+                    {
+                        if (!isSharedBlur) {
+                            blur(blurPx)
+                        }
+                    }
+                }
                 Box(
                     modifier = Modifier
                         .fillMaxSize()
@@ -508,12 +516,9 @@ private fun PendingSectionBox(
                         .drawBackdrop(
                             backdrop = wallpaperBackdrop!!,
                             shape = { backdropShape },
-                            effects = {
-                                if (wallpaperBackdrop !is SharedBlurBackdrop) {
-                                    blur(blurPx)
-                                }
-                            },
+                            effects = pendingEffects,
                             highlight = null,
+                            shadow = null,
                             onDrawSurface = {
                                 drawRect(surfaceColor)
                             }
@@ -713,6 +718,15 @@ fun SpecialBandOverlay(
                 if (isDark) Color.Black.copy(alpha = (0.15f * alphaFactor).coerceIn(0f, 1f))
                 else Color.White.copy(alpha = (0.17f * alphaFactor).coerceIn(0f, 1f))
             }
+            val isSharedBlur = wallpaperBackdrop is SharedBlurBackdrop
+            val bandEffects: com.kyant.backdrop.BackdropEffectScope.() -> Unit = remember(isSharedBlur, blurPx, lensRadiusPx, lensStrengthPx) {
+                {
+                    if (!isSharedBlur) {
+                        blur(blurPx)
+                    }
+                    lens(lensRadiusPx, lensStrengthPx)
+                }
+            }
             Box(
                 modifier = Modifier
                     .fillMaxSize()
@@ -720,13 +734,9 @@ fun SpecialBandOverlay(
                     .drawBackdrop(
                         backdrop = wallpaperBackdrop,
                         shape = { backdropShape },
-                        effects = {
-                            if (wallpaperBackdrop !is SharedBlurBackdrop) {
-                                blur(blurPx)
-                            }
-                            lens(lensRadiusPx, lensStrengthPx)
-                        },
+                        effects = bandEffects,
                         highlight = null,
+                        shadow = null,
                         onDrawSurface = {
                             drawRect(bgColor)
                             drawRect(overlayColor)

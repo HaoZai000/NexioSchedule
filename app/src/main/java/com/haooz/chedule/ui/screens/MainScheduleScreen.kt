@@ -682,16 +682,20 @@ fun MainScheduleScreen(
                                 .then(
                                     if (hasWallpaperDivider) {
                                         val dividerBackdrop = if (hasSharedBlur) sharedBlurManager else courseCardBackdrop
-                                        Modifier.drawBackdrop(
-                                            backdrop = dividerBackdrop,
-                                            shape = { dividerBlurShape },
-                                            effects = {
+                                        val dividerEffects: com.kyant.backdrop.BackdropEffectScope.() -> Unit = remember(dividerBackdrop, dividerBlurPx, dividerLensRadiusPx, dividerLensStrengthPx) {
+                                            {
                                                 if (dividerBackdrop !is SharedBlurBackdrop) {
                                                     blur(dividerBlurPx)
                                                 }
                                                 lens(dividerLensRadiusPx, dividerLensStrengthPx)
-                                            },
+                                            }
+                                        }
+                                        Modifier.drawBackdrop(
+                                            backdrop = dividerBackdrop,
+                                            shape = { dividerBlurShape },
+                                            effects = dividerEffects,
                                             highlight = null,
+                                            shadow = null,
                                             onDrawSurface = {
                                                 drawRect(dividerFgGlass)
                                                 drawRect(dividerFgOverlay)

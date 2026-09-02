@@ -148,6 +148,15 @@ fun CourseCard(
             val lensRadiusPx = with(localDensity) { remember { 6f.dp.toPx() } }
             val lensStrengthPx = with(localDensity) { remember { 14f.dp.toPx() } }
             val overlayColor = remember(isDark) { if (isDark) Color.Black.copy(alpha = 0.15f) else Color.White.copy(alpha = 0.17f) }
+            val isSharedBlur = wallpaperBackdrop is SharedBlurBackdrop
+            val backdropEffects: com.kyant.backdrop.BackdropEffectScope.() -> Unit = remember(isSharedBlur, blurPx, lensRadiusPx, lensStrengthPx) {
+                {
+                    if (!isSharedBlur) {
+                        blur(blurPx)
+                    }
+                    lens(lensRadiusPx, lensStrengthPx)
+                }
+            }
             LaunchedEffect(isPressed) {
                 if (isPressed) {
                     scale.animateTo(
@@ -181,13 +190,9 @@ fun CourseCard(
                     .drawBackdrop(
                         backdrop = wallpaperBackdrop,
                         shape = { backdropShape },
-                        effects = {
-                            if (wallpaperBackdrop !is SharedBlurBackdrop) {
-                                blur(blurPx)
-                            }
-                            lens(lensRadiusPx, lensStrengthPx)
-                        },
+                        effects = backdropEffects,
                         highlight = null,
+                        shadow = null,
                         onDrawSurface = {
                             // 底色 + 反光覆盖层一并在此绘制，省去独立的 drawBehind 绘制节点
                             drawRect(cardColor)
