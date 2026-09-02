@@ -1234,10 +1234,12 @@ private fun WeekSettingCard(
             val onSurfaceSummaryColor = MiuixTheme.colorScheme.onSurfaceVariantSummary
             val occupiedColor = if (isDark) Color(0xFF4A4A4A) else Color(0xFFF0F0F0)
 
-            val weekStates = (1..totalWeeks).map { weekNum ->
-                val isSelected = weekNum in selectedWeeks
-                val isOccupied = weekNum in currentOccupiedWeeks
-                Triple(weekNum, isSelected, isOccupied)
+            val weekStates = remember(totalWeeks, selectedWeeks.size, currentOccupiedWeeks) {
+                (1..totalWeeks).map { weekNum ->
+                    val isSelected = weekNum in selectedWeeks
+                    val isOccupied = weekNum in currentOccupiedWeeks
+                    Triple(weekNum, isSelected, isOccupied)
+                }
             }
 
             Column(

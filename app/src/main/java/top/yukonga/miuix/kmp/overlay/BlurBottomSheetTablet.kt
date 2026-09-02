@@ -243,18 +243,25 @@ private fun BlurBottomSheetTabletContent(
                 .heightIn(max = if (sheetMaxHeight != Dp.Unspecified) sheetMaxHeight else windowInfo.containerDpSize.height * 0.8f)
                 .then(if (isBottomAligned) Modifier.padding(bottom = 20.dp) else Modifier)
                 .onGloballyPositioned { coordinates ->
-                    sheetHeightPx.intValue = coordinates.size.height
+                    val newHeight = coordinates.size.height
+                    if (sheetHeightPx.intValue != newHeight) {
+                        sheetHeightPx.intValue = newHeight
+                    }
                 }
                 .clip(ContinuousRoundedRectangle(38.dp))
                 .then(
                     if (liquidGlassBackdrop != null && Build.VERSION.SDK_INT >= 33) {
+                        val blurPx = with(density) { 24.dp.toPx() }
+                        val backdropEffects: com.kyant.backdrop.BackdropEffectScope.() -> Unit = remember(liquidGlassBackdrop, blurPx) {
+                            {
+                                vibrancy()
+                                blur(blurPx)
+                            }
+                        }
                         Modifier.drawBackdrop(
                             backdrop = liquidGlassBackdrop,
                             shape = { ContinuousRoundedRectangle(38.dp) },
-                            effects = {
-                                vibrancy()
-                                blur(24.dp.toPx())
-                            },
+                            effects = backdropEffects,
                             highlight = null
                         )
                     } else {

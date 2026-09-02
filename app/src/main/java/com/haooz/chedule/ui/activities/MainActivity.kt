@@ -127,6 +127,9 @@ import com.haooz.chedule.viewmodel.CourseViewModel
 import com.haooz.chedule.viewmodel.ScheduleViewModel
 import com.haooz.chedule.viewmodel.SettingsViewModel
 import com.haooz.chedule.viewmodel.ShiftViewModel
+import com.kyant.backdrop.drawBackdrop
+import com.kyant.backdrop.effects.blur
+import com.kyant.backdrop.effects.vibrancy
 import com.kyant.capsule.ContinuousRoundedRectangle
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
@@ -792,6 +795,28 @@ fun CourseScheduleApp() {
     // 提前计算屏幕像素尺寸，供 picker 回调和 LaunchedEffect 使用
     val screenWPx = with(density) { config.screenWidthDp.dp.toPx() }
     val screenHPx = with(density) { config.screenHeightDp.dp.toPx() }
+
+    // 预热 RenderEffect：创建一个不可见的 Box 触发 drawBackdrop 初始化，
+    // 避免首次打开 BlurBottomSheet 时掉帧
+    val warmupBlurPx = with(density) { 24.dp.toPx() }
+    Box(
+        modifier = Modifier
+            .size(1.dp)
+            .graphicsLayer { alpha = 0f }
+            .then(
+                if (android.os.Build.VERSION.SDK_INT >= 33) {
+                    Modifier.drawBackdrop(
+                        backdrop = liquidGlassBackdrop,
+                        shape = { androidx.compose.foundation.shape.RoundedCornerShape(36.dp) },
+                        effects = {
+                            vibrancy()
+                            blur(warmupBlurPx)
+                        },
+                        highlight = null
+                    )
+                } else Modifier
+            )
+    )
     val railState = if (navBarStyle == "rail") rememberNavigationRailState() else null
     val railPaddingStart by animateDpAsState(
         targetValue = if (navBarStyle == "rail") {

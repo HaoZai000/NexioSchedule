@@ -282,20 +282,27 @@ private fun BlurBottomSheetContent(
                 .heightIn(max = windowInfo.containerDpSize.height)
                 .onGloballyPositioned { coordinates ->
                     if (imeInsets.getBottom(density) == 0) {
-                        sheetHeightPx.intValue = coordinates.size.height
+                        val newHeight = coordinates.size.height
+                        if (sheetHeightPx.intValue != newHeight) {
+                            sheetHeightPx.intValue = newHeight
+                        }
                     }
                 }
                 .imePadding()
                 .clip(ContinuousRoundedRectangle(36.dp))
                 .then(
                     if (liquidGlassBackdrop != null && Build.VERSION.SDK_INT >= 33) {
+                        val blurPx = with(density) { blurRadius.dp.toPx() }
+                        val backdropEffects: com.kyant.backdrop.BackdropEffectScope.() -> Unit = remember(liquidGlassBackdrop, blurPx) {
+                            {
+                                vibrancy()
+                                blur(blurPx)
+                            }
+                        }
                         Modifier.drawBackdrop(
                             backdrop = liquidGlassBackdrop,
                             shape = { ContinuousRoundedRectangle(36.dp) },
-                            effects = {
-                                vibrancy()
-                                blur(blurRadius.dp.toPx())
-                            },
+                            effects = backdropEffects,
                             highlight = null
                         )
                     } else {
@@ -510,10 +517,7 @@ private fun DragHandleArea() {
                             launch { pressWidth.animateTo(55f, tween(100)) }
                         }
                         // 等待松手
-                        while (true) {
-                            val event = awaitPointerEvent()
-                            if (event.changes.none { it.pressed }) break
-                        }
+                        waitForUpOrCancellation()
                         coroutineScope.launch {
                             launch { pressScale.animateTo(1f, tween(150)) }
                             launch { pressWidth.animateTo(45f, tween(150)) }
@@ -533,5 +537,12 @@ private fun DragHandleArea() {
                 .clip(RoundedCornerShape(2.dp))
                 .background(MiuixTheme.colorScheme.onSurfaceVariantSummary.copy(alpha = 0.2f)),
         )
+    }
+}
+
+private suspend fun androidx.compose.ui.input.pointer.AwaitPointerEventScope.waitForUpOrCancellation() {
+    while (true) {
+        val event = awaitPointerEvent()
+        if (event.changes.none { it.pressed }) break
     }
 }
