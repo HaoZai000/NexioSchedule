@@ -30,8 +30,10 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.drawWithContent
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.drawOutline
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.pointer.PointerEventPass
 import androidx.compose.ui.input.pointer.pointerInput
@@ -43,8 +45,6 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.haooz.chedule.data.Course
-import com.haooz.chedule.ui.effects.edgelight.edgeLight
-import com.haooz.chedule.ui.effects.edgelight.rememberCourseCardEdgeLight
 import com.haooz.chedule.ui.utils.isAppDarkTheme
 import com.kyant.backdrop.Backdrop
 import com.kyant.backdrop.backdrops.SharedBlurBackdrop
@@ -199,7 +199,18 @@ fun CourseCard(
                             drawRect(overlayColor)
                         }
                     )
-                    .edgeLight(shape = edgeLightShape, edgeLight = rememberCourseCardEdgeLight())
+                    .drawWithContent {
+                        drawContent()
+                        // 同色描边替代 edgeLight，使用和课程卡片一样的 ContinuousRoundedRectangle
+                        val strokePx = 2.dp.toPx()
+                        val outline = ContinuousRoundedRectangle(effectiveCornerRadius.dp)
+                            .createOutline(size, layoutDirection, this)
+                        drawOutline(
+                            outline = outline,
+                            color = cardColor.copy(alpha = 0.05f),
+                            style = androidx.compose.ui.graphics.drawscope.Stroke(strokePx)
+                        )
+                    }
                     .pointerInput(course) {
                         awaitEachGesture {
                             val down = awaitFirstDown(requireUnconsumed = false)

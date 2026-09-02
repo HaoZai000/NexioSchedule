@@ -272,6 +272,7 @@ fun DayColumn(
                 wallpaperBackdrop = wallpaperBackdrop,
                 cardBlurRadius = cardBlurRadius,
                 draggingCourseIds = draggingCourseIds,
+
                 onCourseClick = onCourseClick,
                 onCourseLongPress = onCourseLongPress,
                 onCourseDragStart = onCourseDragStart,
@@ -310,6 +311,8 @@ private fun CourseCardsLayer(
     wallpaperBackdrop: Backdrop?,
     cardBlurRadius: Float,
     draggingCourseIds: Set<String>,
+    viewportTopDp: Float = 0f,
+    viewportBottomDp: Float = Float.MAX_VALUE,
     onCourseClick: (Course) -> Unit,
     onCourseLongPress: (Course, Float, Float, Float, Float, Backdrop?, Int) -> Unit,
     onCourseDragStart: (String) -> Unit,
@@ -432,45 +435,45 @@ private fun CourseCardsLayer(
                 modifier = Modifier
                     .fillMaxWidth()
                     .offset(y = segOffset.dp)
-            ) {
-                CourseCard(
-                    course = displayCourse,
-                    isCurrentWeek = isCurrentWeekCourse,
-                    isHoliday = isHoliday,
-                    isWorkSwap = isWorkSwap,
-                    hasMultipleCourses = idx == 0 && renderData.hasHiddenCourses,
-                    wallpaperBackdrop = wallpaperBackdrop,
-                    cardBlurRadius = cardBlurRadius,
-                    cardAlpha = cardAlpha,
-                    cardHeightPerSection = cardHeightPerSection,
-                    cardCornerRadius = cardCornerRadius,
-                    isTablet = isTablet,
-                    cardContentAlignment = cardContentAlignment,
-                    cardTextColor = cardTextColor,
-                    isDragging = isDragging,
-                    onClick = {
-                        onPendingChange(-1, -1)
-                        onCourseClick(course)
-                    },
-                    onLongPressStart = { left, top, width, height ->
-                        if (isCurrentWeekCourse) {
-                            onCourseLongPress(course, left, top, width, height, wallpaperBackdrop, currentWeek)
+                ) {
+                    CourseCard(
+                        course = displayCourse,
+                        isCurrentWeek = isCurrentWeekCourse,
+                        isHoliday = isHoliday,
+                        isWorkSwap = isWorkSwap,
+                        hasMultipleCourses = idx == 0 && renderData.hasHiddenCourses,
+                        wallpaperBackdrop = wallpaperBackdrop,
+                        cardBlurRadius = cardBlurRadius,
+                        cardAlpha = cardAlpha,
+                        cardHeightPerSection = cardHeightPerSection,
+                        cardCornerRadius = cardCornerRadius,
+                        isTablet = isTablet,
+                        cardContentAlignment = cardContentAlignment,
+                        cardTextColor = cardTextColor,
+                        isDragging = isDragging,
+                        onClick = {
+                            onPendingChange(-1, -1)
+                            onCourseClick(course)
+                        },
+                        onLongPressStart = { left, top, width, height ->
+                            if (isCurrentWeekCourse) {
+                                onCourseLongPress(course, left, top, width, height, wallpaperBackdrop, currentWeek)
+                            }
+                        },
+                        onDragStart = {
+                            onCourseDragStart(course.id)
+                        },
+                        onDrag = { offsetX, offsetY ->
+                            onCourseDrag(course.id, offsetX, offsetY)
+                        },
+                        onDragEnd = {
+                            onCourseDragEnd(course.id)
+                        },
+                        onMenuDismiss = {
+                            onCourseMenuDismiss()
                         }
-                    },
-                    onDragStart = {
-                        onCourseDragStart(course.id)
-                    },
-                    onDrag = { offsetX, offsetY ->
-                        onCourseDrag(course.id, offsetX, offsetY)
-                    },
-                    onDragEnd = {
-                        onCourseDragEnd(course.id)
-                    },
-                    onMenuDismiss = {
-                        onCourseMenuDismiss()
-                    }
-                )
-            }
+                    )
+                }
         }
     }
 }
