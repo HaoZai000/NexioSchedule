@@ -143,7 +143,6 @@ fun CourseCard(
             var cardSize by remember { mutableStateOf(Offset.Zero) }
             var layoutCoordinates by remember { mutableStateOf<androidx.compose.ui.layout.LayoutCoordinates?>(null) }
             val backdropShape = remember(effectiveCornerRadius) { ContinuousRoundedRectangle(effectiveCornerRadius.dp) }
-            val edgeLightShape = remember(cardCornerRadius) { ContinuousRoundedRectangle(cardCornerRadius.dp) }
             val blurPx = with(localDensity) { remember(cardBlurRadius) { cardBlurRadius.dp.toPx() } }
             val lensRadiusPx = with(localDensity) { remember { 6f.dp.toPx() } }
             val lensStrengthPx = with(localDensity) { remember { 14f.dp.toPx() } }
@@ -193,6 +192,8 @@ fun CourseCard(
                         effects = backdropEffects,
                         highlight = null,
                         shadow = null,
+                        // 模糊不为0时用0.28降采样，为0时用0.42
+                        downsampleScale = if (cardBlurRadius > 0f) 0.28f else 0.42f,
                         onDrawSurface = {
                             // 底色 + 反光覆盖层一并在此绘制，省去独立的 drawBehind 绘制节点
                             drawRect(cardColor)

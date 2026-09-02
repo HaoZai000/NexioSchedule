@@ -89,6 +89,7 @@ fun Modifier.drawBackdrop(
     innerShadow: (() -> InnerShadow?)? = null,
     layerBlock: (GraphicsLayerScope.() -> Unit)? = null,
     exportedBackdrop: LayerBackdrop? = null,
+    downsampleScale: Float = DOWNSAMPLE_SCALE,
     onDrawBehind: (DrawScope.() -> Unit)? = null,
     onDrawBackdrop: DrawScope.(drawBackdrop: DrawScope.() -> Unit) -> Unit = DefaultOnDrawBackdrop,
     onDrawSurface: (DrawScope.() -> Unit)? = null,
@@ -140,6 +141,7 @@ fun Modifier.drawBackdrop(
                 effects = effects,
                 layerBlock = layerBlock,
                 exportedBackdrop = exportedBackdrop,
+                downsampleScale = downsampleScale,
                 onDrawBehind = onDrawBehind,
                 onDrawBackdrop = onDrawBackdrop,
                 onDrawSurface = onDrawSurface,
@@ -154,6 +156,7 @@ private class DrawBackdropElement(
     val effects: BackdropEffectScope.() -> Unit,
     val layerBlock: (GraphicsLayerScope.() -> Unit)?,
     val exportedBackdrop: LayerBackdrop?,
+    val downsampleScale: Float = DOWNSAMPLE_SCALE,
     val onDrawBehind: (DrawScope.() -> Unit)?,
     val onDrawBackdrop: DrawScope.(drawBackdrop: DrawScope.() -> Unit) -> Unit,
     val onDrawSurface: (DrawScope.() -> Unit)?,
@@ -167,6 +170,7 @@ private class DrawBackdropElement(
             effects = effects,
             layerBlock = layerBlock,
             exportedBackdrop = exportedBackdrop,
+            downsampleScale = downsampleScale,
             onDrawBehind = onDrawBehind,
             onDrawBackdrop = onDrawBackdrop,
             onDrawSurface = onDrawSurface,
@@ -183,6 +187,7 @@ private class DrawBackdropElement(
             node.exportedBackdrop?.layerCoordinates = null
             node.exportedBackdrop = exportedBackdrop
         }
+        node.downsampleScale = downsampleScale
         node.onDrawBehind = onDrawBehind
         node.onDrawBackdrop = onDrawBackdrop
         node.onDrawSurface = onDrawSurface
@@ -240,6 +245,7 @@ private class DrawBackdropNode(
     var effects: BackdropEffectScope.() -> Unit,
     var layerBlock: (GraphicsLayerScope.() -> Unit)?,
     var exportedBackdrop: LayerBackdrop?,
+    var downsampleScale: Float = DOWNSAMPLE_SCALE,
     var onDrawBehind: (DrawScope.() -> Unit)?,
     var onDrawBackdrop: DrawScope.(drawBackdrop: DrawScope.() -> Unit) -> Unit,
     var onDrawSurface: (DrawScope.() -> Unit)?,
@@ -268,10 +274,10 @@ private class DrawBackdropNode(
         val canvas = drawContext.canvas
         val padding = padding
 
-        // 在缩放坐标下绘制内容：离屏缓冲按 DOWNSAMPLE_SCALE 缩小，内容随之缩放铺满，
+        // 在缩放坐标下绘制内容：离屏缓冲按 downsampleScale 缩小，内容随之缩放铺满，
         // 缓冲边缘仍保留 padding×scale 的扩展区给模糊扩散，视觉范围与未降采样一致。
         canvas.save()
-        canvas.scale(DOWNSAMPLE_SCALE, DOWNSAMPLE_SCALE)
+        canvas.scale(downsampleScale, downsampleScale)
         if (padding != 0f) {
             canvas.translate(padding, padding)
         }
@@ -295,12 +301,12 @@ private class DrawBackdropNode(
         if (layer != null) {
             val padding = padding
             val size = size
-            val scaledPadding = padding * DOWNSAMPLE_SCALE
+            val scaledPadding = padding * downsampleScale
 
             val cardBufferSize = IntSize(
-                ((size.width + padding * 2) * DOWNSAMPLE_SCALE)
+                ((size.width + padding * 2) * downsampleScale)
                     .roundToInt().coerceAtLeast(1),
-                ((size.height + padding * 2) * DOWNSAMPLE_SCALE)
+                ((size.height + padding * 2) * downsampleScale)
                     .roundToInt().coerceAtLeast(1)
             )
 
@@ -309,7 +315,9 @@ private class DrawBackdropNode(
             val sharedBackdrop = backdrop as? SharedBlurBackdrop
             val sourceCoords = sharedBackdrop?.sourceLayerCoordinates
             val cardCoords = layoutCoordinates
-            val useSharedMode = sharedLayer != null && cardCoords != null && sourceCoords != null
+            // 共享模式需要：共享层存在、坐标可用、且降采样比例匹配
+            val sharedScaleMatch = sharedBackdrop?.sharedDownsampleScale == downsampleScale
+            val useSharedMode = sharedLayer != null && cardCoords != null && sourceCoords != null && sharedScaleMatch
 
             if (useSharedMode) {
                 // ===== 共享模式：从共享预渲染层采样 =====
@@ -329,12 +337,12 @@ private class DrawBackdropNode(
                     block = {
                         val canvas = drawContext.canvas
                         canvas.save()
-                        // 共享层和录制 buffer 都在 DOWNSAMPLE_SCALE 分辨率下
+                        // 共享层和录制 buffer 都在 downsampleScale 分辨率下
                         // 只需平移将共享层中卡片对应区域对齐到 buffer 原点
-                        // 公式：buffer_point = shared_point - offset * DOWNSAMPLE_SCALE
+                        // 公式：buffer_point = shared_point - offset * downsampleScale
                         canvas.translate(
-                            -offset.x * DOWNSAMPLE_SCALE + scaledPadding,
-                            -offset.y * DOWNSAMPLE_SCALE + scaledPadding
+                            -offset.x * downsampleScale + scaledPadding,
+                            -offset.y * downsampleScale + scaledPadding
                         )
                         drawLayer(sharedLayerNonNull)
                         canvas.restore()
@@ -353,7 +361,7 @@ private class DrawBackdropNode(
             layer.topLeft = IntOffset.Zero
             // 将降采样缓冲放大回原尺寸：先 scale(1/scale) 再平移，使内容对齐卡片原点。
             drawContext.canvas.save()
-            drawContext.canvas.scale(1f / DOWNSAMPLE_SCALE, 1f / DOWNSAMPLE_SCALE)
+            drawContext.canvas.scale(1f / downsampleScale, 1f / downsampleScale)
             drawContext.canvas.translate(-scaledPadding, -scaledPadding)
             drawLayer(layer)
             drawContext.canvas.restore()

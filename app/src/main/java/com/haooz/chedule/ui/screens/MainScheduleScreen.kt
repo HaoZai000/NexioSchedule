@@ -365,7 +365,8 @@ fun MainScheduleScreen(
                     .fillMaxSize()
                     .graphicsLayer { alpha = 0f }
                     .then(sharedBlurManager.preRenderModifier(
-                        blurRadiusPx = with(density) { cardBlurRadius.dp.toPx() }
+                        blurRadiusPx = with(density) { cardBlurRadius.dp.toPx() },
+                        downsampleScale = if (cardBlurRadius > 0f) 0.28f else 0.42f
                     ))
             )
         }
@@ -696,6 +697,7 @@ fun MainScheduleScreen(
                                             effects = dividerEffects,
                                             highlight = null,
                                             shadow = null,
+                                            downsampleScale = if (cardBlurRadius > 0f) 0.28f else 0.42f,
                                             onDrawSurface = {
                                                 drawRect(dividerFgGlass)
                                                 drawRect(dividerFgOverlay)

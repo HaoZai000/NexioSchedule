@@ -53,6 +53,13 @@ class SharedBlurBackdrop(
         internal set
 
     /**
+     * 共享层实际使用的降采样比例。
+     * DrawBackdropNode 检查是否匹配，不匹配时跳过共享模式。
+     */
+    var sharedDownsampleScale: Float = DOWNSAMPLE_SCALE
+        internal set
+
+    /**
      * 源 Backdrop 的坐标（壁纸层在视图树中的位置）。
      * 供 DrawBackdropNode 计算卡片在壁纸中的偏移量。
      */
@@ -74,9 +81,10 @@ class SharedBlurBackdrop(
      * 确保 source.graphicsLayer 已被录制。
      *
      * @param blurRadiusPx 模糊半径（px）
+     * @param downsampleScale 降采样比例，默认使用全局 DOWNSAMPLE_SCALE
      */
-    fun preRenderModifier(blurRadiusPx: Float): Modifier {
-        return SharedBlurRecorderElement(this, blurRadiusPx)
+    fun preRenderModifier(blurRadiusPx: Float, downsampleScale: Float = DOWNSAMPLE_SCALE): Modifier {
+        return SharedBlurRecorderElement(this, blurRadiusPx, downsampleScale)
     }
 
     /**
@@ -115,16 +123,18 @@ class SharedBlurBackdrop(
 
 private class SharedBlurRecorderElement(
     private val sharedBackdrop: SharedBlurBackdrop,
-    private val blurRadiusPx: Float
+    private val blurRadiusPx: Float,
+    private val downsampleScale: Float = DOWNSAMPLE_SCALE
 ) : ModifierNodeElement<SharedBlurRecorderNode>() {
 
     override fun create(): SharedBlurRecorderNode {
-        return SharedBlurRecorderNode(sharedBackdrop, blurRadiusPx)
+        return SharedBlurRecorderNode(sharedBackdrop, blurRadiusPx, downsampleScale)
     }
 
     override fun update(node: SharedBlurRecorderNode) {
         node.sharedBackdrop = sharedBackdrop
         node.blurRadiusPx = blurRadiusPx
+        node.downsampleScale = downsampleScale
         node.invalidateDraw()
     }
 
@@ -149,7 +159,8 @@ private class SharedBlurRecorderElement(
 
 private class SharedBlurRecorderNode(
     var sharedBackdrop: SharedBlurBackdrop,
-    var blurRadiusPx: Float
+    var blurRadiusPx: Float,
+    var downsampleScale: Float = DOWNSAMPLE_SCALE
 ) : DrawModifierNode, Modifier.Node() {
 
     private var blurLayer: GraphicsLayer? = null
@@ -162,20 +173,20 @@ private class SharedBlurRecorderNode(
         val sourceLayer = sharedBackdrop.source.graphicsLayer
         val layer = blurLayer ?: return
 
-        val targetW = (size.width * DOWNSAMPLE_SCALE).roundToInt().coerceAtLeast(1)
-        val targetH = (size.height * DOWNSAMPLE_SCALE).roundToInt().coerceAtLeast(1)
+        val targetW = (size.width * downsampleScale).roundToInt().coerceAtLeast(1)
+        val targetH = (size.height * downsampleScale).roundToInt().coerceAtLeast(1)
 
         // 将壁纸源录制到降采样层
         layer.record(IntSize(targetW, targetH)) {
             drawContext.canvas.save()
-            drawContext.canvas.scale(DOWNSAMPLE_SCALE, DOWNSAMPLE_SCALE)
+            drawContext.canvas.scale(downsampleScale, downsampleScale)
             drawLayer(sourceLayer)
             drawContext.canvas.restore()
         }
 
         // 应用模糊 RenderEffect（在 drawLayer 时生效）
         if (blurRadiusPx > 0f) {
-            val scaledBlur = blurRadiusPx * DOWNSAMPLE_SCALE
+            val scaledBlur = blurRadiusPx * downsampleScale
             layer.renderEffect = BlurEffect(
                 null,
                 scaledBlur,
@@ -188,6 +199,7 @@ private class SharedBlurRecorderNode(
 
         // 注入到共享 Backdrop
         sharedBackdrop.sharedSampledLayer = layer
+        sharedBackdrop.sharedDownsampleScale = downsampleScale
     }
 
     override fun onAttach() {
