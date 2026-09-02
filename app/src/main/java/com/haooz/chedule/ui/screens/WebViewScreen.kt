@@ -136,6 +136,7 @@ fun WebViewScreen(
     currentScheduleName: String = "",
     onBack: () -> Unit,
     onImportComplete: (List<Course>) -> Unit,
+    onTaskCompleted: () -> Unit = {},
     onDesktopModeChanged: (Boolean) -> Unit = {},
     onAssetJsPathChanged: (String?) -> Unit = {},
     onExecuteImportRef: ((() -> Unit) -> Unit)? = null,
@@ -174,6 +175,7 @@ fun WebViewScreen(
     var importCompleted by remember { mutableStateOf(false) }
 
     val currentOnImportComplete by rememberUpdatedState(onImportComplete)
+    val currentOnTaskCompleted by rememberUpdatedState(onTaskCompleted)
     val currentOnBack by rememberUpdatedState(onBack)
 
     val showAlertCallback by rememberUpdatedState { title: String, content: String, confirmText: String, onResult: (Boolean) -> Unit ->
@@ -195,6 +197,7 @@ fun WebViewScreen(
                 currentOnImportComplete(courses)
             },
             onTaskCompleted = {
+                currentOnTaskCompleted()
                 if (!importCompleted) {
                     Toast.makeText(context, "导入完成", Toast.LENGTH_LONG).show()
                 }

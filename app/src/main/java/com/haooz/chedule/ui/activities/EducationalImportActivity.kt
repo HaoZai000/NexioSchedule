@@ -456,9 +456,21 @@ class EducationalImportActivity : ComponentActivity() {
                                     courseViewModel.replaceCourses(courses)
                                 }
                                 scheduleViewModel.refreshScheduleList()
-                                applyPresetTimeSlots(settingsViewModel, scheduleViewModel, targetScheduleId)
-                                applyImportedScheduleConfig(courseViewModel)
                                 Toast.makeText(this@EducationalImportActivity, "课程已保存，共 ${courses.size} 门课程", Toast.LENGTH_SHORT).show()
+                            },
+                            onTaskCompleted = {
+                                val prefs = getSharedPreferences("edu_import_prefs", MODE_PRIVATE)
+                                val hasPresetTimeSlots = prefs.getString("preset_time_slots", null) != null
+                                val targetScheduleId = prefs.getString("target_schedule_id", null)
+
+                                if (hasPresetTimeSlots) {
+                                    applyPresetTimeSlots(settingsViewModel, scheduleViewModel, targetScheduleId)
+                                }
+                                val hasStartDate = prefs.getString("semester_start_date", null) != null
+                                val hasTotalWeeks = prefs.getInt("semester_total_weeks", -1) > 0
+                                if (hasStartDate || hasTotalWeeks) {
+                                    applyImportedScheduleConfig(courseViewModel)
+                                }
                             },
                             onDesktopModeChanged = { isDesktopMode = it },
                             onAssetJsPathChanged = { currentAssetJsPath = it },
@@ -485,13 +497,10 @@ class EducationalImportActivity : ComponentActivity() {
             ) ?: return
             if (timeSlots.isEmpty()) return
 
-            // 目标课表为空、或与当前课表相同：写在当前课表；否则写入指定目标课表
             val isTargetCurrent = targetScheduleId.isNullOrEmpty() ||
                 targetScheduleId == scheduleViewModel.currentScheduleName.value
-
             val repository = if (isTargetCurrent) null else CourseRepository(this@EducationalImportActivity)
 
-            // 划分边界与写入目标统一使用目标课表的节数配置
             val morningSections: Int
             val afternoonSections: Int
             val eveningSections: Int
@@ -528,24 +537,19 @@ class EducationalImportActivity : ComponentActivity() {
                 if (morningTimes.isNotEmpty()) settingsViewModel.saveMorningTimes(morningTimes)
                 if (afternoonTimes.isNotEmpty()) settingsViewModel.saveAfternoonTimes(afternoonTimes)
                 if (eveningTimes.isNotEmpty()) settingsViewModel.saveEveningTimes(eveningTimes)
-                // 同步覆盖当前课表绑定的时间配置，避免之后被旧配置盖回
                 settingsViewModel.applyTimeImportToCurrentSchedule(
                     morningSections, afternoonSections, eveningSections,
                     morningTimes, afternoonTimes, eveningTimes
                 )
             } else {
                 val sid = targetScheduleId!!
-                repository!!.savePeriodTimes("morning", morningTimes, sid)
-                repository.savePeriodTimes("afternoon", afternoonTimes, sid)
-                repository.savePeriodTimes("evening", eveningTimes, sid)
-                repository.applyTimeImportToSchedule(
+                repository!!.applyTimeImportToSchedule(
                     sid, morningSections, afternoonSections, eveningSections,
                     morningTimes, afternoonTimes, eveningTimes
                 )
             }
 
             prefs.edit {remove("preset_time_slots")}
-            Log.d("EduImport", "预设时间段应用成功(课表=${targetScheduleId ?: "当前"}): 上午${morningTimes.size}节, 下午${afternoonTimes.size}节, 晚上${eveningTimes.size}节")
         } catch (e: Exception) {
             Log.e("EduImport", "应用预设时间段失败: ${e.message}")
         }

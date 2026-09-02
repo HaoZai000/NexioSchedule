@@ -229,7 +229,9 @@ class CourseTimeSettingsActivity : ComponentActivity() {
                                     ) {
                                         CourseTimeSettingsScreen(
                                             onEditConfig = { config, bounds ->
-                                                editingConfig = config
+                                                // 从 repository 重新读取最新的 TimeConfig，避免使用缓存的旧数据
+                                                val latestConfig = repository.getTimeConfig(config.id)
+                                                editingConfig = latestConfig
                                                 editingCardBounds = bounds
                                                 hideConfigId = config.id
                                                 isNewConfigCreation = false

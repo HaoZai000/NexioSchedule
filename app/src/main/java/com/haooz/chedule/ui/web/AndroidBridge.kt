@@ -231,25 +231,26 @@ class AndroidBridge(
     /** JS 调用：将预设时间段数据传回 Android 端进行保存 */
     @JavascriptInterface
     fun savePresetTimeSlots(timeSlotsJsonString: String, promiseId: String) {
-        Log.d(TAG, "接收到预设时间段数据，大小: ${timeSlotsJsonString.length / 1024} KB")
         handler.post {
             try {
                 val timeSlots = gson.fromJson<List<TimeSlotJsonModel>>(
                     timeSlotsJsonString,
                     object : TypeToken<List<TimeSlotJsonModel>>() {}.type
                 )
-                Log.d(TAG, "时间段数据解析成功: ${timeSlots.size} 个时间段")
 
                 val json = Gson().toJson(timeSlots)
                 val prefs = context.getSharedPreferences("edu_import_prefs", Context.MODE_PRIVATE)
-                prefs.edit().putString("preset_time_slots", json).apply()
+                prefs.edit().apply {
+                    putString("preset_time_slots", json)
+                    putString("target_schedule_id", importTableId)
+                }.apply()
 
                 Toast.makeText(context, "时间段导入成功", Toast.LENGTH_SHORT).show()
                 resolveJsPromise(promiseId, "true")
             } catch (e: Exception) {
                 Log.e(TAG, "时间段数据解析失败: ${e.message}", e)
-                Toast.makeText(context, "时间段导入失败: ${e.message}", Toast.LENGTH_LONG).show()
-                rejectJsPromise(promiseId, "时间段导入失败: ${e.message}")
+                Toast.makeText(context, "时间段数据解析失败: ${e.message}", Toast.LENGTH_LONG).show()
+                rejectJsPromise(promiseId, "时间段数据解析失败: ${e.message}")
             }
         }
     }

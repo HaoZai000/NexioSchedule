@@ -901,16 +901,18 @@ class CourseRepository private constructor(context: Context) {
      * 获取指定课表的上午节数，用于导入到目标课表
      */
     fun getMorningSections(scheduleId: String): Int {
-        val key = "${getScheduleKeyPrefix(scheduleId)}$KEY_MORNING_SECTIONS"
-        return safeGetInt(key, 4)
+        val configId = getScheduleTimeConfigId(scheduleId)
+        return getTimeConfig(configId).morningSections
     }
 
     /**
      * 设置上午节数
      */
     fun setMorningSections(count: Int) {
-        val key = "${getScheduleKeyPrefix()}$KEY_MORNING_SECTIONS"
-        prefs.edit { putInt(key, count) }
+        val scheduleId = getCurrentScheduleId()
+        val configId = getScheduleTimeConfigId(scheduleId)
+        val config = getTimeConfig(configId)
+        saveTimeConfig(config.copy(morningSections = count))
         notifyCourseChanged("settings")
     }
 
@@ -920,16 +922,18 @@ class CourseRepository private constructor(context: Context) {
      * 获取指定课表的下午节数，用于导入到目标课表
      */
     fun getAfternoonSections(scheduleId: String): Int {
-        val key = "${getScheduleKeyPrefix(scheduleId)}$KEY_AFTERNOON_SECTIONS"
-        return safeGetInt(key, 4)
+        val configId = getScheduleTimeConfigId(scheduleId)
+        return getTimeConfig(configId).afternoonSections
     }
 
     /**
      * 设置下午节数
      */
     fun setAfternoonSections(count: Int) {
-        val key = "${getScheduleKeyPrefix()}$KEY_AFTERNOON_SECTIONS"
-        prefs.edit {putInt(key, count) }
+        val scheduleId = getCurrentScheduleId()
+        val configId = getScheduleTimeConfigId(scheduleId)
+        val config = getTimeConfig(configId)
+        saveTimeConfig(config.copy(afternoonSections = count))
         notifyCourseChanged("settings")
     }
 
@@ -939,69 +943,59 @@ class CourseRepository private constructor(context: Context) {
      * 获取指定课表的晚上节数，用于导入到目标课表
      */
     fun getEveningSections(scheduleId: String): Int {
-        val key = "${getScheduleKeyPrefix(scheduleId)}$KEY_EVENING_SECTIONS"
-        return safeGetInt(key, 4)
+        val configId = getScheduleTimeConfigId(scheduleId)
+        return getTimeConfig(configId).eveningSections
     }
 
     /**
      * 设置晚上节数
      */
     fun setEveningSections(count: Int) {
-        val key = "${getScheduleKeyPrefix()}$KEY_EVENING_SECTIONS"
-        prefs.edit {putInt(key, count) }
+        val scheduleId = getCurrentScheduleId()
+        val configId = getScheduleTimeConfigId(scheduleId)
+        val config = getTimeConfig(configId)
+        saveTimeConfig(config.copy(eveningSections = count))
         notifyCourseChanged("settings")
     }
 
     /**
-     * 获取指定时段的节次时间映射
+     * 获取指定时段的节次时间映射（统一从当前课表绑定的 TimeConfig 读取）
      * period: "morning" / "afternoon" / "evening"
      * key: 时段内相对节次号 (1-6), value: "HH:mm-HH:mm"
      */
     fun getPeriodTimes(period: String): Map<Int, String> {
-        val key = "${getScheduleKeyPrefix()}$KEY_SECTION_TIMES"
-        val json = prefs.getString(key, null) ?: return getDefaultTimesForPeriod(period)
-        return try {
-            val type = object : TypeToken<Map<String, String>>() {}.type
-            val raw: Map<*, *> = gson.fromJson(json, type) ?: return getDefaultTimesForPeriod(period)
-            val result = mutableMapOf<Int, String>()
-            for ((k, v) in raw) {
-                val strKey = k as String
-                if (strKey.startsWith("${period}_")) {
-                    val idx = strKey.removePrefix("${period}_").toIntOrNull()
-                    if (idx != null) result[idx] = v as String
-                }
-            }
-            result.ifEmpty { migrateOldSectionTimes(raw, period) }
-        } catch (_: Exception) {
-            getDefaultTimesForPeriod(period)
-        }
+        return getPeriodTimes(period, getCurrentScheduleId())
     }
 
     /**
-     * 保存指定时段的节次时间映射（写入当前课表）
+     * 获取指定课表指定时段的节次时间映射（从该课表绑定的 TimeConfig 读取）
+     */
+    fun getPeriodTimes(period: String, scheduleId: String): Map<Int, String> {
+        val configId = getScheduleTimeConfigId(scheduleId)
+        val config = getTimeConfig(configId)
+        return config.getPeriodTimes(period)
+    }
+
+    /**
+     * 保存指定时段的节次时间映射（写入当前课表绑定的 TimeConfig）
      */
     fun savePeriodTimes(period: String, times: Map<Int, String>) {
         savePeriodTimes(period, times, getCurrentScheduleId())
     }
 
     /**
-     * 保存指定时段的节次时间映射到指定课表。
+     * 保存指定时段的节次时间映射到指定课表绑定的 TimeConfig。
      * 仅当目标是当前课表时触发课程变更通知，避免导入目标课表时无谓刷新当前课表。
      */
     fun savePeriodTimes(period: String, times: Map<Int, String>, scheduleId: String) {
-        val sharedKey = "${getScheduleKeyPrefix(scheduleId)}$KEY_SECTION_TIMES"
-        val type = object : TypeToken<Map<String, String>>() {}.type
-        val existing: MutableMap<String, String> = try {
-            val json = prefs.getString(sharedKey, null)
-            if (json != null) gson.fromJson(json, type) ?: mutableMapOf()
-            else mutableMapOf()
-        } catch (_: Exception) { mutableMapOf() }
-        val toRemove = existing.keys.filter { it.startsWith("${period}_") }
-        toRemove.forEach { existing.remove(it) }
+        val configId = getScheduleTimeConfigId(scheduleId)
+        val config = getTimeConfig(configId)
+        val existing = config.sectionTimes.toMutableMap()
+        existing.keys.filter { it.startsWith("${period}_") }.forEach { existing.remove(it) }
         for ((idx, v) in times) {
             existing["${period}_$idx"] = v
         }
-        prefs.edit { putString(sharedKey, gson.toJson(existing)) }
+        saveTimeConfig(config.copy(sectionTimes = existing, quickTimeEnabled = false))
         if (scheduleId == getCurrentScheduleId()) notifyCourseChanged("settings")
     }
 
@@ -2077,13 +2071,14 @@ class CourseRepository private constructor(context: Context) {
         morningTimes: Map<Int, String>, afternoonTimes: Map<Int, String>, eveningTimes: Map<Int, String>
     ) {
         val configId = getScheduleTimeConfigId(scheduleId)
+
         val sectionTimes = buildMap {
             morningTimes.forEach { (k, v) -> put("morning_$k", v) }
             afternoonTimes.forEach { (k, v) -> put("afternoon_$k", v) }
             eveningTimes.forEach { (k, v) -> put("evening_$k", v) }
         }
+
         if (configId != 0L) {
-            // 就地覆盖当前课表绑定的专属配置
             val base = getTimeConfig(configId)
             saveTimeConfig(
                 base.copy(
@@ -2091,17 +2086,18 @@ class CourseRepository private constructor(context: Context) {
                     morningSections = morningSections,
                     afternoonSections = afternoonSections,
                     eveningSections = eveningSections,
+                    quickTimeEnabled = false,
                     sectionTimes = sectionTimes
                 )
             )
         } else {
-            // 当前课表仅回退到共享默认配置：新建专属配置并绑定，避免覆盖影响其他课表
             val newId = addTimeConfig(
                 TimeConfig(
                     name = scheduleId,
                     morningSections = morningSections,
                     afternoonSections = afternoonSections,
                     eveningSections = eveningSections,
+                    quickTimeEnabled = false,
                     sectionTimes = sectionTimes
                 )
             )
@@ -2329,11 +2325,9 @@ class CourseRepository private constructor(context: Context) {
     }
 
     fun getSectionsForSchedule(scheduleId: String): Triple<Int, Int, Int> {
-        val prefix = "$SCHEDULE_KEY_PREFIX${scheduleId}_"
-        val morning = safeGetInt("${prefix}$KEY_MORNING_SECTIONS", 4)
-        val afternoon = safeGetInt("${prefix}$KEY_AFTERNOON_SECTIONS", 4)
-        val evening = safeGetInt("${prefix}$KEY_EVENING_SECTIONS", 4)
-        return Triple(morning, afternoon, evening)
+        val configId = getScheduleTimeConfigId(scheduleId)
+        val config = getTimeConfig(configId)
+        return Triple(config.morningSections, config.afternoonSections, config.eveningSections)
     }
 
     /**
