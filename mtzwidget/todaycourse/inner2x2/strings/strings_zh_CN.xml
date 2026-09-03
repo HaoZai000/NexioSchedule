@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="language">zh_CN</string>
+    <string name="RTL">0</string>
+    <string name="week_format">EEEE</string>
+    <string name="clock_week_format">E</string>
+    <string name="talkback_format">yyyy年M月d日EEEE</string>
+    <string name="talkback_day_week_format">d日 E</string>
+</resources>

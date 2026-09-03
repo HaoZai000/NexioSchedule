@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<WidgetConfig version="1">
+	<MultiImageSelect name="glass_type" single="true" shapeType="1" displayTitle="玻璃效果" width="408" height="210" dependOn="6">
+    <item displayTitle="通透玻璃" value="assets/config/glass_bionic.webp" contentDescription="通透玻璃">
+    </item>
+	
+	<item displayTitle="柔光玻璃" value="assets/config/glass_common_light.webp" contentDescription="柔光玻璃">
+    </item>
+  </MultiImageSelect>
+  
+<ImageSelect name=" " displayTitle="今日课程小部件。支持OS4通透柔光玻璃效果。" width="0" height="0" uiType="0">
+</ImageSelect>
+</WidgetConfig>

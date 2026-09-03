@@ -175,13 +175,18 @@ class TodayCoursesProvider : ContentProvider() {
         val sectionText = course.getSectionText()
         val startText = start.orEmpty()
         // 详情文案按 widget 规格与课程类型区分（分隔符 "｜"，空段自动省略）：
-        //   2x2：开始时间｜地点
-        //   4x2 普通课：节次｜地点｜教师；4x2 特殊课（无节次）：地点｜教师
-        val subText = when {
-            size == "2x2" -> listOf(startText, course.classroom).filter { it.isNotEmpty() }.joinToString("｜")
-            sectionText.isNotEmpty() -> listOf(sectionText, course.classroom, course.teacher).filter { it.isNotEmpty() }.joinToString("｜")
-            else -> listOf(course.classroom, course.teacher).filter { it.isNotEmpty() }.joinToString("｜")
-        }
+//   2x2：开始时间｜地点
+//   4x2 普通课：节次｜地点｜教师；自定义时间课/特殊课（无节次）：地点｜教师
+//   自定义时间课程不显示"第几节"
+val showSection = sectionText.isNotEmpty() && !course.hasValidCustomTime()
+val subText = when {
+    size == "2x2" -> listOf(startText, course.classroom).filter { it.isNotEmpty() }.joinToString("｜")
+    showSection -> listOf(sectionText, course.classroom, course.teacher).filter { it.isNotEmpty() }.joinToString("｜")
+    else -> listOf(course.classroom, course.teacher).filter { it.isNotEmpty() }.joinToString("｜")
+}
+        // 2x2 三行详情：第2行"开始时间 - 结束时间"，第3行"地点｜教师"
+        val timeRange = listOf(startText, end.orEmpty()).filter { it.isNotEmpty() }.joinToString(" - ")
+        val locationTeacher = listOf(course.classroom, course.teacher).filter { it.isNotEmpty() }.joinToString("｜")
         val values = mapOf<String, Any?>(
             COLUMN_ID to course.id,
             COLUMN_NAME to course.name,
@@ -204,6 +209,8 @@ class TodayCoursesProvider : ContentProvider() {
             COLUMN_SUB_TEXT to subText,
             COLUMN_SUB_COLOR to if (isNow == 1) "#A7D0FF" else "#B3FFFFFF",
             COLUMN_REMAINING_TEXT to if (isNow == 1) "${remaining}分钟结束" else "",
+            COLUMN_TIME_RANGE to timeRange,
+            COLUMN_LOCATION_TEACHER to locationTeacher,
         )
         columns.forEach { column -> row.add(values[column]) }
     }
@@ -259,6 +266,8 @@ class TodayCoursesProvider : ContentProvider() {
         const val COLUMN_SUB_TEXT = "sub_text"
         const val COLUMN_SUB_COLOR = "sub_color"
         const val COLUMN_REMAINING_TEXT = "remaining_text"
+        const val COLUMN_TIME_RANGE = "time_range"
+        const val COLUMN_LOCATION_TEACHER = "location_teacher"
 
         const val COLUMN_TITLE = "title"
         const val COLUMN_WEEK_TEXT = "week_text"
@@ -283,6 +292,8 @@ class TodayCoursesProvider : ContentProvider() {
             COLUMN_SUB_TEXT,
             COLUMN_SUB_COLOR,
             COLUMN_REMAINING_TEXT,
+            COLUMN_TIME_RANGE,
+            COLUMN_LOCATION_TEACHER,
         )
 
         val STATE_COLUMNS = listOf(

@@ -3,7 +3,7 @@
 <Widget enableLayerAnimation="1" frameRate="0" scaleByDensity="false" screenWidth="1080" type="awesome" useVariableUpdater="DateTime.Hour,DateTime.Minute,DateTime.Day,HyperMaterial" version="1" supportBackgroundBlur="false" allowScreenRotation="true">
 
     <!-- ═══════════════ 全局 ═══════════════ -->
-    <Var name="sx" expression="#view_width/344" />
+    <Var name="sx" expression="#view_width/440" />
     <Var name="sy" expression="#view_height/165" />
     <Var name="sr" expression="min(#view_width/344,#view_height/160)" />
     <Var name="widget_module_index" expression="'assets/clock/thumbnail.png'" const="true" type="string" />
@@ -36,8 +36,8 @@
         </BroadcastBinder>
 
         <!-- ═══════ 今日课程 · 展示课程数据源（/display 已按今日/明日自动解析, 只读） ═══════ -->
-        <ContentProviderBinder name="displayCourses" uri="content://com.haooz.chedule.courses/display"
-            columns="id,name,classroom,teacher,section_text,start_time,end_time,color,color_index,row_bg,sub_text,sub_color,is_now,remaining_text"
+        <ContentProviderBinder name="displayCourses" uri="content://com.haooz.chedule.courses/display?size=2x2"
+            columns="id,name,classroom,teacher,section_text,start_time,end_time,color,color_index,row_bg,sub_text,sub_color,is_now,remaining_text,time_range,location_teacher"
             column="name" countName="today_count">
             <Variable name="course_id" column="id" type="string[]" />
             <Variable name="course_name" column="name" type="string[]" />
@@ -53,6 +53,8 @@
             <Variable name="course_sub_color" column="sub_color" type="string[]" />
             <Variable name="course_is_now" column="is_now" type="number[]" />
             <Variable name="course_remaining_text" column="remaining_text" type="string[]" />
+            <Variable name="course_time_range" column="time_range" type="string[]" />
+            <Variable name="course_location_teacher" column="location_teacher" type="string[]" />
         </ContentProviderBinder>
 
         <!-- ═══════ 今日课程 · 状态数据源（标题/周状态/空态文案, 只读） ═══════ -->
@@ -263,76 +265,62 @@
         <Group h="#view_height" layered="true" w="#view_width">
 
             <!-- ═────── 标题栏 ═────── -->
-            <Text textExp="ifelse(#today_offset==0,'今天 / ',ifelse(#today_offset==1,'明天 / ',''))+@state_title" x="20*#sx" y="20*#sy" size="14*#sx" color="@titleColor" alignV="center" fontFamily="mipro-medium" />
-            <Text textExp="@state_week_text" x="(344-20)*#sx" y="20*#sy" size="14*#sx" color="@titleColor" align="right" alignV="center" fontFamily="mipro-medium" />
+            <Text textExp="@state_title" x="42" y="53" size="37" color="@titleColor" alignV="center" fontFamily="mipro-medium" />
+            <Text textExp="@state_week_text" x="398" y="53" size="37" color="@titleColor" align="right" alignV="center" fontFamily="mipro-medium" />
 
             <!-- ═══════ 课程卡片背景（正在上课→半透蓝, 普通→浅色底） ═══════ -->
-            <Rectangle x="12*#sx" y="36*#sy" w="(344-24)*#sx" h="55*#sy"
-                fillColor="@cardBg0" alpha="ifelse(#course_is_now[0]==1,26,12)" cornerRadiusExp="32" cornerRadius="32"
+            <Rectangle x="24" y="96" w="392" h="150"
+                fillColor="@cardBg0" alpha="ifelse(#course_is_now[0]==1,26,12)" cornerRadiusExp="40" cornerRadius="40"
                 visibility="gt(#today_count,0)" />
-            <Rectangle x="12*#sx" y="98*#sy" w="(344-24)*#sx" h="55*#sy"
-                fillColor="@cardBg1" alpha="ifelse(eq(num(#course_is_now[1]),1),26,12)" cornerRadiusExp="32" cornerRadius="32"
+            <Rectangle x="24" y="266" w="392" h="150"
+                fillColor="@cardBg1" alpha="ifelse(eq(num(#course_is_now[1]),1),26,12)" cornerRadiusExp="40" cornerRadius="40"
                 visibility="gt(#today_count,0)" />
 
-            <!-- ═────── 课程行1（时间左侧 + 胶囊色条 + 课程信息右侧） ═────── -->
+            <!-- ═────── 课程行1（胶囊色条 + 课程信息右侧） ═────── -->
             <Group visibility="le(1,#today_count)">
-                <!-- 时间区域（左侧） -->
-                <Text textExp="@course_start_time[0]" x="22*#sx" y="55*#sy" size="12*#sx"
-                    color="@timeColor" align="left" alignV="center" fontFamily="mipro-medium" />
-                <Text textExp="@course_end_time[0]" x="22*#sx" y="73*#sy" size="12*#sx"
-                    color="@subTextColor" align="left" alignV="center" fontFamily="mipro-medium" />
                 <!-- 课程信息（右侧） -->
-                <Group x="70*#sx" y="55*#sy" w="262*#sx" h="32*#sy">
+                <Group x="76" y="134" w="340" h="140">
                     <!-- 课程名称（限单行, 超长省略） -->
-                    <Text textExp="@course_name[0]" x="0*#sx" y="0*#sy" w="ifelse(eq(num(#course_is_now[0]),1),182*#sx,252*#sx)" size="14*#sx"
-                        color="@textColor" alignV="center" align="left" fontFamily="mipro-medium"
-                        maxLines="1" ellipsize="end" />
-                    <!-- 课程详情（固定左对齐, 限单行超长省略, 不随上课变化） -->
-                    <Text textExp="@course_sub_text[0]" x="0*#sx" y="20*#sy" w="ifelse(eq(num(#course_is_now[0]),1),182*#sx,252*#sx)" size="12*#sx"
-                        color="@subTextColor" align="left" alignV="center" fontFamily="mipro-medium" maxLines="1" ellipsize="end" />
+                    <Text textExp="@course_name[0]" x="0" y="0" size="38"
+                        color="@textColor" alignV="center" align="left" fontFamily="mipro-medium" />
+                    <!-- 时间范围（第2行） -->
+                    <Text textExp="@course_time_range[0]" x="0" y="42" size="32"
+                        color="@subTextColor" align="left" alignV="center" fontFamily="mipro-medium" />
+                    <!-- 地点｜教师（第3行） -->
+                    <Text textExp="@course_location_teacher[0]" x="0" y="76" size="32"
+                        color="@subTextColor" align="left" alignV="center" fontFamily="mipro-medium" />
                 </Group>
-                <!-- 倒计时（独立组件, 仅正在上课显示，最右侧） -->
-                <Text textExp="@course_remaining_text[0]" x="(344-22)*#sx" y="64*#sy" size="14*#sx"
-                    color="#2196F3" align="right" alignV="center" fontFamily="mipro-medium" fontWeight="medium"
-                    visibility="eq(num(#course_is_now[0]),1)" />
             </Group>
 
-            <!-- ═────── 课程行2（时间左侧 + 胶囊色条 + 课程信息右侧） ═────── -->
+            <!-- ═────── 课程行2（胶囊色条 + 课程信息右侧） ═────── -->
             <Group visibility="le(2,#today_count)">
-                <!-- 时间区域（左侧） -->
-                <Text textExp="@course_start_time[1]" x="22*#sx" y="117*#sy" size="12*#sx"
-                    color="@timeColor" align="left" alignV="center" fontFamily="mipro-medium" />
-                <Text textExp="@course_end_time[1]" x="22*#sx" y="135*#sy" size="12*#sx"
-                    color="@subTextColor" align="left" alignV="center" fontFamily="mipro-medium" />
                 <!-- 课程信息（右侧） -->
-                <Group x="70*#sx" y="117*#sy" w="262*#sx" h="32*#sy">
+                <Group x="76" y="304" w="340" h="140">
                     <!-- 课程名称（限单行, 超长省略） -->
-                    <Text textExp="@course_name[1]" x="0*#sx" y="0*#sy" w="ifelse(eq(num(#course_is_now[1]),1),182*#sx,252*#sx)" size="14*#sx"
-                        color="@textColor" alignV="center" align="left" fontFamily="mipro-medium"
-                        maxLines="1" ellipsize="end" />
-                    <!-- 课程详情（固定左对齐, 限单行超长省略, 不随上课变化） -->
-                    <Text textExp="@course_sub_text[1]" x="0*#sx" y="20*#sy" w="ifelse(eq(num(#course_is_now[1]),1),182*#sx,252*#sx)" size="12*#sx"
-                        color="@subTextColor" align="left" alignV="center" fontFamily="mipro-medium" maxLines="1" ellipsize="end" />
+                    <Text textExp="@course_name[1]" x="0" y="0" size="38"
+                        color="@textColor" alignV="center" align="left" fontFamily="mipro-medium" />
+                    <!-- 时间范围（第2行） -->
+                    <Text textExp="@course_time_range[1]" x="0" y="42" size="32"
+                        color="@subTextColor" align="left" alignV="center" fontFamily="mipro-medium" />
+                    <!-- 地点｜教师（第3行） -->
+                    <Text textExp="@course_location_teacher[1]" x="0" y="76" size="32"
+                        color="@subTextColor" align="left" alignV="center" fontFamily="mipro-medium" />
                 </Group>
-                <!-- 倒计时（独立组件, 仅正在上课显示，最右侧） -->
-                <Text textExp="@course_remaining_text[1]" x="(344-22)*#sx" y="126*#sy" size="14*#sx"
-                    color="#2196F3" align="right" alignV="center" fontFamily="mipro-medium" fontWeight="medium"
-                    visibility="eq(num(#course_is_now[1]),1)" />
             </Group>
 
             <!-- ＋N 更多 -->
             <Text textExp="ifelse(gt(num(#today_count),2),'+'+(num(#today_count)-2)+' 节更多','')"
-                x="18*#sx" y="150*#sy" size="10*#sx" color="@subTextColor" alignV="center"
+                x="44" y="424" size="27" color="@subTextColor" alignV="center"
                 visibility="gt(num(#today_count),2)" />
 
             <!-- ═────── 空状态（本日/明日无课, 文案来自 /state） ═────── -->
-            <Text textExp="@state_empty_text" x="#view_width/2" y="#view_height/2+4*#sy" size="14*#sx"
+            <Text textExp="@state_empty_text" x="#view_width/2" y="#view_height/2" size="37"
                 color="@subTextColor" align="center" alignV="center" visibility="le(num(#today_count),0)" />
 
             <!-- 胶囊色条（在内容之后绘制，保持垂直居中） -->
-            <Rectangle x="60*#sx" y="48*#sy" w="3*#sx" h="32*#sy"
+            <Rectangle x="45" y="129" w="8" h="84"
                 fillColor="@course_color_0" cornerRadiusExp="16" cornerRadius="16" visibility="le(1,#today_count)" />
-            <Rectangle x="60*#sx" y="110*#sy" w="3*#sx" h="32*#sy"
+            <Rectangle x="45" y="299" w="8" h="84"
                 fillColor="@course_color_1" cornerRadiusExp="16" cornerRadius="16" visibility="le(2,#today_count)" />
         </Group>
 
