@@ -1,0 +1,30 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<theme>
+    <version>1</version>
+    <uiVersion>12</uiVersion>
+    <author></author>
+    <designer>Haooz</designer>
+    <title>今日课程</title>
+    <typeTag>theme_calendar</typeTag>
+    <editable>true</editable>
+    <customEditLink>false</customEditLink>
+    <frame>0</frame>
+    <description>今日课程小部件，支持OS4通透柔光玻璃效果</description>
+    <osVersion>4</osVersion>
+    <authors>
+        <author locale="zh_CN"></author>
+        <author locale="en_US"></author>
+    </authors>
+    <designers>
+        <designer locale="zh_CN">Haooz</designer>
+        <designer locale="en_US">Haooz</designer>
+    </designers>
+    <titles>
+        <title locale="zh_CN">今日课程</title>
+        <title locale="en_US">Today's Course</title>
+    </titles>
+    <descriptions>
+        <description locale="zh_CN">今日课程小部件，支持OS4通透柔光玻璃效果</description>
+        <description locale="en_US">Today's Course widget with OS4 glass effect</description>
+    </descriptions>
+</theme>
