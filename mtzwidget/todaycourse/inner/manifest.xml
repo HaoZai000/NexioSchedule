@@ -18,8 +18,8 @@
     <Var name="course_color_1" expression="ifelse(#course_color_index[1]==1,'#2196F3',ifelse(#course_color_index[1]==2,'#FF9800',ifelse(#course_color_index[1]==3,'#F44336',ifelse(#course_color_index[1]==4,'#E6B422',ifelse(#course_color_index[1]==5,'#E91E63',ifelse(#course_color_index[1]==6,'#00BCD4',ifelse(#course_color_index[1]==7,'#3F51B5',ifelse(#course_color_index[1]==8,'#AB47BC',ifelse(#course_color_index[1]==9,'#009688','#4CAF50')))))))))" type="string" />
 
     <!-- 卡片背景色/透明度（fillColor 用 6 位色 Var 再单独传 alpha, 与全项目一致; 正在上课→半透蓝, 普通→textColor 语义） -->
-    <Var name="cardBg0" expression="ifelse(#course_is_now[0]==1,'#2196F3',ifelse(#isGlassBionic,'#FFFFFF',ifelse(#__darkmode,'#FFFFFF','#000000')))" type="string" />
-    <Var name="cardBg1" expression="ifelse(#course_is_now[1]==1,'#2196F3',ifelse(#isGlassBionic,'#FFFFFF',ifelse(#__darkmode,'#FFFFFF','#000000')))" type="string" />
+    <Var name="cardBg0" expression="ifelse(#course_is_now[0]==1,'#2196F3',ifelse(#isBionic,'#FFFFFF',ifelse(#__darkmode,'#FFFFFF','#000000')))" type="string" />
+    <Var name="cardBg1" expression="ifelse(#course_is_now[1]==1,'#2196F3',ifelse(#isBionic,'#FFFFFF',ifelse(#__darkmode,'#FFFFFF','#000000')))" type="string" />
 
     <!-- 预设课程颜色列表（与 App 一致） -->
     <Var name="preset_colors" type="string[]" values="#4CAF50,#2196F3,#FF9800,#F44336,#E6B422,#E91E63,#00BCD4,#3F51B5,#AB47BC,#009688,#673AB7" const="true" />
@@ -87,7 +87,7 @@
     </ExternalCommands>
     <!-- ═══════════════ 统一帧率控制 ═══════════════ -->
 
-    <!-- 前台时每分钟主动刷新课程数据（解决其他小部件修改状态后本小部件不更新的问题） -->
+    <!-- 前台时每分钟主动刷新课程数据 -->
     <Var name="minute_watch" expression="#minute" threshold="1">
         <Trigger>
             <BinderCommand name="displayCourses" command="refresh" />
@@ -99,8 +99,8 @@
          UI 布局
          ══════════════════════════════════════════════════════════════ -->
 
-    <Var name="textColor" type="string" expression="ifelse(#isGlassBionic,'#FFFFFF',ifelse(#__darkmode,'#FFFFFF','#000000'))"/>
-    <Var name="titleColor" type="string" expression="ifelse(#isGlassBionic,'#BFFFFFFF',ifelse(#__darkmode,'#BFFFFFFF','#BF000000'))"/>
+    <Var name="textColor" type="string" expression="ifelse(#isBionic,'#FFFFFF',ifelse(#__darkmode,'#FFFFFF','#000000'))"/>
+    <Var name="titleColor" type="string" expression="ifelse(#isBionic,'#BFFFFFFF',ifelse(#__darkmode,'#BFFFFFFF','#BF000000'))"/>
     <Var name="bgColor" type="string" expression="ifelse(#applied_light_wallpaper,'#FF000000','#FFffffff')"/>
 
 		
@@ -111,12 +111,12 @@
   <Var name="showBg" type="number" expression="not(#enable_hyper_material) || #isInPicker || (#hyper_material_view_type==2)" />
   <Var name="bgColor" type="string" expression="ifelse(#isDark,'#FF1A1A1B','#FFFFFFFF')" />
 
-    <!-- ═══════ 今日课程 · 内容用色（浅色, 匹配源包白色文字） ═══════ -->
-    <Var name="subTextColor" type="string" expression="ifelse(#isGlassBionic,'#99FFFFFF',ifelse(#__darkmode,'#55FFFFFF','#55000000'))" />
-    <Var name="timeColor" type="string" expression="ifelse(#isGlassBionic,'#CCFFFFFF',ifelse(#__darkmode,'#88FFFFFF','#88000000'))" />
+    <!-- ═══════ 今日课程 · 内容用色 ═══════ -->
+    <Var name="subTextColor" type="string" expression="ifelse(#isBionic,'#99FFFFFF',ifelse(#__darkmode,'#55FFFFFF','#55000000'))" />
+    <Var name="timeColor" type="string" expression="ifelse(#isBionic,'#CCFFFFFF',ifelse(#__darkmode,'#88FFFFFF','#88000000'))" />
     <Var name="dividerColor" type="string" expression="'#33FFFFFF'" />
 
-    <!-- ═══════ 今日课程 · 行数/计数（直接引用 binder 的 #today_count, 避免中转 Var 不随刷新重算） ═══════ -->
+    <!-- ═══════ 今日课程 · 行数/计数 ═══════ -->
     <Var name="max_rows" type="number" const="true" expression="3" />
 
     <!-- 通用玻璃参数：Glass_Common_Medium_Regular（三态：Dark / High_Light+浅色壁纸 / Low_Light+深色壁纸） -->
@@ -246,7 +246,7 @@
       <ColorBlendConfig disableBlend="#isInPicker || (#hyper_material_view_type != 0)"
         colors="ifelse(#isDark,'#52000000','#B3FFFFFF'),ifelse(#isDark,'#75000000','#33F9F9F9')"
         colorModes="ifelse(#isDark,3,20),ifelse(#isDark,19,15)" />
-      <BloomStrokeConfig disableBloomStroke="#isInPicker || (#hyper_material_view_type != 0)" bloomStrokeHeight="#view_height" bloomStrokeRadius="#view_width/2" bloomStrokeWidth="#view_width" uGeoPxPosX="0.0" uGeoPxPosY="0.0" uShapeEdgePow="3.0" uColorPow="1.2" uColorAdd="0.0" uAlpha="1.0"
+      <BloomStrokeConfig disableBloomStroke="#isInPicker || (#hyper_material_view_type != 0) || (! #isBionic)" bloomStrokeHeight="#view_height" bloomStrokeRadius="#view_width/2" bloomStrokeWidth="#view_width" uGeoPxPosX="0.0" uGeoPxPosY="0.0" uShapeEdgePow="3.0" uColorPow="1.2" uColorAdd="0.0" uAlpha="1.0"
         uShapeEdgePx="24.0" uDarker="0.0" uDarkerRangeX="0.4" uDarkerRangeY="0.5" uScaleX="1.0" uScaleY="1.0" uRotationTrigX="1.0" uRotationTrigY="0.0" uDirectionalLightDirectionX="-0.6" uDirectionalLightDirectionY="0.7" uDirectionalLightDirectionZ="-0.05" uDirectionalLightIntensity="1.8"
         uDirectionalLightOppositeIntensity="1.2" uDirectionalLightAngleRange="0.7" uDirectionalLightMinLight="-0.5" uDirectionalLightLightWidth="8.0" />
     </MaterialToken>
@@ -259,14 +259,14 @@
 	
 	 <Rectangle x="#view_width/2" y="#view_height/2" align="center" alignV="center" fillColor="#80000000" w="#view_width" h="#view_height" visibility="eqs(@isPreviewMode,'true')"/>
 
-        <!-- ─── 今日课程 内容（在源文件遮罩 Group 内, 保证高光/描边跟随圆角边缘） ─── -->
+        <!-- ─── 今日课程 内容 ─── -->
         <Group h="#view_height" layered="true" w="#view_width">
 
-            <!-- ═────── 标题栏（参照安卓原生：统一字体大小） ═────── -->
+            <!-- ═────── 标题栏 ═────── -->
             <Text textExp="ifelse(#today_offset==0,'今天 / ',ifelse(#today_offset==1,'明天 / ',''))+@state_title" x="20*#sx" y="20*#sy" size="14*#sx" color="@titleColor" alignV="center" fontFamily="mipro-medium" />
             <Text textExp="@state_week_text" x="(344-20)*#sx" y="20*#sy" size="14*#sx" color="@titleColor" align="right" alignV="center" fontFamily="mipro-medium" />
 
-            <!-- ═══════ 课程卡片背景（6 位底色: 正在上课→半透蓝, 普通→浅色底; alpha 单独传） ═══════ -->
+            <!-- ═══════ 课程卡片背景（正在上课→半透蓝, 普通→浅色底） ═══════ -->
             <Rectangle x="12*#sx" y="36*#sy" w="(344-24)*#sx" h="54*#sy"
                 fillColor="@cardBg0" alpha="ifelse(#course_is_now[0]==1,26,12)" cornerRadiusExp="32" cornerRadius="32"
                 visibility="gt(#today_count,0)" />
@@ -291,7 +291,7 @@
                     <Text textExp="@course_sub_text[0]" x="0*#sx" y="20*#sy" w="ifelse(eq(num(#course_is_now[0]),1),182*#sx,252*#sx)" size="12*#sx"
                         color="@subTextColor" align="left" alignV="center" fontFamily="mipro-medium" maxLines="1" ellipsize="end" />
                 </Group>
-                <!-- 倒计时（独立组件, 仅正在上课显示; 用 x 定位右缘 + align right, 仿标题周状态做法） -->
+                <!-- 倒计时（独立组件, 仅正在上课显示，最右侧） -->
                 <Text textExp="@course_remaining_text[0]" x="(344-22)*#sx" y="63*#sy" size="14*#sx"
                     color="#2196F3" align="right" alignV="center" fontFamily="mipro-medium" fontWeight="medium"
                     visibility="eq(num(#course_is_now[0]),1)" />
@@ -314,7 +314,7 @@
                     <Text textExp="@course_sub_text[1]" x="0*#sx" y="20*#sy" w="ifelse(eq(num(#course_is_now[1]),1),182*#sx,252*#sx)" size="12*#sx"
                         color="@subTextColor" align="left" alignV="center" fontFamily="mipro-medium" maxLines="1" ellipsize="end" />
                 </Group>
-                <!-- 倒计时（独立组件, 仅正在上课显示; 用 x 定位右缘 + align right, 仿标题周状态做法） -->
+                <!-- 倒计时（独立组件, 仅正在上课显示，最右侧） -->
                 <Text textExp="@course_remaining_text[1]" x="(344-22)*#sx" y="125*#sy" size="14*#sx"
                     color="#2196F3" align="right" alignV="center" fontFamily="mipro-medium" fontWeight="medium"
                     visibility="eq(num(#course_is_now[1]),1)" />
