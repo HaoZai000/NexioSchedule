@@ -31,6 +31,8 @@ class TodayCoursesProvider : ContentProvider() {
 
         val appContext = requireNotNull(context)
         val repository = CourseRepository(appContext)
+        // 通过 uri query 参数标识 widget 规格（2x2），区分详情文案；缺省视为 4x2
+        val widgetSize = uri.getQueryParameter("size")
 
         return when (match) {
             TODAY_COURSES, TOMORROW_COURSES, DISPLAY_COURSES -> {
@@ -42,7 +44,7 @@ class TodayCoursesProvider : ContentProvider() {
                     else -> resolveState(appContext, repository).courses
                 }
                 MatrixCursor(columns.toTypedArray()).apply {
-                    courses.forEach { course -> newRow().also { row -> fillCourseRow(row, columns, course, repository) } }
+                    courses.forEach { course -> newRow().also { row -> fillCourseRow(row, columns, course, repository, widgetSize) } }
                 }
             }
             else -> { // DISPLAY_STATE
@@ -160,6 +162,7 @@ class TodayCoursesProvider : ContentProvider() {
         columns: List<String>,
         course: Course,
         repository: CourseRepository,
+        size: String?,
     ) {
         val calendar = Calendar.getInstance()
         val currentMinutes = calendar.get(Calendar.HOUR_OF_DAY) * 60 + calendar.get(Calendar.MINUTE)
@@ -170,8 +173,15 @@ class TodayCoursesProvider : ContentProvider() {
         val isNow = if (startMinutes < endMinutes && currentMinutes in startMinutes until endMinutes) 1 else 0
         val remaining = if (isNow == 1) endMinutes - currentMinutes else 0
         val sectionText = course.getSectionText()
-        // 详情固定为「节次 · 地点」，不随上课状态变化；倒计时由 remaining_text 独立列提供
-        val subText = if (course.classroom.isNullOrEmpty()) sectionText else "$sectionText · ${course.classroom}"
+        val startText = start.orEmpty()
+        // 详情文案按 widget 规格与课程类型区分（分隔符 "｜"，空段自动省略）：
+        //   2x2：开始时间｜地点
+        //   4x2 普通课：节次｜地点｜教师；4x2 特殊课（无节次）：地点｜教师
+        val subText = when {
+            size == "2x2" -> listOf(startText, course.classroom).filter { it.isNotEmpty() }.joinToString("｜")
+            sectionText.isNotEmpty() -> listOf(sectionText, course.classroom, course.teacher).filter { it.isNotEmpty() }.joinToString("｜")
+            else -> listOf(course.classroom, course.teacher).filter { it.isNotEmpty() }.joinToString("｜")
+        }
         val values = mapOf<String, Any?>(
             COLUMN_ID to course.id,
             COLUMN_NAME to course.name,
