@@ -170,11 +170,8 @@ class TodayCoursesProvider : ContentProvider() {
         val isNow = if (startMinutes < endMinutes && currentMinutes in startMinutes until endMinutes) 1 else 0
         val remaining = if (isNow == 1) endMinutes - currentMinutes else 0
         val sectionText = course.getSectionText()
-        val subText = if (isNow == 1) {
-            "$remaining 分钟结束"
-        } else {
-            if (course.classroom.isNullOrEmpty()) sectionText else "$sectionText · ${course.classroom}"
-        }
+        // 详情固定为「节次 · 地点」，不随上课状态变化；倒计时由 remaining_text 独立列提供
+        val subText = if (course.classroom.isNullOrEmpty()) sectionText else "$sectionText · ${course.classroom}"
         val values = mapOf<String, Any?>(
             COLUMN_ID to course.id,
             COLUMN_NAME to course.name,
@@ -196,6 +193,7 @@ class TodayCoursesProvider : ContentProvider() {
             COLUMN_ROW_BG to if (isNow == 1) "#1A2196F3" else "#14FFFFFF",
             COLUMN_SUB_TEXT to subText,
             COLUMN_SUB_COLOR to if (isNow == 1) "#A7D0FF" else "#B3FFFFFF",
+            COLUMN_REMAINING_TEXT to if (isNow == 1) "${remaining}分钟结束" else "",
         )
         columns.forEach { column -> row.add(values[column]) }
     }
@@ -250,6 +248,7 @@ class TodayCoursesProvider : ContentProvider() {
         const val COLUMN_ROW_BG = "row_bg"
         const val COLUMN_SUB_TEXT = "sub_text"
         const val COLUMN_SUB_COLOR = "sub_color"
+        const val COLUMN_REMAINING_TEXT = "remaining_text"
 
         const val COLUMN_TITLE = "title"
         const val COLUMN_WEEK_TEXT = "week_text"
@@ -273,6 +272,7 @@ class TodayCoursesProvider : ContentProvider() {
             COLUMN_ROW_BG,
             COLUMN_SUB_TEXT,
             COLUMN_SUB_COLOR,
+            COLUMN_REMAINING_TEXT,
         )
 
         val STATE_COLUMNS = listOf(
