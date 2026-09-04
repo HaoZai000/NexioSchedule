@@ -17,7 +17,9 @@ data class AppearanceConfig(
     val wallpaperBrightness: Float = 0f,
     val showBreakDividers: Boolean = true,
     val cardContentAlignment: CardContentAlignment = CardContentAlignment.CENTER_CENTER,
-    val cardTextColor: CardTextColor = CardTextColor.COLORFUL
+    val cardTextColor: CardTextColor = CardTextColor.COLORFUL,
+    val showClassroom: Boolean = true,
+    val showTeacher: Boolean = true
 ) {
 
     companion object {
@@ -30,7 +32,9 @@ data class AppearanceConfig(
             wallpaperBrightness = c.wallpaperBrightness,
             showBreakDividers = c.showBreakDividers,
             cardContentAlignment = c.cardContentAlignment,
-            cardTextColor = c.cardTextColor
+            cardTextColor = c.cardTextColor,
+            showClassroom = c.showClassroom,
+            showTeacher = c.showTeacher
         )
     }
 }

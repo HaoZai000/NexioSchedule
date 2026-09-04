@@ -89,6 +89,8 @@ fun DayColumn(
     isTablet: Boolean = false,
     cardContentAlignment: com.haooz.chedule.data.CardContentAlignment = com.haooz.chedule.data.CardContentAlignment.CENTER_CENTER,
     cardTextColor: com.haooz.chedule.data.CardTextColor = com.haooz.chedule.data.CardTextColor.COLORFUL,
+    showClassroom: Boolean = true,
+    showTeacher: Boolean = true,
     draggingCourseIds: Set<String> = emptySet(),
     onCourseLongPress: (course: Course, cardLeft: Float, cardTop: Float, width: Float, height: Float, backdrop: Backdrop?, currentWeek: Int) -> Unit = { _, _, _, _, _, _, _ -> },
     onCourseDragStart: (courseId: String) -> Unit = { _ -> },
@@ -269,6 +271,8 @@ fun DayColumn(
                 isTablet = isTablet,
                 cardContentAlignment = cardContentAlignment,
                 cardTextColor = cardTextColor,
+                showClassroom = showClassroom,
+                showTeacher = showTeacher,
                 wallpaperBackdrop = wallpaperBackdrop,
                 cardBlurRadius = cardBlurRadius,
                 draggingCourseIds = draggingCourseIds,
@@ -308,6 +312,8 @@ private fun CourseCardsLayer(
     isTablet: Boolean,
     cardContentAlignment: com.haooz.chedule.data.CardContentAlignment,
     cardTextColor: com.haooz.chedule.data.CardTextColor,
+    showClassroom: Boolean,
+    showTeacher: Boolean,
     wallpaperBackdrop: Backdrop?,
     cardBlurRadius: Float,
     draggingCourseIds: Set<String>,
@@ -415,6 +421,8 @@ private fun CourseCardsLayer(
                         isTablet = isTablet,
                         cardContentAlignment = cardContentAlignment,
                         cardTextColor = cardTextColor,
+                        showClassroom = showClassroom,
+                        showTeacher = showTeacher,
                         isDragging = isDragging,
                         onClick = {
                             onPendingChange(-1, -1)
@@ -450,6 +458,8 @@ private fun CourseCardsLayer(
                         isTablet = isTablet,
                         cardContentAlignment = cardContentAlignment,
                         cardTextColor = cardTextColor,
+                        showClassroom = showClassroom,
+                        showTeacher = showTeacher,
                         isDragging = isDragging,
                         onClick = {
                             onPendingChange(-1, -1)

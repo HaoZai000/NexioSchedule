@@ -121,6 +121,8 @@ class CourseRepository private constructor(context: Context) {
         private const val KEY_COMBINATION_SHOW_BREAK_DIVIDERS_PREFIX = "comb_break_div_"
         private const val KEY_COMBINATION_CARD_CONTENT_ALIGNMENT_PREFIX = "comb_card_align_"
         private const val KEY_COMBINATION_CARD_TEXT_COLOR_PREFIX = "comb_card_text_color_"
+        private const val KEY_COMBINATION_SHOW_CLASSROOM_PREFIX = "comb_show_classroom_"
+        private const val KEY_COMBINATION_SHOW_TEACHER_PREFIX = "comb_show_teacher_"
         // 多时间配置支持
         private const val KEY_TIME_CONFIG_IDS = "time_config_ids"
         private const val KEY_CURRENT_TIME_CONFIG_ID = "current_time_config_id"
@@ -1881,6 +1883,22 @@ class CourseRepository private constructor(context: Context) {
 
     fun getCombinationCardTextColor(id: Long): CardTextColor =
         CardTextColor.fromOrdinal(prefs.getInt("${KEY_COMBINATION_CARD_TEXT_COLOR_PREFIX}$id", CardTextColor.COLORFUL.ordinal))
+
+    fun saveCombinationShowClassroom(id: Long, show: Boolean) {
+        prefs.edit {
+            putBoolean("${KEY_COMBINATION_SHOW_CLASSROOM_PREFIX}$id", show)
+        }
+    }
+
+    fun getCombinationShowClassroom(id: Long): Boolean = prefs.getBoolean("${KEY_COMBINATION_SHOW_CLASSROOM_PREFIX}$id", true)
+
+    fun saveCombinationShowTeacher(id: Long, show: Boolean) {
+        prefs.edit {
+            putBoolean("${KEY_COMBINATION_SHOW_TEACHER_PREFIX}$id", show)
+        }
+    }
+
+    fun getCombinationShowTeacher(id: Long): Boolean = prefs.getBoolean("${KEY_COMBINATION_SHOW_TEACHER_PREFIX}$id", true)
 
     /** 迁移：如果只有旧的单搭配数据（无 combination_ids），将其作为 id=0 的搭配 */
     fun migrateToCombinationsIfNeeded() {

@@ -6,6 +6,8 @@ import android.content.UriMatcher
 import android.database.Cursor
 import android.database.MatrixCursor
 import android.net.Uri
+import android.graphics.Paint
+import android.graphics.Typeface
 import com.haooz.chedule.data.Course
 import com.haooz.chedule.data.CourseRepository
 import com.haooz.chedule.reminder.CourseReminderHelper
@@ -187,9 +189,24 @@ val subText = when {
         // 2x2 三行详情：第2行"开始时间 - 结束时间"，第3行"地点｜教师"
         val timeRange = listOf(startText, end.orEmpty()).filter { it.isNotEmpty() }.joinToString(" - ")
         val locationTeacher = listOf(course.classroom, course.teacher).filter { it.isNotEmpty() }.joinToString("｜")
+        // 根据 widget 规格对课程名/详情按容器宽度在 App 端做测量截断；
+        // 4x2 末上课宽度更大、上课时为右侧倒计时让位；2x2 对第1行(课程名)和第3行(地点｜教师)截断，第2行(时间范围)不截断
+        val isTwoByTwo = size == "2x2"
+        val detailWidthPx = if (isNow == 1) 170f else 255f
+        val displayName = if (isTwoByTwo) {
+            truncateByPx(course.name, TWO_X_TWO_WIDTH, TWO_X_TWO_NAME_TEXT_SIZE)
+        } else {
+            truncateByPx(course.name, detailWidthPx, NAME_TEXT_SIZE)
+        }
+        val displaySubText = if (isTwoByTwo) subText else truncateByPx(subText, detailWidthPx, SUB_TEXT_SIZE)
+        val displayLocationTeacher = if (isTwoByTwo) {
+            truncateByPx(locationTeacher, TWO_X_TWO_WIDTH, TWO_X_TWO_SUB_TEXT_SIZE)
+        } else {
+            locationTeacher
+        }
         val values = mapOf<String, Any?>(
             COLUMN_ID to course.id,
-            COLUMN_NAME to course.name,
+            COLUMN_NAME to displayName,
             COLUMN_CLASSROOM to course.classroom,
             COLUMN_TEACHER to course.teacher,
             COLUMN_START_SECTION to course.startSection,
@@ -206,13 +223,41 @@ val subText = when {
             COLUMN_IS_NOW to isNow,
             COLUMN_REMAINING to remaining,
             COLUMN_ROW_BG to if (isNow == 1) "#1A2196F3" else "#14FFFFFF",
-            COLUMN_SUB_TEXT to subText,
+            COLUMN_SUB_TEXT to displaySubText,
             COLUMN_SUB_COLOR to if (isNow == 1) "#A7D0FF" else "#B3FFFFFF",
             COLUMN_REMAINING_TEXT to if (isNow == 1) "${remaining}分钟结束" else "",
             COLUMN_TIME_RANGE to timeRange,
-            COLUMN_LOCATION_TEACHER to locationTeacher,
+            COLUMN_LOCATION_TEACHER to displayLocationTeacher,
         )
         columns.forEach { column -> row.add(values[column]) }
+    }
+
+    /**
+     * 按像素宽度对文本做测量截断（与 4x2 小部件字体/容器基准一致）：
+     * 采用与 widget 同款字体测量真实渲染宽度，超出部分裁剪并追加省略号"…"。
+     * 宽度、字号均为设计基准（sx=1）下的值，widget 渲染时整体等比缩放，效果一致。
+     */
+    private fun truncateByPx(text: String, maxWidthPx: Float, textSizePx: Float): String {
+        if (text.isEmpty() || maxWidthPx <= 0f) return text
+        val paint = Paint().apply {
+            this.textSize = textSizePx
+            typeface = Typeface.create("mipro-medium", Typeface.NORMAL)
+        }
+        if (paint.measureText(text) <= maxWidthPx) return text
+
+        val ellipsis = "…"
+        val ellipsisWidth = paint.measureText(ellipsis)
+        var lo = 0
+        var hi = text.length
+        while (lo < hi) {
+            val mid = (lo + hi + 1) / 2
+            if (paint.measureText(text.substring(0, mid)) + ellipsisWidth <= maxWidthPx) {
+                lo = mid
+            } else {
+                hi = mid - 1
+            }
+        }
+        return text.substring(0, lo) + ellipsis
     }
 
     private fun getTodayOfWeek(): Int {
@@ -240,6 +285,13 @@ val subText = when {
 
     private companion object {
         const val AUTHORITY = "com.haooz.chedule.courses"
+        // 4x2 小部件课程名/详情设计基准字号（sx=1），用于 App 端测量截断
+        const val NAME_TEXT_SIZE = 14f
+        const val SUB_TEXT_SIZE = 12f
+        // 2x2 小部件容器宽与各行基准字号（绝对坐标 440×440），用于 App 端测量截断
+        const val TWO_X_TWO_WIDTH = 320f
+        const val TWO_X_TWO_NAME_TEXT_SIZE = 38f
+        const val TWO_X_TWO_SUB_TEXT_SIZE = 32f
         const val PATH_TODAY = "today"
         const val PATH_TOMORROW = "tomorrow"
         const val PATH_DISPLAY = "display"

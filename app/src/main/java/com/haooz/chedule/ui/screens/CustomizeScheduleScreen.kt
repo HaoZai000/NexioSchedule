@@ -172,6 +172,10 @@ fun CustomizeScheduleScreen(
     initialCardContentAlignment: CardContentAlignment = CardContentAlignment.CENTER_CENTER,
     onCardTextColorChange: (CardTextColor) -> Unit = {},
     initialCardTextColor: CardTextColor = CardTextColor.COLORFUL,
+    onShowClassroomChange: (Boolean) -> Unit = {},
+    initialShowClassroom: Boolean = true,
+    onShowTeacherChange: (Boolean) -> Unit = {},
+    initialShowTeacher: Boolean = true,
     hasWallpaper: Boolean = false,
 ) {
     // ================================================================
@@ -301,6 +305,14 @@ fun CustomizeScheduleScreen(
         sheetResetKey
     ) { mutableStateOf(initialCardTextColor) }
     LaunchedEffect(cardTextColorValue) { onCardTextColorChange(cardTextColorValue) }
+    var showClassroomValue by remember(currentCombinationIndex, sheetResetKey) {
+        mutableStateOf(initialShowClassroom)
+    }
+    LaunchedEffect(showClassroomValue) { onShowClassroomChange(showClassroomValue) }
+    var showTeacherValue by remember(currentCombinationIndex, sheetResetKey) {
+        mutableStateOf(initialShowTeacher)
+    }
+    LaunchedEffect(showTeacherValue) { onShowTeacherChange(showTeacherValue) }
 
     // --- 删除流程状态 ---
     // "自定义"按钮淡入淡出动画（进入编辑模式时淡出，退出时淡入）
@@ -1383,6 +1395,47 @@ fun CustomizeScheduleScreen(
                                     ?: liquidGlassBackdrop,
                                 dropdownColors = liquidGlassDropdownColors,
                             )
+                        }
+                    }
+                    // 卡片内容显示：地点、教师
+                    SheetCard {
+                        Column {
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(horizontal = 16.dp, vertical = 12.dp),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Text(
+                                    text = "地点",
+                                    fontWeight = FontWeight.Medium,
+                                    fontSize = 17.sp,
+                                    color = MiuixTheme.colorScheme.onSurface
+                                )
+                                Switch(
+                                    checked = showClassroomValue,
+                                    onCheckedChange = { showClassroomValue = it }
+                                )
+                            }
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(horizontal = 16.dp, vertical = 12.dp),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Text(
+                                    text = "教师",
+                                    fontWeight = FontWeight.Medium,
+                                    fontSize = 17.sp,
+                                    color = MiuixTheme.colorScheme.onSurface
+                                )
+                                Switch(
+                                    checked = showTeacherValue,
+                                    onCheckedChange = { showTeacherValue = it }
+                                )
+                            }
                         }
                     }
                     // 午休晚休分界线：移至最底部

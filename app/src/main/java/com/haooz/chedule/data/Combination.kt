@@ -20,6 +20,8 @@ data class Combination(
     var showBreakDividers: Boolean = true,
     var cardContentAlignment: CardContentAlignment = CardContentAlignment.CENTER_CENTER,
     var cardTextColor: CardTextColor = CardTextColor.COLORFUL,
+    var showClassroom: Boolean = true,
+    var showTeacher: Boolean = true,
     // 壁纸均匀测光结果：true=亮色壁纸，false=暗色壁纸，null=无壁纸/未测光
     var wallpaperIsLight: Boolean? = null
 )

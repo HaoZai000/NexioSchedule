@@ -17,9 +17,9 @@
     <Var name="course_color_0" expression="ifelse(#course_color_index[0]==1,'#2196F3',ifelse(#course_color_index[0]==2,'#FF9800',ifelse(#course_color_index[0]==3,'#F44336',ifelse(#course_color_index[0]==4,'#E6B422',ifelse(#course_color_index[0]==5,'#E91E63',ifelse(#course_color_index[0]==6,'#00BCD4',ifelse(#course_color_index[0]==7,'#3F51B5',ifelse(#course_color_index[0]==8,'#AB47BC',ifelse(#course_color_index[0]==9,'#009688','#4CAF50')))))))))" type="string" />
     <Var name="course_color_1" expression="ifelse(#course_color_index[1]==1,'#2196F3',ifelse(#course_color_index[1]==2,'#FF9800',ifelse(#course_color_index[1]==3,'#F44336',ifelse(#course_color_index[1]==4,'#E6B422',ifelse(#course_color_index[1]==5,'#E91E63',ifelse(#course_color_index[1]==6,'#00BCD4',ifelse(#course_color_index[1]==7,'#3F51B5',ifelse(#course_color_index[1]==8,'#AB47BC',ifelse(#course_color_index[1]==9,'#009688','#4CAF50')))))))))" type="string" />
 
-    <!-- 卡片背景色/透明度（fillColor 用 6 位色 Var 再单独传 alpha, 与全项目一致; 正在上课→半透蓝, 普通→textColor 语义） -->
-    <Var name="cardBg0" expression="ifelse(#course_is_now[0]==1,'#2196F3',ifelse(#isBionic,'#FFFFFF',ifelse(#__darkmode,'#FFFFFF','#000000')))" type="string" />
-    <Var name="cardBg1" expression="ifelse(#course_is_now[1]==1,'#2196F3',ifelse(#isBionic,'#FFFFFF',ifelse(#__darkmode,'#FFFFFF','#000000')))" type="string" />
+    <!-- 卡片背景色/透明度（fillColor 用 6 位色 Var 再单独传 alpha, 与全项目一致; 正在上课→半透蓝, 普通→textColor 语义; 编辑页→浅色底） -->
+    <Var name="cardBg0" expression="ifelse(#course_is_now[0]==1,'#2196F3',ifelse(#isInPicker,'#FFFFFF',ifelse(#isBionic,'#FFFFFF',ifelse(#__darkmode,'#FFFFFF','#000000'))))" type="string" />
+    <Var name="cardBg1" expression="ifelse(#course_is_now[1]==1,'#2196F3',ifelse(#isInPicker,'#FFFFFF',ifelse(#isBionic,'#FFFFFF',ifelse(#__darkmode,'#FFFFFF','#000000'))))" type="string" />
 
     <!-- 预设课程颜色列表（与 App 一致） -->
     <Var name="preset_colors" type="string[]" values="#4CAF50,#2196F3,#FF9800,#F44336,#E6B422,#E91E63,#00BCD4,#3F51B5,#AB47BC,#009688,#673AB7" const="true" />
@@ -101,9 +101,8 @@
          UI 布局
          ══════════════════════════════════════════════════════════════ -->
 
-    <Var name="textColor" type="string" expression="ifelse(#isBionic,'#FFFFFF',ifelse(#__darkmode,'#FFFFFF','#000000'))"/>
-    <Var name="titleColor" type="string" expression="ifelse(#isBionic,'#BFFFFFFF',ifelse(#__darkmode,'#BFFFFFFF','#BF000000'))"/>
-    <Var name="bgColor" type="string" expression="ifelse(#applied_light_wallpaper,'#FF000000','#FFffffff')"/>
+    <Var name="textColor" type="string" expression="ifelse(#isInPicker,'#000000',ifelse(#isBionic,'#FFFFFF',ifelse(#__darkmode,'#FFFFFF','#000000')))"/>
+    <Var name="titleColor" type="string" expression="ifelse(#isInPicker,'#BF000000',ifelse(#isBionic,'#BFFFFFFF',ifelse(#__darkmode,'#BFFFFFFF','#BF000000')))"/>
 
 		
   <Var name="isDark" type="number" expression="#__darkmode" />
@@ -111,11 +110,12 @@
   <Var name="isGlassBionic" type="number" expression="#glass_type[0]" />
   <Var name="isBionic" type="number" expression="#isGlassBionic ** #hyper_material_glass_enable ** (! #isInPicker) ** (#hyper_material_view_type==1)" />
   <Var name="showBg" type="number" expression="not(#enable_hyper_material) || #isInPicker || (#hyper_material_view_type==2)" />
-  <Var name="bgColor" type="string" expression="ifelse(#isDark,'#FF1A1A1B','#FFFFFFFF')" />
+  <!-- 编辑页(isPreviewMode)时背景固定为灰白色, 便于预览 -->
+  <Var name="bgColor" type="string" expression="ifelse(#isInPicker,'#FFF5F5F5',ifelse(#isDark,'#FF1A1A1B','#FFFFFFFF'))" />
 
     <!-- ═══════ 今日课程 · 内容用色 ═══════ -->
-    <Var name="subTextColor" type="string" expression="ifelse(#isBionic,'#99FFFFFF',ifelse(#__darkmode,'#55FFFFFF','#55000000'))" />
-    <Var name="timeColor" type="string" expression="ifelse(#isBionic,'#CCFFFFFF',ifelse(#__darkmode,'#88FFFFFF','#88000000'))" />
+    <Var name="subTextColor" type="string" expression="ifelse(#isInPicker,'#55000000',ifelse(#isBionic,'#99FFFFFF',ifelse(#__darkmode,'#73FFFFFF','#55000000')))" />
+    <Var name="timeColor" type="string" expression="ifelse(#isInPicker,'#88000000',ifelse(#isBionic,'#CCFFFFFF',ifelse(#__darkmode,'#88FFFFFF','#88000000')))" />
     <Var name="dividerColor" type="string" expression="'#33FFFFFF'" />
 
     <!-- ═══════ 今日课程 · 行数/计数 ═══════ -->
@@ -169,7 +169,7 @@
     0,
     1,1,1,0.1,
     0,
-    0.8,
+    0.2,
     1.4,
     1,
     36,
@@ -248,18 +248,19 @@
       <ColorBlendConfig disableBlend="#isInPicker || (#hyper_material_view_type != 0)"
         colors="ifelse(#isDark,'#52000000','#B3FFFFFF'),ifelse(#isDark,'#75000000','#33F9F9F9')"
         colorModes="ifelse(#isDark,3,20),ifelse(#isDark,19,15)" />
-      <BloomStrokeConfig disableBloomStroke="#isInPicker || (#hyper_material_view_type != 0) || (! #isBionic)" bloomStrokeHeight="#view_height" bloomStrokeRadius="#view_width/2" bloomStrokeWidth="#view_width" uGeoPxPosX="0.0" uGeoPxPosY="0.0" uShapeEdgePow="3.0" uColorPow="1.2" uColorAdd="0.0" uAlpha="1.0"
+      <BloomStrokeConfig disableBloomStroke="#isInPicker || (#hyper_material_view_type != 0)" bloomStrokeHeight="#view_height" bloomStrokeRadius="70" bloomStrokeWidth="#view_width" uGeoPxPosX="0.0" uGeoPxPosY="0.0" uShapeEdgePow="3.0" uColorPow="1.2" uColorAdd="0.0" uAlpha="1.0"
         uShapeEdgePx="24.0" uDarker="0.0" uDarkerRangeX="0.4" uDarkerRangeY="0.5" uScaleX="1.0" uScaleY="1.0" uRotationTrigX="1.0" uRotationTrigY="0.0" uDirectionalLightDirectionX="-0.6" uDirectionalLightDirectionY="0.7" uDirectionalLightDirectionZ="-0.05" uDirectionalLightIntensity="1.8"
         uDirectionalLightOppositeIntensity="1.2" uDirectionalLightAngleRange="0.7" uDirectionalLightMinLight="-0.5" uDirectionalLightLightWidth="8.0" />
     </MaterialToken>
     <ViewOutlineProvider type="rect" left="0" top="0" right="#view_width" bottom="#view_height" radius="ifelse(eqs(@isPreviewMode,'true'),0,ifelse(#widget_radius,(#widget_radius / #__scale_factor),60))" />
-    <!-- 降级背景色（高级材质关闭时显示） -->
-    <Rectangle x="#view_width/2" y="#view_height/2" w="#view_width" h="#view_height" align="center" alignV="center" fillColor="@bgColor" alpha="30" cornerRadiusExp="ifelse(num(@__hyper_os_version_code) { 4,60,0)" cornerRadius="60" visibility="#showBg"/>
+    <!-- 降级背景色（高级材质关闭时显示; 编辑页时全不透明灰白底） -->
+    <Rectangle x="#view_width/2" y="#view_height/2" w="#view_width" h="#view_height" align="center" alignV="center" fillColor="@bgColor" alpha="ifelse(#isInPicker,255,30)" cornerRadiusExp="ifelse(num(@__hyper_os_version_code) { 4,60,0)" cornerRadius="60" visibility="#showBg"/>
 	
 		
 	<!-- <Rectangle visibility="#showBg" w="#view_width" h="#view_height" fillColor="@cardBgColor" x="0" y="0" cornerRadiusExp="ifelse(num(@__hyper_os_version_code) { 4,64,0)" /> -->
 	
-	 <Rectangle x="#view_width/2" y="#view_height/2" align="center" alignV="center" fillColor="#80000000" w="#view_width" h="#view_height" visibility="eqs(@isPreviewMode,'true')"/>
+	 <!-- 编辑页遮罩：已废弃（编辑页用灰白底, 不再需要暗色遮罩） -->
+        <Rectangle x="#view_width/2" y="#view_height/2" align="center" alignV="center" fillColor="#80000000" w="#view_width" h="#view_height" visibility="0"/>
 
         <!-- ─── 今日课程 内容 ─── -->
         <Group h="#view_height" layered="true" w="#view_width">
@@ -268,12 +269,12 @@
             <Text textExp="@state_title" x="42" y="53" size="37" color="@titleColor" alignV="center" fontFamily="mipro-medium" />
             <Text textExp="@state_week_text" x="398" y="53" size="37" color="@titleColor" align="right" alignV="center" fontFamily="mipro-medium" />
 
-            <!-- ═══════ 课程卡片背景（正在上课→半透蓝, 普通→浅色底） ═══════ -->
+            <!-- ═══════ 课程卡片背景（正在上课→半透蓝, 普通→浅色底; 编辑页→半透灰白卡片） ═══════ -->
             <Rectangle x="24" y="96" w="392" h="150"
-                fillColor="@cardBg0" alpha="ifelse(#course_is_now[0]==1,26,12)" cornerRadiusExp="40" cornerRadius="40"
+                fillColor="@cardBg0" alpha="ifelse(#isInPicker,ifelse(#course_is_now[0]==1,26,40),ifelse(#course_is_now[0]==1,26,12))" cornerRadiusExp="40" cornerRadius="40"
                 visibility="gt(#today_count,0)" />
             <Rectangle x="24" y="266" w="392" h="150"
-                fillColor="@cardBg1" alpha="ifelse(eq(num(#course_is_now[1]),1),26,12)" cornerRadiusExp="40" cornerRadius="40"
+                fillColor="@cardBg1" alpha="ifelse(#isInPicker,ifelse(eq(num(#course_is_now[1]),1),26,40),ifelse(eq(num(#course_is_now[1]),1),26,12))" cornerRadiusExp="40" cornerRadius="40"
                 visibility="gt(#today_count,0)" />
 
             <!-- ═────── 课程行1（胶囊色条 + 课程信息右侧） ═────── -->

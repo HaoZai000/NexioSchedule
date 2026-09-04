@@ -78,6 +78,8 @@ fun CourseCard(
     isTablet: Boolean = false,
     cardContentAlignment: com.haooz.chedule.data.CardContentAlignment = com.haooz.chedule.data.CardContentAlignment.CENTER_CENTER,
     cardTextColor: com.haooz.chedule.data.CardTextColor = com.haooz.chedule.data.CardTextColor.COLORFUL,
+    showClassroom: Boolean = true,
+    showTeacher: Boolean = true,
     isDragging: Boolean = false,
     disablePadding: Boolean = false,
     onClick: () -> Unit,
@@ -424,7 +426,7 @@ fun CourseCard(
             ) {
                 CardContent(course, sectionCount, textColor, hasMultipleCourses,
                     isTablet, cardContentAlignment, cardHeight.value, cardHeightPerSection,
-                    isHoliday, isWorkSwap, isCurrentWeek)
+                    isHoliday, isWorkSwap, isCurrentWeek, showClassroom, showTeacher)
             }
         }
     }
@@ -434,20 +436,21 @@ fun CourseCard(
 private fun CardContent(course: Course, sectionCount: Int, textColor: Color, hasMultipleCourses: Boolean,
                         isTablet: Boolean = false, cardContentAlignment: com.haooz.chedule.data.CardContentAlignment = com.haooz.chedule.data.CardContentAlignment.CENTER_CENTER,
                         cardHeightDp: Float = 0f, cardHeightPerSection: Float = 54f,
-                        isHoliday: Boolean = false, isWorkSwap: Boolean = false, isCurrentWeek: Boolean = true) {
+                        isHoliday: Boolean = false, isWorkSwap: Boolean = false, isCurrentWeek: Boolean = true,
+                        showClassroom: Boolean = true, showTeacher: Boolean = true) {
     val infoFontSize = 11.sp
     val infoLineHeight = 12.sp
     val courseNameLineHeight = 14.2.sp
 
-    val showClassroom = course.classroom.isNotEmpty()
-    val showTeacher = course.teacher.isNotEmpty()
+    val effectiveShowClassroom = showClassroom && course.classroom.isNotEmpty()
+    val effectiveShowTeacher = showTeacher && course.teacher.isNotEmpty()
 
     // 课程名称最多行数：卡片高度能放下几行就几行
     val density = LocalDensity.current
     val availableHeightDp = cardHeightDp - 16f
     val courseNameLineH = with(density) { courseNameLineHeight.toDp().value }
     val infoLineH = with(density) { infoLineHeight.toDp().value }
-    val reservedForInfo = ((if (showClassroom) 1 else 0) + (if (showTeacher) 1 else 0)) * infoLineH
+    val reservedForInfo = ((if (effectiveShowClassroom) 1 else 0) + (if (effectiveShowTeacher) 1 else 0)) * infoLineH
     val nameMaxLines = ((availableHeightDp - reservedForInfo) / courseNameLineH).toInt().coerceAtLeast(1)
 
     Box(modifier = Modifier.fillMaxSize()) {
@@ -488,7 +491,7 @@ private fun CardContent(course: Course, sectionCount: Int, textColor: Color, has
                 overflow = TextOverflow.Ellipsis,
             )
             // 教室：按剩余空间分配
-            if (showClassroom) {
+            if (effectiveShowClassroom) {
                 Spacer(modifier = Modifier.height(2.dp))
                 Text(
                     text = "@${course.classroom}",
@@ -500,7 +503,7 @@ private fun CardContent(course: Course, sectionCount: Int, textColor: Color, has
                 )
             }
             // 教师：按剩余空间分配
-            if (showTeacher) {
+            if (effectiveShowTeacher) {
                 Spacer(modifier = Modifier.height(2.dp))
                 Text(
                     text = course.teacher,

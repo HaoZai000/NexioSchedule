@@ -18,8 +18,8 @@
     <Var name="course_color_1" expression="ifelse(#course_color_index[1]==1,'#2196F3',ifelse(#course_color_index[1]==2,'#FF9800',ifelse(#course_color_index[1]==3,'#F44336',ifelse(#course_color_index[1]==4,'#E6B422',ifelse(#course_color_index[1]==5,'#E91E63',ifelse(#course_color_index[1]==6,'#00BCD4',ifelse(#course_color_index[1]==7,'#3F51B5',ifelse(#course_color_index[1]==8,'#AB47BC',ifelse(#course_color_index[1]==9,'#009688','#4CAF50')))))))))" type="string" />
 
     <!-- 卡片背景色/透明度（fillColor 用 6 位色 Var 再单独传 alpha, 与全项目一致; 正在上课→半透蓝, 普通→textColor 语义） -->
-    <Var name="cardBg0" expression="ifelse(#course_is_now[0]==1,'#2196F3',ifelse(#isBionic,'#FFFFFF',ifelse(#__darkmode,'#FFFFFF','#000000')))" type="string" />
-    <Var name="cardBg1" expression="ifelse(#course_is_now[1]==1,'#2196F3',ifelse(#isBionic,'#FFFFFF',ifelse(#__darkmode,'#FFFFFF','#000000')))" type="string" />
+    <Var name="cardBg0" expression="ifelse(#course_is_now[0]==1,'#2196F3',ifelse(#isInPicker,'#FFFFFF',ifelse(#isBionic,'#FFFFFF',ifelse(#__darkmode,'#FFFFFF','#000000'))))" type="string" />
+    <Var name="cardBg1" expression="ifelse(#course_is_now[1]==1,'#2196F3',ifelse(#isInPicker,'#FFFFFF',ifelse(#isBionic,'#FFFFFF',ifelse(#__darkmode,'#FFFFFF','#000000'))))" type="string" />
 
     <!-- 预设课程颜色列表（与 App 一致） -->
     <Var name="preset_colors" type="string[]" values="#4CAF50,#2196F3,#FF9800,#F44336,#E6B422,#E91E63,#00BCD4,#3F51B5,#AB47BC,#009688,#673AB7" const="true" />
@@ -99,8 +99,8 @@
          UI 布局
          ══════════════════════════════════════════════════════════════ -->
 
-    <Var name="textColor" type="string" expression="ifelse(#isBionic,'#FFFFFF',ifelse(#__darkmode,'#FFFFFF','#000000'))"/>
-    <Var name="titleColor" type="string" expression="ifelse(#isBionic,'#BFFFFFFF',ifelse(#__darkmode,'#BFFFFFFF','#BF000000'))"/>
+    <Var name="textColor" type="string" expression="ifelse(#isInPicker,'#000000',ifelse(#isBionic,'#FFFFFF',ifelse(#__darkmode,'#FFFFFF','#000000')))"/>
+    <Var name="titleColor" type="string" expression="ifelse(#isInPicker,'#BF000000',ifelse(#isBionic,'#BFFFFFFF',ifelse(#__darkmode,'#BFFFFFFF','#BF000000')))"/>
     <Var name="bgColor" type="string" expression="ifelse(#applied_light_wallpaper,'#FF000000','#FFffffff')"/>
 
 		
@@ -109,11 +109,11 @@
   <Var name="isGlassBionic" type="number" expression="#glass_type[0]" />
   <Var name="isBionic" type="number" expression="#isGlassBionic ** #hyper_material_glass_enable ** (! #isInPicker) ** (#hyper_material_view_type==1)" />
   <Var name="showBg" type="number" expression="not(#enable_hyper_material) || #isInPicker || (#hyper_material_view_type==2)" />
-  <Var name="bgColor" type="string" expression="ifelse(#isDark,'#FF1A1A1B','#FFFFFFFF')" />
+  <Var name="bgColor" type="string" expression="ifelse(#isInPicker,'#FFF5F5F5',ifelse(#isDark,'#FF1A1A1B','#FFFFFFFF'))" />
 
     <!-- ═══════ 今日课程 · 内容用色 ═══════ -->
-    <Var name="subTextColor" type="string" expression="ifelse(#isBionic,'#99FFFFFF',ifelse(#__darkmode,'#55FFFFFF','#55000000'))" />
-    <Var name="timeColor" type="string" expression="ifelse(#isBionic,'#CCFFFFFF',ifelse(#__darkmode,'#88FFFFFF','#88000000'))" />
+    <Var name="subTextColor" type="string" expression="ifelse(#isInPicker,'#55000000',ifelse(#isBionic,'#99FFFFFF',ifelse(#__darkmode,'#73FFFFFF','#55000000')))" />
+    <Var name="timeColor" type="string" expression="ifelse(#isInPicker,'#88000000',ifelse(#isBionic,'#CCFFFFFF',ifelse(#__darkmode,'#99FFFFFF','#88000000')))" />
     <Var name="dividerColor" type="string" expression="'#33FFFFFF'" />
 
     <!-- ═══════ 今日课程 · 行数/计数 ═══════ -->
@@ -167,7 +167,7 @@
     0,
     1,1,1,0.1,
     0,
-    0.8,
+    0.2,
     1.4,
     1,
     36,
@@ -246,7 +246,7 @@
       <ColorBlendConfig disableBlend="#isInPicker || (#hyper_material_view_type != 0)"
         colors="ifelse(#isDark,'#52000000','#B3FFFFFF'),ifelse(#isDark,'#75000000','#33F9F9F9')"
         colorModes="ifelse(#isDark,3,20),ifelse(#isDark,19,15)" />
-      <BloomStrokeConfig disableBloomStroke="#isInPicker || (#hyper_material_view_type != 0) || (! #isBionic)" bloomStrokeHeight="#view_height" bloomStrokeRadius="#view_width/2" bloomStrokeWidth="#view_width" uGeoPxPosX="0.0" uGeoPxPosY="0.0" uShapeEdgePow="3.0" uColorPow="1.2" uColorAdd="0.0" uAlpha="1.0"
+      <BloomStrokeConfig disableBloomStroke="#isInPicker || (#hyper_material_view_type != 0)" bloomStrokeHeight="#view_height" bloomStrokeRadius="70" bloomStrokeWidth="#view_width" uGeoPxPosX="0.0" uGeoPxPosY="0.0" uShapeEdgePow="3.0" uColorPow="1.2" uColorAdd="0.0" uAlpha="1.0"
         uShapeEdgePx="24.0" uDarker="0.0" uDarkerRangeX="0.4" uDarkerRangeY="0.5" uScaleX="1.0" uScaleY="1.0" uRotationTrigX="1.0" uRotationTrigY="0.0" uDirectionalLightDirectionX="-0.6" uDirectionalLightDirectionY="0.7" uDirectionalLightDirectionZ="-0.05" uDirectionalLightIntensity="1.8"
         uDirectionalLightOppositeIntensity="1.2" uDirectionalLightAngleRange="0.7" uDirectionalLightMinLight="-0.5" uDirectionalLightLightWidth="8.0" />
     </MaterialToken>
@@ -257,7 +257,8 @@
 		
 	<!-- <Rectangle visibility="#showBg" w="#view_width" h="#view_height" fillColor="@cardBgColor" x="0" y="0" cornerRadiusExp="ifelse(num(@__hyper_os_version_code) { 4,64,0)" /> -->
 	
-	 <Rectangle x="#view_width/2" y="#view_height/2" align="center" alignV="center" fillColor="#80000000" w="#view_width" h="#view_height" visibility="eqs(@isPreviewMode,'true')"/>
+	 <!-- 编辑页（预览模式）时显示固定灰白色背景，保证内容可读 -->
+        <Rectangle x="#view_width/2" y="#view_height/2" align="center" alignV="center" fillColor="#FFF5F5F5" w="#view_width" h="#view_height" visibility="eqs(@isPreviewMode,'true')"/>
 
         <!-- ─── 今日课程 内容 ─── -->
         <Group h="#view_height" layered="true" w="#view_width">
@@ -283,13 +284,12 @@
                     color="@subTextColor" align="left" alignV="center" fontFamily="mipro-medium" />
                 <!-- 课程信息（右侧） -->
                 <Group x="70*#sx" y="55*#sy" w="262*#sx" h="32*#sy">
-                    <!-- 课程名称（限单行, 超长省略） -->
-                    <Text textExp="@course_name[0]" x="0*#sx" y="0*#sy" w="ifelse(eq(num(#course_is_now[0]),1),182*#sx,252*#sx)" size="14*#sx"
-                        color="@textColor" alignV="center" align="left" fontFamily="mipro-medium"
-                        maxLines="1" ellipsize="end" />
-                    <!-- 课程详情（固定左对齐, 限单行超长省略, 不随上课变化） -->
-                    <Text textExp="@course_sub_text[0]" x="0*#sx" y="20*#sy" w="ifelse(eq(num(#course_is_now[0]),1),182*#sx,252*#sx)" size="12*#sx"
-                        color="@subTextColor" align="left" alignV="center" fontFamily="mipro-medium" maxLines="1" ellipsize="end" />
+                    <!-- 课程名称（App 端已按容器宽度截断, 小部件不做截断） -->
+                    <Text textExp="@course_name[0]" x="0*#sx" y="0*#sy" size="14*#sx"
+                        color="@textColor" alignV="center" align="left" fontFamily="mipro-medium" />
+                    <!-- 课程详情（App 端已按容器宽度截断, 小部件不做截断） -->
+                    <Text textExp="@course_sub_text[0]" x="0*#sx" y="20*#sy" size="12*#sx"
+                        color="@subTextColor" align="left" alignV="center" fontFamily="mipro-medium" />
                 </Group>
                 <!-- 倒计时（独立组件, 仅正在上课显示，最右侧） -->
                 <Text textExp="@course_remaining_text[0]" x="(344-22)*#sx" y="64*#sy" size="14*#sx"
@@ -306,13 +306,12 @@
                     color="@subTextColor" align="left" alignV="center" fontFamily="mipro-medium" />
                 <!-- 课程信息（右侧） -->
                 <Group x="70*#sx" y="117*#sy" w="262*#sx" h="32*#sy">
-                    <!-- 课程名称（限单行, 超长省略） -->
-                    <Text textExp="@course_name[1]" x="0*#sx" y="0*#sy" w="ifelse(eq(num(#course_is_now[1]),1),182*#sx,252*#sx)" size="14*#sx"
-                        color="@textColor" alignV="center" align="left" fontFamily="mipro-medium"
-                        maxLines="1" ellipsize="end" />
-                    <!-- 课程详情（固定左对齐, 限单行超长省略, 不随上课变化） -->
-                    <Text textExp="@course_sub_text[1]" x="0*#sx" y="20*#sy" w="ifelse(eq(num(#course_is_now[1]),1),182*#sx,252*#sx)" size="12*#sx"
-                        color="@subTextColor" align="left" alignV="center" fontFamily="mipro-medium" maxLines="1" ellipsize="end" />
+                    <!-- 课程名称（App 端已按容器宽度截断, 小部件不做截断） -->
+                    <Text textExp="@course_name[1]" x="0*#sx" y="0*#sy" size="14*#sx"
+                        color="@textColor" alignV="center" align="left" fontFamily="mipro-medium" />
+                    <!-- 课程详情（App 端已按容器宽度截断, 小部件不做截断） -->
+                    <Text textExp="@course_sub_text[1]" x="0*#sx" y="20*#sy" size="12*#sx"
+                        color="@subTextColor" align="left" alignV="center" fontFamily="mipro-medium" />
                 </Group>
                 <!-- 倒计时（独立组件, 仅正在上课显示，最右侧） -->
                 <Text textExp="@course_remaining_text[1]" x="(344-22)*#sx" y="126*#sy" size="14*#sx"
