@@ -7,11 +7,11 @@ data class ChangelogEntry(
 )
 val changelogData = listOf(
     ChangelogEntry(
-        version = "v1.4.9-0908",
-        date = "2026-09-08",
+        version = "v1.4.9-0905",
+        date = "2026-09-05",
         changes = listOf(
             "新增自定义选项：课程表默认主题，壁纸模糊开关，卡片折射自定义，卡片文字缩放比例自定义，显示地点开关，显示教师开关",
-            "优化添加弹出出现可能出现的掉帧",
+            "优化添加页面弹出时可能出现的掉帧",
             "修复教务导入可能无法导入开学时间"
         )
     ),
