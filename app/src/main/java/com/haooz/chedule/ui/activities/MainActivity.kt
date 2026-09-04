@@ -291,7 +291,8 @@ class MainActivity : ComponentActivity() {
                             cardTextScale = repo.getCombinationCardTextScale(currentIdValue),
                             showClassroom = repo.getCombinationShowClassroom(currentIdValue),
                             showTeacher = repo.getCombinationShowTeacher(currentIdValue),
-                            cardRefraction = repo.getCombinationCardRefraction(currentIdValue)
+                            cardRefraction = repo.getCombinationCardRefraction(currentIdValue),
+                            wallpaperBlur = repo.getCombinationWallpaperBlur(currentIdValue)
                         )
                     }
                 } catch (_: Exception) {
@@ -991,7 +992,8 @@ fun CourseScheduleApp() {
                     cardTextScale = value.cardTextScale,
                     showClassroom = value.showClassroom,
                     showTeacher = value.showTeacher,
-                    cardRefraction = value.cardRefraction
+                    cardRefraction = value.cardRefraction,
+                    wallpaperBlur = value.wallpaperBlur
                 )
             }
         }
@@ -1032,7 +1034,8 @@ fun CourseScheduleApp() {
                     cardTextScale = wallpaperRepository.getCombinationCardTextScale(id),
                     showClassroom = wallpaperRepository.getCombinationShowClassroom(id),
                     showTeacher = wallpaperRepository.getCombinationShowTeacher(id),
-                    wallpaperIsLight = wallpaperRepository.getCombinationWallpaperIsLight(id)
+                    wallpaperIsLight = wallpaperRepository.getCombinationWallpaperIsLight(id),
+                    wallpaperBlur = wallpaperRepository.getCombinationWallpaperBlur(id)
                 )
             }
             combinations = list
@@ -1072,7 +1075,8 @@ fun CourseScheduleApp() {
                         showClassroom = wallpaperRepository.getCombinationShowClassroom(id),
                         showTeacher = wallpaperRepository.getCombinationShowTeacher(id),
                         cardRefraction = wallpaperRepository.getCombinationCardRefraction(id),
-                        wallpaperIsLight = wallpaperRepository.getCombinationWallpaperIsLight(id)
+                        wallpaperIsLight = wallpaperRepository.getCombinationWallpaperIsLight(id),
+                        wallpaperBlur = wallpaperRepository.getCombinationWallpaperBlur(id)
                     )
                 }
                 Triple(list, loadedIds, loadedIndex)
@@ -1896,6 +1900,7 @@ fun CourseScheduleApp() {
                                             wallpaperBrightness = displayAppearance.wallpaperBrightness,
                                             cardBlurRadius = displayAppearance.cardBlurRadius,
                                             cardRefraction = displayAppearance.cardRefraction,
+                                            wallpaperBlur = displayAppearance.wallpaperBlur,
                                             liquidGlassBackdrop = liquidGlassBackdrop,
                                             externalListState = todayListState,
                                         )
@@ -2711,6 +2716,10 @@ fun CourseScheduleApp() {
                         wallpaperRepository.saveCombinationCardRefraction(
                             combId,
                             appearanceToSave.cardRefraction
+                        )
+                        wallpaperRepository.saveCombinationWallpaperBlur(
+                            combId,
+                            appearanceToSave.wallpaperBlur
                         )
                         wallpaperRepository.setCurrentCombinationId(combId)
                     }

@@ -22,7 +22,8 @@ data class AppearanceConfig(
     val cardTextScale: Float = 1f,
     val showClassroom: Boolean = true,
     val showTeacher: Boolean = true,
-    val cardRefraction: CardRefractionLevel = CardRefractionLevel.DEFAULT
+    val cardRefraction: CardRefractionLevel = CardRefractionLevel.DEFAULT,
+    val wallpaperBlur: Boolean = false
 ) {
 
     companion object {
@@ -39,7 +40,8 @@ data class AppearanceConfig(
             cardTextScale = c.cardTextScale,
             showClassroom = c.showClassroom,
             showTeacher = c.showTeacher,
-            cardRefraction = c.cardRefraction
+            cardRefraction = c.cardRefraction,
+            wallpaperBlur = c.wallpaperBlur
         )
     }
 }

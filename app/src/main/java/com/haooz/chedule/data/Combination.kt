@@ -27,7 +27,9 @@ data class Combination(
     // 卡片折射档位：关闭/较弱/默认/较强（需要壁纸才生效）
     var cardRefraction: CardRefractionLevel = CardRefractionLevel.DEFAULT,
     // 壁纸均匀测光结果：true=亮色壁纸，false=暗色壁纸，null=无壁纸/未测光
-    var wallpaperIsLight: Boolean? = null
+    var wallpaperIsLight: Boolean? = null,
+    // 壁纸模糊开关：开启后对壁纸进行12dp模糊处理
+    var wallpaperBlur: Boolean = false
 )
 
 /** 卡片文字颜色模式 */

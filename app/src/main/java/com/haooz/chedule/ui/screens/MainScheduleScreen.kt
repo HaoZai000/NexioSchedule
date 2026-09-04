@@ -45,6 +45,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.asComposeRenderEffect
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
@@ -75,9 +76,11 @@ import com.haooz.chedule.ui.utils.isAppDarkTheme
 import com.haooz.chedule.ui.utils.overScrollVertical
 import com.haooz.chedule.viewmodel.CourseViewModel
 import com.haooz.chedule.viewmodel.SettingsViewModel
+import com.kyant.backdrop.backdrops.SharedBlurBackdrop
 import com.kyant.backdrop.drawBackdrop
 import com.kyant.backdrop.effects.blur
 import com.kyant.backdrop.effects.lens
+import com.kyant.backdrop.isRenderEffectSupported
 import com.kyant.capsule.ContinuousRoundedRectangle
 import top.yukonga.miuix.kmp.basic.Card
 import top.yukonga.miuix.kmp.basic.CardDefaults
@@ -94,8 +97,6 @@ import java.util.Calendar
 import kotlin.time.Duration.Companion.milliseconds
 import com.kyant.backdrop.backdrops.layerBackdrop as kyantLayerBackdrop
 import com.kyant.backdrop.backdrops.rememberLayerBackdrop as rememberKyantLayerBackdrop
-import com.kyant.backdrop.backdrops.SharedBlurBackdrop
-import com.kyant.backdrop.isRenderEffectSupported
 
 /**
  * 课表网格几何信息，供拖拽调课时落点检测使用。
@@ -163,6 +164,7 @@ fun MainScheduleScreen(
     val showClassroom = appearance.showClassroom
     val showTeacher = appearance.showTeacher
     val cardRefraction = appearance.cardRefraction
+    val wallpaperBlur = appearance.wallpaperBlur
 
     val courses by viewModel.courses.collectAsState()
     val currentWeek by viewModel.currentWeek.collectAsState()
@@ -350,6 +352,16 @@ fun MainScheduleScreen(
                     } else null
                 }
                 val imageBitmap = remember(wallpaperBitmap) { wallpaperBitmap.asImageBitmap() }
+                val wallpaperBlurEffect = remember(wallpaperBlur) {
+                    if (wallpaperBlur) {
+                        val blurRadiusPx = 12f * density.density
+                        android.graphics.RenderEffect.createBlurEffect(
+                            blurRadiusPx,
+                            blurRadiusPx,
+                            android.graphics.Shader.TileMode.CLAMP
+                        ).asComposeRenderEffect()
+                    } else null
+                }
                 androidx.compose.foundation.Image(
                     bitmap = imageBitmap,
                     contentDescription = null,
@@ -361,6 +373,7 @@ fun MainScheduleScreen(
                             scaleY = effectiveScale
                             translationX = wallpaperOffset.x
                             translationY = wallpaperOffset.y
+                            renderEffect = wallpaperBlurEffect
                         },
                     contentScale = ContentScale.Fit,
                     colorFilter = brightnessFilter

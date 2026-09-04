@@ -297,6 +297,10 @@ fun CustomizeScheduleScreen(
         sheetResetKey
     ) { mutableStateOf(appearance.cardRefraction) }
     LaunchedEffect(appearance.cardRefraction) { cardRefractionValue = appearance.cardRefraction }
+    var wallpaperBlurValue by remember(
+        currentCombinationIndex,
+        sheetResetKey
+    ) { mutableStateOf(appearance.wallpaperBlur) }
 
     // 由本地显示值组装完整外观配置，作为唯一上报入口
     fun buildAppearance() = AppearanceConfig(
@@ -311,7 +315,8 @@ fun CustomizeScheduleScreen(
         cardTextScale = cardTextScaleValue,
         showClassroom = showClassroomValue,
         showTeacher = showTeacherValue,
-        cardRefraction = cardRefractionValue
+        cardRefraction = cardRefractionValue,
+        wallpaperBlur = wallpaperBlurValue
     )
     LaunchedEffect(effectValue, cardAlphaValue) { onAppearanceChange(buildAppearance()) }
     LaunchedEffect(wallpaperBrightnessValue) { onAppearanceChange(buildAppearance()) }
@@ -330,6 +335,7 @@ fun CustomizeScheduleScreen(
     LaunchedEffect(showClassroomValue) { onAppearanceChange(buildAppearance()) }
     LaunchedEffect(showTeacherValue) { onAppearanceChange(buildAppearance()) }
     LaunchedEffect(cardRefractionValue) { onAppearanceChange(buildAppearance()) }
+    LaunchedEffect(wallpaperBlurValue) { onAppearanceChange(buildAppearance()) }
 
     // --- 删除流程状态 ---
     // "自定义"按钮淡入淡出动画（进入编辑模式时淡出，退出时淡入）
@@ -1319,6 +1325,27 @@ fun CustomizeScheduleScreen(
                         displayValue = { it.roundToInt().let { n -> if (n > 0) "+$n" else n.toString() } },
                         parseInput = { it.toFloatOrNull()?.coerceIn(-50f, 50f) }
                     )
+                    // 壁纸模糊开关
+                    SheetCard {
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(horizontal = 16.dp, vertical = 12.dp),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Text(
+                                text = "壁纸模糊",
+                                fontWeight = FontWeight.Medium,
+                                fontSize = 17.sp,
+                                color = MiuixTheme.colorScheme.onSurface
+                            )
+                            Switch(
+                                checked = wallpaperBlurValue,
+                                onCheckedChange = { wallpaperBlurValue = it }
+                            )
+                        }
+                    }
                     // 课程卡片模糊 + 卡片不透明度：同一卡片内
                     SheetCard {
                         Column {

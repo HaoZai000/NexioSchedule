@@ -22,6 +22,7 @@ import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.pager.HorizontalPager
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -31,10 +32,12 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.snapshotFlow
+import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.asComposeRenderEffect
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
@@ -51,14 +54,11 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.core.content.edit
+import com.haooz.chedule.data.CardRefractionLevel
 import com.haooz.chedule.data.Course
-import top.yukonga.miuix.kmp.overlay.OverlayDialog
 import com.haooz.chedule.ui.basic.SharedScrollBehavior
 import com.haooz.chedule.ui.effects.edgelight.edgeLight
 import com.haooz.chedule.ui.effects.edgelight.rememberCardEdgeLight
-import androidx.compose.runtime.CompositionLocalProvider
-import androidx.compose.runtime.staticCompositionLocalOf
-import com.haooz.chedule.data.CardRefractionLevel
 import com.haooz.chedule.ui.effects.edgelight.rememberDefaultEdgeLight
 import com.haooz.chedule.ui.utils.isAppDarkTheme
 import com.haooz.chedule.ui.utils.overScrollVertical
@@ -79,6 +79,7 @@ import top.yukonga.miuix.kmp.basic.SmallTitle
 import top.yukonga.miuix.kmp.basic.TextButton
 import top.yukonga.miuix.kmp.blur.layerBackdrop
 import top.yukonga.miuix.kmp.blur.rememberLayerBackdrop
+import top.yukonga.miuix.kmp.overlay.OverlayDialog
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 import top.yukonga.miuix.kmp.utils.scrollEndHaptic
 import java.time.LocalDate
@@ -350,6 +351,7 @@ fun TodayScreen(
     wallpaperBrightness: Float = 0f,
     cardBlurRadius: Float = 0f,
     cardRefraction: CardRefractionLevel = CardRefractionLevel.DEFAULT,
+    wallpaperBlur: Boolean = false,
     liquidGlassBackdrop: Backdrop? = null,
     // Activity 层提升的状态，return@Scaffold 不会销毁
     externalListState: androidx.compose.foundation.lazy.LazyListState = rememberLazyListState(),
@@ -465,6 +467,16 @@ fun TodayScreen(
                             )
                         )
                     } else null
+                    val todayWallpaperBlurEffect = remember(wallpaperBlur) {
+                        if (wallpaperBlur) {
+                            val blurRadiusPx = 24f * density.density
+                            android.graphics.RenderEffect.createBlurEffect(
+                                blurRadiusPx,
+                                blurRadiusPx,
+                                android.graphics.Shader.TileMode.CLAMP
+                            ).asComposeRenderEffect()
+                        } else null
+                    }
                     androidx.compose.foundation.Image(
                         bitmap = wallpaperBitmap.asImageBitmap(),
                         contentDescription = null,
@@ -476,6 +488,7 @@ fun TodayScreen(
                                 scaleY = effectiveScale
                                 translationX = wallpaperOffset.x
                                 translationY = wallpaperOffset.y
+                                renderEffect = todayWallpaperBlurEffect
                             },
                         contentScale = ContentScale.Fit,
                         colorFilter = brightnessFilter

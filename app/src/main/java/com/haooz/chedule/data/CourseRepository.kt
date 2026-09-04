@@ -125,6 +125,7 @@ class CourseRepository private constructor(context: Context) {
         private const val KEY_COMBINATION_SHOW_CLASSROOM_PREFIX = "comb_show_classroom_"
         private const val KEY_COMBINATION_SHOW_TEACHER_PREFIX = "comb_show_teacher_"
         private const val KEY_COMBINATION_CARD_REFRACTION_PREFIX = "comb_card_refraction_"
+        private const val KEY_COMBINATION_WALLPAPER_BLUR_PREFIX = "comb_wp_blur_"
         // 多时间配置支持
         private const val KEY_TIME_CONFIG_IDS = "time_config_ids"
         private const val KEY_CURRENT_TIME_CONFIG_ID = "current_time_config_id"
@@ -1919,6 +1920,14 @@ class CourseRepository private constructor(context: Context) {
 
     fun getCombinationCardRefraction(id: Long): CardRefractionLevel =
         CardRefractionLevel.fromOrdinal(prefs.getInt("${KEY_COMBINATION_CARD_REFRACTION_PREFIX}$id", CardRefractionLevel.DEFAULT.ordinal))
+
+    fun saveCombinationWallpaperBlur(id: Long, blur: Boolean) {
+        prefs.edit {
+            putBoolean("${KEY_COMBINATION_WALLPAPER_BLUR_PREFIX}$id", blur)
+        }
+    }
+
+    fun getCombinationWallpaperBlur(id: Long): Boolean = prefs.getBoolean("${KEY_COMBINATION_WALLPAPER_BLUR_PREFIX}$id", false)
 
     /** 迁移：如果只有旧的单搭配数据（无 combination_ids），将其作为 id=0 的搭配 */
     fun migrateToCombinationsIfNeeded() {
