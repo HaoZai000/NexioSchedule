@@ -26,7 +26,6 @@ import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.ime
 import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.offset
-import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.wrapContentHeight
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -69,8 +68,10 @@ import com.haooz.chedule.ui.basic.rememberCollapsibleTopAppBarState
 import com.haooz.chedule.ui.basic.rememberSharedScrollBehavior
 import com.haooz.chedule.ui.effects.edgelight.edgeLight
 import com.haooz.chedule.ui.effects.edgelight.rememberDefaultEdgeLight
+import com.haooz.chedule.ui.utils.LocalForcedDarkTheme
 import com.haooz.chedule.ui.utils.LocalOverScrollState
 import com.haooz.chedule.ui.utils.OverScrollState
+import com.haooz.chedule.ui.utils.rememberAppSettingDark
 import com.kyant.backdrop.Backdrop
 import com.kyant.backdrop.backdrops.layerBackdrop
 import com.kyant.backdrop.backdrops.rememberLayerBackdrop
@@ -80,8 +81,6 @@ import com.kyant.backdrop.effects.vibrancy
 import com.kyant.capsule.ContinuousRoundedRectangle
 import kotlinx.coroutines.launch
 import top.yukonga.miuix.kmp.anim.folmeSpring
-import com.haooz.chedule.ui.utils.LocalForcedDarkTheme
-import com.haooz.chedule.ui.utils.rememberAppSettingDark
 import top.yukonga.miuix.kmp.theme.ColorSchemeMode
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 import top.yukonga.miuix.kmp.theme.ThemeController
@@ -311,7 +310,7 @@ private fun BlurBottomSheetContent(
                 )
                 .edgeLight(shape = ContinuousRoundedRectangle(36.dp), edgeLight = rememberDefaultEdgeLight())
                 .background(sheetBgColor.copy(alpha = sheetBackgroundAlpha ?: if (liquidGlassBackdrop != null)
-                    if (Build.VERSION.SDK_INT >= 33) 0.92f else 1f
+                    if (Build.VERSION.SDK_INT >= 33) 0.9f else 1f
                     else 1f))
                 .pointerInput(Unit) {
                     // 消费弹窗空白处的点击，防止事件穿透到背景层触发关闭
