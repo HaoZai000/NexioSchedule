@@ -18,6 +18,8 @@ data class AppearanceConfig(
     val showBreakDividers: Boolean = true,
     val cardContentAlignment: CardContentAlignment = CardContentAlignment.CENTER_CENTER,
     val cardTextColor: CardTextColor = CardTextColor.COLORFUL,
+    // 卡片文字缩放比例：作用于课程名称、教室、教师，默认 1.0（0.5~2.0）
+    val cardTextScale: Float = 1f,
     val showClassroom: Boolean = true,
     val showTeacher: Boolean = true,
     val cardRefraction: CardRefractionLevel = CardRefractionLevel.DEFAULT
@@ -34,6 +36,7 @@ data class AppearanceConfig(
             showBreakDividers = c.showBreakDividers,
             cardContentAlignment = c.cardContentAlignment,
             cardTextColor = c.cardTextColor,
+            cardTextScale = c.cardTextScale,
             showClassroom = c.showClassroom,
             showTeacher = c.showTeacher,
             cardRefraction = c.cardRefraction

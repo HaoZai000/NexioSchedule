@@ -121,6 +121,7 @@ class CourseRepository private constructor(context: Context) {
         private const val KEY_COMBINATION_SHOW_BREAK_DIVIDERS_PREFIX = "comb_break_div_"
         private const val KEY_COMBINATION_CARD_CONTENT_ALIGNMENT_PREFIX = "comb_card_align_"
         private const val KEY_COMBINATION_CARD_TEXT_COLOR_PREFIX = "comb_card_text_color_"
+        private const val KEY_COMBINATION_CARD_TEXT_SCALE_PREFIX = "comb_card_text_scale_"
         private const val KEY_COMBINATION_SHOW_CLASSROOM_PREFIX = "comb_show_classroom_"
         private const val KEY_COMBINATION_SHOW_TEACHER_PREFIX = "comb_show_teacher_"
         private const val KEY_COMBINATION_CARD_REFRACTION_PREFIX = "comb_card_refraction_"
@@ -1884,6 +1885,15 @@ class CourseRepository private constructor(context: Context) {
 
     fun getCombinationCardTextColor(id: Long): CardTextColor =
         CardTextColor.fromOrdinal(prefs.getInt("${KEY_COMBINATION_CARD_TEXT_COLOR_PREFIX}$id", CardTextColor.COLORFUL.ordinal))
+
+    fun saveCombinationCardTextScale(id: Long, scale: Float) {
+        prefs.edit {
+            putFloat("${KEY_COMBINATION_CARD_TEXT_SCALE_PREFIX}$id", scale)
+        }
+    }
+
+    fun getCombinationCardTextScale(id: Long): Float =
+        prefs.getFloat("${KEY_COMBINATION_CARD_TEXT_SCALE_PREFIX}$id", 1f)
 
     fun saveCombinationShowClassroom(id: Long, show: Boolean) {
         prefs.edit {

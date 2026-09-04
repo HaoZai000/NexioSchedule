@@ -159,6 +159,7 @@ fun MainScheduleScreen(
     val showBreakDividers = appearance.showBreakDividers
     val cardContentAlignment = appearance.cardContentAlignment
     val cardTextColor = appearance.cardTextColor
+    val cardTextScale = appearance.cardTextScale
     val showClassroom = appearance.showClassroom
     val showTeacher = appearance.showTeacher
     val cardRefraction = appearance.cardRefraction
@@ -588,6 +589,7 @@ fun MainScheduleScreen(
                                 isTablet = isTablet,
                                 cardContentAlignment = cardContentAlignment,
                                 cardTextColor = cardTextColor,
+                                cardTextScale = cardTextScale,
                                 showClassroom = showClassroom,
                                 showTeacher = showTeacher,
                                 cardRefraction = cardRefraction,

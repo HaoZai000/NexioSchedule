@@ -78,6 +78,7 @@ fun CourseCard(
     isTablet: Boolean = false,
     cardContentAlignment: com.haooz.chedule.data.CardContentAlignment = com.haooz.chedule.data.CardContentAlignment.CENTER_CENTER,
     cardTextColor: com.haooz.chedule.data.CardTextColor = com.haooz.chedule.data.CardTextColor.COLORFUL,
+    cardTextScale: Float = 1f,
     showClassroom: Boolean = true,
     showTeacher: Boolean = true,
     cardRefraction: com.haooz.chedule.data.CardRefractionLevel = com.haooz.chedule.data.CardRefractionLevel.DEFAULT,
@@ -306,7 +307,7 @@ fun CourseCard(
             ) {
                 CardContent(course, sectionCount, textColor, hasMultipleCourses,
                     isTablet, cardContentAlignment, cardHeight.value, cardHeightPerSection,
-                    isHoliday, isWorkSwap, isCurrentWeek)
+                    isHoliday, isWorkSwap, isCurrentWeek, showClassroom, showTeacher, cardTextScale)
             }
         }
     } else {
@@ -428,7 +429,7 @@ fun CourseCard(
             ) {
                 CardContent(course, sectionCount, textColor, hasMultipleCourses,
                     isTablet, cardContentAlignment, cardHeight.value, cardHeightPerSection,
-                    isHoliday, isWorkSwap, isCurrentWeek, showClassroom, showTeacher)
+                    isHoliday, isWorkSwap, isCurrentWeek, showClassroom, showTeacher, cardTextScale)
             }
         }
     }
@@ -439,10 +440,11 @@ private fun CardContent(course: Course, sectionCount: Int, textColor: Color, has
                         isTablet: Boolean = false, cardContentAlignment: com.haooz.chedule.data.CardContentAlignment = com.haooz.chedule.data.CardContentAlignment.CENTER_CENTER,
                         cardHeightDp: Float = 0f, cardHeightPerSection: Float = 54f,
                         isHoliday: Boolean = false, isWorkSwap: Boolean = false, isCurrentWeek: Boolean = true,
-                        showClassroom: Boolean = true, showTeacher: Boolean = true) {
-    val infoFontSize = 11.sp
-    val infoLineHeight = 12.sp
-    val courseNameLineHeight = 14.2.sp
+                        showClassroom: Boolean = true, showTeacher: Boolean = true, cardTextScale: Float = 1f) {
+    val infoFontSize = 11.sp * cardTextScale.coerceIn(0.5f, 2.0f)
+    val infoLineHeight = 12.sp * cardTextScale.coerceIn(0.5f, 2.0f)
+    val courseNameFontSize = 12.7.sp * cardTextScale.coerceIn(0.5f, 2.0f)
+    val courseNameLineHeight = 14.2.sp * cardTextScale.coerceIn(0.5f, 2.0f)
 
     val effectiveShowClassroom = showClassroom && course.classroom.isNotEmpty()
     val effectiveShowTeacher = showTeacher && course.teacher.isNotEmpty()
@@ -485,7 +487,7 @@ private fun CardContent(course: Course, sectionCount: Int, textColor: Color, has
             Text(
                 text = course.name,
                 fontWeight = FontWeight.Bold,
-                fontSize = 12.7.sp,
+                fontSize = courseNameFontSize,
                 lineHeight = courseNameLineHeight,
                 color = textColor,
                 textAlign = textAlign,

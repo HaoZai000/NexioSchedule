@@ -91,6 +91,7 @@ import com.haooz.chedule.ui.effects.edgelight.edgeLight
 import com.haooz.chedule.ui.effects.edgelight.rememberDefaultEdgeLight
 import com.haooz.chedule.ui.effects.liquidglass.InteractiveHighlight
 import com.haooz.chedule.ui.utils.isAppDarkTheme
+import com.haooz.chedule.ui.utils.overScrollVertical
 import com.kyant.backdrop.Backdrop
 import com.kyant.backdrop.drawBackdrop
 import com.kyant.backdrop.effects.blur
@@ -126,6 +127,7 @@ import top.yukonga.miuix.kmp.overlay.BlurBottomSheetTablet
 import top.yukonga.miuix.kmp.overlay.LocalSheetTopBarMaterial
 import top.yukonga.miuix.kmp.squircle.addSquircleRect
 import top.yukonga.miuix.kmp.theme.MiuixTheme
+import top.yukonga.miuix.kmp.utils.scrollEndHaptic
 import kotlin.math.absoluteValue
 import kotlin.math.roundToInt
 import kotlin.time.Duration.Companion.milliseconds
@@ -280,6 +282,10 @@ fun CustomizeScheduleScreen(
         currentCombinationIndex,
         sheetResetKey
     ) { mutableStateOf(appearance.cardTextColor) }
+    var cardTextScaleValue by remember(
+        currentCombinationIndex,
+        sheetResetKey
+    ) { mutableStateOf(appearance.cardTextScale) }
     var showClassroomValue by remember(currentCombinationIndex, sheetResetKey) {
         mutableStateOf(appearance.showClassroom)
     }
@@ -302,6 +308,7 @@ fun CustomizeScheduleScreen(
         showBreakDividers = showBreakDividersValue,
         cardContentAlignment = cardContentAlignmentValue,
         cardTextColor = cardTextColorValue,
+        cardTextScale = cardTextScaleValue,
         showClassroom = showClassroomValue,
         showTeacher = showTeacherValue,
         cardRefraction = cardRefractionValue
@@ -319,6 +326,7 @@ fun CustomizeScheduleScreen(
         onAppearanceChange(buildAppearance())
     }
     LaunchedEffect(cardTextColorValue) { onAppearanceChange(buildAppearance()) }
+    LaunchedEffect(cardTextScaleValue) { onAppearanceChange(buildAppearance()) }
     LaunchedEffect(showClassroomValue) { onAppearanceChange(buildAppearance()) }
     LaunchedEffect(showTeacherValue) { onAppearanceChange(buildAppearance()) }
     LaunchedEffect(cardRefractionValue) { onAppearanceChange(buildAppearance()) }
@@ -1369,7 +1377,7 @@ fun CustomizeScheduleScreen(
                                 valueRange = 0f..48f,
                                 keyPoints = listOf(10f),
                                 enabled = true,
-                                onValueChange = { cardCornerRadiusValue = it },
+                                onValueChange = { cardCornerRadiusValue = it.roundToInt().toFloat() },
                                 suffix = "dp",
                                 displayValue = { it.roundToInt().toString() },
                                 parseInput = { it.toFloatOrNull()?.coerceIn(0f, 48f) }
@@ -1413,6 +1421,17 @@ fun CustomizeScheduleScreen(
                                     ?: liquidGlassBackdrop,
                                 dropdownColors = liquidGlassDropdownColors,
                             )
+                            SliderItem(
+                                label = "卡片文字缩放比例",
+                                value = cardTextScaleValue,
+                                valueRange = 0.5f..2.0f,
+                                keyPoints = listOf(1.0f),
+                                enabled = true,
+                                onValueChange = { cardTextScaleValue = (it * 10f).roundToInt() / 10f },
+                                suffix = "x",
+                                displayValue = { "%.1f".format(it) },
+                                parseInput = { it.replace(',', '.').toFloatOrNull()?.coerceIn(0.5f, 2.0f) }
+                            )
                         }
                     }
                     // 卡片内容显示：地点、教师
@@ -1426,7 +1445,7 @@ fun CustomizeScheduleScreen(
                                 verticalAlignment = Alignment.CenterVertically
                             ) {
                                 Text(
-                                    text = "地点",
+                                    text = "显示地点",
                                     fontWeight = FontWeight.Medium,
                                     fontSize = 17.sp,
                                     color = MiuixTheme.colorScheme.onSurface
@@ -1444,7 +1463,7 @@ fun CustomizeScheduleScreen(
                                 verticalAlignment = Alignment.CenterVertically
                             ) {
                                 Text(
-                                    text = "教师",
+                                    text = "显示教师",
                                     fontWeight = FontWeight.Medium,
                                     fontSize = 17.sp,
                                     color = MiuixTheme.colorScheme.onSurface
@@ -1495,6 +1514,10 @@ fun CustomizeScheduleScreen(
                             modifier = Modifier
                                 .fillMaxWidth()
                                 .heightIn(max = 560.dp)
+                                .overScrollVertical()
+                                .scrollEndHaptic(
+                                    hapticFeedbackType = HapticFeedbackType.TextHandleMove
+                                )
                                 .verticalScroll(rememberScrollState()),
                             verticalArrangement = Arrangement.spacedBy(16.dp)
                         ) {
@@ -1516,6 +1539,10 @@ fun CustomizeScheduleScreen(
                             modifier = Modifier
                                 .fillMaxWidth()
                                 .heightIn(max = 560.dp)
+                                .overScrollVertical()
+                                .scrollEndHaptic(
+                                    hapticFeedbackType = HapticFeedbackType.TextHandleMove
+                                )
                                 .verticalScroll(rememberScrollState()),
                             verticalArrangement = Arrangement.spacedBy(16.dp)
                         ) {
@@ -1542,6 +1569,10 @@ fun CustomizeScheduleScreen(
                             modifier = Modifier
                                 .fillMaxWidth()
                                 .heightIn(max = 560.dp)
+                                .overScrollVertical()
+                                .scrollEndHaptic(
+                                    hapticFeedbackType = HapticFeedbackType.TextHandleMove
+                                )
                                 .verticalScroll(rememberScrollState()),
                             verticalArrangement = Arrangement.spacedBy(16.dp)
                         ) {
@@ -1563,6 +1594,10 @@ fun CustomizeScheduleScreen(
                             modifier = Modifier
                                 .fillMaxWidth()
                                 .heightIn(max = 560.dp)
+                                .overScrollVertical()
+                                .scrollEndHaptic(
+                                    hapticFeedbackType = HapticFeedbackType.TextHandleMove
+                                )
                                 .verticalScroll(rememberScrollState()),
                             verticalArrangement = Arrangement.spacedBy(16.dp)
                         ) {

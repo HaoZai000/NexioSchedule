@@ -20,6 +20,8 @@ data class Combination(
     var showBreakDividers: Boolean = true,
     var cardContentAlignment: CardContentAlignment = CardContentAlignment.CENTER_CENTER,
     var cardTextColor: CardTextColor = CardTextColor.COLORFUL,
+    // 卡片文字缩放比例：作用于课程名称、教室、教师，默认 1.0（0.5~2.0）
+    var cardTextScale: Float = 1f,
     var showClassroom: Boolean = true,
     var showTeacher: Boolean = true,
     // 卡片折射档位：关闭/较弱/默认/较强（需要壁纸才生效）

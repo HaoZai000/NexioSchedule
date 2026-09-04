@@ -288,6 +288,7 @@ class MainActivity : ComponentActivity() {
                                 currentIdValue
                             ),
                             cardTextColor = repo.getCombinationCardTextColor(currentIdValue),
+                            cardTextScale = repo.getCombinationCardTextScale(currentIdValue),
                             showClassroom = repo.getCombinationShowClassroom(currentIdValue),
                             showTeacher = repo.getCombinationShowTeacher(currentIdValue),
                             cardRefraction = repo.getCombinationCardRefraction(currentIdValue)
@@ -976,6 +977,7 @@ fun CourseScheduleApp() {
     fun applyAppearance(value: com.haooz.chedule.data.AppearanceConfig) {
         val idx = currentCombinationIndex
         if (idx in combinations.indices) {
+            android.util.Log.d("CardTextScale", "apply value=${value.cardTextScale}")
             combinations = combinations.toMutableList().also { list ->
                 list[idx] = list[idx].copy(
                     cardBlurRadius = value.cardBlurRadius,
@@ -986,6 +988,7 @@ fun CourseScheduleApp() {
                     showBreakDividers = value.showBreakDividers,
                     cardContentAlignment = value.cardContentAlignment,
                     cardTextColor = value.cardTextColor,
+                    cardTextScale = value.cardTextScale,
                     showClassroom = value.showClassroom,
                     showTeacher = value.showTeacher,
                     cardRefraction = value.cardRefraction
@@ -1026,6 +1029,7 @@ fun CourseScheduleApp() {
                     showBreakDividers = wallpaperRepository.getCombinationShowBreakDividers(id),
                     cardContentAlignment = wallpaperRepository.getCombinationCardContentAlignment(id),
                     cardTextColor = wallpaperRepository.getCombinationCardTextColor(id),
+                    cardTextScale = wallpaperRepository.getCombinationCardTextScale(id),
                     showClassroom = wallpaperRepository.getCombinationShowClassroom(id),
                     showTeacher = wallpaperRepository.getCombinationShowTeacher(id),
                     wallpaperIsLight = wallpaperRepository.getCombinationWallpaperIsLight(id)
@@ -1064,6 +1068,7 @@ fun CourseScheduleApp() {
                             id
                         ),
                         cardTextColor = wallpaperRepository.getCombinationCardTextColor(id),
+                        cardTextScale = wallpaperRepository.getCombinationCardTextScale(id),
                         showClassroom = wallpaperRepository.getCombinationShowClassroom(id),
                         showTeacher = wallpaperRepository.getCombinationShowTeacher(id),
                         cardRefraction = wallpaperRepository.getCombinationCardRefraction(id),
@@ -1653,6 +1658,10 @@ fun CourseScheduleApp() {
                 currentAppearance()
             }
         val isEntryAnimating = showSwitchSchedule && switchAnimForward && switchAnimRunning
+        android.util.Log.d(
+            "CardTextScale",
+            "displayAppearance scale=${displayAppearance.cardTextScale} showCustomize=$showCustomizePage cutout=$isWindowCutoutActive"
+        )
         val mainContentAlpha = when {
             showSwitchSchedule && switchScreenSnapshot != null -> 0f
             else -> 1f
@@ -2461,6 +2470,7 @@ fun CourseScheduleApp() {
                                 isTablet = isTablet,
                                 cardContentAlignment = displayAppearance.cardContentAlignment,
                                 cardTextColor = displayAppearance.cardTextColor,
+                                cardTextScale = displayAppearance.cardTextScale,
                                 showClassroom = displayAppearance.showClassroom,
                                 showTeacher = displayAppearance.showTeacher,
                                 disablePadding = true,
@@ -2684,6 +2694,10 @@ fun CourseScheduleApp() {
                         wallpaperRepository.saveCombinationCardTextColor(
                             combId,
                             appearanceToSave.cardTextColor
+                        )
+                        wallpaperRepository.saveCombinationCardTextScale(
+                            combId,
+                            appearanceToSave.cardTextScale
                         )
                         wallpaperRepository.saveCombinationShowClassroom(
                             combId,
