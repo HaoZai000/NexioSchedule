@@ -9,6 +9,7 @@ import androidx.compose.animation.core.spring
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.gestures.Orientation
+import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.gestures.draggable
 import androidx.compose.foundation.gestures.rememberDraggableState
 import androidx.compose.foundation.hoverable
@@ -194,6 +195,17 @@ fun Slider(
                                         isHoveringThumb = isOver
                                     }
                                 }
+                            }
+                        }
+                        // 点按轨道直接跳转到该位置：与拖动共用同一 fraction→value 映射，
+                        // 保证点按和拖动换算一致。快速点按（未超 touch slop）走这里，拖动走 draggable。
+                        .pointerInput(effectiveReverseDirection, valueRange) {
+                            detectTapGestures { offset ->
+                                val visualFraction = horizontalVisualFraction(offset.x, layoutWidth, layoutHeight)
+                                val fractionForValue =
+                                    if (effectiveReverseDirection) 1f - visualFraction else visualFraction
+                                onValueChangeState(fractionToValue(fractionForValue))
+                                onValueChangeFinishedState?.invoke()
                             }
                         }
                         .hoverable(

@@ -256,6 +256,11 @@ private class DrawBackdropNode(
         object : BackdropEffectScopeImpl() {
 
             override val shape: Shape get() = shapeProvider.innerShape
+
+            // 必须与节点实际采用的降采样比例一致：折射/模糊 shader 的像素 uniform
+            // 按此值缩放，若沿用固定 DOWNSAMPLE_SCALE 会在 n 变化时产生 SDF 尺寸偏差
+            //（折射区域小于实际卡片）。与 SharedBlurBackdrop 使用真实 n 的做法对齐。
+            override val downsampleScale: Float get() = this@DrawBackdropNode.downsampleScale
         }
 
     private var graphicsLayer: GraphicsLayer? = null

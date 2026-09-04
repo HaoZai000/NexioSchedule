@@ -80,7 +80,9 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.zIndex
+import com.haooz.chedule.data.AppearanceConfig
 import com.haooz.chedule.data.CardContentAlignment
+import com.haooz.chedule.data.CardRefractionLevel
 import com.haooz.chedule.data.CardTextColor
 import com.haooz.chedule.data.Combination
 import com.haooz.chedule.ui.basic.LiquidTopBarButton
@@ -158,24 +160,9 @@ fun CustomizeScheduleScreen(
     ),
     pendingEnterCutout: Boolean = false,
     onCutoutEntered: () -> Unit = {},
-    onEffectValueChange: (Float, Float) -> Unit = { _, _ -> },
-    initialCardBlurRadius: Float = 0f,
-    initialCardAlpha: Float = 0.15f,
-    onWallpaperBrightnessChange: (Float) -> Unit = {},
-    initialWallpaperBrightness: Float = 0f,
-    onCustomizeValueChange: (Float, Float) -> Unit = { _, _ -> },
-    initialCardHeight: Float = 54f,
-    initialCardCornerRadius: Float = 10f,
-    onShowBreakDividersChange: (Boolean) -> Unit = {},
-    initialShowBreakDividers: Boolean = true,
-    onCardContentAlignmentChange: (CardContentAlignment) -> Unit = {},
-    initialCardContentAlignment: CardContentAlignment = CardContentAlignment.CENTER_CENTER,
-    onCardTextColorChange: (CardTextColor) -> Unit = {},
-    initialCardTextColor: CardTextColor = CardTextColor.COLORFUL,
-    onShowClassroomChange: (Boolean) -> Unit = {},
-    initialShowClassroom: Boolean = true,
-    onShowTeacherChange: (Boolean) -> Unit = {},
-    initialShowTeacher: Boolean = true,
+    // 外观配置：编辑器以 AppearanceConfig 整体读写，避免逐字段回调散点
+    appearance: AppearanceConfig = AppearanceConfig(),
+    onAppearanceChange: (AppearanceConfig) -> Unit = {},
     hasWallpaper: Boolean = false,
 ) {
     // ================================================================
@@ -255,64 +242,86 @@ fun CustomizeScheduleScreen(
     // 效果参数：卡片模糊 / 卡片透明度（随当前搭配切换、随重置键复位）
     var effectValue by remember(currentCombinationIndex, sheetResetKey) {
         mutableFloatStateOf(
-            initialCardBlurRadius
+            appearance.cardBlurRadius
         )
     }
     var cardAlphaValue by remember(currentCombinationIndex, sheetResetKey) {
         mutableFloatStateOf(
-            initialCardAlpha
+            appearance.cardAlpha
         )
     }
     var wallpaperBrightnessValue by remember(
         currentCombinationIndex,
         sheetResetKey
-    ) { mutableFloatStateOf(initialWallpaperBrightness) }
-    LaunchedEffect(initialCardBlurRadius) { effectValue = initialCardBlurRadius }
-    LaunchedEffect(effectValue, cardAlphaValue) { onEffectValueChange(effectValue, cardAlphaValue) }
-    LaunchedEffect(wallpaperBrightnessValue) { onWallpaperBrightnessChange(wallpaperBrightnessValue) }
+    ) { mutableFloatStateOf(appearance.wallpaperBrightness) }
+    LaunchedEffect(appearance.cardBlurRadius) { effectValue = appearance.cardBlurRadius }
 
     // 自定义参数：卡片高度 / 卡片圆角（随当前搭配切换、随重置键复位）
     var cardHeightValue by remember(currentCombinationIndex, sheetResetKey) {
         mutableFloatStateOf(
-            initialCardHeight
+            appearance.cardHeight
         )
     }
     var cardCornerRadiusValue by remember(
         currentCombinationIndex,
         sheetResetKey
-    ) { mutableFloatStateOf(initialCardCornerRadius) }
+    ) { mutableFloatStateOf(appearance.cardCornerRadius) }
     var showBreakDividersValue by remember(currentCombinationIndex, sheetResetKey) {
         mutableStateOf(
-            initialShowBreakDividers
+            appearance.showBreakDividers
         )
     }
     var cardContentAlignmentValue by remember(
         currentCombinationIndex,
         sheetResetKey
-    ) { mutableStateOf(initialCardContentAlignment) }
-    LaunchedEffect(cardHeightValue, cardCornerRadiusValue) {
-        delay(16.milliseconds)
-        onCustomizeValueChange(cardHeightValue, cardCornerRadiusValue)
-    }
-    LaunchedEffect(showBreakDividersValue) { onShowBreakDividersChange(showBreakDividersValue) }
-    LaunchedEffect(cardContentAlignmentValue) {
-        onCardContentAlignmentChange(
-            cardContentAlignmentValue
-        )
-    }
+    ) { mutableStateOf(appearance.cardContentAlignment) }
+
     var cardTextColorValue by remember(
         currentCombinationIndex,
         sheetResetKey
-    ) { mutableStateOf(initialCardTextColor) }
-    LaunchedEffect(cardTextColorValue) { onCardTextColorChange(cardTextColorValue) }
+    ) { mutableStateOf(appearance.cardTextColor) }
     var showClassroomValue by remember(currentCombinationIndex, sheetResetKey) {
-        mutableStateOf(initialShowClassroom)
+        mutableStateOf(appearance.showClassroom)
     }
-    LaunchedEffect(showClassroomValue) { onShowClassroomChange(showClassroomValue) }
     var showTeacherValue by remember(currentCombinationIndex, sheetResetKey) {
-        mutableStateOf(initialShowTeacher)
+        mutableStateOf(appearance.showTeacher)
     }
-    LaunchedEffect(showTeacherValue) { onShowTeacherChange(showTeacherValue) }
+    var cardRefractionValue by remember(
+        currentCombinationIndex,
+        sheetResetKey
+    ) { mutableStateOf(appearance.cardRefraction) }
+    LaunchedEffect(appearance.cardRefraction) { cardRefractionValue = appearance.cardRefraction }
+
+    // 由本地显示值组装完整外观配置，作为唯一上报入口
+    fun buildAppearance() = AppearanceConfig(
+        cardBlurRadius = effectValue,
+        cardAlpha = cardAlphaValue,
+        cardHeight = cardHeightValue,
+        cardCornerRadius = cardCornerRadiusValue,
+        wallpaperBrightness = wallpaperBrightnessValue,
+        showBreakDividers = showBreakDividersValue,
+        cardContentAlignment = cardContentAlignmentValue,
+        cardTextColor = cardTextColorValue,
+        showClassroom = showClassroomValue,
+        showTeacher = showTeacherValue,
+        cardRefraction = cardRefractionValue
+    )
+    LaunchedEffect(effectValue, cardAlphaValue) { onAppearanceChange(buildAppearance()) }
+    LaunchedEffect(wallpaperBrightnessValue) { onAppearanceChange(buildAppearance()) }
+    LaunchedEffect(cardHeightValue, cardCornerRadiusValue) {
+        delay(16.milliseconds)
+        onAppearanceChange(buildAppearance())
+    }
+    LaunchedEffect(showBreakDividersValue) {
+        onAppearanceChange(buildAppearance())
+    }
+    LaunchedEffect(cardContentAlignmentValue) {
+        onAppearanceChange(buildAppearance())
+    }
+    LaunchedEffect(cardTextColorValue) { onAppearanceChange(buildAppearance()) }
+    LaunchedEffect(showClassroomValue) { onAppearanceChange(buildAppearance()) }
+    LaunchedEffect(showTeacherValue) { onAppearanceChange(buildAppearance()) }
+    LaunchedEffect(cardRefractionValue) { onAppearanceChange(buildAppearance()) }
 
     // --- 删除流程状态 ---
     // "自定义"按钮淡入淡出动画（进入编辑模式时淡出，退出时淡入）
@@ -1298,7 +1307,8 @@ fun CustomizeScheduleScreen(
                         keyPoints = listOf(0f),
                         enabled = hasWallpaper,
                         onValueChange = { if (hasWallpaper) wallpaperBrightnessValue = it },
-                        displayValue = { it.roundToInt().toString() },
+                        // 正值（往右滑）带 + 号显示，如 +12
+                        displayValue = { it.roundToInt().let { n -> if (n > 0) "+$n" else n.toString() } },
                         parseInput = { it.toFloatOrNull()?.coerceIn(-50f, 50f) }
                     )
                     // 课程卡片模糊 + 卡片不透明度：同一卡片内
@@ -1310,10 +1320,18 @@ fun CustomizeScheduleScreen(
                                 valueRange = 0f..20f,
                                 keyPoints = listOf(4f),
                                 enabled = hasWallpaper,
-                                onValueChange = { if (hasWallpaper) effectValue = it },
+                                // 整数吸附：模糊范围是 0~20 的整 dp，显示也用 roundToInt。
+                                // 否则放手会留下 0~1 间的随机小数（如 0.2dp），显示"0"却仍有一丝模糊。
+                                onValueChange = { if (hasWallpaper) effectValue = it.roundToInt().coerceIn(0, 20).toFloat() },
                                 suffix = "dp",
                                 displayValue = { it.roundToInt().toString() },
                                 parseInput = { it.toFloatOrNull()?.coerceIn(0f, 20f) }
+                            )
+                            // 卡片折射：4 个固定档位（关闭/较弱/默认/较强），需壁纸才生效
+                            RefractionItem(
+                                value = cardRefractionValue,
+                                enabled = hasWallpaper,
+                                onValueChange = { if (hasWallpaper) cardRefractionValue = it }
                             )
                             SliderItem(
                                 label = "卡片不透明度",
@@ -1659,6 +1677,66 @@ private fun SliderItem(
             showKeyPoints = true,
             keyPoints = keyPoints,
             magnetThreshold = 0.05f,
+            modifier = Modifier.fillMaxWidth(),
+            hapticEffect = SliderDefaults.SliderHapticEffect.Step,
+            enabled = enabled
+        )
+    }
+}
+
+// 固定 4 档位滑块项：标题 + 档位标签 + 步进 Slider（供卡片折射等离散档位复用）
+@Composable
+private fun RefractionItem(
+    value: CardRefractionLevel,
+    enabled: Boolean,
+    onValueChange: (CardRefractionLevel) -> Unit,
+) {
+    val levels = CardRefractionLevel.entries
+    val textColor = if (enabled) MiuixTheme.colorScheme.onSurface
+    else MiuixTheme.colorScheme.onSurface.copy(alpha = 0.4f)
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 14.dp, vertical = 15.dp)
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(start = 2.dp, end = 2.dp, bottom = 8.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Text(
+                text = "卡片折射",
+                fontWeight = FontWeight.Medium,
+                fontSize = 17.sp,
+                color = textColor,
+                modifier = Modifier.weight(1f)
+            )
+            if (enabled) {
+                Text(
+                    text = value.label,
+                    fontSize = 17.sp,
+                    fontWeight = FontWeight.Medium,
+                    color = textColor
+                )
+            } else {
+                Text(
+                    text = "需设置壁纸",
+                    fontSize = 14.sp,
+                    color = textColor
+                )
+            }
+        }
+        // 4 个固定档位：把枚举序映射为 0..3 的整数级，拖动时吸附到整级并触发步进触感
+        Slider(
+            value = value.ordinal.toFloat(),
+            onValueChange = { v ->
+                onValueChange(levels[v.roundToInt().coerceIn(0, levels.lastIndex)])
+            },
+            valueRange = 0f..levels.lastIndex.toFloat(),
+            showKeyPoints = true,
+            keyPoints = levels.indices.map { it.toFloat() },
+            magnetThreshold = 0.01f,
             modifier = Modifier.fillMaxWidth(),
             hapticEffect = SliderDefaults.SliderHapticEffect.Step,
             enabled = enabled

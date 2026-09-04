@@ -135,16 +135,7 @@ fun MainScheduleScreen(
     isWallpaperEditing: Boolean = false,
     onWallpaperOffsetChange: (androidx.compose.ui.geometry.Offset) -> Unit = {},
     onWallpaperScaleChange: (Float) -> Unit = {},
-    cardBlurRadius: Float = 0f,
-    cardAlpha: Float = 0.15f,
-    cardHeightPerSection: Float = 54f,
-    cardCornerRadius: Float = 10f,
-    wallpaperBrightness: Float = 0f,
-    showBreakDividers: Boolean = true,
-    cardContentAlignment: com.haooz.chedule.data.CardContentAlignment = com.haooz.chedule.data.CardContentAlignment.CENTER_CENTER,
-    cardTextColor: com.haooz.chedule.data.CardTextColor = com.haooz.chedule.data.CardTextColor.COLORFUL,
-    showClassroom: Boolean = true,
-    showTeacher: Boolean = true,
+    appearance: com.haooz.chedule.data.AppearanceConfig = com.haooz.chedule.data.AppearanceConfig(),
     liquidGlassBackdrop: com.kyant.backdrop.Backdrop? = null,
     // 拖拽落点高亮：Pair(dayOfWeek, sectionRange)，sectionRange 为落点覆盖的节次区间
     dropHighlight: Pair<Int, IntRange>? = null,
@@ -159,6 +150,19 @@ fun MainScheduleScreen(
     externalSelectedCourse: androidx.compose.runtime.MutableState<Course?> = mutableStateOf(null),
     externalSelectedCourses: androidx.compose.runtime.MutableState<List<Course>> = mutableStateOf(emptyList()),
 ) {
+    // 解构外观配置（接口按 AppearanceConfig 打包，内部仍按原字段使用）
+    val cardBlurRadius = appearance.cardBlurRadius
+    val cardAlpha = appearance.cardAlpha
+    val cardHeightPerSection = appearance.cardHeight
+    val cardCornerRadius = appearance.cardCornerRadius
+    val wallpaperBrightness = appearance.wallpaperBrightness
+    val showBreakDividers = appearance.showBreakDividers
+    val cardContentAlignment = appearance.cardContentAlignment
+    val cardTextColor = appearance.cardTextColor
+    val showClassroom = appearance.showClassroom
+    val showTeacher = appearance.showTeacher
+    val cardRefraction = appearance.cardRefraction
+
     val courses by viewModel.courses.collectAsState()
     val currentWeek by viewModel.currentWeek.collectAsState()
     val totalWeeks by viewModel.totalWeeks.collectAsState()
@@ -373,7 +377,7 @@ fun MainScheduleScreen(
                     .graphicsLayer { alpha = 0f }
                     .then(sharedBlurManager.preRenderModifier(
                         blurRadiusPx = with(density) { cardBlurRadius.dp.toPx() },
-                        downsampleScale = if (cardBlurRadius > 0f) 0.28f else 0.42f
+                        downsampleScale = 0.48f
                     ))
             )
         }
@@ -459,6 +463,7 @@ fun MainScheduleScreen(
                                 cardCornerRadius = cardCornerRadius,
                                 cardBlurRadius = cardBlurRadius,
                                 cardAlpha = cardAlpha,
+                                cardRefraction = cardRefraction,
                                 wallpaperBackdrop = if (wallpaperBitmap != null) {
                                     if (hasSharedBlur) sharedBlurManager else courseCardBackdrop
                                 } else null
@@ -585,6 +590,7 @@ fun MainScheduleScreen(
                                 cardTextColor = cardTextColor,
                                 showClassroom = showClassroom,
                                 showTeacher = showTeacher,
+                                cardRefraction = cardRefraction,
                                 draggingCourseIds = draggingCourseIds,
                                 onCourseLongPress = stableOnCourseLongPress,
                                 onCourseDragStart = onCourseDragStart,
@@ -664,8 +670,9 @@ fun MainScheduleScreen(
                     val dividerDensity = LocalDensity.current
                     // 与课程卡片一致的液态玻璃参数
                     val dividerBlurPx = with(dividerDensity) { remember(cardBlurRadius) { cardBlurRadius.dp.toPx() } }
-                    val dividerLensRadiusPx = with(dividerDensity) { remember { 4f.dp.toPx() } }
-                    val dividerLensStrengthPx = with(dividerDensity) { remember { 14f.dp.toPx() } }
+                    // 分界带折射档位跟随卡片折射：关闭时无透镜，其余档位按卡片映射取值
+                    val dividerLensRadiusPx = with(dividerDensity) { remember(cardRefraction) { (cardRefraction.lensRadiusDp * 0.67f).dp.toPx() } }
+                    val dividerLensStrengthPx = with(dividerDensity) { remember(cardRefraction) { (cardRefraction.lensStrengthDp * 1f).dp.toPx() } }
                     val hasWallpaperDivider = wallpaperBitmap != null
                     // 无壁纸时用纯色背景；有壁纸时底色透明，由 drawBackdrop 绘制玻璃层
                     val dividerBaseColor = if (hasWallpaperDivider) Color.Transparent else if (dividerIsDark) Color(0xFF121212) else Color(0xFFF0F0F0)
@@ -706,7 +713,7 @@ fun MainScheduleScreen(
                                             effects = dividerEffects,
                                             highlight = null,
                                             shadow = null,
-                                            downsampleScale = if (cardBlurRadius > 0f) 0.28f else 0.42f,
+                                            downsampleScale = 0.48f,
                                             onDrawSurface = {
                                                 drawRect(dividerFgGlass)
                                                 drawRect(dividerFgOverlay)

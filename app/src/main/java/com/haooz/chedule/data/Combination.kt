@@ -22,6 +22,8 @@ data class Combination(
     var cardTextColor: CardTextColor = CardTextColor.COLORFUL,
     var showClassroom: Boolean = true,
     var showTeacher: Boolean = true,
+    // 卡片折射档位：关闭/较弱/默认/较强（需要壁纸才生效）
+    var cardRefraction: CardRefractionLevel = CardRefractionLevel.DEFAULT,
     // 壁纸均匀测光结果：true=亮色壁纸，false=暗色壁纸，null=无壁纸/未测光
     var wallpaperIsLight: Boolean? = null
 )
@@ -34,6 +36,20 @@ enum class CardTextColor(val label: String) {
     companion object {
         fun fromOrdinal(ordinal: Int): CardTextColor {
             return entries.getOrElse(ordinal) { COLORFUL }
+        }
+    }
+}
+
+/** 卡片折射档位：控制课程卡片玻璃对壁纸的透镜折射强度（需要壁纸才生效） */
+enum class CardRefractionLevel(val label: String, val lensRadiusDp: Float, val lensStrengthDp: Float) {
+    OFF("关闭", 0f, 0f),
+    WEAK("较弱", 5f, 9f),
+    DEFAULT("默认", 6f, 14f),
+    STRONG("较强", 8f, 22f);
+
+    companion object {
+        fun fromOrdinal(ordinal: Int): CardRefractionLevel {
+            return entries.getOrElse(ordinal) { DEFAULT }
         }
     }
 }

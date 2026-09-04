@@ -309,11 +309,6 @@
                 </Group>
             </Group>
 
-            <!-- ＋N 更多 -->
-            <Text textExp="ifelse(gt(num(#today_count),2),'+'+(num(#today_count)-2)+' 节更多','')"
-                x="44" y="424" size="27" color="@subTextColor" alignV="center"
-                visibility="gt(num(#today_count),2)" />
-
             <!-- ═────── 空状态（本日/明日无课, 文案来自 /state） ═────── -->
             <Text textExp="@state_empty_text" x="#view_width/2" y="#view_height/2" size="37"
                 color="@subTextColor" align="center" alignV="center" visibility="le(num(#today_count),0)" />

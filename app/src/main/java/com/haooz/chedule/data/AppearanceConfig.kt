@@ -19,7 +19,8 @@ data class AppearanceConfig(
     val cardContentAlignment: CardContentAlignment = CardContentAlignment.CENTER_CENTER,
     val cardTextColor: CardTextColor = CardTextColor.COLORFUL,
     val showClassroom: Boolean = true,
-    val showTeacher: Boolean = true
+    val showTeacher: Boolean = true,
+    val cardRefraction: CardRefractionLevel = CardRefractionLevel.DEFAULT
 ) {
 
     companion object {
@@ -34,7 +35,8 @@ data class AppearanceConfig(
             cardContentAlignment = c.cardContentAlignment,
             cardTextColor = c.cardTextColor,
             showClassroom = c.showClassroom,
-            showTeacher = c.showTeacher
+            showTeacher = c.showTeacher,
+            cardRefraction = c.cardRefraction
         )
     }
 }

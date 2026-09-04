@@ -80,6 +80,7 @@ fun CourseCard(
     cardTextColor: com.haooz.chedule.data.CardTextColor = com.haooz.chedule.data.CardTextColor.COLORFUL,
     showClassroom: Boolean = true,
     showTeacher: Boolean = true,
+    cardRefraction: com.haooz.chedule.data.CardRefractionLevel = com.haooz.chedule.data.CardRefractionLevel.DEFAULT,
     isDragging: Boolean = false,
     disablePadding: Boolean = false,
     onClick: () -> Unit,
@@ -146,16 +147,18 @@ fun CourseCard(
             var layoutCoordinates by remember { mutableStateOf<androidx.compose.ui.layout.LayoutCoordinates?>(null) }
             val backdropShape = remember(effectiveCornerRadius) { ContinuousRoundedRectangle(effectiveCornerRadius.dp) }
             val blurPx = with(localDensity) { remember(cardBlurRadius) { cardBlurRadius.dp.toPx() } }
-            val lensRadiusPx = with(localDensity) { remember { 6f.dp.toPx() } }
-            val lensStrengthPx = with(localDensity) { remember { 14f.dp.toPx() } }
+            val lensRadiusPx = with(localDensity) { remember(cardRefraction) { cardRefraction.lensRadiusDp.dp.toPx() } }
+            val lensStrengthPx = with(localDensity) { remember(cardRefraction) { cardRefraction.lensStrengthDp.dp.toPx() } }
             val overlayColor = remember(isDark) { if (isDark) Color.Black.copy(alpha = 0.15f) else Color.White.copy(alpha = 0.17f) }
             val isSharedBlur = wallpaperBackdrop is SharedBlurBackdrop
-            val backdropEffects: com.kyant.backdrop.BackdropEffectScope.() -> Unit = remember(isSharedBlur, blurPx, lensRadiusPx, lensStrengthPx) {
+            val backdropEffects: com.kyant.backdrop.BackdropEffectScope.() -> Unit = remember(isSharedBlur, blurPx, lensRadiusPx, lensStrengthPx, cardRefraction) {
                 {
                     if (!isSharedBlur) {
                         blur(blurPx)
                     }
-                    lens(lensRadiusPx, lensStrengthPx)
+                    if (cardRefraction != com.haooz.chedule.data.CardRefractionLevel.OFF) {
+                        lens(lensRadiusPx, lensStrengthPx)
+                    }
                 }
             }
             LaunchedEffect(isPressed) {
@@ -194,8 +197,7 @@ fun CourseCard(
                         effects = backdropEffects,
                         highlight = null,
                         shadow = null,
-                        // 模糊不为0时用0.28降采样，为0时用0.42
-                        downsampleScale = if (cardBlurRadius > 0f) 0.28f else 0.42f,
+                        downsampleScale = 0.48f,
                         onDrawSurface = {
                             // 底色 + 反光覆盖层一并在此绘制，省去独立的 drawBehind 绘制节点
                             drawRect(cardColor)

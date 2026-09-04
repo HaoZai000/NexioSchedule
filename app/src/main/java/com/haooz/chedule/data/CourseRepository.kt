@@ -123,6 +123,7 @@ class CourseRepository private constructor(context: Context) {
         private const val KEY_COMBINATION_CARD_TEXT_COLOR_PREFIX = "comb_card_text_color_"
         private const val KEY_COMBINATION_SHOW_CLASSROOM_PREFIX = "comb_show_classroom_"
         private const val KEY_COMBINATION_SHOW_TEACHER_PREFIX = "comb_show_teacher_"
+        private const val KEY_COMBINATION_CARD_REFRACTION_PREFIX = "comb_card_refraction_"
         // 多时间配置支持
         private const val KEY_TIME_CONFIG_IDS = "time_config_ids"
         private const val KEY_CURRENT_TIME_CONFIG_ID = "current_time_config_id"
@@ -1899,6 +1900,15 @@ class CourseRepository private constructor(context: Context) {
     }
 
     fun getCombinationShowTeacher(id: Long): Boolean = prefs.getBoolean("${KEY_COMBINATION_SHOW_TEACHER_PREFIX}$id", true)
+
+    fun saveCombinationCardRefraction(id: Long, level: CardRefractionLevel) {
+        prefs.edit {
+            putInt("${KEY_COMBINATION_CARD_REFRACTION_PREFIX}$id", level.ordinal)
+        }
+    }
+
+    fun getCombinationCardRefraction(id: Long): CardRefractionLevel =
+        CardRefractionLevel.fromOrdinal(prefs.getInt("${KEY_COMBINATION_CARD_REFRACTION_PREFIX}$id", CardRefractionLevel.DEFAULT.ordinal))
 
     /** 迁移：如果只有旧的单搭配数据（无 combination_ids），将其作为 id=0 的搭配 */
     fun migrateToCombinationsIfNeeded() {

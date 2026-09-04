@@ -91,6 +91,7 @@ fun DayColumn(
     cardTextColor: com.haooz.chedule.data.CardTextColor = com.haooz.chedule.data.CardTextColor.COLORFUL,
     showClassroom: Boolean = true,
     showTeacher: Boolean = true,
+    cardRefraction: com.haooz.chedule.data.CardRefractionLevel = com.haooz.chedule.data.CardRefractionLevel.DEFAULT,
     draggingCourseIds: Set<String> = emptySet(),
     onCourseLongPress: (course: Course, cardLeft: Float, cardTop: Float, width: Float, height: Float, backdrop: Backdrop?, currentWeek: Int) -> Unit = { _, _, _, _, _, _, _ -> },
     onCourseDragStart: (courseId: String) -> Unit = { _ -> },
@@ -273,6 +274,7 @@ fun DayColumn(
                 cardTextColor = cardTextColor,
                 showClassroom = showClassroom,
                 showTeacher = showTeacher,
+                cardRefraction = cardRefraction,
                 wallpaperBackdrop = wallpaperBackdrop,
                 cardBlurRadius = cardBlurRadius,
                 draggingCourseIds = draggingCourseIds,
@@ -314,6 +316,7 @@ private fun CourseCardsLayer(
     cardTextColor: com.haooz.chedule.data.CardTextColor,
     showClassroom: Boolean,
     showTeacher: Boolean,
+    cardRefraction: com.haooz.chedule.data.CardRefractionLevel,
     wallpaperBackdrop: Backdrop?,
     cardBlurRadius: Float,
     draggingCourseIds: Set<String>,
@@ -423,6 +426,7 @@ private fun CourseCardsLayer(
                         cardTextColor = cardTextColor,
                         showClassroom = showClassroom,
                         showTeacher = showTeacher,
+                        cardRefraction = cardRefraction,
                         isDragging = isDragging,
                         onClick = {
                             onPendingChange(-1, -1)
@@ -460,6 +464,7 @@ private fun CourseCardsLayer(
                         cardTextColor = cardTextColor,
                         showClassroom = showClassroom,
                         showTeacher = showTeacher,
+                        cardRefraction = cardRefraction,
                         isDragging = isDragging,
                         onClick = {
                             onPendingChange(-1, -1)
@@ -708,6 +713,7 @@ fun SpecialBandOverlay(
     cardCornerRadius: Float,
     cardBlurRadius: Float,
     cardAlpha: Float,
+    cardRefraction: com.haooz.chedule.data.CardRefractionLevel = com.haooz.chedule.data.CardRefractionLevel.DEFAULT,
     wallpaperBackdrop: Backdrop?
 ) {
     val shownName = name.ifBlank { "特殊课程" }
@@ -725,19 +731,21 @@ fun SpecialBandOverlay(
             val edgeLightShape = remember(cardCornerRadius) { ContinuousRoundedRectangle(cardCornerRadius.dp) }
             val density = LocalDensity.current
             val blurPx = with(density) { remember(cardBlurRadius) { cardBlurRadius.dp.toPx() } }
-            val lensRadiusPx = with(density) { remember { 6f.dp.toPx() } }
-            val lensStrengthPx = with(density) { remember { 14f.dp.toPx() } }
+            val lensRadiusPx = with(density) { remember(cardRefraction) { cardRefraction.lensRadiusDp.dp.toPx() } }
+            val lensStrengthPx = with(density) { remember(cardRefraction) { cardRefraction.lensStrengthDp.dp.toPx() } }
             val overlayColor = remember(isDark, alphaFactor) {
                 if (isDark) Color.Black.copy(alpha = (0.15f * alphaFactor).coerceIn(0f, 1f))
                 else Color.White.copy(alpha = (0.17f * alphaFactor).coerceIn(0f, 1f))
             }
             val isSharedBlur = wallpaperBackdrop is SharedBlurBackdrop
-            val bandEffects: com.kyant.backdrop.BackdropEffectScope.() -> Unit = remember(isSharedBlur, blurPx, lensRadiusPx, lensStrengthPx) {
+            val bandEffects: com.kyant.backdrop.BackdropEffectScope.() -> Unit = remember(isSharedBlur, blurPx, lensRadiusPx, lensStrengthPx, cardRefraction) {
                 {
                     if (!isSharedBlur) {
                         blur(blurPx)
                     }
-                    lens(lensRadiusPx, lensStrengthPx)
+                    if (cardRefraction != com.haooz.chedule.data.CardRefractionLevel.OFF) {
+                        lens(lensRadiusPx, lensStrengthPx)
+                    }
                 }
             }
             Box(

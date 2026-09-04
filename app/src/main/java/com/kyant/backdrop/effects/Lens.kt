@@ -7,7 +7,6 @@ import androidx.compose.ui.unit.LayoutDirection
 import androidx.compose.ui.util.fastCoerceAtLeast
 import androidx.compose.ui.util.fastCoerceAtMost
 import com.kyant.backdrop.BackdropEffectScope
-import com.kyant.backdrop.DOWNSAMPLE_SCALE
 import com.kyant.backdrop.internal.RoundedRectRefractionShaderString
 import com.kyant.backdrop.internal.RoundedRectRefractionWithDispersionShaderString
 import com.kyant.backdrop.internal.RuntimeShaderEffect
@@ -44,7 +43,8 @@ fun BackdropEffectScope.lens(
                 }
             // 折射 shader 在降采样缓冲上执行，所有像素空间 uniform 需同步 ×scale，
             // 等比例缩放可保持 SDF 比例与折射位移在放大回原尺寸后与未降采样一致。
-            val scale = DOWNSAMPLE_SCALE
+            // scale 取当前缓冲的实际降采样比例（非固定常量），与 DrawBackdropNode 的 n 对齐。
+            val scale = this.downsampleScale
             shader.apply {
                 setFloatUniform("size", size.width * scale, size.height * scale)
                 setFloatUniform("offset", -padding * scale, -padding * scale)

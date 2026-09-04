@@ -319,11 +319,6 @@
                     visibility="eq(num(#course_is_now[1]),1)" />
             </Group>
 
-            <!-- ＋N 更多 -->
-            <Text textExp="ifelse(gt(num(#today_count),2),'+'+(num(#today_count)-2)+' 节更多','')"
-                x="18*#sx" y="150*#sy" size="10*#sx" color="@subTextColor" alignV="center"
-                visibility="gt(num(#today_count),2)" />
-
             <!-- ═────── 空状态（本日/明日无课, 文案来自 /state） ═────── -->
             <Text textExp="@state_empty_text" x="#view_width/2" y="#view_height/2+4*#sy" size="14*#sx"
                 color="@subTextColor" align="center" alignV="center" visibility="le(num(#today_count),0)" />
