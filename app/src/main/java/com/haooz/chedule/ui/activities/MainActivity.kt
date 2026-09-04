@@ -1895,6 +1895,7 @@ fun CourseScheduleApp() {
                                             wallpaperScale = if (showCustomizePage && !isWindowCutoutActive) originalWallpaperScale else wallpaperScale,
                                             wallpaperBrightness = displayAppearance.wallpaperBrightness,
                                             cardBlurRadius = displayAppearance.cardBlurRadius,
+                                            cardRefraction = displayAppearance.cardRefraction,
                                             liquidGlassBackdrop = liquidGlassBackdrop,
                                             externalListState = todayListState,
                                         )

@@ -3,6 +3,7 @@ package com.haooz.chedule.viewmodel
 import android.app.Application
 import androidx.lifecycle.AndroidViewModel
 import com.haooz.chedule.data.CourseRepository
+import com.haooz.chedule.reminder.CourseReminderHelper
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -100,6 +101,8 @@ class ScheduleViewModel(application: Application) : AndroidViewModel(application
             _currentScheduleName.value = names.first()
         }
         refreshScheduleList()
+        // 删除课表后重新调度提醒，取消已删除课程的闹钟
+        CourseReminderHelper.startReminderService(getApplication(), repository)
         return names
     }
 

@@ -56,6 +56,9 @@ import top.yukonga.miuix.kmp.overlay.OverlayDialog
 import com.haooz.chedule.ui.basic.SharedScrollBehavior
 import com.haooz.chedule.ui.effects.edgelight.edgeLight
 import com.haooz.chedule.ui.effects.edgelight.rememberCardEdgeLight
+import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.staticCompositionLocalOf
+import com.haooz.chedule.data.CardRefractionLevel
 import com.haooz.chedule.ui.effects.edgelight.rememberDefaultEdgeLight
 import com.haooz.chedule.ui.utils.isAppDarkTheme
 import com.haooz.chedule.ui.utils.overScrollVertical
@@ -93,6 +96,9 @@ import com.kyant.backdrop.backdrops.rememberLayerBackdrop as rememberKyantLayerB
  * @param darkAlpha 暗色模式底色透明度
  * @param showEdgeLight 是否显示高光描边
  */
+/** 今日页卡片折射档位（来自课表外观设置），由 BlurCard 统一应用到所有卡片 */
+val LocalCardRefraction = staticCompositionLocalOf { CardRefractionLevel.DEFAULT }
+
 @Composable
 fun BlurCard(
     cornerRadius: Dp = 20.dp,
@@ -106,6 +112,7 @@ fun BlurCard(
 ) {
     val hasBlur = blurRadius > 0f && wallpaperBackdrop != null
     val isDark = isAppDarkTheme()
+    val refraction = LocalCardRefraction.current
 
     if (hasBlur) {
         val shape = ContinuousRoundedRectangle(cornerRadius)
@@ -118,7 +125,9 @@ fun BlurCard(
                     shape = { ContinuousRoundedRectangle(cornerRadius) },
                     effects = {
                         blur(blurRadius.dp.toPx())
-                        lens(12f.dp.toPx(), 12f.dp.toPx())
+                        if (refraction != CardRefractionLevel.OFF) {
+                            lens(refraction.lensRadiusDp.dp.toPx(), refraction.lensStrengthDp.dp.toPx())
+                        }
                     },
                     highlight = null,
                     onDrawSurface = {
@@ -340,6 +349,7 @@ fun TodayScreen(
     wallpaperScale: Float = 1f,
     wallpaperBrightness: Float = 0f,
     cardBlurRadius: Float = 0f,
+    cardRefraction: CardRefractionLevel = CardRefractionLevel.DEFAULT,
     liquidGlassBackdrop: Backdrop? = null,
     // Activity 层提升的状态，return@Scaffold 不会销毁
     externalListState: androidx.compose.foundation.lazy.LazyListState = rememberLazyListState(),
@@ -429,6 +439,8 @@ fun TodayScreen(
     } else 16.dp
     val topBarHeightDp = with(density) { (settingsScrollBehavior?.currentHeightPx ?: 0f).toDp() }
 
+    val todayRefraction = cardRefraction
+    CompositionLocalProvider(LocalCardRefraction provides todayRefraction) {
     Scaffold(
         topBar = {}
     ) { paddingValues ->
@@ -638,8 +650,9 @@ fun TodayScreen(
                 }
             }
         }
+    }
 
-        // 日期选择弹窗
+    // 日期选择弹窗
         OverlayDialog(
             title = "跳转日期",
             show = showDatePicker,

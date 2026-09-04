@@ -246,7 +246,7 @@ fun AddCourseDialog(
             title = if (isEdit) "编辑课程" else "添加课程",
             dimBackground = true,
             onDismissRequest = onDismiss,
-            liquidGlassBackdrop = liquidGlassBackdrop,
+            liquidGlassBackdrop = null,
             onSheetContentBackdropCreated = { sheetContentBackdrop = it },
             startAction = {
                 val material = LocalSheetTopBarMaterial.current
@@ -335,7 +335,7 @@ fun AddCourseDialog(
     BlurBottomSheet(
         show = show,
         title = if (isEdit) "编辑课程" else "添加课程",
-        liquidGlassBackdrop = liquidGlassBackdrop,
+        liquidGlassBackdrop = null,
         dimBackground = true,
         sheetOffsetDp = statusBarsPadding + 5.dp,
         onDismissRequest = onDismiss,

@@ -689,7 +689,7 @@ fun AddEditCourseBottomSheet(
             title = if (isEditMode) "编辑课程" else "添加课程",
             dimBackground = true,
             onDismissRequest = onDismissRequest,
-            liquidGlassBackdrop = liquidGlassBackdrop,
+            liquidGlassBackdrop = null,
             onSheetContentBackdropCreated = { sheetContentBackdrop = it },
             startAction = startAction,
             endAction = endAction,
@@ -700,7 +700,7 @@ fun AddEditCourseBottomSheet(
         BlurBottomSheet(
             show = show,
             title = if (isEditMode) "编辑课程" else "添加课程",
-            liquidGlassBackdrop = liquidGlassBackdrop,
+            liquidGlassBackdrop = null,
             dimBackground = true,
             onDismissRequest = onDismissRequest,
             sheetOffsetDp = 100.dp,
