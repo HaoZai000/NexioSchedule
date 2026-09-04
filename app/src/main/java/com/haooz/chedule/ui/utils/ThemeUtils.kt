@@ -13,6 +13,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.ui.platform.LocalContext
+import com.haooz.chedule.data.ThemeMode
 
 /**
  * 壁纸强制深色模式覆盖：非 null 时，isAppDarkTheme() 直接返回该值，
@@ -51,6 +52,35 @@ fun rememberAppSettingDark(): Boolean {
         "light" -> false
         else -> isSystemInDarkTheme()
     }
+}
+
+/** 读取课表外观"默认主题"下拉的档位（跟随壁纸/跟随应用/浅色模式/深色模式），默认跟随壁纸。
+ *  仅决定今日页/课程表页的主题，与全局主题开关（theme_mode）相互隔离，不影响其它任何页面。 */
+@Composable
+fun rememberScheduleThemeMode(): ThemeMode {
+    val context = LocalContext.current
+    val prefs = remember { context.getSharedPreferences("app_theme_prefs", Context.MODE_PRIVATE) }
+    val themeMode = remember {
+        mutableStateOf(
+            ThemeMode.fromPrefsValue(prefs.getString(ThemeMode.SCHEDULE_THEME_MODE_KEY, "follow_wallpaper"))
+        )
+    }
+
+    DisposableEffect(prefs) {
+        val listener = SharedPreferences.OnSharedPreferenceChangeListener { _: SharedPreferences, key: String? ->
+            if (key == ThemeMode.SCHEDULE_THEME_MODE_KEY) {
+                themeMode.value = ThemeMode.fromPrefsValue(
+                    prefs.getString(ThemeMode.SCHEDULE_THEME_MODE_KEY, "follow_wallpaper")
+                )
+            }
+        }
+        prefs.registerOnSharedPreferenceChangeListener(listener)
+        onDispose {
+            prefs.unregisterOnSharedPreferenceChangeListener(listener)
+        }
+    }
+
+    return themeMode.value
 }
 
 fun Activity.applyThemeAwareSystemBars() {

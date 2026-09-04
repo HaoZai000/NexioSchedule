@@ -123,6 +123,8 @@ import com.haooz.chedule.ui.utils.applyNavigationBarIsDark
 import com.haooz.chedule.ui.utils.applyThemeAwareSystemBars
 import com.haooz.chedule.ui.utils.isAppDarkTheme
 import com.haooz.chedule.ui.utils.rememberAppSettingDark
+import com.haooz.chedule.ui.utils.rememberScheduleThemeMode
+import com.haooz.chedule.data.ThemeMode
 import com.haooz.chedule.viewmodel.CourseViewModel
 import com.haooz.chedule.viewmodel.ScheduleViewModel
 import com.haooz.chedule.viewmodel.SettingsViewModel
@@ -935,10 +937,20 @@ fun CourseScheduleApp() {
     val combIsLight = if (currentComb == null) initialCombWallpaperIsLight else currentCombIsLight
     val todayShowWallpaper = settingsViewModel.todayShowWallpaper.collectAsState().value
     val todayPageShowsWallpaper = selectedTab == 0 && todayShowWallpaper
+    // 默认主题(跟随壁纸/跟随应用/浅色模式/深色模式)：仅决定今日页与课程表页的主题来源，
+    // 使用独立偏好 key，与全局主题开关完全隔离，不影响其它任何页面。
+    val scheduleThemeMode = rememberScheduleThemeMode()
     val forcedDark = if (isShiftMode) null
     else if (selectedTab == 2) null
+    // 无壁纸时整个"默认主题"选项不生效，两页一律跟随应用（清除壁纸后可恢复）
+    else if (combIsLight == null) null
     else if (selectedTab == 1 || todayPageShowsWallpaper) {
-        if (combIsLight != null) !combIsLight else null
+        when (scheduleThemeMode) {
+            ThemeMode.FOLLOW_WALLPAPER -> !combIsLight
+            ThemeMode.FOLLOW_APP -> null
+            ThemeMode.LIGHT -> false
+            ThemeMode.DARK -> true
+        }
     } else null
     val effectiveIsDark = forcedDark ?: isDark
     val appSettingDark = rememberAppSettingDark()

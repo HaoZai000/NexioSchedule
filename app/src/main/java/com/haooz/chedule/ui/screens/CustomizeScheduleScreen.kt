@@ -70,6 +70,7 @@ import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalConfiguration
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.semantics.Role
@@ -85,6 +86,7 @@ import com.haooz.chedule.data.CardContentAlignment
 import com.haooz.chedule.data.CardRefractionLevel
 import com.haooz.chedule.data.CardTextColor
 import com.haooz.chedule.data.Combination
+import com.haooz.chedule.data.ThemeMode
 import com.haooz.chedule.ui.basic.LiquidTopBarButton
 import com.haooz.chedule.ui.basic.OverlayDropdownMenu
 import com.haooz.chedule.ui.effects.edgelight.edgeLight
@@ -301,6 +303,22 @@ fun CustomizeScheduleScreen(
         currentCombinationIndex,
         sheetResetKey
     ) { mutableStateOf(appearance.wallpaperBlur) }
+
+    // 默认主题：从 SharedPreferences 读取，写回时同步更新 ThemeController
+    val context = LocalContext.current
+    val themePrefs = remember { context.getSharedPreferences("app_theme_prefs", android.content.Context.MODE_PRIVATE) }
+    var themeModeValue by remember(currentCombinationIndex, sheetResetKey) {
+        // 默认跟随壁纸；独立偏好 key，仅影响今日页/课程表页，不污染全局主题（theme_mode）
+        mutableStateOf(ThemeMode.fromPrefsValue(themePrefs.getString(ThemeMode.SCHEDULE_THEME_MODE_KEY, "follow_wallpaper")))
+    }
+
+    // 清除壁纸后：已储存的默认主题档位重置为"跟随壁纸"（默认），无壁纸时该选项本身不影响主题
+    LaunchedEffect(hasWallpaper) {
+        if (!hasWallpaper && themeModeValue != ThemeMode.FOLLOW_WALLPAPER) {
+            themeModeValue = ThemeMode.FOLLOW_WALLPAPER
+            themePrefs.edit().putString(ThemeMode.SCHEDULE_THEME_MODE_KEY, ThemeMode.FOLLOW_WALLPAPER.prefsValue).apply()
+        }
+    }
 
     // 由本地显示值组装完整外观配置，作为唯一上报入口
     fun buildAppearance() = AppearanceConfig(
@@ -1311,39 +1329,72 @@ fun CustomizeScheduleScreen(
                         shadowAlpha = material.shadowAlpha,
                     )
                 }
-                // 效果弹窗内容：壁纸亮度置顶；课程卡片模糊 + 卡片不透明度放入同一卡片
+                // 效果弹窗内容：默认主题 + 壁纸亮度 + 壁纸模糊合并同一卡片；课程卡片模糊 + 卡片不透明度放入同一卡片
                 val effectSheetContent: @Composable () -> Unit = {
-                    // 壁纸亮度置顶
-                    SliderCard(
-                        label = "壁纸亮度",
-                        value = wallpaperBrightnessValue,
-                        valueRange = -50f..50f,
-                        keyPoints = listOf(0f),
-                        enabled = hasWallpaper,
-                        onValueChange = { if (hasWallpaper) wallpaperBrightnessValue = it },
-                        // 正值（往右滑）带 + 号显示，如 +12
-                        displayValue = { it.roundToInt().let { n -> if (n > 0) "+$n" else n.toString() } },
-                        parseInput = { it.toFloatOrNull()?.coerceIn(-50f, 50f) }
-                    )
-                    // 壁纸模糊开关
+                    // 默认主题选择
                     SheetCard {
-                        Row(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(horizontal = 16.dp, vertical = 12.dp),
-                            horizontalArrangement = Arrangement.SpaceBetween,
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            Text(
-                                text = "壁纸模糊",
-                                fontWeight = FontWeight.Medium,
-                                fontSize = 17.sp,
-                                color = MiuixTheme.colorScheme.onSurface
+                        // 默认主题选择：无壁纸时整个选项禁用，文案固定显示"跟随应用"（此时该选项不生效，两页跟随应用）
+                        val themeModeEntry = if (hasWallpaper) {
+                            DropdownEntry(
+                                items = ThemeMode.entries.map { mode ->
+                                    DropdownItem(
+                                        text = mode.label,
+                                        selected = themeModeValue == mode,
+                                        onClick = {
+                                            themeModeValue = mode
+                                            themePrefs.edit().putString(ThemeMode.SCHEDULE_THEME_MODE_KEY, mode.prefsValue).apply()
+                                        }
+                                    )
+                                }
                             )
-                            Switch(
-                                checked = wallpaperBlurValue,
-                                onCheckedChange = { wallpaperBlurValue = it }
+                        } else {
+                            DropdownEntry(
+                                items = listOf(DropdownItem(text = "跟随应用", selected = true, onClick = {}))
                             )
+                        }
+                        OverlayDropdownMenu(
+                            title = "默认主题",
+                            entry = themeModeEntry,
+                            collapseOnSelection = true,
+                            enabled = hasWallpaper,
+                            liquidGlassBackdrop = sheetContentBackdrop
+                                ?: liquidGlassBackdrop,
+                            dropdownColors = liquidGlassDropdownColors,
+                        )
+                    }
+                    // 壁纸亮度 + 壁纸模糊：同一卡片内
+                    SheetCard {
+                        Column {
+                            SliderItem(
+                                label = "壁纸亮度",
+                                value = wallpaperBrightnessValue,
+                                valueRange = -50f..50f,
+                                keyPoints = listOf(0f),
+                                enabled = hasWallpaper,
+                                onValueChange = { if (hasWallpaper) wallpaperBrightnessValue = it },
+                                displayValue = { it.roundToInt().let { n -> if (n > 0) "+$n" else n.toString() } },
+                                parseInput = { it.toFloatOrNull()?.coerceIn(-50f, 50f) }
+                            )
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(horizontal = 16.dp, vertical = 12.dp),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Text(
+                                    text = "壁纸模糊",
+                                    fontWeight = FontWeight.Medium,
+                                    fontSize = 17.sp,
+                                    color = if (hasWallpaper) MiuixTheme.colorScheme.onSurface
+                                    else MiuixTheme.colorScheme.onSurface.copy(alpha = 0.4f)
+                                )
+                                Switch(
+                                    checked = wallpaperBlurValue && hasWallpaper,
+                                    enabled = hasWallpaper,
+                                    onCheckedChange = { if (hasWallpaper) wallpaperBlurValue = it }
+                                )
+                            }
                         }
                     }
                     // 课程卡片模糊 + 卡片不透明度：同一卡片内
@@ -1540,7 +1591,7 @@ fun CustomizeScheduleScreen(
                         Column(
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .heightIn(max = 560.dp)
+                                .heightIn(max = 580.dp)
                                 .overScrollVertical()
                                 .scrollEndHaptic(
                                     hapticFeedbackType = HapticFeedbackType.TextHandleMove
@@ -1565,7 +1616,7 @@ fun CustomizeScheduleScreen(
                         Column(
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .heightIn(max = 560.dp)
+                                .heightIn(max = 580.dp)
                                 .overScrollVertical()
                                 .scrollEndHaptic(
                                     hapticFeedbackType = HapticFeedbackType.TextHandleMove
@@ -1595,7 +1646,7 @@ fun CustomizeScheduleScreen(
                         Column(
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .heightIn(max = 560.dp)
+                                .heightIn(max = 580.dp)
                                 .overScrollVertical()
                                 .scrollEndHaptic(
                                     hapticFeedbackType = HapticFeedbackType.TextHandleMove
@@ -1620,7 +1671,7 @@ fun CustomizeScheduleScreen(
                         Column(
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .heightIn(max = 560.dp)
+                                .heightIn(max = 580.dp)
                                 .overScrollVertical()
                                 .scrollEndHaptic(
                                     hapticFeedbackType = HapticFeedbackType.TextHandleMove
