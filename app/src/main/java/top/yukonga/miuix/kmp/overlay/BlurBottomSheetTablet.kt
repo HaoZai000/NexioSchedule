@@ -16,6 +16,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.fillMaxHeight as fillMaxHeightModifier
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.wrapContentHeight
@@ -93,6 +94,7 @@ import top.yukonga.miuix.kmp.utils.MiuixPopupUtils.Companion.DialogLayout
 fun BlurBottomSheetTablet(
     show: Boolean,
     title: String,
+    fillMaxHeight: Boolean = false,
     blurRadius: Float = 24f,
     dimBackground: Boolean = false,
     sheetMaxWidth: Dp = 560.dp,
@@ -159,6 +161,7 @@ fun BlurBottomSheetTablet(
 private fun BlurBottomSheetTabletContent(
     show: Boolean,
     visibleState: MutableState<Boolean>,
+    fillMaxHeight: Boolean = false,
     title: String,
     dimBackground: Boolean = false,
     sheetMaxWidth: Dp = 560.dp,
@@ -241,6 +244,7 @@ private fun BlurBottomSheetTabletContent(
                 .width(sheetMaxWidth)
                 .fillMaxWidth()
                 .heightIn(max = if (sheetMaxHeight != Dp.Unspecified) sheetMaxHeight else windowInfo.containerDpSize.height * 0.8f)
+                .then(if (fillMaxHeight) Modifier.fillMaxHeightModifier() else Modifier)
                 .then(if (isBottomAligned) Modifier.padding(bottom = 20.dp) else Modifier)
                 .onGloballyPositioned { coordinates ->
                     val newHeight = coordinates.size.height

@@ -2,8 +2,13 @@
 package com.haooz.chedule.ui.screens
 
 import android.annotation.SuppressLint
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.EnterTransition
+import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.slideInVertically
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.detectTapGestures
@@ -58,6 +63,7 @@ import com.haooz.chedule.ui.utils.isAppDarkTheme
 import com.haooz.chedule.ui.utils.overScrollVertical
 import com.haooz.chedule.ui.utils.rememberAppSettingDark
 import com.kyant.backdrop.Backdrop
+import kotlinx.coroutines.delay
 import top.yukonga.miuix.kmp.basic.Button
 import top.yukonga.miuix.kmp.basic.ButtonDefaults
 import top.yukonga.miuix.kmp.basic.Card
@@ -86,6 +92,14 @@ import top.yukonga.miuix.kmp.theme.ThemeController
 import top.yukonga.miuix.kmp.utils.scrollEndHaptic
 import java.util.UUID
 
+/**
+ * 内容区分组数（基本信息 / 星期 / 节次 / 周次网格 / 颜色 / 删除），用于逐组错落揭示。
+ */
+private const val REVEAL_GROUP_COUNT = 6
+
+/** 每组之间的揭示间隔（毫秒），总时长 ≈ 该值 × (REVEAL_GROUP_COUNT-1)。 */
+private const val REVEAL_STEP_MS = 60L
+
 @SuppressLint("ConfigurationScreenWidthHeight")
 @Composable
 fun AddCourseDialog(
@@ -113,6 +127,23 @@ fun AddCourseDialog(
         ThemeController(if (appDialogDark) ColorSchemeMode.Dark else ColorSchemeMode.Light)
     }
     var sheetContentBackdrop by remember { mutableStateOf<Backdrop?>(null) }
+
+    // 逐组揭示：打开弹窗时从 0 递增，让各卡片分批进入组合树。
+    // 关键：AnimatedVisibility(visible=false) 不会合成其内容，因此周次/颜色等重卡
+    // 被延迟到后续若干帧才真正创建，首帧仅合成顶部轻卡，避免一次性合成导致掉帧。
+    // 同时形成自上而下错落入场的动画效果。
+    // 初始 -1：让序号 0 的卡片也走 hidden→淡入 的入场，而非一开始就显示
+    var revealStep by remember(show) { mutableIntStateOf(-1) }
+    LaunchedEffect(show) {
+        if (!show) return@LaunchedEffect
+        // 整体延迟一档（120ms）再开始，避免与底部弹窗升起动画抢同一帧；
+        // 之后每张卡片依次延迟一档错落出场。
+        delay(240)
+        for (step in 0 until REVEAL_GROUP_COUNT) {
+            revealStep = step
+            delay(REVEAL_STEP_MS)
+        }
+    }
 
     var name by remember(show) { mutableStateOf(course?.name ?: "") }
     var classroom by remember(show) { mutableStateOf(course?.classroom ?: "") }
@@ -245,6 +276,7 @@ fun AddCourseDialog(
             show = show,
             title = if (isEdit) "编辑课程" else "添加课程",
             dimBackground = true,
+            fillMaxHeight = true,
             onDismissRequest = onDismiss,
             liquidGlassBackdrop = null,
             onSheetContentBackdropCreated = { sheetContentBackdrop = it },
@@ -329,6 +361,7 @@ fun AddCourseDialog(
                     showTimeDialog = true
                 },
                 onDeleteClick = { showDeleteDialog = true },
+                revealStep = revealStep,
             )
         }
     } else {
@@ -337,6 +370,7 @@ fun AddCourseDialog(
         title = if (isEdit) "编辑课程" else "添加课程",
         liquidGlassBackdrop = null,
         dimBackground = true,
+        fillMaxHeight = true,
         sheetOffsetDp = statusBarsPadding + 5.dp,
         onDismissRequest = onDismiss,
         onSheetContentBackdropCreated = { sheetContentBackdrop = it },
@@ -421,6 +455,7 @@ fun AddCourseDialog(
                 showTimeDialog = true
             },
             onDeleteClick = { showDeleteDialog = true },
+            revealStep = revealStep,
         )
     }
     } // end of if (isTablet) else
@@ -689,6 +724,7 @@ fun AddCourseDialog(
 private fun AddCourseDialogContent(
     isEdit: Boolean,
     isDark: Boolean,
+    revealStep: Int,
     name: String,
     onNameChange: (String) -> Unit,
     classroom: String,
@@ -741,6 +777,16 @@ private fun AddCourseDialogContent(
     val stableOnShowColorDialog = remember { onShowColorDialog }
     val stableOnDeleteClick = remember { onDeleteClick }
 
+    // 逐组入场的动画：淡入 + 极轻微上移。位移刻意很小、缓动平滑无回弹，
+    fun revealFor(index: Int): EnterTransition {
+        val dur = 150 + index * 12
+        return fadeIn(tween(dur)) +
+            slideInVertically(
+                animationSpec = tween(dur, easing = FastOutSlowInEasing),
+                initialOffsetY = { it / 12 }
+            )
+    }
+
     Column(
         modifier = Modifier
             .fillMaxWidth()
@@ -755,84 +801,96 @@ private fun AddCourseDialogContent(
         Spacer(modifier = Modifier.height(if (isTablet) 56.dp else 58.dp))
 
         // 基本信息卡片
-        BasicInfoCard(
-            isDark = isDark,
-            name = name,
-            onNameChange = onNameChange,
-            classroom = classroom,
-            onClassroomChange = onClassroomChange,
-            teacher = teacher,
-            onTeacherChange = onTeacherChange,
-        )
+        AnimatedVisibility(visible = revealStep >= 0, enter = revealFor(0)) {
+            BasicInfoCard(
+                isDark = isDark,
+                name = name,
+                onNameChange = onNameChange,
+                classroom = classroom,
+                onClassroomChange = onClassroomChange,
+                teacher = teacher,
+                onTeacherChange = onTeacherChange,
+            )
+        }
 
         // 上课星期卡片
-        WeekdayCard(
-            isDark = isDark,
-            isCustomTime = isCustomTime,
-            onIsCustomTimeChange = stableOnIsCustomTimeChange,
-            dayOfWeek = dayOfWeek,
-            onDayOfWeekChange = stableOnDayOfWeekChange,
-        )
+        AnimatedVisibility(visible = revealStep >= 1, enter = revealFor(1)) {
+            WeekdayCard(
+                isDark = isDark,
+                isCustomTime = isCustomTime,
+                onIsCustomTimeChange = stableOnIsCustomTimeChange,
+                dayOfWeek = dayOfWeek,
+                onDayOfWeekChange = stableOnDayOfWeekChange,
+            )
+        }
 
         // 节次范围 / 上课时间（勾选自定义时间后切换为时间选择）
-        SectionTimeCard(
-            isDark = isDark,
-            isCustomTime = isCustomTime,
-            customStartTime = customStartTime,
-            customEndTime = customEndTime,
-            onShowTimeDialog = stableOnShowTimeDialog,
-            startSection = startSection,
-            endSection = endSection,
-            onShowSectionDialog = stableOnShowSectionDialog,
-        )
+        AnimatedVisibility(visible = revealStep >= 2, enter = revealFor(2)) {
+            SectionTimeCard(
+                isDark = isDark,
+                isCustomTime = isCustomTime,
+                customStartTime = customStartTime,
+                customEndTime = customEndTime,
+                onShowTimeDialog = stableOnShowTimeDialog,
+                startSection = startSection,
+                endSection = endSection,
+                onShowSectionDialog = stableOnShowSectionDialog,
+            )
+        }
 
         // 周次设置
-        WeekSettingCard(
-            isDark = isDark,
-            dayOfWeek = dayOfWeek,
-            onIsSingleWeekChange = stableOnIsSingleWeekChange,
-            onIsDoubleWeekChange = stableOnIsDoubleWeekChange,
-            selectedWeeks = selectedWeeks,
-            selectableWeeks = selectableWeeks,
-            selectableOddWeeks = selectableOddWeeks,
-            selectableEvenWeeks = selectableEvenWeeks,
-            allSelectableSelected = allSelectableSelected,
-            allSelectableOddSelected = allSelectableOddSelected,
-            allSelectableEvenSelected = allSelectableEvenSelected,
-            someSelectableOddSelected = someSelectableOddSelected,
-            someSelectableEvenSelected = someSelectableEvenSelected,
-            hasOccupiedOddWeeks = hasOccupiedOddWeeks,
-            hasOccupiedEvenWeeks = hasOccupiedEvenWeeks,
-            currentOccupiedWeeks = currentOccupiedWeeks,
-            totalWeeks = totalWeeks,
-        )
+        AnimatedVisibility(visible = revealStep >= 3, enter = revealFor(3)) {
+            WeekSettingCard(
+                isDark = isDark,
+                dayOfWeek = dayOfWeek,
+                onIsSingleWeekChange = stableOnIsSingleWeekChange,
+                onIsDoubleWeekChange = stableOnIsDoubleWeekChange,
+                selectedWeeks = selectedWeeks,
+                selectableWeeks = selectableWeeks,
+                selectableOddWeeks = selectableOddWeeks,
+                selectableEvenWeeks = selectableEvenWeeks,
+                allSelectableSelected = allSelectableSelected,
+                allSelectableOddSelected = allSelectableOddSelected,
+                allSelectableEvenSelected = allSelectableEvenSelected,
+                someSelectableOddSelected = someSelectableOddSelected,
+                someSelectableEvenSelected = someSelectableEvenSelected,
+                hasOccupiedOddWeeks = hasOccupiedOddWeeks,
+                hasOccupiedEvenWeeks = hasOccupiedEvenWeeks,
+                currentOccupiedWeeks = currentOccupiedWeeks,
+                totalWeeks = totalWeeks,
+            )
+        }
 
         // 课程颜色选择
-        ColorCard(
-            isDark = isDark,
-            selectedColor = selectedColor,
-            onSelectedColorChange = stableOnSelectedColorChange,
-            onShowColorDialog = stableOnShowColorDialog,
-        )
+        AnimatedVisibility(visible = revealStep >= 4, enter = revealFor(4)) {
+            ColorCard(
+                isDark = isDark,
+                selectedColor = selectedColor,
+                onSelectedColorChange = stableOnSelectedColorChange,
+                onShowColorDialog = stableOnShowColorDialog,
+            )
+        }
 
         // 删除按钮（仅编辑模式）
-        if (isEdit) {
-            Button(
-                modifier = Modifier.fillMaxWidth().height(50.dp),
-                onClick = {
-                    hapticFeedback.performHapticFeedback(HapticFeedbackType.Confirm)
-                    stableOnDeleteClick()
-                },
-                colors = ButtonDefaults.buttonColors(),
-            ) {
-                Icon(
-                    imageVector = MiuixIcons.Delete,
-                    contentDescription = null,
-                    modifier = Modifier.size(20.dp),
-                    tint = Color(0xFFF44336)
-                )
-                Spacer(modifier = Modifier.width(4.dp))
-                Text("删除", fontSize = 17.sp, fontWeight = FontWeight.Medium, color = Color(0xFFF44336))
+        AnimatedVisibility(visible = revealStep >= 5, enter = revealFor(5)) {
+            if (isEdit) {
+                Button(
+                    modifier = Modifier.fillMaxWidth().height(50.dp),
+                    onClick = {
+                        hapticFeedback.performHapticFeedback(HapticFeedbackType.Confirm)
+                        stableOnDeleteClick()
+                    },
+                    colors = ButtonDefaults.buttonColors(),
+                ) {
+                    Icon(
+                        imageVector = MiuixIcons.Delete,
+                        contentDescription = null,
+                        modifier = Modifier.size(20.dp),
+                        tint = Color(0xFFF44336)
+                    )
+                    Spacer(modifier = Modifier.width(4.dp))
+                    Text("删除", fontSize = 17.sp, fontWeight = FontWeight.Medium, color = Color(0xFFF44336))
+                }
             }
         }
         val configuration = LocalConfiguration.current

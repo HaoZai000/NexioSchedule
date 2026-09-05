@@ -23,6 +23,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.ime
 import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.offset
@@ -117,6 +118,7 @@ val LocalSheetTopBarMaterial = compositionLocalOf { SheetTopBarMaterial(1f, 1f) 
 fun BlurBottomSheet(
     show: Boolean,
     title: String,
+    fillMaxHeight: Boolean = false,
     liquidGlassBackdrop: Backdrop? = null,
     blurRadius: Float = 24f,
     dimBackground: Boolean = false,
@@ -173,6 +175,7 @@ fun BlurBottomSheet(
             sheetContentBackdropHolder = sheetContentBackdropHolder,
             sheetOffsetDp = sheetOffsetDp,
             sheetMaxWidth = sheetMaxWidth,
+            fillMaxHeight = fillMaxHeight,
             skipEnterAnimation = skipEnterAnimation,
             content = content,
         )
@@ -183,6 +186,7 @@ fun BlurBottomSheet(
 private fun BlurBottomSheetContent(
     show: Boolean,
     visibleState: MutableState<Boolean>,
+    fillMaxHeight: Boolean = false,
     title: String,
     liquidGlassBackdrop: Backdrop?,
     blurRadius: Float,
@@ -279,6 +283,7 @@ private fun BlurBottomSheetContent(
                     else Modifier.fillMaxWidth()
                 )
                 .heightIn(max = windowInfo.containerDpSize.height)
+                .then(if (fillMaxHeight) Modifier.fillMaxHeight() else Modifier)
                 .onGloballyPositioned { coordinates ->
                     if (imeInsets.getBottom(density) == 0) {
                         val newHeight = coordinates.size.height
