@@ -52,6 +52,7 @@ import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.layout.layout
 import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.layout.positionInRoot
 import androidx.compose.ui.platform.LocalConfiguration
@@ -94,6 +95,7 @@ import top.yukonga.miuix.kmp.utils.PressFeedbackType
 import top.yukonga.miuix.kmp.utils.scrollEndHaptic
 import java.time.LocalDate
 import java.util.Calendar
+import kotlin.math.roundToInt
 import kotlin.time.Duration.Companion.milliseconds
 import com.kyant.backdrop.backdrops.layerBackdrop as kyantLayerBackdrop
 import com.kyant.backdrop.backdrops.rememberLayerBackdrop as rememberKyantLayerBackdrop
@@ -186,7 +188,9 @@ fun MainScheduleScreen(
     val screenWidthPx = with(density) { configuration.screenWidthDp.dp.toPx() }
     val screenHeightPx = with(density) { configuration.screenHeightDp.dp.toPx() }
     val scrollState = externalScrollState
-    val topBarHeightDp = with(density) { (scheduleScrollBehavior?.currentHeightPx ?: 0f).toDp() }
+    // 横向翻页/纵向滚动进行中标记：用于跳过滑动期间的网格几何逐帧上报
+    val isGridScrolling = pagerState.isScrollInProgress || scrollState.isScrollInProgress
+    val scaffoldTopPadding = paddingValues.calculateTopPadding()
 
     // 计算壁纸最小缩放比例（填满短边，确保不露出底部背景）
     // ContentScale.Fit 的基础缩放 = min(screenW/bitmapW, screenH/bitmapH)
@@ -446,15 +450,28 @@ fun MainScheduleScreen(
                         hapticFeedbackType = HapticFeedbackType.TextHandleMove
                     )
                     .verticalScroll(scrollState)
-                    .padding(
-                        top = paddingValues.calculateTopPadding() + topBarHeightDp - 78.dp,
-                        bottom = 140.dp
-                    )
+                    // 布局阶段读取顶栏高度：顶栏折叠动画逐帧变化时只触发本节点重新测量/摆放，
+                    // 避免在组合期读取 currentHeightPx 导致整个课程表页面逐帧重组。
+                    // 滚动内容高度约束为无限，子树约束恒定，折叠期间子树不会重复测量。
+                    .layout { measurable, constraints ->
+                        val topPad = ((scheduleScrollBehavior?.currentHeightPx ?: 0f).roundToInt()
+                                + scaffoldTopPadding.roundToPx() - 78.dp.roundToPx()).coerceAtLeast(0)
+                        val bottomPad = 140.dp.roundToPx()
+                        val placeable = measurable.measure(constraints)
+                        layout(placeable.width, placeable.height + topPad + bottomPad) {
+                            placeable.place(0, topPad)
+                        }
+                    }
             ) {
                 Box(modifier = Modifier.fillMaxWidth()) {
                     // 收集每列在 root 中的 x 区间与顶部 y，供拖拽落点检测使用
                     val dayBoundsArray = remember { arrayOfNulls<FloatArray>(8) }
                     var lastDayBoundsVersion by remember { mutableIntStateOf(0) }
+                    val scrollingState = rememberUpdatedState(isGridScrolling)
+                    // 滑动结束后冲刷一次几何信息（滑动过程中的逐帧坐标变化已跳过上报）
+                    LaunchedEffect(isGridScrolling) {
+                        if (!isGridScrolling) lastDayBoundsVersion++
+                    }
                     // 特殊课程：横贯整个课表的横色带（覆盖周一到周日所有星期列）。
                     // 作为 Row 下层的背景条带，起止时间由左侧时间列（SectionColumn）标注。
                     specialGrid.specialBands.forEach { band ->
@@ -618,11 +635,18 @@ fun MainScheduleScreen(
                                     .onGloballyPositioned { coordinates ->
                                         val pos = coordinates.positionInRoot()
                                         val w = coordinates.size.width.toFloat()
-                                        val old = dayBoundsArray[dayOfWeek]
-                                        val new = floatArrayOf(pos.x, pos.x + w, pos.y)
-                                        if (old == null || old[0] != new[0] || old[1] != new[1] || old[2] != new[2]) {
-                                            dayBoundsArray[dayOfWeek] = new
-                                            lastDayBoundsVersion++
+                                        val arr = dayBoundsArray[dayOfWeek]
+                                        // 滑动期间坐标逐帧变化：只更新数组（普通字段），跳过版本号递增，
+                                        // 避免逐帧状态写入触发本页与 MainActivity 层逐帧重组；
+                                        // 滑动停止后由上面的 LaunchedEffect 统一冲刷上报
+                                        if (arr == null) {
+                                            dayBoundsArray[dayOfWeek] = floatArrayOf(pos.x, pos.x + w, pos.y)
+                                            if (!scrollingState.value) lastDayBoundsVersion++
+                                        } else if (arr[0] != pos.x || arr[1] != pos.x + w || arr[2] != pos.y) {
+                                            arr[0] = pos.x
+                                            arr[1] = pos.x + w
+                                            arr[2] = pos.y
+                                            if (!scrollingState.value) lastDayBoundsVersion++
                                         }
                                     }
                             )

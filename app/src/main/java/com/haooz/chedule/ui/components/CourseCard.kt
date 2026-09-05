@@ -143,9 +143,9 @@ fun CourseCard(
         key(effectiveCornerRadius) {
             var isPressed by remember { mutableStateOf(false) }
             val scale = remember { Animatable(1f) }
-            var cardPosition by remember { mutableStateOf(Offset.Zero) }
-            var cardSize by remember { mutableStateOf(Offset.Zero) }
-            var layoutCoordinates by remember { mutableStateOf<androidx.compose.ui.layout.LayoutCoordinates?>(null) }
+            // 卡片几何（centerX, centerY, width, height）仅在手势触发（长按）时读取，
+            // 用普通数组存储，避免滑动期间 onGloballyPositioned 逐帧写 snapshot 状态
+            val cardBoundsPx = remember { FloatArray(4) }
             val backdropShape = remember(effectiveCornerRadius) { ContinuousRoundedRectangle(effectiveCornerRadius.dp) }
             val blurPx = with(localDensity) { remember(cardBlurRadius) { cardBlurRadius.dp.toPx() } }
             val lensRadiusPx = with(localDensity) { remember(cardRefraction) { cardRefraction.lensRadiusDp.dp.toPx() } }
@@ -187,10 +187,11 @@ fun CourseCard(
                         alpha = if (isDragging) 0f else 1f
                     }
                     .onGloballyPositioned { coordinates ->
-                        layoutCoordinates = coordinates
                         val center = coordinates.localToRoot(Offset(coordinates.size.width / 2f, coordinates.size.height / 2f))
-                        cardPosition = center
-                        cardSize = Offset(coordinates.size.width.toFloat(), coordinates.size.height.toFloat())
+                        cardBoundsPx[0] = center.x
+                        cardBoundsPx[1] = center.y
+                        cardBoundsPx[2] = coordinates.size.width.toFloat()
+                        cardBoundsPx[3] = coordinates.size.height.toFloat()
                     }
                     .drawBackdrop(
                         backdrop = wallpaperBackdrop,
@@ -232,15 +233,21 @@ fun CourseCard(
                                 isPressed = false
                                 menuShown = true
                                 onLongPressStart(
-                                    cardPosition.x,
-                                    cardPosition.y,
-                                    cardSize.x,
-                                    cardSize.y
+                                    cardBoundsPx[0],
+                                    cardBoundsPx[1],
+                                    cardBoundsPx[2],
+                                    cardBoundsPx[3]
                                 )
                             }
                             try {
                                 while (true) {
-                                    val event = awaitPointerEvent(PointerEventPass.Main)
+                                    // 菜单/拖拽状态：Main pass 拦截事件防止穿透；
+                                    // 否则：Final pass 让 HorizontalPager/verticalScroll 先在 Main pass 处理滑动。
+                                    // 关键：Main pass 顺序是「子→父」，若卡片在 Main pass 消费移动事件，
+                                    // 父级滚动容器的 touch slop 追踪会跳过已消费事件 → 滑动被吞、不跟手
+                                    val pass = if (menuShown || isDraggingCard)
+                                        PointerEventPass.Main else PointerEventPass.Final
+                                    val event = awaitPointerEvent(pass)
                                     val pressed = event.changes.any { it.pressed }
                                     if (!pressed) {
                                         isPressed = false
@@ -311,9 +318,9 @@ fun CourseCard(
             }
         }
     } else {
-        var cardPosition by remember { mutableStateOf(Offset.Zero) }
-        var cardSize by remember { mutableStateOf(Offset.Zero) }
-        var layoutCoordinates by remember { mutableStateOf<androidx.compose.ui.layout.LayoutCoordinates?>(null) }
+        // 卡片几何（centerX, centerY, width, height）仅在手势触发（长按）时读取，
+        // 用普通数组存储，避免滑动期间 onGloballyPositioned 逐帧写 snapshot 状态
+        val cardBoundsPx = remember { FloatArray(4) }
         Box(
             modifier = modifier
                 .fillMaxWidth()
@@ -323,11 +330,12 @@ fun CourseCard(
                     alpha = if (isDragging) 0f else 1f
                 }
                 .onGloballyPositioned { coordinates ->
-                    layoutCoordinates = coordinates
                     // 上报卡片正中心的绝对坐标，与 hasBlur 分支保持一致
                     val center = coordinates.localToRoot(Offset(coordinates.size.width / 2f, coordinates.size.height / 2f))
-                    cardPosition = center
-                    cardSize = Offset(coordinates.size.width.toFloat(), coordinates.size.height.toFloat())
+                    cardBoundsPx[0] = center.x
+                    cardBoundsPx[1] = center.y
+                    cardBoundsPx[2] = coordinates.size.width.toFloat()
+                    cardBoundsPx[3] = coordinates.size.height.toFloat()
                 }
                 .pointerInput(course) {
                     awaitEachGesture {
@@ -337,17 +345,17 @@ fun CourseCard(
                         var isLongPress = false
                         var isDraggingCard = false
                         var menuShown = false
-                        val longPressJob = scope.launch {
-                            delay(320.milliseconds)
-                            isLongPress = true
-                            menuShown = true
-                            onLongPressStart(
-                                cardPosition.x,
-                                cardPosition.y,
-                                cardSize.x,
-                                cardSize.y
-                            )
-                        }
+                            val longPressJob = scope.launch {
+                                delay(320.milliseconds)
+                                isLongPress = true
+                                menuShown = true
+                                onLongPressStart(
+                                    cardBoundsPx[0],
+                                    cardBoundsPx[1],
+                                    cardBoundsPx[2],
+                                    cardBoundsPx[3]
+                                )
+                            }
                         try {
                             while (true) {
                                 // 菜单/拖拽状态：Main pass 拦截事件防止穿透

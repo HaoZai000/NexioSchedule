@@ -330,10 +330,16 @@ private class OverscrollNode(
         updateScrollRange()
         val placeable = measurable.measure(constraints)
         return layout(placeable.width, placeable.height) {
-            placeable.placeWithLayer(0, 0) {
-                if (isVertical) translationY = round(offset)
-                else translationX = round(offset)
-                clip = true
+            val roundedOffset = round(offset)
+            if (roundedOffset == 0f) {
+                // 无越界偏移时直接摆放：避免强制离屏图层给整个滚动内容带来逐帧合成开销
+                placeable.place(0, 0)
+            } else {
+                placeable.placeWithLayer(0, 0) {
+                    if (isVertical) translationY = roundedOffset
+                    else translationX = roundedOffset
+                    clip = true
+                }
             }
         }
     }

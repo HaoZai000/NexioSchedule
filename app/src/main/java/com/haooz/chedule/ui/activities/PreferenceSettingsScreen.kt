@@ -118,6 +118,11 @@ fun PreferenceSettingsScreen(
     var hideBackground by remember {
         mutableStateOf(appPrefs.getBoolean("hide_background", false))
     }
+    var hapticFeedbackEnabled by remember {
+        mutableStateOf(
+            appPrefs.getBoolean(com.haooz.chedule.ui.theme.KEY_HAPTIC_FEEDBACK, true)
+        )
+    }
 
     val isTablet = LocalConfiguration.current.screenWidthDp >= 600
     val tabletHorizontalPadding = if (isTablet) {
@@ -298,6 +303,20 @@ fun PreferenceSettingsScreen(
                             )
                         }
                         Column(modifier = Modifier.fillMaxWidth()) {
+                            SwitchPreference(
+                                title = "应用触感反馈",
+                                summary = "点击、滑动等操作产生的震动反馈",
+                                checked = hapticFeedbackEnabled,
+                                onCheckedChange = {
+                                    hapticFeedbackEnabled = it
+                                    appPrefs.edit {
+                                        putBoolean(
+                                            com.haooz.chedule.ui.theme.KEY_HAPTIC_FEEDBACK,
+                                            it
+                                        )
+                                    }
+                                }
+                            )
                             SwitchPreference(
                                 title = "隐藏后台",
                                 summary = "返回桌面时，隐藏应用的最近任务卡片",

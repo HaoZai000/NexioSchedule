@@ -152,10 +152,6 @@ private class AddCourseFormState(
         selectedWeeks.clear()
     }
 
-    /** 勾选/取消某个周次。 */
-    fun toggleWeek(week: Int) {
-        if (!selectedWeeks.remove(week)) selectedWeeks.add(week)
-    }
 }
 
 @SuppressLint("ConfigurationScreenWidthHeight")
@@ -186,17 +182,14 @@ fun AddCourseDialog(
     }
     var sheetContentBackdrop by remember { mutableStateOf<Backdrop?>(null) }
 
-    // 逐组揭示：打开弹窗时从 0 递增，让各卡片分批进入组合树。
-    // 关键：AnimatedVisibility(visible=false) 不会合成其内容，因此周次/颜色等重卡
-    // 被延迟到后续若干帧才真正创建，首帧仅合成顶部轻卡，避免一次性合成导致掉帧。
+    // 逐组揭示：打开弹窗时从 0 递增，让各卡片分批进入组合树
+    // 周次/颜色等被延迟到后续若干帧才真正创建，首帧仅合成轻卡，避免掉帧
     // 同时形成自上而下错落入场的动画效果。
-    // 初始 -1：让序号 0 的卡片也走 hidden→淡入 的入场，而非一开始就显示
     var revealStep by remember(show) { mutableIntStateOf(-1) }
     LaunchedEffect(show) {
         if (!show) return@LaunchedEffect
-        // 整体延迟一档（120ms）再开始，避免与底部弹窗升起动画抢同一帧；
-        // 之后每张卡片依次延迟一档错落出场。
-        delay(240.milliseconds)
+        // 整体延迟一档（200ms）再开始
+        delay(200.milliseconds)
         for (step in 0 until REVEAL_GROUP_COUNT) {
             revealStep = step
             delay(REVEAL_STEP_MS.milliseconds)
