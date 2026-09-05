@@ -45,6 +45,7 @@ import androidx.core.content.FileProvider
 import androidx.core.content.edit
 import com.haooz.chedule.ui.basic.OverlayDropdownMenu
 import com.haooz.chedule.ui.basic.SharedScrollBehavior
+import com.haooz.chedule.shizuku.ShizukuManager
 import com.haooz.chedule.ui.utils.isAppDarkTheme
 import com.haooz.chedule.ui.utils.overScrollVertical
 import kotlinx.coroutines.Dispatchers
@@ -583,8 +584,42 @@ fun UpdateSettingsScreen(
                                 modifier = Modifier.weight(1f),
                                 onClick = {
                                     hapticFeedback.performHapticFeedback(HapticFeedbackType.Confirm)
-                                    isInstalling = true
-                                    downloadedFile?.let { installApk(context, it) }
+                                    val file = downloadedFile ?: return@Button
+                                    if (ShizukuManager.isShizukuRunning() &&
+                                        ShizukuManager.checkSelfPermission()
+                                    ) {
+                                        // 有 Shizuku 权限 → ADB 式静默安装
+                                        isInstalling = true
+                                        coroutineScope.launch {
+                                            val (ok, message) = withContext(Dispatchers.IO) {
+                                                ShizukuManager.silentInstallApk(file.absolutePath)
+                                            }
+                                            if (ok) {
+                                                isInstalling = false
+                                                downloadComplete = false
+                                                showDownloadDialog = false
+                                                Toast.makeText(
+                                                    context,
+                                                    message,
+                                                    Toast.LENGTH_SHORT
+                                                ).show()
+                                            } else {
+                                                // 静默安装失败 → 回退系统安装器
+                                                isInstalling = false
+                                                Toast.makeText(
+                                                    context,
+                                                    "静默安装失败，已改用系统安装器",
+                                                    Toast.LENGTH_SHORT
+                                                ).show()
+                                                isInstalling = true
+                                                installApk(context, file)
+                                            }
+                                        }
+                                    } else {
+                                        // 无 Shizuku → 系统安装器
+                                        isInstalling = true
+                                        installApk(context, file)
+                                    }
                                 },
                                 colors = ButtonDefaults.buttonColorsPrimary()
                             ) {

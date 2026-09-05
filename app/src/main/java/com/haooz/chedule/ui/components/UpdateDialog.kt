@@ -122,12 +122,10 @@ internal fun UpdateDialog(liquidGlassBackdrop: com.kyant.backdrop.Backdrop? = nu
         }
     }
 
-    if (!showUpdateDialog) return
-
     OverlayDialog(
         title = "发现新版本",
         summary = "最新版本: $updateTagName",
-        show = true,
+        show = showUpdateDialog,
         liquidGlassBackdrop = liquidGlassBackdrop,
         onDismissRequest = { showUpdateDialog = false }
     ) {

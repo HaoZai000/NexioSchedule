@@ -11,6 +11,7 @@ import rikka.shizuku.Shizuku
 import rikka.shizuku.ShizukuBinderWrapper
 import rikka.shizuku.SystemServiceHelper
 import rikka.sui.Sui
+import java.io.File
 import java.util.concurrent.CountDownLatch
 import java.util.concurrent.TimeUnit
 
@@ -188,6 +189,83 @@ object ShizukuManager {
         } catch (e: Exception) {
             Log.e(TAG, "Failed to set networking via binder", e)
             false
+        }
+    }
+
+    /**
+     * 通过 Shizuku 以 shell 身份执行命令行（如 pm install）。
+     * @return 退出码与输出；退出码 -1 表示 Shizuku 不可用或执行异常。
+     */
+    fun execAsShell(arguments: Array<String>): Pair<Int, String> {
+        if (!isShizukuRunning() || !checkSelfPermission()) {
+            return Pair(-1, "Shizuku 不可用或未授权")
+        }
+        return try {
+            // 13.x API 中 Shizuku.newProcess 为 private static，通过反射调用以 shell 身份启动子进程
+            val clazz = Class.forName("rikka.shizuku.Shizuku")
+            val newProcess = clazz.getDeclaredMethod(
+                "newProcess",
+                Array<String>::class.java,
+                Array<String>::class.java,
+                String::class.java
+            )
+            newProcess.isAccessible = true
+            val process = newProcess.invoke(null, arguments, null, null) as java.lang.Process
+            val output = StringBuilder()
+            process.inputStream.bufferedReader().use { output.append(it.readText()) }
+            process.errorStream.bufferedReader().use { output.append(it.readText()) }
+            val exit = process.waitFor()
+            Pair(exit, output.toString().trim())
+        } catch (e: Exception) {
+            Log.e(TAG, "execAsShell failed", e)
+            Pair(-1, e.message ?: "执行异常")
+        }
+    }
+
+    /**
+     * 通过 Shizuku 静默安装 APK（等效 ADB 的 pm install）。
+     * 采用 stdin 流式传入安装包，避免 shell 无法读取 App 私有目录的问题。
+     */
+    fun silentInstallApk(apkPath: String): Pair<Boolean, String> {
+        if (!isShizukuRunning() || !checkSelfPermission()) {
+            return Pair(false, "Shizuku 不可用或未授权")
+        }
+        return try {
+            val file = File(apkPath)
+            if (!file.exists()) return Pair(false, "APK 不存在: $apkPath")
+
+            // 13.x API 中 Shizuku.newProcess 为 private static，通过反射以 shell 身份启动 pm install
+            val clazz = Class.forName("rikka.shizuku.Shizuku")
+            val newProcess = clazz.getDeclaredMethod(
+                "newProcess",
+                Array<String>::class.java,
+                Array<String>::class.java,
+                String::class.java
+            )
+            newProcess.isAccessible = true
+            val process = newProcess.invoke(
+                null,
+                arrayOf("pm", "install", "-r", "-S", file.length().toString()),
+                null,
+                null
+            ) as java.lang.Process
+
+            // 把 APK 字节流写到 pm 的 stdin
+            process.outputStream.use { out ->
+                file.inputStream().use { it.copyTo(out) }
+            }
+            val output = StringBuilder()
+            process.inputStream.bufferedReader().use { output.append(it.readText()) }
+            process.errorStream.bufferedReader().use { output.append(it.readText()) }
+            val exit = process.waitFor()
+            val ok = exit == 0 && output.contains("Success", ignoreCase = true)
+            return Pair(
+                ok,
+                if (ok) "静默安装成功" else "exit=$exit, ${output.take(300)}"
+            )
+        } catch (e: Exception) {
+            Log.e(TAG, "silentInstallApk failed", e)
+            Pair(false, e.message ?: "执行异常")
         }
     }
 

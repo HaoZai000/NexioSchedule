@@ -12,6 +12,7 @@ val changelogData = listOf(
         changes = listOf(
             "新增添加按钮根据页面显隐动画",
             "优化教务导入更新逻辑，更快更轻",
+            "优化安装应用更新时的流程"
         )
     ),
     ChangelogEntry(
