@@ -1,8 +1,30 @@
 <!-- calendar_customise 4x2 — 今日课程（玻璃风格） -->
 <!-- frameRate=0: 无动画, 符合官方规范; useVariableUpdater 订阅日期/分钟驱动课程数据在"今日→明日"切换时刷新 -->
 <Widget enableLayerAnimation="1" frameRate="0" scaleByDensity="false" screenWidth="1080" type="awesome" useVariableUpdater="DateTime.Hour,DateTime.Minute,DateTime.Day,HyperMaterial" version="1" supportBackgroundBlur="false" allowScreenRotation="true">
-
     <!-- ═══════════════ 全局 ═══════════════ -->
+    <ExternalCommands>
+        <Trigger action="init,resume">
+    <!-- 切屏时提高帧率，供动画或者数据刷新使用 -->
+            <AnimationCommand target="fra" command="play" />
+            <FrameRateCommand rate="60" condition="eqs(@isPreviewMode,'true')"/>
+            <AnimationCommand target="fra" command="play" condition="!eqs(@isPreviewMode,'true')"/>
+            <BinderCommand name="calendarEvents" command="refresh" delay="10" />
+        </Trigger>
+        <!-- 旋转/翻折 → 重新测量 -->
+        <Trigger action="orientationChange">
+            <MethodCommand target="__objRoot" targetType="var" method="selfResume" />
+        </Trigger>
+
+        <Trigger action="init">
+            <BinderCommand name="displayCourses" command="refresh" delay="120" />
+            <BinderCommand name="courseState" command="refresh" delay="120" />
+        </Trigger>
+        <Trigger action="resume">
+            <ExternCommand command="__datatimeVarUpdate" strPara="'DateTime.Hour,DateTime.Minute,DateTime.Day,HyperMaterial'" delay="100" />
+            <BinderCommand name="displayCourses" command="refresh" />
+            <BinderCommand name="courseState" command="refresh" />
+        </Trigger>
+    </ExternalCommands>
     <Var name="sx" expression="#view_width/344" />
     <Var name="sy" expression="#view_height/165" />
     <Var name="sr" expression="min(#view_width/344,#view_height/160)" />
@@ -23,6 +45,18 @@
 
     <!-- 预设课程颜色列表（与 App 一致） -->
     <Var name="preset_colors" type="string[]" values="#4CAF50,#2196F3,#FF9800,#F44336,#E6B422,#E91E63,#00BCD4,#3F51B5,#AB47BC,#009688,#673AB7" const="true" />
+
+    <!-- 时间格式化 -->
+    <Var name="Star_Time" expression="''" values="formatDate('HH:mm',@calendar_dtstart[0]),formatDate('HH:mm',@calendar_dtstart[1])" type="string[]" />
+    <Var name="End_Time" expression="''" values="formatDate('HH:mm',@calendar_dtend[0]),formatDate('HH:mm',@calendar_dtend[1])" type="string[]" />
+
+    <!-- 日程类型 -->
+    <Var name="events_Type" expression="''" values="ifelse(eq(@calendar_hasExtendedProperties[0],9),'倒数日',eq(@calendar_hasExtendedProperties[0],8),'纪念日',eq(@calendar_hasExtendedProperties[0],7),'生日',eq(@calendar_hasExtendedProperties[0],0),'日程','无类型'),ifelse(eq(@calendar_hasExtendedProperties[1],9),'倒数日',eq(@calendar_hasExtendedProperties[1],8),'纪念日',eq(@calendar_hasExtendedProperties[1],7),'生日',eq(@calendar_hasExtendedProperties[1],0)==0,'日程','无类型')" type="string[]" />
+
+    <!-- 今天0点时间戳 -->
+    <Var name="current_day_start" expression="#time_sys - #time_sys%86400000" type="number" const="false" />
+    <!-- 今天24点时间戳 -->
+    <Var name="current_day_end" expression="#current_day_start + 86400000" type="number" const="false" />
 
     <!-- ══════════════════════════════════════════════════════════════
          数据绑定
@@ -57,41 +91,65 @@
 
         <!-- ═══════ 今日课程 · 状态数据源（标题/周状态/空态文案, 只读） ═══════ -->
         <ContentProviderBinder name="courseState" uri="content://com.haooz.chedule.courses/state"
-            columns="title,week_text,empty_text,show_tomorrow"
+            columns="title,week_text,empty_text,show_tomorrow,installed"
             column="title" countName="state_count">
             <Variable name="state_title" column="title" type="string" />
             <Variable name="state_week_text" column="week_text" type="string" />
             <Variable name="state_empty_text" column="empty_text" type="string" />
             <Variable name="state_show_tomorrow" column="show_tomorrow" type="string" />
+            <Variable name="state_installed" column="installed" type="number" />
+        </ContentProviderBinder>
+
+        <!-- 日程数据源 -->
+        <ContentProviderBinder name="calendarEvents" uri="content://com.android.calendar/events" whereFormat="((dtstart&gt;='%d' AND dtstart&lt;='%d') OR (dtstart&lt;'%d' AND dtend&gt;='%d')) AND deleted=='%d' AND dtend&gt;='%d'" whereParas="#current_day_start,#current_day_end,#current_day_start,#current_day_start,0,#current_time" countName="events">
+            <!-- 标题 -->
+            <Variable name="calendar_title" type="string[]" column="title"/>
+            <!-- 地点，没有则为null -->
+            <Variable name="calendar_eventLocation" type="string[]" column="eventLocation"/>
+            <!-- 提醒开始时间-->
+            <Variable name="calendar_dtstart" type="string[]" column="dtstart"/>
+            <!-- 提醒结束时间 -->
+            <Variable name="calendar_dtend" type="string[]" column="dtend"/>
+            <!-- 全天事件 -->
+            <Variable name="calendar_allDay" type="string[]" column="allDay"/>
+            <!-- 事件的最后时间, 空表示无限 -->
+            <Variable name="calendar_lastDate" type="string[]" column="lastDate"/>
+            <!-- 是否被删除 -->
+            <Variable name="calendar_deleted" type="string[]" column="deleted"/>
+            <!-- 日程的类型 -->
+            <Variable name="calendar_hasExtendedProperties" type="string[]" column="hasExtendedProperties"/>
+            <!-- 日程id -->
+            <Variable name="calendar_id" type="string[]" column="_id"/>
+            <!-- 持续时间 -->
+            <Variable name="calendar_duration" type="string[]" column="duration"/>
         </ContentProviderBinder>
     </VariableBinders>
 
-    <!-- ══════════════════════════════════════════════════════════════
-         生命周期
-         ══════════════════════════════════════════════════════════════ -->
-    <ExternalCommands>
-        <!-- 旋转/翻折 → 重新测量 -->
-        <Trigger action="orientationChange">
-            <MethodCommand target="__objRoot" targetType="var" method="selfResume" />
-        </Trigger>
-
-        <Trigger action="init">
-            <BinderCommand name="displayCourses" command="refresh" delay="120" />
-            <BinderCommand name="courseState" command="refresh" delay="120" />
-        </Trigger>
-        <Trigger action="resume">
-            <ExternCommand command="__datatimeVarUpdate" strPara="'DateTime.Hour,DateTime.Minute,DateTime.Day,HyperMaterial'" delay="100" />
-            <BinderCommand name="displayCourses" command="refresh" />
-            <BinderCommand name="courseState" command="refresh" />
-        </Trigger>
-    </ExternalCommands>
     <!-- ═══════════════ 统一帧率控制 ═══════════════ -->
-
+    <!-- 帧率调整//推荐写法//通过FunctionCommand命令在init,resume时调用 -->
+    <Group name="frameRateSetting">
+        <Function name="fra">
+            <IfCommand ifCondition="eqs(@isPreviewMode,'true')">
+                <Consequent>
+                    <FrameRateCommand rate="60" />
+                </Consequent>
+                <Alternate>
+                    <AnimationCommand target="frame" command="play"/>
+                </Alternate>
+            </IfCommand>
+        </Function>
+        <FramerateController name="frame" initPause="true" loop="false">
+            <ControlPoint frameRate="60" time="0" />
+            <ControlPoint frameRate="60" time="300" />
+            <ControlPoint frameRate="0" time="1000" />
+        </FramerateController>
+    </Group>
     <!-- 前台时每分钟主动刷新课程数据 -->
     <Var name="minute_watch" expression="#minute" threshold="1">
         <Trigger>
             <BinderCommand name="displayCourses" command="refresh" />
             <BinderCommand name="courseState" command="refresh" />
+            <BinderCommand name="calendarEvents" command="refresh"/>
         </Trigger>
     </Var>
 
@@ -261,7 +319,7 @@
         <Rectangle x="#view_width/2" y="#view_height/2" align="center" alignV="center" fillColor="#FFF5F5F5" w="#view_width" h="#view_height" visibility="eqs(@isPreviewMode,'true')"/>
 
         <!-- ─── 今日课程 内容 ─── -->
-        <Group h="#view_height" layered="true" w="#view_width">
+        <Group h="#view_height" layered="true" w="#view_width" visibility="eq(num(#state_installed),1)">
 
             <!-- ═────── 标题栏 ═────── -->
             <Text textExp="ifelse(#today_offset==0,'今天 / ',ifelse(#today_offset==1,'明天 / ',''))+@state_title" x="20*#sx" y="20*#sy" size="14*#sx" color="@titleColor" alignV="center" fontFamily="mipro-medium" />
@@ -330,8 +388,89 @@
                 fillColor="@course_color_1" cornerRadiusExp="16" cornerRadius="16" visibility="le(2,#today_count)" />
         </Group>
 
+        <!-- ─── 日程 内容（仅应用未安装时显示伪装日程） ─── -->
+        <Group h="#view_height" layered="true" w="#view_width" visibility="le(num(#state_installed),0)">
+
+            <!-- ═────── 标题栏 ═────── -->
+            <Text text="今天" x="20*#sx" y="20*#sy" size="14*#sx" color="@titleColor" alignV="center" fontFamily="mipro-medium" />
+            <DateTime format="E" x="(344-20)*#sx" y="20*#sy" size="14*#sx" color="@titleColor" align="right" alignV="center" fontFamily="mipro-medium" />
+
+            <!-- ═══════ 课程卡片背景（正在上课→半透蓝, 普通→浅色底） ═══════ -->
+            <Rectangle x="12*#sx" y="36*#sy" w="(344-24)*#sx" h="55*#sy"
+                fillColor="#2196F3" alpha="26" cornerRadiusExp="32" cornerRadius="32"
+                visibility="#events}=1" />
+            <Rectangle x="12*#sx" y="98*#sy" w="(344-24)*#sx" h="55*#sy"
+                fillColor="#2196F3" alpha="26" cornerRadiusExp="32" cornerRadius="32"
+                visibility="#events==2" />
+
+            <!-- ═────── 课程行1（时间左侧 + 胶囊色条 + 课程信息右侧） ═────── -->
+            <Group visibility="#events}=1">
+                <!-- 时间区域（左侧） -->
+                <Text textExp="@Star_Time[0]" x="22*#sx" y="55*#sy" size="12*#sx" color="@timeColor" align="left" alignV="center" visibility="#events==1" fontFamily="mipro-medium" />
+                <Text textExp="@Star_Time[1]" x="22*#sx" y="55*#sy" size="12*#sx" color="@timeColor" align="left" alignV="center" visibility="#events==2" fontFamily="mipro-medium" />
+                <Text textExp="@End_Time[0]" x="22*#sx" y="73*#sy" size="12*#sx" color="@subTextColor" align="left" alignV="center" visibility="#events==1" fontFamily="mipro-medium" />
+                <Text textExp="@End_Time[1]" x="22*#sx" y="73*#sy" size="12*#sx" color="@subTextColor" align="left" alignV="center" visibility="#events==2" fontFamily="mipro-medium" />
+                <!-- 课程信息（右侧） -->
+                <Group x="70*#sx" y="55*#sy" w="262*#sx" h="32*#sy">
+                    <!-- 课程名称（App 端已按容器宽度截断, 小部件不做截断） -->
+                    <Text textExp="@calendar_title[0]" width="450" marqueeSpeed="30" x="0*#sx" y="0*#sy" size="14*#sx" color="@textColor" alignV="center" align="left" visibility="#events==1" fontFamily="mipro-medium" />
+                    <Text textExp="@calendar_title[1]" width="450" marqueeSpeed="30" x="0*#sx" y="0*#sy" size="14*#sx" color="@textColor" alignV="center" align="left" visibility="#events==2" fontFamily="mipro-medium" />
+                    <!-- 课程详情（App 端已按容器宽度截断, 小部件不做截断） -->
+                    <Text textExp="ifelse(strIsEmpty(@calendar_eventLocation[0]),'无地点',@calendar_eventLocation[0])" width="450" marqueeSpeed="30" x="0*#sx" y="20*#sy" size="12*#sx" color="@subTextColor" align="left" alignV="center" visibility="#events==1" fontFamily="mipro-medium" />
+                    <Text textExp="ifelse(strIsEmpty(@calendar_eventLocation[1]),'无地点',@calendar_eventLocation[1])" width="450" marqueeSpeed="30" x="0*#sx" y="20*#sy" size="12*#sx" color="@subTextColor" align="left" alignV="center" visibility="#events==2" fontFamily="mipro-medium" />
+                </Group>
+                <!-- 倒计时（独立组件, 仅正在上课显示，最右侧） -->
+                <Text textExp="@events_Type[0]" x="(344-22)*#sx" y="64*#sy" size="14*#sx"
+                    color="#2196F3" align="right" alignV="center" fontFamily="mipro-medium" fontWeight="medium"
+                    visibility="#events==1" />
+                <Text textExp="@events_Type[1]" x="(344-22)*#sx" y="64*#sy" size="14*#sx"
+                    color="#2196F3" align="right" alignV="center" fontFamily="mipro-medium" fontWeight="medium"
+                    visibility="#events==2" />
+            </Group>
+
+            <!-- ═────── 课程行2（时间左侧 + 胶囊色条 + 课程信息右侧） ═────── -->
+            <Group visibility="#events}=2">
+                <!-- 时间区域（左侧） -->
+                <Text textExp="@Star_Time[0]" x="22*#sx" y="117*#sy" size="12*#sx"
+                    color="@timeColor" align="left" alignV="center" fontFamily="mipro-medium" />
+                <Text textExp="@End_Time[0]" x="22*#sx" y="135*#sy" size="12*#sx"
+                    color="@subTextColor" align="left" alignV="center" fontFamily="mipro-medium" />
+                <!-- 课程信息（右侧） -->
+                <Group x="70*#sx" y="117*#sy" w="262*#sx" h="32*#sy">
+                    <!-- 课程名称（App 端已按容器宽度截断, 小部件不做截断） -->
+                    <Text textExp="@calendar_title[0]" width="450" marqueeSpeed="30" x="0*#sx" y="0*#sy" size="14*#sx"
+                        color="@textColor" alignV="center" align="left" fontFamily="mipro-medium" />
+                    <!-- 课程详情（App 端已按容器宽度截断, 小部件不做截断） -->
+                    <Text textExp="ifelse(strIsEmpty(@calendar_eventLocation[0]),'无地点',@calendar_eventLocation[0])" width="450" marqueeSpeed="30" x="0*#sx" y="20*#sy" size="12*#sx"
+                        color="@subTextColor" align="left" alignV="center" fontFamily="mipro-medium" />
+                </Group>
+                <!-- 倒计时（独立组件, 仅正在上课显示，最右侧） -->
+                <Text textExp="@events_Type[0]" x="(344-22)*#sx" y="64*#sy" size="14*#sx"
+                    color="#2196F3" align="right" alignV="center" fontFamily="mipro-medium" fontWeight="medium"
+                    visibility="#events==2" />
+            </Group>
+
+            <!-- ═────── 空状态（本日/明日无课, 文案来自 /state） ═────── -->
+            <Text text="暂无日程" x="#view_width/2" y="#view_height/2+4*#sy" size="14*#sx"
+                color="@subTextColor" align="center" alignV="center" visibility="#events==0" />
+
+            <!-- 胶囊色条（在内容之后绘制，保持垂直居中） -->
+            <Rectangle x="60*#sx" y="48*#sy" w="3*#sx" h="32*#sy"
+                fillColor="#2196F3" cornerRadiusExp="16" cornerRadius="16" visibility="#events}=1" />
+            <Rectangle x="60*#sx" y="110*#sy" w="3*#sx" h="32*#sy"
+                fillColor="#2196F3" cornerRadiusExp="16" cornerRadius="16" visibility="#events}=2" />
+        </Group>
+
+        <!-- 点击 → 打开 日历 -->
+        <Button x="0" y="0" w="#view_width" h="#view_height" visibility="#today_count!=1"> 
+            <Triggers> 
+            <Trigger action="up"> 
+                <IntentCommand package="com.android.calendar" class="com.android.calendar.AllInOneActivity"/> 
+                </Trigger> 
+            </Triggers> 
+        </Button>
         <!-- 点击 → 打开 Nexio 课程表 -->
-        <Button x="0" y="0" w="#view_width" h="#view_height" contentDescriptionExp="@state_title+' '+num(#today_count)+' 节'">
+        <Button x="0" y="0" w="#view_width" h="#view_height" visibility="#today_count==1" contentDescriptionExp="@state_title+' '+num(#today_count)+' 节'">
             <Triggers>
                 <Trigger action="up" condition="!eqs(@isPreviewMode,'true')">
                     <IntentCommand package="com.haooz.chedule" class="com.haooz.chedule.ui.activities.MainActivity" action="android.intent.action.MAIN" />
