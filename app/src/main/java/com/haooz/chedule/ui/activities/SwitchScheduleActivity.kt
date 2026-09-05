@@ -10,12 +10,14 @@ import androidx.activity.compose.BackHandler
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.EnterExitState
+import androidx.compose.animation.EnterTransition
+import androidx.compose.animation.ExitTransition
 import androidx.compose.animation.core.Animatable
-import androidx.compose.animation.core.CubicBezierEasing
+import androidx.compose.animation.core.FastOutSlowInEasing
+import androidx.compose.animation.core.animateFloat
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
-import androidx.compose.animation.slideInVertically
-import androidx.compose.animation.slideOutVertically
 import androidx.compose.foundation.background
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.Arrangement
@@ -50,10 +52,13 @@ import androidx.compose.runtime.snapshotFlow
 import androidx.compose.runtime.withFrameNanos
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.blur
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.drawWithContent
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.geometry.Size
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.TransformOrigin
 import androidx.compose.ui.graphics.asAndroidBitmap
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.rememberGraphicsLayer
@@ -223,7 +228,6 @@ fun SwitchScheduleScreen(
         drawRect(backgroundColor) // 确保捕获到不透明背景
         drawContent()
     }
-    val isDark = isAppDarkTheme()
     val liquidGlassBackdrop = com.kyant.backdrop.backdrops.rememberLayerBackdrop()
     val isTablet = LocalConfiguration.current.screenWidthDp >= 600
     val tabletHorizontalPadding = if (isTablet) {
@@ -300,7 +304,10 @@ fun SwitchScheduleScreen(
                                 icon = if (isEditMode) MiuixIcons.Normal.Close else MiuixIcons.ChevronBackward,
                                 contentDescription = if (isEditMode) "关闭" else "返回",
                                 iconSize = if (isEditMode) 24.dp else 25.dp,
-                                iconOffset = if (isEditMode) DpOffset.Zero else DpOffset(x = (-2).dp, y = 0.dp),
+                                iconOffset = if (isEditMode) DpOffset.Zero else DpOffset(
+                                    x = (-2).dp,
+                                    y = 0.dp
+                                ),
                                 backdropAlpha = backdropAlpha,
                                 shadowAlpha = shadowAlpha,
                             )
@@ -343,22 +350,57 @@ fun SwitchScheduleScreen(
                         navBarVisible = false
                     }
                 }
+                
+                // 胶囊本体
                 AnimatedVisibility(
                     visible = navBarVisible,
-                    enter = slideInVertically(
-                        initialOffsetY = { it },
-                        animationSpec = tween(150, easing = CubicBezierEasing(0.6f, 0f, 0.3f, 1f))
-                    ),
-                    exit = slideOutVertically(targetOffsetY = { it }, animationSpec = tween(180))
+                    enter = EnterTransition.None,
+                    exit = ExitTransition.None,
+                    label = "BottomEditBar"
                 ) {
                     val checkedCount = checkboxStates.values.count { it }
+                    val appear by transition.animateFloat(
+                        transitionSpec = {
+                            if (targetState == EnterExitState.Visible) {
+                                tween(durationMillis = 320, easing = FastOutSlowInEasing)
+                            } else {
+                                tween(durationMillis = 200, easing = FastOutSlowInEasing)
+                            }
+                        },
+                        label = "BottomEditBarAppear"
+                    ) { if (it == EnterExitState.Visible) 1f else 0f }
+
+                    val bottombarBlur = remember { Animatable(8f) }
+                    LaunchedEffect(isEditMode) {
+                        bottombarBlur.animateTo(
+                            targetValue = if (isEditMode) 0f else 8f,
+                            animationSpec = tween(
+                                durationMillis = if (isEditMode) 300 else 200,
+                                easing = FastOutSlowInEasing
+                            )
+                        )
+                    }
+                    val containerColor =
+                        if (!isAppDarkTheme()) Color(0xFFFFFFFF).copy(0.6f)
+                        else Color(0xFF121212).copy(0.54f)
+
+
                     Box(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .padding(top = 8.dp, bottom = 28.dp),
+                            .blur(if (bottombarBlur.value > 0f) bottombarBlur.value.dp else 0.dp)
+                            .graphicsLayer {
+                                transformOrigin = TransformOrigin(0.5f, 1f)
+                                scaleX = 0.6f + 0.4f * appear
+                                scaleY = 0.6f + 0.4f * appear
+                                alpha = appear
+                                clip = false
+                            }
+                            .padding(vertical = 28.dp),
                         contentAlignment = Alignment.Center
                     ) {
-                        Row(
+                        // 外面多套的动画 Box：整条胶囊作为它的内容被整体包住
+                        Box(
                             modifier = Modifier
                                 .fillMaxWidth(0.63f)
                                 .height(56.dp)
@@ -371,51 +413,56 @@ fun SwitchScheduleScreen(
                                         lens(10f.dp.toPx(), 32f.dp.toPx())
                                     },
                                     highlight = null,
-                                    onDrawSurface = {
-                                        val containerColor = if (isDark) ComposeColor(0xFF181818).copy(alpha = 0.84f) else ComposeColor.White.copy(alpha = 0.76f)
-                                        drawRect(containerColor)
+                                    onDrawSurface = { drawRect(containerColor) }
+                                )
+                                .edgeLight(
+                                    shape = ContinuousCapsule(),
+                                    edgeLight = rememberDefaultEdgeLight()
+                                )
+                                .padding(horizontal = 7.dp, vertical = 3.5.dp)
+                        ) {
+                            Row(
+                                modifier = Modifier.fillMaxSize(),
+                                horizontalArrangement = Arrangement.SpaceEvenly,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                BottomBarItem(
+                                    icon = MiuixIcons.Forward,
+                                    label = "分享",
+                                    enabled = checkedCount == 1,
+                                    onClick = {
+                                        hapticFeedback.performHapticFeedback(HapticFeedbackType.KeyboardTap)
                                     }
                                 )
-                                .edgeLight(shape = ContinuousCapsule(), edgeLight = rememberDefaultEdgeLight())
-                                .padding(horizontal = 7.dp, vertical = 3.5.dp),
-                            horizontalArrangement = Arrangement.SpaceEvenly,
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            BottomBarItem(
-                                icon = MiuixIcons.Forward,
-                                label = "分享",
-                                enabled = checkedCount == 1,
-                                onClick = {
-                                    hapticFeedback.performHapticFeedback(HapticFeedbackType.KeyboardTap)
-                                }
-                            )
-                            BottomBarItem(
-                                icon = MiuixIcons.Edit,
-                                label = "编辑",
-                                enabled = checkedCount == 1,
-                                onClick = {
-                                    hapticFeedback.performHapticFeedback(HapticFeedbackType.KeyboardTap)
-                                    if (checkedCount == 1) {
-                                        val selected = checkboxStates.entries.find { it.value }?.key
-                                        if (selected != null) {
-                                            editingScheduleName = selected
-                                            editScheduleName = selected
-                                            showEditDialog = true
+                                BottomBarItem(
+                                    icon = MiuixIcons.Edit,
+                                    label = "编辑",
+                                    enabled = checkedCount == 1,
+                                    onClick = {
+                                        hapticFeedback.performHapticFeedback(HapticFeedbackType.KeyboardTap)
+                                        if (checkedCount == 1) {
+                                            val selected =
+                                                checkboxStates.entries.find { it.value }?.key
+                                            if (selected != null) {
+                                                editingScheduleName = selected
+                                                editScheduleName = selected
+                                                showEditDialog = true
+                                            }
                                         }
                                     }
-                                }
-                            )
-                            BottomBarItem(
-                                icon = MiuixIcons.Delete,
-                                label = "删除",
-                                enabled = checkedCount >= 1,
-                                onClick = {
-                                    hapticFeedback.performHapticFeedback(HapticFeedbackType.KeyboardTap)
-                                    if (checkedCount >= 1) {
-                                        showDeleteDialog = true
+                                )
+                                BottomBarItem(
+                                    icon = MiuixIcons.Delete,
+                                    label = "删除",
+                                    enabled = checkedCount >= 1,
+                                    onClick = {
+                                        hapticFeedback.performHapticFeedback(HapticFeedbackType.KeyboardTap)
+                                        if (checkedCount >= 1) {
+                                            showDeleteDialog = true
+                                        }
                                     }
-                                }
-                            )
+                                )
+                            }
                         }
                     }
                 }
@@ -1018,13 +1065,17 @@ private fun RowScope.BottomBarItem(
         Icon(
             imageVector = icon,
             contentDescription = label,
-            tint = if (enabled) MiuixTheme.colorScheme.onSurface else MiuixTheme.colorScheme.onSurface.copy(alpha = 0.38f),
+            tint = if (enabled) MiuixTheme.colorScheme.onSurface else MiuixTheme.colorScheme.onSurface.copy(
+                alpha = 0.38f
+            ),
             modifier = Modifier.size(24.dp)
         )
         Text(
             text = label,
             fontSize = 11.sp,
-            color = if (enabled) MiuixTheme.colorScheme.onSurface else MiuixTheme.colorScheme.onSurface.copy(alpha = 0.38f)
+            color = if (enabled) MiuixTheme.colorScheme.onSurface else MiuixTheme.colorScheme.onSurface.copy(
+                alpha = 0.38f
+            )
         )
     }
 }

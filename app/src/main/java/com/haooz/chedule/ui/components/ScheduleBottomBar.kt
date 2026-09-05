@@ -1,5 +1,6 @@
 package com.haooz.chedule.ui.components
 
+import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Image
@@ -126,17 +127,29 @@ internal fun ScheduleBottomBar(
                 val isOnMineTab = liquidSelectedTab == 2
                 val buttonAlpha by animateFloatAsState(
                     targetValue = if (isOnMineTab) 0f else 1f,
-                    animationSpec = tween(durationMillis = 250),
+                    animationSpec = if (isOnMineTab) {
+                        tween(durationMillis = 240, easing = FastOutSlowInEasing)
+                    } else {
+                        tween(durationMillis = 300, easing = FastOutSlowInEasing)
+                    },
                     label = "addButtonAlpha"
                 )
                 val buttonScale by animateFloatAsState(
                     targetValue = if (isOnMineTab) 0.5f else 1f,
-                    animationSpec = tween(durationMillis = 250),
+                    animationSpec = if (isOnMineTab) {
+                        tween(durationMillis = 240, easing = FastOutSlowInEasing)
+                    } else {
+                        tween(durationMillis = 300, easing = FastOutSlowInEasing)
+                    },
                     label = "addButtonScale"
                 )
                 val buttonBlur by animateFloatAsState(
                     targetValue = if (isOnMineTab) 8f else 0f,
-                    animationSpec = tween(durationMillis = 250),
+                    animationSpec = if (isOnMineTab) {
+                        tween(durationMillis = 240, easing = FastOutSlowInEasing)
+                    } else {
+                        tween(durationMillis = 300, easing = FastOutSlowInEasing)
+                    },
                     label = "addButtonBlur"
                 )
                 val gapPx = with(density) { 8.dp.toPx() }
@@ -144,7 +157,7 @@ internal fun ScheduleBottomBar(
                 val navBarOffsetTarget = -(buttonWidthPx + gapPx) / 2f
                 val navBarOffsetXPx by animateFloatAsState(
                     targetValue = if (isOnMineTab) 0f else navBarOffsetTarget,
-                    animationSpec = tween(durationMillis = 280),
+                    animationSpec = tween(durationMillis = 300, easing = FastOutSlowInEasing),
                     label = "navBarOffsetX"
                 )
                 val navBarOffsetXDp = with(density) { navBarOffsetXPx.toDp() }
