@@ -326,6 +326,31 @@ class CourseViewModel(application: Application) : AndroidViewModel(application) 
     }
 
     /**
+     * 追加课程（导入时「增量添加」使用）：保留现有课程，在其后追加
+     */
+    fun appendCourses(courses: List<Course>) {
+        val currentScheduleId = repository.getCurrentScheduleId()
+        // 为导入的课程设置 scheduleId，并避免与现有课程 id 冲突
+        val existingIds = _courses.value.map { it.id }.toSet()
+        val coursesWithSchedule = courses.map { course ->
+            val withSchedule = if (course.scheduleId.isEmpty()) {
+                course.copy(scheduleId = currentScheduleId)
+            } else {
+                course
+            }
+            if (withSchedule.id.isEmpty() || withSchedule.id in existingIds) {
+                withSchedule.copy(id = java.util.UUID.randomUUID().toString())
+            } else {
+                withSchedule
+            }
+        }
+        val merged = _courses.value + coursesWithSchedule
+        repository.saveCourses(merged)
+        _courses.value = merged
+        _dataVersion.value++
+    }
+
+    /**
      * 显示添加对话框
      */
     fun showAddDialog(dayOfWeek: Int? = null, startSection: Int? = null, endSection: Int? = null) {

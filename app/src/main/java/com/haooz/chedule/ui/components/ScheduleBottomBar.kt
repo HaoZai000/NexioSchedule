@@ -195,7 +195,7 @@ internal fun ScheduleBottomBar(
                         .size(100.dp)
                         .blur(if (buttonBlur > 0f) buttonBlur.dp else 0.dp)
                         .graphicsLayer {
-                            transformOrigin = TransformOrigin(-1f, 0.5f)
+                            transformOrigin = TransformOrigin(0f, 0.5f)
                             scaleX = buttonScale
                             scaleY = buttonScale
                             alpha = buttonAlpha

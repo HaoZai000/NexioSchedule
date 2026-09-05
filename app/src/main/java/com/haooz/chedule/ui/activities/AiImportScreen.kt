@@ -47,6 +47,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.state.ToggleableState
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
@@ -64,9 +65,11 @@ import com.haooz.chedule.ui.basic.SharedScrollBehavior
 import com.haooz.chedule.ui.screens.AddCourseDialog
 import com.haooz.chedule.viewmodel.CourseViewModel
 import com.haooz.chedule.viewmodel.SettingsViewModel
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import top.yukonga.miuix.kmp.basic.ButtonDefaults
 import top.yukonga.miuix.kmp.basic.Card
+import top.yukonga.miuix.kmp.basic.Checkbox
 import top.yukonga.miuix.kmp.basic.Icon
 import top.yukonga.miuix.kmp.basic.Scaffold
 import top.yukonga.miuix.kmp.basic.SmallTitle
@@ -107,7 +110,13 @@ fun AiImportScreen(
 
     var inputText by remember { mutableStateOf("") }
     var showConfirmDialog by remember { mutableStateOf(false) }
+    // 导入方式：false=覆盖当前课表，true=增量添加（保留现有课程）
+    var appendMode by remember { mutableStateOf(false) }
     var editingCourseIndex by remember { mutableIntStateOf(-1) }
+    // 编辑中的课程快照：退出动画期间弹窗仍在屏上，不能依赖列表里的实时对象
+    var editingCourseSnapshot by remember { mutableStateOf<Course?>(null) }
+    // 弹窗显隐：关闭时先置 false 让底部弹窗播完退出动画，再卸载组件
+    var showEditDialog by remember { mutableStateOf(false) }
     // 标记删除操作：真正的删除延迟到退出动画结束后执行，避免列表缩短导致组件被提前移除
     var pendingDelete by remember { mutableStateOf(false) }
 
@@ -134,6 +143,19 @@ fun AiImportScreen(
             parsedCourses.addAll(courses)
             parsedWarnings.clear()
             parsedWarnings.addAll(warnings)
+        }
+    }
+
+    // 编辑弹窗关闭：等底部弹窗退出动画（320ms）播完后，再执行删除并卸载弹窗
+    LaunchedEffect(showEditDialog) {
+        if (!showEditDialog && editingCourseSnapshot != null) {
+            delay(340)
+            if (pendingDelete && editingCourseIndex in parsedCourses.indices) {
+                parsedCourses.removeAt(editingCourseIndex)
+            }
+            pendingDelete = false
+            editingCourseIndex = -1
+            editingCourseSnapshot = null
         }
     }
 
@@ -294,7 +316,11 @@ fun AiImportScreen(
                                 parsedCourses.forEachIndexed { index, course ->
                                     CoursePreviewRow(
                                         course = course,
-                                        onClick = { editingCourseIndex = index }
+                                        onClick = {
+                                            editingCourseIndex = index
+                                            editingCourseSnapshot = course
+                                            showEditDialog = true
+                                        }
                                     )
                                     if (index < parsedCourses.lastIndex) {
                                         Spacer(modifier = Modifier.height(4.dp))
@@ -412,25 +438,20 @@ fun AiImportScreen(
     }
 
     // 课程编辑弹窗：使用 AddCourseDialog 统一组件
-    if (editingCourseIndex >= 0 && editingCourseIndex in parsedCourses.indices) {
-        val editingCourse = parsedCourses[editingCourseIndex]
+    // 组件常驻到退出动画结束（show=false 后仍保留在树中），否则会瞬间消失、没有退出动画
+    editingCourseSnapshot?.let { snapshot ->
         AddCourseDialog(
-            show = true,
-            course = editingCourse,
-            selectedDay = editingCourse.dayOfWeek,
+            show = showEditDialog,
+            course = snapshot,
+            selectedDay = snapshot.dayOfWeek,
             liquidGlassBackdrop = liquidGlassBackdrop,
             totalWeeks = totalWeeks,
             totalSections = effectiveMaxSection,
-            defaultStartSection = editingCourse.startSection,
-            defaultEndSection = editingCourse.endSection,
+            defaultStartSection = snapshot.startSection,
+            defaultEndSection = snapshot.endSection,
             getOccupiedWeeks = { _, _, _, _, _, _ -> emptySet() },
             onDismiss = {
-                // 退出动画结束后才执行真正的删除，避免列表缩短导致组件被提前移除
-                if (pendingDelete && editingCourseIndex in parsedCourses.indices) {
-                    parsedCourses.removeAt(editingCourseIndex)
-                }
-                pendingDelete = false
-                editingCourseIndex = -1
+                showEditDialog = false
             },
             onConfirm = { updated ->
                 if (editingCourseIndex in parsedCourses.indices) {
@@ -445,12 +466,21 @@ fun AiImportScreen(
 
     // 导入确认弹窗
     OverlayDialog(
-        title = "导入并覆盖当前课表？",
+        title = if (appendMode) "增量添加到当前课表？" else "导入并覆盖当前课表？",
         summary = buildString {
-            if (existingCourses.isNotEmpty()) {
-                append("当前课表 ${existingCourses.size} 门 → 新课表 ${parsedCourses.size} 门")
+            if (appendMode) {
+                if (existingCourses.isNotEmpty()) {
+                    append("当前课表 ${existingCourses.size} 门 + 新增 ${parsedCourses.size} 门 → 共 ${existingCourses.size + parsedCourses.size} 门")
+                    append("\n保留现有课程，不覆盖")
+                } else {
+                    append("共 ${parsedCourses.size} 门课程")
+                }
             } else {
-                append("共 ${parsedCourses.size} 门课程")
+                if (existingCourses.isNotEmpty()) {
+                    append("当前课表 ${existingCourses.size} 门 → 新课表 ${parsedCourses.size} 门")
+                } else {
+                    append("共 ${parsedCourses.size} 门课程")
+                }
             }
             parsedSectionConfig?.let { cfg ->
                 append("\n将同时应用节次配置：\n上午${cfg.morningCount}节 · 下午${cfg.afternoonCount}节 · 晚上${cfg.eveningCount}节")
@@ -461,6 +491,40 @@ fun AiImportScreen(
         onDismissRequest = { showConfirmDialog = false }
     ) {
         Column(modifier = Modifier.fillMaxWidth()) {
+            // 导入方式选择：仅在已有课程时提供增量添加
+            if (existingCourses.isNotEmpty()) {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clickable {
+                            hapticFeedback.performHapticFeedback(HapticFeedbackType.VirtualKey)
+                            appendMode = !appendMode
+                        }
+                        .padding(start = 4.dp, end = 4.dp, top = 4.dp, bottom = 8.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Checkbox(
+                        state = if (appendMode) ToggleableState.On else ToggleableState.Off,
+                        onClick = {
+                            hapticFeedback.performHapticFeedback(HapticFeedbackType.VirtualKey)
+                            appendMode = !appendMode
+                        }
+                    )
+                    Spacer(modifier = Modifier.size(8.dp))
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text(
+                            text = "增量添加",
+                            style = MiuixTheme.textStyles.body1,
+                            color = MiuixTheme.colorScheme.onSurface
+                        )
+                        Text(
+                            text = if (appendMode) "保留现有课程，追加到当前课表" else "关闭则清空现有课表后导入",
+                            style = MiuixTheme.textStyles.body2,
+                            color = MiuixTheme.colorScheme.onSurfaceVariantActions
+                        )
+                    }
+                }
+            }
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -476,7 +540,7 @@ fun AiImportScreen(
                     modifier = Modifier.weight(1f)
                 )
                 TextButton(
-                    text = "确认导入",
+                    text = if (appendMode) "确认添加" else "确认导入",
                     onClick = {
                         hapticFeedback.performHapticFeedback(HapticFeedbackType.Confirm)
                         if (parsedCourses.isNotEmpty()) {
@@ -494,10 +558,14 @@ fun AiImportScreen(
                                     cfg.morningTimes, cfg.afternoonTimes, cfg.eveningTimes
                                 )
                             }
-                            viewModel.replaceCourses(parsedCourses.toList())
+                            if (appendMode) {
+                                viewModel.appendCourses(parsedCourses.toList())
+                            } else {
+                                viewModel.replaceCourses(parsedCourses.toList())
+                            }
                             Toast.makeText(
                                 context,
-                                "成功导入 ${parsedCourses.size} 门课程",
+                                if (appendMode) "成功添加 ${parsedCourses.size} 门课程" else "成功导入 ${parsedCourses.size} 门课程",
                                 Toast.LENGTH_LONG
                             ).show()
                             showConfirmDialog = false
@@ -563,7 +631,7 @@ private fun CoursePreviewRow(
                 val summaryLine1 = buildString {
                     append(dayText)
                     append("｜第${course.startSection}-${course.endSection}节")
-                    if (course.classroom.isNotBlank() && course.classroom != "未指定教室") {
+                    if (course.classroom.isNotBlank()) {
                         append("｜${course.classroom}")
                     }
                 }
@@ -715,8 +783,9 @@ internal fun parseImportedCourses(text: String, maxSection: Int = 12): Pair<List
             }
 
             val name = parts[0].ifBlank { "未命名课程" }
-            val classroom = parts[1].ifBlank { "未指定教室" }
-            val teacher = parts[2].ifBlank { "未指定教师" }
+            val classroom = parts[1].trim()
+            // 教师：识别不到时留空，不写入占位文字
+            val teacher = parts[2].trim()
             val dayOfWeek = parts[3].toIntOrNull()
             val startSection = parts[4].toIntOrNull()
             val endSection = parts[5].toIntOrNull()
@@ -739,14 +808,6 @@ internal fun parseImportedCourses(text: String, maxSection: Int = 12): Pair<List
             if (selectedWeeks.isEmpty()) {
                 warnings.add("第${index + 1}行「${name}」: 周次无效，已跳过")
                 continue
-            }
-
-            // 检查可选字段是否缺失
-            val missingFields = mutableListOf<String>()
-            if (parts[1].isBlank()) missingFields.add("教室")
-            if (parts[2].isBlank()) missingFields.add("教师")
-            if (missingFields.isNotEmpty()) {
-                warnings.add("第${index + 1}行「${name}」: 缺少${missingFields.joinToString("、")}")
             }
 
             // 合并键：课程名+教室+教师+星期+节次

@@ -11,8 +11,9 @@ val changelogData = listOf(
         date = "2026-09-05",
         changes = listOf(
             "新增添加按钮根据页面显隐动画",
+            "AI文本导入支持增量导入",
             "优化教务导入更新逻辑，更快更轻",
-            "优化安装应用更新时的流程"
+            "优化安装应用更新时的流程",
         )
     ),
     ChangelogEntry(
