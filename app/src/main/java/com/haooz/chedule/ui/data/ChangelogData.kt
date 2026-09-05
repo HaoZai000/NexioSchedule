@@ -7,6 +7,14 @@ data class ChangelogEntry(
 )
 val changelogData = listOf(
     ChangelogEntry(
+        version = "v1.5.0-0905",
+        date = "2026-09-05",
+        changes = listOf(
+            "新增添加按钮根据页面显隐动画",
+            "优化教务导入更新逻辑，更快更轻",
+        )
+    ),
+    ChangelogEntry(
         version = "v1.4.9-0905",
         date = "2026-09-05",
         changes = listOf(

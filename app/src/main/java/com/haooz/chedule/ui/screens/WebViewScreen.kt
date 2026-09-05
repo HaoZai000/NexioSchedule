@@ -74,6 +74,7 @@ import androidx.compose.ui.zIndex
 import androidx.core.net.toUri
 import com.haooz.chedule.data.Course
 import com.haooz.chedule.data.school.SchoolData
+import com.haooz.chedule.data.school.ScriptRepository
 import com.haooz.chedule.ui.basic.LiquidTopBarButton
 import top.yukonga.miuix.kmp.basic.NativeMiuixTextField
 import com.haooz.chedule.ui.basic.ProgressiveBlurTopBar
@@ -156,6 +157,13 @@ fun WebViewScreen(
 
     LaunchedEffect(isDesktopMode) { onDesktopModeChanged(isDesktopMode) }
     LaunchedEffect(assetJsPath) { onAssetJsPathChanged(assetJsPath) }
+
+    // 进入页面时按需预下载适配脚本，失败不阻塞页面
+    LaunchedEffect(school.resourceFolder, assetJsPath) {
+        val path = assetJsPath ?: return@LaunchedEffect
+        ScriptRepository(context, ScriptRepository.getRepoUrl(context))
+            .ensureScript(school.resourceFolder, path)
+    }
 
     var alertData by remember { mutableStateOf<AlertData?>(null) }
     var promptData by remember { mutableStateOf<PromptData?>(null) }

@@ -1,14 +1,19 @@
 package com.haooz.chedule.data.school
 
 import android.content.Context
-import org.eclipse.jgit.api.Git
-import org.eclipse.jgit.api.ResetCommand
-import org.eclipse.jgit.lib.ProgressMonitor
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
+import okhttp3.OkHttpClient
+import okhttp3.Request
 import java.io.File
+import java.io.IOException
+import java.util.concurrent.TimeUnit
 
 /**
- * 脚本仓库管理 - 使用 JGit 增量更新教务适配脚本
- * 复用 shiguang_warehouse 仓库结构
+ * 脚本仓库管理 - 使用 HTTP 按需获取教务适配脚本
+ * 复用 shiguang_warehouse 仓库结构，直链拉取静态文件：
+ *   索引: {repoUrl}/raw/{INDEX_BRANCH}/school_index.pb
+ *   脚本: {repoUrl}/raw/main/resources/{resourceFolder}/{assetJsPath}
  */
 class ScriptRepository(private val context: Context, private val repoUrl: String? = null) {
 
@@ -20,6 +25,8 @@ class ScriptRepository(private val context: Context, private val repoUrl: String
 
         // 客户端支持的协议版本
         private const val CLIENT_PROTOCOL_VERSION = 2
+
+        private const val TIMEOUT_SECONDS = 30L
 
         fun getRepoUrl(context: Context): String {
             val prefs = context.getSharedPreferences("edu_import_prefs", Context.MODE_PRIVATE)
@@ -41,23 +48,18 @@ class ScriptRepository(private val context: Context, private val repoUrl: String
     private val indexFile: File
         get() = File(indexDir, INDEX_FILE_NAME)
 
-    private val schoolsDir: File
-        get() = File(baseDir, "schools")
+    private val resourcesDir: File
+        get() = File(baseDir, "schools/resources")
 
-    private val tempResourcesDir: File
-        get() = File(context.cacheDir, "temp_schools_repo")
+    private val client: OkHttpClient by lazy {
+        OkHttpClient.Builder()
+            .connectTimeout(TIMEOUT_SECONDS, TimeUnit.SECONDS)
+            .readTimeout(TIMEOUT_SECONDS, TimeUnit.SECONDS)
+            .build()
+    }
 
-    private val tempIndexDir: File
-        get() = File(context.cacheDir, "temp_index_repo")
-
-    // 更新结果
-    private data class UpdateResult(
-        var indexFileContent: ByteArray? = null,
-        var indexRemoteVersionId: String? = null,
-        var resourceFiles: List<Pair<File, File>> = emptyList(),
-        var isFatalIndexError: Boolean = false,
-        var downloadFailed: Boolean = false
-    )
+    private val remoteBase: String
+        get() = repoUrl ?: DEFAULT_REPO_URL
 
     /**
      * 比较版本ID（TIME_YYYYMMDDHHMMSS_XXX 格式）
@@ -69,9 +71,6 @@ class ScriptRepository(private val context: Context, private val repoUrl: String
         return newVersion > localVersion
     }
 
-    /**
-     * 读取并解析索引文件
-     */
     private fun readIndex(file: File): SchoolIndexData? {
         if (!file.exists()) return null
         return try {
@@ -82,329 +81,107 @@ class ScriptRepository(private val context: Context, private val repoUrl: String
     }
 
     /**
-     * 【步骤一】更新资源文件：克隆或拉取，暂存文件列表
-     */
-    private fun updateResourceFiles(onLog: (String) -> Unit, result: UpdateResult, onProgress: (Float) -> Unit = {}): Boolean {
-        onLog("\n--- 资源文件更新（第一阶段：拉取） ---")
-
-        try {
-            val gitDir = File(tempResourcesDir, ".git")
-            val isLocalRepoExist = tempResourcesDir.exists() && gitDir.exists()
-
-            val git: Git = if (isLocalRepoExist) {
-                onLog("临时仓库已存在，执行增量更新...")
-                val openedGit = Git.open(tempResourcesDir)
-
-                onLog("正在拉取远程变更...")
-                openedGit.fetch()
-                    .setProgressMonitor(SimpleProgressMonitor(onLog) { onProgress(it * 0.5f) })
-                    .setTimeout(60)
-                    .call()
-                onProgress(0.5f)
-
-                val remoteRef = "refs/remotes/origin/$RESOURCES_BRANCH"
-                if (openedGit.repository.findRef(remoteRef) == null) {
-                    onLog("错误：不存在分支 '$RESOURCES_BRANCH'")
-                    return false
-                }
-
-                onLog("正在重置到远程最新...")
-                openedGit.reset()
-                    .setMode(ResetCommand.ResetType.HARD)
-                    .setRef(remoteRef)
-                    .call()
-
-                openedGit
-            } else {
-                if (tempResourcesDir.exists()) tempResourcesDir.deleteRecursively()
-                onLog("正在克隆资源仓库...")
-                Git.cloneRepository()
-                    .setURI(repoUrl ?: DEFAULT_REPO_URL)
-                    .setDirectory(tempResourcesDir)
-                    .setBranch(RESOURCES_BRANCH)
-                    .setProgressMonitor(SimpleProgressMonitor(onLog) { onProgress(it * 0.5f) })
-                    .setTimeout(120)
-                    .call()
-            }
-
-            git.use {
-                val sourceResourcesDir = File(tempResourcesDir, "resources")
-                if (!sourceResourcesDir.exists() || !sourceResourcesDir.isDirectory) {
-                    onLog("错误：仓库中未找到 resources 文件夹")
-                    return false
-                }
-
-                val filesToCopy = mutableListOf<Pair<File, File>>()
-                sourceResourcesDir.walkTopDown().forEach { sourceFile ->
-                    if (sourceFile.isFile && !sourceFile.name.equals("adapters.yaml", true)) {
-                        val relativePath = sourceFile.relativeTo(sourceResourcesDir)
-                        val targetFile = File(schoolsDir, "resources/$relativePath")
-                        filesToCopy.add(Pair(sourceFile, targetFile))
-                    }
-                }
-
-                result.resourceFiles = filesToCopy
-                onProgress(1f)
-                onLog("已暂存 ${filesToCopy.size} 个脚本文件")
-                return true
-            }
-        } catch (e: Exception) {
-            onLog("错误：资源更新失败 - ${e.message}")
-            e.printStackTrace()
-            return false
-        }
-    }
-
-    /**
-     * 【步骤二】下载索引文件，校验协议版本和数据版本
-     */
-    private fun downloadIndexFile(onLog: (String) -> Unit, result: UpdateResult) {
-        onLog("\n--- 索引文件下载（第二阶段：拉取与校验） ---")
-
-        try {
-            if (tempIndexDir.exists()) tempIndexDir.deleteRecursively()
-
-            onLog("正在克隆索引分支...")
-            Git.cloneRepository()
-                .setURI(repoUrl ?: DEFAULT_REPO_URL)
-                .setDirectory(tempIndexDir)
-                .setBranch(INDEX_BRANCH)
-                .setTimeout(30)
-                .call()
-                .close()
-
-            val sourceFile = File(tempIndexDir, INDEX_FILE_NAME)
-            if (!sourceFile.exists()) {
-                onLog("警告：远程索引文件不存在")
-                result.downloadFailed = true
-                return
-            }
-
-            val remoteIndex = readIndex(sourceFile)
-            if (remoteIndex == null) {
-                onLog("错误：无法解析远程索引，文件可能损坏")
-                result.downloadFailed = true
-                return
-            }
-
-            // A. 校验协议版本
-            val remoteProtocol = remoteIndex.protocolVersion
-            if (remoteProtocol > CLIENT_PROTOCOL_VERSION) {
-                onLog("致命错误：远程协议版本 ($remoteProtocol) 高于客户端支持版本 ($CLIENT_PROTOCOL_VERSION)")
-                onLog("操作：更新中止，请更新应用版本")
-                result.isFatalIndexError = true
-                return
-            }
-            onLog("协议版本校验通过：$remoteProtocol <= $CLIENT_PROTOCOL_VERSION")
-
-            // B. 校验数据版本
-            val localIndex = readIndex(indexFile)
-            val localVersionId = localIndex?.versionId
-
-            onLog("远程版本: ${remoteIndex.versionId}")
-            onLog("本地版本: ${localVersionId ?: "N/A"}")
-
-            if (isNewerVersion(remoteIndex.versionId, localVersionId)) {
-                onLog("远程版本更新，将写入新索引")
-                result.indexFileContent = sourceFile.readBytes()
-                result.indexRemoteVersionId = remoteIndex.versionId
-            } else if (remoteIndex.versionId == localVersionId) {
-                onLog("索引已是最新版本，跳过写入")
-            } else {
-                onLog("致命错误：远程索引更旧，数据一致性异常")
-                result.isFatalIndexError = true
-                return
-            }
-
-        } catch (e: Exception) {
-            val msg = e.message ?: ""
-            val isBranchNotFound = msg.contains(INDEX_BRANCH) ||
-                    e::class.java.simpleName.contains("RefNotAdvertisedException")
-
-            if (isBranchNotFound) {
-                onLog("警告：索引分支不存在")
-            } else {
-                onLog("错误：索引下载失败 - ${e.message}")
-            }
-            result.downloadFailed = true
-        }
-    }
-
-    /**
-     * 【步骤三】统一写入本地存储
-     */
-    private fun commitUpdates(result: UpdateResult, onLog: (String) -> Unit): Boolean {
-        onLog("\n--- 统一写入本地存储 ---")
-
-        // 备份旧索引
-        var localIndexBackup: ByteArray? = null
-        if (indexFile.exists()) {
-            try {
-                localIndexBackup = indexFile.readBytes()
-                onLog("本地索引已备份")
-            } catch (e: Exception) {
-                onLog("警告：备份本地索引失败")
-            }
-        }
-
-        // 清理整个 repo 目录
-        onLog("清理本地仓库目录...")
-        if (baseDir.exists()) baseDir.deleteRecursively()
-        if (!baseDir.mkdirs()) {
-            onLog("致命错误：无法创建目录")
-            return false
-        }
-
-        // 写入资源文件
-        if (result.resourceFiles.isNotEmpty()) {
-            onLog("写入 ${result.resourceFiles.size} 个资源文件...")
-            try {
-                schoolsDir.mkdirs()
-                result.resourceFiles.forEach { (source, target) ->
-                    target.parentFile?.mkdirs()
-                    source.copyTo(target, overwrite = true)
-                }
-                onLog("资源文件写入完成")
-            } catch (e: Exception) {
-                onLog("错误：写入资源文件失败")
-                return false
-            }
-        }
-
-        // 写入索引文件
-        if (result.indexFileContent != null) {
-            try {
-                indexDir.mkdirs()
-                indexFile.writeBytes(result.indexFileContent!!)
-                onLog("索引文件已写入 (版本: ${result.indexRemoteVersionId})")
-            } catch (e: Exception) {
-                onLog("错误：写入索引文件失败")
-            }
-        } else if (localIndexBackup != null) {
-            // 版本未更新，恢复旧索引
-            try {
-                indexDir.mkdirs()
-                indexFile.writeBytes(localIndexBackup)
-                onLog("索引版本未更新，已恢复旧索引")
-            } catch (e: Exception) {
-                onLog("警告：恢复旧索引失败")
-            }
-        }
-
-        return true
-    }
-
-    /**
-     * 一键更新：先检查索引版本，再决定是否下载资源
-     * onProgress: 0.0~0.3=检查索引, 0.3~1.0=下载资源
+     * 一键更新：HTTP 拉取远端索引，校验并写入本地
+     * onProgress: 0.0~0.5=下载索引, 0.5~1.0=校验写入
      * 返回 0=已是最新, 1=更新完成, -1=失败
      */
     fun updateAll(onLog: (String) -> Unit, onProgress: (Float) -> Unit = {}): Int {
         onLog("=== 开始检查更新 ===")
         onProgress(0f)
 
-        // 阶段一：先下载索引，检查版本
-        val indexResult = UpdateResult()
-        downloadIndexFile(onLog, indexResult)
-        onProgress(0.3f)
+        val url = "$remoteBase/raw/$INDEX_BRANCH/$INDEX_FILE_NAME"
+        onLog("下载索引...")
+        val downloaded = try {
+            downloadBytes(url, onLog)
+        } catch (e: IOException) {
+            onLog("错误：索引下载失败 - ${e.message}")
+            onProgress(1f)
+            return -1
+        }
+        if (downloaded == null) {
+            onLog("警告：远程索引文件不存在")
+            onProgress(1f)
+            return -1
+        }
+        onProgress(0.5f)
 
-        if (indexResult.isFatalIndexError) {
-            onLog("\n!!! 索引校验失败，终止")
-            cleanupTempDirs()
+        val remoteIndex = try {
+            SchoolIndexParser.parse(downloaded)
+        } catch (e: Exception) {
+            onLog("错误：无法解析远程索引，文件可能损坏")
+            onProgress(1f)
             return -1
         }
 
-        // 索引下载失败（网络错误/文件不存在等）
-        if (indexResult.downloadFailed && indexResult.indexFileContent == null) {
-            onLog("\n!!! 索引下载失败，无法检查更新")
-            cleanupTempDirs()
+        // A. 校验协议版本
+        if (remoteIndex.protocolVersion > CLIENT_PROTOCOL_VERSION) {
+            onLog("致命错误：远程协议版本 (${remoteIndex.protocolVersion}) 高于客户端支持版本 ($CLIENT_PROTOCOL_VERSION)")
+            onLog("操作：更新中止，请更新应用版本")
+            onProgress(1f)
             return -1
         }
+        onLog("协议版本校验通过：${remoteIndex.protocolVersion} <= $CLIENT_PROTOCOL_VERSION")
 
-        // 索引版本未变 → 已是最新
-        if (indexResult.indexFileContent == null) {
-            onLog("\n=== 数据已是最新，无需更新 ===")
-            cleanupTempDirs()
-            return 0
-        }
+        // B. 校验数据版本
+        val localIndex = readIndex(indexFile)
+        val localVersionId = localIndex?.versionId
+        onLog("远程版本: ${remoteIndex.versionId}")
+        onLog("本地版本: ${localVersionId ?: "N/A"}")
 
-        // 阶段二：索引有更新，下载资源
-        onLog("\n索引有更新，开始下载脚本...")
-        val resourceResult = UpdateResult(
-            indexFileContent = indexResult.indexFileContent,
-            indexRemoteVersionId = indexResult.indexRemoteVersionId
-        )
-        val resourceSuccess = updateResourceFiles(onLog, resourceResult) { progress ->
-            onProgress(0.3f + progress * 0.7f)
-        }
-        if (!resourceSuccess) {
-            onLog("\n!!! 资源更新失败，终止")
-            cleanupTempDirs()
-            return -1
-        }
-
-        resourceResult.indexFileContent = indexResult.indexFileContent
-        resourceResult.indexRemoteVersionId = indexResult.indexRemoteVersionId
-
-        // 阶段三：统一写入
-        val commitSuccess = commitUpdates(resourceResult, onLog)
-        cleanupTempDirs()
-
-        return if (commitSuccess) {
-            onLog("\n=== 更新完成 ===")
-            1
-        } else {
-            onLog("\n!!! 写入失败 ===")
-            -1
-        }
-    }
-
-    private fun cleanupTempDirs() {
-        listOf(tempResourcesDir, tempIndexDir).forEach { dir ->
-            if (dir.exists()) dir.deleteRecursively()
+        return when {
+            isNewerVersion(remoteIndex.versionId, localVersionId) -> {
+                onLog("远程版本更新，将写入新索引")
+                indexDir.mkdirs()
+                indexFile.writeBytes(downloaded)
+                onProgress(1f)
+                onLog("\n=== 更新完成 ===")
+                1
+            }
+            remoteIndex.versionId == localVersionId -> {
+                onLog("\n=== 数据已是最新，无需更新 ===")
+                onProgress(1f)
+                0
+            }
+            else -> {
+                onLog("致命错误：远程索引更旧，数据一致性异常")
+                onProgress(1f)
+                -1
+            }
         }
     }
 
     /**
-     * 简单的进度监控器（进度单调递增，不会回退）
+     * 按需获取适配脚本，随索引版本刷新
+     * 已缓存且对应的索引版本未变则直接返回；否则重新下载后落盘缓存
+     * 返回 null 表示获取失败
      */
-    private class SimpleProgressMonitor(
-        private val onLog: (String) -> Unit,
-        private val onProgress: (Float) -> Unit = {}
-    ) : ProgressMonitor {
-        private var totalWork = 0
-        private var completed = 0
-        private var taskCount = 0
-        private var finishedTasks = 0
-        private var lastProgress = 0f
+    suspend fun ensureScript(resourceFolder: String, assetJsPath: String): File? {
+        val target = File(resourcesDir, "$resourceFolder/$assetJsPath")
+        val currentVersion = readIndex(indexFile)?.versionId
+        val marker = File(target.path + ".v")
+        val isCached = target.exists() && marker.exists() && marker.readText() == currentVersion
+        if (isCached) return target
+        return withContext(Dispatchers.IO) {
+            try {
+                val url = "$remoteBase/raw/$RESOURCES_BRANCH/resources/$resourceFolder/$assetJsPath"
+                val bytes = downloadBytes(url) ?: return@withContext null
+                target.parentFile?.mkdirs()
+                target.writeBytes(bytes)
+                marker.writeText(currentVersion ?: "")
+                target
+            } catch (e: IOException) {
+                null
+            }
+        }
+    }
 
-        override fun start(totalTasks: Int) {
-            taskCount = totalTasks.coerceAtLeast(1)
+    private fun downloadBytes(url: String, onLog: ((String) -> Unit)? = null): ByteArray? {
+        onLog?.invoke("正在下载: $url")
+        val request = Request.Builder().url(url).get().build()
+        client.newCall(request).execute().use { response ->
+            if (!response.isSuccessful) return null
+            val bytes = response.body?.bytes() ?: return null
+            return if (bytes.isEmpty()) null else bytes
         }
-        override fun beginTask(title: String?, totalWork: Int) {
-            this.totalWork = totalWork
-            this.completed = 0
-            title?.let { onLog("  $it") }
-        }
-        override fun update(completed: Int) {
-            this.completed += completed
-            if (totalWork > 0) {
-                val taskProgress = (this.completed.toFloat() / totalWork).coerceIn(0f, 1f)
-                val overall = ((finishedTasks + taskProgress) / taskCount).coerceIn(0f, 1f)
-                if (overall > lastProgress) {
-                    lastProgress = overall
-                    onProgress(overall)
-                }
-            }
-        }
-        override fun endTask() {
-            finishedTasks++
-            val overall = (finishedTasks.toFloat() / taskCount).coerceIn(0f, 1f)
-            if (overall > lastProgress) {
-                lastProgress = overall
-                onProgress(overall)
-            }
-        }
-        override fun isCancelled(): Boolean = false
     }
 }

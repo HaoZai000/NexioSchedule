@@ -124,17 +124,6 @@ dependencies {
     // OkHttp：HTTP 客户端
     implementation(libs.okhttp)
 
-    // ===== Git 操作 =====
-    // JGit：纯 Java 实现的 Git 库
-    implementation(libs.jgit) {
-        exclude(group = "org.apache.httpcomponents", module = "httpclient")
-        exclude(group = "org.slf4j", module = "slf4j-api")
-    }
-    // SLF4J API：JGit 日志门面
-    implementation(libs.slf4j.api)
-    // SLF4J Android：将日志转发到 Android Logcat
-    implementation(libs.slf4j.android)
-
     // ===== 调试专用 =====
     // Compose UI Tooling：Layout Inspector
     debugImplementation(libs.androidx.compose.ui.tooling)

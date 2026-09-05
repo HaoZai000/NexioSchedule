@@ -103,14 +103,11 @@ class EducationalImportActivity : ComponentActivity() {
 
         private val updateScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
         private val _isUpdating = MutableStateFlow(false)
-        private val _isChecking = MutableStateFlow(false)
-        private val _updateProgress = MutableStateFlow(0f)
         private val _dataVersion = MutableStateFlow(0)
-        private val _initialLoadDone = MutableStateFlow(false)
 
         @SuppressLint("UseKtx")
         fun startUpdate(context: android.content.Context) {
-            if (_isUpdating.value || _isChecking.value) return
+            if (_isUpdating.value) return
 
             val prefs = context.getSharedPreferences(PREFS_NAME, MODE_PRIVATE)
             val lastUpdateTime = prefs.getLong(KEY_LAST_UPDATE_TIME, 0)
@@ -118,47 +115,32 @@ class EducationalImportActivity : ComponentActivity() {
             val needsUpdate = lastUpdateTime == 0L || (now - lastUpdateTime > AUTO_UPDATE_INTERVAL_MS)
 
             if (!needsUpdate) {
-                _initialLoadDone.value = true
                 return
             }
 
-            _isChecking.value = true
             _isUpdating.value = true
-            _updateProgress.value = 0f
-            _initialLoadDone.value = false
             updateScope.launch {
                 try {
                     ScriptRepository(context, ScriptRepository.getRepoUrl(context)).updateAll(
-                        onLog = { },
-                        onProgress = { progress ->
-                            _updateProgress.value = progress
-                            if (progress > 0.05f) _isChecking.value = false
-                        }
+                        onLog = { }
                     )
                     prefs.edit().putLong(KEY_LAST_UPDATE_TIME, System.currentTimeMillis()).apply()
                 } catch (e: Exception) {
                     Log.e(TAG, "更新失败: ${e.message}")
                 } finally {
-                    _isChecking.value = false
                     _isUpdating.value = false
                     _dataVersion.value++
-                    _initialLoadDone.value = true
                 }
             }
         }
 
         fun forceUpdate(context: android.content.Context) {
-            if (_isUpdating.value || _isChecking.value) return
-            _isChecking.value = true
+            if (_isUpdating.value) return
             _isUpdating.value = true
-            _updateProgress.value = 0f
             updateScope.launch {
                 try {
                     val result = ScriptRepository(context, ScriptRepository.getRepoUrl(context)).updateAll(
-                        onLog = { },
-                        onProgress = { progress ->
-                            _updateProgress.value = progress
-                        }
+                        onLog = { }
                     )
                     val msg = when (result) {
                         0 -> "已是最新版本"
@@ -179,7 +161,6 @@ class EducationalImportActivity : ComponentActivity() {
                         Toast.makeText(context, "更新失败", Toast.LENGTH_SHORT).show()
                     }
                 } finally {
-                    _isChecking.value = false
                     _isUpdating.value = false
                     _dataVersion.value++
                 }
@@ -209,8 +190,6 @@ class EducationalImportActivity : ComponentActivity() {
     @Composable
     private fun EducationalImportApp() {
         val isUpdating by _isUpdating.collectAsState()
-        val isChecking by _isChecking.collectAsState()
-        val updateProgress by _updateProgress.collectAsState()
         val dataVersion by _dataVersion.collectAsState()
 
         val courseViewModel: CourseViewModel = viewModel()
@@ -283,8 +262,6 @@ class EducationalImportActivity : ComponentActivity() {
                                 SchoolSelectionScreen(
                                     modifier = Modifier.fillMaxSize(),
                                     isUpdating = isUpdating,
-                                    isChecking = isChecking,
-                                    updateProgress = updateProgress,
                                     dataVersion = dataVersion,
                                     isInFreeformWindow = isInFreeformWindow,
                                     scrollBehavior = scrollBehavior,
@@ -341,7 +318,6 @@ class EducationalImportActivity : ComponentActivity() {
                                         ) {
                                             CircularProgressIndicator(
                                                 modifier = Modifier.size(20.dp),
-                                                progress = if (isChecking) null else updateProgress,
                                             )
                                         }
                                     } else {

@@ -61,8 +61,6 @@ import top.yukonga.miuix.kmp.utils.scrollEndHaptic
 fun SchoolSelectionScreen(
     modifier: Modifier = Modifier,
     isUpdating: Boolean = false,
-    isChecking: Boolean = false,
-    updateProgress: Float = 0f,
     dataVersion: Int = 0,
     isInFreeformWindow: Boolean = false,
     scrollBehavior: SharedScrollBehavior? = null,
@@ -150,16 +148,10 @@ fun SchoolSelectionScreen(
                         horizontalAlignment = Alignment.CenterHorizontally,
                         modifier = Modifier.padding(horizontal = 64.dp)
                     ) {
-                        if (isChecking) {
-                            CircularProgressIndicator()
-                        } else {
-                            CircularProgressIndicator(
-                                progress = updateProgress,
-                            )
-                        }
+                        CircularProgressIndicator()
                         Spacer(Modifier.height(16.dp))
                         Text(
-                            text = if (isChecking) "正在检查是否有更新" else "正在更新学校数据",
+                            text = "正在检查更新",
                             style = MiuixTheme.textStyles.body2,
                             color = MiuixTheme.colorScheme.onSurfaceVariantActions
                         )
