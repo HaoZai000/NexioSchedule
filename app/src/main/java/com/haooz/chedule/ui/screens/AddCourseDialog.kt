@@ -91,6 +91,7 @@ import top.yukonga.miuix.kmp.theme.MiuixTheme
 import top.yukonga.miuix.kmp.theme.ThemeController
 import top.yukonga.miuix.kmp.utils.scrollEndHaptic
 import java.util.UUID
+import kotlin.time.Duration.Companion.milliseconds
 
 /**
  * 内容区分组数（基本信息 / 星期 / 节次 / 周次网格 / 颜色 / 删除），用于逐组错落揭示。
@@ -138,10 +139,10 @@ fun AddCourseDialog(
         if (!show) return@LaunchedEffect
         // 整体延迟一档（120ms）再开始，避免与底部弹窗升起动画抢同一帧；
         // 之后每张卡片依次延迟一档错落出场。
-        delay(240)
+        delay(240.milliseconds)
         for (step in 0 until REVEAL_GROUP_COUNT) {
             revealStep = step
-            delay(REVEAL_STEP_MS)
+            delay(REVEAL_STEP_MS.milliseconds)
         }
     }
 
@@ -1288,7 +1289,6 @@ private fun WeekSettingCard(
             val rows = remember(totalWeeks, columns) { (totalWeeks + columns - 1) / columns }
             val primaryColor = MiuixTheme.colorScheme.primary
             val outlineColor = MiuixTheme.colorScheme.outline
-            val onSurfaceColor = MiuixTheme.colorScheme.onSurface
             val onSurfaceSummaryColor = MiuixTheme.colorScheme.onSurfaceVariantSummary
             val occupiedColor = if (isDark) Color(0xFF4A4A4A) else Color(0xFFF0F0F0)
 
@@ -1497,13 +1497,10 @@ private fun ColorCard(
     }
 }
 
-private fun Color.luminance(): Float {
-    return 0.299f * red + 0.587f * green + 0.114f * blue
-}
-
 /**
  * 时间段 时:分 双滚轮选择器（与时间配置编辑页一致的左右布局）
  */
+@SuppressLint("DefaultLocale")
 @Composable
 private fun TimeRangePickerGroup(
     startHour: Int,
@@ -1610,6 +1607,7 @@ private fun parseTimeMinute(time: String?): Int {
 /**
  * 将时/分格式化为 "HH:mm"
  */
+@SuppressLint("DefaultLocale")
 private fun formatTime(hour: Int, minute: Int): String {
     return String.format("%02d:%02d", hour, minute)
 }
