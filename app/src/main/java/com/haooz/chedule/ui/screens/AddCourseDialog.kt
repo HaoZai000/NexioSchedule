@@ -16,6 +16,7 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.RowScope
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.asPaddingValues
@@ -34,12 +35,14 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.mutableStateSetOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -101,6 +104,60 @@ private const val REVEAL_GROUP_COUNT = 6
 /** 每组之间的揭示间隔（毫秒），总时长 ≈ 该值 × (REVEAL_GROUP_COUNT-1)。 */
 private const val REVEAL_STEP_MS = 60L
 
+/**
+ * 添加/编辑课程表单的状态持有者。
+ *
+ * 关键约定：**每个字段只允许在真正消费它的那张卡片内部被读取**，父级 `AddCourseDialog`
+ * 在组合期一律不解引用（只在 `onConfirmClick` 这类事件回调里读——事件里读取不会建立重组依赖）。
+ *
+ * 已在 app/compose-stability.conf 中声明为 stable，否则内部 `var` 字段会让整个类
+ * 被判定为 unstable，子卡片就无法靠参数比对跳过重组。
+ */
+private class AddCourseFormState(
+    course: Course?,
+    selectedDay: Int,
+    defaultStartSection: Int,
+    defaultEndSection: Int,
+) {
+    var name by mutableStateOf(course?.name ?: "")
+    var classroom by mutableStateOf(course?.classroom ?: "")
+    var teacher by mutableStateOf(course?.teacher ?: "")
+    var dayOfWeek by mutableIntStateOf(course?.dayOfWeek ?: selectedDay)
+    var startSection by mutableIntStateOf(course?.startSection ?: defaultStartSection)
+    var endSection by mutableIntStateOf(course?.endSection ?: defaultEndSection)
+    var selectedColor by mutableLongStateOf(course?.colorRes ?: Course.courseColors.first())
+    var isCustomTime by mutableStateOf(course?.isCustomTime ?: false)
+    var customStartTime by mutableStateOf(course?.customStartTime ?: "")
+    var customEndTime by mutableStateOf(course?.customEndTime ?: "")
+
+    val selectedWeeks: MutableSet<Int> = mutableStateSetOf<Int>().apply {
+        if (course != null) {
+            if (course.selectedWeeks.isNotEmpty()) {
+                addAll(course.selectedWeeks)
+            } else {
+                for (w in course.startWeek..course.endWeek) {
+                    when (course.weekType) {
+                        Course.WEEK_TYPE_ODD -> if (w % 2 == 1) add(w)
+                        Course.WEEK_TYPE_EVEN -> if (w % 2 == 0) add(w)
+                        else -> add(w)
+                    }
+                }
+            }
+        }
+    }
+
+    /** 切换星期：周次占用情况随星期变化，已选周次一并清空。 */
+    fun selectDay(day: Int) {
+        dayOfWeek = day
+        selectedWeeks.clear()
+    }
+
+    /** 勾选/取消某个周次。 */
+    fun toggleWeek(week: Int) {
+        if (!selectedWeeks.remove(week)) selectedWeeks.add(week)
+    }
+}
+
 @SuppressLint("ConfigurationScreenWidthHeight")
 @Composable
 fun AddCourseDialog(
@@ -146,20 +203,13 @@ fun AddCourseDialog(
         }
     }
 
-    var name by remember(show) { mutableStateOf(course?.name ?: "") }
-    var classroom by remember(show) { mutableStateOf(course?.classroom ?: "") }
-    var teacher by remember(show) { mutableStateOf(course?.teacher ?: "") }
-    var dayOfWeek by remember(show) { mutableIntStateOf(course?.dayOfWeek ?: selectedDay) }
-    var startSection by remember(show) { mutableIntStateOf(course?.startSection ?: defaultStartSection) }
-    var endSection by remember(show) { mutableIntStateOf(course?.endSection ?: defaultEndSection) }
-    var isSingleWeek by remember(show) { mutableStateOf(course?.weekType == Course.WEEK_TYPE_ODD) }
-    var isDoubleWeek by remember(show) { mutableStateOf(course?.weekType == Course.WEEK_TYPE_EVEN) }
-    var selectedColor by remember(show) { mutableLongStateOf(course?.colorRes ?: Course.courseColors.first()) }
+    // 表单状态集中在持有者里：父级组合期不解引用其字段，读取全部下沉到各卡片内部，
+    // 敲字 / 点周次 / 选颜色只重组对应的那一张卡，不再波及整个弹窗。
+    val form = remember(show) {
+        AddCourseFormState(course, selectedDay, defaultStartSection, defaultEndSection)
+    }
 
-    // 自定义上课时间状态
-    var isCustomTime by remember(show) { mutableStateOf(course?.isCustomTime ?: false) }
-    var customStartTime by remember(show) { mutableStateOf(course?.customStartTime ?: "") }
-    var customEndTime by remember(show) { mutableStateOf(course?.customEndTime ?: "") }
+    // 自定义上课时间的弹窗暂存值（只在时间弹窗内被读取，放在父级没有重组代价）
     var showTimeDialog by remember(show) { mutableStateOf(false) }
     var timeError by remember(show) { mutableStateOf(false) }
     var tempStartHour by remember(show) { mutableIntStateOf(parseTimeHour(course?.customStartTime)) }
@@ -168,37 +218,28 @@ fun AddCourseDialog(
     var tempEndMinute by remember(show) { mutableIntStateOf(parseTimeMinute(course?.customEndTime)) }
 
     var currentOccupiedWeeks by remember { mutableStateOf<Set<Int>>(emptySet()) }
-    LaunchedEffect(dayOfWeek, startSection, endSection, isCustomTime, customStartTime, customEndTime) {
-        currentOccupiedWeeks = getOccupiedWeeks(
-            dayOfWeek,
-            startSection,
-            endSection,
+    // 占用周次的计算与"剔除已占周次"合并进同一个协程：原先拆成两个 LaunchedEffect，
+    // 星期/节次变化要多等一帧才画出来。内容相等时不写状态，避免空 Set 反复重启协程。
+    LaunchedEffect(
+        form.dayOfWeek,
+        form.startSection,
+        form.endSection,
+        form.isCustomTime,
+        form.customStartTime,
+        form.customEndTime
+    ) {
+        val occupied = getOccupiedWeeks(
+            form.dayOfWeek,
+            form.startSection,
+            form.endSection,
             listOfNotNull(course?.id),
-            if (isCustomTime) customStartTime.ifBlank { null } else null,
-            if (isCustomTime) customEndTime.ifBlank { null } else null
+            if (form.isCustomTime) form.customStartTime.ifBlank { null } else null,
+            if (form.isCustomTime) form.customEndTime.ifBlank { null } else null
         )
-    }
-
-    val selectedWeeks = remember(show) {
-        mutableStateSetOf<Int>().apply {
-            if (course != null) {
-                if (course.selectedWeeks.isNotEmpty()) {
-                    addAll(course.selectedWeeks)
-                } else {
-                    for (w in course.startWeek..course.endWeek) {
-                        when (course.weekType) {
-                            Course.WEEK_TYPE_ODD -> if (w % 2 == 1) add(w)
-                            Course.WEEK_TYPE_EVEN -> if (w % 2 == 0) add(w)
-                            else -> add(w)
-                        }
-                    }
-                }
-            }
+        if (occupied != currentOccupiedWeeks) {
+            form.selectedWeeks.removeAll(occupied)
+            currentOccupiedWeeks = occupied
         }
-    }
-
-    LaunchedEffect(currentOccupiedWeeks) {
-        selectedWeeks.removeAll(currentOccupiedWeeks)
     }
 
     val allWeeks = remember(totalWeeks) { (1..totalWeeks).toList() }
@@ -208,61 +249,61 @@ fun AddCourseDialog(
     val selectableWeeks = remember(allWeeks, currentOccupiedWeeks) { allWeeks.filter { it !in currentOccupiedWeeks } }
     val selectableOddWeeks = remember(selectableWeeks) { selectableWeeks.filter { it % 2 == 1 } }
     val selectableEvenWeeks = remember(selectableWeeks) { selectableWeeks.filter { it % 2 == 0 } }
-    val allSelectableSelected = selectableWeeks.isNotEmpty() && selectableWeeks.all { it in selectedWeeks }
-    val allSelectableOddSelected = selectableOddWeeks.all { it in selectedWeeks }
-    val allSelectableEvenSelected = selectableEvenWeeks.all { it in selectedWeeks }
-    val someSelectableOddSelected = selectableOddWeeks.any { it in selectedWeeks }
-    val someSelectableEvenSelected = selectableEvenWeeks.any { it in selectedWeeks }
+    // 注意：下面这 5 个布尔不能再在这里算 —— 它们要读 form.selectedWeeks，
+    // 一旦在父级作用域读取，点一个周次格子就会让整个弹窗重组。已下沉到 WeekSettingCard。
     val hasOccupiedOddWeeks = remember(selectableOddWeeks, oddWeeks) { selectableOddWeeks.size != oddWeeks.size }
     val hasOccupiedEvenWeeks = remember(selectableEvenWeeks, evenWeeks) { selectableEvenWeeks.size != evenWeeks.size }
 
     var showSectionDialog by remember { mutableStateOf(false) }
     var showColorDialog by remember { mutableStateOf(false) }
     var showDeleteDialog by remember { mutableStateOf(false) }
-    var tempStartSection by remember(show) { mutableIntStateOf(course?.startSection ?: 1) }
-    var tempEndSection by remember(show) { mutableIntStateOf(course?.endSection ?: 2) }
-    var customColor by remember { mutableStateOf(Color(selectedColor)) }
+    var tempStartSection by remember(show) { mutableIntStateOf(defaultStartSection) }
+    var tempEndSection by remember(show) { mutableIntStateOf(defaultEndSection) }
+    // 初值无关紧要：每次打开调色板前都会用当前课程色重新赋值
+    var customColor by remember { mutableStateOf(Color.Transparent) }
 
+    // 事件回调里读取 form 字段不会建立重组依赖，所以这里可以放心读
     val onConfirmClick: () -> Unit = {
         hapticFeedback.performHapticFeedback(HapticFeedbackType.Confirm)
-        if (name.isBlank()) {
+        if (form.name.isBlank()) {
             android.widget.Toast.makeText(context, "请输入课程名称", android.widget.Toast.LENGTH_SHORT).show()
-        } else if (selectedWeeks.isEmpty()) {
+        } else if (form.selectedWeeks.isEmpty()) {
             android.widget.Toast.makeText(context, "请选择上课周次", android.widget.Toast.LENGTH_SHORT).show()
-        } else if (name.isNotBlank() && startSection <= endSection && selectedWeeks.isNotEmpty()) {
-            val sortedWeeks = selectedWeeks.sorted()
+        } else if (form.startSection <= form.endSection) {
+            val sortedWeeks = form.selectedWeeks.sorted()
             val minWeek = sortedWeeks.first()
             val maxWeek = sortedWeeks.last()
             val allWeeksInRange = (minWeek..maxWeek).toSet()
             val oddWeeksInRange = allWeeksInRange.filter { it % 2 == 1 }.toSet()
             val evenWeeksInRange = allWeeksInRange.filter { it % 2 == 0 }.toSet()
 
+            val selectedWeekSet = form.selectedWeeks.toSet()
             val weekType = when {
-                selectedWeeks.toSet() == allWeeksInRange -> Course.WEEK_TYPE_ALL
-                selectedWeeks.toSet() == oddWeeksInRange -> Course.WEEK_TYPE_ODD
-                selectedWeeks.toSet() == evenWeeksInRange -> Course.WEEK_TYPE_EVEN
+                selectedWeekSet == allWeeksInRange -> Course.WEEK_TYPE_ALL
+                selectedWeekSet == oddWeeksInRange -> Course.WEEK_TYPE_ODD
+                selectedWeekSet == evenWeeksInRange -> Course.WEEK_TYPE_EVEN
                 else -> Course.WEEK_TYPE_ALL
             }
 
-            val isContiguous = selectedWeeks.size == (maxWeek - minWeek + 1)
+            val isContiguous = sortedWeeks.size == (maxWeek - minWeek + 1)
             val weeksToSave = if (isContiguous) emptyList() else sortedWeeks
 
             val newCourse = Course(
                 id = course?.id ?: UUID.randomUUID().toString(),
-                name = name.trim(),
-                classroom = classroom.trim(),
-                teacher = teacher.trim(),
-                dayOfWeek = dayOfWeek,
-                startSection = startSection,
-                endSection = endSection,
+                name = form.name.trim(),
+                classroom = form.classroom.trim(),
+                teacher = form.teacher.trim(),
+                dayOfWeek = form.dayOfWeek,
+                startSection = form.startSection,
+                endSection = form.endSection,
                 startWeek = minWeek,
                 endWeek = maxWeek,
                 weekType = weekType,
-                colorRes = selectedColor,
+                colorRes = form.selectedColor,
                 selectedWeeks = weeksToSave,
-                isCustomTime = isCustomTime,
-                customStartTime = if (isCustomTime) customStartTime else null,
-                customEndTime = if (isCustomTime) customEndTime else null
+                isCustomTime = form.isCustomTime,
+                customStartTime = if (form.isCustomTime) form.customStartTime else null,
+                customEndTime = if (form.isCustomTime) form.customEndTime else null
             )
 
             onConfirm(newCourse)
@@ -313,56 +354,35 @@ fun AddCourseDialog(
             AddCourseDialogContent(
                 isEdit = isEdit,
                 isDark = isDark,
-                name = name,
-                onNameChange = { name = it },
-                classroom = classroom,
-                onClassroomChange = { classroom = it },
-                teacher = teacher,
-                onTeacherChange = { teacher = it },
-                dayOfWeek = dayOfWeek,
-                onDayOfWeekChange = { dayOfWeek = it; selectedWeeks.clear() },
-                startSection = startSection,
-                endSection = endSection,
+                revealStep = revealStep,
+                form = form,
                 totalWeeks = totalWeeks,
-                selectedWeeks = selectedWeeks,
-                selectedColor = selectedColor,
-                onSelectedColorChange = { selectedColor = it },
                 currentOccupiedWeeks = currentOccupiedWeeks,
                 selectableWeeks = selectableWeeks,
                 selectableOddWeeks = selectableOddWeeks,
                 selectableEvenWeeks = selectableEvenWeeks,
-                allSelectableSelected = allSelectableSelected,
-                allSelectableOddSelected = allSelectableOddSelected,
-                allSelectableEvenSelected = allSelectableEvenSelected,
-                someSelectableOddSelected = someSelectableOddSelected,
-                someSelectableEvenSelected = someSelectableEvenSelected,
                 hasOccupiedOddWeeks = hasOccupiedOddWeeks,
                 hasOccupiedEvenWeeks = hasOccupiedEvenWeeks,
-                onIsSingleWeekChange = { isSingleWeek = it; isDoubleWeek = false },
-                onIsDoubleWeekChange = { isDoubleWeek = it; isSingleWeek = false },
+                // 这些回调体内解引用 form 的当前字段（调用时才读），
+                // 因此不存在"捕获旧值"的问题，改完节次/颜色再打开也是最新的
                 onShowSectionDialog = {
-                    tempStartSection = startSection
-                    tempEndSection = endSection
+                    tempStartSection = form.startSection
+                    tempEndSection = form.endSection
                     showSectionDialog = true
                 },
                 onShowColorDialog = {
-                    customColor = Color(selectedColor)
+                    customColor = Color(form.selectedColor)
                     showColorDialog = true
                 },
-                isCustomTime = isCustomTime,
-                onIsCustomTimeChange = { isCustomTime = it },
-                customStartTime = customStartTime,
-                customEndTime = customEndTime,
                 onShowTimeDialog = {
-                    tempStartHour = parseTimeHour(customStartTime)
-                    tempStartMinute = parseTimeMinute(customStartTime)
-                    tempEndHour = parseTimeHour(customEndTime)
-                    tempEndMinute = parseTimeMinute(customEndTime)
+                    tempStartHour = parseTimeHour(form.customStartTime)
+                    tempStartMinute = parseTimeMinute(form.customStartTime)
+                    tempEndHour = parseTimeHour(form.customEndTime)
+                    tempEndMinute = parseTimeMinute(form.customEndTime)
                     timeError = false
                     showTimeDialog = true
                 },
                 onDeleteClick = { showDeleteDialog = true },
-                revealStep = revealStep,
             )
         }
     } else {
@@ -407,56 +427,35 @@ fun AddCourseDialog(
         AddCourseDialogContent(
             isEdit = isEdit,
             isDark = isDark,
-            name = name,
-            onNameChange = { name = it },
-            classroom = classroom,
-            onClassroomChange = { classroom = it },
-            teacher = teacher,
-            onTeacherChange = { teacher = it },
-            dayOfWeek = dayOfWeek,
-            onDayOfWeekChange = { dayOfWeek = it; selectedWeeks.clear() },
-            startSection = startSection,
-            endSection = endSection,
+            revealStep = revealStep,
+            form = form,
             totalWeeks = totalWeeks,
-            selectedWeeks = selectedWeeks,
-            selectedColor = selectedColor,
-            onSelectedColorChange = { selectedColor = it },
             currentOccupiedWeeks = currentOccupiedWeeks,
             selectableWeeks = selectableWeeks,
             selectableOddWeeks = selectableOddWeeks,
             selectableEvenWeeks = selectableEvenWeeks,
-            allSelectableSelected = allSelectableSelected,
-            allSelectableOddSelected = allSelectableOddSelected,
-            allSelectableEvenSelected = allSelectableEvenSelected,
-            someSelectableOddSelected = someSelectableOddSelected,
-            someSelectableEvenSelected = someSelectableEvenSelected,
             hasOccupiedOddWeeks = hasOccupiedOddWeeks,
             hasOccupiedEvenWeeks = hasOccupiedEvenWeeks,
-            onIsSingleWeekChange = { isSingleWeek = it; isDoubleWeek = false },
-            onIsDoubleWeekChange = { isDoubleWeek = it; isSingleWeek = false },
+            // 这些回调体内解引用 form 的当前字段（调用时才读），
+            // 因此不存在"捕获旧值"的问题，改完节次/颜色再打开也是最新的
             onShowSectionDialog = {
-                tempStartSection = startSection
-                tempEndSection = endSection
+                tempStartSection = form.startSection
+                tempEndSection = form.endSection
                 showSectionDialog = true
             },
             onShowColorDialog = {
-                customColor = Color(selectedColor)
+                customColor = Color(form.selectedColor)
                 showColorDialog = true
             },
-            isCustomTime = isCustomTime,
-            onIsCustomTimeChange = { isCustomTime = it },
-            customStartTime = customStartTime,
-            customEndTime = customEndTime,
             onShowTimeDialog = {
-                tempStartHour = parseTimeHour(customStartTime)
-                tempStartMinute = parseTimeMinute(customStartTime)
-                tempEndHour = parseTimeHour(customEndTime)
-                tempEndMinute = parseTimeMinute(customEndTime)
+                tempStartHour = parseTimeHour(form.customStartTime)
+                tempStartMinute = parseTimeMinute(form.customStartTime)
+                tempEndHour = parseTimeHour(form.customEndTime)
+                tempEndMinute = parseTimeMinute(form.customEndTime)
                 timeError = false
                 showTimeDialog = true
             },
             onDeleteClick = { showDeleteDialog = true },
-            revealStep = revealStep,
         )
     }
     } // end of if (isTablet) else
@@ -514,12 +513,6 @@ fun AddCourseDialog(
             modifier = Modifier.fillMaxWidth(),
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
-            LaunchedEffect(tempStartSection) {
-                if (tempEndSection < tempStartSection) {
-                    tempEndSection = tempStartSection
-                }
-            }
-
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceEvenly
@@ -534,9 +527,14 @@ fun AddCourseDialog(
                         color = MiuixTheme.colorScheme.onSurfaceVariantActions,
                         modifier = Modifier.padding(top = 4.dp, bottom = 12.dp)
                     )
+                    // 把"结束 >= 开始"的夹取放在同一个快照里同步完成，
+                    // 既省掉 LaunchedEffect 带来的一帧延迟，也避免结束滚轮的 range 一直变
                     NumberPicker(
                         value = tempStartSection,
-                        onValueChange = { tempStartSection = it },
+                        onValueChange = {
+                            tempStartSection = it
+                            if (tempEndSection < it) tempEndSection = it
+                        },
                         range = 1..totalSections,
                         visibleItemCount = 3,
                         itemHeight = 50.dp
@@ -553,10 +551,11 @@ fun AddCourseDialog(
                         color = MiuixTheme.colorScheme.onSurfaceVariantActions,
                         modifier = Modifier.padding(top = 4.dp, bottom = 12.dp)
                     )
+                    // 范围固定为 1..totalSections：拖动"开始"时不再反复重建本滚轮
                     NumberPicker(
                         value = tempEndSection,
                         onValueChange = { tempEndSection = it },
-                        range = tempStartSection..totalSections,
+                        range = 1..totalSections,
                         visibleItemCount = 3,
                         itemHeight = 50.dp
                     )
@@ -577,16 +576,16 @@ fun AddCourseDialog(
                     },
                     modifier = Modifier.weight(1f)
                 )
-                TextButton(
-                    text = "确定",
-                    onClick = {
-                        hapticFeedback.performHapticFeedback(HapticFeedbackType.Confirm)
-                        if (tempStartSection <= tempEndSection) {
-                            startSection = tempStartSection
-                            endSection = tempEndSection
-                        }
-                        showSectionDialog = false
-                    },
+TextButton(
+                        text = "确定",
+                        onClick = {
+                            hapticFeedback.performHapticFeedback(HapticFeedbackType.Confirm)
+                            if (tempStartSection <= tempEndSection) {
+                                form.startSection = tempStartSection
+                                form.endSection = tempEndSection
+                            }
+                            showSectionDialog = false
+                        },
                     colors = ButtonDefaults.textButtonColorsPrimary(),
                     modifier = Modifier.weight(1f)
                 )
@@ -650,8 +649,8 @@ fun AddCourseDialog(
                         val startMinutes = tempStartHour * 60 + tempStartMinute
                         val endMinutes = tempEndHour * 60 + tempEndMinute
                         if (endMinutes > startMinutes) {
-                            customStartTime = formatTime(tempStartHour, tempStartMinute)
-                            customEndTime = formatTime(tempEndHour, tempEndMinute)
+                            form.customStartTime = formatTime(tempStartHour, tempStartMinute)
+                            form.customEndTime = formatTime(tempEndHour, tempEndMinute)
                             timeError = false
                             showTimeDialog = false
                         } else {
@@ -704,7 +703,7 @@ fun AddCourseDialog(
                             text = "确定",
                             onClick = {
                                 hapticFeedback.performHapticFeedback(HapticFeedbackType.Confirm)
-                                selectedColor = (customColor.alpha * 255).toInt().toLong() shl 24 or
+                                form.selectedColor = (customColor.alpha * 255).toInt().toLong() shl 24 or
                                         ((customColor.red * 255).toInt().toLong() shl 16) or
                                         ((customColor.green * 255).toInt().toLong() shl 8) or
                                         (customColor.blue * 255).toInt().toLong()
@@ -726,57 +725,31 @@ private fun AddCourseDialogContent(
     isEdit: Boolean,
     isDark: Boolean,
     revealStep: Int,
-    name: String,
-    onNameChange: (String) -> Unit,
-    classroom: String,
-    onClassroomChange: (String) -> Unit,
-    teacher: String,
-    onTeacherChange: (String) -> Unit,
-    dayOfWeek: Int,
-    onDayOfWeekChange: (Int) -> Unit,
-    startSection: Int,
-    endSection: Int,
+    form: AddCourseFormState,
     totalWeeks: Int,
-    selectedWeeks: MutableSet<Int>,
-    selectedColor: Long,
-    onSelectedColorChange: (Long) -> Unit,
     currentOccupiedWeeks: Set<Int>,
     selectableWeeks: List<Int>,
     selectableOddWeeks: List<Int>,
     selectableEvenWeeks: List<Int>,
-    allSelectableSelected: Boolean,
-    allSelectableOddSelected: Boolean,
-    allSelectableEvenSelected: Boolean,
-    someSelectableOddSelected: Boolean,
-    someSelectableEvenSelected: Boolean,
     hasOccupiedOddWeeks: Boolean,
     hasOccupiedEvenWeeks: Boolean,
-    onIsSingleWeekChange: (Boolean) -> Unit,
-    onIsDoubleWeekChange: (Boolean) -> Unit,
     onShowSectionDialog: () -> Unit,
-    onShowColorDialog: () -> Unit,
-    isCustomTime: Boolean,
-    onIsCustomTimeChange: (Boolean) -> Unit,
-    customStartTime: String,
-    customEndTime: String,
     onShowTimeDialog: () -> Unit,
+    onShowColorDialog: () -> Unit,
     onDeleteClick: () -> Unit,
 ) {
     val hapticFeedback = LocalHapticFeedback.current
     val statusBarsPadding = WindowInsets.statusBars.asPaddingValues().calculateTopPadding()
     val isTablet = LocalConfiguration.current.screenWidthDp >= 600
 
-    // 稳定化回调：解析/编辑课程名等文字输入触发的父级重组会重建这些内联 lambda，
-    // 此处固定其引用，使周次/星期/颜色网格等重卡在参数未变时被 Compose 跳过重组。
-    val stableOnDayOfWeekChange = remember { onDayOfWeekChange }
-    val stableOnIsCustomTimeChange = remember { onIsCustomTimeChange }
-    val stableOnShowTimeDialog = remember { onShowTimeDialog }
-    val stableOnShowSectionDialog = remember { onShowSectionDialog }
-    val stableOnIsSingleWeekChange = remember { onIsSingleWeekChange }
-    val stableOnIsDoubleWeekChange = remember { onIsDoubleWeekChange }
-    val stableOnSelectedColorChange = remember { onSelectedColorChange }
-    val stableOnShowColorDialog = remember { onShowColorDialog }
-    val stableOnDeleteClick = remember { onDeleteClick }
+    // 用 rememberUpdatedState 而不是 remember{}：后者会冻结首次组合时创建的 lambda，
+    // 而"打开子弹窗"这类回调里读的是当时的字段值，冻结后二次打开会回填旧值。
+    // rememberUpdatedState 既给到稳定引用（revealStep 递进时各卡片仍可跳过重组），
+    // 又保证调用时拿到的是最新的那个 lambda。
+    val stableOnShowSectionDialog by rememberUpdatedState(onShowSectionDialog)
+    val stableOnShowTimeDialog by rememberUpdatedState(onShowTimeDialog)
+    val stableOnShowColorDialog by rememberUpdatedState(onShowColorDialog)
+    val stableOnDeleteClick by rememberUpdatedState(onDeleteClick)
 
     // 逐组入场的动画：淡入 + 极轻微上移。位移刻意很小、缓动平滑无回弹，
     fun revealFor(index: Int): EnterTransition {
@@ -805,12 +778,7 @@ private fun AddCourseDialogContent(
         AnimatedVisibility(visible = revealStep >= 0, enter = revealFor(0)) {
             BasicInfoCard(
                 isDark = isDark,
-                name = name,
-                onNameChange = onNameChange,
-                classroom = classroom,
-                onClassroomChange = onClassroomChange,
-                teacher = teacher,
-                onTeacherChange = onTeacherChange,
+                form = form,
             )
         }
 
@@ -818,10 +786,7 @@ private fun AddCourseDialogContent(
         AnimatedVisibility(visible = revealStep >= 1, enter = revealFor(1)) {
             WeekdayCard(
                 isDark = isDark,
-                isCustomTime = isCustomTime,
-                onIsCustomTimeChange = stableOnIsCustomTimeChange,
-                dayOfWeek = dayOfWeek,
-                onDayOfWeekChange = stableOnDayOfWeekChange,
+                form = form,
             )
         }
 
@@ -829,12 +794,8 @@ private fun AddCourseDialogContent(
         AnimatedVisibility(visible = revealStep >= 2, enter = revealFor(2)) {
             SectionTimeCard(
                 isDark = isDark,
-                isCustomTime = isCustomTime,
-                customStartTime = customStartTime,
-                customEndTime = customEndTime,
+                form = form,
                 onShowTimeDialog = stableOnShowTimeDialog,
-                startSection = startSection,
-                endSection = endSection,
                 onShowSectionDialog = stableOnShowSectionDialog,
             )
         }
@@ -843,22 +804,14 @@ private fun AddCourseDialogContent(
         AnimatedVisibility(visible = revealStep >= 3, enter = revealFor(3)) {
             WeekSettingCard(
                 isDark = isDark,
-                dayOfWeek = dayOfWeek,
-                onIsSingleWeekChange = stableOnIsSingleWeekChange,
-                onIsDoubleWeekChange = stableOnIsDoubleWeekChange,
-                selectedWeeks = selectedWeeks,
+                form = form,
+                totalWeeks = totalWeeks,
+                currentOccupiedWeeks = currentOccupiedWeeks,
                 selectableWeeks = selectableWeeks,
                 selectableOddWeeks = selectableOddWeeks,
                 selectableEvenWeeks = selectableEvenWeeks,
-                allSelectableSelected = allSelectableSelected,
-                allSelectableOddSelected = allSelectableOddSelected,
-                allSelectableEvenSelected = allSelectableEvenSelected,
-                someSelectableOddSelected = someSelectableOddSelected,
-                someSelectableEvenSelected = someSelectableEvenSelected,
                 hasOccupiedOddWeeks = hasOccupiedOddWeeks,
                 hasOccupiedEvenWeeks = hasOccupiedEvenWeeks,
-                currentOccupiedWeeks = currentOccupiedWeeks,
-                totalWeeks = totalWeeks,
             )
         }
 
@@ -866,8 +819,7 @@ private fun AddCourseDialogContent(
         AnimatedVisibility(visible = revealStep >= 4, enter = revealFor(4)) {
             ColorCard(
                 isDark = isDark,
-                selectedColor = selectedColor,
-                onSelectedColorChange = stableOnSelectedColorChange,
+                form = form,
                 onShowColorDialog = stableOnShowColorDialog,
             )
         }
@@ -894,8 +846,6 @@ private fun AddCourseDialogContent(
                 }
             }
         }
-        val configuration = LocalConfiguration.current
-        val isTablet = configuration.screenWidthDp >= 600
         Spacer(modifier = Modifier.height(if (isTablet) 4.dp else statusBarsPadding + 65.dp))
     }
 }
@@ -904,12 +854,7 @@ private fun AddCourseDialogContent(
 @Composable
 private fun BasicInfoCard(
     isDark: Boolean,
-    name: String,
-    onNameChange: (String) -> Unit,
-    classroom: String,
-    onClassroomChange: (String) -> Unit,
-    teacher: String,
-    onTeacherChange: (String) -> Unit,
+    form: AddCourseFormState,
 ) {
     Card(
         cornerRadius = 20.dp,
@@ -935,8 +880,8 @@ private fun BasicInfoCard(
                     color = MiuixTheme.colorScheme.onSurface
                 )
                 NativeTextField(
-                    value = name,
-                    onValueChange = onNameChange,
+                    value = form.name,
+                    onValueChange = { form.name = it },
                     modifier = Modifier.fillMaxWidth(0.65f),
                     hint = "必填",
                     singleLine = true,
@@ -963,8 +908,8 @@ private fun BasicInfoCard(
                     color = MiuixTheme.colorScheme.onSurface
                 )
                 NativeTextField(
-                    value = classroom,
-                    onValueChange = onClassroomChange,
+                    value = form.classroom,
+                    onValueChange = { form.classroom = it },
                     modifier = Modifier.fillMaxWidth(0.65f),
                     hint = "非必填",
                     singleLine = true,
@@ -991,8 +936,8 @@ private fun BasicInfoCard(
                     color = MiuixTheme.colorScheme.onSurface
                 )
                 NativeTextField(
-                    value = teacher,
-                    onValueChange = onTeacherChange,
+                    value = form.teacher,
+                    onValueChange = { form.teacher = it },
                     modifier = Modifier.fillMaxWidth(0.65f),
                     hint = "非必填",
                     singleLine = true,
@@ -1011,10 +956,7 @@ private fun BasicInfoCard(
 @Composable
 private fun WeekdayCard(
     isDark: Boolean,
-    isCustomTime: Boolean,
-    onIsCustomTimeChange: (Boolean) -> Unit,
-    dayOfWeek: Int,
-    onDayOfWeekChange: (Int) -> Unit,
+    form: AddCourseFormState,
 ) {
     Card(
         cornerRadius = 20.dp,
@@ -1035,6 +977,8 @@ private fun WeekdayCard(
                     .padding(bottom = 10.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
+                // 在这里（Row 的 lambda 作用域内）读取，切换自定义时间只重组这一行
+                val isCustomTime = form.isCustomTime
                 Text(
                     text = "上课星期",
                     fontSize = 17.sp,
@@ -1044,7 +988,7 @@ private fun WeekdayCard(
                 )
                 Checkbox(
                     state = if (isCustomTime) ToggleableState.On else ToggleableState.Off,
-                    onClick = { onIsCustomTimeChange(!isCustomTime) }
+                    onClick = { form.isCustomTime = !isCustomTime }
                 )
                 Spacer(modifier = Modifier.width(4.dp))
                 Text(
@@ -1058,8 +1002,10 @@ private fun WeekdayCard(
                 horizontalArrangement = Arrangement.spacedBy(6.dp)
             ) {
                 val dayLabels = remember { listOf("一", "二", "三", "四", "五", "六", "日") }
+                // 同样把 dayOfWeek 的读取点留在这个 Row 作用域内
+                val currentDay = form.dayOfWeek
                 for (day in 1..7) {
-                    val isSelected = day == dayOfWeek
+                    val isSelected = day == currentDay
                     val bgColor = if (isSelected) MiuixTheme.colorScheme.primary
                         else if (isDark) Color(0xFF363636) else Color(0xFFF2F2F2)
                     val textColor = if (isSelected) Color.White
@@ -1074,7 +1020,7 @@ private fun WeekdayCard(
                                 interactionSource = null,
                                 indication = null,
                             ) {
-                                onDayOfWeekChange(day)
+                                form.selectDay(day)
                             },
                         contentAlignment = Alignment.Center
                     ) {
@@ -1094,12 +1040,8 @@ private fun WeekdayCard(
 @Composable
 private fun SectionTimeCard(
     isDark: Boolean,
-    isCustomTime: Boolean,
-    customStartTime: String,
-    customEndTime: String,
+    form: AddCourseFormState,
     onShowTimeDialog: () -> Unit,
-    startSection: Int,
-    endSection: Int,
     onShowSectionDialog: () -> Unit,
 ) {
     Card(
@@ -1110,13 +1052,14 @@ private fun SectionTimeCard(
             contentColor = MiuixTheme.colorScheme.onSurface
         )
     ) {
-        if (isCustomTime) {
+        // isCustomTime 只在 Card 的 content lambda 里读：切换时不必重组 SectionTimeCard 本体
+        if (form.isCustomTime) {
             ArrowPreference(
                 title = "上课时间",
                 endActions = {
                     Text(
-                        text = if (customStartTime.isNotBlank() && customEndTime.isNotBlank())
-                            "$customStartTime - $customEndTime" else "未设置",
+                        text = if (form.customStartTime.isNotBlank() && form.customEndTime.isNotBlank())
+                            "${form.customStartTime} - ${form.customEndTime}" else "未设置",
                         fontSize = 14.5.sp,
                         color = MiuixTheme.colorScheme.onSurfaceVariantActions
                     )
@@ -1128,7 +1071,7 @@ private fun SectionTimeCard(
                 title = "上课节次",
                 endActions = {
                     Text(
-                        text = "第${startSection} - ${endSection}节",
+                        text = "第${form.startSection} - ${form.endSection}节",
                         fontSize = 14.5.sp,
                         color = MiuixTheme.colorScheme.onSurfaceVariantActions
                     )
@@ -1143,24 +1086,16 @@ private fun SectionTimeCard(
 @Composable
 private fun WeekSettingCard(
     isDark: Boolean,
-    dayOfWeek: Int,
-    onIsSingleWeekChange: (Boolean) -> Unit,
-    onIsDoubleWeekChange: (Boolean) -> Unit,
-    selectedWeeks: MutableSet<Int>,
+    form: AddCourseFormState,
+    totalWeeks: Int,
+    currentOccupiedWeeks: Set<Int>,
     selectableWeeks: List<Int>,
     selectableOddWeeks: List<Int>,
     selectableEvenWeeks: List<Int>,
-    allSelectableSelected: Boolean,
-    allSelectableOddSelected: Boolean,
-    allSelectableEvenSelected: Boolean,
-    someSelectableOddSelected: Boolean,
-    someSelectableEvenSelected: Boolean,
     hasOccupiedOddWeeks: Boolean,
     hasOccupiedEvenWeeks: Boolean,
-    currentOccupiedWeeks: Set<Int>,
-    totalWeeks: Int,
 ) {
-    val noDaySelected = dayOfWeek == 0
+    val noDaySelected = form.dayOfWeek == 0
     Card(
         cornerRadius = 20.dp,
         modifier = Modifier.fillMaxWidth().alpha(if (noDaySelected) 0.5f else 1f),
@@ -1174,12 +1109,32 @@ private fun WeekSettingCard(
                 .fillMaxWidth()
                 .padding(16.dp)
         ) {
-            val hasMixedSelection = someSelectableOddSelected && someSelectableEvenSelected
+            // 勾选态派生值：derivedStateOf 只在"结果真的变了"时才通知读取方。
+            // 点单个周次格子时这 5 个布尔绝大多数情况不变，于是下面整行复选框
+            // 连带着本 Column 都不会重组，只有真正翻变的那一两个格子会重画。
+            val allSelectableSelected by remember(selectableWeeks) {
+                derivedStateOf { selectableWeeks.isNotEmpty() && selectableWeeks.all { it in form.selectedWeeks } }
+            }
+            val allSelectableOddSelected by remember(selectableOddWeeks) {
+                derivedStateOf { selectableOddWeeks.all { it in form.selectedWeeks } }
+            }
+            val allSelectableEvenSelected by remember(selectableEvenWeeks) {
+                derivedStateOf { selectableEvenWeeks.all { it in form.selectedWeeks } }
+            }
+            val someSelectableOddSelected by remember(selectableOddWeeks) {
+                derivedStateOf { selectableOddWeeks.any { it in form.selectedWeeks } }
+            }
+            val someSelectableEvenSelected by remember(selectableEvenWeeks) {
+                derivedStateOf { selectableEvenWeeks.any { it in form.selectedWeeks } }
+            }
 
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 verticalAlignment = Alignment.CenterVertically
             ) {
+                // hasMixedSelection 必须在这个 Row 的 lambda 里算：放在外层 Column 里
+                // 会把上面几个派生态的读取点抬到整卡作用域，点格子就整卡重组了
+                val hasMixedSelection = someSelectableOddSelected && someSelectableEvenSelected
                 Text(
                     text = "上课周次",
                     modifier = Modifier.weight(1f),
@@ -1199,13 +1154,10 @@ private fun WeekSettingCard(
                             state = if (allSelectableSelected) ToggleableState.On else ToggleableState.Off,
                             onClick = if (noDaySelected) null else {
                                 {
-                                    if (allSelectableSelected) {
-                                        selectedWeeks.clear()
-                                    } else {
-                                        selectedWeeks.clear()
-                                        selectedWeeks.addAll(selectableWeeks)
+                                    form.selectedWeeks.clear()
+                                    if (!allSelectableSelected) {
+                                        form.selectedWeeks.addAll(selectableWeeks)
                                     }
-                                    onIsSingleWeekChange(false)
                                 }
                             },
 
@@ -1227,17 +1179,9 @@ private fun WeekSettingCard(
                             },
                             onClick = if (noDaySelected) null else {
                                 {
-                                    if (hasMixedSelection) {
-                                        selectedWeeks.clear()
-                                        selectedWeeks.addAll(selectableOddWeeks)
-                                        onIsSingleWeekChange(true)
-                                    } else if (allSelectableOddSelected) {
-                                        selectedWeeks.clear()
-                                        onIsSingleWeekChange(false)
-                                    } else {
-                                        selectedWeeks.clear()
-                                        selectedWeeks.addAll(selectableOddWeeks)
-                                        onIsSingleWeekChange(true)
+                                    form.selectedWeeks.clear()
+                                    if (!allSelectableOddSelected) {
+                                        form.selectedWeeks.addAll(selectableOddWeeks)
                                     }
                                 }
                             },
@@ -1260,17 +1204,11 @@ private fun WeekSettingCard(
                             },
                             onClick = if (noDaySelected) null else {
                                 {
-                                    if (hasMixedSelection) {
-                                        selectedWeeks.clear()
-                                        selectedWeeks.addAll(selectableEvenWeeks)
-                                        onIsDoubleWeekChange(true)
-                                    } else if (allSelectableEvenSelected) {
-                                        selectedWeeks.clear()
-                                        onIsDoubleWeekChange(false)
+                                    if (hasMixedSelection || !allSelectableEvenSelected) {
+                                        form.selectedWeeks.clear()
+                                        form.selectedWeeks.addAll(selectableEvenWeeks)
                                     } else {
-                                        selectedWeeks.clear()
-                                        selectedWeeks.addAll(selectableEvenWeeks)
-                                        onIsDoubleWeekChange(true)
+                                        form.selectedWeeks.clear()
                                     }
                                 }
                             },
@@ -1287,19 +1225,12 @@ private fun WeekSettingCard(
             // 周次网格
             val columns = 6
             val rows = remember(totalWeeks, columns) { (totalWeeks + columns - 1) / columns }
-            val primaryColor = MiuixTheme.colorScheme.primary
             val outlineColor = MiuixTheme.colorScheme.outline
             val onSurfaceSummaryColor = MiuixTheme.colorScheme.onSurfaceVariantSummary
             val occupiedColor = if (isDark) Color(0xFF4A4A4A) else Color(0xFFF0F0F0)
 
-            val weekStates = remember(totalWeeks, selectedWeeks.size, currentOccupiedWeeks) {
-                (1..totalWeeks).map { weekNum ->
-                    val isSelected = weekNum in selectedWeeks
-                    val isOccupied = weekNum in currentOccupiedWeeks
-                    Triple(weekNum, isSelected, isOccupied)
-                }
-            }
-
+            // 选中态/非选中态在 WeekCell 内部读取 form.selectedWeeks，
+            // 点单个格子只重组那一个 Box，不再波及整个网格
             Column(
                 modifier = Modifier.fillMaxWidth(),
                 verticalArrangement = Arrangement.spacedBy(6.dp)
@@ -1311,47 +1242,17 @@ private fun WeekSettingCard(
                     ) {
                         for (col in 0 until columns) {
                             val idx = row * columns + col
-                            if (idx < weekStates.size) {
-                                val (weekNum, isSelected, isOccupied) = weekStates[idx]
-                                val bgColor = when {
-                                    isSelected -> primaryColor
-                                    isOccupied -> occupiedColor
-                                    else -> if (isDark) Color(0xFF363636) else Color(0xFFF2F2F2)
-                                }
-                                val contentTextColor = when {
-                                    noDaySelected -> outlineColor
-                                    isSelected -> Color.White
-                                    isOccupied -> outlineColor
-                                    else -> onSurfaceSummaryColor
-                                }
-                                Box(
-                                    modifier = Modifier
-                                        .weight(1f)
-                                        .height(32.dp)
-                                        .squircleClip(10.dp)
-                                        .background(bgColor)
-                                        .then(
-                                            if (noDaySelected || isOccupied) Modifier
-                                            else Modifier.clickable(
-                                                interactionSource = null,
-                                                indication = null,
-                                            ) {
-                                                if (isSelected) {
-                                                    selectedWeeks.remove(weekNum)
-                                                } else {
-                                                    selectedWeeks.add(weekNum)
-                                                }
-                                                onIsSingleWeekChange(false)
-                                            }
-                                        ),
-                                    contentAlignment = Alignment.Center
-                                ) {
-                                    Text(
-                                        text = "$weekNum",
-                                        fontSize = 13.sp,
-                                        color = contentTextColor
-                                    )
-                                }
+                            if (idx < totalWeeks) {
+                                WeekCell(
+                                    weekNum = idx + 1,
+                                    isOccupied = (idx + 1) in currentOccupiedWeeks,
+                                    noDaySelected = noDaySelected,
+                                    isDark = isDark,
+                                    outlineColor = outlineColor,
+                                    onSurfaceSummaryColor = onSurfaceSummaryColor,
+                                    occupiedColor = occupiedColor,
+                                    form = form,
+                                )
                             } else {
                                 Spacer(modifier = Modifier.weight(1f))
                             }
@@ -1363,12 +1264,70 @@ private fun WeekSettingCard(
     }
 }
 
+/**
+ * 单个周次格子。
+ *
+ * isSelected 在 cell 内部读取 form.selectedWeeks；点击直接写 form.selectedWeeks。
+ * 这样某个格子被点选只触发这一个 WeekCell 的重组，外层网格整列不再重画。
+ *
+ * noDaySelected / isOccupied 通过参数下传——它们一周次内至多变化一次，
+ * 在父级读一次后下传最划算（form.selectedWeeks 之外的读取仍然走父级）。
+ */
+@Composable
+private fun RowScope.WeekCell(
+    weekNum: Int,
+    isOccupied: Boolean,
+    noDaySelected: Boolean,
+    isDark: Boolean,
+    outlineColor: Color,
+    onSurfaceSummaryColor: Color,
+    occupiedColor: Color,
+    form: AddCourseFormState,
+) {
+    val isSelected = weekNum in form.selectedWeeks
+    val primaryColor = MiuixTheme.colorScheme.primary
+    val bgColor = when {
+        isSelected -> primaryColor
+        isOccupied -> occupiedColor
+        else -> if (isDark) Color(0xFF363636) else Color(0xFFF2F2F2)
+    }
+    val contentTextColor = when {
+        noDaySelected -> outlineColor
+        isSelected -> Color.White
+        isOccupied -> outlineColor
+        else -> onSurfaceSummaryColor
+    }
+    Box(
+        modifier = Modifier
+            .weight(1f)
+            .height(32.dp)
+            .squircleClip(10.dp)
+            .background(bgColor)
+            .then(
+                if (noDaySelected || isOccupied) Modifier
+                else Modifier.clickable(
+                    interactionSource = null,
+                    indication = null,
+                ) {
+                    if (isSelected) form.selectedWeeks.remove(weekNum)
+                    else form.selectedWeeks.add(weekNum)
+                }
+            ),
+        contentAlignment = Alignment.Center
+    ) {
+        Text(
+            text = "$weekNum",
+            fontSize = 13.sp,
+            color = contentTextColor
+        )
+    }
+}
+
 /** 课程颜色选择卡片。 */
 @Composable
 private fun ColorCard(
     isDark: Boolean,
-    selectedColor: Long,
-    onSelectedColorChange: (Long) -> Unit,
+    form: AddCourseFormState,
     onShowColorDialog: () -> Unit,
 ) {
     Card(
@@ -1410,88 +1369,119 @@ private fun ColorCard(
                         for (col in 0 until colorColumns) {
                             val colorIndex = row * colorColumns + col
                             if (colorIndex < allColors.size) {
-                                val color = allColors[colorIndex]
-                                val isSelected = color == selectedColor
-                                val primaryColor = MiuixTheme.colorScheme.primary
-                                val borderAlpha by animateFloatAsState(
-                                    targetValue = if (isSelected) 1f else 0f,
-                                    animationSpec = tween(durationMillis = 200),
-                                    label = "borderAlpha"
+                                ColorSwatch(
+                                    color = allColors[colorIndex],
+                                    form = form,
+                                    isDark = isDark,
                                 )
-                                Box(
-                                    modifier = Modifier
-                                        .weight(1f)
-                                        .aspectRatio(1f)
-                                        .pointerInput(Unit) {
-                                            detectTapGestures { onSelectedColorChange(color) }
-                                        },
-                                    contentAlignment = Alignment.Center
-                                ) {
-                                    // 选中态：沿外圈绘制主题色描边，描边内侧留空，内部填课程色（保留原 alpha）
-                                    Box(
-                                        modifier = Modifier
-                                            .fillMaxSize()
-                                            .squircleBorder(
-                                                width = 2.dp,
-                                                color = primaryColor.copy(alpha = borderAlpha),
-                                                cornerRadius = 12.dp
-                                            )
-                                            .padding(4.dp)
-                                            .squircleClip(8.dp)
-                                            .background(Color(color).copy(alpha = if (isDark) 0.22f else 0.16f))
-                                    )
-                                }
                             } else if (colorIndex == allColors.size) {
-                                val isCustomColor = selectedColor !in allColors
-                                val hintColor = MiuixTheme.colorScheme.onSurfaceVariantSummary
-                                val primaryColor = MiuixTheme.colorScheme.primary
-                                val customBorderAlpha by animateFloatAsState(
-                                    targetValue = if (isCustomColor) 1f else 0f,
-                                    animationSpec = tween(durationMillis = 200),
-                                    label = "customBorderAlpha"
+                                CustomColorSwatch(
+                                    form = form,
+                                    isDark = isDark,
+                                    onShowColorDialog = onShowColorDialog,
                                 )
-                                Box(
-                                    modifier = Modifier
-                                        .weight(1f)
-                                        .aspectRatio(1f)
-                                        .pointerInput(Unit) {
-                                            detectTapGestures { onShowColorDialog() }
-                                        },
-                                    contentAlignment = Alignment.Center
-                                ) {
-                                    // 选中态：沿外圈绘制主题色描边，描边内侧留空
-                                    Box(
-                                        modifier = Modifier
-                                            .fillMaxSize()
-                                            .squircleBorder(
-                                                width = 2.dp,
-                                                color = primaryColor.copy(alpha = customBorderAlpha),
-                                                cornerRadius = 12.dp
-                                            )
-                                            .padding(4.dp)
-                                            .squircleClip(8.dp)
-                                            .background(
-                                                if (isCustomColor) Color(selectedColor).copy(alpha = if (isDark) 0.22f else 0.16f)
-                                                else if (isDark) Color(0xFF424242) else Color(0xFFF0F0F0)
-                                            ),
-                                        contentAlignment = Alignment.Center
-                                    ) {
-                                        if (!isCustomColor) {
-                                            Icon(
-                                                imageVector = MiuixIcons.Add,
-                                                contentDescription = "自定义颜色",
-                                                modifier = Modifier.size(18.dp),
-                                                tint = hintColor
-                                            )
-                                        }
-                                    }
-                                }
                             } else {
                                 Spacer(modifier = Modifier.weight(1f))
                             }
                         }
                     }
                 }
+            }
+        }
+    }
+}
+
+/**
+ * 预设颜色格子：内部读 form.selectedColor 判断选中，点击直接写 form.selectedColor。
+ * 这样切换颜色只重组这一个 ColorSwatch，外层网格整行不再重画。
+ */
+@Composable
+private fun RowScope.ColorSwatch(
+    color: Long,
+    form: AddCourseFormState,
+    isDark: Boolean,
+) {
+    val isSelected = color == form.selectedColor
+    val primaryColor = MiuixTheme.colorScheme.primary
+    val borderAlpha by animateFloatAsState(
+        targetValue = if (isSelected) 1f else 0f,
+        animationSpec = tween(durationMillis = 200),
+        label = "borderAlpha"
+    )
+    Box(
+        modifier = Modifier
+            .weight(1f)
+            .aspectRatio(1f)
+            .pointerInput(color) {
+                detectTapGestures { form.selectedColor = color }
+            },
+        contentAlignment = Alignment.Center
+    ) {
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .squircleBorder(
+                    width = 2.dp,
+                    color = primaryColor.copy(alpha = borderAlpha),
+                    cornerRadius = 12.dp
+                )
+                .padding(4.dp)
+                .squircleClip(8.dp)
+                .background(Color(color).copy(alpha = if (isDark) 0.22f else 0.16f))
+        )
+    }
+}
+
+/**
+ * 自定义颜色格子（最后一个 "+"）：点击打开调色板，选中态展示当前 custom 颜色。
+ */
+@Composable
+private fun RowScope.CustomColorSwatch(
+    form: AddCourseFormState,
+    isDark: Boolean,
+    onShowColorDialog: () -> Unit,
+) {
+    val allColors = remember { Course.courseColors }
+    val isCustomColor = form.selectedColor !in allColors
+    val hintColor = MiuixTheme.colorScheme.onSurfaceVariantSummary
+    val primaryColor = MiuixTheme.colorScheme.primary
+    val customBorderAlpha by animateFloatAsState(
+        targetValue = if (isCustomColor) 1f else 0f,
+        animationSpec = tween(durationMillis = 200),
+        label = "customBorderAlpha"
+    )
+    Box(
+        modifier = Modifier
+            .weight(1f)
+            .aspectRatio(1f)
+            .pointerInput(Unit) {
+                detectTapGestures { onShowColorDialog() }
+            },
+        contentAlignment = Alignment.Center
+    ) {
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .squircleBorder(
+                    width = 2.dp,
+                    color = primaryColor.copy(alpha = customBorderAlpha),
+                    cornerRadius = 12.dp
+                )
+                .padding(4.dp)
+                .squircleClip(8.dp)
+                .background(
+                    if (isCustomColor) Color(form.selectedColor).copy(alpha = if (isDark) 0.22f else 0.16f)
+                    else if (isDark) Color(0xFF424242) else Color(0xFFF0F0F0)
+                ),
+            contentAlignment = Alignment.Center
+        ) {
+            if (!isCustomColor) {
+                Icon(
+                    imageVector = MiuixIcons.Add,
+                    contentDescription = "自定义颜色",
+                    modifier = Modifier.size(18.dp),
+                    tint = hintColor
+                )
             }
         }
     }

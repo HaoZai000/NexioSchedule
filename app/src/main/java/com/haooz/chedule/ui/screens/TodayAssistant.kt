@@ -336,7 +336,7 @@ private fun resolveCoordinates(context: Context, useLocation: Boolean): Pair<Dou
 private fun rememberWeather(): Pair<WeatherData, () -> Unit> {
     val context = LocalContext.current
     val weatherPrefs = remember { context.getSharedPreferences("weather_prefs", Context.MODE_PRIVATE) }
-    val weatherSource = weatherPrefs.getString("weather_source", "itboy") ?: "itboy"
+    val weatherSource = weatherPrefs.getString("weather_source", "caiyun") ?: "caiyun"
 
     var weather by remember { mutableStateOf(cachedWeather ?: WeatherData()) }
     var hasLocationPermission by remember {

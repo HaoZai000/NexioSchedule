@@ -873,6 +873,7 @@ fun AddEditCourseBottomSheet(
 /**
  * 时间段 时:分 双滚轮选择器（与时间配置编辑页一致的左右布局）
  */
+@SuppressLint("DefaultLocale")
 @Composable
 private fun TimeRangePickerGroup(
     startHour: Int,
@@ -983,6 +984,7 @@ private fun parseTimeMinute(time: String?): Int {
 /**
  * 将时/分格式化为 "HH:mm"
  */
+@SuppressLint("DefaultLocale")
 private fun formatTime(hour: Int, minute: Int): String {
     return String.format("%02d:%02d", hour, minute)
 }

@@ -16,7 +16,6 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
-import androidx.compose.foundation.layout.fillMaxHeight as fillMaxHeightModifier
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.wrapContentHeight
@@ -73,6 +72,7 @@ import top.yukonga.miuix.kmp.theme.ColorSchemeMode
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 import top.yukonga.miuix.kmp.theme.ThemeController
 import top.yukonga.miuix.kmp.utils.MiuixPopupUtils.Companion.DialogLayout
+import androidx.compose.foundation.layout.fillMaxHeight as fillMaxHeightModifier
 
 /**
  * 平板版模糊底部弹窗组件：居中悬浮矩形，从底部滑入动画。
@@ -95,7 +95,7 @@ fun BlurBottomSheetTablet(
     show: Boolean,
     title: String,
     fillMaxHeight: Boolean = false,
-    blurRadius: Float = 24f,
+    blurRadius: Float = 18f,
     dimBackground: Boolean = false,
     sheetMaxWidth: Dp = 560.dp,
     sheetMaxHeight: Dp = Dp.Unspecified,

@@ -80,7 +80,7 @@ fun PreferenceSettingsScreen(
     var repoUrl by remember { mutableStateOf(eduPrefs.getString("repo_url", "https://gitee.com/XingHeYuZhuan-gh/shiguang_warehouse") ?: "https://gitee.com/XingHeYuZhuan-gh/shiguang_warehouse") }
 
     val weatherPrefs = remember { context.getSharedPreferences("weather_prefs", Context.MODE_PRIVATE) }
-    var weatherSource by remember { mutableStateOf(weatherPrefs.getString("weather_source", "itboy") ?: "itboy") }
+    var weatherSource by remember { mutableStateOf(weatherPrefs.getString("weather_source", "caiyun") ?: "caiyun") }
     // 天气定位摘要：有定位权限显示当前定位，否则回退显示上次定位
     val lastLocationName = weatherPrefs.getString("last_location_name", null)
     val weatherHasPermission = ContextCompat.checkSelfPermission(

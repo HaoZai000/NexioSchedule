@@ -19,11 +19,11 @@ import androidx.compose.foundation.gestures.draggable
 import androidx.compose.foundation.gestures.rememberDraggableState
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
-import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.ime
 import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.offset
@@ -120,7 +120,7 @@ fun BlurBottomSheet(
     title: String,
     fillMaxHeight: Boolean = false,
     liquidGlassBackdrop: Backdrop? = null,
-    blurRadius: Float = 24f,
+    blurRadius: Float = 18f,
     dimBackground: Boolean = false,
     sheetBackgroundColor: Color? = null,
     sheetBackgroundAlpha: Float? = null,
