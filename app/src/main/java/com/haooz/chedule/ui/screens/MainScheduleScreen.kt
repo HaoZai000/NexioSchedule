@@ -6,7 +6,6 @@ import androidx.compose.animation.core.CubicBezierEasing
 import androidx.compose.animation.core.animate
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
-import kotlinx.coroutines.delay
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.awaitEachGesture
@@ -32,13 +31,13 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.MutableState
 import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableIntStateOf
-import androidx.compose.runtime.MutableState
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberUpdatedState
@@ -49,7 +48,6 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.graphics.Color
-
 import androidx.compose.ui.graphics.asComposeRenderEffect
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.graphics.graphicsLayer
@@ -88,6 +86,7 @@ import com.kyant.backdrop.effects.blur
 import com.kyant.backdrop.effects.lens
 import com.kyant.backdrop.isRenderEffectSupported
 import com.kyant.capsule.ContinuousRoundedRectangle
+import kotlinx.coroutines.delay
 import top.yukonga.miuix.kmp.basic.Card
 import top.yukonga.miuix.kmp.basic.CardDefaults
 import top.yukonga.miuix.kmp.icon.MiuixIcons
@@ -224,6 +223,16 @@ fun MainScheduleScreen(
     var pendingDay by remember { mutableIntStateOf(-1) }
     var pendingSection by remember { mutableIntStateOf(-1) }
     var viewingWeek by remember { mutableIntStateOf(currentWeek) }
+
+    // 弹窗内容逐卡 reveal 是否跳过：记录本组合周期首次组合时弹窗是否已打开。
+    // CourseDetailScreen 打开期间本页被 return@Scaffold 摘除，返回重建时 showCourseDetail 仍为 true，
+    // 此时内容 reveal 应跳过（已展示过），避免重播；真正新开(show false→true)时不变 → 照常播放。
+    var skipSheetReveal by remember { mutableStateOf(showCourseDetail) }
+    LaunchedEffect(showCourseDetail) {
+        if (!showCourseDetail) {
+            skipSheetReveal = false
+        }
+    }
 
     LaunchedEffect(showAddDialog) {
         if (showAddDialog && pendingDay != -1) {
@@ -882,8 +891,13 @@ fun MainScheduleScreen(
                 }
             // 进入动画：逐卡 reveal。所有卡始终参与布局（占位），仅通过 graphicsLayer 做透明/位移/缩放，
             // 避免 AnimatedVisibility 移除节点导致 wrapContentHeight 高度逐帧变化而弹窗闪烁。
+            // skipReveal 可选跳过：返回 CourseDetailScreen 后 MainScheduleScreen 重建时弹窗内容不应重播入场。
             var revealCount by remember { mutableIntStateOf(0) }
             LaunchedEffect(coursesToShow.size) {
+                if (skipSheetReveal) {
+                    revealCount = coursesToShow.size
+                    return@LaunchedEffect
+                }
                 revealCount = 0
                 delay(120)
                 for (i in 1..coursesToShow.size) {
@@ -921,23 +935,25 @@ fun MainScheduleScreen(
                     // 都会触发卡片作用域重组；这里不写 State，仅在点击时读取 holder，完全零重组。
                     // key 用 course.id：列表重排时 holder 仍属于同一门课，避免错位。
                     val cardBoundsHolder = remember(course.id) { CardBoundsHolder() }
-                    // 逐卡入场进度；动画结束后（revealCount=size 且非隐藏）去掉离屏层，避免长期为可见卡建层
+                    // 逐卡入场进度；动画结束后（revealCount=size 且非隐藏）去掉离屏层，避免长期为可见卡建层。
+                    // 恢复场景(skipSheetReveal)直接静止全显：shown 恒 1，不播 220ms 淡入。
                     val appear by animateFloatAsState(
                         targetValue = if (index < revealCount) 1f else 0f,
                         animationSpec = tween(220),
                         label = "reveal$index",
                     )
-                    val revealAnimating = appear < 1f
+                    val shown = if (skipSheetReveal) 1f else appear
+                    val revealAnimating = shown < 1f
                     val revealDensity = LocalDensity.current
                     Column(
                         modifier = Modifier
                             .fillMaxWidth()
                             .then(
                                 if (isHidden || revealAnimating) Modifier.graphicsLayer {
-                                    alpha = (if (isHidden) 0f else 1f) * appear
-                                    translationY = (1f - appear) * revealDensity.run { 8.dp.toPx() }
-                                    scaleX = 0.97f + 0.03f * appear
-                                    scaleY = 0.97f + 0.03f * appear
+                                    alpha = (if (isHidden) 0f else 1f) * shown
+                                    translationY = (1f - shown) * revealDensity.run { 8.dp.toPx() }
+                                    scaleX = 0.97f + 0.03f * shown
+                                    scaleY = 0.97f + 0.03f * shown
                                 } else Modifier
                             )
                     ) {
