@@ -189,8 +189,8 @@ fun AddCourseDialog(
     var revealStep by remember(show) { mutableIntStateOf(-1) }
     LaunchedEffect(show) {
         if (!show) return@LaunchedEffect
-        // 整体延迟一档（200ms）再开始
-        delay(200.milliseconds)
+        // 整体延迟一档（150ms）再开始
+        delay(120.milliseconds)
         for (step in 0 until REVEAL_GROUP_COUNT) {
             revealStep = step
             delay(REVEAL_STEP_MS.milliseconds)

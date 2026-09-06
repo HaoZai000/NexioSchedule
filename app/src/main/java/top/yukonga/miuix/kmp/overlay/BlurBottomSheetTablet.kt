@@ -26,7 +26,6 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.MutableState
 import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
@@ -39,7 +38,6 @@ import androidx.compose.ui.input.nestedscroll.NestedScrollConnection
 import androidx.compose.ui.input.nestedscroll.NestedScrollSource
 import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.input.pointer.pointerInput
-import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalWindowInfo
 import androidx.compose.ui.semantics.onClick
@@ -140,6 +138,7 @@ fun BlurBottomSheetTablet(
             show = show,
             visibleState = visibleState,
             title = title,
+            blurRadius = blurRadius,
             dimBackground = dimBackground,
             sheetMaxWidth = sheetMaxWidth,
             sheetMaxHeight = sheetMaxHeight,
@@ -163,6 +162,7 @@ private fun BlurBottomSheetTabletContent(
     visibleState: MutableState<Boolean>,
     fillMaxHeight: Boolean = false,
     title: String,
+    blurRadius: Float = 18f,
     dimBackground: Boolean = false,
     sheetMaxWidth: Dp = 560.dp,
     sheetMaxHeight: Dp = Dp.Unspecified,
@@ -187,7 +187,8 @@ private fun BlurBottomSheetTabletContent(
             val animationProgress = remember { Animatable(if (show && skipEnterAnimation) 1f else 0f) }
     val density = LocalDensity.current
     val windowInfo = LocalWindowInfo.current
-    val sheetHeightPx = remember { mutableIntStateOf(0) }
+    // 滑入动画用的窗口高度：在组合期读取一次，避免进入动画期间逐帧做密度换算
+    val windowHeightPx = with(density) { windowInfo.containerDpSize.height.toPx() }
 
     val isDark = MiuixTheme.colorScheme.background.luminance() < 0.5f
     val sheetBgColor = sheetBackgroundColor ?: if (isDark) Color(0xFF1E1E1E) else Color(0xFFF2F2F2)
@@ -234,7 +235,6 @@ private fun BlurBottomSheetTabletContent(
         val sheetModifier = Modifier
             .graphicsLayer {
                 val progress = animationProgress.value
-                val windowHeightPx = with(density) { windowInfo.containerDpSize.height.toPx() }
                 // 从屏幕底部滑入
                 translationY = windowHeightPx * (1f - progress)
             }
@@ -246,16 +246,10 @@ private fun BlurBottomSheetTabletContent(
                 .heightIn(max = if (sheetMaxHeight != Dp.Unspecified) sheetMaxHeight else windowInfo.containerDpSize.height * 0.8f)
                 .then(if (fillMaxHeight) Modifier.fillMaxHeightModifier() else Modifier)
                 .then(if (isBottomAligned) Modifier.padding(bottom = 20.dp) else Modifier)
-                .onGloballyPositioned { coordinates ->
-                    val newHeight = coordinates.size.height
-                    if (sheetHeightPx.intValue != newHeight) {
-                        sheetHeightPx.intValue = newHeight
-                    }
-                }
                 .clip(ContinuousRoundedRectangle(38.dp))
                 .then(
                     if (liquidGlassBackdrop != null && Build.VERSION.SDK_INT >= 33) {
-                        val blurPx = with(density) { 24.dp.toPx() }
+                        val blurPx = with(density) { blurRadius.dp.toPx() }
                         val backdropEffects: com.kyant.backdrop.BackdropEffectScope.() -> Unit = remember(liquidGlassBackdrop, blurPx) {
                             {
                                 vibrancy()
@@ -362,13 +356,17 @@ private fun BlurBottomSheetTabletContent(
                         content()
                     }
 
-                    // 渐变模糊遮罩
+                    // 渐变模糊遮罩：进入动画期间强制关闭，动画到位后再启用，避免滑入那几百毫秒里逐帧重算模糊占用帧。
+                    // derivedStateOf 只在该布尔翻转一次时重组，不会逐帧重组。
+                    val enterDone by remember(animationProgress) {
+                        derivedStateOf { animationProgress.value >= 1f }
+                    }
                     ProgressiveBlurTopBar(
                         backdrop = sheetContentBackdrop,
                         height = 82.dp,
                         tintColor = sheetBgColor,
                         tintIntensity = 0f,
-                        blurAlpha = backdropAlpha.value,
+                        blurAlpha = if (enterDone) backdropAlpha.value else 0f,
                         modifier = Modifier.zIndex(1f)
                     ) {
                         Box(modifier = Modifier.fillMaxWidth().height(60.dp))

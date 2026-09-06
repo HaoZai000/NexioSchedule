@@ -4,7 +4,9 @@ package com.haooz.chedule.ui.screens
 import android.annotation.SuppressLint
 import androidx.compose.animation.core.CubicBezierEasing
 import androidx.compose.animation.core.animate
+import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
+import kotlinx.coroutines.delay
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.awaitEachGesture
@@ -866,6 +868,17 @@ fun MainScheduleScreen(
                             .thenByDescending { it.endWeek }
                             .thenByDescending { it.startWeek }
                     )
+                }
+            // 进入动画：逐卡 reveal。所有卡始终参与布局（占位），仅通过 graphicsLayer 做透明/位移/缩放，
+            // 避免 AnimatedVisibility 移除节点导致 wrapContentHeight 高度逐帧变化而弹窗闪烁。
+            var revealCount by remember { mutableIntStateOf(0) }
+            LaunchedEffect(coursesToShow.size) {
+                revealCount = 0
+                delay(120)
+                for (i in 1..coursesToShow.size) {
+                    revealCount = i
+                    delay(56)
+                }
             }
             Column(
                 modifier = Modifier
@@ -877,7 +890,7 @@ fun MainScheduleScreen(
                 verticalArrangement = Arrangement.spacedBy(16.dp)
             ) {
                 Spacer(modifier = Modifier.height(if (isTablet) 56.dp else 58.dp))
-                coursesToShow.forEach { course ->
+                coursesToShow.forEachIndexed { index, course ->
                     val summaryText = buildString {
                         append(course.getWeekText())
                         append(" ｜ ")
@@ -898,13 +911,24 @@ fun MainScheduleScreen(
                             null
                         )
                     }
+                    // 逐卡入场进度；动画结束后（revealCount=size 且非隐藏）去掉离屏层，避免长期为可见卡建层
+                    val appear by animateFloatAsState(
+                        targetValue = if (index < revealCount) 1f else 0f,
+                        animationSpec = tween(220),
+                        label = "reveal$index",
+                    )
+                    val revealAnimating = appear < 1f
+                    val revealDensity = LocalDensity.current
                     Column(
                         modifier = Modifier
                             .fillMaxWidth()
                             .then(
-                                // 仅在真正隐藏时创建离屏层设透明；可见卡不建层，减轻多卡时的合成开销
-                                if (isHidden) Modifier.graphicsLayer { alpha = 0f }
-                                else Modifier
+                                if (isHidden || revealAnimating) Modifier.graphicsLayer {
+                                    alpha = (if (isHidden) 0f else 1f) * appear
+                                    translationY = (1f - appear) * revealDensity.run { 8.dp.toPx() }
+                                    scaleX = 0.97f + 0.03f * appear
+                                    scaleY = 0.97f + 0.03f * appear
+                                } else Modifier
                             )
                     ) {
                     Card(

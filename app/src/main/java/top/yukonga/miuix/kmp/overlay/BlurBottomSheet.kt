@@ -263,11 +263,12 @@ private fun BlurBottomSheetContent(
                 onClick = onDismissRequest,
             ),
     ) {
+        // 弹窗最底部兜底偏移用的窗口高度：在组合期读取一次，避免进入/拖拽动画期间逐帧做密度换算
+        val windowHeightPx = with(density) { windowInfo.containerDpSize.height.toPx() }
         val sheetModifier = Modifier
             .graphicsLayer {
                 val progress = animationProgress.value
                 val currentHeight = sheetHeightPx.intValue.toFloat()
-                val windowHeightPx = with(density) { windowInfo.containerDpSize.height.toPx() }
                 val baseOffset = if (currentHeight > 0) currentHeight else windowHeightPx
                 translationY = baseOffset * (1f - progress) + dragOffsetY.value
             }
@@ -447,13 +448,17 @@ private fun BlurBottomSheetContent(
                         content()
                     }
 
-                    // 渐变模糊遮罩（采样弹窗内容）
+                    // 渐变模糊遮罩（采样弹窗内容）：进入动画期间强制关闭，动画到位后再启用，
+                    // 避免滑入那几百毫秒里逐帧重算渐变模糊占用帧。derivedStateOf 只在该布尔翻转一次时重组，不会逐帧重组。
+                    val enterDone by remember(animationProgress) {
+                        derivedStateOf { animationProgress.value >= 1f }
+                    }
                     ProgressiveBlurTopBar(
                         backdrop = sheetContentBackdrop,
                         height = 84.dp,
                         tintColor = sheetBgColor,
                         tintIntensity = 0f,
-                        blurAlpha = backdropAlpha.value,
+                        blurAlpha = if (enterDone) backdropAlpha.value else 0f,
                         modifier = Modifier.zIndex(1f)
                     ) {
                         Box(modifier = Modifier.fillMaxWidth().height(60.dp))
