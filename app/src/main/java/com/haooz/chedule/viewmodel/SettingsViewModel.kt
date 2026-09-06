@@ -98,6 +98,10 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
     private val _islandNotification = MutableStateFlow(repository.getIslandNotification())
     val islandNotification: StateFlow<Boolean> = _islandNotification.asStateFlow()
 
+    // 上课自动开启勿扰开关
+    private val _classDndEnabled = MutableStateFlow(repository.getClassDndEnabled())
+    val classDndEnabled: StateFlow<Boolean> = _classDndEnabled.asStateFlow()
+
     // 默认首页
     private val _defaultHomepage = MutableStateFlow(repository.getDefaultHomepage())
     val defaultHomepage: StateFlow<String> = _defaultHomepage.asStateFlow()
@@ -181,6 +185,9 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
 
         val newIslandNotification = repository.getIslandNotification()
         if (_islandNotification.value != newIslandNotification) _islandNotification.value = newIslandNotification
+
+        val newClassDndEnabled = repository.getClassDndEnabled()
+        if (_classDndEnabled.value != newClassDndEnabled) _classDndEnabled.value = newClassDndEnabled
 
         val newTodayShowWallpaper = repository.getTodayShowWallpaper()
         if (_todayShowWallpaper.value != newTodayShowWallpaper) _todayShowWallpaper.value = newTodayShowWallpaper
@@ -298,5 +305,10 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
     fun setIslandNotification(enabled: Boolean) {
         _islandNotification.value = enabled
         repository.setIslandNotification(enabled)
+    }
+
+    fun setClassDndEnabled(enabled: Boolean) {
+        _classDndEnabled.value = enabled
+        repository.setClassDndEnabled(enabled)
     }
 }

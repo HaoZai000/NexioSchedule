@@ -163,10 +163,15 @@ object CourseReminderHelper {
             cancelAllAlarms(context, alarmManager)
             cancelIslandExpandAlarms(context, alarmManager)
             cancelCourseStartAlarms(context, alarmManager)
+            // 提醒总开关关闭 → 上课勿扰整体停用，并回收此前由本应用开启的勿扰
+            ClassDndHelper.cancelClassDndAlarms(context, alarmManager)
+            ClassDndHelper.applyCurrentState(context)
             return
         }
         scheduleAllAlarms(context, repository, alarmManager)
         scheduleWidgetRefresh(context, alarmManager)
+        // 立即对账勿扰状态：打开/关闭开关、切换课表后无需等闹钟
+        ClassDndHelper.applyCurrentState(context)
     }
 
     /**
@@ -189,6 +194,8 @@ object CourseReminderHelper {
         cancelAllAlarms(context, alarmManager)
         cancelIslandExpandAlarms(context, alarmManager)
         cancelCourseStartAlarms(context, alarmManager)
+        ClassDndHelper.cancelClassDndAlarms(context, alarmManager)
+        ClassDndHelper.applyCurrentState(context)
         // 注意：不取消 widget 刷新闹钟，避免桌面小部件停止刷新
     }
 
@@ -200,6 +207,8 @@ object CourseReminderHelper {
         if (repository.getNextDayReminder()) {
             scheduleNextDayAlarm(context, repository, alarmManager)
         }
+        // 上课/下课勿扰闹钟：只要提醒总开关开着就按当天课表注册
+        ClassDndHelper.scheduleClassDndAlarms(context, alarmManager)
     }
 
     private fun cancelAllAlarms(context: Context, alarmManager: AlarmManager) {
@@ -804,12 +813,14 @@ object CourseReminderHelper {
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
         )
 
-        // 静音模式 PendingIntent
-        val muteIntent = Intent(context, MuteReceiver::class.java)
-        val mutePendingIntent = PendingIntent.getBroadcast(
+        // 上课勿扰 PendingIntent：切换「上课自动开启勿扰」
+        val dndIntent = Intent(context, ClassDndReceiver::class.java).apply {
+            action = ClassDndReceiver.ACTION_TOGGLE
+        }
+        val dndPendingIntent = PendingIntent.getBroadcast(
             context,
             courseName.hashCode() + 100,
-            muteIntent,
+            dndIntent,
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
         )
 
@@ -852,7 +863,7 @@ object CourseReminderHelper {
             .setCategory(Notification.CATEGORY_REMINDER)
             .setRequestPromotedOngoing(true)
             .addAction(R.drawable.ic_notification_calendar, "查看课表", contentIntent)
-            .addAction(R.drawable.ic_notification_mute, "立即静音", mutePendingIntent)
+            .addAction(R.drawable.ic_notification_mute, "上课勿扰", dndPendingIntent)
             .apply {
                 val timeout = endMillis - System.currentTimeMillis()
                 if (timeout > 0) setTimeoutAfter(timeout)
@@ -953,12 +964,14 @@ object CourseReminderHelper {
                 PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
             )
 
-            // 静音模式 PendingIntent
-            val muteIntent = Intent(context, MuteReceiver::class.java)
-            val mutePendingIntent = PendingIntent.getBroadcast(
+            // 上课勿扰 PendingIntent：切换「上课自动开启勿扰」
+            val dndIntent = Intent(context, ClassDndReceiver::class.java).apply {
+                action = ClassDndReceiver.ACTION_TOGGLE
+            }
+            val dndPendingIntent = PendingIntent.getBroadcast(
                 context,
                 courseName.hashCode() + 100,
-                muteIntent,
+                dndIntent,
                 PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
             )
 
@@ -984,7 +997,7 @@ object CourseReminderHelper {
                 .setCategory(Notification.CATEGORY_REMINDER)
                 .setRequestPromotedOngoing(true)
                 .addAction(R.drawable.ic_notification_calendar, "查看课表", startedIntent)
-                .addAction(R.drawable.ic_notification_mute, "立即静音", mutePendingIntent)
+                .addAction(R.drawable.ic_notification_mute, "上课勿扰", dndPendingIntent)
                 .setTimeoutAfter(15_000L)
                 .build()
                 .apply {
@@ -1026,11 +1039,13 @@ object CourseReminderHelper {
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
         )
 
-        val muteIntent = Intent(context, MuteReceiver::class.java)
-        val mutePendingIntent = PendingIntent.getBroadcast(
+        val dndIntent = Intent(context, ClassDndReceiver::class.java).apply {
+            action = ClassDndReceiver.ACTION_TOGGLE
+        }
+        val dndPendingIntent = PendingIntent.getBroadcast(
             context,
             courseName.hashCode() + 100,
-            muteIntent,
+            dndIntent,
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
         )
 
@@ -1051,7 +1066,7 @@ object CourseReminderHelper {
             .setCategory(Notification.CATEGORY_REMINDER)
             .setRequestPromotedOngoing(true)
             .addAction(R.drawable.ic_notification_calendar, "查看课表", contentIntent)
-            .addAction(R.drawable.ic_notification_mute, "立即静音", mutePendingIntent)
+            .addAction(R.drawable.ic_notification_mute, "上课勿扰", dndPendingIntent)
             .apply {
                 val timeout = endMillis - now
                 if (timeout > 0) setTimeoutAfter(timeout)

@@ -138,7 +138,8 @@ object IslandNotificationHelper {
         endTime: String? = null,
         classroom: String? = null,
         minutesUntil: Int? = null,
-        courseStartTimestamp: Long? = null
+        courseStartTimestamp: Long? = null,
+        testMode: Boolean = false
     ): String {
         val json = JSONObject()
 
@@ -256,11 +257,22 @@ object IslandNotificationHelper {
                 put("colorSubContentDark", "#aaaaaa")
                 put("colorSubTitle", "#222222")
                 put("colorSubTitleDark", "#eeeeee")
-                // 可选：圆头操作按钮
+                // 可选：圆头操作按钮 —— 上课勿扰
+                // 查看课表仍可点击岛体本身进入 MainActivity
+                // 测试模式下点击立即开关勿扰（用于验证按钮链路），正式通知则切换「上课自动开启勿扰」
                 val actionInfo = JSONObject().apply {
-                    put("actionTitle", "查看课表")
-                    put("actionIntentType", 1) // url to activity
-                    put("actionIntent", "intent:#Intent;component=${context.packageName}/.MainActivity;end")
+                    put("actionTitle", "上课勿扰")
+                    put("actionIntentType", 2) // 2=广播
+                    val action = if (testMode) {
+                        ClassDndReceiver.ACTION_TEST_TOGGLE
+                    } else {
+                        ClassDndReceiver.ACTION_TOGGLE
+                    }
+                    put(
+                        "actionIntent",
+                        "intent:#Intent;action=$action;" +
+                            "component=${context.packageName}/.reminder.ClassDndReceiver;end"
+                    )
                 }
                 put("actionInfo", actionInfo)
             }
@@ -359,6 +371,7 @@ object IslandNotificationHelper {
         classroom: String? = null,
         minutesUntil: Int? = null,
         courseStartTimestamp: Long? = null,
+        testMode: Boolean = false,
         useShizukuBypass: Boolean = true
     ) {
         if (!isIslandSupported(context)) return
@@ -394,7 +407,8 @@ object IslandNotificationHelper {
             endTime = endTime,
             classroom = classroom,
             minutesUntil = minutesUntil,
-            courseStartTimestamp = courseStartTimestamp
+            courseStartTimestamp = courseStartTimestamp,
+            testMode = testMode
         )
 
         // 添加图片 Bundle（大岛模板2：A图文1 + B文本textInfo）
@@ -529,7 +543,8 @@ object IslandNotificationHelper {
             endTime = endTime,
             classroom = classroom,
             minutesUntil = minutesUntil,
-            courseStartTimestamp = courseStartTimestamp
+            courseStartTimestamp = courseStartTimestamp,
+            testMode = true
         )
 
         // 添加图片
@@ -589,7 +604,8 @@ object IslandNotificationHelper {
         section: String,
         startTime: String,
         endTime: String? = null,
-        notificationId: Int = 1001
+        notificationId: Int = 1001,
+        testMode: Boolean = false
     ) {
         if (!isIslandSupported(context)) return
 
@@ -618,6 +634,7 @@ object IslandNotificationHelper {
             endTime = endTime,
             classroom = classroom,
             minutesUntil = 0,  // 关键：传入 0 表示已上课
+            testMode = testMode,
             useShizukuBypass = true
         )
         

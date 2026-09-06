@@ -10,7 +10,6 @@ import android.provider.Settings
 import android.widget.Toast
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.AnimatedVisibility
-import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.expandVertically
 import androidx.compose.animation.fadeIn
@@ -43,7 +42,6 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.platform.LocalConfiguration
@@ -55,6 +53,7 @@ import androidx.compose.ui.unit.sp
 import androidx.core.content.edit
 import androidx.core.net.toUri
 import androidx.lifecycle.viewmodel.compose.viewModel
+import com.haooz.chedule.reminder.ClassDndHelper
 import com.haooz.chedule.reminder.CourseReminderHelper
 import com.haooz.chedule.reminder.IslandNotificationHelper
 import com.haooz.chedule.shizuku.ShizukuManager
@@ -62,7 +61,6 @@ import com.haooz.chedule.ui.basic.OverlayDropdownMenu
 import com.haooz.chedule.ui.basic.SharedScrollBehavior
 import com.haooz.chedule.ui.utils.overScrollVertical
 import com.haooz.chedule.viewmodel.SettingsViewModel
-import kotlinx.coroutines.launch
 import top.yukonga.miuix.kmp.basic.ButtonDefaults
 import top.yukonga.miuix.kmp.basic.Card
 import top.yukonga.miuix.kmp.basic.DropdownDefaults
@@ -93,6 +91,7 @@ fun CourseReminderScreen(
     val nextDayReminderHour by settingsViewModel.nextDayReminderHour.collectAsState()
     val nextDayReminderMinute by settingsViewModel.nextDayReminderMinute.collectAsState()
     val islandNotification by settingsViewModel.islandNotification.collectAsState()
+    val classDndEnabled by settingsViewModel.classDndEnabled.collectAsState()
     val context = androidx.compose.ui.platform.LocalContext.current
     val reminderPrefs = remember { context.getSharedPreferences("course_reminder_prefs", android.content.Context.MODE_PRIVATE) }
     var isIgnoringBattery by remember { mutableStateOf(true) }
@@ -134,6 +133,17 @@ fun CourseReminderScreen(
     }
     var canPostPromoted by remember { mutableStateOf(false) }
     var canScheduleExactAlarms by remember { mutableStateOf(true) }
+    var dndPermissionGranted by remember { mutableStateOf(false) }
+    var notificationGranted by remember { mutableStateOf(false) }
+    val dndPermissionLauncher = androidx.activity.compose.rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.StartActivityForResult()
+    ) {
+        dndPermissionGranted = ClassDndHelper.isDndPermissionGranted(context)
+        permissionRefreshKey++
+        if (dndPermissionGranted && masterEnabled) {
+            CourseReminderHelper.startReminderService(context)
+        }
+    }
     val promotedSettingsLauncher = androidx.activity.compose.rememberLauncherForActivityResult(
         contract = ActivityResultContracts.StartActivityForResult()
     ) {
@@ -159,6 +169,10 @@ fun CourseReminderScreen(
             shizukuRunning = ShizukuManager.isShizukuRunning()
             shizukuAuthorized = ShizukuManager.checkSelfPermission()
             isIslandSupported = IslandNotificationHelper.isIslandSupported(context)
+            dndPermissionGranted = ClassDndHelper.isDndPermissionGranted(context)
+            notificationGranted = context.checkSelfPermission(
+                Manifest.permission.POST_NOTIFICATIONS
+            ) == PackageManager.PERMISSION_GRANTED
             // 非 HyperOS 设备不支持超级岛，若存在残留开关则自动关闭，避免隐藏入口又残留脏数据
             if (!isIslandSupported && islandNotification) {
                 settingsViewModel.setIslandNotification(false)
@@ -173,6 +187,12 @@ fun CourseReminderScreen(
             canPostPromoted = CourseReminderHelper.canPostPromotedNotifications(context)
             val alarmManager = context.getSystemService(android.content.Context.ALARM_SERVICE) as android.app.AlarmManager
             canScheduleExactAlarms = alarmManager.canScheduleExactAlarms()
+            dndPermissionGranted = ClassDndHelper.isDndPermissionGranted(context)
+            notificationGranted = context.checkSelfPermission(
+                Manifest.permission.POST_NOTIFICATIONS
+            ) == PackageManager.PERMISSION_GRANTED
+            // 授权状态变化后重新对账，保证开关与系统勿扰状态一致
+            CourseReminderHelper.startReminderService(context)
         }
     }
 
@@ -180,11 +200,15 @@ fun CourseReminderScreen(
     val notificationPermissionLauncher = androidx.activity.compose.rememberLauncherForActivityResult(
         contract = ActivityResultContracts.RequestPermission()
     ) { granted ->
+        notificationGranted = granted
         if (granted) {
             CourseReminderHelper.startReminderService(context)
             pendingPermissionAction?.let { enable ->
                 settingsViewModel.setPreClassReminder(enable)
                 settingsViewModel.setNextDayReminder(enable)
+                if (!enable) {
+                    settingsViewModel.setClassDndEnabled(false)
+                }
                 if (enable) {
                     CourseReminderHelper.startReminderService(context)
                 } else {
@@ -267,6 +291,9 @@ fun CourseReminderScreen(
                                     }
                                     settingsViewModel.setPreClassReminder(it)
                                     settingsViewModel.setNextDayReminder(it)
+                                    if (!it) {
+                                        settingsViewModel.setClassDndEnabled(false)
+                                    }
                                     if (it) {
                                         CourseReminderHelper.startReminderService(context)
                                     } else {
@@ -287,7 +314,7 @@ fun CourseReminderScreen(
                         ) {
                             SwitchPreference(
                                 title = "下节课提醒",
-                                summary = "提供下节上课时间、地点等信息，和上课静音等操作建议",
+                                summary = "提供下节上课时间、地点等信息，和上课勿扰等操作建议",
                                 checked = preClassReminder,
                                 enabled = masterEnabled,
                                 onCheckedChange = {
@@ -362,31 +389,34 @@ fun CourseReminderScreen(
                                     }
                                 )
                             }
+                            SwitchPreference(
+                                title = "自动开启勿扰",
+                                summary = if (!dndPermissionGranted) {
+                                    "需要先授予勿扰权限才能自动开启勿扰"
+                                } else {
+                                    "上课时自动开启勿扰，下课后自动恢复"
+                                },
+                                checked = classDndEnabled,
+                                enabled = masterEnabled && dndPermissionGranted,
+                                onCheckedChange = { enable ->
+                                    settingsViewModel.setClassDndEnabled(enable)
+                                    if (enable && !ClassDndHelper.isDndPermissionGranted(context)) {
+                                        dndPermissionLauncher.launch(
+                                            Intent(Settings.ACTION_NOTIFICATION_POLICY_ACCESS_SETTINGS)
+                                        )
+                                    }
+                                    CourseReminderHelper.startReminderService(context)
+                                }
+                            )
                         }
                     }
 
-                    // 超级岛设置（仅支持超级岛的设备才渲染，非 HyperOS 完全隐藏不占高度，避免空白区域）
-                    if (isIslandSupported) {
+                    // 超级岛设置（仅支持超级岛的设备且开启提醒才渲染，非 HyperOS 完全隐藏不占高度，避免空白区域）
+                    if (isIslandSupported && masterEnabled) {
                         item {
-                        val islandVisible = masterEnabled
-                        val islandScale = remember { Animatable(if (islandVisible) 1f else 0.8f) }
-                        val islandAlpha = remember { Animatable(if (islandVisible) 1f else 0f) }
-                        LaunchedEffect(islandVisible) {
-                            if (islandVisible) {
-                                launch { islandScale.animateTo(1f, animationSpec = tween(400)) }
-                                launch { islandAlpha.animateTo(1f, animationSpec = tween(400)) }
-                            } else {
-                                launch { islandScale.animateTo(0.8f, animationSpec = tween(300)) }
-                                launch { islandAlpha.animateTo(0f, animationSpec = tween(300)) }
-                            }
-                        }
                         Card(
                             cornerRadius = 20.dp,
-                            modifier = Modifier.fillMaxWidth().graphicsLayer {
-                                scaleX = islandScale.value
-                                scaleY = islandScale.value
-                                alpha = islandAlpha.value
-                            },
+                            modifier = Modifier.fillMaxWidth(),
                             insideMargin = PaddingValues(0.dp)
                         ) {
                             Column(
@@ -473,18 +503,8 @@ fun CourseReminderScreen(
 
 
                     // 缩略态显示设置
-                    item {
-                        val collapsedModeScale = remember { Animatable(0.8f) }
-                        val collapsedModeAlpha = remember { Animatable(0f) }
-                        LaunchedEffect(masterEnabled) {
-                            if (masterEnabled) {
-                                launch { collapsedModeScale.animateTo(1f, animationSpec = tween(400)) }
-                                launch { collapsedModeAlpha.animateTo(1f, animationSpec = tween(400)) }
-                            } else {
-                                launch { collapsedModeScale.animateTo(0.8f, animationSpec = tween(300)) }
-                                launch { collapsedModeAlpha.animateTo(0f, animationSpec = tween(300)) }
-                            }
-                        }
+                    if (masterEnabled) {
+                        item {
 
                         val liveRightOptions = listOf(
                             DropdownItem(
@@ -571,12 +591,8 @@ fun CourseReminderScreen(
                             // 关闭超级岛：只显示"实况通知右侧"
                             Card(
                                 cornerRadius = 20.dp,
-                                modifier = Modifier.fillMaxWidth().graphicsLayer {
-                                    scaleX = collapsedModeScale.value
-                                    scaleY = collapsedModeScale.value
-                                    alpha = collapsedModeAlpha.value
-                                },
-                                insideMargin = PaddingValues(0.dp)
+                                modifier = Modifier.fillMaxWidth(),
+                            insideMargin = PaddingValues(0.dp)
                             ) {
                                 OverlayDropdownMenu(
                                     title = "实时动态右侧",
@@ -590,12 +606,8 @@ fun CourseReminderScreen(
                             // 开启超级岛：显示"超级岛左侧"和"超级岛右侧"
                             Card(
                                 cornerRadius = 20.dp,
-                                modifier = Modifier.fillMaxWidth().graphicsLayer {
-                                    scaleX = collapsedModeScale.value
-                                    scaleY = collapsedModeScale.value
-                                    alpha = collapsedModeAlpha.value
-                                },
-                                insideMargin = PaddingValues(0.dp)
+                                modifier = Modifier.fillMaxWidth(),
+                            insideMargin = PaddingValues(0.dp)
                             ) {
                                 OverlayDropdownMenu(
                                     title = "超级岛左侧",
@@ -614,34 +626,109 @@ fun CourseReminderScreen(
                             }
                         }
                     }
+                    }
 
-                    // 电池优化提示
-                    if (masterEnabled && !isIgnoringBattery) {
-                        item {
-                            Card(
-                                cornerRadius = 20.dp,
-                                modifier = Modifier.fillMaxWidth(),
-                                insideMargin = PaddingValues(0.dp)
+                    // 权限设置
+                    item {
+                        Card(
+                            cornerRadius = 20.dp,
+                            modifier = Modifier.fillMaxWidth(),
+                            insideMargin = PaddingValues(0.dp)
+                        ) {
+                            Column(
+                                modifier = Modifier.fillMaxWidth()
                             ) {
-                                Column(
-                                    modifier = Modifier.fillMaxWidth().padding(16.dp)
-                                ) {
-                                    Text(
-                                        text = "电池优化可能影响提醒",
-                                        fontWeight = FontWeight.Medium,
-                                        fontSize = 17.sp,
-                                        color = MiuixTheme.colorScheme.onSurface
-                                    )
-                                    Spacer(modifier = Modifier.height(4.dp))
-                                    Text(
-                                        text = "系统电池优化可能会延迟或阻止课程提醒通知，建议关闭以确保提醒准时送达",
-                                        style = MiuixTheme.textStyles.body2,
-                                        color = MiuixTheme.colorScheme.onSurfaceVariantSummary
-                                    )
-                                    Spacer(modifier = Modifier.height(12.dp))
-                                    TextButton(
-                                        text = "前往关闭电池优化",
+                                ArrowPreference(
+                                    title = "通知权限",
+                                    summary = "用于接收课程提醒通知",
+                                    endActions = {
+                                        Text(
+                                            text = if (notificationGranted) "已授权" else "未授权",
+                                            fontSize = 14.5.sp,
+                                            color = if (notificationGranted) {
+                                                ComposeColor(0xFF4CAF50)
+                                            } else {
+                                                MiuixTheme.colorScheme.onSurfaceVariantActions
+                                            }
+                                        )
+                                    },
+                                    onClick = {
+                                        if (!notificationGranted) {
+                                            notificationPermissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
+                                        }
+                                    }
+                                )
+                                if (android.os.Build.VERSION.SDK_INT >= 36) {
+                                    ArrowPreference(
+                                        title = "实况通知权限",
+                                        summary = "在状态栏和锁屏实时显示课程倒计时",
+                                        endActions = {
+                                            Text(
+                                                text = if (canPostPromoted) "已授权" else "未授权",
+                                                fontSize = 14.5.sp,
+                                                color = if (canPostPromoted) {
+                                                    ComposeColor(0xFF4CAF50)
+                                                } else {
+                                                    MiuixTheme.colorScheme.onSurfaceVariantActions
+                                                }
+                                            )
+                                        },
                                         onClick = {
+                                            if (!canPostPromoted) {
+                                                try {
+                                                    val intent = Intent("android.settings.MANAGE_APP_PROMOTED_NOTIFICATIONS").apply {
+                                                        data = "package:${context.packageName}".toUri()
+                                                    }
+                                                    promotedSettingsLauncher.launch(intent)
+                                                } catch (_: Exception) {
+                                                    val intent = Intent(Settings.ACTION_APP_NOTIFICATION_SETTINGS).apply {
+                                                        putExtra(Settings.EXTRA_APP_PACKAGE, context.packageName)
+                                                    }
+                                                    promotedSettingsLauncher.launch(intent)
+                                                }
+                                            }
+                                        }
+                                    )
+                                }
+                                ArrowPreference(
+                                    title = "精确闹钟权限",
+                                    summary = "确保提醒准时触发，不受省电策略影响",
+                                    endActions = {
+                                        Text(
+                                            text = if (canScheduleExactAlarms) "已授权" else "未授权",
+                                            fontSize = 14.5.sp,
+                                            color = if (canScheduleExactAlarms) {
+                                                ComposeColor(0xFF4CAF50)
+                                            } else {
+                                                MiuixTheme.colorScheme.onSurfaceVariantActions
+                                            }
+                                        )
+                                    },
+                                    onClick = {
+                                        if (!canScheduleExactAlarms) {
+                                            val intent = Intent(Settings.ACTION_REQUEST_SCHEDULE_EXACT_ALARM).apply {
+                                                data = "package:${context.packageName}".toUri()
+                                            }
+                                            exactAlarmLauncher.launch(intent)
+                                        }
+                                    }
+                                )
+                                ArrowPreference(
+                                    title = "电池优化",
+                                    summary = "关闭电池优化以确保提醒准时送达",
+                                    endActions = {
+                                        Text(
+                                            text = if (isIgnoringBattery) "已关闭" else "未关闭",
+                                            fontSize = 14.5.sp,
+                                            color = if (isIgnoringBattery) {
+                                                ComposeColor(0xFF4CAF50)
+                                            } else {
+                                                MiuixTheme.colorScheme.onSurfaceVariantActions
+                                            }
+                                        )
+                                    },
+                                    onClick = {
+                                        if (!isIgnoringBattery) {
                                             try {
                                                 val intent = Intent(Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS).apply {
                                                     data = "package:${context.packageName}".toUri()
@@ -651,164 +738,56 @@ fun CourseReminderScreen(
                                                 val intent = Intent(Settings.ACTION_IGNORE_BATTERY_OPTIMIZATION_SETTINGS)
                                                 batteryOptLauncher.launch(intent)
                                             }
-                                        },
-                                        modifier = Modifier.fillMaxWidth()
-                                    )
-                                }
-                            }
-                        }
-                    }
-
-                    // 自启动权限提示
-                    item {
-                        val autoStartVisible = masterEnabled && !autoStartDismissed
-                        val autoStartScale = remember { Animatable(if (autoStartVisible) 1f else 0.8f) }
-                        val autoStartAlpha = remember { Animatable(if (autoStartVisible) 1f else 0f) }
-                        LaunchedEffect(autoStartVisible) {
-                            if (autoStartVisible) {
-                                launch { autoStartScale.animateTo(1f, animationSpec = tween(400)) }
-                                launch { autoStartAlpha.animateTo(1f, animationSpec = tween(400)) }
-                            } else {
-                                launch { autoStartScale.animateTo(0.8f, animationSpec = tween(300)) }
-                                launch { autoStartAlpha.animateTo(0f, animationSpec = tween(300)) }
-                            }
-                        }
-                        Card(
-                            modifier = Modifier.graphicsLayer {
-                                scaleX = autoStartScale.value
-                                scaleY = autoStartScale.value
-                                alpha = autoStartAlpha.value
-                            },
-                            cornerRadius = 20.dp,
-                            insideMargin = PaddingValues(0.dp)
-                        ) {
-                            Column(
-                                modifier = Modifier.fillMaxWidth().padding(16.dp)
-                            ) {
-                                Text(
-                                    text = "开启自启动权限",
-                                    fontWeight = FontWeight.Medium,
-                                    fontSize = 17.sp,
-                                    color = MiuixTheme.colorScheme.onSurface
+                                        }
+                                    }
                                 )
-                                Spacer(modifier = Modifier.height(4.dp))
-                                Text(
-                                    text = "不同厂商路径不同，通常在「设置」→「应用管理」→「自启动」中开启，确保课程提醒不会被系统杀死",
-                                    style = MiuixTheme.textStyles.body2,
-                                    color = MiuixTheme.colorScheme.onSurfaceVariantSummary
-                                )
-                                Spacer(modifier = Modifier.height(12.dp))
-                                Row(
-                                    modifier = Modifier.fillMaxWidth(),
-                                    horizontalArrangement = Arrangement.spacedBy(8.dp)
-                                ) {
-                                    TextButton(
-                                        text = "前往开启",
-                                        onClick = {
-                                            val intent = Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS).apply {
-                                                data = "package:${context.packageName}".toUri()
+                                ArrowPreference(
+                                    title = "勿扰权限",
+                                    summary = "用于上课时自动开启勿扰",
+                                    endActions = {
+                                        Text(
+                                            text = if (dndPermissionGranted) "已授权" else "未授权",
+                                            fontSize = 14.5.sp,
+                                            color = if (dndPermissionGranted) {
+                                                ComposeColor(0xFF4CAF50)
+                                            } else {
+                                                MiuixTheme.colorScheme.onSurfaceVariantActions
                                             }
-                                            autoStartLauncher.launch(intent)
-                                        },
-                                        modifier = Modifier.weight(1f)
-                                    )
-                                    TextButton(
-                                        text = "已开启",
-                                        onClick = {
-                                            reminderPrefs.edit { putBoolean("auto_start_dismissed", true) }
-                                            autoStartDismissed = true
-                                        },
-                                        modifier = Modifier.weight(1f)
-                                    )
-                                }
-                            }
-                        }
-                    }
-
-                    // 精确闹钟权限提示
-                    if (masterEnabled && !canScheduleExactAlarms) {
-                        item {
-                            Card(
-                                cornerRadius = 20.dp,
-                                modifier = Modifier.fillMaxWidth(),
-                                insideMargin = PaddingValues(0.dp)
-                            ) {
-                                Column(
-                                    modifier = Modifier.fillMaxWidth().padding(16.dp)
-                                ) {
-                                    Text(
-                                        text = "开启精确闹钟权限",
-                                        fontWeight = FontWeight.Medium,
-                                        fontSize = 17.sp,
-                                        color = MiuixTheme.colorScheme.onSurface
-                                    )
-                                    Spacer(modifier = Modifier.height(4.dp))
-                                    Text(
-                                        text = "精确闹钟权限可确保课程提醒准时触发，不受系统省电策略影响",
-                                        style = MiuixTheme.textStyles.body2,
-                                        color = MiuixTheme.colorScheme.onSurfaceVariantSummary
-                                    )
-                                    Spacer(modifier = Modifier.height(12.dp))
-                                    TextButton(
-                                        text = "前往开启精确闹钟",
-                                        onClick = {
-                                            val intent = Intent(Settings.ACTION_REQUEST_SCHEDULE_EXACT_ALARM).apply {
-                                                data = "package:${context.packageName}".toUri()
-                                            }
-                                            exactAlarmLauncher.launch(intent)
-                                        },
-                                        modifier = Modifier.fillMaxWidth()
-                                    )
-                                }
-                            }
-                        }
-                    }
-
-                    // 实况通知提示
-                    if (masterEnabled && !canPostPromoted && android.os.Build.VERSION.SDK_INT >= 36) {
-                        item {
-                            Card(
-                                cornerRadius = 20.dp,
-                                modifier = Modifier.fillMaxWidth(),
-                                insideMargin = PaddingValues(0.dp)
-                            ) {
-                                Column(
-                                    modifier = Modifier.fillMaxWidth().padding(16.dp)
-                                ) {
-                                    Text(
-                                        text = "开启实况通知",
-                                        fontWeight = FontWeight.Medium,
-                                        fontSize = 17.sp,
-                                        color = MiuixTheme.colorScheme.onSurface
-                                    )
-                                    Spacer(modifier = Modifier.height(4.dp))
-                                    Text(
-                                        text = "开启后，下节课倒计时将实时显示在状态栏和锁屏上，无需打开应用即可查看",
-                                        style = MiuixTheme.textStyles.body2,
-                                        color = MiuixTheme.colorScheme.onSurfaceVariantSummary
-                                    )
-                                    Spacer(modifier = Modifier.height(12.dp))
-                                    TextButton(
-                                        text = "前往开启实时动态",
-                                        onClick = {
+                                        )
+                                    },
+                                    onClick = {
+                                        if (!dndPermissionGranted) {
                                             try {
-                                                val intent = Intent("android.settings.MANAGE_APP_PROMOTED_NOTIFICATIONS").apply {
-                                                    data = "package:${context.packageName}".toUri()
-                                                }
-                                                promotedSettingsLauncher.launch(intent)
+                                                dndPermissionLauncher.launch(
+                                                    Intent(Settings.ACTION_NOTIFICATION_POLICY_ACCESS_SETTINGS)
+                                                )
                                             } catch (_: Exception) {
-                                                val intent = Intent(Settings.ACTION_APP_NOTIFICATION_SETTINGS).apply {
-                                                    putExtra(Settings.EXTRA_APP_PACKAGE, context.packageName)
-                                                }
-                                                promotedSettingsLauncher.launch(intent)
+                                                Toast.makeText(context, "请手动在系统设置中授予勿扰权限", Toast.LENGTH_SHORT).show()
                                             }
-                                        },
-                                        modifier = Modifier.fillMaxWidth()
-                                    )
-                                }
+                                        }
+                                    }
+                                )
+                                ArrowPreference(
+                                    title = "自启动权限",
+                                    summary = "不同厂商路径不同，通常在「设置」→「应用管理」→「自启动」中开启",
+                                    endActions = {
+                                        Text(
+                                            text = "前往检查",
+                                            fontSize = 14.5.sp,
+                                            color = MiuixTheme.colorScheme.onSurfaceVariantActions
+                                        )
+                                    },
+                                    onClick = {
+                                        val intent = Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS).apply {
+                                            data = "package:${context.packageName}".toUri()
+                                        }
+                                        autoStartLauncher.launch(intent)
+                                    }
+                                )
                             }
                         }
                     }
+
                 }
 
                 // 底部渐变遮罩

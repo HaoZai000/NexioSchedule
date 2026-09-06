@@ -94,6 +94,7 @@ class CourseRepository private constructor(context: Context) {
         private const val KEY_NEXT_DAY_REMINDER_HOUR = "next_day_reminder_hour"
         private const val KEY_NEXT_DAY_REMINDER_MINUTE = "next_day_reminder_minute"
         private const val KEY_ISLAND_NOTIFICATION = "island_notification"
+        private const val KEY_CLASS_DND = "class_dnd_enabled"
         private const val KEY_SHIFT_MODE = "shift_mode_enabled"
         private const val KEY_SHIFT_SELECTED_SCHEDULES = "shift_selected_schedules"
         private const val KEY_DEFAULT_HOMEPAGE = "default_homepage"
@@ -1269,6 +1270,21 @@ class CourseRepository private constructor(context: Context) {
 
     fun setIslandNotification(enabled: Boolean) {
         prefs.edit {putBoolean(KEY_ISLAND_NOTIFICATION, enabled) }
+    }
+
+    /**
+     * 获取「上课自动开启勿扰」开关。
+     * 开启后，上课时自动进入系统勿扰模式，下课后自动退出（需要用户已授予勿扰权限）。
+     */
+    fun getClassDndEnabled(): Boolean {
+        return prefs.getBoolean(KEY_CLASS_DND, false)
+    }
+
+    /**
+     * 设置「上课自动开启勿扰」开关
+     */
+    fun setClassDndEnabled(enabled: Boolean) {
+        prefs.edit { putBoolean(KEY_CLASS_DND, enabled) }
     }
 
     /**

@@ -24,6 +24,8 @@
     <uses-permission android:name="android.permission.REQUEST_IGNORE_BATTERY_OPTIMIZATIONS" />
     <uses-permission android:name="android.permission.POST_PROMOTED_NOTIFICATIONS" />
     <uses-permission android:name="android.permission.MODIFY_AUDIO_SETTINGS" />
+    <!-- 上课勿扰：读取/修改系统勿扰模式，需用户在「免打扰访问权限」中授权 -->
+    <uses-permission android:name="android.permission.ACCESS_NOTIFICATION_POLICY" />
 
     <application
         android:allowBackup="true"
@@ -243,9 +245,17 @@
             android:name=".reminder.CourseStartReceiver"
             android:exported="false" />
 
+        <!-- 上课勿扰：接收实况通知/超级岛按钮与上课、下课闹钟（exported：需要系统通知栏发送广播） -->
         <receiver
-            android:name=".reminder.MuteReceiver"
-            android:exported="false" />
+            android:name=".reminder.ClassDndReceiver"
+            android:exported="true"
+            tools:ignore="ExportedReceiver">
+            <intent-filter>
+                <action android:name="com.haooz.chedule.ACTION_CLASS_DND_TOGGLE" />
+                <action android:name="com.haooz.chedule.ACTION_CLASS_DND_START" />
+                <action android:name="com.haooz.chedule.ACTION_CLASS_DND_END" />
+            </intent-filter>
+        </receiver>
 
         <receiver
             android:name=".reminder.BootCompletedReceiver"

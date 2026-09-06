@@ -23,6 +23,8 @@ class WidgetRefreshReceiver : BroadcastReceiver() {
                 com.haooz.chedule.widget.CourseWidgetProviderStandard.updateAllWidgets(context)
                 com.haooz.chedule.widget.TodayCourseWidgetProviderStandard.updateAllWidgets(context)
                 CourseReminderHelper.updateActiveCountdown(context)
+                // 上课勿扰对账：闹钟丢失/被系统清理时，靠每分钟刷新兜底补上开关
+                ClassDndHelper.applyCurrentState(context)
             } finally {
                 // 链式调度下一次刷新放在 finally：即使上面任一步抛异常，
                 // 也要保证 30 分钟/分钟的刷新链不中断，否则跨日重设与兜底补发会永久停摆
