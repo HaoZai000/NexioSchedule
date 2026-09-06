@@ -373,7 +373,7 @@ fun SwitchScheduleScreen(
                     val bottombarBlur = remember { Animatable(8f) }
                     LaunchedEffect(isEditMode) {
                         bottombarBlur.animateTo(
-                            targetValue = if (isEditMode) 0f else 8f,
+                            targetValue = if (isEditMode) 0f else 12f,
                             animationSpec = tween(
                                 durationMillis = if (isEditMode) 300 else 200,
                                 easing = FastOutSlowInEasing

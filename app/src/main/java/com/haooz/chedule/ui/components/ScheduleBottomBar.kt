@@ -144,7 +144,7 @@ internal fun ScheduleBottomBar(
                     label = "addButtonScale"
                 )
                 val buttonBlur by animateFloatAsState(
-                    targetValue = if (isOnMineTab) 8f else 0f,
+                    targetValue = if (isOnMineTab) 12f else 0f,
                     animationSpec = if (isOnMineTab) {
                         tween(durationMillis = 240, easing = FastOutSlowInEasing)
                     } else {
