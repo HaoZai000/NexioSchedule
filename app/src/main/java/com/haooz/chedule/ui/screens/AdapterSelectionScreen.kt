@@ -2,6 +2,8 @@
 package com.haooz.chedule.ui.screens
 
 import android.annotation.SuppressLint
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -17,6 +19,7 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
@@ -24,9 +27,11 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
@@ -40,6 +45,7 @@ import com.haooz.chedule.ui.utils.isAppDarkTheme
 import com.haooz.chedule.ui.utils.overScrollVertical
 import com.kyant.backdrop.Backdrop
 import com.kyant.capsule.ContinuousRoundedRectangle
+import kotlinx.coroutines.delay
 import top.yukonga.miuix.kmp.basic.ButtonDefaults
 import top.yukonga.miuix.kmp.basic.NativeMiuixTextField
 import top.yukonga.miuix.kmp.basic.Surface
@@ -139,26 +145,57 @@ fun AdapterSelectionBottomSheet(
                     verticalArrangement = Arrangement.spacedBy(12.dp),
                 ) {
                     Spacer(modifier = Modifier.height(if (isTablet) 56.dp else 58.dp))
-                    adapters.forEach { adapter ->
-                        AdapterRow(
-                            adapter = adapter,
-                            categoryName = when (adapter.category) {
-                                AdapterData.CATEGORY_BACHELOR -> "本科"
-                                AdapterData.CATEGORY_POSTGRADUATE -> "研究生"
-                                AdapterData.CATEGORY_GENERAL_TOOL -> "通用工具"
-                                else -> "其他"
-                            },
-                            onClick = {
-                                hapticFeedback.performHapticFeedback(HapticFeedbackType.VirtualKey)
-                                if (adapter.category == AdapterData.CATEGORY_GENERAL_TOOL) {
-                                    pendingAdapter = adapter
-                                    customUrl = adapter.importUrl ?: ""
-                                    showUrlDialog = true
-                                } else {
-                                    onAdapterSelected(currentSchool, adapter)
-                                }
-                            }
+                    // 进入动画：逐行 reveal。所有行始终参与布局（占位），仅通过 graphicsLayer 做透明/位移/缩放，
+                    // 避免 AnimatedVisibility 移除节点导致 wrapContentHeight 高度逐帧变化而弹窗闪烁。
+                    var revealCount by remember { mutableIntStateOf(0) }
+                    LaunchedEffect(adapters.size) {
+                        revealCount = 0
+                        delay(120)
+                        for (i in 1..adapters.size) {
+                            revealCount = i
+                            delay(56)
+                        }
+                    }
+                    adapters.forEachIndexed { index, adapter ->
+                        val appear by animateFloatAsState(
+                            targetValue = if (index < revealCount) 1f else 0f,
+                            animationSpec = tween(220),
+                            label = "adapterReveal$index",
                         )
+                        // 动画期间建层做透明/位移/缩放；该行动画结束（appear==1）后撤层，避免长期保留离屏层
+                        val revealDensity = LocalDensity.current
+                        Box(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .then(
+                                    if (appear < 1f) Modifier.graphicsLayer {
+                                        alpha = appear
+                                        translationY = (1f - appear) * revealDensity.run { 8.dp.toPx() }
+                                        scaleX = 0.97f + 0.03f * appear
+                                        scaleY = 0.97f + 0.03f * appear
+                                    } else Modifier
+                                )
+                        ) {
+                            AdapterRow(
+                                adapter = adapter,
+                                categoryName = when (adapter.category) {
+                                    AdapterData.CATEGORY_BACHELOR -> "本科"
+                                    AdapterData.CATEGORY_POSTGRADUATE -> "研究生"
+                                    AdapterData.CATEGORY_GENERAL_TOOL -> "通用工具"
+                                    else -> "其他"
+                                },
+                                onClick = {
+                                    hapticFeedback.performHapticFeedback(HapticFeedbackType.VirtualKey)
+                                    if (adapter.category == AdapterData.CATEGORY_GENERAL_TOOL) {
+                                        pendingAdapter = adapter
+                                        customUrl = adapter.importUrl ?: ""
+                                        showUrlDialog = true
+                                    } else {
+                                        onAdapterSelected(currentSchool, adapter)
+                                    }
+                                }
+                            )
+                        }
                     }
                     Spacer(modifier = Modifier.height(if (isTablet) 4.dp else 160.dp))
                 }
