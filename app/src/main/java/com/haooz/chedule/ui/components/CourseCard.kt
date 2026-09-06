@@ -162,6 +162,16 @@ fun CourseCard(
                     }
                 }
             }
+            // onDrawSurface 也是每次重组新建的 lambda。drawBackdrop 的 element 会因此判不等，
+            // 卡片每次重组都会重新录制壁纸层 + 重跑一次 GPU 模糊。把它固定下来。
+            val onCardSurface: androidx.compose.ui.graphics.drawscope.DrawScope.() -> Unit =
+                remember(cardColor, overlayColor) {
+                    {
+                        // 底色 + 反光覆盖层一并在此绘制，省去独立的 drawBehind 绘制节点
+                        drawRect(cardColor)
+                        drawRect(overlayColor)
+                    }
+                }
             LaunchedEffect(isPressed) {
                 if (isPressed) {
                     scale.animateTo(
@@ -200,11 +210,7 @@ fun CourseCard(
                         highlight = null,
                         shadow = null,
                         downsampleScale = 0.48f,
-                        onDrawSurface = {
-                            // 底色 + 反光覆盖层一并在此绘制，省去独立的 drawBehind 绘制节点
-                            drawRect(cardColor)
-                            drawRect(overlayColor)
-                        }
+                        onDrawSurface = onCardSurface
                     )
                     .drawWithContent {
                         drawContent()

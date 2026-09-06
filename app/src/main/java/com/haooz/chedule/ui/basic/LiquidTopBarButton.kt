@@ -72,6 +72,24 @@ fun LiquidTopBarButton(
     val shadowColor = if (isLightTheme) "#12000000".toColorInt() else "#20000000".toColorInt()
     val interactionSource = remember { MutableInteractionSource() }
 
+    // drawBackdrop 的 element 用引用比较 shape / effects / onDrawSurface
+    // 若 lambda 每次都新建，节点就会每帧 update → invalidateDraw → 每帧重新录制采样层并重新跑一次
+    val buttonShapeBlock: () -> androidx.compose.ui.graphics.Shape = remember { { CircleShape } }
+    val buttonEffects: com.kyant.backdrop.BackdropEffectScope.() -> Unit = remember {
+        {
+            vibrancy()
+            blur(4.dp.toPx())
+            lens(8f.dp.toPx(), 24f.dp.toPx())
+        }
+    }
+    val buttonOnDrawSurface: androidx.compose.ui.graphics.drawscope.DrawScope.() -> Unit =
+        remember(resolvedContainerColor, interactiveHighlight) {
+            {
+                drawRect(resolvedContainerColor)
+                drawRect(Color.Black.copy(alpha = 0.03f * interactiveHighlight.pressProgress))
+            }
+        }
+
     Box(
         modifier = modifier
             .wrapContentSize()
@@ -122,12 +140,8 @@ fun LiquidTopBarButton(
                 )
                 .drawBackdrop(
                     backdrop = backdrop,
-                    shape = { CircleShape },
-                    effects = {
-                        vibrancy()
-                        blur(4.dp.toPx())
-                        lens(8f.dp.toPx(), 24f.dp.toPx())
-                    },
+                    shape = buttonShapeBlock,
+                    effects = buttonEffects,
                     highlight = null,
                     shadow = null,
                     layerBlock = {
@@ -140,10 +154,7 @@ fun LiquidTopBarButton(
                         translationY = size.minDimension * 0.05f * offset.y / size.maxDimension
                         alpha = backdropAlpha
                     },
-                    onDrawSurface = {
-                        drawRect(resolvedContainerColor)
-                        drawRect(Color.Black.copy(alpha = 0.03f * interactiveHighlight.pressProgress))
-                    }
+                    onDrawSurface = buttonOnDrawSurface
                 )
                 .edgeLight(shape = CircleShape, edgeLight = rememberLiquidTopBarButtonEdgeLight())
                 .then(interactiveHighlight.modifier)

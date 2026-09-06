@@ -38,6 +38,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.MutableState
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberUpdatedState
@@ -46,7 +47,9 @@ import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.graphics.Color
+
 import androidx.compose.ui.graphics.asComposeRenderEffect
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.graphics.graphicsLayer
@@ -101,6 +104,14 @@ import kotlin.math.roundToInt
 import kotlin.time.Duration.Companion.milliseconds
 import com.kyant.backdrop.backdrops.layerBackdrop as kyantLayerBackdrop
 import com.kyant.backdrop.backdrops.rememberLayerBackdrop as rememberKyantLayerBackdrop
+
+/**
+ * 课程卡片位置缓存（不入 Compose State）：点击课程详情页时需要卡片在 root 中的位置，
+ * 改用普通 holder 而不是 mutableStateOf，避免 onGloballyPositioned 每次写入都触发卡片作用域重组。
+ */
+private class CardBoundsHolder {
+    var rect: Rect? = null
+}
 
 /**
  * 课表网格几何信息，供拖拽调课时落点检测使用。
@@ -906,11 +917,10 @@ fun MainScheduleScreen(
                     }
                     val isCurrentWeekCourse = course.isActiveInWeek(viewingWeek)
                     val isHidden = course.id in hiddenCourseIds
-                    var cardBounds by remember {
-                        mutableStateOf<androidx.compose.ui.geometry.Rect?>(
-                            null
-                        )
-                    }
+                    // 用普通 holder 保存位置：之前用 mutableStateOf 每次 onGloballyPositioned
+                    // 都会触发卡片作用域重组；这里不写 State，仅在点击时读取 holder，完全零重组。
+                    // key 用 course.id：列表重排时 holder 仍属于同一门课，避免错位。
+                    val cardBoundsHolder = remember(course.id) { CardBoundsHolder() }
                     // 逐卡入场进度；动画结束后（revealCount=size 且非隐藏）去掉离屏层，避免长期为可见卡建层
                     val appear by animateFloatAsState(
                         targetValue = if (index < revealCount) 1f else 0f,
@@ -940,7 +950,7 @@ fun MainScheduleScreen(
                                 val position =
                                     coordinates.localToRoot(androidx.compose.ui.geometry.Offset.Zero)
                                 val size = coordinates.size
-                                cardBounds = androidx.compose.ui.geometry.Rect(
+                                cardBoundsHolder.rect = androidx.compose.ui.geometry.Rect(
                                     left = position.x,
                                     top = position.y,
                                     right = position.x + size.width,
@@ -957,7 +967,7 @@ fun MainScheduleScreen(
                         onClick = {
                             // Open course detail page with all courses of the same name
                             val coursesForDetail = courses.filter { it.name == course.name }
-                            val bounds = cardBounds
+                            val bounds = cardBoundsHolder.rect
                             if (bounds != null) {
                                 onCourseClick(
                                     coursesForDetail,
@@ -1016,44 +1026,71 @@ fun MainScheduleScreen(
                 Spacer(modifier = Modifier.height(if (isTablet) 0.dp else 260.dp))
             }
         }
-        // 重建时如果弹窗已打开，跳过进入动画；弹窗关闭后重置，避免后续打开始终无动画
-        var skipSheetEnterAnimation by remember { mutableStateOf(showCourseDetail) }
-        LaunchedEffect(showCourseDetail) {
-            if (!showCourseDetail) {
-                skipSheetEnterAnimation = false
-            }
+        // 把弹窗整块抽到子 Composable：把 MutableState 对象本身传进去，在子作用域里 `var show by showState` 读。
+        // 之前 showCourseDetail 是在页面顶层作用域读取的（用于 sheet 的 show 参数），点卡片那一帧
+        // 会让整个 HorizontalPager / 所有 DayColumn / 所有课程卡随之重组，正好压在弹窗进入动画的头两帧，
+        // 是掉帧的关键来源之一。
+        CourseDetailSheet(
+            showState = externalShowCourseDetail,
+            contentBackdropState = externalSheetContentBackdrop,
+            isTablet = isTablet,
+            liquidGlassBackdrop = liquidGlassBackdrop,
+            onDismiss = {
+                showCourseDetail = false
+                onPopupStateChange(false)
+            },
+            endAction = detailEndAction,
+            content = detailContent,
+        )
+    }
+}
+
+/**
+ * 课程详情弹窗封装（手机/平板分别走 BlurBottomSheet / BlurBottomSheetTablet）。
+ * 把 show 状态的读取下沉到子作用域，避免页面顶层因 sheet 开关而重组。
+ */
+@Composable
+private fun CourseDetailSheet(
+    showState: MutableState<Boolean>,
+    contentBackdropState: MutableState<com.kyant.backdrop.Backdrop?>,
+    isTablet: Boolean,
+    liquidGlassBackdrop: com.kyant.backdrop.Backdrop?,
+    onDismiss: () -> Unit,
+    endAction: @Composable () -> Unit,
+    content: @Composable () -> Unit,
+) {
+    var show by showState
+    // 重建时如果弹窗已打开，跳过进入动画；弹窗关闭后重置，避免后续打开始终无动画
+    var skipSheetEnterAnimation by remember { mutableStateOf(show) }
+    LaunchedEffect(show) {
+        if (!show) {
+            skipSheetEnterAnimation = false
         }
-        if (isTablet) {
-            BlurBottomSheetTablet(
-                show = showCourseDetail,
-                title = "课程详情",
-                dimBackground = true,
-                isBottomAligned = true,
-                onDismissRequest = {
-                    showCourseDetail = false
-                    onPopupStateChange(false)
-                },
-                liquidGlassBackdrop = liquidGlassBackdrop,
-                onSheetContentBackdropCreated = { sheetContentBackdrop = it },
-                endAction = detailEndAction,
-                skipEnterAnimation = skipSheetEnterAnimation,
-                content = detailContent
-            )
-        } else {
-            BlurBottomSheet(
-                show = showCourseDetail,
-                title = "课程详情",
-                liquidGlassBackdrop = liquidGlassBackdrop,
-                dimBackground = true,
-                onDismissRequest = {
-                    showCourseDetail = false
-                    onPopupStateChange(false)
-                },
-                onSheetContentBackdropCreated = { sheetContentBackdrop = it },
-                endAction = detailEndAction,
-                skipEnterAnimation = skipSheetEnterAnimation,
-                content = detailContent
-            )
-        }
+    }
+    if (isTablet) {
+        BlurBottomSheetTablet(
+            show = show,
+            title = "课程详情",
+            dimBackground = true,
+            isBottomAligned = true,
+            onDismissRequest = onDismiss,
+            liquidGlassBackdrop = liquidGlassBackdrop,
+            onSheetContentBackdropCreated = { contentBackdropState.value = it },
+            endAction = endAction,
+            skipEnterAnimation = skipSheetEnterAnimation,
+            content = content,
+        )
+    } else {
+        BlurBottomSheet(
+            show = show,
+            title = "课程详情",
+            liquidGlassBackdrop = liquidGlassBackdrop,
+            dimBackground = true,
+            onDismissRequest = onDismiss,
+            onSheetContentBackdropCreated = { contentBackdropState.value = it },
+            endAction = endAction,
+            skipEnterAnimation = skipSheetEnterAnimation,
+            content = content,
+        )
     }
 }

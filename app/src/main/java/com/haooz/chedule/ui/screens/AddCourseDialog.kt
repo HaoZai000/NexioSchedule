@@ -2,14 +2,8 @@
 package com.haooz.chedule.ui.screens
 
 import android.annotation.SuppressLint
-import androidx.compose.animation.AnimatedVisibility
-import androidx.compose.animation.EnterTransition
-import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
-import androidx.compose.animation.fadeIn
-import androidx.compose.animation.scaleIn
-import androidx.compose.animation.slideInVertically
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.detectTapGestures
@@ -49,10 +43,12 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.state.ToggleableState
 import androidx.compose.ui.text.TextStyle
@@ -183,19 +179,17 @@ fun AddCourseDialog(
     }
     var sheetContentBackdrop by remember { mutableStateOf<Backdrop?>(null) }
 
-    // 逐组揭示：打开弹窗时从 0 递增，让各卡片分批进入组合树
-    // 周次/颜色等被延迟到后续若干帧才真正创建，首帧仅合成轻卡，避免掉帧
-    // 同时形成自上而下错落入场的动画效果。
+    // 逐组揭示：revealStep 从 -1 递增，各卡片 target 逐组变为可见。
+    // 卡片始终占位参与布局（不 AnimatedVisibility 移除节点），仅通过 graphicsLayer 做透明/位移/缩放，
+    // 因此弹窗高度首帧定型、全程稳定不闪。整体先延迟 120ms 再开始。
     var revealStep by remember(show) { mutableIntStateOf(-1) }
     LaunchedEffect(show) {
         if (!show) return@LaunchedEffect
-        // 整体延迟一档（150ms）再开始
+        // 整体延迟一档（120ms）再开始
         delay(120.milliseconds)
         for (step in 0 until REVEAL_GROUP_COUNT) {
             revealStep = step
             delay(REVEAL_STEP_MS.milliseconds)
-            // 周次卡片之后额外再停一档，拉开两卡间距
-            if (step == 3) delay(REVEAL_STEP_MS.milliseconds)
         }
     }
 
@@ -747,20 +741,6 @@ private fun AddCourseDialogContent(
     val stableOnShowColorDialog by rememberUpdatedState(onShowColorDialog)
     val stableOnDeleteClick by rememberUpdatedState(onDeleteClick)
 
-    // 逐组入场的动画：淡入 + 极轻微上移 + 轻微放大。位移/缩放刻意很小、缓动平滑无回弹，
-    fun revealFor(index: Int): EnterTransition {
-        val dur = 150 + index * 12
-        return fadeIn(tween(dur)) +
-            scaleIn(
-                initialScale = 0.97f,
-                animationSpec = tween(dur, easing = FastOutSlowInEasing)
-            ) +
-            slideInVertically(
-                animationSpec = tween(dur, easing = FastOutSlowInEasing),
-                initialOffsetY = { it / 12 }
-            )
-    }
-
     Column(
         modifier = Modifier
             .fillMaxWidth()
@@ -775,7 +755,7 @@ private fun AddCourseDialogContent(
         Spacer(modifier = Modifier.height(if (isTablet) 56.dp else 58.dp))
 
         // 基本信息卡片
-        AnimatedVisibility(visible = revealStep >= 0, enter = revealFor(0)) {
+        CardReveal(visible = revealStep >= 0, index = 0) {
             BasicInfoCard(
                 isDark = isDark,
                 form = form,
@@ -783,7 +763,7 @@ private fun AddCourseDialogContent(
         }
 
         // 上课星期卡片
-        AnimatedVisibility(visible = revealStep >= 1, enter = revealFor(1)) {
+        CardReveal(visible = revealStep >= 1, index = 1) {
             WeekdayCard(
                 isDark = isDark,
                 form = form,
@@ -791,7 +771,7 @@ private fun AddCourseDialogContent(
         }
 
         // 节次范围 / 上课时间（勾选自定义时间后切换为时间选择）
-        AnimatedVisibility(visible = revealStep >= 2, enter = revealFor(2)) {
+        CardReveal(visible = revealStep >= 2, index = 2) {
             SectionTimeCard(
                 isDark = isDark,
                 form = form,
@@ -801,7 +781,7 @@ private fun AddCourseDialogContent(
         }
 
         // 周次设置
-        AnimatedVisibility(visible = revealStep >= 3, enter = revealFor(3)) {
+        CardReveal(visible = revealStep >= 3, index = 3) {
             WeekSettingCard(
                 isDark = isDark,
                 form = form,
@@ -816,7 +796,7 @@ private fun AddCourseDialogContent(
         }
 
         // 课程颜色选择
-        AnimatedVisibility(visible = revealStep >= 4, enter = revealFor(4)) {
+        CardReveal(visible = revealStep >= 4, index = 4) {
             ColorCard(
                 isDark = isDark,
                 form = form,
@@ -825,7 +805,7 @@ private fun AddCourseDialogContent(
         }
 
         // 删除按钮（仅编辑模式）
-        AnimatedVisibility(visible = revealStep >= 5, enter = revealFor(5)) {
+        CardReveal(visible = revealStep >= 5, index = 5) {
             if (isEdit) {
                 Button(
                     modifier = Modifier.fillMaxWidth().height(50.dp),
@@ -847,6 +827,39 @@ private fun AddCourseDialogContent(
             }
         }
         Spacer(modifier = Modifier.height(if (isTablet) 4.dp else statusBarsPadding + 65.dp))
+    }
+}
+
+/**
+ * 弹窗内容卡的入场 reveal：卡片始终占位参与布局，仅通过 graphicsLayer 做透明/位移/缩放，
+ * 保证弹窗外高首帧定型、全程稳定不闪（替代原 AnimatedVisibility 的移除式展开）。
+ * 该卡动画结束（appear==1）即撤层，避免长期保留离屏层。
+ */
+@Composable
+private fun CardReveal(
+    visible: Boolean,
+    index: Int,
+    content: @Composable () -> Unit,
+) {
+    val appear by animateFloatAsState(
+        targetValue = if (visible) 1f else 0f,
+        animationSpec = tween(220),
+        label = "cardReveal$index",
+    )
+    val revealDensity = LocalDensity.current
+    Box(
+        modifier = Modifier
+            .fillMaxWidth()
+            .then(
+                if (appear < 1f) Modifier.graphicsLayer {
+                    alpha = appear
+                    translationY = (1f - appear) * revealDensity.run { 8.dp.toPx() }
+                    scaleX = 0.97f + 0.03f * appear
+                    scaleY = 0.97f + 0.03f * appear
+                } else Modifier
+            )
+    ) {
+        content()
     }
 }
 

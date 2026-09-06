@@ -769,7 +769,7 @@ fun CourseReminderScreen(
                                 )
                                 ArrowPreference(
                                     title = "自启动权限",
-                                    summary = "不同厂商路径不同，通常在「设置」→「应用管理」→「自启动」中开启",
+                                    summary = "在应用被系统清理后及时重启",
                                     endActions = {
                                         Text(
                                             text = "前往检查",

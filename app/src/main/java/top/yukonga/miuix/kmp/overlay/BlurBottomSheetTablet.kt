@@ -320,6 +320,8 @@ private fun BlurBottomSheetTabletContent(
                 }
                 val shadowAlpha = remember { Animatable(0f) }
                 val backdropAlpha = remember { Animatable(0f) }
+                // 稳定实例：provider 不再逐帧下发新对象
+                val topBarMaterial = remember { SheetTopBarMaterial(backdropAlpha, shadowAlpha) }
                 LaunchedEffect(showButtonShadow) {
                     val target = if (showButtonShadow) 1f else 0f
                     val spec = if (showButtonShadow) {
@@ -333,7 +335,7 @@ private fun BlurBottomSheetTabletContent(
 
                 CompositionLocalProvider(
                     LocalOverScrollState provides overScrollState,
-                    LocalSheetTopBarMaterial provides SheetTopBarMaterial(backdropAlpha.value, shadowAlpha.value),
+                    LocalSheetTopBarMaterial provides topBarMaterial,
                 ) {
                     // 捕获弹窗内容的 backdrop
                     val sheetBackdropColor = if (isDark) Color(0xFF1E1E1E) else Color(0xFFF4F4F4)

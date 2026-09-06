@@ -179,6 +179,11 @@ private class DrawBackdropElement(
     }
 
     override fun update(node: DrawBackdropNode) {
+        // 只有 shape/effects 真正变化时才重建 RenderEffect 缓存。
+        // onDrawBehind/onDrawSurface 等 lambda 每次重组都是新实例，但它们不影响 effect 缓存，
+        // 重建 RenderEffect 会白白让模糊链失效。
+        val effectsChanged = node.effects !== effects ||
+            node.shapeProvider.innerShape != shapeProvider.innerShape
         node.backdrop = backdrop
         node.shapeProvider = shapeProvider
         node.effects = effects
@@ -192,7 +197,9 @@ private class DrawBackdropElement(
         node.onDrawBackdrop = onDrawBackdrop
         node.onDrawSurface = onDrawSurface
         node.onDrawFront = onDrawFront
-        node.invalidateDrawCache()
+        if (effectsChanged) {
+            node.invalidateDrawCache()
+        }
     }
 
     override fun InspectorInfo.inspectableProperties() {
@@ -213,7 +220,10 @@ private class DrawBackdropElement(
         if (other !is DrawBackdropElement) return false
 
         if (backdrop != other.backdrop) return false
-        if (shapeProvider != other.shapeProvider) return false
+        // 比较「产出的 Shape」而不是 ShapeProvider 实例：调用方普遍写成 shape = { XXX }，
+        // 每次重组都是新 lambda，若按实例比较会导致每次重组都 update 节点 → invalidateDraw
+        // → 重新录制采样层并重新跑一次 GPU 模糊。Shape 之间按值比较即可。
+        if (shapeProvider.innerShape != other.shapeProvider.innerShape) return false
         if (effects != other.effects) return false
         if (layerBlock != other.layerBlock) return false
         if (exportedBackdrop != other.exportedBackdrop) return false
@@ -227,7 +237,8 @@ private class DrawBackdropElement(
 
     override fun hashCode(): Int {
         var result = backdrop.hashCode()
-        result = 31 * result + shapeProvider.hashCode()
+        // 与 equals 保持一致：用产出的 Shape 参与哈希
+        result = 31 * result + shapeProvider.innerShape.hashCode()
         result = 31 * result + effects.hashCode()
         result = 31 * result + (layerBlock?.hashCode() ?: 0)
         result = 31 * result + (exportedBackdrop?.hashCode() ?: 0)

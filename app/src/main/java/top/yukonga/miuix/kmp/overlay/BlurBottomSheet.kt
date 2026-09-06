@@ -6,6 +6,7 @@ import androidx.activity.compose.BackHandler
 import androidx.compose.animation.EnterTransition
 import androidx.compose.animation.ExitTransition
 import androidx.compose.animation.core.Animatable
+import androidx.compose.animation.core.AnimationVector1D
 import androidx.compose.animation.core.CubicBezierEasing
 import androidx.compose.animation.core.Spring
 import androidx.compose.animation.core.spring
@@ -39,6 +40,7 @@ import androidx.compose.runtime.Stable
 import androidx.compose.runtime.compositionLocalOf
 import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -46,6 +48,7 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
@@ -92,10 +95,26 @@ import kotlin.math.abs
  * 顶栏材质动画值载体：由 BlurBottomSheet 顶栏机制下发，供 startAction/endAction
  * 内部的 LiquidTopBarButton 读取，驱动液态玻璃材质/阴影随滚动渐变。
  */
+/**
+ * 顶栏材质动画值载体：由 BlurBottomSheet 顶栏机制下发，供 startAction/endAction
+ * 内部的 LiquidTopBarButton 读取，驱动液态玻璃材质/阴影随滚动渐变。
+ *
+ * 内部持有的是 Animatable 本身而不是快照值：provider 下发的对象因此是稳定实例，
+ * 材质动画期间不会让整个弹窗内容作用域跟着逐帧重组；消费者通过 backdropAlpha /
+ * shadowAlpha 读到的仍然是同一个浮点值，行为不变。
+ */
 @Stable
-class SheetTopBarMaterial(val backdropAlpha: Float, val shadowAlpha: Float)
+class SheetTopBarMaterial internal constructor(
+    internal val backdropAlphaAnimatable: Animatable<Float, AnimationVector1D>,
+    internal val shadowAlphaAnimatable: Animatable<Float, AnimationVector1D>,
+) {
+    val backdropAlpha: Float get() = backdropAlphaAnimatable.value
+    val shadowAlpha: Float get() = shadowAlphaAnimatable.value
+}
 
-val LocalSheetTopBarMaterial = compositionLocalOf { SheetTopBarMaterial(1f, 1f) }
+val LocalSheetTopBarMaterial = compositionLocalOf {
+    SheetTopBarMaterial(Animatable(1f), Animatable(1f))
+}
 
 /**
  * 自定义模糊底部弹窗组件，支持全区域（包括标题栏）的模糊背景效果。
@@ -135,7 +154,6 @@ fun BlurBottomSheet(
 ) {
     val visibleState = remember { mutableStateOf(show) }
     val sheetContentBackdropHolder = remember { mutableStateOf<Backdrop?>(null) }
-
     // 显示时立即可见，隐藏时等动画播完再隐藏
     LaunchedEffect(show) {
         if (show) {
@@ -210,10 +228,12 @@ private fun BlurBottomSheetContent(
     CompositionLocalProvider(LocalForcedDarkTheme provides null) {
         MiuixTheme(controller = sheetAppController) {
             val animationProgress = remember { Animatable(if (show && skipEnterAnimation) 1f else 0f) }
-    val dragOffsetY = remember { Animatable(0f) }
+    // 拖拽位移用 floatState（graphicsLayer 在绘制期读取，拖拽期间零重组、零协程分配）；
+    // 松手后的 spring 回弹单独用 Animatable，与拖拽位移相加得到总位移。
+    val dragOffsetY = remember { mutableFloatStateOf(0f) }
+    val settleOffsetY = remember { Animatable(0f) }
     val density = LocalDensity.current
     val windowInfo = LocalWindowInfo.current
-    val coroutineScope = rememberCoroutineScope()
     val sheetHeightPx = remember { mutableIntStateOf(0) }
     val imeInsets = WindowInsets.ime
 
@@ -222,10 +242,19 @@ private fun BlurBottomSheetContent(
     val dismissThresholdPx = with(density) { 150.dp.toPx() }
     val velocityThresholdPx = with(density) { 800.dp.toPx() }
 
+    // drawBackdrop / drawPlainBackdrop 的 ModifierNodeElement 用「引用」比较 shape 与 effects 这两个
+    // lambda，且 ShapeProvider 没有实现 equals。组合期每次执行 `shape = { ... }` 都会产生新 lambda，
+    // 于是 element 判不等 → 节点 update → 自动 invalidateDraw → 重新录制壁纸层 + 重新跑一次 GPU 模糊。
+    // 弹窗进入动画期间只要发生重组，这套模糊就会逐帧重跑。把形状对象与 lambda 固定下来即可彻底避免。
+    val sheetShape = remember { ContinuousRoundedRectangle(36.dp) }
+    val sheetShapeBlock: () -> androidx.compose.ui.graphics.Shape = remember(sheetShape) { { sheetShape } }
+
     // 显示/隐藏动画（同时驱动弹窗位移与遮罩透明度，确保二者完全同步）
     LaunchedEffect(show) {
         if (show) {
-            dragOffsetY.snapTo(0f)
+            dragOffsetY.floatValue = 0f
+            settleOffsetY.stop()
+            settleOffsetY.snapTo(0f)
             if (skipEnterAnimation) {
                 animationProgress.snapTo(1f)
             } else {
@@ -249,14 +278,18 @@ private fun BlurBottomSheetContent(
     // 否则退出动画结束瞬间遮罩被移除而 DialogEntry content 仍空挂在屏上，造成触摸穿透。
 
     // 底部弹窗主体 - 允许内容溢出屏幕底部
+    // 遮罩透明度在「绘制期」读取（drawBehind），不在组合期读（Modifier.background）。
+    // 若在组合期读，进入动画的 480ms 内整个弹窗作用域会逐帧重组，进而让下方 drawBackdrop 的
+    // ModifierNodeElement 每帧 update → invalidateDraw → 每帧重新录制壁纸层并重新做一次 GPU 模糊。
+    // 这是弹窗进入掉帧的主要来源：绘制期读取只会让「遮罩这一个节点」重绘，不触发重组。
+    val dimModifier = if (dimBackground) {
+        Modifier.drawBehind { drawRect(Color.Black.copy(alpha = 0.2f * animationProgress.value)) }
+    } else Modifier
+
     Box(
         modifier = Modifier
             .fillMaxSize()
-            .then(
-                if (dimBackground) {
-                    Modifier.background(Color.Black.copy(alpha = 0.2f * animationProgress.value))
-                } else Modifier
-            )
+            .then(dimModifier)
             .clickable(
                 interactionSource = null,
                 indication = null,
@@ -270,7 +303,7 @@ private fun BlurBottomSheetContent(
                 val progress = animationProgress.value
                 val currentHeight = sheetHeightPx.intValue.toFloat()
                 val baseOffset = if (currentHeight > 0) currentHeight else windowHeightPx
-                translationY = baseOffset * (1f - progress) + dragOffsetY.value
+                translationY = baseOffset * (1f - progress) + dragOffsetY.floatValue + settleOffsetY.value
             }
 
         val sheetOffsetDpValue = if (sheetOffsetDp != Dp.Unspecified) sheetOffsetDp else 200.dp
@@ -294,7 +327,7 @@ private fun BlurBottomSheetContent(
                     }
                 }
                 .imePadding()
-                .clip(ContinuousRoundedRectangle(36.dp))
+                .clip(sheetShape)
                 .then(
                     if (liquidGlassBackdrop != null && Build.VERSION.SDK_INT >= 33) {
                         val blurPx = with(density) { blurRadius.dp.toPx() }
@@ -306,7 +339,7 @@ private fun BlurBottomSheetContent(
                         }
                         Modifier.drawBackdrop(
                             backdrop = liquidGlassBackdrop,
-                            shape = { ContinuousRoundedRectangle(36.dp) },
+                            shape = sheetShapeBlock,
                             effects = backdropEffects,
                             highlight = null
                         )
@@ -314,7 +347,7 @@ private fun BlurBottomSheetContent(
                         Modifier
                     }
                 )
-                .edgeLight(shape = ContinuousRoundedRectangle(36.dp), edgeLight = rememberDefaultEdgeLight())
+                .edgeLight(shape = sheetShape, edgeLight = rememberDefaultEdgeLight())
                 .background(sheetBgColor.copy(alpha = sheetBackgroundAlpha ?: if (liquidGlassBackdrop != null)
                     if (Build.VERSION.SDK_INT >= 33) 0.9f else 1f
                     else 1f))
@@ -331,34 +364,42 @@ private fun BlurBottomSheetContent(
                 .draggable(
                     orientation = Orientation.Vertical,
                     state = rememberDraggableState { dragAmount ->
-                        coroutineScope.launch {
-                            val newOffset = dragOffsetY.value + dragAmount
-                            // 往上拖时加阻尼，越往上越难拖
-                            val dampedOffset = if (newOffset < 0f) {
-                                val resistance = 1f / (1f + abs(newOffset) / 30f)
-                                dragOffsetY.value + dragAmount * resistance
-                            } else {
-                                newOffset
-                            }
-                            dragOffsetY.snapTo(dampedOffset)
+                        // 直接写 floatState，不再为每个指针事件起一个协程（拖拽时一秒上百次分配）
+                        val current = dragOffsetY.floatValue + settleOffsetY.value
+                        val newOffset = current + dragAmount
+                        // 往上拖时加阻尼，越往上越难拖
+                        val dampedOffset = if (newOffset < 0f) {
+                            val resistance = 1f / (1f + abs(newOffset) / 30f)
+                            current + dragAmount * resistance
+                        } else {
+                            newOffset
                         }
+                        dragOffsetY.floatValue = dampedOffset
+                    },
+                    onDragStarted = {
+                        // 打断正在进行的回弹，把剩余位移并入拖拽位移，保证总位移连续不跳变
+                        val pending = dragOffsetY.floatValue + settleOffsetY.value
+                        settleOffsetY.stop()
+                        settleOffsetY.snapTo(0f)
+                        dragOffsetY.floatValue = pending
                     },
                     onDragStopped = { velocity ->
-                        coroutineScope.launch {
-                            val shouldDismiss = velocity > velocityThresholdPx || dragOffsetY.value > dismissThresholdPx
-                            if (shouldDismiss) {
-                                onDismissRequest()
-                            } else {
-                                // 使用 spring 动画回弹，传入初始速度让回弹更自然
-                                dragOffsetY.animateTo(
-                                    targetValue = 0f,
-                                    animationSpec = spring(
-                                        dampingRatio = 0.72f,
-                                        stiffness = Spring.StiffnessMediumLow
-                                    ),
-                                    initialVelocity = velocity * 0.12f
-                                )
-                            }
+                        val shouldDismiss = velocity > velocityThresholdPx || dragOffsetY.floatValue > dismissThresholdPx
+                        if (shouldDismiss) {
+                            onDismissRequest()
+                        } else {
+                            // 使用 spring 动画回弹，传入初始速度让回弹更自然。
+                            // onDragStopped 本身是挂起作用域，无需再 launch 协程。
+                            settleOffsetY.snapTo(dragOffsetY.floatValue)
+                            dragOffsetY.floatValue = 0f
+                            settleOffsetY.animateTo(
+                                targetValue = 0f,
+                                animationSpec = spring(
+                                    dampingRatio = 0.72f,
+                                    stiffness = Spring.StiffnessMediumLow
+                                ),
+                                initialVelocity = velocity * 0.12f
+                            )
                         }
                     },
                 ),
@@ -408,6 +449,8 @@ private fun BlurBottomSheetContent(
                 }
                 val shadowAlpha = remember { Animatable(0f) }
                 val backdropAlpha = remember { Animatable(0f) }
+                // 稳定实例：provider 不再逐帧下发新对象
+                val topBarMaterial = remember { SheetTopBarMaterial(backdropAlpha, shadowAlpha) }
                 LaunchedEffect(showButtonShadow) {
                     val target = if (showButtonShadow) 1f else 0f
                     val spec = if (showButtonShadow) {
@@ -421,7 +464,7 @@ private fun BlurBottomSheetContent(
 
                 CompositionLocalProvider(
                     LocalOverScrollState provides overScrollState,
-                    LocalSheetTopBarMaterial provides SheetTopBarMaterial(backdropAlpha.value, shadowAlpha.value),
+                    LocalSheetTopBarMaterial provides topBarMaterial,
                 ) {
                     // 拖拽手柄（仅按下放大动画）
                     DragHandleArea()

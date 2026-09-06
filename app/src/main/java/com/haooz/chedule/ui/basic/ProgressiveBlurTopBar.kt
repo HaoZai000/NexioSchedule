@@ -10,6 +10,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.statusBars
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
@@ -55,22 +56,16 @@ fun ProgressiveBlurTopBar(
         if (statusBarHeight > 0.dp) 80.dp + statusBarHeight else 120.dp
     }
 
-    Box(modifier = modifier) {
-        if (Build.VERSION.SDK_INT >= 33) {
-            // 模糊层 - 在底层，采样 backdrop（API 33+）
-            Box(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(totalHeight)
-                    .graphicsLayer { alpha = blurAlpha }
-                    .drawPlainBackdrop(
-                        backdrop = backdrop,
-                        shape = { RectangleShape },
-                        effects = {
-                            blur(4f.dp.toPx())
-                            runtimeShaderEffect(
-                                "ProgressiveBlurAlphaMask",
-                                """
+    // drawPlainBackdrop 的 element 用引用比较 shape/effects（ShapeProvider 无 equals），
+    // 组合期每次新建 lambda 都会让节点 update → invalidateDraw → 重新录层 + 重新模糊。
+    // 顶栏渐变模糊在滚动时会逐帧重组（blurAlpha 在组合期被读取），必须把这两个 lambda 固定。
+    val blurShapeBlock: () -> androidx.compose.ui.graphics.Shape = remember { { RectangleShape } }
+    val blurEffects: com.kyant.backdrop.BackdropEffectScope.() -> Unit = remember(tintColor, tintIntensity) {
+        {
+            blur(4f.dp.toPx())
+            runtimeShaderEffect(
+                "ProgressiveBlurAlphaMask",
+                """
     uniform shader content;
     uniform float2 size;
     layout(color) uniform half4 tint;
@@ -81,18 +76,32 @@ fun ProgressiveBlurTopBar(
         float tintAlpha = smoothstep(size.y, size.y * 0.7, coord.y);
         return mix(content.eval(coord) * blurAlpha, tint * tintAlpha, tintIntensity);
     }""",
-                                "content"
-                            ) {
-                                // size uniform 需按降采样比例缩放，与模糊缓冲的实际像素范围对齐
-                                setFloatUniform(
-                                    "size",
-                                    size.width * downsampleScale,
-                                    size.height * downsampleScale
-                                )
-                                setColorUniform("tint", tintColor)
-                                setFloatUniform("tintIntensity", tintIntensity)
-                            }
-                        }
+                "content"
+            ) {
+                // size uniform 需按降采样比例缩放，与模糊缓冲的实际像素范围对齐
+                setFloatUniform(
+                    "size",
+                    size.width * downsampleScale,
+                    size.height * downsampleScale
+                )
+                setColorUniform("tint", tintColor)
+                setFloatUniform("tintIntensity", tintIntensity)
+            }
+        }
+    }
+
+    Box(modifier = modifier) {
+        if (Build.VERSION.SDK_INT >= 33) {
+            // 模糊层 - 在底层，采样 backdrop（API 33+）
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(totalHeight)
+                    .graphicsLayer { alpha = blurAlpha }
+                    .drawPlainBackdrop(
+                        backdrop = backdrop,
+                        shape = blurShapeBlock,
+                        effects = blurEffects
                     )
             )
         } else {

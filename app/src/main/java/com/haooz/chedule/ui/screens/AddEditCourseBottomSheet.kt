@@ -2,6 +2,8 @@
 package com.haooz.chedule.ui.screens
 
 import android.annotation.SuppressLint
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -29,8 +31,10 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.platform.LocalConfiguration
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.state.ToggleableState
 import androidx.compose.ui.text.TextStyle
@@ -43,6 +47,7 @@ import com.haooz.chedule.ui.basic.LiquidTopBarButton
 import com.haooz.chedule.ui.utils.isAppDarkTheme
 import com.haooz.chedule.ui.utils.overScrollVertical
 import com.kyant.backdrop.Backdrop
+import kotlinx.coroutines.delay
 import top.yukonga.miuix.kmp.basic.ButtonDefaults
 import top.yukonga.miuix.kmp.basic.Card
 import top.yukonga.miuix.kmp.basic.CardDefaults
@@ -63,6 +68,7 @@ import top.yukonga.miuix.kmp.squircle.squircleClip
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 import top.yukonga.miuix.kmp.utils.scrollEndHaptic
 import java.util.UUID
+import kotlin.time.Duration.Companion.milliseconds
 
 /**
  * 添加课程底部弹窗
@@ -276,7 +282,18 @@ fun AddEditCourseBottomSheet(
             verticalArrangement = Arrangement.spacedBy(12.dp),
         ) {
             Spacer(modifier = Modifier.height(if (isTablet) 56.dp else 58.dp))
+            // 卡片入场动画：先占位定型高度，再逐卡 reveal，避免 AnimatedVisibility 移除节点导致外高变化闪烁
+            var revealCount by remember { mutableIntStateOf(0) }
+            LaunchedEffect(Unit) {
+                revealCount = 0
+                delay(120.milliseconds)
+                for (i in 1..4) {
+                    revealCount = i
+                    delay(56.milliseconds)
+                }
+            }
             // 地点教师卡片
+            RevealItem(visible = revealCount >= 1) {
             Card(
                 cornerRadius = 20.dp,
                 modifier = Modifier.fillMaxWidth(),
@@ -340,8 +357,10 @@ fun AddEditCourseBottomSheet(
                     )
                 }
             }
+            }
 
             // 上课星期卡片
+            RevealItem(visible = revealCount >= 2) {
             Card(
                 cornerRadius = 20.dp,
                 modifier = Modifier.fillMaxWidth(),
@@ -419,7 +438,10 @@ fun AddEditCourseBottomSheet(
                     }
                 }
             }
+            }
+
             // 上课节次卡片 / 上课时间卡片（勾选自定义时间后切换为时间选择）
+            RevealItem(visible = revealCount >= 3) {
             Card(
                 cornerRadius = 20.dp,
                 modifier = Modifier.fillMaxWidth(),
@@ -470,9 +492,11 @@ fun AddEditCourseBottomSheet(
                     )
                 }
             }
+            }
 
             // 上课周次卡片
             val noDaySelected = dayOfWeek == 0
+            RevealItem(visible = revealCount >= 4) {
             Card(
                 cornerRadius = 20.dp,
                 modifier = Modifier
@@ -679,6 +703,7 @@ fun AddEditCourseBottomSheet(
                     }
                 }
             }
+            }
             Spacer(modifier = Modifier.height(if (isTablet) 4.dp else 160.dp))
         }
     }
@@ -867,6 +892,37 @@ fun AddEditCourseBottomSheet(
                 )
             }
         }
+    }
+}
+
+/**
+ * 底部弹窗内容项的入场 reveal：内容始终占位参与布局，仅通过 graphicsLayer 做透明/位移/缩放，
+ * 保证弹窗外高稳定不闪。该动画结束后（appear==1）即撤层，避免长期保留离屏层。
+ */
+@Composable
+private fun RevealItem(
+    visible: Boolean,
+    content: @Composable () -> Unit,
+) {
+    val appear by animateFloatAsState(
+        targetValue = if (visible) 1f else 0f,
+        animationSpec = tween(220),
+        label = "courseSheetReveal",
+    )
+    val revealDensity = LocalDensity.current
+    Box(
+        modifier = Modifier
+            .fillMaxWidth()
+            .then(
+                if (appear < 1f) Modifier.graphicsLayer {
+                    alpha = appear
+                    translationY = (1f - appear) * revealDensity.run { 8.dp.toPx() }
+                    scaleX = 0.97f + 0.03f * appear
+                    scaleY = 0.97f + 0.03f * appear
+                } else Modifier
+            )
+    ) {
+        content()
     }
 }
 
