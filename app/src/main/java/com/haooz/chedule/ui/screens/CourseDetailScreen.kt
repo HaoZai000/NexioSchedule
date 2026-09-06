@@ -26,12 +26,10 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableIntStateOf
-import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
-import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -44,22 +42,22 @@ import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalDensity
-import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.DpOffset
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.haooz.chedule.data.Course
 import com.haooz.chedule.ui.basic.CollapsibleTopAppBar
-import com.haooz.chedule.ui.basic.rememberSharedScrollBehavior
 import com.haooz.chedule.ui.basic.LiquidTopBarButton
 import com.haooz.chedule.ui.basic.ProgressiveBlurTopBar
+import com.haooz.chedule.ui.basic.rememberSharedScrollBehavior
 import com.haooz.chedule.ui.effects.motion.OobeCubicOutEasing
 import com.haooz.chedule.ui.effects.motion.OobeFifthpowerOutEasing
 import com.haooz.chedule.ui.effects.motion.OobeQuadraticOutEasing
 import com.haooz.chedule.ui.effects.motion.OobeQuartOutEasing
 import com.haooz.chedule.ui.utils.isAppDarkTheme
 import com.haooz.chedule.ui.utils.overScrollVertical
+import com.kyant.backdrop.backdrops.rememberLayerBackdrop
 import com.kyant.capsule.ContinuousRoundedRectangle
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.delay
@@ -68,8 +66,6 @@ import top.yukonga.miuix.kmp.basic.Card
 import top.yukonga.miuix.kmp.basic.CardDefaults
 import top.yukonga.miuix.kmp.basic.Scaffold
 import top.yukonga.miuix.kmp.basic.SmallTitle
-import top.yukonga.miuix.kmp.blur.layerBackdrop
-import top.yukonga.miuix.kmp.blur.rememberLayerBackdrop
 import top.yukonga.miuix.kmp.icon.MiuixIcons
 import top.yukonga.miuix.kmp.icon.extended.ChevronBackward
 import top.yukonga.miuix.kmp.theme.MiuixTheme
@@ -77,6 +73,8 @@ import top.yukonga.miuix.kmp.utils.scrollEndHaptic
 import kotlin.time.Duration.Companion.milliseconds
 import androidx.compose.ui.graphics.Color as ComposeColor
 import com.kyant.backdrop.backdrops.layerBackdrop as liquidGlassLayerBackdrop
+
+private val DATE_FORMATTER = java.time.format.DateTimeFormatter.ofPattern("M/d")
 
 private data class AnimState(
     val bgAlpha: Float,
@@ -151,7 +149,7 @@ fun CourseDetailScreen(
         weekEntries.groupBy { it.first }
     }
 
-    val liquidGlassBackdrop = com.kyant.backdrop.backdrops.rememberLayerBackdrop()
+    val liquidGlassBackdrop = rememberLayerBackdrop()
     val isTablet = LocalConfiguration.current.screenWidthDp >= 600
     val tabletHorizontalPadding = if (isTablet) {
         val screenWidthDp = LocalConfiguration.current.screenWidthDp
@@ -172,7 +170,6 @@ fun CourseDetailScreen(
     val animProgress = remember { Animatable(0f) }
     val animTransY = remember { Animatable(0f) }
     val scope = rememberCoroutineScope()
-    val hapticFeedback = LocalHapticFeedback.current
     val startCornerRadiusPx = 20f * density.density
     val morphOpenEase = OobeQuartOutEasing
     val morphExitEase = OobeCubicOutEasing
@@ -258,12 +255,6 @@ fun CourseDetailScreen(
 
 
     val isDark = isAppDarkTheme()
-    val backgroundColor = MiuixTheme.colorScheme.surface
-    val backdrop = rememberLayerBackdrop {
-        drawRect(backgroundColor)
-        drawContent()
-    }
-    var listScrollY by remember { mutableIntStateOf(0) }
     val scrollBehavior = rememberSharedScrollBehavior()
 
     Box(
@@ -314,7 +305,7 @@ fun CourseDetailScreen(
             ) {
                 Scaffold(
                     topBar = {
-                        var topBarBlurAlpha by remember { mutableStateOf(0f) }
+                        var topBarBlurAlpha by remember { mutableFloatStateOf(0f) }
                         ProgressiveBlurTopBar(
                             backdrop = liquidGlassBackdrop,
                             blurAlpha = topBarBlurAlpha,
@@ -370,7 +361,6 @@ fun CourseDetailScreen(
                         Box(
                             modifier = Modifier
                                 .fillMaxSize()
-                                .layerBackdrop(backdrop)
                                 .then(
                                     Modifier.liquidGlassLayerBackdrop(
                                         liquidGlassBackdrop
@@ -378,12 +368,6 @@ fun CourseDetailScreen(
                                 )
                         ) {
                             val listState = rememberLazyListState()
-                            LaunchedEffect(listState) {
-                                snapshotFlow { listState.firstVisibleItemScrollOffset }
-                                    .collect { offset ->
-                                        listScrollY = offset
-                                    }
-                            }
                             Card(
                                 modifier = Modifier.fillMaxSize().background(MiuixTheme.colorScheme.surface),
                                 insideMargin = PaddingValues(0.dp),
@@ -440,8 +424,7 @@ fun CourseDetailScreen(
                                                                 else -> "未知"
                                                             }
                                                             val courseDate = startMonday.plusDays((week - 1).toLong() * 7 + (course.dayOfWeek - 1).toLong())
-                                                            val dateFormat = java.time.format.DateTimeFormatter.ofPattern("M/d")
-                                                            val dateStr = courseDate.format(dateFormat)
+                                                            val dateStr = courseDate.format(DATE_FORMATTER)
                                                             val sectionText = course.getTimeDisplayText()
                                                             val timeStart = sectionTimes[course.startSection]?.split("-")?.firstOrNull() ?: ""
                                                             val timeEnd = sectionTimes[course.endSection]?.split("-")?.lastOrNull() ?: ""
@@ -495,8 +478,8 @@ fun CourseDetailScreen(
                                 }
                             }
                         }
-                    }
                 }
             }
         }
     }
+}

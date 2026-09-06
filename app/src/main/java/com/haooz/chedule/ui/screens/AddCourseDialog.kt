@@ -8,6 +8,7 @@ import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
+import androidx.compose.animation.scaleIn
 import androidx.compose.animation.slideInVertically
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -193,6 +194,8 @@ fun AddCourseDialog(
         for (step in 0 until REVEAL_GROUP_COUNT) {
             revealStep = step
             delay(REVEAL_STEP_MS.milliseconds)
+            // 周次卡片之后额外再停一档，拉开两卡间距
+            if (step == 3) delay(REVEAL_STEP_MS.milliseconds)
         }
     }
 
@@ -744,10 +747,14 @@ private fun AddCourseDialogContent(
     val stableOnShowColorDialog by rememberUpdatedState(onShowColorDialog)
     val stableOnDeleteClick by rememberUpdatedState(onDeleteClick)
 
-    // 逐组入场的动画：淡入 + 极轻微上移。位移刻意很小、缓动平滑无回弹，
+    // 逐组入场的动画：淡入 + 极轻微上移 + 轻微放大。位移/缩放刻意很小、缓动平滑无回弹，
     fun revealFor(index: Int): EnterTransition {
         val dur = 150 + index * 12
         return fadeIn(tween(dur)) +
+            scaleIn(
+                initialScale = 0.97f,
+                animationSpec = tween(dur, easing = FastOutSlowInEasing)
+            ) +
             slideInVertically(
                 animationSpec = tween(dur, easing = FastOutSlowInEasing),
                 initialOffsetY = { it / 12 }

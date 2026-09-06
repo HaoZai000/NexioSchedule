@@ -59,7 +59,33 @@ class ScriptRepository(private val context: Context, private val repoUrl: String
     }
 
     private val remoteBase: String
-        get() = repoUrl ?: DEFAULT_REPO_URL
+        get() = (repoUrl ?: DEFAULT_REPO_URL).removeSuffix(".git")
+
+    /**
+     * gitee raw 防盗链检测：直链请求返回 HTML 签名页（含 raw.giteeusercontent.com 链接）
+     * 而非文件内容，需解析并跟随签名链接获取真实数据
+     */
+    private fun isGiteeAntiHotlinkPage(bytes: ByteArray): Boolean {
+        if (bytes.size > 1024 || bytes.isEmpty()) return false
+        val head = String(bytes, Charsets.UTF_8).trimStart()
+        return head.startsWith("<") && head.contains("raw.giteeusercontent.com")
+    }
+
+    private fun extractGiteeSignedUrl(bytes: ByteArray): String? {
+        val html = String(bytes, Charsets.UTF_8)
+        val match = Regex("href=\"([^\"]+)\"").find(html) ?: return null
+        return match.groupValues[1].replace("&amp;", "&")
+    }
+
+    /** 缓存文件是否为 gitee 防盗链 HTML（旧版本下载失败时可能残留），视为无效缓存 */
+    private fun looksLikeAntiHotlinkHtml(file: File): Boolean {
+        return try {
+            val bytes = file.readBytes()
+            bytes.isNotEmpty() && isGiteeAntiHotlinkPage(bytes)
+        } catch (_: Exception) {
+            false
+        }
+    }
 
     /**
      * 比较版本ID（TIME_YYYYMMDDHHMMSS_XXX 格式）
@@ -159,7 +185,8 @@ class ScriptRepository(private val context: Context, private val repoUrl: String
         val target = File(resourcesDir, "$resourceFolder/$assetJsPath")
         val currentVersion = readIndex(indexFile)?.versionId
         val marker = File(target.path + ".v")
-        val isCached = target.exists() && marker.exists() && marker.readText() == currentVersion
+        val isCached = target.exists() && marker.exists() && marker.readText() == currentVersion &&
+            !looksLikeAntiHotlinkHtml(target)
         if (isCached) return target
         return withContext(Dispatchers.IO) {
             try {
@@ -177,11 +204,23 @@ class ScriptRepository(private val context: Context, private val repoUrl: String
 
     private fun downloadBytes(url: String, onLog: ((String) -> Unit)? = null): ByteArray? {
         onLog?.invoke("正在下载: $url")
-        val request = Request.Builder().url(url).get().build()
-        client.newCall(request).execute().use { response ->
-            if (!response.isSuccessful) return null
-            val bytes = response.body?.bytes() ?: return null
-            return if (bytes.isEmpty()) null else bytes
+        var currentUrl = url
+        repeat(2) { attempt ->
+            val request = Request.Builder().url(currentUrl).get().build()
+            client.newCall(request).execute().use { response ->
+                if (!response.isSuccessful) return null
+                val bytes = response.body?.bytes() ?: return null
+                if (bytes.isEmpty()) return null
+                // gitee 防盗链：首次请求拿到签名页时，跟随签名链接重试
+                if (attempt == 0 && isGiteeAntiHotlinkPage(bytes)) {
+                    val signedUrl = extractGiteeSignedUrl(bytes) ?: return null
+                    onLog?.invoke("检测到 gitee 防盗链，跟随签名链接")
+                    currentUrl = signedUrl
+                    return@repeat
+                }
+                return bytes
+            }
         }
+        return null
     }
 }

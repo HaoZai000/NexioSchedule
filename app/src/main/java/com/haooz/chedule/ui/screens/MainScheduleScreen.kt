@@ -901,7 +901,11 @@ fun MainScheduleScreen(
                     Column(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .graphicsLayer { alpha = if (isHidden) 0f else 1f }
+                            .then(
+                                // 仅在真正隐藏时创建离屏层设透明；可见卡不建层，减轻多卡时的合成开销
+                                if (isHidden) Modifier.graphicsLayer { alpha = 0f }
+                                else Modifier
+                            )
                     ) {
                     Card(
                         cornerRadius = 20.dp,

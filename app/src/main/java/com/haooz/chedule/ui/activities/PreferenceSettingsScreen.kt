@@ -346,9 +346,9 @@ fun PreferenceSettingsScreen(
                                 items = listOf(
                                     DropdownItem(
                                         text = "GitHub",
-                                        selected = repoUrl == "https://github.com/XingHeYuZhuan/shiguang_warehouse.git",
+                                        selected = repoUrl == "https://github.com/XingHeYuZhuan/shiguang_warehouse",
                                         onClick = {
-                                            repoUrl = "https://github.com/XingHeYuZhuan/shiguang_warehouse.git"
+                                            repoUrl = "https://github.com/XingHeYuZhuan/shiguang_warehouse"
                                             eduPrefs.edit { putString("repo_url", repoUrl) }
                                         }
                                     ),
