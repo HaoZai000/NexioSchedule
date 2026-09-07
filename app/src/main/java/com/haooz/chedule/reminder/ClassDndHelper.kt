@@ -88,15 +88,22 @@ object ClassDndHelper {
 
         // 先清理之前可能开的另一档（DND <-> SILENT 切换时用到）
         val p = prefs(context)
-        if (p.getBoolean(KEY_APPLIED, false)) {
+        val wasApplied = p.getBoolean(KEY_APPLIED, false)
+        if (wasApplied) {
             val prevMode = p.getInt(KEY_APPLIED_MODE, MODE_DND)
             if (prevMode != mode) {
                 restoreAppliedSilent(context, prevMode)
             }
         }
 
-        // 保存原始 ringerMode 用于 SILENT 档恢复（改之前的快照）
-        val originalRinger = am.ringerMode
+        // 关键：仅在「首次进入 SILENT」时快照原始 ringerMode。
+        // 每分钟补发会反复调用本方法，若每次都快照，会把原始值覆盖成 SILENT(0)，
+        // 导致下课恢复时读到的还是静音（表现为"下课没关闭"）。
+        val wasSilentApplied = wasApplied && p.getInt(KEY_APPLIED_MODE, MODE_DND) == MODE_SILENT
+        if (mode == MODE_SILENT && !wasSilentApplied) {
+            p.edit { putInt(KEY_ORIGINAL_RINGER, am.ringerMode) }
+        }
+
         var applied = true
         when (mode) {
             MODE_DND -> {
@@ -136,9 +143,8 @@ object ClassDndHelper {
             p.edit {
                 putBoolean(KEY_APPLIED, true)
                 putInt(KEY_APPLIED_MODE, mode)
-                if (mode == MODE_SILENT) putInt(KEY_ORIGINAL_RINGER, originalRinger)
             }
-            Log.d(TAG, "enableDndByApp mode=$mode (saved ringer=$originalRinger)")
+            Log.d(TAG, "enableDndByApp mode=$mode")
         }
     }
 
@@ -352,18 +358,26 @@ object ClassDndHelper {
                 triggerAt,
                 pendingIntent
             )
-        } catch (_: SecurityException) { }
+            Log.d(TAG, "scheduleOne OK action=$action at=" +
+                java.text.SimpleDateFormat("MM-dd HH:mm:ss", java.util.Locale.getDefault()).format(java.util.Date(triggerAt)) +
+                " rc=$requestCode")
+        } catch (e: SecurityException) {
+            Log.e(TAG, "scheduleOne SecurityException action=$action (需精确闹钟权限)", e)
+        }
     }
 
     /** 取消所有上课/下课闹钟 */
     fun cancelClassDndAlarms(context: Context, alarmManager: AlarmManager) {
         val allCourses = CourseRepository(context).getAllCourses()
         for (course in allCourses) {
-            for (requestCode in listOf(
-                RC_DND_START_BASE + course.id.hashCode(),
-                RC_DND_END_BASE + course.id.hashCode()
+            val id = course.id.hashCode()
+            for ((requestCode, action) in listOf(
+                RC_DND_START_BASE + id to ClassDndReceiver.ACTION_CLASS_START,
+                RC_DND_END_BASE + id to ClassDndReceiver.ACTION_CLASS_END
             )) {
-                val intent = Intent(context, ClassDndReceiver::class.java)
+                // 必须与 scheduleOne 里相同的 action 构造 PendingIntent，
+                // 否则 PendingIntent 身份不一致，cancel 会静默失效（导致闹钟残留）
+                val intent = Intent(context, ClassDndReceiver::class.java).apply { setAction(action) }
                 val pendingIntent = PendingIntent.getBroadcast(
                     context,
                     requestCode,

@@ -1,6 +1,5 @@
-<!-- calendar_customise 4x2 — 今日课程（玻璃风格） -->
-<!-- frameRate=0: 无动画, 符合官方规范; useVariableUpdater 订阅日期/分钟驱动课程数据在"今日→明日"切换时刷新 -->
-<Widget enableLayerAnimation="1" frameRate="0" scaleByDensity="false" screenWidth="1080" type="awesome" useVariableUpdater="DateTime.Hour,DateTime.Minute,DateTime.Day,HyperMaterial" version="1" supportBackgroundBlur="false" allowScreenRotation="true">
+<?xml version="1.0" encoding="UTF-8"?>
+<Widget version="2" frameRate="0" screenWidth="1080" useVariableUpdater="DateTime.Minute" useHardwareCanvas="true" disableCutRoundCorner="false" customizedDarkModeWallpaper="true" supportBackgroundBlur="true">
     <!-- ═══════════════ 全局 ═══════════════ -->
     <ExternalCommands>
         <Trigger action="init,resume">
@@ -20,11 +19,19 @@
             <BinderCommand name="courseState" command="refresh" delay="120" />
         </Trigger>
         <Trigger action="resume">
-            <ExternCommand command="__datatimeVarUpdate" strPara="'DateTime.Hour,DateTime.Minute,DateTime.Day,HyperMaterial'" delay="100" />
+            <ExternCommand command="__datatimeVarUpdate" strPara="'DateTime.Minute'" delay="100" />
             <BinderCommand name="displayCourses" command="refresh" />
             <BinderCommand name="courseState" command="refresh" />
         </Trigger>
     </ExternalCommands>
+    <!-- 前台时每分钟主动刷新课程数据 -->
+    <Var name="minute_watch" expression="#minute" threshold="1">
+        <Trigger>
+            <BinderCommand name="displayCourses" command="refresh" />
+            <BinderCommand name="courseState" command="refresh" />
+            <BinderCommand name="calendarEvents" command="refresh"/>
+        </Trigger>
+    </Var>
     <Var name="sx" expression="#view_width/344" />
     <Var name="sy" expression="#view_height/165" />
     <Var name="sr" expression="min(#view_width/344,#view_height/160)" />
@@ -91,13 +98,12 @@
 
         <!-- ═══════ 今日课程 · 状态数据源（标题/周状态/空态文案, 只读） ═══════ -->
         <ContentProviderBinder name="courseState" uri="content://com.haooz.chedule.courses/state"
-            columns="title,week_text,empty_text,show_tomorrow,installed"
+            columns="title,week_text,empty_text,show_tomorrow"
             column="title" countName="state_count">
             <Variable name="state_title" column="title" type="string" />
             <Variable name="state_week_text" column="week_text" type="string" />
             <Variable name="state_empty_text" column="empty_text" type="string" />
             <Variable name="state_show_tomorrow" column="show_tomorrow" type="string" />
-            <Variable name="state_installed" column="installed" type="number" />
         </ContentProviderBinder>
 
         <!-- 日程数据源 -->
@@ -144,18 +150,7 @@
             <ControlPoint frameRate="0" time="1000" />
         </FramerateController>
     </Group>
-    <!-- 前台时每分钟主动刷新课程数据 -->
-    <Var name="minute_watch" expression="#minute" threshold="1">
-        <Trigger>
-            <BinderCommand name="displayCourses" command="refresh" />
-            <BinderCommand name="courseState" command="refresh" />
-            <BinderCommand name="calendarEvents" command="refresh"/>
-        </Trigger>
-    </Var>
-
-    <!-- ══════════════════════════════════════════════════════════════
-         UI 布局
-         ══════════════════════════════════════════════════════════════ -->
+    <!-- UI布局 -->
 
     <Var name="textColor" type="string" expression="ifelse(#isInPicker,'#000000',ifelse(#isBionic,'#FFFFFF',ifelse(#__darkmode,'#FFFFFF','#000000')))"/>
     <Var name="titleColor" type="string" expression="ifelse(#isInPicker,'#BF000000',ifelse(#isBionic,'#BFFFFFFF',ifelse(#__darkmode,'#BFFFFFFF','#BF000000')))"/>
@@ -177,149 +172,12 @@
     <!-- ═══════ 今日课程 · 行数/计数 ═══════ -->
     <Var name="max_rows" type="number" const="true" expression="3" />
 
-    <!-- 通用玻璃参数：Glass_Common_Medium_Regular（三态：Dark / High_Light+浅色壁纸 / Low_Light+深色壁纸） -->
-  <Var name="common_glass_params" type="number[]"
-    values="
-    ifelse(#isDark,0.5,ifelse(#applied_light_wallpaper,0.5,1)),ifelse(#isDark,1,ifelse(#applied_light_wallpaper,1,1)),ifelse(#isDark,0,0),ifelse(#isDark,1,1),
-    ifelse(#isDark,0.2,ifelse(#applied_light_wallpaper,0.2,0.3)),
-    ifelse(#isDark,3,2),
-    ifelse(#isDark,0.2,ifelse(#applied_light_wallpaper,0.1,0.2)),
-    0,
-    ifelse(#isDark,0.4,ifelse(#applied_light_wallpaper,0.6,0.4)),0.8,
-    ifelse(#isDark,0.04,0.02),
-    ifelse(#isDark,0.06,0.9),ifelse(#isDark,0.06,0.9),ifelse(#isDark,0.06,0.9),ifelse(#isDark,0.4,1),
-    0,
-    ifelse(#isDark,0.8,1),
-    ifelse(#isDark,1.5,1),
-    1,
-    36,
-    ifelse(#isDark,2.2,ifelse(#applied_light_wallpaper,2.2,1.8)),
-    80,
-    200,
-    1,
-    0.8,
-    -0.4,0.6,-0.8,
-    ifelse(#isDark,2.4,1.4),
-    ifelse(#isDark,1.6,0.8),
-    1.4,
-    0.85,
-    3,
-    0,
-    0,
-    0,
-    0,
-    0,
-    0,
-    0,
-    0,0
-  " />
-  <!-- 融合玻璃参数（深色壁纸）：Glass_Bionic_Medium_Regular -->
-  <Var name="bionic_dark_glass_params" type="number[]"
-    values="
-    0.5,1.5,0.5,1.4,
-    0.16,
-    1.5,
-    0.2,
-    0.3,
-    0.2,0.8,
-    0,
-    1,1,1,0.1,
-    0,
-    0.2,
-    1.4,
-    1,
-    36,
-    2.2,
-    80,
-    200,
-    1,
-    0.8,
-    -0.4,0.6,-0.8,
-    1,
-    0.7,
-    1.4,
-    1.12,
-    3,
-    1.8,
-    -0.2,
-    1,
-    0,
-    0,
-    0,
-    0,
-    0,0
-  " />
-  <!-- 融合玻璃参数（浅色壁纸）：Glass_Bionic_Medium_Regular_High -->
-  <Var name="bionic_light_glass_params" type="number[]"
-    values="
-    0.5,1,0,1,
-    0.2,
-    2,
-    0.1,
-    0.01,
-    0.6,0.8,
-    0.02,
-    0.9,0.9,0.9,1,
-    0,
-    0.5,
-    1.5,
-    1,
-    36,
-    2.2,
-    80,
-    200,
-    1,
-    0.8,
-    -0.4,0.6,-0.8,
-    0.8,
-    0.5,
-    1.4,
-    1.12,
-    3,
-    0,
-    0,
-    0,
-    0,
-    0,
-    0,
-    0,
-    0,0
-  " />
-  <Var name="added_pkg" type="string" expression="''" const="true" />
-  <Var name="removed_pkg" type="string" expression="''" const="true" />
-  <Var name="cleared_pkg" type="string" expression="''" const="true" />
-  <Var name="deviceType" type="string" expression="''" const="true" />
-  
-  <Var name="HIDE_PAD_EDITABLE" expression="1" type="number" const="true"/>
-    <!-- ═══ 高级材质变量 ═══ -->
-    <Var name="isInPicker" type="number" expression="eqs(@isPreviewMode,'true')"/>
-    <Var name="stroke_params" type="number[]" values="0.8,24.0,1.0,1.0,1.0,0.1,0.8,0.2,0.5,0,1.0,1.0,1.0,ifelse(#__darkmode,0.4,0.5),0.7,0.8,0,1.0,1.0,1.0,ifelse(#__darkmode,0.2,0.3)"/>
-	
-	 <Layer alpha="ifelse(#enable_hyper_material ** #hyper_material_view_type==0,254,255)" width="#view_width" height="#view_height" frameRate="-1" layerType="bottom" x="0" y="0" export="true" name="view">
-    
-    <MaterialToken tokenName="clock_classic_material" version="30">
-      <BackgroundBlurConfig blurBgMode="ifelse(#hyper_material_view_type==0,1,0)" blurContentMode="1" blurRadius="120" blurType="0" disableBlur="(#hyper_material_view_type==2) || #isInPicker" passWindow="true" rustPassWindow="true" reuseContainer="true" />
-      <GlassConfig disableGlass="#isInPicker || (#hyper_material_view_type != 1)" smallBlurRadius="36" bigBlurRadius="500"
-        params="ifelse(#isGlassBionic,ifelse(#applied_light_wallpaper,#bionic_light_glass_params[0],#bionic_dark_glass_params[0]),#common_glass_params[0]),ifelse(#isGlassBionic,ifelse(#applied_light_wallpaper,#bionic_light_glass_params[1],#bionic_dark_glass_params[1]),#common_glass_params[1]),ifelse(#isGlassBionic,ifelse(#applied_light_wallpaper,#bionic_light_glass_params[2],#bionic_dark_glass_params[2]),#common_glass_params[2]),ifelse(#isGlassBionic,ifelse(#applied_light_wallpaper,#bionic_light_glass_params[3],#bionic_dark_glass_params[3]),#common_glass_params[3]),ifelse(#isGlassBionic,ifelse(#applied_light_wallpaper,#bionic_light_glass_params[4],#bionic_dark_glass_params[4]),#common_glass_params[4]),ifelse(#isGlassBionic,ifelse(#applied_light_wallpaper,#bionic_light_glass_params[5],#bionic_dark_glass_params[5]),#common_glass_params[5]),ifelse(#isGlassBionic,ifelse(#applied_light_wallpaper,#bionic_light_glass_params[6],#bionic_dark_glass_params[6]),#common_glass_params[6]),ifelse(#isGlassBionic,ifelse(#applied_light_wallpaper,#bionic_light_glass_params[7],#bionic_dark_glass_params[7]),#common_glass_params[7]),ifelse(#isGlassBionic,ifelse(#applied_light_wallpaper,#bionic_light_glass_params[8],#bionic_dark_glass_params[8]),#common_glass_params[8]),ifelse(#isGlassBionic,ifelse(#applied_light_wallpaper,#bionic_light_glass_params[9],#bionic_dark_glass_params[9]),#common_glass_params[9]),ifelse(#isGlassBionic,ifelse(#applied_light_wallpaper,#bionic_light_glass_params[10],#bionic_dark_glass_params[10]),#common_glass_params[10]),ifelse(#isGlassBionic,ifelse(#applied_light_wallpaper,#bionic_light_glass_params[11],#bionic_dark_glass_params[11]),#common_glass_params[11]),ifelse(#isGlassBionic,ifelse(#applied_light_wallpaper,#bionic_light_glass_params[12],#bionic_dark_glass_params[12]),#common_glass_params[12]),ifelse(#isGlassBionic,ifelse(#applied_light_wallpaper,#bionic_light_glass_params[13],#bionic_dark_glass_params[13]),#common_glass_params[13]),ifelse(#isGlassBionic,ifelse(#applied_light_wallpaper,#bionic_light_glass_params[14],#bionic_dark_glass_params[14]),#common_glass_params[14]),ifelse(#isGlassBionic,ifelse(#applied_light_wallpaper,#bionic_light_glass_params[15],#bionic_dark_glass_params[15]),#common_glass_params[15]),ifelse(#isGlassBionic,ifelse(#applied_light_wallpaper,#bionic_light_glass_params[16],#bionic_dark_glass_params[16]),#common_glass_params[16]),ifelse(#isGlassBionic,ifelse(#applied_light_wallpaper,#bionic_light_glass_params[17],#bionic_dark_glass_params[17]),#common_glass_params[17]),ifelse(#isGlassBionic,ifelse(#applied_light_wallpaper,#bionic_light_glass_params[18],#bionic_dark_glass_params[18]),#common_glass_params[18]),ifelse(#isGlassBionic,ifelse(#applied_light_wallpaper,#bionic_light_glass_params[19],#bionic_dark_glass_params[19]),#common_glass_params[19]),ifelse(#isGlassBionic,ifelse(#applied_light_wallpaper,#bionic_light_glass_params[20],#bionic_dark_glass_params[20]),#common_glass_params[20]),ifelse(#isGlassBionic,ifelse(#applied_light_wallpaper,#bionic_light_glass_params[21],#bionic_dark_glass_params[21]),#common_glass_params[21]),ifelse(#isGlassBionic,ifelse(#applied_light_wallpaper,#bionic_light_glass_params[22],#bionic_dark_glass_params[22]),#common_glass_params[22]),ifelse(#isGlassBionic,ifelse(#applied_light_wallpaper,#bionic_light_glass_params[23],#bionic_dark_glass_params[23]),#common_glass_params[23]),ifelse(#isGlassBionic,ifelse(#applied_light_wallpaper,#bionic_light_glass_params[24],#bionic_dark_glass_params[24]),#common_glass_params[24]),ifelse(#isGlassBionic,ifelse(#applied_light_wallpaper,#bionic_light_glass_params[25],#bionic_dark_glass_params[25]),#common_glass_params[25]),ifelse(#isGlassBionic,ifelse(#applied_light_wallpaper,#bionic_light_glass_params[26],#bionic_dark_glass_params[26]),#common_glass_params[26]),ifelse(#isGlassBionic,ifelse(#applied_light_wallpaper,#bionic_light_glass_params[27],#bionic_dark_glass_params[27]),#common_glass_params[27]),ifelse(#isGlassBionic,ifelse(#applied_light_wallpaper,#bionic_light_glass_params[28],#bionic_dark_glass_params[28]),#common_glass_params[28]),ifelse(#isGlassBionic,ifelse(#applied_light_wallpaper,#bionic_light_glass_params[29],#bionic_dark_glass_params[29]),#common_glass_params[29]),ifelse(#isGlassBionic,ifelse(#applied_light_wallpaper,#bionic_light_glass_params[30],#bionic_dark_glass_params[30]),#common_glass_params[30]),ifelse(#isGlassBionic,ifelse(#applied_light_wallpaper,#bionic_light_glass_params[31],#bionic_dark_glass_params[31]),#common_glass_params[31]),ifelse(#isGlassBionic,ifelse(#applied_light_wallpaper,#bionic_light_glass_params[32],#bionic_dark_glass_params[32]),#common_glass_params[32]),ifelse(#isGlassBionic,ifelse(#applied_light_wallpaper,#bionic_light_glass_params[33],#bionic_dark_glass_params[33]),#common_glass_params[33]),ifelse(#isGlassBionic,ifelse(#applied_light_wallpaper,#bionic_light_glass_params[34],#bionic_dark_glass_params[34]),#common_glass_params[34]),ifelse(#isGlassBionic,ifelse(#applied_light_wallpaper,#bionic_light_glass_params[35],#bionic_dark_glass_params[35]),#common_glass_params[35]),ifelse(#isGlassBionic,ifelse(#applied_light_wallpaper,#bionic_light_glass_params[36],#bionic_dark_glass_params[36]),#common_glass_params[36]),ifelse(#isGlassBionic,ifelse(#applied_light_wallpaper,#bionic_light_glass_params[37],#bionic_dark_glass_params[37]),#common_glass_params[37]),ifelse(#isGlassBionic,ifelse(#applied_light_wallpaper,#bionic_light_glass_params[38],#bionic_dark_glass_params[38]),#common_glass_params[38]),ifelse(#isGlassBionic,ifelse(#applied_light_wallpaper,#bionic_light_glass_params[39],#bionic_dark_glass_params[39]),#common_glass_params[39]),ifelse(#isGlassBionic,ifelse(#applied_light_wallpaper,#bionic_light_glass_params[40],#bionic_dark_glass_params[40]),#common_glass_params[40]),ifelse(#isGlassBionic,ifelse(#applied_light_wallpaper,#bionic_light_glass_params[41],#bionic_dark_glass_params[41]),#common_glass_params[41])" />
-      <ColorBlendConfig disableBlend="#isInPicker || (#hyper_material_view_type != 0)"
-        colors="ifelse(#isDark,'#52000000','#B3FFFFFF'),ifelse(#isDark,'#75000000','#33F9F9F9')"
-        colorModes="ifelse(#isDark,3,20),ifelse(#isDark,19,15)" />
-      <BloomStrokeConfig disableBloomStroke="#isInPicker || (#hyper_material_view_type != 0)" bloomStrokeHeight="#view_height" bloomStrokeRadius="70" bloomStrokeWidth="#view_width" uGeoPxPosX="0.0" uGeoPxPosY="0.0" uShapeEdgePow="3.0" uColorPow="1.2" uColorAdd="0.0" uAlpha="1.0"
-        uShapeEdgePx="24.0" uDarker="0.0" uDarkerRangeX="0.4" uDarkerRangeY="0.5" uScaleX="1.0" uScaleY="1.0" uRotationTrigX="1.0" uRotationTrigY="0.0" uDirectionalLightDirectionX="-0.6" uDirectionalLightDirectionY="0.7" uDirectionalLightDirectionZ="-0.05" uDirectionalLightIntensity="1.8"
-        uDirectionalLightOppositeIntensity="1.2" uDirectionalLightAngleRange="0.7" uDirectionalLightMinLight="-0.5" uDirectionalLightLightWidth="8.0" />
-    </MaterialToken>
-    <ViewOutlineProvider type="rect" left="0" top="0" right="#view_width" bottom="#view_height" radius="ifelse(eqs(@isPreviewMode,'true'),0,ifelse(#widget_radius,(#widget_radius / #__scale_factor),60))" />
-    <!-- 降级背景色（高级材质关闭时显示） -->
-    <Rectangle x="#view_width/2" y="#view_height/2" w="#view_width" h="#view_height" align="center" alignV="center" fillColor="@bgColor" alpha="30" cornerRadiusExp="ifelse(num(@__hyper_os_version_code) { 4,60,0)" cornerRadius="60" visibility="#showBg"/>
-	
-		
-	<!-- <Rectangle visibility="#showBg" w="#view_width" h="#view_height" fillColor="@cardBgColor" x="0" y="0" cornerRadiusExp="ifelse(num(@__hyper_os_version_code) { 4,64,0)" /> -->
-	
-	 <!-- 编辑页（预览模式）时显示固定灰白色背景，保证内容可读 -->
-        <Rectangle x="#view_width/2" y="#view_height/2" align="center" alignV="center" fillColor="#FFF5F5F5" w="#view_width" h="#view_height" visibility="eqs(@isPreviewMode,'true')"/>
-
+    <!-- 背景颜色 -->
+    <Var name="bg_color" expression="ifelse(#__darkmode==1,'#3E3A39','#FFFFFF')" type="string" />
+    <!-- 视觉层 -->
+   <Rectangle x="0" y="0" w="#view_width" h="#view_height" alpha="#set_alpha" fillColor="@bg_color" cornerRadius="46"/>
         <!-- ─── 今日课程 内容 ─── -->
-        <Group h="#view_height" layered="true" w="#view_width" visibility="eq(num(#state_installed),1)">
+        <Group h="#view_height" layered="true" w="#view_width" visibility="ifelse(#today_count==0,'0','1')">
 
             <!-- ═────── 标题栏 ═────── -->
             <Text textExp="ifelse(#today_offset==0,'今天 / ',ifelse(#today_offset==1,'明天 / ',''))+@state_title" x="20*#sx" y="20*#sy" size="14*#sx" color="@titleColor" alignV="center" fontFamily="mipro-medium" />
@@ -388,8 +246,8 @@
                 fillColor="@course_color_1" cornerRadiusExp="16" cornerRadius="16" visibility="le(2,#today_count)" />
         </Group>
 
-        <!-- ─── 日程 内容（仅应用未安装时显示伪装日程） ─── -->
-        <Group h="#view_height" layered="true" w="#view_width" visibility="le(num(#state_installed),0)">
+        <!-- ─── 日程 内容（empty_type!=0 无展示课程时显示，伪装成日历） ─── -->
+        <Group h="#view_height" layered="true" w="#view_width" visibility="ifelse(#today_count==0,'1','0')">
 
             <!-- ═────── 标题栏 ═────── -->
             <Text text="今天" x="20*#sx" y="20*#sy" size="14*#sx" color="@titleColor" alignV="center" fontFamily="mipro-medium" />
@@ -445,7 +303,7 @@
                         color="@subTextColor" align="left" alignV="center" fontFamily="mipro-medium" />
                 </Group>
                 <!-- 倒计时（独立组件, 仅正在上课显示，最右侧） -->
-                <Text textExp="@events_Type[0]" x="(344-22)*#sx" y="64*#sy" size="14*#sx"
+                <Text textExp="@events_Type[0]" x="(344-22)*#sx" y="126*#sy" size="14*#sx"
                     color="#2196F3" align="right" alignV="center" fontFamily="mipro-medium" fontWeight="medium"
                     visibility="#events==2" />
             </Group>
@@ -460,9 +318,9 @@
             <Rectangle x="60*#sx" y="110*#sy" w="3*#sx" h="32*#sy"
                 fillColor="#2196F3" cornerRadiusExp="16" cornerRadius="16" visibility="#events}=2" />
         </Group>
-
+        
         <!-- 点击 → 打开 日历 -->
-        <Button x="0" y="0" w="#view_width" h="#view_height" visibility="#today_count!=1"> 
+        <Button x="0" y="0" w="#view_width" h="#view_height" visibility="ifelse(#today_count==0,'1','0')"> 
             <Triggers> 
             <Trigger action="up"> 
                 <IntentCommand package="com.android.calendar" class="com.android.calendar.AllInOneActivity"/> 
@@ -470,12 +328,11 @@
             </Triggers> 
         </Button>
         <!-- 点击 → 打开 Nexio 课程表 -->
-        <Button x="0" y="0" w="#view_width" h="#view_height" visibility="#today_count==1" contentDescriptionExp="@state_title+' '+num(#today_count)+' 节'">
+        <Button x="0" y="0" w="#view_width" h="#view_height" visibility="ifelse(#today_count==0,'0','1')" contentDescriptionExp="@state_title+' '+num(#today_count)+' 节'">
             <Triggers>
                 <Trigger action="up" condition="!eqs(@isPreviewMode,'true')">
                     <IntentCommand package="com.haooz.chedule" class="com.haooz.chedule.ui.activities.MainActivity" action="android.intent.action.MAIN" />
                 </Trigger>
             </Triggers>
         </Button>
-    </Layer>
 </Widget>

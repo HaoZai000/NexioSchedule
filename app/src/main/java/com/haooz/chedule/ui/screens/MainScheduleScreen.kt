@@ -18,11 +18,14 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.asPaddingValues
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.statusBars
 import androidx.compose.foundation.pager.HorizontalPager
 import androidx.compose.foundation.pager.PagerState
 import androidx.compose.foundation.rememberScrollState
@@ -70,6 +73,7 @@ import com.haooz.chedule.data.CourseRepository
 import com.haooz.chedule.data.HolidayManager
 import com.haooz.chedule.ui.basic.LiquidTopBarButton
 import com.haooz.chedule.ui.basic.SharedScrollBehavior
+import com.haooz.chedule.ui.components.scheduleContentTopPadding
 import com.haooz.chedule.ui.components.DayColumn
 import com.haooz.chedule.ui.components.SectionColumn
 import com.haooz.chedule.ui.components.SpecialBandOverlay
@@ -202,7 +206,12 @@ fun MainScheduleScreen(
     val scrollState = externalScrollState
     // 横向翻页/纵向滚动进行中标记：用于跳过滑动期间的网格几何逐帧上报
     val isGridScrolling = pagerState.isScrollInProgress || scrollState.isScrollInProgress
-    val scaffoldTopPadding = paddingValues.calculateTopPadding()
+    // 课程表内容的顶部偏移：由课程表顶栏自身几何纯计算（切页不变）。
+    // 不再使用 Scaffold 实测的 paddingValues：它随「当前显示哪个 tab 的顶栏」变化，
+    // 切页时会让课程表内容整体位移一次，而玻璃模糊的采样层滞后一帧，就会看到顶部慢一帧就位。
+    // 详见 scheduleContentTopPadding() 的注释。
+    val statusBarHeight = WindowInsets.statusBars.asPaddingValues().calculateTopPadding()
+    val contentTopPaddingDp = remember(statusBarHeight) { scheduleContentTopPadding(statusBarHeight) }
 
     // 计算壁纸最小缩放比例（填满短边，确保不露出底部背景）
     // ContentScale.Fit 的基础缩放 = min(screenW/bitmapW, screenH/bitmapH)
@@ -475,9 +484,10 @@ fun MainScheduleScreen(
                     // 布局阶段读取顶栏高度：顶栏折叠动画逐帧变化时只触发本节点重新测量/摆放，
                     // 避免在组合期读取 currentHeightPx 导致整个课程表页面逐帧重组。
                     // 滚动内容高度约束为无限，子树约束恒定，折叠期间子树不会重复测量。
+                    // 顶部偏移只依赖课程表顶栏自身的固有高度（纯计算、切页不变），
+                    // 不再依赖实测的 paddingValues / currentHeightPx，避免切 tab 时内容位移。
                     .layout { measurable, constraints ->
-                        val topPad = ((scheduleScrollBehavior?.currentHeightPx ?: 0f).roundToInt()
-                                + scaffoldTopPadding.roundToPx() - 78.dp.roundToPx()).coerceAtLeast(0)
+                        val topPad = contentTopPaddingDp.roundToPx().coerceAtLeast(0)
                         val bottomPad = 140.dp.roundToPx()
                         val placeable = measurable.measure(constraints)
                         layout(placeable.width, placeable.height + topPad + bottomPad) {

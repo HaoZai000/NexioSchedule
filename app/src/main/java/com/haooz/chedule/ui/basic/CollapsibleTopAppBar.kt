@@ -39,6 +39,7 @@ import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.nestedscroll.NestedScrollConnection
 import androidx.compose.ui.input.nestedscroll.NestedScrollSource
 import androidx.compose.ui.layout.Layout
+import androidx.compose.ui.layout.layout
 import androidx.compose.ui.layout.layoutId
 import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalConfiguration
@@ -356,6 +357,8 @@ fun CollapsibleTopAppBar(
         }
     }
     val density = LocalDensity.current
+    // 最近一次上报给 scrollBehavior / contentPadding 的顶栏高度，避免同值重复写状态
+    val lastReportedHeight = remember { intArrayOf(-1) }
     val scrollShadowThresholdPx = with(density) { 10.dp.toPx() }
     val showButtonShadow = remember(scrollBehavior, showShadow, effectiveShowLargeTitle, overScrollState.offset) {
         derivedStateOf {
@@ -511,9 +514,24 @@ fun CollapsibleTopAppBar(
             },
             modifier = modifier
                 .windowInsetsPadding(WindowInsets.systemBars.only(WindowInsetsSides.Top))
-                .onSizeChanged { size ->
-                    scrollBehavior?.currentHeightPx = size.height.toFloat()
-                    contentPadding(with(density) { size.height.toDp() })
+                // 顶栏高度必须在「测量期」写入，不能用 onSizeChanged：
+                // onSizeChanged 是在摆放（place）阶段才回调的，那时当帧布局已结束，
+                // 依赖它的内容（课程表网格顶部间距、星期行位置）只能等下一帧才更新，
+                // 表现为切换 tab 时课程表页顶部距离慢一帧才就位。
+                // 这里改在测量期写入：Scaffold 先测 TopBar 再测 MainContent，同帧即可生效。
+                .layout { measurable, constraints ->
+                    val placeable = measurable.measure(constraints)
+                    // 该 layout 位于 windowInsetsPadding 之内，测得的尺寸**不含**状态栏高度：
+                    // 状态栏内边距是外层节点、这里测的是折叠态标题栏本身（恒为 CollapsedHeight）。
+                    val height = placeable.height
+                    if (height != lastReportedHeight[0]) {
+                        lastReportedHeight[0] = height
+                        scrollBehavior?.currentHeightPx = height.toFloat()
+                        contentPadding(with(density) { height.toDp() })
+                    }
+                    layout(placeable.width, placeable.height) {
+                        placeable.place(0, 0)
+                    }
                 },
         ) { measurables, constraints ->
             val backButtonPlaceable = measurables
