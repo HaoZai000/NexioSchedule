@@ -91,10 +91,14 @@ import com.kyant.backdrop.backdrops.layerBackdrop as kyantLayerBackdrop
 import com.kyant.backdrop.backdrops.rememberLayerBackdrop as rememberKyantLayerBackdrop
 
 /**
- * 今日页卡片：有壁纸时使用 drawBackdrop 模糊壁纸（与课程卡片风格一致），
- * 无壁纸时回退为普通 miuix Card。
- * @param lightAlpha 亮色模式底色透明度
- * @param darkAlpha 暗色模式底色透明度
+ * 今日页卡片：有壁纸时使用 drawBackdrop 绘制半透明毛玻璃（与课程卡片风格一致），
+ * 无壁纸时回退为普通 miuix Card（不透明）。
+ *
+ * 关键：是否走毛玻璃半透明路径只由「有没有壁纸 backdrop」决定，**与模糊半径无关**。
+ * 与课程卡片 CourseCard 一致 —— 模糊为 0 时依旧采样壁纸、依旧是透的，
+ * 而不是退化成一张不透明实心卡片。
+ *
+ * @param surfaceOpacity 表面底色的不透明度（亮/暗色统一），即跟随外观里「卡片不透明度」开关
  * @param showEdgeLight 是否显示高光描边
  */
 /** 今日页卡片折射档位（来自课表外观设置），由 BlurCard 统一应用到所有卡片 */
@@ -105,17 +109,16 @@ fun BlurCard(
     cornerRadius: Dp = 20.dp,
     wallpaperBackdrop: Backdrop? = null,
     blurRadius: Float = 0f,
-    lightAlpha: Float = 0.64f,
-    darkAlpha: Float = 0.64f,
+    surfaceOpacity: Float,
     showEdgeLight: Boolean = false,
     @SuppressLint("ModifierParameter") modifier: Modifier = Modifier,
     content: @Composable () -> Unit
 ) {
-    val hasBlur = blurRadius > 0f && wallpaperBackdrop != null
+    val hasBackdrop = wallpaperBackdrop != null
     val isDark = isAppDarkTheme()
     val refraction = LocalCardRefraction.current
 
-    if (hasBlur) {
+    if (hasBackdrop) {
         val shape = ContinuousRoundedRectangle(cornerRadius)
         val defaultEdgeLight = rememberDefaultEdgeLight()
         Box(
@@ -132,7 +135,7 @@ fun BlurCard(
                     },
                     highlight = null,
                     onDrawSurface = {
-                        drawRect(if (isDark) Color.Black.copy(alpha = darkAlpha) else Color.White.copy(alpha = lightAlpha))
+                        drawRect(if (isDark) Color.Black.copy(alpha = surfaceOpacity) else Color.White.copy(alpha = surfaceOpacity))
                     }
                 )
                 .then(
@@ -351,6 +354,7 @@ fun TodayScreen(
     wallpaperBrightness: Float = 0f,
     cardBlurRadius: Float = 0f,
     cardRefraction: CardRefractionLevel = CardRefractionLevel.DEFAULT,
+    cardAlpha: Float = 0.15f,
     wallpaperBlur: Boolean = false,
     liquidGlassBackdrop: Backdrop? = null,
     // Activity 层提升的状态，return@Scaffold 不会销毁
@@ -432,6 +436,12 @@ fun TodayScreen(
         drawContent()
     }
     val hasWallpaper = todayShowWallpaper && wallpaperBitmap != null
+    // 今日页卡片表面不透明度：跟随外观里的「卡片不透明度」开关（cardAlpha, 0..1 = 0%~100%），
+    // 在开关值基础上各自放大固定倍数，不改变课程表等其它页的默认：
+    //  下方课程卡片 = cardAlpha × 3    （默认 0.15×3 = 45%）
+    //  上方格言/今日助手 = cardAlpha × 4（默认 0.15×4 = 60%）
+    val courseCardOpacity = (cardAlpha * 3f).coerceIn(0f, 1f)
+    val highlightCardOpacity = (cardAlpha * 4f).coerceIn(0f, 1f)
 
 
     val isTablet = navBarStyle == "rail"
@@ -575,7 +585,7 @@ fun TodayScreen(
                                 modifier = Modifier.padding(start = 16.dp, top = 8.dp)
                             )
                             Spacer(modifier = Modifier.height(12.dp))
-                            QuoteCard(hour = now.hour, wallpaperBackdrop = if (hasWallpaper) cardBackdrop else null, blurRadius = cardBlurRadius)
+                            QuoteCard(hour = now.hour, wallpaperBackdrop = if (hasWallpaper) cardBackdrop else null, blurRadius = cardBlurRadius, surfaceOpacity = highlightCardOpacity)
                             if (isPageToday) {
                                 Spacer(modifier = Modifier.height(12.dp))
                                 TodayAssistantCard(
@@ -585,7 +595,8 @@ fun TodayScreen(
                                     morningSections = morningSections,
                                     afternoonSections = afternoonSections,
                                     wallpaperBackdrop = if (hasWallpaper) cardBackdrop else null,
-                                    blurRadius = cardBlurRadius
+                                    blurRadius = cardBlurRadius,
+                                    surfaceOpacity = highlightCardOpacity
                                 )
                             }
                         }
@@ -607,7 +618,7 @@ fun TodayScreen(
                             ),
                             verticalArrangement = Arrangement.spacedBy(12.dp)
                         ) {
-                            addCourseSections(morningCourses, afternoonCourses, eveningCourses, pageCourses, isPageToday, pageDate, courses, hiddenCourseIds, sectionTimes, onCourseClick, if (hasWallpaper) cardBackdrop else null, cardBlurRadius)
+                            addCourseSections(morningCourses, afternoonCourses, eveningCourses, pageCourses, isPageToday, pageDate, courses, hiddenCourseIds, sectionTimes, onCourseClick, if (hasWallpaper) cardBackdrop else null, cardBlurRadius, courseCardOpacity)
                         }
                     }
                 } else {
@@ -643,7 +654,7 @@ fun TodayScreen(
                             )
                         }
                         item {
-                            QuoteCard(hour = now.hour, wallpaperBackdrop = if (hasWallpaper) cardBackdrop else null, blurRadius = cardBlurRadius)
+                            QuoteCard(hour = now.hour, wallpaperBackdrop = if (hasWallpaper) cardBackdrop else null, blurRadius = cardBlurRadius, surfaceOpacity = highlightCardOpacity)
                         }
                         if (isPageToday) {
                             item {
@@ -654,11 +665,12 @@ fun TodayScreen(
                                     morningSections = morningSections,
                                     afternoonSections = afternoonSections,
                                     wallpaperBackdrop = if (hasWallpaper) cardBackdrop else null,
-                                    blurRadius = cardBlurRadius
+                                    blurRadius = cardBlurRadius,
+                                    surfaceOpacity = highlightCardOpacity
                                 )
                             }
                         }
-                        addCourseSections(morningCourses, afternoonCourses, eveningCourses, pageCourses, isPageToday, pageDate, courses, hiddenCourseIds, sectionTimes, onCourseClick, if (hasWallpaper) cardBackdrop else null, cardBlurRadius)
+                        addCourseSections(morningCourses, afternoonCourses, eveningCourses, pageCourses, isPageToday, pageDate, courses, hiddenCourseIds, sectionTimes, onCourseClick, if (hasWallpaper) cardBackdrop else null, cardBlurRadius, courseCardOpacity)
                     }
                 }
             }
@@ -757,7 +769,7 @@ fun TodayScreen(
 }
 
 @Composable
-private fun QuoteCard(hour: Int, wallpaperBackdrop: Backdrop? = null, blurRadius: Float = 0f) {
+private fun QuoteCard(hour: Int, wallpaperBackdrop: Backdrop? = null, blurRadius: Float = 0f, surfaceOpacity: Float) {
     val h6 = listOf(
         "太阳都打卡上班了，你还在被窝里装死？",
         "这个点能醒的，不是被穷醒就是被尿憋醒",
@@ -1075,8 +1087,7 @@ private fun QuoteCard(hour: Int, wallpaperBackdrop: Backdrop? = null, blurRadius
         cornerRadius = 20.dp,
         wallpaperBackdrop = wallpaperBackdrop,
         blurRadius = blurRadius,
-        lightAlpha = 0.74f,
-        darkAlpha = 0.74f,
+        surfaceOpacity = surfaceOpacity,
         showEdgeLight = wallpaperBackdrop != null && blurRadius > 0f,
         modifier = Modifier.fillMaxWidth()
     ) {
@@ -1103,7 +1114,8 @@ private fun androidx.compose.foundation.lazy.LazyListScope.addCourseSections(
     sectionTimes: Map<Int, String>,
     onCourseClick: (courses: List<Course>, cardLeft: Float, cardTop: Float, cardWidth: Float, cardHeight: Float, snapshot: android.graphics.Bitmap?, courseIdToHide: String) -> Unit,
     wallpaperBackdrop: Backdrop? = null,
-    blurRadius: Float = 0f
+    blurRadius: Float = 0f,
+    surfaceOpacity: Float
 ) {
     if (morningCourses.isNotEmpty()) {
         item {
@@ -1111,12 +1123,12 @@ private fun androidx.compose.foundation.lazy.LazyListScope.addCourseSections(
                 SmallTitle(
                     text = "上午课程",
                     modifier = Modifier.offset(x = (-15).dp),
-                    hasWallpaper = wallpaperBackdrop != null && blurRadius > 0f
+                    hasWallpaper = wallpaperBackdrop != null
                 )
-                BlurCard(cornerRadius = 20.dp, wallpaperBackdrop = wallpaperBackdrop, blurRadius = blurRadius, modifier = Modifier.fillMaxWidth()) {
+                BlurCard(cornerRadius = 20.dp, wallpaperBackdrop = wallpaperBackdrop, blurRadius = blurRadius, surfaceOpacity = surfaceOpacity, modifier = Modifier.fillMaxWidth()) {
                     Column {
                         morningCourses.forEach { course ->
-                            CourseItemWithClick(course, courses, hiddenCourseIds, sectionTimes, pageDate, onCourseClick, wallpaperBackdrop != null && blurRadius > 0f)
+                            CourseItemWithClick(course, courses, hiddenCourseIds, sectionTimes, pageDate, onCourseClick, wallpaperBackdrop != null)
                         }
                     }
                 }
@@ -1129,12 +1141,12 @@ private fun androidx.compose.foundation.lazy.LazyListScope.addCourseSections(
                 SmallTitle(
                     text = "下午课程",
                     modifier = Modifier.offset(x = (-15).dp),
-                    hasWallpaper = wallpaperBackdrop != null && blurRadius > 0f
+                    hasWallpaper = wallpaperBackdrop != null
                 )
-                BlurCard(cornerRadius = 20.dp, wallpaperBackdrop = wallpaperBackdrop, blurRadius = blurRadius, modifier = Modifier.fillMaxWidth()) {
+                BlurCard(cornerRadius = 20.dp, wallpaperBackdrop = wallpaperBackdrop, blurRadius = blurRadius, surfaceOpacity = surfaceOpacity, modifier = Modifier.fillMaxWidth()) {
                     Column {
                         afternoonCourses.forEach { course ->
-                            CourseItemWithClick(course, courses, hiddenCourseIds, sectionTimes, pageDate, onCourseClick, wallpaperBackdrop != null && blurRadius > 0f)
+                            CourseItemWithClick(course, courses, hiddenCourseIds, sectionTimes, pageDate, onCourseClick, wallpaperBackdrop != null)
                         }
                     }
                 }
@@ -1147,12 +1159,12 @@ private fun androidx.compose.foundation.lazy.LazyListScope.addCourseSections(
                 SmallTitle(
                     text = "晚上课程",
                     modifier = Modifier.offset(x = (-15).dp),
-                    hasWallpaper = wallpaperBackdrop != null && blurRadius > 0f
+                    hasWallpaper = wallpaperBackdrop != null
                 )
-                BlurCard(cornerRadius = 20.dp, wallpaperBackdrop = wallpaperBackdrop, blurRadius = blurRadius, modifier = Modifier.fillMaxWidth()) {
+                BlurCard(cornerRadius = 20.dp, wallpaperBackdrop = wallpaperBackdrop, blurRadius = blurRadius, surfaceOpacity = surfaceOpacity, modifier = Modifier.fillMaxWidth()) {
                     Column {
                         eveningCourses.forEach { course ->
-                            CourseItemWithClick(course, courses, hiddenCourseIds, sectionTimes, pageDate, onCourseClick, wallpaperBackdrop != null && blurRadius > 0f)
+                            CourseItemWithClick(course, courses, hiddenCourseIds, sectionTimes, pageDate, onCourseClick, wallpaperBackdrop != null)
                         }
                     }
                 }

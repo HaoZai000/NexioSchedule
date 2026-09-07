@@ -1913,6 +1913,7 @@ fun CourseScheduleApp() {
                                             wallpaperBrightness = displayAppearance.wallpaperBrightness,
                                             cardBlurRadius = displayAppearance.cardBlurRadius,
                                             cardRefraction = displayAppearance.cardRefraction,
+                                            cardAlpha = displayAppearance.cardAlpha,
                                             wallpaperBlur = displayAppearance.wallpaperBlur,
                                             liquidGlassBackdrop = liquidGlassBackdrop,
                                             externalListState = todayListState,

@@ -718,7 +718,8 @@ fun TodayAssistantCard(
     morningSections: Int,
     afternoonSections: Int,
     wallpaperBackdrop: com.kyant.backdrop.Backdrop? = null,
-    blurRadius: Float = 0f
+    blurRadius: Float = 0f,
+    surfaceOpacity: Float
 ) {
     val (weather, requestLocation) = rememberWeather()
     val courseStatus = rememberCourseStatus(courses, sectionTimes)
@@ -737,8 +738,7 @@ fun TodayAssistantCard(
         cornerRadius = 20.dp,
         wallpaperBackdrop = wallpaperBackdrop,
         blurRadius = blurRadius,
-        lightAlpha = 0.74f,
-        darkAlpha = 0.74f,
+        surfaceOpacity = surfaceOpacity,
         showEdgeLight = wallpaperBackdrop != null && blurRadius > 0f,
         modifier = Modifier.fillMaxWidth()
     ) {
