@@ -818,8 +818,8 @@ fun TodayAssistantCard(
                         if (location.isNotBlank() && teacher.isNotBlank()) append(" | ")
                         if (teacher.isNotBlank()) append(teacher)
                     },
-                    style = MiuixTheme.textStyles.footnote1,
-                    color = MiuixTheme.colorScheme.onBackgroundVariant
+                    style = MiuixTheme.textStyles.body2.copy(fontSize = 14.sp),
+                    color = MiuixTheme.colorScheme.onSurfaceVariantSummary
                 )
             }
             Spacer(modifier = Modifier.height(2.dp))

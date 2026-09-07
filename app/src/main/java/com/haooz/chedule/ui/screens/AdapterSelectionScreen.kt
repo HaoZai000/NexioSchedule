@@ -305,23 +305,23 @@ private fun AdapterRow(
                 )
                 Text(
                     text = categoryName,
-                    fontSize = 12.sp,
-                    color = MiuixTheme.colorScheme.onSurfaceVariantActions,
+                    fontSize = 14.sp,
+                    color = MiuixTheme.colorScheme.onSurfaceVariantSummary,
                     modifier = Modifier.padding(start = 8.dp)
                 )
             }
             Spacer(Modifier.height(4.dp))
             Text(
                 text = adapter.description.ifBlank { "暂无详细描述" },
-                fontSize = 13.sp,
+                fontSize = 14.sp,
                 color = MiuixTheme.colorScheme.onSurfaceVariantActions,
             )
             if (adapter.maintainer.isNotBlank()) {
                 Spacer(Modifier.height(4.dp))
                 Text(
                     text = "贡献者：${adapter.maintainer}",
-                    fontSize = 12.sp,
-                    color = MiuixTheme.colorScheme.onSurfaceVariantActions.copy(alpha = 0.7f)
+                    fontSize = 14.sp,
+                    color = MiuixTheme.colorScheme.onSurfaceVariantSummary
                 )
             }
         }

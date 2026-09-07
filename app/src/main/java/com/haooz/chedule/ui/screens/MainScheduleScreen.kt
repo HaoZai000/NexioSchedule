@@ -1022,8 +1022,8 @@ fun MainScheduleScreen(
                                 Spacer(modifier = Modifier.height(4.dp))
                                 Text(
                                     text = summaryText,
-                                    style = MiuixTheme.textStyles.footnote1,
-                                    color = MiuixTheme.colorScheme.onSurfaceVariantActions
+                                    style = MiuixTheme.textStyles.body2.copy(fontSize = 14.sp),
+                                    color = MiuixTheme.colorScheme.onSurfaceVariantSummary
                                 )
                             }
                             Box(

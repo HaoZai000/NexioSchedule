@@ -297,9 +297,9 @@ private fun CourseItemContent(course: Course, sectionTimes: Map<Int, String>, pa
                     if (course.classroom.isNotEmpty()) append(" | ").append(course.classroom)
                     if (course.teacher.isNotEmpty()) append(" | ").append(course.teacher)
                 },
-                style = MiuixTheme.textStyles.footnote1,
-                color = MiuixTheme.colorScheme.onBackgroundVariant
-            )
+                style = MiuixTheme.textStyles.body2.copy(fontSize = 14.sp),
+                color = MiuixTheme.colorScheme.onSurfaceVariantSummary
+                )
         }
         Column(horizontalAlignment = Alignment.End) {
             Text(

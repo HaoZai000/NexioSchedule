@@ -454,8 +454,8 @@ fun CourseDetailScreen(
                                                                     if (detailParts.isNotEmpty()) {
                                                                         Text(
                                                                             text = detailParts.joinToString(" | "),
-                                                                            style = MiuixTheme.textStyles.footnote1,
-                                                                            color = MiuixTheme.colorScheme.onBackgroundVariant
+                                                                            style = MiuixTheme.textStyles.body2.copy(fontSize = 14.sp),
+                                                                            color = MiuixTheme.colorScheme.onSurfaceVariantSummary
                                                                         )
                                                                     }
                                                                 }
