@@ -1,10 +1,13 @@
 /**
  * 上课勿扰助手
  *
- * 基于系统勿扰模式（NotificationManager.setInterruptionFilter）实现：
- * - 上课时间到：自动进入勿扰（INTERRUPTION_FILTER_NONE）
- * - 下课时间到：自动退出勿扰（INTERRUPTION_FILTER_ALL）
- * - 未授予「勿扰权限」时不做任何降级操作，仅引导用户授权
+ * 提供两档「上课时自动降低打扰」模式：
+ * - 0 勿扰模式 (DND)   = `NotificationManager.setInterruptionFilter(NONE)`
+ *   系统屏蔽通知、来电、振动；需要用户授予「免打扰访问权限」
+ * - 1 静音模式 (SILENT) = `AudioManager.ringerMode = RINGER_MODE_SILENT`
+ *   仅关铃声+振动，通知照常弹出，无需任何运行时权限
+ *
+ * 下课 / 关闭开关时按开启前保存的原始状态恢复，不会动用户手动改过的设置。
  *
  * 触发链路有三条，互为兜底：
  * 1. 每节课的开始/结束精确闹钟（[scheduleClassDndAlarms]）
@@ -18,6 +21,7 @@ import android.app.NotificationManager
 import android.app.PendingIntent
 import android.content.Context
 import android.content.Intent
+import android.media.AudioManager
 import android.util.Log
 import android.widget.Toast
 import androidx.core.content.edit
@@ -28,12 +32,22 @@ object ClassDndHelper {
 
     private const val TAG = "ClassDndHelper"
     private const val PREFS_NAME = "course_reminder_prefs"
-    /** 记录当前勿扰是否由本应用开启，避免误关用户手动开启的勿扰 */
-    private const val KEY_DND_APPLIED_BY_APP = "dnd_applied_by_app"
 
-    // 上课/下课勿扰闹钟的 requestCode 基址（与课程提醒闹钟的 10000 段错开）
+    /** 标记当前是否由本应用开启过任何一档（避免误关用户手动开的勿扰/静音） */
+    private const val KEY_APPLIED = "dnd_applied_by_app"
+    /** 当 [KEY_APPLIED]=true 时记录具体档位：0=DND, 1=SILENT */
+    private const val KEY_APPLIED_MODE = "dnd_applied_mode"
+    /** SILENT 档位下保存的原始 [AudioManager.ringerMode]，下课 / 关闭时还原 */
+    private const val KEY_ORIGINAL_RINGER = "dnd_original_ringer_mode"
+
+    // 上课/下课闹钟的 requestCode 基址（与课程提醒闹钟的 10000 段错开）
     private const val RC_DND_START_BASE = 30000
     private const val RC_DND_END_BASE = 40000
+
+    /** 用户可选档位 */
+    const val MODE_DND = 0
+    const val MODE_SILENT = 1
+    const val MODE_PRIORITY = 2
 
     private fun prefs(context: Context) =
         context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
@@ -41,7 +55,13 @@ object ClassDndHelper {
     private fun notificationManager(context: Context) =
         context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
 
-    /** 是否已授予「勿扰权限」（免打扰访问权限） */
+    private fun audioManager(context: Context) =
+        context.getSystemService(Context.AUDIO_SERVICE) as AudioManager
+
+    private fun currentMode(context: Context): Int =
+        CourseRepository(context).getClassDndMode()
+
+    /** 是否已授予「勿扰权限」（免打扰访问权限，仅 DND 档需要） */
     fun isDndPermissionGranted(context: Context): Boolean {
         return try {
             notificationManager(context).isNotificationPolicyAccessGranted
@@ -51,55 +71,119 @@ object ClassDndHelper {
         }
     }
 
-    /** 系统当前是否处于勿扰状态 */
-    @Suppress("DEPRECATION")
-    fun isDndOn(context: Context): Boolean {
-        return try {
-            notificationManager(context).currentInterruptionFilter !=
-                NotificationManager.INTERRUPTION_FILTER_ALL
-        } catch (e: Exception) {
-            Log.e(TAG, "Failed to query interruption filter", e)
-            false
-        }
-    }
-
-    /** 当前勿扰是否由本应用开启（决定下课时要不要回收） */
+    /** 当前所选档位是否已由本应用开启（与 [isDndOn] 不同：不受用户手动改系统的影响） */
     fun isDndAppliedByApp(context: Context): Boolean {
-        return prefs(context).getBoolean(KEY_DND_APPLIED_BY_APP, false)
+        val p = prefs(context)
+        return p.getBoolean(KEY_APPLIED, false) && p.getInt(KEY_APPLIED_MODE, MODE_DND) == currentMode(context)
     }
 
     /**
-     * 开关系统勿扰模式。
-     * [byApp] = true 时记录"由本应用开启"，下课/关闭开关时可安全回收；
-     * 用户自己手动开的勿扰不会被本应用关闭。
+     * 把当前所选档位应用到系统。
+     * 内部先清理之前可能开启的另一档（避免切档时叠加），幂等。
      */
-    private fun setDnd(context: Context, enable: Boolean, byApp: Boolean) {
-        if (!isDndPermissionGranted(context)) {
-            Log.w(TAG, "setDnd($enable) skipped: notification policy access not granted")
-            return
+    private fun enableDndByApp(context: Context) {
+        val mode = currentMode(context)
+        val nm = notificationManager(context)
+        val am = audioManager(context)
+
+        // 先清理之前可能开的另一档（DND <-> SILENT 切换时用到）
+        val p = prefs(context)
+        if (p.getBoolean(KEY_APPLIED, false)) {
+            val prevMode = p.getInt(KEY_APPLIED_MODE, MODE_DND)
+            if (prevMode != mode) {
+                restoreAppliedSilent(context, prevMode)
+            }
         }
-        try {
-            notificationManager(context).setInterruptionFilter(
-                if (enable) NotificationManager.INTERRUPTION_FILTER_NONE
-                else NotificationManager.INTERRUPTION_FILTER_ALL
-            )
-            prefs(context).edit { putBoolean(KEY_DND_APPLIED_BY_APP, enable && byApp) }
-            Log.d(TAG, "setDnd enable=$enable byApp=$byApp")
-        } catch (e: Exception) {
-            Log.e(TAG, "Failed to set interruption filter", e)
+
+        // 保存原始 ringerMode 用于 SILENT 档恢复（改之前的快照）
+        val originalRinger = am.ringerMode
+        var applied = true
+        when (mode) {
+            MODE_DND -> {
+                if (!isDndPermissionGranted(context)) {
+                    Log.w(TAG, "enableDndByApp: DND mode requires policy access")
+                    return
+                }
+                try {
+                    nm.setInterruptionFilter(NotificationManager.INTERRUPTION_FILTER_NONE)
+                } catch (e: Exception) {
+                    Log.e(TAG, "Failed to set interruption filter to NONE", e)
+                    applied = false
+                }
+            }
+            MODE_PRIORITY -> {
+                if (!isDndPermissionGranted(context)) {
+                    Log.w(TAG, "enableDndByApp: PRIORITY mode requires policy access")
+                    return
+                }
+                try {
+                    nm.setInterruptionFilter(NotificationManager.INTERRUPTION_FILTER_PRIORITY)
+                } catch (e: Exception) {
+                    Log.e(TAG, "Failed to set interruption filter to PRIORITY", e)
+                    applied = false
+                }
+            }
+            MODE_SILENT -> {
+                try {
+                    am.ringerMode = AudioManager.RINGER_MODE_SILENT
+                } catch (e: Exception) {
+                    Log.e(TAG, "Failed to set ringerMode to SILENT", e)
+                    applied = false
+                }
+            }
+        }
+        if (applied) {
+            p.edit {
+                putBoolean(KEY_APPLIED, true)
+                putInt(KEY_APPLIED_MODE, mode)
+                if (mode == MODE_SILENT) putInt(KEY_ORIGINAL_RINGER, originalRinger)
+            }
+            Log.d(TAG, "enableDndByApp mode=$mode (saved ringer=$originalRinger)")
         }
     }
 
-    /** 立即由本应用开启勿扰 */
-    private fun enableDndByApp(context: Context) = setDnd(context, true, byApp = true)
+    /** 静默恢复之前应用的档位（不清理 prefs，便于紧接着切到另一档时复用上下文） */
+    private fun restoreAppliedSilent(context: Context, prevMode: Int) {
+        val nm = notificationManager(context)
+        val am = audioManager(context)
+        val p = prefs(context)
+        when (prevMode) {
+            MODE_DND, MODE_PRIORITY -> {
+                // DND 与 PRIORITY 都改 interruption filter，恢复时统一回 ALL
+                if (isDndPermissionGranted(context)) {
+                    try {
+                        nm.setInterruptionFilter(NotificationManager.INTERRUPTION_FILTER_ALL)
+                    } catch (e: Exception) {
+                        Log.e(TAG, "Failed to restore filter to ALL", e)
+                    }
+                }
+            }
+            MODE_SILENT -> {
+                val original = p.getInt(KEY_ORIGINAL_RINGER, AudioManager.RINGER_MODE_NORMAL)
+                try {
+                    am.ringerMode = original
+                } catch (e: Exception) {
+                    Log.e(TAG, "Failed to restore ringerMode to $original", e)
+                }
+            }
+        }
+    }
 
-    /** 若勿扰是此前由本应用开启的，则回收（恢复为全部通知） */
+    /** 若当前所选档位由本应用开启，则回收（恢复全部允许 / 原始铃声） */
     private fun restoreDndIfApplied(context: Context) {
-        if (!isDndAppliedByApp(context)) return
-        setDnd(context, false, byApp = false)
+        val p = prefs(context)
+        if (!p.getBoolean(KEY_APPLIED, false)) return
+        val prevMode = p.getInt(KEY_APPLIED_MODE, MODE_DND)
+        restoreAppliedSilent(context, prevMode)
+        p.edit {
+            putBoolean(KEY_APPLIED, false)
+            remove(KEY_APPLIED_MODE)
+            remove(KEY_ORIGINAL_RINGER)
+        }
+        Log.d(TAG, "restoreDndIfApplied prevMode=$prevMode")
     }
 
-    /** 「上课自动开启勿扰」总开关是否可用（受课程提醒总开关约束 + 需要勿扰权限） */
+    /** 「上课自动开启勿扰」总开关是否可用（受课程提醒总开关约束） */
     private fun isFeatureAvailable(context: Context): Boolean {
         val repository = CourseRepository(context)
         val masterEnabled = repository.getPreClassReminder() || repository.getNextDayReminder()
@@ -120,19 +204,26 @@ object ClassDndHelper {
     }
 
     /**
-     * 状态对账：按当前时间与开关状态，把系统勿扰调整到应有状态。
+     * 状态对账：按当前时间与开关状态，把系统调整到应有状态。
      * 由上课/下课闹钟、每分钟的 widget 刷新、通知按钮回调共同调用，幂等。
      */
     fun applyCurrentState(context: Context) {
-        if (!isFeatureAvailable(context) || !isDndPermissionGranted(context)) {
+        if (!isFeatureAvailable(context)) {
             restoreDndIfApplied(context)
             return
         }
-        if (isInClass(context)) {
-            enableDndByApp(context)
-        } else {
+        if (!isInClass(context)) {
             restoreDndIfApplied(context)
+            return
         }
+        // 上课 + 总开关开
+        val mode = currentMode(context)
+        if ((mode == MODE_DND || mode == MODE_PRIORITY) && !isDndPermissionGranted(context)) {
+            // 需要勿扰权限；没权限时不强行开启，也不静默切换到 SILENT（尊重用户选择）
+            restoreDndIfApplied(context)
+            return
+        }
+        enableDndByApp(context)
     }
 
     /**
@@ -144,9 +235,12 @@ object ClassDndHelper {
         val next = !repository.getClassDndEnabled()
         repository.setClassDndEnabled(next)
 
-        if (next && !isDndPermissionGranted(context)) {
-            Toast.makeText(context, "请先在「课程提醒」中授予勿扰权限", Toast.LENGTH_LONG).show()
-            return
+        if (next) {
+            val mode = repository.getClassDndMode()
+            if ((mode == MODE_DND || mode == MODE_PRIORITY) && !isDndPermissionGranted(context)) {
+                Toast.makeText(context, "请先在「课程提醒」中授予勿扰权限", Toast.LENGTH_LONG).show()
+                return
+            }
         }
         Toast.makeText(
             context,
@@ -162,28 +256,37 @@ object ClassDndHelper {
     }
 
     /**
-     * 测试通知专用：立即开关系统勿扰，不看课表、不看开关状态。
+     * 测试通知专用：立即按当前所选档位开关系统，不看课表、不看开关状态。
      *
      * 测试超级岛用的是硬编码课程（不在真实课表里），走正常链路时 [isInClass] 恒为 false，
      * 按钮点了没有任何可见效果，无法验证「岛按钮 → 广播 → 勿扰」这条链路是否可用。
-     * 因此测试通知单独使用本方法，点击即开关勿扰。
+     * 因此测试通知单独使用本方法，点击即开关。
      */
     fun toggleDndNowForTest(context: Context) {
-        if (!isDndPermissionGranted(context)) {
-            Toast.makeText(context, "未授予勿扰权限，请先在课程提醒页授权", Toast.LENGTH_LONG).show()
+        val mode = currentMode(context)
+        if ((mode == MODE_DND || mode == MODE_PRIORITY) && !isDndPermissionGranted(context)) {
+            Toast.makeText(context, "勿扰/优先模式需要先授予勿扰权限", Toast.LENGTH_LONG).show()
             return
         }
-        val enable = !isDndOn(context)
-        setDnd(context, enable, byApp = true)
-        Toast.makeText(
-            context,
-            if (enable) "测试：已开启勿扰" else "测试：已关闭勿扰",
-            Toast.LENGTH_SHORT
-        ).show()
+        // 用 prefs 判断「当前所选档位是否已开」——不被用户手动改系统的行为干扰
+        val currentlyApplied = prefs(context).getBoolean(KEY_APPLIED, false) &&
+            prefs(context).getInt(KEY_APPLIED_MODE, MODE_DND) == mode
+        if (currentlyApplied) {
+            restoreDndIfApplied(context)
+            Toast.makeText(context, "测试：已关闭", Toast.LENGTH_SHORT).show()
+        } else {
+            enableDndByApp(context)
+            val label = when (mode) {
+                MODE_SILENT -> "测试：已开启静音（通知照弹，关铃声+振动）"
+                MODE_PRIORITY -> "测试：已开启优先（屏蔽普通通知，闹钟仍响）"
+                else -> "测试：已开启勿扰（完全屏蔽通知）"
+            }
+            Toast.makeText(context, label, Toast.LENGTH_SHORT).show()
+        }
     }
 
     /**
-     * 为今天的每节课注册「上课开勿扰 / 下课关勿扰」精确闹钟。
+     * 为今天的每节课注册「上课开 / 下课关」精确闹钟。
      * 与课前提醒闹钟相互独立：即便提醒未开启（但只要总开关开着）也能按课表生效。
      */
     fun scheduleClassDndAlarms(context: Context, alarmManager: AlarmManager) {
@@ -252,7 +355,7 @@ object ClassDndHelper {
         } catch (_: SecurityException) { }
     }
 
-    /** 取消所有上课/下课勿扰闹钟 */
+    /** 取消所有上课/下课闹钟 */
     fun cancelClassDndAlarms(context: Context, alarmManager: AlarmManager) {
         val allCourses = CourseRepository(context).getAllCourses()
         for (course in allCourses) {

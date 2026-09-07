@@ -92,6 +92,7 @@ fun CourseReminderScreen(
     val nextDayReminderMinute by settingsViewModel.nextDayReminderMinute.collectAsState()
     val islandNotification by settingsViewModel.islandNotification.collectAsState()
     val classDndEnabled by settingsViewModel.classDndEnabled.collectAsState()
+    val classDndMode by settingsViewModel.classDndMode.collectAsState()
     val context = androidx.compose.ui.platform.LocalContext.current
     val reminderPrefs = remember { context.getSharedPreferences("course_reminder_prefs", android.content.Context.MODE_PRIVATE) }
     var isIgnoringBattery by remember { mutableStateOf(true) }
@@ -397,7 +398,8 @@ fun CourseReminderScreen(
                                     "上课时自动开启勿扰，下课后自动恢复"
                                 },
                                 checked = classDndEnabled,
-                                enabled = masterEnabled && dndPermissionGranted,
+                                // 仅受总开关约束：无权限时仍可点开，会跳到授权卡片引导
+                                enabled = masterEnabled,
                                 onCheckedChange = { enable ->
                                     settingsViewModel.setClassDndEnabled(enable)
                                     if (enable && !ClassDndHelper.isDndPermissionGranted(context)) {
@@ -407,6 +409,51 @@ fun CourseReminderScreen(
                                     }
                                     CourseReminderHelper.startReminderService(context)
                                 }
+                            )
+                            // 档位选择不随「自动开启勿扰」开关隐藏：通知/超级岛上的「上课勿扰」按钮
+                            // 也能切换开关，此处需始终可调（仅受总开关约束）
+                            val selectMode: (Int) -> Unit = { mode ->
+                                settingsViewModel.setClassDndMode(mode)
+                                // DND / PRIORITY 两档生效需要勿扰权限；未授权时引导用户授权
+                                if ((mode == 0 || mode == 2) && !ClassDndHelper.isDndPermissionGranted(context)) {
+                                    Toast.makeText(context, "该档位需要勿扰权限，已为你打开授权页", Toast.LENGTH_SHORT).show()
+                                    dndPermissionLauncher.launch(
+                                        Intent(Settings.ACTION_NOTIFICATION_POLICY_ACCESS_SETTINGS)
+                                    )
+                                }
+                                CourseReminderHelper.startReminderService(context)
+                            }
+                            val modeEntry = remember(classDndMode) {
+                                DropdownEntry(
+                                    items = listOf(
+                                        DropdownItem(
+                                            text = "完全勿扰 (DND)",
+                                            summary = "关闭所有铃声、音量",
+                                            selected = classDndMode == 0,
+                                            onClick = { selectMode(0) }
+                                        ),
+                                        DropdownItem(
+                                            text = "静音模式 (SILENT)",
+                                            summary = "打开系统静音",
+                                            selected = classDndMode == 1,
+                                            onClick = { selectMode(1) }
+                                        ),
+                                        DropdownItem(
+                                            text = "勿扰模式 (PRIORITY)",
+                                            summary = "打开勿扰模式",
+                                            selected = classDndMode == 2,
+                                            onClick = { selectMode(2) }
+                                        )
+                                    )
+                                )
+                            }
+                            OverlayDropdownMenu(
+                                title = "勿扰模式档位",
+                                entry = modeEntry,
+                                collapseOnSelection = true,
+                                enabled = masterEnabled,
+                                liquidGlassBackdrop = liquidGlassBackdrop,
+                                dropdownColors = liquidGlassDropdownColors,
                             )
                         }
                     }
@@ -743,7 +790,7 @@ fun CourseReminderScreen(
                                 )
                                 ArrowPreference(
                                     title = "勿扰权限",
-                                    summary = "用于上课时自动开启勿扰",
+                                    summary = "用于上课时开启勿扰或静音",
                                     endActions = {
                                         Text(
                                             text = if (dndPermissionGranted) "已授权" else "未授权",

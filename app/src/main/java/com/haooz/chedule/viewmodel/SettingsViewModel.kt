@@ -102,6 +102,10 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
     private val _classDndEnabled = MutableStateFlow(repository.getClassDndEnabled())
     val classDndEnabled: StateFlow<Boolean> = _classDndEnabled.asStateFlow()
 
+    // 上课勿扰档位（0=勿扰模式 DND，1=静音模式 SILENT）
+    private val _classDndMode = MutableStateFlow(repository.getClassDndMode())
+    val classDndMode: StateFlow<Int> = _classDndMode.asStateFlow()
+
     // 默认首页
     private val _defaultHomepage = MutableStateFlow(repository.getDefaultHomepage())
     val defaultHomepage: StateFlow<String> = _defaultHomepage.asStateFlow()
@@ -188,6 +192,9 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
 
         val newClassDndEnabled = repository.getClassDndEnabled()
         if (_classDndEnabled.value != newClassDndEnabled) _classDndEnabled.value = newClassDndEnabled
+
+        val newClassDndMode = repository.getClassDndMode()
+        if (_classDndMode.value != newClassDndMode) _classDndMode.value = newClassDndMode
 
         val newTodayShowWallpaper = repository.getTodayShowWallpaper()
         if (_todayShowWallpaper.value != newTodayShowWallpaper) _todayShowWallpaper.value = newTodayShowWallpaper
@@ -310,5 +317,10 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
     fun setClassDndEnabled(enabled: Boolean) {
         _classDndEnabled.value = enabled
         repository.setClassDndEnabled(enabled)
+    }
+
+    fun setClassDndMode(mode: Int) {
+        _classDndMode.value = mode
+        repository.setClassDndMode(mode)
     }
 }

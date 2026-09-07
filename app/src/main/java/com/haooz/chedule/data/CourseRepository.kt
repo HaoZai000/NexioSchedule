@@ -95,6 +95,8 @@ class CourseRepository private constructor(context: Context) {
         private const val KEY_NEXT_DAY_REMINDER_MINUTE = "next_day_reminder_minute"
         private const val KEY_ISLAND_NOTIFICATION = "island_notification"
         private const val KEY_CLASS_DND = "class_dnd_enabled"
+        /** 上课时启用的系统勿扰档位：0=勿扰模式 (DND, NONE)，1=静音模式 (SILENT, PRIORITY，闹钟仍响) */
+        private const val KEY_CLASS_DND_MODE = "class_dnd_mode"
         private const val KEY_SHIFT_MODE = "shift_mode_enabled"
         private const val KEY_SHIFT_SELECTED_SCHEDULES = "shift_selected_schedules"
         private const val KEY_DEFAULT_HOMEPAGE = "default_homepage"
@@ -1285,6 +1287,24 @@ class CourseRepository private constructor(context: Context) {
      */
     fun setClassDndEnabled(enabled: Boolean) {
         prefs.edit { putBoolean(KEY_CLASS_DND, enabled) }
+    }
+
+    /**
+     * 获取上课时启用的勿扰档位。
+     * 0 = 勿扰模式 (DND, INTERRUPTION_FILTER_NONE) —— 完全屏蔽通知、来电、振动
+     * 1 = 静音模式 (SILENT, AudioManager.RINGER_MODE_SILENT) —— 关铃声与振动，通知照常弹出
+     * 2 = 优先模式 (PRIORITY, INTERRUPTION_FILTER_PRIORITY) —— 屏蔽普通通知，但闹钟等优先事项仍响
+     * 默认 1 = 静音模式：不影响上课时正常查看通知，符合大多数人期望。
+     */
+    fun getClassDndMode(): Int {
+        return safeGetInt(KEY_CLASS_DND_MODE, 1)
+    }
+
+    /**
+     * 设置上课时启用的勿扰档位（0=勿扰, 1=静音, 2=优先）
+     */
+    fun setClassDndMode(mode: Int) {
+        prefs.edit { putInt(KEY_CLASS_DND_MODE, mode) }
     }
 
     /**
