@@ -54,6 +54,7 @@ import top.yukonga.miuix.kmp.icon.MiuixIcons
 import top.yukonga.miuix.kmp.icon.extended.Close
 import top.yukonga.miuix.kmp.overlay.BlurBottomSheet
 import top.yukonga.miuix.kmp.overlay.BlurBottomSheetTablet
+import top.yukonga.miuix.kmp.overlay.LocalSheetContentBackdrop
 import top.yukonga.miuix.kmp.overlay.LocalSheetTopBarMaterial
 import top.yukonga.miuix.kmp.overlay.OverlayDialog
 import top.yukonga.miuix.kmp.theme.MiuixTheme
@@ -93,7 +94,6 @@ fun AdapterSelectionBottomSheet(
         schoolRepository.getSchoolById(s.id)?.adapters ?: s.adapters
     }
 
-    var sheetContentBackdrop by remember { mutableStateOf<Backdrop?>(null) }
     var showUrlDialog by remember { mutableStateOf(false) }
     var pendingAdapter by remember { mutableStateOf<AdapterData?>(null) }
     var customUrl by remember { mutableStateOf("") }
@@ -104,7 +104,7 @@ fun AdapterSelectionBottomSheet(
         val material = LocalSheetTopBarMaterial.current
         LiquidTopBarButton(
             onClick = onDismissRequest,
-            backdrop = sheetContentBackdrop ?: liquidGlassBackdrop!!,
+            backdrop = LocalSheetContentBackdrop.current ?: liquidGlassBackdrop!!,
             icon = MiuixIcons.Normal.Close,
             contentDescription = "关闭",
             modifier = Modifier.padding(start = if (isTablet) 16.dp else 18.dp),
@@ -209,7 +209,6 @@ fun AdapterSelectionBottomSheet(
             title = currentSchool?.name ?: "",
             dimBackground = true,
             onDismissRequest = onDismissRequest,
-            onSheetContentBackdropCreated = { sheetContentBackdrop = it },
             startAction = startAction,
         ) {
             sheetContent()
@@ -221,7 +220,6 @@ fun AdapterSelectionBottomSheet(
             dimBackground = true,
             onDismissRequest = onDismissRequest,
             sheetOffsetDp = 100.dp,
-            onSheetContentBackdropCreated = { sheetContentBackdrop = it },
             startAction = startAction,
         ) {
             sheetContent()

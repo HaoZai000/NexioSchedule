@@ -177,27 +177,28 @@ class ScriptRepository(private val context: Context, private val repoUrl: String
     }
 
     /**
-     * 按需获取适配脚本，随索引版本刷新
-     * 已缓存且对应的索引版本未变则直接返回；否则重新下载后落盘缓存
-     * 返回 null 表示获取失败
+     * 按需获取适配脚本：每次进入都从云端全量重新下载，保证始终是远端最新内容。
+     * 只在网络失败时回退本地缓存（且缓存未被防盗链 HTML 污染），不阻塞导入。
+     * 返回 null 表示既无缓存、下载也失败。
      */
     suspend fun ensureScript(resourceFolder: String, assetJsPath: String): File? {
         val target = File(resourcesDir, "$resourceFolder/$assetJsPath")
-        val currentVersion = readIndex(indexFile)?.versionId
-        val marker = File(target.path + ".v")
-        val isCached = target.exists() && marker.exists() && marker.readText() == currentVersion &&
-            !looksLikeAntiHotlinkHtml(target)
-        if (isCached) return target
         return withContext(Dispatchers.IO) {
-            try {
-                val url = "$remoteBase/raw/$RESOURCES_BRANCH/resources/$resourceFolder/$assetJsPath"
-                val bytes = downloadBytes(url) ?: return@withContext null
-                target.parentFile?.mkdirs()
-                target.writeBytes(bytes)
-                marker.writeText(currentVersion ?: "")
-                target
+            val url = "$remoteBase/raw/$RESOURCES_BRANCH/resources/$resourceFolder/$assetJsPath"
+            val bytes = try {
+                downloadBytes(url)
             } catch (e: IOException) {
                 null
+            }
+            when {
+                bytes != null -> {
+                    target.parentFile?.mkdirs()
+                    target.writeBytes(bytes)
+                    target
+                }
+                // 网络失败：有可用缓存则回退，绝不让脚本缺失阻塞导入
+                target.exists() && !looksLikeAntiHotlinkHtml(target) -> target
+                else -> null
             }
         }
     }

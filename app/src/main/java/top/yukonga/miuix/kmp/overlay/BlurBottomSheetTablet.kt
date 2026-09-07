@@ -26,11 +26,13 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.MutableState
 import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.setValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
@@ -109,17 +111,14 @@ fun BlurBottomSheetTablet(
     content: @Composable () -> Unit,
 ) {
     val visibleState = remember { mutableStateOf(show) }
-    val sheetContentBackdropHolder = remember { mutableStateOf<Backdrop?>(null) }
 
     LaunchedEffect(show) {
         if (show) {
             visibleState.value = true
         }
     }
-
-    LaunchedEffect(sheetContentBackdropHolder.value) {
-        onSheetContentBackdropCreated?.invoke(sheetContentBackdropHolder.value)
-    }
+    // 回调不再经 State 中转（state 的 value 在组合期被 LaunchedEffect key 读取 →
+    // 弹窗挂载后的写入会让弹窗内容在打开动画头几帧重组一次），改由内容层直接回调。
 
     // 返回手势放在 DialogLayout 外面，确保组合时立即生效
     BackHandler(enabled = show) {
@@ -149,7 +148,7 @@ fun BlurBottomSheetTablet(
             startAction = startAction,
             endAction = endAction,
             liquidGlassBackdrop = liquidGlassBackdrop,
-            sheetContentBackdropHolder = sheetContentBackdropHolder,
+            onSheetContentBackdropCreated = onSheetContentBackdropCreated,
             skipEnterAnimation = skipEnterAnimation,
             content = content,
         )
@@ -173,7 +172,7 @@ private fun BlurBottomSheetTabletContent(
     startAction: @Composable (() -> Unit)? = null,
     endAction: @Composable (() -> Unit)? = null,
     liquidGlassBackdrop: Backdrop? = null,
-    sheetContentBackdropHolder: MutableState<Backdrop?>? = null,
+    onSheetContentBackdropCreated: ((Backdrop?) -> Unit)? = null,
     skipEnterAnimation: Boolean = false,
     content: @Composable () -> Unit,
 ) {
@@ -217,14 +216,23 @@ private fun BlurBottomSheetTabletContent(
     // 否则退出动画结束瞬间遮罩被移除而 DialogEntry content 仍空挂在屏上，造成触摸穿透。
 
     // 平板弹窗主体 - 居中悬浮矩形，从底部滑入
+    // 遮罩透明度在「绘制期」读取（drawBehind），不在组合期读（Modifier.background）。
+    // 组合期读会让进入动画的 500ms 内整个弹窗作用域逐帧重组，牵连 backdrop 录制与模糊节点。
+    val dimModifier = if (dimBackground) {
+        Modifier.drawBehind { drawRect(Color.Black.copy(alpha = 0.2f * animationProgress.value)) }
+    } else Modifier
+
+    // 弹窗形状与 drawBackdrop 的 shape lambda 必须固定引用：
+    // drawBackdrop 的 ModifierNodeElement 用「引用」比较 shape 与 effects，ShapeProvider 没有实现 equals，
+    // 组合期每次 `ContinuousRoundedRectangle(38.dp)` 都是新对象、每次 `{ ... }` 都是新 lambda，
+    // 于是节点判不等 → invalidateDraw → 重新录制壁纸层 + 重跑一次 GPU 模糊（进入动画期间就是逐帧重跑）。
+    val sheetShape = remember { ContinuousRoundedRectangle(38.dp) }
+    val sheetShapeBlock: () -> androidx.compose.ui.graphics.Shape = remember(sheetShape) { { sheetShape } }
+
     Box(
         modifier = Modifier
             .fillMaxSize()
-            .then(
-                if (dimBackground) {
-                    Modifier.background(Color.Black.copy(alpha = 0.2f * animationProgress.value))
-                } else Modifier
-            )
+            .then(dimModifier)
             .clickable(
                 interactionSource = null,
                 indication = null,
@@ -246,7 +254,7 @@ private fun BlurBottomSheetTabletContent(
                 .heightIn(max = if (sheetMaxHeight != Dp.Unspecified) sheetMaxHeight else windowInfo.containerDpSize.height * 0.8f)
                 .then(if (fillMaxHeight) Modifier.fillMaxHeightModifier() else Modifier)
                 .then(if (isBottomAligned) Modifier.padding(bottom = 20.dp) else Modifier)
-                .clip(ContinuousRoundedRectangle(38.dp))
+                .clip(sheetShape)
                 .then(
                     if (liquidGlassBackdrop != null && Build.VERSION.SDK_INT >= 33) {
                         val blurPx = with(density) { blurRadius.dp.toPx() }
@@ -258,7 +266,7 @@ private fun BlurBottomSheetTabletContent(
                         }
                         Modifier.drawBackdrop(
                             backdrop = liquidGlassBackdrop,
-                            shape = { ContinuousRoundedRectangle(38.dp) },
+                            shape = sheetShapeBlock,
                             effects = backdropEffects,
                             highlight = null
                         )
@@ -266,7 +274,7 @@ private fun BlurBottomSheetTabletContent(
                         Modifier
                     }
                 )
-                .edgeLight(shape = ContinuousRoundedRectangle(38.dp), edgeLight = rememberDefaultEdgeLight())
+                .edgeLight(shape = sheetShape, edgeLight = rememberDefaultEdgeLight())
                 .background(sheetBgColor.copy(alpha = sheetBackgroundAlpha ?: if (liquidGlassBackdrop != null)
                     if (Build.VERSION.SDK_INT >= 33) 0.9f else 1f
                 else 1f))
@@ -333,21 +341,24 @@ private fun BlurBottomSheetTabletContent(
                     launch { backdropAlpha.animateTo(target, spec) }
                 }
 
+                // 捕获弹窗内容的 backdrop（先画不透明背景，再画内容，确保采样到不透明像素）
+                // 在 CompositionLocalProvider 之前创建，才能随 provider 一起下发给弹窗内部的玻璃组件。
+                val sheetBackdropColor = if (isDark) Color(0xFF1E1E1E) else Color(0xFFF4F4F4)
+                val sheetContentBackdrop = rememberLayerBackdrop {
+                    drawRect(sheetBackdropColor)
+                    drawContent()
+                }
+
+                // 直接在内容层回调：backdrop 就绪时调用一次，不经 State 中转 → 零重组
+                LaunchedEffect(sheetContentBackdrop) {
+                    onSheetContentBackdropCreated?.invoke(sheetContentBackdrop)
+                }
+
                 CompositionLocalProvider(
                     LocalOverScrollState provides overScrollState,
                     LocalSheetTopBarMaterial provides topBarMaterial,
+                    LocalSheetContentBackdrop provides sheetContentBackdrop,
                 ) {
-                    // 捕获弹窗内容的 backdrop
-                    val sheetBackdropColor = if (isDark) Color(0xFF1E1E1E) else Color(0xFFF4F4F4)
-                    val sheetContentBackdrop = rememberLayerBackdrop {
-                        drawRect(sheetBackdropColor)
-                        drawContent()
-                    }
-
-                    LaunchedEffect(sheetContentBackdrop) {
-                        sheetContentBackdropHolder?.value = sheetContentBackdrop
-                    }
-
                     // 内容区域（nestedScroll 接入顶栏滚动行为）
                     Box(
                         modifier = Modifier
@@ -358,20 +369,27 @@ private fun BlurBottomSheetTabletContent(
                         content()
                     }
 
-                    // 渐变模糊遮罩：进入动画期间强制关闭，动画到位后再启用，避免滑入那几百毫秒里逐帧重算模糊占用帧。
+                    // 渐变模糊遮罩：进入动画期间完全不挂载。
+                    // runtimeShaderEffect 的 AGSL 着色器在首次绘制时编译（十几到几十毫秒），
+                    // 落在滑入动画头几帧就是肉眼可见的掉帧；推迟到动画结束后挂载即可避开。
                     // derivedStateOf 只在该布尔翻转一次时重组，不会逐帧重组。
                     val enterDone by remember(animationProgress) {
                         derivedStateOf { animationProgress.value >= 1f }
                     }
-                    ProgressiveBlurTopBar(
-                        backdrop = sheetContentBackdrop,
-                        height = 82.dp,
-                        tintColor = sheetBgColor,
-                        tintIntensity = 0f,
-                        blurAlpha = if (enterDone) backdropAlpha.value else 0f,
-                        modifier = Modifier.zIndex(1f)
-                    ) {
-                        Box(modifier = Modifier.fillMaxWidth().height(60.dp))
+                    // 挂载过一次后就常驻，避免滚动结束 alpha 归零后反复卸载/重挂造成抖动
+                    var blurMounted by remember { mutableStateOf(false) }
+                    LaunchedEffect(enterDone) { if (enterDone) blurMounted = true }
+                    if (blurMounted) {
+                        ProgressiveBlurTopBar(
+                            backdrop = sheetContentBackdrop,
+                            height = 82.dp,
+                            tintColor = sheetBgColor,
+                            tintIntensity = 0f,
+                            blurAlpha = backdropAlpha.value,
+                            modifier = Modifier.zIndex(1f)
+                        ) {
+                            Box(modifier = Modifier.fillMaxWidth().height(60.dp))
+                        }
                     }
 
                     // 标题栏固定高度，保证有无操作按钮时标题都垂直居中于同一位置

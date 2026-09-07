@@ -83,8 +83,18 @@ class SharedBlurBackdrop(
      * @param blurRadiusPx 模糊半径（px）
      * @param downsampleScale 降采样比例，默认使用全局 DOWNSAMPLE_SCALE
      */
-    fun preRenderModifier(blurRadiusPx: Float, downsampleScale: Float = DOWNSAMPLE_SCALE): Modifier {
-        return SharedBlurRecorderElement(this, blurRadiusPx, downsampleScale)
+    /**
+     * @param sourceKey 源内容指纹（壁纸 bitmap / 缩放 / 偏移 / 亮度 / 主题色等）。
+     *   它没变时说明源层内容和上一帧逐像素相同，可以整段跳过重新录制——
+     *   滑动课表、开关弹窗这类场景下壁纸是静止的，重录纯属白烧。
+     *   注意：指纹必须覆盖所有会改变源层内容的因素，否则会用到过期采样。
+     */
+    fun preRenderModifier(
+        blurRadiusPx: Float,
+        downsampleScale: Float = DOWNSAMPLE_SCALE,
+        sourceKey: Any? = null
+    ): Modifier {
+        return SharedBlurRecorderElement(this, blurRadiusPx, downsampleScale, sourceKey)
     }
 
     /**
@@ -124,17 +134,21 @@ class SharedBlurBackdrop(
 private class SharedBlurRecorderElement(
     private val sharedBackdrop: SharedBlurBackdrop,
     private val blurRadiusPx: Float,
-    private val downsampleScale: Float = DOWNSAMPLE_SCALE
+    private val downsampleScale: Float = DOWNSAMPLE_SCALE,
+    private val sourceKey: Any? = null
 ) : ModifierNodeElement<SharedBlurRecorderNode>() {
 
     override fun create(): SharedBlurRecorderNode {
-        return SharedBlurRecorderNode(sharedBackdrop, blurRadiusPx, downsampleScale)
+        return SharedBlurRecorderNode(sharedBackdrop, blurRadiusPx, downsampleScale, sourceKey)
     }
 
     override fun update(node: SharedBlurRecorderNode) {
+        // 能走到 update 说明 equals 判定有参数变了 → 必须重录一次
         node.sharedBackdrop = sharedBackdrop
         node.blurRadiusPx = blurRadiusPx
         node.downsampleScale = downsampleScale
+        node.sourceKey = sourceKey
+        node.markNeedsRecord()
         node.invalidateDraw()
     }
 
@@ -147,12 +161,17 @@ private class SharedBlurRecorderElement(
     override fun equals(other: Any?): Boolean {
         if (this === other) return true
         if (other !is SharedBlurRecorderElement) return false
-        return sharedBackdrop == other.sharedBackdrop && blurRadiusPx == other.blurRadiusPx
+        return sharedBackdrop == other.sharedBackdrop &&
+            blurRadiusPx == other.blurRadiusPx &&
+            downsampleScale == other.downsampleScale &&
+            sourceKey == other.sourceKey
     }
 
     override fun hashCode(): Int {
         var result = sharedBackdrop.hashCode()
         result = 31 * result + blurRadiusPx.hashCode()
+        result = 31 * result + downsampleScale.hashCode()
+        result = 31 * result + (sourceKey?.hashCode() ?: 0)
         return result
     }
 }
@@ -160,51 +179,69 @@ private class SharedBlurRecorderElement(
 private class SharedBlurRecorderNode(
     var sharedBackdrop: SharedBlurBackdrop,
     var blurRadiusPx: Float,
-    var downsampleScale: Float = DOWNSAMPLE_SCALE
+    var downsampleScale: Float = DOWNSAMPLE_SCALE,
+    var sourceKey: Any? = null
 ) : DrawModifierNode, Modifier.Node() {
 
     private var blurLayer: GraphicsLayer? = null
+
+    private var needsRecord = true
+    private var recordedW = 0
+    private var recordedH = 0
+    private var recordedBlurRadius = Float.NaN
+
+    fun markNeedsRecord() { needsRecord = true }
 
     override fun ContentDrawScope.draw() {
         drawContent()
 
         if (!isRenderEffectSupported()) return
 
-        val sourceLayer = sharedBackdrop.source.graphicsLayer
         val layer = blurLayer ?: return
 
         val targetW = (size.width * downsampleScale).roundToInt().coerceAtLeast(1)
         val targetH = (size.height * downsampleScale).roundToInt().coerceAtLeast(1)
 
-        // 将壁纸源录制到降采样层
-        layer.record(IntSize(targetW, targetH)) {
-            drawContext.canvas.save()
-            drawContext.canvas.scale(downsampleScale, downsampleScale)
-            drawLayer(sourceLayer)
-            drawContext.canvas.restore()
+        // 源内容、模糊半径、目标尺寸都没变 → 复用上一帧的录制结果，跳过整段降采样+模糊
+        if (needsRecord || recordedW != targetW || recordedH != targetH) {
+            val sourceLayer = sharedBackdrop.source.graphicsLayer
+            // 将壁纸源录制到降采样层
+            layer.record(IntSize(targetW, targetH)) {
+                drawContext.canvas.save()
+                drawContext.canvas.scale(downsampleScale, downsampleScale)
+                drawLayer(sourceLayer)
+                drawContext.canvas.restore()
+            }
+            needsRecord = false
+            recordedW = targetW
+            recordedH = targetH
+
+            // 注入到共享 Backdrop
+            sharedBackdrop.sharedSampledLayer = layer
+            sharedBackdrop.sharedDownsampleScale = downsampleScale
         }
 
-        // 应用模糊 RenderEffect（在 drawLayer 时生效）
-        if (blurRadiusPx > 0f) {
-            val scaledBlur = blurRadiusPx * downsampleScale
-            layer.renderEffect = BlurEffect(
-                null,
-                scaledBlur,
-                scaledBlur,
-                TileMode.Clamp
-            )
-        } else {
-            layer.renderEffect = null
+        // 应用模糊 RenderEffect（在 drawLayer 时生效）。
+        // 只在半径真正变化时赋值：每帧 new 一个 BlurEffect 会让图层反复失效、重跑一遍 GPU 模糊。
+        if (recordedBlurRadius != blurRadiusPx) {
+            recordedBlurRadius = blurRadiusPx
+            layer.renderEffect = if (blurRadiusPx > 0f) {
+                val scaledBlur = blurRadiusPx * downsampleScale
+                BlurEffect(
+                    null,
+                    scaledBlur,
+                    scaledBlur,
+                    TileMode.Clamp
+                )
+            } else null
         }
-
-        // 注入到共享 Backdrop
-        sharedBackdrop.sharedSampledLayer = layer
-        sharedBackdrop.sharedDownsampleScale = downsampleScale
     }
 
     override fun onAttach() {
         val graphicsContext = requireGraphicsContext()
         blurLayer = graphicsContext.createGraphicsLayer()
+        needsRecord = true
+        recordedBlurRadius = Float.NaN
     }
 
     override fun onDetach() {
@@ -214,5 +251,7 @@ private class SharedBlurRecorderNode(
             blurLayer = null
         }
         sharedBackdrop.sharedSampledLayer = null
+        needsRecord = true
+        recordedBlurRadius = Float.NaN
     }
 }

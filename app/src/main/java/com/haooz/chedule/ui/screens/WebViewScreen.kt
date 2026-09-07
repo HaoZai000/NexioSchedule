@@ -50,6 +50,7 @@ import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -96,7 +97,7 @@ import top.yukonga.miuix.kmp.icon.extended.Close
 import top.yukonga.miuix.kmp.icon.extended.Download
 import top.yukonga.miuix.kmp.icon.extended.Refresh
 import top.yukonga.miuix.kmp.theme.MiuixTheme
-import java.io.File
+import kotlinx.coroutines.launch
 
 private const val DESKTOP_USER_AGENT =
     "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
@@ -267,17 +268,22 @@ fun WebViewScreen(
         }
     }
 
+    val scope = rememberCoroutineScope()
+
     val executeImportWithTable: (String) -> Unit = { tableId ->
         assetJsPath?.let { path ->
-            val scriptFile = File(context.filesDir, "repo/schools/resources/${school.resourceFolder}/$path")
-            if (scriptFile.exists()) {
-                val jsCode = scriptFile.readText()
-                androidBridge.setImportTableId(tableId)
-                val fullJsCode = "window.currentTableId = '$tableId';\n$jsCode"
-                webView.evaluateJavascript(fullJsCode, null)
-                Toast.makeText(context, "正在执行导入脚本...", Toast.LENGTH_SHORT).show()
-            } else {
-                Toast.makeText(context, "脚本文件不存在: $path", Toast.LENGTH_LONG).show()
+            scope.launch {
+                val scriptFile = ScriptRepository(context, ScriptRepository.getRepoUrl(context))
+                    .ensureScript(school.resourceFolder, path)
+                if (scriptFile != null) {
+                    val jsCode = scriptFile.readText()
+                    androidBridge.setImportTableId(tableId)
+                    val fullJsCode = "window.currentTableId = '$tableId';\n$jsCode"
+                    webView.evaluateJavascript(fullJsCode, null)
+                    Toast.makeText(context, "正在执行导入脚本...", Toast.LENGTH_SHORT).show()
+                } else {
+                    Toast.makeText(context, "脚本下载失败: $path", Toast.LENGTH_LONG).show()
+                }
             }
         } ?: Toast.makeText(context, "无导入脚本", Toast.LENGTH_LONG).show()
     }

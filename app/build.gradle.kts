@@ -1,4 +1,8 @@
 // Nexio课程表 - 应用模块构建配置
+
+import java.net.HttpURLConnection
+import java.net.URL
+
 plugins {
     alias(libs.plugins.android.application)
     alias(libs.plugins.kotlin.compose)
@@ -127,6 +131,50 @@ dependencies {
     // ===== 调试专用 =====
     // Compose UI Tooling：Layout Inspector
     debugImplementation(libs.androidx.compose.ui.tooling)
+}
+
+// ===== 教务索引内置 =====
+// Release 构建时从云端拉取最新 school_index.pb 打包进 assets，使用户首次使用教务导入时
+// 无需联网即可获得学校/适配器索引（含 importUrl、脚本路径），进入后脚本仍按需下载。
+tasks.register<DefaultTask>("downloadEduIndex") {
+    group = "eduimport"
+    description = "每次 Release 构建拉取最新 school_index.pb 到 assets/eduloader"
+    val targetLocation = project.layout.projectDirectory.dir("src/main/assets/eduloader/school_index.pb").asFile
+    outputs.upToDateWhen { false } // 每次 Release 构建都重新拉取，确保内置索引最新
+    doLast {
+        targetLocation.parentFile?.mkdirs()
+        val url = "https://gitee.com/XingHeYuZhuan-gh/shiguang_warehouse/raw/index-pb-release/school_index.pb"
+        try {
+            val connection = (URL(url).openConnection() as HttpURLConnection).apply {
+                instanceFollowRedirects = true
+                setRequestProperty("User-Agent", "okhttp/4.12.0")
+                setRequestProperty("Accept", "*/*")
+                connectTimeout = 15_000
+                readTimeout = 30_000
+            }
+            val contentType = connection.contentType?.lowercase() ?: ""
+            if (contentType.contains("text/html")) {
+                throw RuntimeException("gitee 返回了 HTML 页面（可能被反爬拦截）")
+            }
+            connection.inputStream.use { inbound ->
+                targetLocation.outputStream().use { outbound ->
+                    inbound.copyTo(outbound)
+                }
+            }
+            println("[EduIndex] 已拉取最新索引 -> ${targetLocation.absolutePath}")
+        } catch (e: Exception) {
+            // 拉取失败不阻断构建，保留现有内置索引
+            println("[EduIndex] 索引拉取失败（保留现有内置索引）: ${e.message}")
+        }
+    }
+}
+
+// 仅 Release 变体打包资产时拉取内嵌索引：Debug 等构建不触发。
+// configureEach 惰性挂依赖，规避 release 任务未实例化时的急切解析。
+tasks.configureEach {
+    if (name == "mergeReleaseAssets") {
+        dependsOn("downloadEduIndex")
+    }
 }
 
 

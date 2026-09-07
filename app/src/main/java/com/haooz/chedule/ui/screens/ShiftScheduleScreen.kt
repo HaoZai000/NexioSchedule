@@ -78,7 +78,6 @@ fun ShiftScheduleScreen(
 
     var showDetail by remember { mutableStateOf(false) }
     var detailCourses by remember { mutableStateOf<List<Pair<String, Course>>>(emptyList()) }
-    var sheetContentBackdrop by remember { mutableStateOf<com.kyant.backdrop.Backdrop?>(null) }
     var skipSheetEnterAnimation by remember { mutableStateOf(showDetail) }
     androidx.compose.runtime.LaunchedEffect(showDetail) {
         if (!showDetail) {
@@ -259,7 +258,6 @@ fun ShiftScheduleScreen(
             isBottomAligned = true,
             liquidGlassBackdrop = liquidGlassBackdrop,
             onDismissRequest = { showDetail = false },
-            onSheetContentBackdropCreated = { sheetContentBackdrop = it },
             skipEnterAnimation = skipSheetEnterAnimation,
             content = detailContent
         )
@@ -270,7 +268,6 @@ fun ShiftScheduleScreen(
             liquidGlassBackdrop = liquidGlassBackdrop,
             dimBackground = true,
             onDismissRequest = { showDetail = false },
-            onSheetContentBackdropCreated = { sheetContentBackdrop = it },
             skipEnterAnimation = skipSheetEnterAnimation,
             content = detailContent
         )

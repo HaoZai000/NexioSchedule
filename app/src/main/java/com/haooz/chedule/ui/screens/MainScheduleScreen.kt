@@ -43,6 +43,7 @@ import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.snapshotFlow
@@ -73,11 +74,11 @@ import com.haooz.chedule.data.CourseRepository
 import com.haooz.chedule.data.HolidayManager
 import com.haooz.chedule.ui.basic.LiquidTopBarButton
 import com.haooz.chedule.ui.basic.SharedScrollBehavior
-import com.haooz.chedule.ui.components.scheduleContentTopPadding
 import com.haooz.chedule.ui.components.DayColumn
 import com.haooz.chedule.ui.components.SectionColumn
 import com.haooz.chedule.ui.components.SpecialBandOverlay
 import com.haooz.chedule.ui.components.computeSpecialGridLayout
+import com.haooz.chedule.ui.components.scheduleContentTopPadding
 import com.haooz.chedule.ui.effects.edgelight.edgeLight
 import com.haooz.chedule.ui.effects.edgelight.rememberCourseCardEdgeLight
 import com.haooz.chedule.ui.utils.isAppDarkTheme
@@ -91,19 +92,19 @@ import com.kyant.backdrop.effects.lens
 import com.kyant.backdrop.isRenderEffectSupported
 import com.kyant.capsule.ContinuousRoundedRectangle
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
 import top.yukonga.miuix.kmp.basic.Card
 import top.yukonga.miuix.kmp.basic.CardDefaults
 import top.yukonga.miuix.kmp.icon.MiuixIcons
 import top.yukonga.miuix.kmp.icon.extended.Add
 import top.yukonga.miuix.kmp.overlay.BlurBottomSheet
 import top.yukonga.miuix.kmp.overlay.BlurBottomSheetTablet
+import top.yukonga.miuix.kmp.overlay.LocalSheetContentBackdrop
 import top.yukonga.miuix.kmp.overlay.LocalSheetTopBarMaterial
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 import top.yukonga.miuix.kmp.utils.PressFeedbackType
 import top.yukonga.miuix.kmp.utils.scrollEndHaptic
 import java.time.LocalDate
-import java.util.Calendar
-import kotlin.math.roundToInt
 import kotlin.time.Duration.Companion.milliseconds
 import com.kyant.backdrop.backdrops.layerBackdrop as kyantLayerBackdrop
 import com.kyant.backdrop.backdrops.rememberLayerBackdrop as rememberKyantLayerBackdrop
@@ -123,6 +124,18 @@ private class CardBoundsHolder {
  * - morningSections/afternoonSections/eveningSections: 上午/下午/晚上的节次数
  * - showBreakDividers: 是否有午休/晚休分界带（24dp）
  */
+/**
+ * 课表是否正在横向翻页/纵向滚动的标记。
+ *
+ * 刻意**不用** snapshot state：课程卡片每帧都会回调 onGloballyPositioned，
+ * 滑动期间那份坐标（拖拽落点检测用）根本用不上，可以直接跳过。
+ * 若用 state 传递，滑动开始/结束会带着几十张卡片一起重组，反而更卡。
+ * 用普通对象 + snapshotFlow 写入，卡片侧只读取、不订阅，零重组。
+ */
+class GridScrollFlag {
+    var scrolling: Boolean = false
+}
+
 data class ScheduleGridGeometry(
     val dayBounds: Map<Int, FloatArray>,
     val sectionHeightPx: Float,
@@ -165,7 +178,6 @@ fun MainScheduleScreen(
     // Activity 层提升的状态，return@Scaffold 不会销毁
     externalScrollState: androidx.compose.foundation.ScrollState = rememberScrollState(),
     externalShowCourseDetail: androidx.compose.runtime.MutableState<Boolean> = mutableStateOf(false),
-    externalSheetContentBackdrop: androidx.compose.runtime.MutableState<com.kyant.backdrop.Backdrop?> = mutableStateOf(null),
     externalSelectedCourse: androidx.compose.runtime.MutableState<Course?> = mutableStateOf(null),
     externalSelectedCourses: androidx.compose.runtime.MutableState<List<Course>> = mutableStateOf(emptyList()),
 ) {
@@ -206,6 +218,11 @@ fun MainScheduleScreen(
     val scrollState = externalScrollState
     // 横向翻页/纵向滚动进行中标记：用于跳过滑动期间的网格几何逐帧上报
     val isGridScrolling = pagerState.isScrollInProgress || scrollState.isScrollInProgress
+    // 同一标记的非 state 版本，供课程卡片在 onGloballyPositioned 里读取（避免重组）
+    val gridScrollFlag = remember { GridScrollFlag() }
+    LaunchedEffect(Unit) {
+        snapshotFlow { isGridScrolling }.collect { gridScrollFlag.scrolling = it }
+    }
     // 课程表内容的顶部偏移：由课程表顶栏自身几何纯计算（切页不变）。
     // 不再使用 Scaffold 实测的 paddingValues：它随「当前显示哪个 tab 的顶栏」变化，
     // 切页时会让课程表内容整体位移一次，而玻璃模糊的采样层滞后一帧，就会看到顶部慢一帧就位。
@@ -226,7 +243,8 @@ fun MainScheduleScreen(
     }
 
     var showCourseDetail by externalShowCourseDetail
-    var sheetContentBackdrop by externalSheetContentBackdrop
+    // 弹窗内部 backdrop 一律在弹窗作用域内读 LocalSheetContentBackdrop，
+    // 不再提升到本页 State（弹窗挂载后回写它会让整页在弹窗进入动画期间重跑一次组合）
     var selectedCourse by externalSelectedCourse
     var selectedCourses by externalSelectedCourses
     var pendingDay by remember { mutableIntStateOf(-1) }
@@ -270,9 +288,12 @@ fun MainScheduleScreen(
     }
 
     // 计算当前节次：根据当前时间和节次时间配置，判断当前处于第几节课
+    // 仅当 sectionTimes/totalSections 变化时才重新计算（顶层一次 remember，结果所有 page 共享读取）
     val currentSection = remember(sectionTimes, totalSections) {
-        val calendar = Calendar.getInstance()
-        val currentMinutes = calendar.get(Calendar.HOUR_OF_DAY) * 60 + calendar.get(Calendar.MINUTE)
+        // 用 LocalTime.now() 替代 Calendar.getInstance()：LocalTime 是 immutable value class，
+        // 避免 Calendar 每次构造 MutableDateTime + TimeZone 解析的开销
+        val now = java.time.LocalTime.now()
+        val currentMinutes = now.hour * 60 + now.minute
         var result = -1
         for (section in 1..totalSections) {
             val timeStr = sectionTimes[section] ?: ""
@@ -318,6 +339,7 @@ fun MainScheduleScreen(
         }.getOrNull() ?: LocalDate.now()
         start.minusDays((start.dayOfWeek.value - 1).toLong())
     }
+
     // 一次性加载课表覆盖年份的假期/调休数据，避免逐日重复解析
     val holidayVersion = HolidayManager.getVersion(scheduleContext)
     val holidayEntries = remember(
@@ -326,6 +348,62 @@ fun MainScheduleScreen(
         val lastDate = semesterStartMonday.plusWeeks((totalWeeks - 1).toLong()).plusDays(6)
         (semesterStartMonday.year..lastDate.year).flatMap { year ->
             HolidayManager.load(scheduleContext, year)
+        }
+    }
+    // 假期索引：日期字符串 -> Entry。课程表每次重组 7 天 × N 条 entries 的 firstOrNull{ matches } 是 O(7*N) 线性扫描，
+    // 切页瞬间首帧成本相当大（两个 page 同时计算、且仅 beyondViewportPageCount=1 触发），改成 O(1) HashMap 查找。
+    // 跨日期范围的条目（endDate 非空）展开成每个中间日期映射到同一条目，避免拆分多天时丢匹配。
+    val holidayIndex: Map<String, HolidayManager.Entry> = remember(holidayEntries) {
+        if (holidayEntries.isEmpty()) emptyMap()
+        else HashMap<String, HolidayManager.Entry>(holidayEntries.size * 3).apply {
+            holidayEntries.forEach { entry ->
+                if (entry.endDate.isBlank()) {
+                    put(entry.date, entry)
+                } else {
+                    runCatching {
+                        var d = LocalDate.parse(entry.date)
+                        val end = LocalDate.parse(entry.endDate)
+                        while (!d.isAfter(end)) {
+                            put(d.toString(), entry)
+                            d = d.plusDays(1)
+                        }
+                    }.onFailure {
+                        // 解析失败回退到单点
+                        put(entry.date, entry)
+                    }
+                }
+            }
+        }
+    }
+
+    // 预计算每周要显示的天数（含周末）。原 getWeekendDaysForWeek(week) 每次换周/重组都会跑：
+    // 智能模式下调用 repository.hasCoursesOnDayInWeek(6/7, week)，每次 O(courses) 扫描 + 调休日的 SP+JSON 解析。
+    // 切页瞬间两个 page 同时算（beyondViewportPageCount=1），每页 1-3ms 重复浪费。这里一次性算齐全部 weeks，
+    // 切页时 O(1) 查表；依赖任一上游输入变更（courses/dataVersion/holidayVersion/smartWeekend/totalWeeks）才重算。
+    val weekendDaysByWeek: Map<Int, Set<Int>> = remember(
+        courses, dataVersion, holidayVersion, smartWeekend, totalWeeks,
+        semesterStartMonday, holidayIndex
+    ) {
+        if (!smartWeekend) {
+            (1..totalWeeks).associateWith { setOf(6, 7) }
+        } else {
+            val result = HashMap<Int, Set<Int>>(totalWeeks * 2)
+            for (week in 1..totalWeeks) {
+                val mondayOfWeek = semesterStartMonday.plusWeeks((week - 1).toLong())
+                val satDate = mondayOfWeek.plusDays(5).toString()
+                val sunDate = mondayOfWeek.plusDays(6).toString()
+                val satActive = courses.any { it.dayOfWeek == 6 && it.isActiveInWeek(week) } ||
+                    (holidayIndex[satDate]?.takeIf { it.type == HolidayManager.TYPE_WORKSWAP }
+                        ?.followWeekday?.let { it in 1..7 } == true)
+                val sunActive = courses.any { it.dayOfWeek == 7 && it.isActiveInWeek(week) } ||
+                    (holidayIndex[sunDate]?.takeIf { it.type == HolidayManager.TYPE_WORKSWAP }
+                        ?.followWeekday?.let { it in 1..7 } == true)
+                result[week] = buildSet {
+                    if (satActive) add(6)
+                    if (sunActive) add(7)
+                }
+            }
+            result
         }
     }
 
@@ -367,10 +445,28 @@ fun MainScheduleScreen(
         onDispose { sharedBlurManager.release() }
     }
 
+    // 壁纸层内容指纹：这些量不变时，壁纸层录制结果与上一帧逐像素相同，
+    // 可以整段跳过「壁纸 backdrop 录制」和「共享模糊层降采样+模糊」——
+    // 左右滑动课表时壁纸是静止的，原来每帧都要白跑这两趟全屏合成。
+    // 必须覆盖所有能改变壁纸层内容的因素，否则会用到过期采样。
+    val wallpaperRecordKey = listOf(
+        wallpaperBitmap,
+        maxOf(wallpaperScale, minWallpaperScale),
+        wallpaperOffset.x,
+        wallpaperOffset.y,
+        wallpaperBrightness,
+        wallpaperBlur,
+        wallpaperBackdropColor
+    )
+
     Box(modifier = Modifier.fillMaxSize()) {
         // 壁纸背景
         if (wallpaperBitmap != null) {
-            Box(modifier = Modifier.fillMaxSize().kyantLayerBackdrop(courseCardBackdrop)) {
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .kyantLayerBackdrop(courseCardBackdrop, wallpaperRecordKey)
+            ) {
                 val brightnessFilter = remember(wallpaperBrightness) {
                     if (wallpaperBrightness != 0f) {
                         val b = (1f + wallpaperBrightness / 50f).coerceIn(0f, 2f)
@@ -415,7 +511,12 @@ fun MainScheduleScreen(
                 )
             }
         } else {
-            Box(modifier = Modifier.fillMaxSize().kyantLayerBackdrop(courseCardBackdrop).background(wallpaperBackdropColor))
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .kyantLayerBackdrop(courseCardBackdrop, wallpaperRecordKey)
+                    .background(wallpaperBackdropColor)
+            )
         }
 
         // 不可见预渲染 Box：将壁纸录制到降采样+模糊层，供所有课程卡片共享采样
@@ -426,7 +527,8 @@ fun MainScheduleScreen(
                     .graphicsLayer { alpha = 0f }
                     .then(sharedBlurManager.preRenderModifier(
                         blurRadiusPx = with(density) { cardBlurRadius.dp.toPx() },
-                        downsampleScale = 0.48f
+                        downsampleScale = 0.48f,
+                        sourceKey = wallpaperRecordKey
                     ))
             )
         }
@@ -459,12 +561,17 @@ fun MainScheduleScreen(
             }
         }
 
-        HorizontalPager(
-            state = pagerState,
-            modifier = Modifier.fillMaxSize(),
-            beyondViewportPageCount = 1,
-            userScrollEnabled = !isWallpaperEditing
-        ) { page ->
+// Pager 预取策略：Compose foundation 1.12 已移除 prefetchPolicy 公开 API，
+    // 但内部仍然在 scroll 期间触发 prefetch（见 PagerState.prefetchingEnabled）。
+    // beyondViewportPageCount=1 让 next page 进入 composition+layout 范围，next-next page 由内部 prefetcher 接管。
+    // next page 的 first composition（50-100ms 量级）发生在 beyond viewport 时，
+    // 当用户切到此页时 already measured，水平滑动掉帧缓解。
+    HorizontalPager(
+        state = pagerState,
+        modifier = Modifier.fillMaxSize(),
+        beyondViewportPageCount = 1,
+        userScrollEnabled = !isWallpaperEditing
+    ) { page ->
             val week = page + 1
 
 
@@ -557,9 +664,9 @@ fun MainScheduleScreen(
                         )
 
                         // 按周计算要显示的天数范围（智能周末模式下，不同周可能显示不同天数）
-                        // 调休补班日由 getWeekendDaysForWeek 内部的 hasCoursesOnDayInWeek 感知，视为“有课”显示
-                        val pageDayRange = remember(week, smartWeekend, courses.size) {
-                            (1..5).toList() + settingsViewModel.getWeekendDaysForWeek(week).filter { it in 6..7 }
+                        // 调休补班日由 weekendDaysByWeek 顶层的 holidayIndex 感知，视为"有课"显示
+                        val pageDayRange = remember(weekendDaysByWeek, week) {
+                            (1..5).toList() + (weekendDaysByWeek[week] ?: emptySet()).filter { it in 6..7 }
                         }
 
                         pageDayRange.forEach { dayOfWeek ->
@@ -588,13 +695,11 @@ fun MainScheduleScreen(
                             val dateForDay = semesterStartMonday
                                 .plusWeeks((week - 1).toLong())
                                 .plusDays((dayOfWeek - 1).toLong())
-                            val isHoliday = holidayEntries.any {
-                                it.type == HolidayManager.TYPE_HOLIDAY && it.matches(dateForDay.toString())
-                            }
-                            // 仅已配置补班课的调休日才标记“调”，未配置（待配置补班）时按普通课表显示
-                            val isWorkSwap = holidayEntries.firstOrNull {
-                                it.type == HolidayManager.TYPE_WORKSWAP && it.matches(dateForDay.toString())
-                            }?.followWeekday?.takeIf { it in 1..7 } != null
+                            val isHoliday = holidayIndex[dateForDay.toString()]?.type == HolidayManager.TYPE_HOLIDAY
+                            // 仅已配置补班课的调休日才标记"调"，未配置（待配置补班）时按普通课表显示
+                            val isWorkSwap = holidayIndex[dateForDay.toString()]
+                                ?.takeIf { it.type == HolidayManager.TYPE_WORKSWAP }
+                                ?.followWeekday?.takeIf { it in 1..7 } != null
                             val stableOnCourseClick: (Course) -> Unit =
                                 remember(page, dayOfWeek, week, displayWeekForDay) {
                                     { course ->
@@ -625,6 +730,7 @@ fun MainScheduleScreen(
                                 }
                             DayColumn(
                                 dayOfWeek = dayOfWeek,
+                                gridScrollFlag = gridScrollFlag,
                                 courses = filteredDayCourses,
                                 onCourseClick = stableOnCourseClick,
                                 onEmptyClick = stableOnEmptyClick,
@@ -863,23 +969,28 @@ fun MainScheduleScreen(
         }
 
         val detailEndAction: @Composable () -> Unit = {
+            val scope = rememberCoroutineScope()
             val material = LocalSheetTopBarMaterial.current
             LiquidTopBarButton(
                 onClick = {
                     hapticFeedback.performHapticFeedback(HapticFeedbackType.Confirm)
                     val course = selectedCourse ?: selectedCourses.firstOrNull()
                     showCourseDetail = false
-                    if (course != null) {
-                        viewModel.showAddDialog(
-                            course.dayOfWeek,
-                            course.startSection,
-                            course.endSection
-                        )
-                    } else {
-                        viewModel.showAddDialog()
+                    // 先关闭详情弹窗，等关闭动画完成后再打开添加课程弹窗
+                    scope.launch {
+                        delay(100)
+                        if (course != null) {
+                            viewModel.showAddDialog(
+                                course.dayOfWeek,
+                                course.startSection,
+                                course.endSection
+                            )
+                        } else {
+                            viewModel.showAddDialog()
+                        }
                     }
                 },
-                backdrop = sheetContentBackdrop ?: liquidGlassBackdrop!!,
+                backdrop = LocalSheetContentBackdrop.current ?: liquidGlassBackdrop!!,
                 icon = MiuixIcons.Add,
                 contentDescription = "添加课程",
                 modifier = Modifier.padding(end = if (isTablet) 16.dp else 18.dp),
@@ -891,6 +1002,7 @@ fun MainScheduleScreen(
             )
         }
         val detailContent: @Composable () -> Unit = {
+            val scope = rememberCoroutineScope()
             val coursesToShow = remember(selectedCourses, selectedCourse, viewingWeek) {
                 selectedCourses.ifEmpty { listOfNotNull(selectedCourse) }
                     .sortedWith(
@@ -1031,7 +1143,13 @@ fun MainScheduleScreen(
                                     .clip(ContinuousRoundedRectangle(20.dp))
                                     .background(MiuixTheme.colorScheme.primary.copy(alpha = 0.1f))
                                     .clickable {
-                                        viewModel.showEditDialog(course)
+                                        showCourseDetail = false
+                                        onPopupStateChange(false)
+                                        // 先关闭详情弹窗，等关闭动画完成后再打开编辑课程弹窗
+                                        scope.launch {
+                                            delay(100)
+                                            viewModel.showEditDialog(course)
+                                        }
                                     }
                                     .padding(horizontal = 20.dp, vertical = 8.dp),
                                 contentAlignment = Alignment.Center
@@ -1056,7 +1174,6 @@ fun MainScheduleScreen(
         // 是掉帧的关键来源之一。
         CourseDetailSheet(
             showState = externalShowCourseDetail,
-            contentBackdropState = externalSheetContentBackdrop,
             isTablet = isTablet,
             liquidGlassBackdrop = liquidGlassBackdrop,
             onDismiss = {
@@ -1076,7 +1193,6 @@ fun MainScheduleScreen(
 @Composable
 private fun CourseDetailSheet(
     showState: MutableState<Boolean>,
-    contentBackdropState: MutableState<com.kyant.backdrop.Backdrop?>,
     isTablet: Boolean,
     liquidGlassBackdrop: com.kyant.backdrop.Backdrop?,
     onDismiss: () -> Unit,
@@ -1099,7 +1215,6 @@ private fun CourseDetailSheet(
             isBottomAligned = true,
             onDismissRequest = onDismiss,
             liquidGlassBackdrop = liquidGlassBackdrop,
-            onSheetContentBackdropCreated = { contentBackdropState.value = it },
             endAction = endAction,
             skipEnterAnimation = skipSheetEnterAnimation,
             content = content,
@@ -1111,7 +1226,6 @@ private fun CourseDetailSheet(
             liquidGlassBackdrop = liquidGlassBackdrop,
             dimBackground = true,
             onDismissRequest = onDismiss,
-            onSheetContentBackdropCreated = { contentBackdropState.value = it },
             endAction = endAction,
             skipEnterAnimation = skipSheetEnterAnimation,
             content = content,

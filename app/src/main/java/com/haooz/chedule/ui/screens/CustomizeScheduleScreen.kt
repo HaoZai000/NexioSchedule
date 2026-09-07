@@ -95,7 +95,6 @@ import com.haooz.chedule.ui.effects.edgelight.rememberDefaultEdgeLight
 import com.haooz.chedule.ui.effects.liquidglass.InteractiveHighlight
 import com.haooz.chedule.ui.utils.isAppDarkTheme
 import com.haooz.chedule.ui.utils.overScrollVertical
-import com.kyant.backdrop.Backdrop
 import com.kyant.backdrop.drawBackdrop
 import com.kyant.backdrop.effects.blur
 import com.kyant.backdrop.effects.lens
@@ -127,6 +126,7 @@ import top.yukonga.miuix.kmp.icon.extended.GridView
 import top.yukonga.miuix.kmp.icon.extended.Image
 import top.yukonga.miuix.kmp.overlay.BlurBottomSheet
 import top.yukonga.miuix.kmp.overlay.BlurBottomSheetTablet
+import top.yukonga.miuix.kmp.overlay.LocalSheetContentBackdrop
 import top.yukonga.miuix.kmp.overlay.LocalSheetTopBarMaterial
 import top.yukonga.miuix.kmp.squircle.addSquircleRect
 import top.yukonga.miuix.kmp.theme.MiuixTheme
@@ -202,7 +202,7 @@ fun CustomizeScheduleScreen(
     // 液态玻璃支持（空采样：不采样实时底层内容，仅保留轻量着色效果）。
     // 页面背景/顶底栏下方表面本身已不透明，无需真实模糊；且避免 MIUI 的
     // MiBackgroundBlurBlend 采样含自身图层的渲染内容，导致渲染树无限递归（SIGSEGV）。
-    // 两个 BlurBottomSheet 保留真实模糊，经由独立的 onSheetContentBackdropCreated 上报。
+    // 两个 BlurBottomSheet 内部的玻璃组件改用弹窗自身 backdrop（LocalSheetContentBackdrop）。
     val liquidGlassBackdrop = com.kyant.backdrop.backdrops.rememberLayerBackdrop {
         drawRect(Color.Transparent)
     }
@@ -215,7 +215,6 @@ fun CustomizeScheduleScreen(
     // 页面根层背景 backdrop（空采样：只画表面色，不采样实时内容）。
     // 页面背景下方表面本身已不透明，无需真实模糊；避免 MIUI 的 MiBackgroundBlurBlend
     // 采样含自身图层的渲染内容，导致渲染树无限递归（SIGSEGV）。
-    // 两个 BlurBottomSheet 保留真实模糊，经由独立的 onSheetContentBackdropCreated 上报。
     val sheetBackdropColor = MiuixTheme.colorScheme.surface
     val sheetBackdrop = rememberLayerBackdrop {
         drawRect(sheetBackdropColor)
@@ -237,10 +236,12 @@ fun CustomizeScheduleScreen(
         }
     }
 
-    // --- 编辑模式底部弹窗：效果 / 自定义 ---
+    // 编辑模式底部弹窗：效果 / 自定义
     var showEffectSheet by remember { mutableStateOf(false) }
     var showCustomizeSheet by remember { mutableStateOf(false) }
-    var sheetContentBackdrop by remember { mutableStateOf<Backdrop?>(null) }
+    // 注意：弹窗内部 backdrop 一律通过 LocalSheetContentBackdrop 在弹窗作用域内读取，
+    // 绝不再提升成本页面的 State —— 弹窗挂载后回写它会让整页（含壁纸模糊层与挖洞遮罩）
+    // 在进入动画的头一两帧重跑一次组合，是打开弹窗掉帧的主因。
     // 重置标志：取消编辑时自增，触发弹窗内部状态回到 initial 值
     var sheetResetKey by remember { mutableIntStateOf(0) }
 
@@ -752,9 +753,11 @@ fun CustomizeScheduleScreen(
                 modifier = Modifier
                     .fillMaxSize()
                     .then(
-                        // 弹窗打开后，其内部玻璃组件已改用弹窗自己的 sheetContentBackdrop，
-                        // 此时再把整屏（含弹窗本身与其模糊层）录进 liquidGlassBackdrop
-                        if (anySheetOpen && sheetContentBackdrop != null) Modifier
+                        // 弹窗打开后，其内部玻璃组件已改用弹窗自己的 backdrop（LocalSheetContentBackdrop），
+                        // 此时不再把整屏（含弹窗本身与其模糊层）录进 liquidGlassBackdrop。
+                        // 这里只依赖 anySheetOpen 这个布尔，不依赖 backdrop 实例，
+                        // 否则 backdrop 在弹窗挂载后才就绪会让本层多一次结构变更式重组。
+                        if (anySheetOpen) Modifier
                         else Modifier.liquidGlassLayerBackdrop(liquidGlassBackdrop),
                     ),
                 contentAlignment = Alignment.Center
@@ -1331,7 +1334,10 @@ fun CustomizeScheduleScreen(
                     val material = LocalSheetTopBarMaterial.current
                     LiquidTopBarButton(
                         onClick = onClose,
-                        backdrop = sheetContentBackdrop ?: liquidGlassBackdrop,
+                        // 读 Local 而不是页面级 State：backdrop 在弹窗挂载后才就绪，
+                        // 若提升成 State 会让整页在进入动画期间重跑一次组合
+                        backdrop = LocalSheetContentBackdrop.current
+                            ?: liquidGlassBackdrop,
                         icon = MiuixIcons.Normal.Close,
                         contentDescription = "关闭",
                         modifier = Modifier.padding(start = startPad),
@@ -1370,7 +1376,7 @@ fun CustomizeScheduleScreen(
                             entry = themeModeEntry,
                             collapseOnSelection = true,
                             enabled = hasWallpaper,
-                            liquidGlassBackdrop = sheetContentBackdrop
+                            liquidGlassBackdrop = LocalSheetContentBackdrop.current
                                 ?: liquidGlassBackdrop,
                             dropdownColors = liquidGlassDropdownColors,
                         )
@@ -1491,7 +1497,7 @@ fun CustomizeScheduleScreen(
                                 title = "卡片内容对齐方式",
                                 entry = contentAlignmentEntry,
                                 collapseOnSelection = true,
-                                liquidGlassBackdrop = sheetContentBackdrop
+                                liquidGlassBackdrop = LocalSheetContentBackdrop.current
                                     ?: liquidGlassBackdrop,
                                 dropdownColors = liquidGlassDropdownColors,
                             )
@@ -1508,7 +1514,7 @@ fun CustomizeScheduleScreen(
                                 title = "卡片文字颜色",
                                 entry = textColorEntry,
                                 collapseOnSelection = true,
-                                liquidGlassBackdrop = sheetContentBackdrop
+                                liquidGlassBackdrop = LocalSheetContentBackdrop.current
                                     ?: liquidGlassBackdrop,
                                 dropdownColors = liquidGlassDropdownColors,
                             )
@@ -1598,7 +1604,6 @@ fun CustomizeScheduleScreen(
                         sheetMaxHeight = 320.dp,
                         isBottomAligned = true,
                         onDismissRequest = { showEffectSheet = false },
-                        onSheetContentBackdropCreated = { sheetContentBackdrop = it },
                         startAction = { sheetCloseButton({ showEffectSheet = false }, 16.dp) }
                     ) {
                         Column(
@@ -1623,7 +1628,6 @@ fun CustomizeScheduleScreen(
                         title = "效果",
                         sheetBackgroundAlpha = 1f,
                         onDismissRequest = { showEffectSheet = false },
-                        onSheetContentBackdropCreated = { sheetContentBackdrop = it },
                         startAction = { sheetCloseButton({ showEffectSheet = false }, 18.dp) }
                     ) {
                         Column(
@@ -1653,7 +1657,6 @@ fun CustomizeScheduleScreen(
                         sheetMaxHeight = 320.dp,
                         isBottomAligned = true,
                         onDismissRequest = { showCustomizeSheet = false },
-                        onSheetContentBackdropCreated = { sheetContentBackdrop = it },
                         startAction = { sheetCloseButton({ showCustomizeSheet = false }, 16.dp) }
                     ) {
                         Column(
@@ -1678,7 +1681,6 @@ fun CustomizeScheduleScreen(
                         title = "自定义",
                         sheetBackgroundAlpha = 1f,
                         onDismissRequest = { showCustomizeSheet = false },
-                        onSheetContentBackdropCreated = { sheetContentBackdrop = it },
                         startAction = { sheetCloseButton({ showCustomizeSheet = false }, 16.dp) }
                     ) {
                         Column(

@@ -101,6 +101,8 @@ fun DayColumn(
     onCourseMenuDismiss: () -> Unit = {},
     // 拖拽落点高亮：当前列中需高亮的节次范围（含起止），null 表示无高亮
     dropHighlightSections: IntRange? = null,
+    // 滑动中标记（非 state）：透传给课程卡片，滑动期间跳过逐帧坐标计算
+    gridScrollFlag: com.haooz.chedule.ui.screens.GridScrollFlag? = null,
     // 调课后需要淡入放大的课程ID集合
     @SuppressLint("ModifierParameter") modifier: Modifier = Modifier
 ) {
@@ -280,6 +282,7 @@ fun DayColumn(
                 wallpaperBackdrop = wallpaperBackdrop,
                 cardBlurRadius = cardBlurRadius,
                 draggingCourseIds = draggingCourseIds,
+                gridScrollFlag = gridScrollFlag,
 
                 onCourseClick = onCourseClick,
                 onCourseLongPress = onCourseLongPress,
@@ -323,6 +326,7 @@ private fun CourseCardsLayer(
     wallpaperBackdrop: Backdrop?,
     cardBlurRadius: Float,
     draggingCourseIds: Set<String>,
+    gridScrollFlag: com.haooz.chedule.ui.screens.GridScrollFlag? = null,
     viewportTopDp: Float = 0f,
     viewportBottomDp: Float = Float.MAX_VALUE,
     onCourseClick: (Course) -> Unit,
@@ -339,8 +343,8 @@ private fun CourseCardsLayer(
         val hiddenCoursesMap = mutableMapOf<String, List<Course>>()
 
         coursesBySection.forEach { (slotKey, sectionCourses) ->
-            val currentWeekCourses = sectionCourses.filter { it.isActiveInWeek(currentWeek) }
-            val otherCourses = sectionCourses.filter { !it.isActiveInWeek(currentWeek) }
+            // partition 只对每门课调一次 isActiveInWeek（原 filter + filter{!...} 调两次）
+            val (currentWeekCourses, otherCourses) = sectionCourses.partition { it.isActiveInWeek(currentWeek) }
 
             if (currentWeekCourses.isNotEmpty()) {
                 displayedCourses.add(currentWeekCourses.first())
@@ -414,6 +418,7 @@ private fun CourseCardsLayer(
                 ) {
                     CourseCard(
                         course = course,
+                        gridScrollFlag = gridScrollFlag,
                         isCurrentWeek = isCurrentWeekCourse,
                         isHoliday = isHoliday,
                         isWorkSwap = isWorkSwap,
@@ -454,6 +459,7 @@ private fun CourseCardsLayer(
                 ) {
                     CourseCard(
                         course = displayCourse,
+                        gridScrollFlag = gridScrollFlag,
                         isCurrentWeek = isCurrentWeekCourse,
                         isHoliday = isHoliday,
                         isWorkSwap = isWorkSwap,

@@ -34,6 +34,7 @@ internal class EdgeLightElement(
     override fun update(node: EdgeLightNode) {
         node.shape = shape
         node.edgeLight = edgeLight
+        node.invalidateOutlineCache()
         node.invalidateDraw()
     }
 
@@ -90,6 +91,19 @@ internal class EdgeLightNode(
     private var recordedOutlineHashCode: Int = 0
     private var needsRecord = true
 
+    // outline 只在 (shape, size, layoutDirection) 变化时重建：原来每帧都要重走一次路径构建
+    private var cachedOutline: Outline? = null
+    private var cachedOutlineShape: Any? = null
+    private var cachedOutlineSize: Size? = null
+    private var cachedOutlineLayoutDirection: LayoutDirection? = null
+
+    fun invalidateOutlineCache() {
+        cachedOutline = null
+        cachedOutlineShape = null
+        cachedOutlineSize = null
+        cachedOutlineLayoutDirection = null
+    }
+
     override fun ContentDrawScope.draw() {
         val edgeLight = edgeLight()
         if (edgeLight == null || edgeLight.width.value <= 0f) {
@@ -115,7 +129,21 @@ internal class EdgeLightNode(
                 cachedSafeSize
             }
 
-            val outline = shape.createOutline(size, layoutDirection, density)
+            val outline =
+                if (cachedOutline != null &&
+                    cachedOutlineShape === shape &&
+                    cachedOutlineSize == size &&
+                    cachedOutlineLayoutDirection == layoutDirection
+                ) {
+                    cachedOutline!!
+                } else {
+                    shape.createOutline(size, layoutDirection, density).also {
+                        cachedOutlineShape = shape
+                        cachedOutlineSize = size
+                        cachedOutlineLayoutDirection = layoutDirection
+                        cachedOutline = it
+                    }
+                }
 
             val clipPath =
                 if (outline is Outline.Rounded) {

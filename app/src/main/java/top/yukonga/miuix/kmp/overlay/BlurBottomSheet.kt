@@ -40,6 +40,7 @@ import androidx.compose.runtime.Stable
 import androidx.compose.runtime.compositionLocalOf
 import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.setValue
 import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
@@ -117,6 +118,31 @@ val LocalSheetTopBarMaterial = compositionLocalOf {
 }
 
 /**
+ * 弹窗内容自身的 backdrop（由弹窗内部 rememberLayerBackdrop 捕获）。
+ *
+ * 弹窗内的玻璃组件（关闭按钮、下拉菜单等）应当从这里取 backdrop，
+ * 而不是让调用方用 `onSheetContentBackdropCreated` 把它提升成屏幕级 State：
+ * 后者会在弹窗挂载后的头一两帧里回写外层 State，导致整个页面（含壁纸模糊层）
+ * 在弹窗进入动画最吃紧的时刻重跑一次组合，这是打开弹窗掉帧的主要来源。
+ * 用 CompositionLocal 下发则完全不触碰外层作用域，零重组成本。
+ */
+val LocalSheetContentBackdrop = compositionLocalOf<Backdrop?> { null }
+
+/**
+ * 非快照的 backdrop 持有者，配合 `onSheetContentBackdropCreated` 使用。
+ *
+ * 适用对象：**弹窗外部**的组件（典型是从弹窗里点开的二级 OverlayDialog，如节次/时间选择器）
+ * 需要采样弹窗内容做模糊时——它们在弹窗作用域之外，读不到 LocalSheetContentBackdrop。
+ *
+ * 为什么不用 State：写入 State 会让整个宿主页面在弹窗挂载后重跑一次组合，而那正好压在
+ * 弹窗进入动画的头几帧（打开弹窗掉帧的主因）。这里是普通对象，写入零成本、零重组。
+ * 二级弹窗只可能在用户交互之后才组合，那时 backdrop 早已就绪，不需要 State 来驱动更新。
+ */
+class BackdropHolder {
+    var value: Backdrop? = null
+}
+
+/**
  * 自定义模糊底部弹窗组件，支持全区域（包括标题栏）的模糊背景效果。
  *
  * @param show 是否显示
@@ -153,17 +179,15 @@ fun BlurBottomSheet(
     content: @Composable () -> Unit,
 ) {
     val visibleState = remember { mutableStateOf(show) }
-    val sheetContentBackdropHolder = remember { mutableStateOf<Backdrop?>(null) }
     // 显示时立即可见，隐藏时等动画播完再隐藏
     LaunchedEffect(show) {
         if (show) {
             visibleState.value = true
         }
     }
-
-    LaunchedEffect(sheetContentBackdropHolder.value) {
-        onSheetContentBackdropCreated?.invoke(sheetContentBackdropHolder.value)
-    }
+    // 注意：回调不再经由 State 中转。早先这里用一个 mutableStateOf 承接 backdrop，
+    // 但它的 value 在组合期被 LaunchedEffect 的 key 读取 → 弹窗挂载后的写入会让本组合作用域
+    // （进而整个弹窗内容）在打开动画头几帧重组一次。现在直接由内容层回调。
 
     // 返回手势放在 DialogLayout 外面，确保组合时立即生效
     BackHandler(enabled = show) {
@@ -190,7 +214,7 @@ fun BlurBottomSheet(
             onDismissRequest = onDismissRequest,
             startAction = startAction,
             endAction = endAction,
-            sheetContentBackdropHolder = sheetContentBackdropHolder,
+            onSheetContentBackdropCreated = onSheetContentBackdropCreated,
             sheetOffsetDp = sheetOffsetDp,
             sheetMaxWidth = sheetMaxWidth,
             fillMaxHeight = fillMaxHeight,
@@ -216,7 +240,7 @@ private fun BlurBottomSheetContent(
     onDismissRequest: () -> Unit,
     startAction: @Composable (() -> Unit)? = null,
     endAction: @Composable (() -> Unit)? = null,
-    sheetContentBackdropHolder: MutableState<Backdrop?>? = null,
+    onSheetContentBackdropCreated: ((Backdrop?) -> Unit)? = null,
     skipEnterAnimation: Boolean = false,
     content: @Composable () -> Unit,
 ) {
@@ -462,24 +486,27 @@ private fun BlurBottomSheetContent(
                     launch { backdropAlpha.animateTo(target, spec) }
                 }
 
+                // 捕获弹窗内容的 backdrop（先画不透明背景，再画内容，确保采样到不透明像素）
+                // 必须在 CompositionLocalProvider 之前创建，才能随 provider 一起下发给弹窗内部的玻璃组件。
+                val sheetBackdropColor = if (isDark) Color(0xFF1E1E1E) else Color(0xFFF4F4F4)
+                val sheetContentBackdrop = rememberLayerBackdrop {
+                    drawRect(sheetBackdropColor)
+                    drawContent()
+                }
+
+                // 直接在内容层回调：backdrop 就绪时（弹窗首帧后）调用一次。
+                // 不经 State 中转，写入不触发任何重组，避免弹窗内容在打开动画期间被重跑。
+                LaunchedEffect(sheetContentBackdrop) {
+                    onSheetContentBackdropCreated?.invoke(sheetContentBackdrop)
+                }
+
                 CompositionLocalProvider(
                     LocalOverScrollState provides overScrollState,
                     LocalSheetTopBarMaterial provides topBarMaterial,
+                    LocalSheetContentBackdrop provides sheetContentBackdrop,
                 ) {
                     // 拖拽手柄（仅按下放大动画）
                     DragHandleArea()
-
-                    // 捕获弹窗内容的 backdrop（先画不透明背景，再画内容，确保采样到不透明像素）
-                    val sheetBackdropColor = if (isDark) Color(0xFF1E1E1E) else Color(0xFFF4F4F4)
-                    val sheetContentBackdrop = rememberLayerBackdrop {
-                        drawRect(sheetBackdropColor)
-                        drawContent()
-                    }
-
-                    // 将 backdrop 暴露给调用方
-                    LaunchedEffect(sheetContentBackdrop) {
-                        sheetContentBackdropHolder?.value = sheetContentBackdrop
-                    }
 
                     // 内容区域（底层，用 layerBackdrop 捕获内容；nestedScroll 接入顶栏滚动行为）
                     Box(
@@ -491,20 +518,28 @@ private fun BlurBottomSheetContent(
                         content()
                     }
 
-                    // 渐变模糊遮罩（采样弹窗内容）：进入动画期间强制关闭，动画到位后再启用，
-                    // 避免滑入那几百毫秒里逐帧重算渐变模糊占用帧。derivedStateOf 只在该布尔翻转一次时重组，不会逐帧重组。
+                    // 渐变模糊遮罩（采样弹窗内容）：进入动画期间完全不挂载。
+                    // 除了省掉模糊本身的开销，更关键的是 runtimeShaderEffect 的 AGSL 着色器会在首次绘制时
+                    // 编译（十几到几十毫秒），落在滑入动画的头几帧就是肉眼可见的掉帧。
+                    // 推迟到动画结束后再挂载，编译开销就发生在画面已经静止时，用户感知不到。
+                    // derivedStateOf 只在该布尔翻转一次时重组，不会逐帧重组。
                     val enterDone by remember(animationProgress) {
                         derivedStateOf { animationProgress.value >= 1f }
                     }
-                    ProgressiveBlurTopBar(
-                        backdrop = sheetContentBackdrop,
-                        height = 84.dp,
-                        tintColor = sheetBgColor,
-                        tintIntensity = 0f,
-                        blurAlpha = if (enterDone) backdropAlpha.value else 0f,
-                        modifier = Modifier.zIndex(1f)
-                    ) {
-                        Box(modifier = Modifier.fillMaxWidth().height(60.dp))
+                    // 挂载过一次后就常驻，避免滚动结束 alpha 归零后反复卸载/重挂造成抖动
+                    var blurMounted by remember { mutableStateOf(false) }
+                    LaunchedEffect(enterDone) { if (enterDone) blurMounted = true }
+                    if (blurMounted) {
+                        ProgressiveBlurTopBar(
+                            backdrop = sheetContentBackdrop,
+                            height = 84.dp,
+                            tintColor = sheetBgColor,
+                            tintIntensity = 0f,
+                            blurAlpha = backdropAlpha.value,
+                            modifier = Modifier.zIndex(1f)
+                        ) {
+                            Box(modifier = Modifier.fillMaxWidth().height(60.dp))
+                        }
                     }
 
                     // 标题栏（zIndex 提升到顶层，消费触摸事件）

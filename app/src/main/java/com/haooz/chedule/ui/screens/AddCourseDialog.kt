@@ -62,7 +62,6 @@ import com.haooz.chedule.ui.utils.LocalForcedDarkTheme
 import com.haooz.chedule.ui.utils.isAppDarkTheme
 import com.haooz.chedule.ui.utils.overScrollVertical
 import com.haooz.chedule.ui.utils.rememberAppSettingDark
-import com.kyant.backdrop.Backdrop
 import kotlinx.coroutines.delay
 import top.yukonga.miuix.kmp.basic.Button
 import top.yukonga.miuix.kmp.basic.ButtonDefaults
@@ -81,6 +80,9 @@ import top.yukonga.miuix.kmp.icon.extended.Delete
 import top.yukonga.miuix.kmp.icon.extended.Ok
 import top.yukonga.miuix.kmp.overlay.BlurBottomSheet
 import top.yukonga.miuix.kmp.overlay.BlurBottomSheetTablet
+import com.kyant.backdrop.Backdrop
+import top.yukonga.miuix.kmp.overlay.BackdropHolder
+import top.yukonga.miuix.kmp.overlay.LocalSheetContentBackdrop
 import top.yukonga.miuix.kmp.overlay.LocalSheetTopBarMaterial
 import top.yukonga.miuix.kmp.overlay.OverlayDialog
 import top.yukonga.miuix.kmp.preference.ArrowPreference
@@ -177,7 +179,9 @@ fun AddCourseDialog(
     val appDialogController = remember(appDialogDark) {
         ThemeController(if (appDialogDark) ColorSchemeMode.Dark else ColorSchemeMode.Light)
     }
-    var sheetContentBackdrop by remember { mutableStateOf<Backdrop?>(null) }
+    // 二级弹窗（删除确认/节次/时间选择）在弹窗作用域之外，读不到 LocalSheetContentBackdrop，
+    // 用非快照 holder 接收 —— 写入零重组，不会让宿主页面在弹窗进入动画期间重跑组合。
+    val sheetContentBackdropHolder = remember { BackdropHolder() }
 
     // 逐组揭示：revealStep 从 -1 递增，各卡片 target 逐组变为可见。
     // 卡片始终占位参与布局（不 AnimatedVisibility 移除节点），仅通过 graphicsLayer 做透明/位移/缩放，
@@ -311,14 +315,14 @@ fun AddCourseDialog(
             fillMaxHeight = true,
             onDismissRequest = onDismiss,
             liquidGlassBackdrop = null,
-            onSheetContentBackdropCreated = { sheetContentBackdrop = it },
+            onSheetContentBackdropCreated = { sheetContentBackdropHolder.value = it },
             startAction = {
                 val material = LocalSheetTopBarMaterial.current
                 LiquidTopBarButton(
                     onClick = {
                         onDismiss()
                     },
-                    backdrop = sheetContentBackdrop ?: liquidGlassBackdrop!!,
+                    backdrop = LocalSheetContentBackdrop.current ?: liquidGlassBackdrop!!,
                     icon = MiuixIcons.Normal.Close,
                     contentDescription = "关闭",
                     modifier = Modifier.padding(start = 16.dp),
@@ -331,7 +335,7 @@ fun AddCourseDialog(
                 val material = LocalSheetTopBarMaterial.current
                 LiquidTopBarButton(
                     onClick = onConfirmClick,
-                    backdrop = sheetContentBackdrop ?: liquidGlassBackdrop!!,
+                    backdrop = LocalSheetContentBackdrop.current ?: liquidGlassBackdrop!!,
                     icon = MiuixIcons.Ok,
                     contentDescription = "确定",
                     modifier = Modifier.padding(end = 16.dp),
@@ -384,14 +388,14 @@ fun AddCourseDialog(
         fillMaxHeight = true,
         sheetOffsetDp = statusBarsPadding + 5.dp,
         onDismissRequest = onDismiss,
-        onSheetContentBackdropCreated = { sheetContentBackdrop = it },
+        onSheetContentBackdropCreated = { sheetContentBackdropHolder.value = it },
         startAction = {
             val material = LocalSheetTopBarMaterial.current
             LiquidTopBarButton(
                 onClick = {
                     onDismiss()
                 },
-                backdrop = sheetContentBackdrop ?: liquidGlassBackdrop!!,
+                backdrop = LocalSheetContentBackdrop.current ?: liquidGlassBackdrop!!,
                 icon = MiuixIcons.Normal.Close,
                 contentDescription = "关闭",
                 modifier = Modifier.padding(start = 18.dp),
@@ -404,7 +408,7 @@ fun AddCourseDialog(
             val material = LocalSheetTopBarMaterial.current
             LiquidTopBarButton(
                 onClick = onConfirmClick,
-                backdrop = sheetContentBackdrop ?: liquidGlassBackdrop!!,
+                backdrop = LocalSheetContentBackdrop.current ?: liquidGlassBackdrop!!,
                 icon = MiuixIcons.Ok,
                 contentDescription = "确定",
                 modifier = Modifier.padding(end = 18.dp),
@@ -456,7 +460,7 @@ fun AddCourseDialog(
         summary = "确定要删除课程「${course?.name}」吗？\n此操作不可撤销。",
         show = showDeleteDialog,
         onDismissRequest = { showDeleteDialog = false },
-        liquidGlassBackdrop = sheetContentBackdrop ?: liquidGlassBackdrop
+        liquidGlassBackdrop = sheetContentBackdropHolder.value ?: liquidGlassBackdrop
     ) {
         MiuixTheme(controller = appDialogController) {
             CompositionLocalProvider(LocalForcedDarkTheme provides null) {
@@ -495,7 +499,7 @@ fun AddCourseDialog(
         title = "选择上课节次",
         show = showSectionDialog,
         onDismissRequest = { showSectionDialog = false },
-        liquidGlassBackdrop = sheetContentBackdrop ?: liquidGlassBackdrop,
+        liquidGlassBackdrop = sheetContentBackdropHolder.value ?: liquidGlassBackdrop,
     ) {
         MiuixTheme(controller = appDialogController) {
             CompositionLocalProvider(LocalForcedDarkTheme provides null) {
@@ -590,7 +594,7 @@ TextButton(
         title = "选择上课时间",
         show = showTimeDialog,
         onDismissRequest = { showTimeDialog = false },
-        liquidGlassBackdrop = sheetContentBackdrop ?: liquidGlassBackdrop,
+        liquidGlassBackdrop = sheetContentBackdropHolder.value ?: liquidGlassBackdrop,
     ) {
         MiuixTheme(controller = appDialogController) {
             CompositionLocalProvider(LocalForcedDarkTheme provides null) {

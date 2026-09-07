@@ -16,12 +16,29 @@ class SchoolRepository(private val context: Context) {
         get() = File(context.filesDir, "repo/schools/resources")
 
     fun loadIndex(): SchoolIndexData? {
+        // 首次使用：本地无索引时，从安装包内置 asset 引导一份，避免联网才能获取学校列表
+        ensureBundledIndex()
         if (!indexFile.exists()) return null
         return try {
             SchoolIndexParser.parse(indexFile.readBytes())
         } catch (e: Exception) {
             Log.e(TAG, "索引解析失败: ${e.message}")
             null
+        }
+    }
+
+    /** 内置索引引导：仅当本地索引不存在时，从 assets/eduloader 拷贝内置 school_index.pb 供首启用 */
+    private fun ensureBundledIndex() {
+        if (indexFile.exists()) return
+        try {
+            context.assets.open("eduloader/school_index.pb").use { inbound ->
+                indexFile.parentFile?.mkdirs()
+                indexFile.outputStream().use { outbound ->
+                    inbound.copyTo(outbound)
+                }
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "读取内置索引失败: ${e.message}")
         }
     }
 

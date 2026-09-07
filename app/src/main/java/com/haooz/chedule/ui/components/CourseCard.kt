@@ -84,6 +84,9 @@ fun CourseCard(
     cardRefraction: com.haooz.chedule.data.CardRefractionLevel = com.haooz.chedule.data.CardRefractionLevel.DEFAULT,
     isDragging: Boolean = false,
     disablePadding: Boolean = false,
+    // 滑动中标记（非 state 对象，读取不触发重组）：滑动期间卡片坐标逐帧变化，
+    // 而这份坐标只在长按拖拽时用得上，滑动中直接跳过每次回调里的 localToRoot 计算
+    gridScrollFlag: com.haooz.chedule.ui.screens.GridScrollFlag? = null,
     onClick: () -> Unit,
     onLongPressStart: (cardLeft: Float, cardTop: Float, width: Float, height: Float) -> Unit = { _, _, _, _ -> },
     onDragStart: () -> Unit = {},
@@ -172,6 +175,13 @@ fun CourseCard(
                         drawRect(overlayColor)
                     }
                 }
+            // 描边用的 outline / Stroke / 颜色原本每帧重建（每张卡片每帧一次路径构建 + 分配）。
+            // 它们只依赖 (size, 圆角, layoutDirection, density)，缓存后逐帧直接复用。
+            val outlineColor = remember(cardColor) { cardColor.copy(alpha = 0.05f) }
+            val outlineStroke = remember(localDensity) {
+                androidx.compose.ui.graphics.drawscope.Stroke(with(localDensity) { 2.dp.toPx() })
+            }
+            val outlineCache = remember { OutlineCache() }
             LaunchedEffect(isPressed) {
                 if (isPressed) {
                     scale.animateTo(
@@ -197,6 +207,7 @@ fun CourseCard(
                         alpha = if (isDragging) 0f else 1f
                     }
                     .onGloballyPositioned { coordinates ->
+                        if (gridScrollFlag?.scrolling == true) return@onGloballyPositioned
                         val center = coordinates.localToRoot(Offset(coordinates.size.width / 2f, coordinates.size.height / 2f))
                         cardBoundsPx[0] = center.x
                         cardBoundsPx[1] = center.y
@@ -215,13 +226,23 @@ fun CourseCard(
                     .drawWithContent {
                         drawContent()
                         // 同色描边替代 edgeLight，使用和课程卡片一样的 ContinuousRoundedRectangle
-                        val strokePx = 2.dp.toPx()
-                        val outline = ContinuousRoundedRectangle(effectiveCornerRadius.dp)
-                            .createOutline(size, layoutDirection, this)
+                        val radiusDp = effectiveCornerRadius.dp
+                        if (outlineCache.width != size.width ||
+                            outlineCache.height != size.height ||
+                            outlineCache.radius != radiusDp.value ||
+                            outlineCache.layoutDirection != layoutDirection
+                        ) {
+                            outlineCache.outline = ContinuousRoundedRectangle(radiusDp)
+                                .createOutline(size, layoutDirection, this)
+                            outlineCache.width = size.width
+                            outlineCache.height = size.height
+                            outlineCache.radius = radiusDp.value
+                            outlineCache.layoutDirection = layoutDirection
+                        }
                         drawOutline(
-                            outline = outline,
-                            color = cardColor.copy(alpha = 0.05f),
-                            style = androidx.compose.ui.graphics.drawscope.Stroke(strokePx)
+                            outline = outlineCache.outline!!,
+                            color = outlineColor,
+                            style = outlineStroke
                         )
                     }
                     .pointerInput(course) {
@@ -604,4 +625,18 @@ private fun CardContent(course: Course, sectionCount: Int, textColor: Color, has
             )
         }
     }
+}
+
+/**
+ * 描边 outline 缓存：构建一次 ContinuousRoundedRectangle 的 outline 要走完整条超椭圆路径，
+ * 原来每张卡片每帧都重建一次（滑动时约 40~80 张 × 2 页）。
+ * 只在 (尺寸, 圆角, layoutDirection) 变化时重建，其余帧直接复用。
+ */
+private class OutlineCache {
+    var width: Float = Float.NaN
+    var height: Float = Float.NaN
+    var radius: Float = Float.NaN
+    var layoutDirection: androidx.compose.ui.unit.LayoutDirection =
+        androidx.compose.ui.unit.LayoutDirection.Ltr
+    var outline: androidx.compose.ui.graphics.Outline? = null
 }

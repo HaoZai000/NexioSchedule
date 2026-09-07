@@ -1173,8 +1173,6 @@ fun CourseScheduleApp() {
 
     // MainScheduleScreen 状态提升到 Activity 层，return@Scaffold 不会销毁
     val scheduleScrollState = rememberScrollState()
-    val scheduleSheetContentBackdrop =
-        remember { mutableStateOf<com.kyant.backdrop.Backdrop?>(null) }
     val scheduleSelectedCourse = remember { mutableStateOf<Course?>(null) }
     val scheduleSelectedCourses = remember { mutableStateOf<List<Course>>(emptyList()) }
     val scheduleShowCourseDetail = remember { mutableStateOf(false) }
@@ -2151,7 +2149,6 @@ fun CourseScheduleApp() {
                                             paddingValues = paddingValues,
                                             externalScrollState = scheduleScrollState,
                                             externalShowCourseDetail = scheduleShowCourseDetail,
-                                            externalSheetContentBackdrop = scheduleSheetContentBackdrop,
                                             externalSelectedCourse = scheduleSelectedCourse,
                                             externalSelectedCourses = scheduleSelectedCourses
                                         )

@@ -46,7 +46,6 @@ import com.haooz.chedule.data.Course
 import com.haooz.chedule.ui.basic.LiquidTopBarButton
 import com.haooz.chedule.ui.utils.isAppDarkTheme
 import com.haooz.chedule.ui.utils.overScrollVertical
-import com.kyant.backdrop.Backdrop
 import kotlinx.coroutines.delay
 import top.yukonga.miuix.kmp.basic.ButtonDefaults
 import top.yukonga.miuix.kmp.basic.Card
@@ -61,6 +60,9 @@ import top.yukonga.miuix.kmp.icon.extended.Close
 import top.yukonga.miuix.kmp.icon.extended.Ok
 import top.yukonga.miuix.kmp.overlay.BlurBottomSheet
 import top.yukonga.miuix.kmp.overlay.BlurBottomSheetTablet
+import com.kyant.backdrop.Backdrop
+import top.yukonga.miuix.kmp.overlay.BackdropHolder
+import top.yukonga.miuix.kmp.overlay.LocalSheetContentBackdrop
 import top.yukonga.miuix.kmp.overlay.LocalSheetTopBarMaterial
 import top.yukonga.miuix.kmp.overlay.OverlayDialog
 import top.yukonga.miuix.kmp.preference.ArrowPreference
@@ -95,7 +97,9 @@ fun AddEditCourseBottomSheet(
     val hapticFeedback = LocalHapticFeedback.current
     val totalWeeks = 20
     val totalSections = 12
-    var sheetContentBackdrop by remember { mutableStateOf<Backdrop?>(null) }
+    // 二级弹窗（节次/时间选择）在弹窗作用域之外，读不到 LocalSheetContentBackdrop，
+    // 用非快照 holder 接收 —— 写入零重组，不会让宿主页面在弹窗进入动画期间重跑组合。
+    val sheetContentBackdropHolder = remember { BackdropHolder() }
     val isEditMode = editCourse != null
 
     // 取最晚周次的课程作为默认地点和教师
@@ -245,7 +249,7 @@ fun AddEditCourseBottomSheet(
             onClick = {
                 onDismissRequest()
             },
-            backdrop = sheetContentBackdrop ?: liquidGlassBackdrop!!,
+            backdrop = LocalSheetContentBackdrop.current ?: liquidGlassBackdrop!!,
             icon = MiuixIcons.Normal.Close,
             contentDescription = "关闭",
             modifier = Modifier.padding(start = if (isTablet) 16.dp else 18.dp),
@@ -259,7 +263,7 @@ fun AddEditCourseBottomSheet(
         val material = LocalSheetTopBarMaterial.current
         LiquidTopBarButton(
             onClick = onConfirmClick,
-            backdrop = sheetContentBackdrop ?: liquidGlassBackdrop!!,
+            backdrop = LocalSheetContentBackdrop.current ?: liquidGlassBackdrop!!,
             icon = MiuixIcons.Ok,
             contentDescription = "确定",
             modifier = Modifier.padding(end = if (isTablet) 16.dp else 18.dp),
@@ -715,7 +719,7 @@ fun AddEditCourseBottomSheet(
             dimBackground = true,
             onDismissRequest = onDismissRequest,
             liquidGlassBackdrop = null,
-            onSheetContentBackdropCreated = { sheetContentBackdrop = it },
+            onSheetContentBackdropCreated = { sheetContentBackdropHolder.value = it },
             startAction = startAction,
             endAction = endAction,
         ) {
@@ -729,7 +733,7 @@ fun AddEditCourseBottomSheet(
             dimBackground = true,
             onDismissRequest = onDismissRequest,
             sheetOffsetDp = 100.dp,
-            onSheetContentBackdropCreated = { sheetContentBackdrop = it },
+            onSheetContentBackdropCreated = { sheetContentBackdropHolder.value = it },
             startAction = startAction,
             endAction = endAction,
         ) {
@@ -741,7 +745,7 @@ fun AddEditCourseBottomSheet(
     OverlayDialog(
         title = "选择上课节次",
         show = showSectionDialog,
-        liquidGlassBackdrop = sheetContentBackdrop ?: liquidGlassBackdrop,
+        liquidGlassBackdrop = sheetContentBackdropHolder.value ?: liquidGlassBackdrop,
         onDismissRequest = { showSectionDialog = false }
     ) {
         Column(
@@ -831,7 +835,7 @@ fun AddEditCourseBottomSheet(
     OverlayDialog(
         title = "选择上课时间",
         show = showTimeDialog,
-        liquidGlassBackdrop = sheetContentBackdrop ?: liquidGlassBackdrop,
+        liquidGlassBackdrop = sheetContentBackdropHolder.value ?: liquidGlassBackdrop,
         onDismissRequest = { showTimeDialog = false }
     ) {
         Column(
