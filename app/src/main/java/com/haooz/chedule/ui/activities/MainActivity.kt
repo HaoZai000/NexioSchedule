@@ -990,7 +990,6 @@ fun CourseScheduleApp() {
     fun applyAppearance(value: com.haooz.chedule.data.AppearanceConfig) {
         val idx = currentCombinationIndex
         if (idx in combinations.indices) {
-            android.util.Log.d("CardTextScale", "apply value=${value.cardTextScale}")
             combinations = combinations.toMutableList().also { list ->
                 list[idx] = list[idx].copy(
                     cardBlurRadius = value.cardBlurRadius,
@@ -1205,6 +1204,22 @@ fun CourseScheduleApp() {
     }
     val switchReturnBgScrim = remember { Animatable(0f) }
     val screenGraphicsLayer = rememberGraphicsLayer()
+    // 主内容快照改为「按需录制」：
+    // record() 会把整棵主内容树（3 个 tab + 壁纸 + 课程卡片）再完整画一遍，常驻每帧录制
+    // 等于把每帧的绘制开销直接翻倍，且与内部各 backdrop 的录制相互嵌套放大成 4 倍。
+    // 这里只在真正要 toImageBitmap() 前录一帧，其余帧完全不录。
+    class MainSnapshotRequester {
+        var lastRecordedToken: Int = 0
+    }
+    val mainSnapshotRequester = remember { MainSnapshotRequester() }
+    var mainSnapshotToken by remember { mutableIntStateOf(0) }
+    val captureMainContentBitmap: suspend () -> android.graphics.Bitmap = {
+        mainSnapshotToken++
+        // 等一帧让 draw 阶段完成录制，再等一帧确保该帧已提交
+        withFrameNanos { }
+        withFrameNanos { }
+        screenGraphicsLayer.toImageBitmap().asAndroidBitmap()
+    }
     // 模糊变化后延迟重新捕获快照的 job
     var blurSnapshotJob by remember { mutableStateOf<kotlinx.coroutines.Job?>(null) }
 
@@ -1480,7 +1495,7 @@ fun CourseScheduleApp() {
         detailFromToday = fromToday
         coroutineScope.launch {
             // 先截取全屏快照（在隐藏课程之前，确保快照内容完整）
-            val fullSnapshot = screenGraphicsLayer.toImageBitmap().asAndroidBitmap()
+            val fullSnapshot = captureMainContentBitmap()
             mainContentSnapshot = fullSnapshot
             hiddenCourseIds = setOf(courseIdToHide)
             detailSnapshot = try {
@@ -1524,9 +1539,11 @@ fun CourseScheduleApp() {
             // 注意：toImageBitmap() 捕获的是绑定源 RenderNode 的硬件位图；若直接画回根图层，
             // 会与 Mi 背景模糊链形成渲染树自引用，导致 RenderNode::prepareTreeImpl 无限递归
             // 栈溢出（RenderThread SIGSEGV）。因此立即复制为独立 ARGB_8888 位图，切断对源层的引用。
-            val captured = screenGraphicsLayer.toImageBitmap().asAndroidBitmap()
-            val currentSnapshot = captured.copy(android.graphics.Bitmap.Config.ARGB_8888, false)
-                ?: captured
+            val captured = captureMainContentBitmap()
+            // 整屏 ARGB_8888 拷贝约 10MB，放在主线程做必掉一帧，挪到 IO 线程
+            val currentSnapshot = withContext(Dispatchers.IO) {
+                captured.copy(android.graphics.Bitmap.Config.ARGB_8888, false) ?: captured
+            }
             customizeSnapshot = currentSnapshot
             if (combinations.isNotEmpty()) {
                 combinations = combinations.toMutableList().also {
@@ -1674,25 +1691,22 @@ fun CourseScheduleApp() {
                 currentAppearance()
             }
         val isEntryAnimating = showSwitchSchedule && switchAnimForward && switchAnimRunning
-        android.util.Log.d(
-            "CardTextScale",
-            "displayAppearance scale=${displayAppearance.cardTextScale} showCustomize=$showCustomizePage cutout=$isWindowCutoutActive"
-        )
         val mainContentAlpha = when {
             showSwitchSchedule && switchScreenSnapshot != null -> 0f
             else -> 1f
         }
-        // 创建全屏模糊的 backdrop（始终存在，不依赖 showDetail）
-        val color = MiuixTheme.colorScheme.surface
-        val fullBlurBackdrop = rememberLayerBackdrop {
-            drawRect(color)
-            drawContent()
-        }
+        val mainContentBlurDp =
+            if (shortcutMenuBlurRadius.value > 0.01f) shortcutMenuBlurRadius.value.dp
+            else managePageBlurRadius.value.dp
+        val mainContentBlurModifier =
+            if (mainContentBlurDp.value > 0f) Modifier.blur(mainContentBlurDp) else Modifier
         // 主内容（带缩放和裁切）
         Box(
             modifier = Modifier
                 .fillMaxSize()
-                .blur(if (shortcutMenuBlurRadius.value > 0.01f) shortcutMenuBlurRadius.value.dp else managePageBlurRadius.value.dp)
+                // 半径为 0 时不必挂 blur：Modifier.blur 会为整棵主内容树额外建一个
+                // RenderEffect 图层，0 半径也照常走一遍离屏合成。
+                .then(mainContentBlurModifier)
                 .then(
                     if (navBarStyle != "rail") {
                         // 圆角裁剪在 graphicsLayer 内部完成（见下），这里不再单独 clip
@@ -1757,13 +1771,16 @@ fun CourseScheduleApp() {
                 )
                 .then(
                     Modifier.drawWithContent {
-                        screenGraphicsLayer.record {
-                            this@drawWithContent.drawContent()
+                        // 只在被请求时录制一帧（见 captureMainContentBitmap），避免每帧重复渲染整棵主内容树
+                        if (mainSnapshotRequester.lastRecordedToken != mainSnapshotToken) {
+                            mainSnapshotRequester.lastRecordedToken = mainSnapshotToken
+                            screenGraphicsLayer.record {
+                                this@drawWithContent.drawContent()
+                            }
                         }
                         drawContent()
                     }
                 )
-                .layerBackdrop(fullBlurBackdrop)
         ) {
             // 有壁纸时用强制主题包裹脚手架（同时修改 colorScheme 与 isAppDarkTheme 两条通道）
             val scaffoldContent = @Composable {
@@ -1810,8 +1827,7 @@ fun CourseScheduleApp() {
                             onOpenSwitchSchedule = {
                                 if (!isShiftMode && !showSwitchSchedule) {
                                     coroutineScope.launch {
-                                        mainContentSnapshot =
-                                            screenGraphicsLayer.toImageBitmap().asAndroidBitmap()
+                                        mainContentSnapshot = captureMainContentBitmap()
                                         switchPendingReverse = true
                                         switchCapturingSnapshot = true
                                         showSwitchSchedule = true
@@ -1862,16 +1878,23 @@ fun CourseScheduleApp() {
                         modifier = Modifier
                             .fillMaxSize()
                             .padding(start = railPaddingStart)
-                            .layerBackdrop(backdrop)
+                            // 该 backdrop 仅被长按后弹出的「自定义课表」按钮消费，平时无人读取。
+                            // 常驻挂载会每帧把整棵内容树额外录制一遍（并与其内部 backdrop 录制嵌套放大），
+                            // 改为只在长按时挂载，且同一帧内先于按钮绘制完成录制。
+                            .then(
+                                if (showLongPressButton || showLongPressOverlay) Modifier.layerBackdrop(
+                                    backdrop
+                                ) else Modifier
+                            )
                     ) {
                         Box(
                             modifier = Modifier
                                 .fillMaxSize()
-                                .then(
-                                    Modifier.liquidGlassLayerBackdrop(
-                                        liquidGlassBackdrop
-                                    )
-                                )
+                                // 注意：开洞（外观页编辑态）时**不能**停录这个 backdrop。
+                                // 洞的尺寸 animW = 屏宽 × cardScale，而主内容也按 cardScale 缩放，
+                                // 因此洞恰好框住整个缩放后的主界面——顶栏/底栏全在洞内可见，
+                                // 停录会让它们的玻璃层采样到空内容，直接表现为"模糊消失"。
+                                .liquidGlassLayerBackdrop(liquidGlassBackdrop)
                         ) {
                             if (!isShiftMode) {
                                 // 始终渲染所有 tab，用 alpha 控制显隐，避免切换时重建导致延迟
@@ -1882,6 +1905,10 @@ fun CourseScheduleApp() {
                                             .fillMaxSize()
                                             .zIndex(if (selectedTab == 0) 2f else 0f)
                                             .graphicsLayer { alpha = if (selectedTab == 0) 1f else 0f }
+                                            // 未选中的 tab 保留组合/测量（切页不重建、顶栏高度不跳变），
+                                            // 但跳过绘制：3 个 tab 同时绘制会让每帧内容绘制量变成 3 倍，
+                                            // 且每一次 backdrop 录制都会把它们全部再画一遍。
+                                            .drawWithContent { if (selectedTab == 0) drawContent() }
                                     ) {
                                         TodayScreen(
                                             viewModel = viewModel,
@@ -1925,6 +1952,7 @@ fun CourseScheduleApp() {
                                             .fillMaxSize()
                                             .zIndex(if (selectedTab == 1) 2f else 0f)
                                             .graphicsLayer { alpha = if (selectedTab == 1) 1f else 0f }
+                                            .drawWithContent { if (selectedTab == 1) drawContent() }
                                     ) {
                                         MainScheduleScreen(
                                             viewModel = viewModel,
@@ -2134,6 +2162,7 @@ fun CourseScheduleApp() {
                                             .fillMaxSize()
                                             .zIndex(if (selectedTab == 2) 2f else 0f)
                                             .graphicsLayer { alpha = if (selectedTab == 2) 1f else 0f }
+                                            .drawWithContent { if (selectedTab == 2) drawContent() }
                                     ) {
                                         SettingsScreen(
                                             viewModel = viewModel,
@@ -2667,7 +2696,7 @@ fun CourseScheduleApp() {
                     // 当前搭配的壁纸测光结果（选择壁纸时已计算），用于持久化 + 主题锁定
                     val isLight = combinations.getOrNull(currentCombinationIndex)?.wallpaperIsLight
                     // 截取当前 MainActivity 快照（包含课表+新壁纸）作为卡片预览（仅内存，不持久化）
-                    val capturedSnapshot = screenGraphicsLayer.toImageBitmap().asAndroidBitmap()
+                    val capturedSnapshot = captureMainContentBitmap()
                     val saveJob = launch(Dispatchers.IO) {
                         if (bitmap != null) {
                             wallpaperRepository.saveCombinationWallpaper(combId, bitmap)
@@ -3065,10 +3094,8 @@ fun CourseScheduleApp() {
                                 // 装的还是上一帧（旧课表）内容；需等待多帧以确保 reloadCourses 触发的
                                 // 深层重组 + 绘制已完成，才能录到新课表网格
                                 withFrameNanos { }
-                                withFrameNanos { }
-                                withFrameNanos { }
                                 mainContentSnapshot = try {
-                                    screenGraphicsLayer.toImageBitmap().asAndroidBitmap()
+                                    captureMainContentBitmap()
                                 } catch (_: Exception) {
                                     mainContentSnapshot
                                 }
@@ -3158,10 +3185,8 @@ fun CourseScheduleApp() {
                                 // 装的还是上一帧（旧课表）内容；需等待多帧以确保 reloadCourses 触发的
                                 // 深层重组 + 绘制已完成，才能录到新课表网格
                                 withFrameNanos { }
-                                withFrameNanos { }
-                                withFrameNanos { }
                                 mainContentSnapshot = try {
-                                    screenGraphicsLayer.toImageBitmap().asAndroidBitmap()
+                                    captureMainContentBitmap()
                                 } catch (_: Exception) {
                                     mainContentSnapshot
                                 }

@@ -52,6 +52,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.blur
@@ -614,10 +615,14 @@ fun CustomizeScheduleScreen(
     // 计算正确的 transformOrigin Y，传给 MainActivity 使缩放后的内容中心与裁剪区域中心对齐
     // 当 cutoutMainScale == cardScaleAnim 时（编辑模式和apply动画均满足），
     // transformOrigin Y = 0.58 + offset / (screenH * 0.35)，与 scaleProg 无关
-    LaunchedEffect(cutoutOffsetY.value, screenHPx) {
-        // sheetOffsetY 由 onSheetOffsetChange 单独同步，不通过 ratio 传递，避免帧延迟
-        val tY = 0.58f + cutoutOffsetY.value / (screenHPx * 0.35f)
-        onCutoutCenterChange(tY)
+    // 用 snapshotFlow 订阅，而不是把 Animatable 的 .value 写进 LaunchedEffect 的 key
+    val latestScreenHPx by rememberUpdatedState(screenHPx)
+    val latestOnCutoutCenterChange by rememberUpdatedState(onCutoutCenterChange)
+    LaunchedEffect(Unit) {
+        snapshotFlow { cutoutOffsetY.value }.collect { offsetY ->
+            // sheetOffsetY 由 onSheetOffsetChange 单独同步，不通过 ratio 传递，避免帧延迟
+            latestOnCutoutCenterChange(0.58f + offsetY / (latestScreenHPx * 0.35f))
+        }
     }
 
     // 弹窗打开/关闭：取消/应用按钮消失，开洞区域与 MainActivity 同步上移/恢复
@@ -747,7 +752,10 @@ fun CustomizeScheduleScreen(
                 modifier = Modifier
                     .fillMaxSize()
                     .then(
-                        Modifier.liquidGlassLayerBackdrop(liquidGlassBackdrop),
+                        // 弹窗打开后，其内部玻璃组件已改用弹窗自己的 sheetContentBackdrop，
+                        // 此时再把整屏（含弹窗本身与其模糊层）录进 liquidGlassBackdrop
+                        if (anySheetOpen && sheetContentBackdrop != null) Modifier
+                        else Modifier.liquidGlassLayerBackdrop(liquidGlassBackdrop),
                     ),
                 contentAlignment = Alignment.Center
             ) {
@@ -1193,6 +1201,11 @@ fun CustomizeScheduleScreen(
                         horizontalArrangement = Arrangement.Center,
                         verticalAlignment = Alignment.CenterVertically
                     ) {
+                        // 半径为 0 时不挂 blur：Modifier.blur 会额外建一个 RenderEffect 图层，
+                        // 稳态（radius=0）也会让这 4 个按钮白白走一遍离屏合成。
+                        val toolBlurModifier =
+                            if (toolBlurAnim.value > 0.01f) Modifier.blur(toolBlurAnim.value.dp)
+                            else Modifier
                         // 壁纸按钮：外层 Box 留 padding 承载模糊向外扩散空间，
                         // Modifier.blur 让模糊自然溢出圆形边界（边缘渐变正确），
                         // 内层 Box 保持圆形裁剪并可点击，避免 RenderEffect + clip 在边界裁切出尖角。
@@ -1200,7 +1213,7 @@ fun CustomizeScheduleScreen(
                         Box(
                             modifier = Modifier
                                 .padding(7.dp)
-                                .blur(radius = toolBlurAnim.value.dp)
+                                .then(toolBlurModifier)
                         ) {
                             Box(
                                 modifier = Modifier
@@ -1225,7 +1238,7 @@ fun CustomizeScheduleScreen(
                         Box(
                             modifier = Modifier
                                 .padding(7.dp)
-                                .blur(radius = toolBlurAnim.value.dp)
+                                .then(toolBlurModifier)
                         ) {
                             VerticalDivider(
                                 Modifier
@@ -1239,7 +1252,7 @@ fun CustomizeScheduleScreen(
                         Box(
                             modifier = Modifier
                                 .padding(7.dp)
-                                .blur(radius = toolBlurAnim.value.dp)
+                                .then(toolBlurModifier)
                         ) {
                             Box(
                                 modifier = Modifier
@@ -1261,7 +1274,7 @@ fun CustomizeScheduleScreen(
                         Box(
                             modifier = Modifier
                                 .padding(7.dp)
-                                .blur(radius = toolBlurAnim.value.dp)
+                                .then(toolBlurModifier)
                         ) {
                             Box(
                                 modifier = Modifier

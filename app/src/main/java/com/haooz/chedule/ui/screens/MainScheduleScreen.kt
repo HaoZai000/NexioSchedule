@@ -1031,8 +1031,6 @@ fun MainScheduleScreen(
                                     .clip(ContinuousRoundedRectangle(20.dp))
                                     .background(MiuixTheme.colorScheme.primary.copy(alpha = 0.1f))
                                     .clickable {
-                                        showCourseDetail = false
-                                        onPopupStateChange(false)
                                         viewModel.showEditDialog(course)
                                     }
                                     .padding(horizontal = 20.dp, vertical = 8.dp),
