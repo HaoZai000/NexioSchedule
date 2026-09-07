@@ -1833,19 +1833,20 @@ fun CourseScheduleApp() {
                                 scrollBehavior = settingsScrollBehavior,
                             )
                         }
-                        // 今日页标题栏（液态玻璃模式下在 Activity 层级渲染）
-                        if (!isShiftMode && selectedTab == 0) {
-                            TodayTopBar(
-                                liquidGlassBackdrop = liquidGlassBackdrop,
-                                navBarStyle = navBarStyle,
-                                currentDayOfWeek = todaySelectedDayOfWeek,
-                                isToday = todayIsToday,
-                                onBackToToday = { scrollToTodayTrigger++ },
-                                onMoreClick = { showTodayMorePopup = true },
-                                scrollBehavior = todayScrollBehavior,
-                                showMorePopup = showTodayMorePopup,
-                            )
-                        }
+                        // 今日页标题栏（液态玻璃模式下在 Activity 层级渲染）。
+                        // 始终渲染（非今日 tab 时 alpha=0、不渲染按钮）但保持测量，
+                        // 确保 todayScrollBehavior.currentHeightPx 启动即就位，切到今日页时内容顶部不慢一帧。
+                        TodayTopBar(
+                            liquidGlassBackdrop = liquidGlassBackdrop,
+                            navBarStyle = navBarStyle,
+                            currentDayOfWeek = todaySelectedDayOfWeek,
+                            isToday = todayIsToday,
+                            onBackToToday = { scrollToTodayTrigger++ },
+                            onMoreClick = { showTodayMorePopup = true },
+                            scrollBehavior = todayScrollBehavior,
+                            showMorePopup = showTodayMorePopup,
+                            visible = !isShiftMode && selectedTab == 0,
+                        )
                     }
                 ) { paddingValues ->
                     // 课程详情动画期间：跳过内容重组，用快照 Image 替代
@@ -3426,6 +3427,7 @@ private fun TodayTopBar(
     onMoreClick: () -> Unit = {},
     scrollBehavior: SharedScrollBehavior? = null,
     showMorePopup: Boolean = false,
+    visible: Boolean = true,
 ) {
     if (liquidGlassBackdrop == null) return
     val isTabletLiquidGlass = navBarStyle == "rail"
@@ -3448,15 +3450,20 @@ private fun TodayTopBar(
         }
     }
 
+    // 今日页顶栏始终渲染：隐藏时 alpha=0 且不渲染按钮，但仍被测量 ——
+    // 这样 todayScrollBehavior.currentHeightPx 启动即就位，切到今日页时内容顶部偏移不会慢一帧。
     ProgressiveBlurTopBar(
         backdrop = liquidGlassBackdrop,
+        modifier = Modifier.graphicsLayer { alpha = if (visible) 1f else 0f },
     ) {
         CollapsibleTopAppBar(
             title = titleText,
             largeTitle = titleText,
             modifier = Modifier.zIndex(1f),
             scrollBehavior = scrollBehavior,
-            startAction = if (isTabletLiquidGlass) {
+            startAction = if (!visible) {
+                null
+            } else if (isTabletLiquidGlass) {
                 { _, _ ->
                     Text(
                         text = titleText,
@@ -3487,27 +3494,46 @@ private fun TodayTopBar(
                 }
             },
             endAction = { backdropAlpha, shadowAlpha ->
-                if (isTabletLiquidGlass) {
-                    Row(
-                        horizontalArrangement = Arrangement.spacedBy(8.dp),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        AnimatedVisibility(
-                            visible = !isToday,
-                            enter = fadeIn(animationSpec = tween(180)),
-                            exit = fadeOut(animationSpec = tween(120))
+                if (visible) {
+                    if (isTabletLiquidGlass) {
+                        Row(
+                            horizontalArrangement = Arrangement.spacedBy(8.dp),
+                            verticalAlignment = Alignment.CenterVertically
                         ) {
+                            AnimatedVisibility(
+                                visible = !isToday,
+                                enter = fadeIn(animationSpec = tween(180)),
+                                exit = fadeOut(animationSpec = tween(120))
+                            ) {
+                                LiquidTopBarButton(
+                                    onClick = onBackToToday,
+                                    backdrop = liquidGlassBackdrop,
+                                    icon = MiuixIcons.Medium.Reset,
+                                    contentDescription = "返回今天",
+                                    iconSize = 24.dp,
+                                    iconOffset = DpOffset(x = 0.dp, y = (-1).dp),
+                                    backdropAlpha = backdropAlpha,
+                                    shadowAlpha = shadowAlpha,
+                                )
+                            }
                             LiquidTopBarButton(
-                                onClick = onBackToToday,
+                                onClick = onMoreClick,
                                 backdrop = liquidGlassBackdrop,
-                                icon = MiuixIcons.Medium.Reset,
-                                contentDescription = "返回今天",
-                                iconSize = 24.dp,
-                                iconOffset = DpOffset(x = 0.dp, y = (-1).dp),
+                                icon = MiuixIcons.More,
+                                contentDescription = "更多",
+                                iconSize = 23.dp,
                                 backdropAlpha = backdropAlpha,
                                 shadowAlpha = shadowAlpha,
+                                modifier = Modifier.offset {
+                                    val f = buttonFraction.value
+                                    IntOffset(
+                                        x = (-100 * f).dp.roundToPx(),
+                                        y = (45 * f).dp.roundToPx()
+                                    )
+                                }
                             )
                         }
+                    } else {
                         LiquidTopBarButton(
                             onClick = onMoreClick,
                             backdrop = liquidGlassBackdrop,
@@ -3525,23 +3551,6 @@ private fun TodayTopBar(
                             }
                         )
                     }
-                } else {
-                    LiquidTopBarButton(
-                        onClick = onMoreClick,
-                        backdrop = liquidGlassBackdrop,
-                        icon = MiuixIcons.More,
-                        contentDescription = "更多",
-                        iconSize = 23.dp,
-                        backdropAlpha = backdropAlpha,
-                        shadowAlpha = shadowAlpha,
-                        modifier = Modifier.offset {
-                            val f = buttonFraction.value
-                            IntOffset(
-                                x = (-100 * f).dp.roundToPx(),
-                                y = (45 * f).dp.roundToPx()
-                            )
-                        }
-                    )
                 }
             },
         )
