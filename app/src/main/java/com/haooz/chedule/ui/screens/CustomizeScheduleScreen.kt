@@ -66,6 +66,7 @@ import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.PathFillType
 import androidx.compose.ui.graphics.TransformOrigin
 import androidx.compose.ui.graphics.asImageBitmap
+import androidx.compose.ui.graphics.drawscope.translate
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.input.pointer.pointerInput
@@ -135,6 +136,51 @@ import kotlin.math.absoluteValue
 import kotlin.math.roundToInt
 import kotlin.time.Duration.Companion.milliseconds
 import com.kyant.backdrop.backdrops.layerBackdrop as liquidGlassLayerBackdrop
+
+/**
+ * 挖洞遮罩的路径缓存。
+ *
+ * 遮罩 = 整屏矩形 even-odd 挖掉一个 squircle 洞。squircle 由几百段贝塞尔构成，
+ * 原先每帧新建两个 Path 并重新生成整条曲线；而弹窗开合那 400ms 内，洞的
+ * 尺寸与圆角完全不变，只有整体位置在竖直方向平移。
+ *
+ * 这里把洞固定在原点缓存，每帧只做一次 translate —— 形状参数不变时整条路径
+ * 一次都不重建，绘制结果与逐帧重建逐像素一致。
+ *
+ * 外框刻意放大到屏幕的 5 倍：洞被 translate 到任意位置时外框仍完整覆盖可视区。
+ * 超出可视区的部分会被 canvas 裁掉，不增加实际填充像素。
+ */
+private class CutoutPathCache {
+    private val path = Path()
+    private var screenW = -1f
+    private var screenH = -1f
+    private var holeW = -1f
+    private var holeH = -1f
+    private var radius = -1f
+
+    fun obtain(
+        screenW: Float,
+        screenH: Float,
+        holeW: Float,
+        holeH: Float,
+        radius: Float
+    ): Path {
+        if (this.screenW != screenW || this.screenH != screenH ||
+            this.holeW != holeW || this.holeH != holeH || this.radius != radius
+        ) {
+            this.screenW = screenW
+            this.screenH = screenH
+            this.holeW = holeW
+            this.holeH = holeH
+            this.radius = radius
+            path.rewind()
+            path.fillType = PathFillType.EvenOdd
+            path.addRect(Rect(-screenW * 2f, -screenH * 2f, screenW * 3f, screenH * 3f))
+            path.addSquircleRect(width = holeW, height = holeH, cornerRadius = radius)
+        }
+        return path
+    }
+}
 
 @SuppressLint(
     "ConfigurationScreenWidthHeight", "FrequentlyChangingValue",
@@ -398,6 +444,8 @@ fun CustomizeScheduleScreen(
     val sheetOffsetY = sheetOffsetShared
     // 编辑模式进入/退出进度：驱动相邻卡片放大缩小
     val cutoutEnterProgress = remember { Animatable(0f) }
+    // 挖洞遮罩的路径缓存（见下方 CutoutPathCache）：squircle 只在洞的尺寸/圆角变化时重建
+    val cutoutPathCache = remember { CutoutPathCache() }
     // 底部工具栏动画（三个按钮 + 竖杠）：进入时轻微上移 + 淡入 + 模糊 8f→0f；退出反向
     // 初始为进入前状态：透明、下移、模糊8f；进入后淡入上移并去模糊
     // 上移高度：40dp（转 px）
@@ -708,21 +756,24 @@ fun CustomizeScheduleScreen(
                     val left = cardCenterX + ((cardCenterX - animW / 2f) - cardCenterX) * p
                     val top = cardCenterY + ((cardCenterY - animH / 2f) - cardCenterY) * p
 
-                    val path = Path().apply {
-                        addRect(Rect(0f, 0f, size.width, size.height))
-                        if (p > 0f) {
-                            val squirclePath = Path().apply {
-                                addSquircleRect(
-                                    width = animW,
-                                    height = animH,
-                                    cornerRadius = cutoutRadiusPx,
-                                )
-                            }
-                            addPath(squirclePath, Offset(left, top))
+                    if (p <= 0f) {
+                        // 未开洞：整屏纯色，不需要走路径
+                        drawRect(color = Color(0xFF1A1A1A))
+                    } else {
+                        // 洞的形状只由 (animW, animH, 圆角) 决定，与位置无关。
+                        // 弹窗开合的 400ms 内这三个值都不变，只有整体位置在动 —— 走缓存，
+                        // 每帧只做一次 translate，squircle 一次都不重建。
+                        val cached = cutoutPathCache.obtain(
+                            screenW = size.width,
+                            screenH = size.height,
+                            holeW = animW,
+                            holeH = animH,
+                            radius = cutoutRadiusPx
+                        )
+                        translate(left, top) {
+                            drawPath(cached, color = Color(0xFF1A1A1A))
                         }
-                        fillType = PathFillType.EvenOdd
                     }
-                    drawPath(path, color = Color(0xFF1A1A1A))
                 }
         ) {
             // -------- 8.2 尺寸计算 --------

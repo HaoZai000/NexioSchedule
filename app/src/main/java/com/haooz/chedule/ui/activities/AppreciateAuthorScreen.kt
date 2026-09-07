@@ -4,6 +4,7 @@ package com.haooz.chedule.ui.activities
 import android.annotation.SuppressLint
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -26,7 +27,9 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
@@ -42,10 +45,12 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.haooz.chedule.R
+import com.haooz.chedule.data.AppreciationFetcher
 import com.haooz.chedule.ui.basic.SharedScrollBehavior
 import com.haooz.chedule.ui.data.AppreciationItem
-import com.haooz.chedule.ui.data.sampleAppreciations
+import com.haooz.chedule.ui.utils.overScrollVertical
 import com.kyant.capsule.ContinuousRoundedRectangle
+import kotlinx.coroutines.launch
 import top.yukonga.miuix.kmp.basic.Card
 import top.yukonga.miuix.kmp.basic.Icon
 import top.yukonga.miuix.kmp.basic.Scaffold
@@ -53,7 +58,6 @@ import top.yukonga.miuix.kmp.basic.SmallTitle
 import top.yukonga.miuix.kmp.blur.layerBackdrop
 import top.yukonga.miuix.kmp.blur.rememberLayerBackdrop
 import top.yukonga.miuix.kmp.theme.MiuixTheme
-import com.haooz.chedule.ui.utils.overScrollVertical
 import top.yukonga.miuix.kmp.utils.scrollEndHaptic
 
 @SuppressLint("ConfigurationScreenWidthHeight")
@@ -62,6 +66,42 @@ fun AppreciateAuthorScreen(
     scrollBehavior: SharedScrollBehavior? = null,
 ) {
     var listScrollY by remember { mutableIntStateOf(0) }
+
+    // 捐赠明细：云端分页拉取，默认 10 条，滚动到底自动追加下 10 条
+    var donations by remember { mutableStateOf<List<AppreciationItem>>(emptyList()) }
+    var hasMore by remember { mutableStateOf(true) }
+    var loadingMore by remember { mutableStateOf(false) }
+
+    // 首屏加载第一页
+    LaunchedEffect(Unit) {
+        val page = AppreciationFetcher.fetch(offset = 0)
+        donations = page.items
+        hasMore = page.hasMore
+    }
+
+    // 滚动到底时拉取下一页（带防抖，避免并发重复请求）
+    suspend fun loadMore() {
+        if (loadingMore || !hasMore) return
+        loadingMore = true
+        val page = AppreciationFetcher.fetch(offset = donations.size)
+        donations = donations + page.items
+        hasMore = page.hasMore
+        loadingMore = false
+    }
+
+    // 刷新：重新拉取第一页并重置分页状态
+    suspend fun refresh() {
+        if (loadingMore) return
+        loadingMore = true
+        val page = AppreciationFetcher.fetch(offset = 0)
+        donations = page.items
+        hasMore = page.hasMore
+        loadingMore = false
+    }
+
+    val scope = rememberCoroutineScope()
+
+    val donationList = donations
 
     val backdropColor = MiuixTheme.colorScheme.surface
     val backdrop = rememberLayerBackdrop {
@@ -88,6 +128,15 @@ fun AppreciateAuthorScreen(
             }
             if (isTablet) {
                 // 平板：左侧固定图片 + 右侧独立滚动列表
+                val tabletListState = rememberLazyListState()
+                LaunchedEffect(tabletListState) {
+                    // 触发条件：已滚到底(无法继续前滚)或内容不足一屏。含 donations.size 使加载后重新评估，
+                    // 从而能继续加载末尾不足 10 条的剩余分页
+                    snapshotFlow { tabletListState.canScrollForward to donations.size }
+                        .collect { (canScroll, _) ->
+                            if (donations.isNotEmpty() && !canScroll && hasMore) loadMore()
+                        }
+                }
                 Row(
                     modifier = Modifier
                         .fillMaxSize()
@@ -120,8 +169,9 @@ fun AppreciateAuthorScreen(
                         )
                     }
                     // 右侧 - 捐赠明细（独立滚动）
-                    if (sampleAppreciations.isNotEmpty()) {
+                    if (donationList.isNotEmpty()) {
                         LazyColumn(
+                            state = tabletListState,
                             modifier = Modifier
                                 .weight(1f)
                                 .fillMaxHeight()
@@ -139,10 +189,25 @@ fun AppreciateAuthorScreen(
                             verticalArrangement = Arrangement.spacedBy(0.dp)
                         ) {
                             item {
-                                SmallTitle(
-                                    text = "捐赠明细",
-                                    modifier = Modifier.offset(x = (-16).dp)
-                                )
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    SmallTitle(
+                                        text = "捐赠明细",
+                                        modifier = Modifier.offset(x = (-16).dp)
+                                    )
+                                    Text(
+                                        text = "刷新",
+                                        style = MiuixTheme.textStyles.body2,
+                                        color = MiuixTheme.colorScheme.primary,
+                                        modifier = Modifier
+                                            .padding(end = 12.dp)
+                                            .clickable {
+                                                scope.launch { refresh() }
+                                            }
+                                    )
+                                }
                             }
                             item {
                                 Card(
@@ -151,9 +216,9 @@ fun AppreciateAuthorScreen(
                                     insideMargin = PaddingValues(0.dp)
                                 ) {
                                     Column(modifier = Modifier.fillMaxWidth()) {
-                                        sampleAppreciations.forEachIndexed { index, item ->
+                                        donationList.forEachIndexed { index, item ->
                                             AppreciationListItem(item = item)
-                                            if (index < sampleAppreciations.lastIndex) {
+                                            if (index < donationList.lastIndex) {
                                                 Spacer(
                                                     modifier = Modifier
                                                         .fillMaxWidth()
@@ -176,6 +241,13 @@ fun AppreciateAuthorScreen(
                     snapshotFlow { listState.firstVisibleItemScrollOffset }
                         .collect { offset ->
                             listScrollY = offset
+                        }
+                }
+                // 滚动到底自动加载下一页捐赠
+                LaunchedEffect(listState) {
+                    snapshotFlow { listState.canScrollForward to donations.size }
+                        .collect { (canScroll, _) ->
+                            if (donations.isNotEmpty() && !canScroll && hasMore) loadMore()
                         }
                 }
                 LazyColumn(
@@ -217,21 +289,37 @@ fun AppreciateAuthorScreen(
                         }
                     }
 
-                    if (sampleAppreciations.isNotEmpty()) {
+                    if (donationList.isNotEmpty()) {
                         item {
-                            SmallTitle(
-                                text = "捐赠明细",
-                                modifier = Modifier.offset(x = (-16).dp)
-                            )
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                SmallTitle(
+                                        text = "捐赠明细",
+                                        modifier = Modifier.offset(x = (-16).dp)
+                                    )
+                                    Spacer(modifier = Modifier.weight(1f))
+                                    Text(
+                                        text = "刷新",
+                                        style = MiuixTheme.textStyles.body2,
+                                        color = MiuixTheme.colorScheme.primary,
+                                        modifier = Modifier
+                                            .padding(end = 12.dp)
+                                            .clickable {
+                                                scope.launch { refresh() }
+                                            }
+                                    )
+                            }
                             Card(
                                 cornerRadius = 20.dp,
                                 modifier = Modifier.fillMaxWidth(),
                                 insideMargin = PaddingValues(0.dp)
                             ) {
                                 Column(modifier = Modifier.fillMaxWidth()) {
-                                    sampleAppreciations.forEachIndexed { index, item ->
+                                    donationList.forEachIndexed { index, item ->
                                         AppreciationListItem(item = item)
-                                        if (index < sampleAppreciations.lastIndex) {
+                                        if (index < donationList.lastIndex) {
                                             Spacer(
                                                 modifier = Modifier
                                                     .fillMaxWidth()

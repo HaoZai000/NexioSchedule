@@ -34,7 +34,9 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.drawscope.DrawScope
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.nestedscroll.NestedScrollConnection
 import androidx.compose.ui.input.nestedscroll.NestedScrollSource
@@ -61,6 +63,7 @@ import com.haooz.chedule.ui.utils.OverScrollState
 import com.haooz.chedule.ui.utils.rememberAppSettingDark
 import com.kyant.backdrop.Backdrop
 import com.kyant.backdrop.backdrops.layerBackdrop
+import com.kyant.backdrop.backdrops.rememberCanvasBackdrop
 import com.kyant.backdrop.backdrops.rememberLayerBackdrop
 import com.kyant.backdrop.drawBackdrop
 import com.kyant.backdrop.effects.blur
@@ -354,17 +357,49 @@ private fun BlurBottomSheetTabletContent(
                     onSheetContentBackdropCreated?.invoke(sheetContentBackdrop)
                 }
 
+                // 进入动画是否播完。derivedStateOf 只在该布尔翻转一次时重组，不会逐帧重组。
+                val enterDone by remember(animationProgress) {
+                    derivedStateOf { animationProgress.value >= 1f }
+                }
+                // 内容 backdrop 与顶栏渐变模糊都推迟到进入动画结束后再挂载。
+                // 挂载内容 backdrop 的代价是把整棵弹窗内容树再完整录制进一个 GraphicsLayer，
+                // 那正好压在滑入动画的头几帧；顶栏渐变模糊还有 AGSL 着色器的首次编译开销。
+                // 推迟到画面已经静止后再发生，用户感知不到。
+                // 挂载过一次后就常驻，避免退出动画时反复卸载/重挂造成抖动。
+                var sheetBackdropMounted by remember { mutableStateOf(skipEnterAnimation) }
+                LaunchedEffect(enterDone) { if (enterDone) sheetBackdropMounted = true }
+
+                // 未挂载期间的占位 backdrop：静态纯色，零录制成本。
+                // 弹窗背景本身不透明，顶栏与空白区下方本来就是纯 sheetBgColor，
+                // 采样结果与真实内容 backdrop 一致，玻璃材质看不出切换。
+                // 绘制范围刻意放大到自身三倍：模糊会向外扩散采样，只画满自身尺寸会让边缘采到空白。
+                val placeholderOnDraw: DrawScope.() -> Unit = remember(sheetBgColor) {
+                    {
+                        drawRect(
+                            color = sheetBgColor,
+                            topLeft = Offset(-size.width, -size.height),
+                            size = Size(size.width * 3f, size.height * 3f)
+                        )
+                    }
+                }
+                val placeholderBackdrop = rememberCanvasBackdrop(placeholderOnDraw)
+
                 CompositionLocalProvider(
                     LocalOverScrollState provides overScrollState,
                     LocalSheetTopBarMaterial provides topBarMaterial,
-                    LocalSheetContentBackdrop provides sheetContentBackdrop,
+                    LocalSheetContentBackdrop provides
+                            if (sheetBackdropMounted) sheetContentBackdrop else placeholderBackdrop,
                 ) {
                     // 内容区域（nestedScroll 接入顶栏滚动行为）
                     Box(
                         modifier = Modifier
                             .nestedScroll(proxyConnection)
                             .wrapContentHeight()
-                            .layerBackdrop(sheetContentBackdrop)
+                            .then(
+                                if (sheetBackdropMounted) {
+                                    Modifier.layerBackdrop(sheetContentBackdrop)
+                                } else Modifier
+                            )
                     ) {
                         content()
                     }
@@ -372,14 +407,7 @@ private fun BlurBottomSheetTabletContent(
                     // 渐变模糊遮罩：进入动画期间完全不挂载。
                     // runtimeShaderEffect 的 AGSL 着色器在首次绘制时编译（十几到几十毫秒），
                     // 落在滑入动画头几帧就是肉眼可见的掉帧；推迟到动画结束后挂载即可避开。
-                    // derivedStateOf 只在该布尔翻转一次时重组，不会逐帧重组。
-                    val enterDone by remember(animationProgress) {
-                        derivedStateOf { animationProgress.value >= 1f }
-                    }
-                    // 挂载过一次后就常驻，避免滚动结束 alpha 归零后反复卸载/重挂造成抖动
-                    var blurMounted by remember { mutableStateOf(false) }
-                    LaunchedEffect(enterDone) { if (enterDone) blurMounted = true }
-                    if (blurMounted) {
+                    if (sheetBackdropMounted) {
                         ProgressiveBlurTopBar(
                             backdrop = sheetContentBackdrop,
                             height = 82.dp,
