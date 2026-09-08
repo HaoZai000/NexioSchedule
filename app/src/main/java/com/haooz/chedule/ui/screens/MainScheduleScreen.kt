@@ -1073,8 +1073,12 @@ fun MainScheduleScreen(
                 selectedCourses.ifEmpty { listOfNotNull(selectedCourse) }
                     .sortedWith(
                         compareByDescending<Course> { it.isActiveInWeek(viewingWeek) }
-                            .thenByDescending { it.endWeek }
-                            .thenByDescending { it.startWeek }
+                            .thenBy {
+                                val distance = if (it.isActiveInWeek(viewingWeek)) 0
+                                else if (viewingWeek < it.startWeek) it.startWeek - viewingWeek
+                                else viewingWeek - it.endWeek
+                                distance
+                            }
                     )
                 }
             // 进入动画：逐卡 reveal。所有卡始终参与布局（占位），仅通过 graphicsLayer 做透明/位移/缩放，

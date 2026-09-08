@@ -103,7 +103,6 @@ import com.haooz.chedule.ui.basic.ShortcutMenuItem
 import com.haooz.chedule.ui.basic.rememberSharedScrollBehavior
 import com.haooz.chedule.ui.components.CourseCard
 import com.haooz.chedule.ui.components.LiquidAddButton
-import com.haooz.chedule.ui.components.LongPressCustomizeButton
 import com.haooz.chedule.ui.components.ScheduleBottomBar
 import com.haooz.chedule.ui.components.ScheduleTopBar
 import com.haooz.chedule.ui.components.ShareImportDialog
@@ -895,10 +894,6 @@ fun CourseScheduleApp() {
     var showDeleteConfirmDialog by remember { mutableStateOf(false) }
     var deleteConfirmCourse by remember { mutableStateOf<Course?>(null) }
 
-    // 长按空白区域"自定义课表"按钮状态
-    var showLongPressButton by remember { mutableStateOf(false) }
-    var showLongPressOverlay by remember { mutableStateOf(false) }
-
     // 自定义课表页面状态
     var showCustomizePage by remember { mutableStateOf(false) }
     var customizeSnapshot by remember { mutableStateOf<android.graphics.Bitmap?>(null) }
@@ -1148,16 +1143,6 @@ fun CourseScheduleApp() {
                 1f,
                 tween(400, easing = CubicBezierEasing(0.3f, 0.72f, 0.2f, 1.0f))
             )
-        }
-    }
-    LaunchedEffect(showLongPressButton) {
-        // 显隐由 LongPressCustomizeButton 内部驱动动画，这里只同步 visible 状态
-        showLongPressOverlay = showLongPressButton
-    }
-    // 切换页面时关闭长按按钮
-    LaunchedEffect(selectedTab) {
-        if (showLongPressButton) {
-            showLongPressButton = false
         }
     }
     var mainContentSnapshot by remember { mutableStateOf<android.graphics.Bitmap?>(null) }
@@ -1888,15 +1873,7 @@ fun CourseScheduleApp() {
                         modifier = Modifier
                             .fillMaxSize()
                             .padding(start = railPaddingStart)
-                            // 该 backdrop 仅被长按后弹出的「自定义课表」按钮消费，平时无人读取。
-                            // 常驻挂载会每帧把整棵内容树额外录制一遍（并与其内部 backdrop 录制嵌套放大），
-                            // 改为只在长按时挂载，且同一帧内先于按钮绘制完成录制。
-                            .then(
-                                if (showLongPressButton || showLongPressOverlay) Modifier.layerBackdrop(
-                                    backdrop
-                                ) else Modifier
-                            )
-                    ) {
+                        ) {
                         Box(
                             modifier = Modifier
                                 .fillMaxSize()
@@ -1984,12 +1961,6 @@ fun CourseScheduleApp() {
                                                 )
                                             },
                                             onPopupStateChange = { showCourseDetailPopup = it },
-                                            onEmptyLongPress = {
-                                                hapticFeedback.performHapticFeedback(
-                                                    HapticFeedbackType.LongPress
-                                                )
-                                                showLongPressButton = true
-                                            },
                                             onCourseLongPress = { course, left, top, width, height, backdrop, currentWeek ->
                                                 hapticFeedback.performHapticFeedback(
                                                     HapticFeedbackType.LongPress
@@ -2227,22 +2198,6 @@ fun CourseScheduleApp() {
                             }
                         }
                     }
-                    // 长按空白区域后显示的"自定义课表"按钮
-                    LongPressCustomizeButton(
-                        visible = showLongPressOverlay,
-                        backdrop = backdrop,
-                        isDark = effectiveIsDark,
-                        onClick = {
-                            showLongPressButton = false
-                            coroutineScope.launch {
-                                delay(120.milliseconds)
-                                showLongPressOverlay = false
-                                enterCustomizePage()
-                            }
-                        },
-                        onDismiss = { showLongPressButton = false }
-                    )
-
                     // 分享导入确认弹窗（必须在 Scaffold 内部）
                     ShareImportDialog(
                         activity = activity,

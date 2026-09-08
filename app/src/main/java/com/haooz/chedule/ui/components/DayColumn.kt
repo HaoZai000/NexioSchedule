@@ -235,10 +235,6 @@ fun DayColumn(
                                     onPendingChange(dayOfWeek, section)
                                 }
                             },
-                            onLongPress = {
-                                hapticFeedback.performHapticFeedback(HapticFeedbackType.LongPress)
-                                onEmptyLongPress()
-                            }
                         )
                     }
             )
