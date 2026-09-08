@@ -66,10 +66,12 @@ internal fun UpdateDialog(liquidGlassBackdrop: com.kyant.backdrop.Backdrop? = nu
         val lastCheckDate = updatePrefs.getString("last_check_date", "") ?: ""
 
         if (lastCheckDate != today) {
-            val downloadSource = updatePrefs.getString("download_source", "gitee") ?: "gitee"
+            val updateChannel = updatePrefs.getString("update_channel", "stable") ?: "stable"
+            val downloadSource = if (updateChannel == "beta") "gitee" else
+                (updatePrefs.getString("download_source", "gitee") ?: "gitee")
             val (hasUpdate, release) = withContext(Dispatchers.IO) {
                 try {
-                    UpdateChecker.checkForUpdate(context, downloadSource)
+                    UpdateChecker.checkForUpdate(context, downloadSource, updateChannel)
                 } catch (e: Exception) {
                     Log.e("UpdateDialog", "检查更新失败", e)
                     Pair(false, null)
@@ -102,8 +104,8 @@ internal fun UpdateDialog(liquidGlassBackdrop: com.kyant.backdrop.Backdrop? = nu
         val currentVersion = try {
             context.packageManager.getPackageInfo(context.packageName, 0).versionName ?: ""
         } catch (_: Exception) { "" }
-        val localVersion = currentVersion.removePrefix("v").substringBefore("-")
-        val remoteVersion = tag.removePrefix("v").substringBefore("-")
+        val localVersion = currentVersion.removePrefix("v")
+        val remoteVersion = tag.removePrefix("v")
 
         val actuallyHasUpdate = hasUpdate && tag.isNotBlank() && UpdateChecker.isNewerVersion(remoteVersion, localVersion)
         if (hasUpdate && !actuallyHasUpdate) {

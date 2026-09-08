@@ -84,8 +84,20 @@ private data class GiteeRelease(
 )
 
 private fun isNewerVersion(remote: String, local: String): Boolean {
-    val remoteParts = remote.split(".").mapNotNull { it.toIntOrNull() }
-    val localParts = local.split(".").mapNotNull { it.toIntOrNull() }
+    fun parseSegments(v: String): List<Int> {
+        return v.split(".").flatMap { part ->
+            val betaIdx = part.indexOf("beta")
+            if (betaIdx >= 0) {
+                val num = part.substring(0, betaIdx).toIntOrNull() ?: 0
+                val betaNum = part.substring(betaIdx + 4).toIntOrNull() ?: 0
+                listOf(num, betaNum)
+            } else {
+                listOf(part.toIntOrNull() ?: 0)
+            }
+        }
+    }
+    val remoteParts = parseSegments(remote)
+    val localParts = parseSegments(local)
     val maxSize = maxOf(remoteParts.size, localParts.size)
     for (i in 0 until maxSize) {
         val r = remoteParts.getOrElse(i) { 0 }
@@ -98,7 +110,8 @@ private fun isNewerVersion(remote: String, local: String): Boolean {
 
 private fun checkForUpdate(
     context: Context,
-    source: String = "gitee"
+    source: String = "gitee",
+    channel: String = "stable"
 ): Pair<Boolean, GiteeRelease?> {
     return try {
         val client = okhttp3.OkHttpClient.Builder()
@@ -107,11 +120,11 @@ private fun checkForUpdate(
             .build()
 
         val baseUrl = if (source == "github") {
-            "https://api.github.com/repos/HaoZai000/NexioSchedule/releases/latest"
+            "https://api.github.com/repos/HaoZai000/NexioSchedule/releases"
         } else {
-            "https://gitee.com/api/v5/repos/com_haooz_account/hyper_schedule/releases/latest"
+            "https://gitee.com/api/v5/repos/com_haooz_account/hyper_schedule/releases"
         }
-        val url = "$baseUrl?t=${System.currentTimeMillis()}"
+        val url = "$baseUrl?page=1&per_page=10&direction=desc&t=${System.currentTimeMillis()}"
         val request = okhttp3.Request.Builder().url(url).apply {
             if (source == "github") {
                 header("Accept", "application/vnd.github.v3+json")
@@ -126,7 +139,26 @@ private fun checkForUpdate(
 
         val responseBody = response.body?.string() ?: return Pair(false, null)
         android.util.Log.d("UpdateCheck", "响应长度: ${responseBody.length}")
-        val json = com.google.gson.JsonParser.parseString(responseBody).asJsonObject
+
+        val arr = com.google.gson.JsonParser.parseString(responseBody).asJsonArray
+        var best: com.google.gson.JsonObject? = null
+        var bestVer = ""
+        for (i in 0 until arr.size()) {
+            val release = arr[i].asJsonObject
+            if (channel == "stable") {
+                val isPre = release.get("prerelease")?.asBoolean ?: false
+                if (isPre) continue
+            }
+            val tag = release.get("tag_name")?.asString ?: continue
+            val ver = tag.removePrefix("v")
+            if (best == null || isNewerVersion(ver, bestVer)) {
+                best = release
+                bestVer = ver
+            }
+        }
+        val json = best
+        if (json == null) return Pair(false, null)
+
         val tagName = json.get("tag_name")?.asString ?: ""
         val name = json.get("name")?.asString ?: ""
         val body = json.get("body")?.asString ?: ""
@@ -152,8 +184,8 @@ private fun checkForUpdate(
             ""
         }
 
-        val tagVersion = tagName.removePrefix("v").substringBefore("-")
-        val appVersion = currentVersion.removePrefix("v").substringBefore("-")
+        val tagVersion = tagName.removePrefix("v")
+        val appVersion = currentVersion.removePrefix("v")
         val hasUpdate = isNewerVersion(tagVersion, appVersion)
         Pair(hasUpdate, GiteeRelease(tagName, name, body, htmlUrl, apkUrl, createdAt))
     } catch (e: Exception) {
@@ -181,11 +213,17 @@ fun UpdateSettingsScreen(
 
     var autoCheckUpdate by remember { mutableStateOf(prefs.getBoolean("auto_check_update", true)) }
     var updateReminder by remember { mutableStateOf(prefs.getBoolean("update_reminder", true)) }
+    var updateChannel by remember {
+        mutableStateOf(
+            prefs.getString("update_channel", "stable") ?: "stable"
+        )
+    }
     var downloadSource by remember {
         mutableStateOf(
             prefs.getString("download_source", "gitee") ?: "gitee"
         )
     }
+    val effectiveDownloadSource = if (updateChannel == "beta") "gitee" else downloadSource
 
     val currentVersion = remember {
         try {
@@ -232,7 +270,7 @@ fun UpdateSettingsScreen(
             if (lastCheckDate != today) {
                 isChecking = true
                 val (update, release) = withContext(Dispatchers.IO) {
-                    checkForUpdate(context, downloadSource)
+                    checkForUpdate(context, effectiveDownloadSource, updateChannel)
                 }
                 hasUpdate = update
                 latestRelease = release
@@ -252,6 +290,22 @@ fun UpdateSettingsScreen(
                     }
                 }
             }
+        }
+    }
+
+    // 切换更新通道时清除缓存，下次自动检查重新拉取
+    LaunchedEffect(updateChannel) {
+        hasUpdate = false
+        latestRelease = null
+        prefs.edit {
+            remove("has_update")
+            remove("latest_url")
+            remove("latest_apk_url")
+            remove("latest_tag")
+            remove("latest_name")
+            remove("latest_body")
+            remove("latest_date")
+            remove("last_check_date")
         }
     }
 
@@ -385,7 +439,7 @@ fun UpdateSettingsScreen(
                                         isChecking = true
                                         coroutineScope.launch {
                                             val (update, release) = withContext(Dispatchers.IO) {
-                                                checkForUpdate(context, downloadSource)
+                                                checkForUpdate(context, effectiveDownloadSource, updateChannel)
                                             }
                                             hasUpdate = update
                                             latestRelease = release
@@ -457,11 +511,39 @@ fun UpdateSettingsScreen(
                         insideMargin = PaddingValues(0.dp)
                     ) {
                         Column(modifier = Modifier.fillMaxWidth()) {
+                            val channelEntry = DropdownEntry(
+                                items = listOf(
+                                    DropdownItem(
+                                        text = "稳定版",
+                                        selected = updateChannel == "stable",
+                                        onClick = {
+                                            updateChannel = "stable"
+                                            prefs.edit { putString("update_channel", "stable") }
+                                        }
+                                    ),
+                                    DropdownItem(
+                                        text = "Beta",
+                                        selected = updateChannel == "beta",
+                                        onClick = {
+                                            updateChannel = "beta"
+                                            prefs.edit { putString("update_channel", "beta") }
+                                        }
+                                    ),
+                                )
+                            )
+                            OverlayDropdownMenu(
+                                title = "更新通道",
+                                summary = "Beta 版仅在 Gitee 发布",
+                                entry = channelEntry,
+                                collapseOnSelection = true,
+                                liquidGlassBackdrop = liquidGlassBackdrop,
+                                dropdownColors = liquidGlassDropdownColors,
+                            )
                             val downloadSourceEntry = DropdownEntry(
                                 items = listOf(
                                     DropdownItem(
                                         text = "Gitee",
-                                        selected = downloadSource == "gitee",
+                                        selected = effectiveDownloadSource == "gitee",
                                         onClick = {
                                             downloadSource = "gitee"
                                             prefs.edit { putString("download_source", "gitee") }
@@ -469,7 +551,7 @@ fun UpdateSettingsScreen(
                                     ),
                                     DropdownItem(
                                         text = "GitHub",
-                                        selected = downloadSource == "github",
+                                        selected = effectiveDownloadSource == "github",
                                         onClick = {
                                             downloadSource = "github"
                                             prefs.edit { putString("download_source", "github") }
@@ -479,8 +561,9 @@ fun UpdateSettingsScreen(
                             )
                             OverlayDropdownMenu(
                                 title = "下载源",
-                                summary = "选择应用更新的下载仓库",
+                                summary = if (updateChannel == "beta") "Beta 通道已锁定 Gitee" else "选择应用更新的下载仓库",
                                 entry = downloadSourceEntry,
+                                enabled = updateChannel != "beta",
                                 collapseOnSelection = true,
                                 liquidGlassBackdrop = liquidGlassBackdrop,
                                 dropdownColors = liquidGlassDropdownColors,

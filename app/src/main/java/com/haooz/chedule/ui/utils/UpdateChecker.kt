@@ -24,9 +24,10 @@ internal object UpdateChecker {
     /**
      * 检查是否有新版本。需在 IO 线程调用。
      * @param source 下载源，"gitee" 或 "github"
+     * @param channel 更新通道，"stable" 或 "beta"；beta 通道取最新 prerelease
      * @return Pair(hasUpdate, release)，检查失败时返回 Pair(false, null)
      */
-    fun checkForUpdate(context: Context, source: String = "gitee"): Pair<Boolean, GiteeRelease?> {
+    fun checkForUpdate(context: Context, source: String = "gitee", channel: String = "stable"): Pair<Boolean, GiteeRelease?> {
         return try {
             val client = okhttp3.OkHttpClient.Builder()
                 .connectTimeout(10, java.util.concurrent.TimeUnit.SECONDS)
@@ -34,11 +35,11 @@ internal object UpdateChecker {
                 .build()
 
             val baseUrl = if (source == "github") {
-                "https://api.github.com/repos/HaoZai000/NexioSchedule/releases/latest"
+                "https://api.github.com/repos/HaoZai000/NexioSchedule/releases"
             } else {
-                "https://gitee.com/api/v5/repos/com_haooz_account/hyper_schedule/releases/latest"
+                "https://gitee.com/api/v5/repos/com_haooz_account/hyper_schedule/releases"
             }
-            val url = "$baseUrl?t=${System.currentTimeMillis()}"
+            val url = "$baseUrl?page=1&per_page=10&direction=desc&t=${System.currentTimeMillis()}"
             val request = okhttp3.Request.Builder().url(url).apply {
                 if (source == "github") {
                     header("Accept", "application/vnd.github.v3+json")
@@ -52,7 +53,24 @@ internal object UpdateChecker {
             }
 
             val responseBody = response.body?.string() ?: return Pair(false, null)
-            val json = com.google.gson.JsonParser.parseString(responseBody).asJsonObject
+            val arr = com.google.gson.JsonParser.parseString(responseBody).asJsonArray
+            var best: com.google.gson.JsonObject? = null
+            var bestVer = ""
+            for (i in 0 until arr.size()) {
+                val release = arr[i].asJsonObject
+                if (channel == "stable") {
+                    val isPre = release.get("prerelease")?.asBoolean ?: false
+                    if (isPre) continue
+                }
+                val tag = release.get("tag_name")?.asString ?: continue
+                val ver = tag.removePrefix("v")
+                if (best == null || isNewerVersion(ver, bestVer)) {
+                    best = release
+                    bestVer = ver
+                }
+            }
+            val json = best
+            if (json == null) return Pair(false, null)
             val tagName = json.get("tag_name")?.asString ?: ""
             val name = json.get("name")?.asString ?: ""
             val body = json.get("body")?.asString ?: ""
@@ -76,8 +94,8 @@ internal object UpdateChecker {
                 context.packageManager.getPackageInfo(context.packageName, 0).versionName ?: ""
             } catch (_: Exception) { "" }
 
-            val tagVersion = tagName.removePrefix("v").substringBefore("-")
-            val appVersion = currentVersion.removePrefix("v").substringBefore("-")
+            val tagVersion = tagName.removePrefix("v")
+            val appVersion = currentVersion.removePrefix("v")
             val hasUpdate = isNewerVersion(tagVersion, appVersion)
 
             Log.d(TAG, "检查完成: hasUpdate=$hasUpdate, remote=$tagVersion, local=$appVersion")
@@ -113,18 +131,31 @@ internal object UpdateChecker {
     }
 
     /**
-     * 比较版本号字符串，返回 [remote] 是否比 [local] 更新。
-     */
-    fun isNewerVersion(remote: String, local: String): Boolean {
-        val remoteParts = remote.split(".").mapNotNull { it.toIntOrNull() }
-        val localParts = local.split(".").mapNotNull { it.toIntOrNull() }
-        val maxSize = maxOf(remoteParts.size, localParts.size)
-        for (i in 0 until maxSize) {
-            val r = remoteParts.getOrElse(i) { 0 }
-            val l = localParts.getOrElse(i) { 0 }
-            if (r > l) return true
-            if (r < l) return false
+         * 比较版本号字符串，返回 [remote] 是否比 [local] 更新。
+         * 支持 "betaX" 后缀，如 "1.4.8beta1" < "1.4.8beta2" < "1.4.9"。
+         */
+        fun isNewerVersion(remote: String, local: String): Boolean {
+            fun parseSegments(v: String): List<Int> {
+                return v.split(".").flatMap { part ->
+                    val betaIdx = part.indexOf("beta")
+                    if (betaIdx >= 0) {
+                        val num = part.substring(0, betaIdx).toIntOrNull() ?: 0
+                        val betaNum = part.substring(betaIdx + 4).toIntOrNull() ?: 0
+                        listOf(num, betaNum)
+                    } else {
+                        listOf(part.toIntOrNull() ?: 0)
+                    }
+                }
+            }
+            val remoteParts = parseSegments(remote)
+            val localParts = parseSegments(local)
+            val maxSize = maxOf(remoteParts.size, localParts.size)
+            for (i in 0 until maxSize) {
+                val r = remoteParts.getOrElse(i) { 0 }
+                val l = localParts.getOrElse(i) { 0 }
+                if (r > l) return true
+                if (r < l) return false
+            }
+            return false
         }
-        return false
-    }
 }
