@@ -215,7 +215,8 @@ private data class WeatherData(
     val sunrise: String = "",
     val notice: String = "",
     val loaded: Boolean = false,
-    val needsLocation: Boolean = false
+    val needsLocation: Boolean = false,
+    val apiError: Boolean = false
 ) {
     fun isNight(): Boolean {
         if (sunset.isBlank() || sunrise.isBlank()) return false
@@ -333,7 +334,7 @@ private fun resolveCoordinates(context: Context, useLocation: Boolean): Pair<Dou
 }
 
 @Composable
-private fun rememberWeather(): Pair<WeatherData, () -> Unit> {
+private fun rememberWeather(): Triple<WeatherData, Boolean, () -> Unit> {
     val context = LocalContext.current
     val weatherPrefs = remember { context.getSharedPreferences("weather_prefs", Context.MODE_PRIVATE) }
     val weatherSource = weatherPrefs.getString("weather_source", "caiyun") ?: "caiyun"
@@ -356,7 +357,9 @@ private fun rememberWeather(): Pair<WeatherData, () -> Unit> {
         if (hasLocationPermission) lastWeatherFetchTime = 0L // 授权后强制刷新一次
     }
 
-    LaunchedEffect(hasLocationPermission, weatherSource) {
+    var refreshTrigger by remember { mutableStateOf(0) }
+
+    LaunchedEffect(hasLocationPermission, weatherSource, refreshTrigger) {
         val now = System.currentTimeMillis()
         if (now - lastWeatherFetchTime < WEATHER_REFRESH_INTERVAL && cachedWeather != null) {
             weather = cachedWeather!!
@@ -382,7 +385,7 @@ private fun rememberWeather(): Pair<WeatherData, () -> Unit> {
                             val json = Gson().fromJson(body, Map::class.java) as? Map<String, Any> ?: return@use
                             val code = (json["code"] as? Number)?.toInt() ?: -1
                             if (code != 0) {
-                                val errorData = WeatherData(loaded = true)
+                                val errorData = WeatherData(loaded = true, apiError = true)
                                 cachedWeather = errorData
                                 weather = errorData
                                 return@use
@@ -410,7 +413,7 @@ private fun rememberWeather(): Pair<WeatherData, () -> Unit> {
                             weather = newData
                         }
                     } catch (_: Exception) {
-                        val errorData = WeatherData(loaded = true)
+                        val errorData = WeatherData(loaded = true, apiError = true)
                         cachedWeather = errorData
                         weather = errorData
                     }
@@ -445,7 +448,7 @@ private fun rememberWeather(): Pair<WeatherData, () -> Unit> {
                             weather = newData
                         }
                     } catch (_: Exception) {
-                        val errorData = WeatherData(loaded = true)
+                        val errorData = WeatherData(loaded = true, apiError = true)
                         cachedWeather = errorData
                         weather = errorData
                     }
@@ -453,9 +456,13 @@ private fun rememberWeather(): Pair<WeatherData, () -> Unit> {
             }
         }
     }
-    return weather to {
+    return Triple(weather, hasLocationPermission) {
         if (!hasLocationPermission) {
             permissionLauncher.launch(arrayOf(Manifest.permission.ACCESS_FINE_LOCATION, Manifest.permission.ACCESS_COARSE_LOCATION))
+        } else {
+            lastWeatherFetchTime = 0L
+            weather = WeatherData(loaded = false)
+            refreshTrigger++
         }
     }
 }
@@ -721,7 +728,7 @@ fun TodayAssistantCard(
     blurRadius: Float = 0f,
     surfaceOpacity: Float
 ) {
-    val (weather, requestLocation) = rememberWeather()
+    val (weather, hasLocationPermission, requestLocation) = rememberWeather()
     val courseStatus = rememberCourseStatus(courses, sectionTimes)
     var tick by remember { mutableLongStateOf(System.currentTimeMillis()) }
     LaunchedEffect(Unit) {
@@ -833,13 +840,7 @@ fun TodayAssistantCard(
             Spacer(modifier = Modifier.height(2.dp))
             // 智能提示 + 天气
             Column(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .then(
-                        if (wallpaperBackdrop == null || blurRadius <= 0f) {
-                            Modifier.background(MiuixTheme.colorScheme.surfaceVariant.copy(alpha = 0.35f))
-                        } else Modifier
-                    ),
+                modifier = Modifier.fillMaxWidth(),
                 verticalArrangement = Arrangement.spacedBy(4.dp)
             ) {
                 if (smartTip.isNotBlank()) {
@@ -864,20 +865,43 @@ fun TodayAssistantCard(
                             color = MiuixTheme.colorScheme.onSurfaceVariantActions
                         )
                     } else if (weather.needsLocation) {
-                        androidx.compose.foundation.Image(
-                            painter = androidx.compose.ui.res.painterResource(
-                                id = R.drawable.ic_widget_location
-                            ),
-                            contentDescription = null,
-                            modifier = Modifier.size(18.dp)
-                        )
-                        Spacer(modifier = Modifier.width(6.dp))
-                        Text(
-                            text = "需要定位权限·点击授权",
-                            style = MiuixTheme.textStyles.body2,
-                            color = MiuixTheme.colorScheme.onSurfaceVariantActions,
-                            modifier = Modifier.clickable { requestLocation() }
-                        )
+                        androidx.compose.foundation.layout.Box(modifier = Modifier.padding(vertical = 4.dp)) {
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                androidx.compose.foundation.Image(
+                                    painter = androidx.compose.ui.res.painterResource(
+                                        id = R.drawable.ic_widget_location
+                                    ),
+                                    contentDescription = null,
+                                    modifier = Modifier.size(18.dp)
+                                )
+                                Spacer(modifier = Modifier.width(6.dp))
+                                Text(
+                                    text = if (hasLocationPermission) "无法获取位置信息·点击重试" else "需要定位权限·点击授权",
+                                    style = MiuixTheme.textStyles.body2,
+                                    color = MiuixTheme.colorScheme.onSurfaceVariantActions,
+                                    modifier = Modifier.clickable { requestLocation() }
+                                )
+                            }
+                        }
+                    } else if (weather.apiError) {
+                        androidx.compose.foundation.layout.Box(modifier = Modifier.padding(vertical = 4.dp)) {
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                androidx.compose.foundation.Image(
+                                    painter = androidx.compose.ui.res.painterResource(
+                                        id = R.drawable.ic_widget_location
+                                    ),
+                                    contentDescription = null,
+                                    modifier = Modifier.size(18.dp)
+                                )
+                                Spacer(modifier = Modifier.width(6.dp))
+                                Text(
+                                    text = "天气服务异常·点击重试",
+                                    style = MiuixTheme.textStyles.body2,
+                                    color = MiuixTheme.colorScheme.onSurfaceVariantActions,
+                                    modifier = Modifier.clickable { requestLocation() }
+                                )
+                            }
+                        }
                     } else {
                         WeatherIcon(
                             resourceId = R.drawable.icon_overcast,

@@ -43,9 +43,9 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.core.content.FileProvider
 import androidx.core.content.edit
+import com.haooz.chedule.shizuku.ShizukuManager
 import com.haooz.chedule.ui.basic.OverlayDropdownMenu
 import com.haooz.chedule.ui.basic.SharedScrollBehavior
-import com.haooz.chedule.shizuku.ShizukuManager
 import com.haooz.chedule.ui.utils.isAppDarkTheme
 import com.haooz.chedule.ui.utils.overScrollVertical
 import kotlinx.coroutines.Dispatchers
@@ -533,7 +533,6 @@ fun UpdateSettingsScreen(
                             )
                             OverlayDropdownMenu(
                                 title = "更新通道",
-                                summary = "Beta 版仅在 Gitee 发布",
                                 entry = channelEntry,
                                 collapseOnSelection = true,
                                 liquidGlassBackdrop = liquidGlassBackdrop,
