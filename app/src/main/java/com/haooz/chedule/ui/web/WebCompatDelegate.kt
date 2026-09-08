@@ -129,10 +129,13 @@ class WebCompatDelegate(private val webView: WebView) {
      */
     fun wrapWebViewClient(original: WebViewClient, isDesktopMode: Boolean): WebViewClient {
         val interceptor = WebViewRequestInterceptor()
+        // 在 UI 线程读取当前用户代理并缓存：shouldInterceptRequest 在后台线程执行，
+        // 后台线程访问 WebView settings 会抛异常，故不能在那里获取 UA
+        val currentUserAgent = webView.settings.userAgentString
         return object : WebViewClient() {
             override fun shouldInterceptRequest(view: WebView?, request: WebResourceRequest?): WebResourceResponse? {
                 if (request != null) {
-                    val interceptedResponse = interceptor.intercept(request, isDesktopMode)
+                    val interceptedResponse = interceptor.intercept(request, isDesktopMode, currentUserAgent)
                     if (interceptedResponse != null) {
                         return interceptedResponse
                     }

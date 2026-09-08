@@ -52,6 +52,7 @@ class CourseRepository private constructor(context: Context) {
 
     init {
         migrateToTimeConfigsIfNeeded()
+        migrateScheduleTimeConfigBindingsIfNeeded()
     }
 
     // 变更回调
@@ -1369,6 +1370,10 @@ class CourseRepository private constructor(context: Context) {
         if (name !in names) {
             names.add(name)
             saveScheduleNames(names)
+            // 新课表必须绑定独立时间配置，否则 [getScheduleTimeConfigId] 会回退到第一个配置，
+            // 导致多课表共享同一份时间 —— 改一个课表的时间会"偷偷"波及到其他课表。
+            // createDefaultTimeConfigForSchedule 内部对已绑定的情况做了 no-op 保护。
+            createDefaultTimeConfigForSchedule(name)
         }
         notifyCourseChanged("settings")
         return names
@@ -2312,6 +2317,26 @@ class CourseRepository private constructor(context: Context) {
             putLong(KEY_CURRENT_TIME_CONFIG_ID, 0L)
         }
         saveTimeConfig(currentConfig)
+    }
+
+    /**
+     * 一次性迁移：为未绑定时间配置的课表各创建一份独立的 TimeConfig 并绑定，
+     * 解决"多课表共享同一份时间配置"导致的"在 A 改时间，B 也被改"问题。
+     *
+     * 之前 [getScheduleTimeConfigId] 对未绑定课表会回退返回第一个配置 id（共享），
+     * 用户在任一共享课表里改上课时间都会改到那份共享配置，从而"偷偷"波及其他课表。
+     * 这里对老用户做一次修复：内容直接 copy 回退目标（用户已看到的时间不变），
+     * 之后每课表独立、互不影响。
+     */
+    private fun migrateScheduleTimeConfigBindingsIfNeeded() {
+        for (name in getScheduleNames()) {
+            val boundKey = "$SCHEDULE_TIME_CONFIG_PREFIX$name"
+            if (prefs.contains(boundKey)) continue
+            val fallbackId = getTimeConfigIds().firstOrNull() ?: continue
+            val fallback = getTimeConfig(fallbackId)
+            val newId = addTimeConfig(fallback.copy(id = 0L, name = name))
+            setScheduleTimeConfigId(name, newId)
+        }
     }
 
     /**

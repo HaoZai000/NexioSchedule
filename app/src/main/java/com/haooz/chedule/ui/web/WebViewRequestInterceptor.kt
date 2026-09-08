@@ -48,8 +48,9 @@ class WebViewRequestInterceptor {
     /**
      * 拦截 WebView 请求
      * @param isDesktopMode 仅在电脑模式开启时执行拦截
+     * @param userAgent WebView 当前用户代理，转发时原样带上，避免目标站 WAF 把 okhttp 默认 UA 判为自动化而拦截
      */
-    fun intercept(request: WebResourceRequest, isDesktopMode: Boolean): WebResourceResponse? {
+    fun intercept(request: WebResourceRequest, isDesktopMode: Boolean, userAgent: String? = null): WebResourceResponse? {
         val rawUrl = request.url.toString()
 
         if (!rawUrl.startsWith("http")) return null
@@ -77,7 +78,10 @@ class WebViewRequestInterceptor {
 
         val registeredData = requestId?.let { postBodyRegistry.remove(it) }
 
-        if (request.method.uppercase() != "GET" && registeredData == null) {
+        // 仅在确实捕获到 POST 请求体时才用 OkHttp 转发。
+        // 普通 GET 页面加载/跳转直接交回 WebView 原生处理：原生请求带浏览器 UA、Referer、Origin
+        // 等完整属性，若也用 OkHttp 重发，会因缺这些属性被目标站点 WAF 判定为“非法参数”而拦截。
+        if (registeredData == null) {
             return null
         }
 
@@ -103,6 +107,11 @@ class WebViewRequestInterceptor {
                 ) {
                     builder.addHeader(key, value)
                 }
+            }
+
+            // 带上浏览器用户代理，避免 OkHttp 默认的 okhttp/<版本> 被目标站点 WAF 判定为自动化请求而拦截
+            if (!userAgent.isNullOrBlank()) {
+                builder.header("User-Agent", userAgent)
             }
 
             // 同步 Cookie
