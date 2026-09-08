@@ -69,6 +69,12 @@ class ScheduleViewModel(application: Application) : AndroidViewModel(application
     fun switchToSchedule(scheduleId: String) {
         repository.switchToSchedule(scheduleId)
         _currentScheduleName.value = scheduleId
+        // 切换后重新调度提醒：
+        // - 取消旧课表的课前闹钟（孤儿清理）
+        // - 注册新课表的课前闹钟
+        // - widget 刷新链按新课表重算（否则若旧课表当天无后续课程，
+        //   下次刷新会排在 30 分钟后，新课表 30 分钟内的课会漏提醒）
+        CourseReminderHelper.startReminderService(getApplication(), repository)
     }
 
     /**

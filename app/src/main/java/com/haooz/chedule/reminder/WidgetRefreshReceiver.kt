@@ -22,6 +22,8 @@ class WidgetRefreshReceiver : BroadcastReceiver() {
                 CourseReminderHelper.checkPendingPreClassReminders(context)
                 com.haooz.chedule.widget.CourseWidgetProviderStandard.updateAllWidgets(context)
                 com.haooz.chedule.widget.TodayCourseWidgetProviderStandard.updateAllWidgets(context)
+                // 超级岛对账：闹钟丢失/Doze 延迟时兜底切换到"已上课"并按时收起
+                CourseReminderHelper.reconcileIslandCountdown(context)
                 CourseReminderHelper.updateActiveCountdown(context)
                 // 上课勿扰对账：闹钟丢失/被系统清理时，靠每分钟刷新兜底补上开关
                 ClassDndHelper.applyCurrentState(context)

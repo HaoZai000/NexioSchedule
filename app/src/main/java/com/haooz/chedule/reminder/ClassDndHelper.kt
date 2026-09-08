@@ -39,6 +39,8 @@ object ClassDndHelper {
     private const val KEY_APPLIED_MODE = "dnd_applied_mode"
     /** SILENT 档位下保存的原始 [AudioManager.ringerMode]，下课 / 关闭时还原 */
     private const val KEY_ORIGINAL_RINGER = "dnd_original_ringer_mode"
+    /** DND / PRIORITY 档位下保存的原始 [NotificationManager.getCurrentInterruptionFilter]，下课 / 关闭时还原 */
+    private const val KEY_ORIGINAL_FILTER = "dnd_original_interruption_filter"
 
     // 上课/下课闹钟的 requestCode 基址（与课程提醒闹钟的 10000 段错开）
     private const val RC_DND_START_BASE = 30000
@@ -103,6 +105,22 @@ object ClassDndHelper {
         if (mode == MODE_SILENT && !wasSilentApplied) {
             p.edit { putInt(KEY_ORIGINAL_RINGER, am.ringerMode) }
         }
+        // 同理：仅当 DND/PRIORITY 档是"新开"时快照一次原 filter，
+        // 否则会把用户自己开的 PRIORITY 覆盖成 NONE。
+        val wasDndOrPriorityApplied = wasApplied &&
+            p.getInt(KEY_APPLIED_MODE, MODE_DND) in setOf(MODE_DND, MODE_PRIORITY)
+        if ((mode == MODE_DND || mode == MODE_PRIORITY) && !wasDndOrPriorityApplied) {
+            try {
+                p.edit {
+                    putInt(
+                        KEY_ORIGINAL_FILTER,
+                        nm.currentInterruptionFilter
+                    )
+                }
+            } catch (_: Exception) {
+                Log.w(TAG, "Failed to snapshot current interruption filter")
+            }
+        }
 
         var applied = true
         when (mode) {
@@ -157,10 +175,15 @@ object ClassDndHelper {
             MODE_DND, MODE_PRIORITY -> {
                 // DND 与 PRIORITY 都改 interruption filter，恢复时统一回 ALL
                 if (isDndPermissionGranted(context)) {
+                    // 还原成开启前快照的 filter（用户可能原本开着 PRIORITY/ALARMS），而不是粗暴地全部开
+                    val original = p.getInt(
+                        KEY_ORIGINAL_FILTER,
+                        NotificationManager.INTERRUPTION_FILTER_ALL
+                    )
                     try {
-                        nm.setInterruptionFilter(NotificationManager.INTERRUPTION_FILTER_ALL)
+                        nm.setInterruptionFilter(original)
                     } catch (e: Exception) {
-                        Log.e(TAG, "Failed to restore filter to ALL", e)
+                        Log.e(TAG, "Failed to restore filter to $original", e)
                     }
                 }
             }
@@ -300,27 +323,28 @@ object ClassDndHelper {
         val repository = CourseRepository(context)
         if (!repository.getClassDndEnabled()) return
 
-        val now = Calendar.getInstance()
-        val currentMinutes = now.get(Calendar.HOUR_OF_DAY) * 60 + now.get(Calendar.MINUTE)
-
         for (course in CourseReminderHelper.getTodayCourses(context)) {
-            val startMinutes = CourseReminderHelper.getCourseStartTime(course, repository)?.toMinutes()
-            val endMinutes = CourseReminderHelper.getCourseEndTime(course, repository)?.toMinutes()
-            if (startMinutes == null || endMinutes == null || endMinutes <= startMinutes) continue
+            // 与超级岛/课前提醒共用同一套时间戳计算（CourseReminderHelper 的单一真源），
+            // 避免勿扰与岛各自推导上课时刻导致两边错开。
+            val startMillis = CourseReminderHelper.parseTimeToTodayMillis(
+                CourseReminderHelper.getCourseStartTime(course, repository)
+            )
+            val endMillis = CourseReminderHelper.parseTimeToTodayMillis(
+                CourseReminderHelper.getCourseEndTime(course, repository)
+            )
+            if (startMillis <= 0L || endMillis <= startMillis) continue
 
             scheduleOne(
                 context, alarmManager,
                 requestCode = RC_DND_START_BASE + course.id.hashCode(),
                 action = ClassDndReceiver.ACTION_CLASS_START,
-                minutes = startMinutes,
-                currentMinutes = currentMinutes
+                triggerAt = startMillis
             )
             scheduleOne(
                 context, alarmManager,
                 requestCode = RC_DND_END_BASE + course.id.hashCode(),
                 action = ClassDndReceiver.ACTION_CLASS_END,
-                minutes = endMinutes,
-                currentMinutes = currentMinutes
+                triggerAt = endMillis
             )
         }
     }
@@ -334,16 +358,11 @@ object ClassDndHelper {
         alarmManager: AlarmManager,
         requestCode: Int,
         action: String,
-        minutes: Int,
-        currentMinutes: Int
+        triggerAt: Long
     ) {
-        if (minutes <= currentMinutes) return
-        val triggerAt = Calendar.getInstance().apply {
-            set(Calendar.HOUR_OF_DAY, minutes / 60)
-            set(Calendar.MINUTE, minutes % 60)
-            set(Calendar.SECOND, 0)
-            set(Calendar.MILLISECOND, 0)
-        }.timeInMillis
+        // 已过去的时间点不再注册（交给下一次调度/每分钟对账补齐），
+        // 避免 AlarmManager 立即触发一堆历史闹钟
+        if (triggerAt <= System.currentTimeMillis()) return
 
         val intent = Intent(context, ClassDndReceiver::class.java).apply { setAction(action) }
         val pendingIntent = PendingIntent.getBroadcast(

@@ -16,6 +16,7 @@ import androidx.core.graphics.createBitmap
 import com.haooz.chedule.R
 import com.haooz.chedule.data.Course
 import com.haooz.chedule.data.CourseRepository
+import com.haooz.chedule.reminder.CourseReminderHelper
 import java.util.Calendar
 
 class TodayCourseWidgetProviderStandard : AppWidgetProvider() {
@@ -64,10 +65,11 @@ class TodayCourseWidgetProviderStandard : AppWidgetProvider() {
         WidgetTextSizes.applyTodayCourse(views)
 
         val currentWeek = repository.getCurrentWeek()
-        val today = getTodayOfWeek()
+        // getTodayOfWeek/getTodayCourses 统一在 CourseReminderHelper（含 workSwap / 节假日 / 周次范围 / 排序），
+        // 这里不再保留私有副本。
+        val today = CourseReminderHelper.getTodayOfWeek()
         val courses = repository.getAllCourses()
-        val todayCourses = courses.filter { it.dayOfWeek == today && it.isActiveInWeek(currentWeek) }
-            .sortedBy { getCourseStartTime(it, repository).toMinutes() }
+        val todayCourses = CourseReminderHelper.getTodayCourses(context)
 
         val calendar = Calendar.getInstance()
         val currentMinutes = calendar.get(Calendar.HOUR_OF_DAY) * 60 + calendar.get(Calendar.MINUTE)
@@ -244,52 +246,11 @@ class TodayCourseWidgetProviderStandard : AppWidgetProvider() {
         return bitmap
     }
 
-    private fun getCourseStartTime(course: Course, repository: CourseRepository): String? {
-        if (course.hasValidCustomTime()) return course.customStartTime
-        val morningTimes = repository.getPeriodTimes("morning")
-        val afternoonTimes = repository.getPeriodTimes("afternoon")
-        val eveningTimes = repository.getPeriodTimes("evening")
-        val morningSections = repository.getMorningSections()
-        val afternoonSections = repository.getAfternoonSections()
-        val section = course.startSection
-        val timeMap = when {
-            section <= morningSections -> morningTimes
-            section <= morningSections + afternoonSections -> afternoonTimes
-            else -> eveningTimes
-        }
-        val relativeSection = when {
-            section <= morningSections -> section
-            section <= morningSections + afternoonSections -> section - morningSections
-            else -> section - morningSections - afternoonSections
-        }
-        return timeMap[relativeSection]?.split("-")?.firstOrNull()?.trim()
-    }
+    private fun getCourseStartTime(course: Course, repository: CourseRepository): String? =
+        com.haooz.chedule.data.CourseTimeResolver.getStartTime(course, repository)
 
-    private fun getCourseEndTime(course: Course, repository: CourseRepository): String? {
-        if (course.hasValidCustomTime()) return course.customEndTime
-        val morningTimes = repository.getPeriodTimes("morning")
-        val afternoonTimes = repository.getPeriodTimes("afternoon")
-        val eveningTimes = repository.getPeriodTimes("evening")
-        val morningSections = repository.getMorningSections()
-        val afternoonSections = repository.getAfternoonSections()
-        val section = course.endSection
-        val timeMap = when {
-            section <= morningSections -> morningTimes
-            section <= morningSections + afternoonSections -> afternoonTimes
-            else -> eveningTimes
-        }
-        val relativeSection = when {
-            section <= morningSections -> section
-            section <= morningSections + afternoonSections -> section - morningSections
-            else -> section - morningSections - afternoonSections
-        }
-        return timeMap[relativeSection]?.split("-")?.lastOrNull()?.trim()
-    }
-
-    private fun getTodayOfWeek(): Int {
-        val calendar = Calendar.getInstance()
-        return (calendar.get(Calendar.DAY_OF_WEEK) + 5) % 7 + 1
-    }
+    private fun getCourseEndTime(course: Course, repository: CourseRepository): String? =
+        com.haooz.chedule.data.CourseTimeResolver.getEndTime(course, repository)
 
     /** "HH:mm" -> 分钟数，用于排序；null/非法返回 Int.MAX_VALUE 排到末尾 */
     private fun String?.toMinutes(): Int {

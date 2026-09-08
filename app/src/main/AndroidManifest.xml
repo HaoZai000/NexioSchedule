@@ -243,6 +243,10 @@
         </receiver>
 
         <receiver
+            android:name=".reminder.IslandDismissReceiver"
+            android:exported="false" />
+
+        <receiver
             android:name=".reminder.WidgetRefreshReceiver"
             android:exported="false" />
 
@@ -267,6 +271,11 @@
             android:exported="true">
             <intent-filter>
                 <action android:name="android.intent.action.BOOT_COMPLETED" />
+                <!-- 应用更新后系统会清空本 app 的全部闹钟，需重新注册 -->
+                <action android:name="android.intent.action.MY_PACKAGE_REPLACED" />
+                <!-- 用户手动调时间或换时区：RTC_WAKEUP 闹钟按旧时刻已无意义 -->
+                <action android:name="android.intent.action.TIME_SET" />
+                <action android:name="android.intent.action.TIMEZONE_CHANGED" />
             </intent-filter>
         </receiver>
 

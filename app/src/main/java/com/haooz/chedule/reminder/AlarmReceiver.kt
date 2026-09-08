@@ -29,17 +29,30 @@ class AlarmReceiver : BroadcastReceiver() {
         when (type) {
             CourseReminderHelper.TYPE_PRE_CLASS -> {
                 val courseName = intent.getStringExtra(CourseReminderHelper.EXTRA_COURSE_NAME) ?: "课程"
-                val classroom = intent.getStringExtra(CourseReminderHelper.EXTRA_COURSE_CLASSROOM) ?: ""
                 val section = intent.getStringExtra(CourseReminderHelper.EXTRA_COURSE_SECTION) ?: ""
                 val startTime = intent.getStringExtra(CourseReminderHelper.EXTRA_COURSE_START_TIME) ?: ""
-                val endTime = intent.getStringExtra(CourseReminderHelper.EXTRA_COURSE_END_TIME) ?: ""
-                val teacher = intent.getStringExtra(CourseReminderHelper.EXTRA_COURSE_TEACHER) ?: ""
+                val courseId = intent.getStringExtra(CourseReminderHelper.EXTRA_COURSE_ID) ?: ""
 
-                // 根据课程名+节次生成去重ID（与 schedulePreClassAlarms 中 course.id 不同来源时也能匹配）
-                val courseId = "$courseName|$section|$startTime"
+                // 去重 ID 先以"当前课表"为准：先回查匹配课程并重新取节次/时间，
+                // 避免用户改时间后旧闹钟带着旧 startTime 算 dedupId，与 checkPending
+                // 用新 startTime 算的 dedupId 双发（均落入不同 dedupId，互相不拦截）。
+                // 如果回查失败再退化为闹钟里快照的 name+section+time。
+                val matchedEarly = CourseReminderHelper.getTodayCourses(context).firstOrNull { course ->
+                    if (courseId.isNotEmpty()) course.id == courseId
+                    else course.name == courseName && course.getTimeDisplayText() == section
+                }
+                val dedupId = if (matchedEarly != null) {
+                    val freshStart = CourseReminderHelper.getCourseStartTime(
+                        matchedEarly,
+                        CourseRepository(context)
+                    ) ?: startTime
+                    "${matchedEarly.name}|${matchedEarly.getTimeDisplayText()}|$freshStart"
+                } else {
+                    "$courseName|$section|$startTime"
+                }
 
                 // 去重检查：如果该课程最近已发送过，跳过本次（避免闹钟触发后重新调度导致双发）
-                if (CourseReminderHelper.isPreClassSentRecently(context, courseId)) {
+                if (CourseReminderHelper.isPreClassSentRecently(context, dedupId)) {
                     Log.d("AlarmReceiver", "Pre-class notification already sent recently for $courseName, skipping")
                     CourseReminderHelper.startReminderService(context)
                     return
@@ -52,84 +65,50 @@ class AlarmReceiver : BroadcastReceiver() {
                     return
                 }
 
-                if (useIsland) {
-                    val minutesUntil = if (startTime.isNotEmpty()) {
-                        val parts = startTime.split(":")
-                        if (parts.size == 2) {
-                            val h = parts[0].toIntOrNull() ?: 0
-                            val m = parts[1].toIntOrNull() ?: 0
-                            val now = java.util.Calendar.getInstance()
-                            val currentMinutes = now.get(java.util.Calendar.HOUR_OF_DAY) * 60 + now.get(java.util.Calendar.MINUTE)
-                            val courseMinutes = h * 60 + m
-                            courseMinutes - currentMinutes
-                        } else null
-                    } else null
-                    // 与 schedulePreClassAlarms 立即发送分支保持一致：使用 1003 作为 notificationId
-                    val islandNotificationId = 1003
-                    IslandNotificationHelper.sendPreClassIslandNotification(
-                        context = context,
-                        courseName = courseName,
-                        classroom = classroom,
-                        section = section,
-                        startTime = startTime,
-                        endTime = endTime,
-                        teacher = teacher,
-                        minutesUntil = minutesUntil,
-                        notificationId = islandNotificationId
-                    )
-
-                    // 注册 IslandExpandReceiver：课程开始时切换为"已上课"，避免倒计时卡在 00:00
-                    if (minutesUntil != null && minutesUntil > 0 && startTime.isNotEmpty()) {
-                        val parts = startTime.split(":")
-                        if (parts.size == 2) {
-                            val startHour = parts[0].toIntOrNull()
-                            val startMinute = parts[1].toIntOrNull()
-                            if (startHour != null && startMinute != null) {
-                                val courseStartMillis = java.util.Calendar.getInstance().apply {
-                                    set(java.util.Calendar.HOUR_OF_DAY, startHour)
-                                    set(java.util.Calendar.MINUTE, startMinute)
-                                    set(java.util.Calendar.SECOND, 0)
-                                    set(java.util.Calendar.MILLISECOND, 0)
-                                }.timeInMillis
-                                val expandIntent = Intent(context, IslandExpandReceiver::class.java).apply {
-                                    putExtra(IslandExpandReceiver.EXTRA_COURSE_NAME, courseName)
-                                    putExtra(IslandExpandReceiver.EXTRA_CLASSROOM, classroom)
-                                    putExtra(IslandExpandReceiver.EXTRA_SECTION, section)
-                                    putExtra(IslandExpandReceiver.EXTRA_START_TIME, startTime)
-                                    putExtra(IslandExpandReceiver.EXTRA_END_TIME, endTime)
-                                    putExtra(IslandExpandReceiver.EXTRA_NOTIFICATION_ID, islandNotificationId)
-                                }
-                                val expandPending = android.app.PendingIntent.getBroadcast(
-                                    context, islandNotificationId, expandIntent,
-                                    android.app.PendingIntent.FLAG_UPDATE_CURRENT or android.app.PendingIntent.FLAG_IMMUTABLE
-                                )
-                                try {
-                                    val alarmManager = context.getSystemService(Context.ALARM_SERVICE) as android.app.AlarmManager
-                                    alarmManager.setExactAndAllowWhileIdle(
-                                        android.app.AlarmManager.RTC_WAKEUP,
-                                        courseStartMillis + 1000L,
-                                        expandPending
-                                    )
-                                } catch (_: SecurityException) { }
-                            }
-                        }
+                // 关键：闹钟里携带的是"注册那一刻"的课程快照。
+                // 课程可能已被删除、改了时间/教室、或因换课表/云同步换了 ID，
+                // 若直接照快照发送就会弹出旧数据提醒。这里一律以当前课表为准重新解析。
+                val matched = CourseReminderHelper.getTodayCourses(context).firstOrNull { course ->
+                    if (courseId.isNotEmpty()) {
+                        course.id == courseId
+                    } else {
+                        // 旧版闹钟没有 courseId，退化为按课程名+节次匹配
+                        course.name == courseName && course.getTimeDisplayText() == section
                     }
-                } else {
-                    val startMillis = intent.getLongExtra(CourseReminderHelper.EXTRA_COURSE_START_MILLIS, 0L)
-                    val endMillis = intent.getLongExtra(CourseReminderHelper.EXTRA_COURSE_END_MILLIS, 0L)
-                    CourseReminderHelper.showPreClassCountdownNotification(
-                        context = context,
-                        courseName = courseName,
-                        classroom = classroom,
-                        section = section,
-                        startTime = startTime,
-                        startMillis = startMillis,
-                        endMillis = endMillis
-                    )
+                }
+                if (matched == null) {
+                    Log.d("AlarmReceiver", "Stale alarm: $courseName($startTime) no longer in today's schedule, dropped")
+                    CourseReminderHelper.startReminderService(context)
+                    return
                 }
 
+                val freshStartTime = CourseReminderHelper.getCourseStartTime(matched, repository) ?: startTime
+                val freshEndTime = CourseReminderHelper.getCourseEndTime(matched, repository) ?: ""
+                val startMillis = CourseReminderHelper.parseTimeToTodayMillis(freshStartTime)
+                val endMillis = CourseReminderHelper.parseTimeToTodayMillis(freshEndTime)
+
+                if (startMillis <= 0L) {
+                    Log.d("AlarmReceiver", "Invalid start time for ${matched.name}, skipped")
+                    CourseReminderHelper.startReminderService(context)
+                    return
+                }
+
+                // 统一走 sendPreClassNotification：
+                // 未开课 → 课前倒计时；已开课（连堂课间为 0、或闹钟被 Doze 延迟）→ 直接落到"已上课"态。
+                val alarmManager = context.getSystemService(Context.ALARM_SERVICE) as android.app.AlarmManager
+                CourseReminderHelper.sendPreClassNotification(
+                    context = context,
+                    alarmManager = alarmManager,
+                    repository = repository,
+                    course = matched,
+                    startTime = freshStartTime,
+                    useIsland = useIsland,
+                    courseStartMillis = startMillis,
+                    courseEndMillis = endMillis
+                )
+
                 // 记录已发送，防止后续 startReminderService 重调度时重复发送
-                CourseReminderHelper.recordPreClassSent(context, courseId)
+                CourseReminderHelper.recordPreClassSent(context, dedupId)
 
                 CourseReminderHelper.startReminderService(context)
             }
