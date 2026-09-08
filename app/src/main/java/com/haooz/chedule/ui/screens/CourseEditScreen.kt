@@ -201,7 +201,8 @@ fun CourseEditScreen(
     onDeleteCourse: (String) -> Unit = { _ -> },
     onColorChanged: (Long) -> Unit = { _ -> },
     getOccupiedWeeks: (dayOfWeek: Int, startSection: Int, endSection: Int, excludeIds: List<String>, startTime: String?, endTime: String?) -> Set<Int> = { _, _, _, _, _, _ -> emptySet() },
-    liquidGlassBackdrop: com.kyant.backdrop.backdrops.LayerBackdrop? = null
+    liquidGlassBackdrop: com.kyant.backdrop.backdrops.LayerBackdrop? = null,
+    sectionTimes: Map<Int, String> = emptyMap(),
 ) {
     val courseName = courses.firstOrNull()?.name ?: ""
     // 课程颜色状态（所有同名课程共享，仅保存时生效）
@@ -940,7 +941,8 @@ fun CourseEditScreen(
                         },
                         getOccupiedWeeks = { dow, ss, es, excludeIds, startTime, endTime ->
                             getOccupiedWeeks(dow, ss, es, excludeIds, startTime, endTime)
-                        }
+                        },
+                        sectionTimes = sectionTimes
                     )
 
                     // 编辑课程底部弹窗
@@ -979,7 +981,8 @@ fun CourseEditScreen(
                         },
                         getOccupiedWeeks = { dow, ss, es, excludeIds, startTime, endTime ->
                             getOccupiedWeeks(dow, ss, es, excludeIds, startTime, endTime)
-                        }
+                        },
+                        sectionTimes = sectionTimes
                     )
                 }
             }

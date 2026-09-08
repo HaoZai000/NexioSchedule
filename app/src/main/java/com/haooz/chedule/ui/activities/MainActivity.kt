@@ -1188,16 +1188,13 @@ fun CourseScheduleApp() {
     val switchAnimProgress = remember { Animatable(0f) }
     val backgroundScale = remember { Animatable(1f) }
     val managePageBlurRadius = remember { Animatable(0f) }
-    // 长按快捷菜单显示时的背景模糊与缩放（与 CourseManageActivity 一致：blur 10dp / scale 0.98）
+    // 长按快捷菜单显示时的背景模糊
     val shortcutMenuBlurRadius = remember { Animatable(0f) }
-    val shortcutMenuPageScale = remember { Animatable(1f) }
     LaunchedEffect(shortcutMenuVisible) {
         if (shortcutMenuVisible) {
             launch { shortcutMenuBlurRadius.animateTo(10f, tween(280)) }
-            launch { shortcutMenuPageScale.animateTo(0.98f, tween(280)) }
         } else {
             launch { shortcutMenuBlurRadius.animateTo(0f, tween(250)) }
-            launch { shortcutMenuPageScale.animateTo(1f, tween(250)) }
         }
     }
     val switchReturnBgScrim = remember { Animatable(0f) }
@@ -1223,8 +1220,22 @@ fun CourseScheduleApp() {
 
     val hapticFeedback = LocalHapticFeedback.current
 
+    val calendar = Calendar.getInstance()
+    val currentDayOfWeek = (calendar.get(Calendar.DAY_OF_WEEK) + 5) % 7 + 1
+    val smartWeekend by settingsViewModel.smartWeekend.collectAsState()
+
+    val basePage = (currentWeek - 1).coerceIn(0, (totalWeeks - 1).coerceAtLeast(0))
+    val autoAdvancePage = remember(currentWeek, totalWeeks, currentDayOfWeek, smartWeekend) {
+        if (currentDayOfWeek in 6..7 && smartWeekend) {
+            val weekendDays = settingsViewModel.getWeekendDaysForWeek(currentWeek)
+            if (currentDayOfWeek !in weekendDays) {
+                (basePage + 1).coerceIn(0, (totalWeeks - 1).coerceAtLeast(0))
+            } else basePage
+        } else basePage
+    }
+
     val pagerState = rememberPagerState(
-        initialPage = (currentWeek - 1).coerceIn(0, (totalWeeks - 1).coerceAtLeast(0)),
+        initialPage = autoAdvancePage,
         pageCount = { totalWeeks }
     )
 
@@ -1241,23 +1252,24 @@ fun CourseScheduleApp() {
         shiftModeInitialized = true
     }
 
-
-
-    LaunchedEffect(currentWeek, totalWeeks) {
-        val targetPage = (currentWeek - 1).coerceIn(0, (totalWeeks - 1).coerceAtLeast(0))
-        if (pagerState.currentPage != targetPage) {
-            pagerState.scrollToPage(targetPage)
+    LaunchedEffect(currentWeek, totalWeeks, smartWeekend) {
+        val base = (currentWeek - 1).coerceIn(0, (totalWeeks - 1).coerceAtLeast(0))
+        val target = if (currentDayOfWeek in 6..7 && smartWeekend) {
+            val weekendDays = settingsViewModel.getWeekendDaysForWeek(currentWeek)
+            if (currentDayOfWeek !in weekendDays) {
+                (base + 1).coerceIn(0, (totalWeeks - 1).coerceAtLeast(0))
+            } else base
+        } else base
+        if (pagerState.currentPage != target) {
+            pagerState.scrollToPage(target)
         }
     }
 
-    val calendar = Calendar.getInstance()
-    val currentDayOfWeek = (calendar.get(Calendar.DAY_OF_WEEK) + 5) % 7 + 1
     var todaySelectedDayOfWeek by remember { mutableIntStateOf(currentDayOfWeek) }
     var todayIsToday by remember { mutableStateOf(true) }
     var scrollToTodayTrigger by remember { mutableIntStateOf(0) }
 
     val currentViewingWeek = pagerState.currentPage + 1
-    val smartWeekend by settingsViewModel.smartWeekend.collectAsState()
     val courses by viewModel.courses.collectAsState()
     val dayRange = remember(currentViewingWeek, smartWeekend, courses.size) {
         (1..5).toList() + settingsViewModel.getWeekendDaysForWeek(currentViewingWeek)
@@ -1725,8 +1737,8 @@ fun CourseScheduleApp() {
                     } else {
                         exitScale * cutoutScale
                     }
-                    scaleX = baseScale * effectiveScale * shortcutMenuPageScale.value
-                    scaleY = baseScale * effectiveScale * shortcutMenuPageScale.value
+                    scaleX = baseScale * effectiveScale
+                    scaleY = baseScale * effectiveScale
                     alpha = mainContentAlpha
                     // 弹窗打开时同步上移：读取与 CustomizeScheduleScreen 共享的同一 Animatable，像素级同帧。
                     // 位移按缩放比例换算（与开洞中心 1-scaleProg 同一表达式，基于 cutoutMainScale 计算）
@@ -1747,7 +1759,7 @@ fun CourseScheduleApp() {
                     // 视觉圆角 = screenRadius * effectiveScale（随缩放变小）
                     // 搭配页退出时锁定圆角为 screenCornerRadius，避免缩小
                     Modifier.drawWithContent {
-                        val scale = backgroundScale.value * shortcutMenuPageScale.value
+                        val scale = backgroundScale.value
                         val shouldClip = !isCustomizeExiting && scale < 0.999f
                         val animClipPx =
                             if (isCustomizeExiting) screenCornerRadius else screenCornerRadius
@@ -1941,6 +1953,8 @@ fun CourseScheduleApp() {
                                             cardAlpha = displayAppearance.cardAlpha,
                                             wallpaperBlur = displayAppearance.wallpaperBlur,
                                             liquidGlassBackdrop = liquidGlassBackdrop,
+                                            showClassroom = displayAppearance.showClassroom,
+                                            showTeacher = displayAppearance.showTeacher,
                                             externalListState = todayListState,
                                         )
                                     }
@@ -2309,6 +2323,7 @@ fun CourseScheduleApp() {
                     val editingStartSection =
                         editingCourse?.startSection ?: selectedStartSection
                     val editingEndSection = editingCourse?.endSection ?: selectedEndSection
+                    val addDialogSectionTimes by settingsViewModel.sectionTimes.collectAsState()
 
                     // 添加课程对话框（始终跟随应用主题，不受壁纸强制主题影响）
                     val appDialogDark = rememberAppSettingDark()
@@ -2346,7 +2361,8 @@ fun CourseScheduleApp() {
                                 },
                                 onDelete = { courseId ->
                                     viewModel.deleteCourse(courseId)
-                                }
+                                },
+                                sectionTimes = addDialogSectionTimes
                             )
                         }
                     }

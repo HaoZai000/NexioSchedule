@@ -164,7 +164,7 @@ fun BlurCard(
 
 
 @Composable
-private fun CourseItemContent(course: Course, sectionTimes: Map<Int, String>, pageDate: LocalDate = LocalDate.now()) {
+private fun CourseItemContent(course: Course, sectionTimes: Map<Int, String>, pageDate: LocalDate = LocalDate.now(), showClassroom: Boolean = true, showTeacher: Boolean = true) {
     fun getSectionTimeRange(startSection: Int, endSection: Int): String {
         val startTime = sectionTimes[startSection]?.split("-")?.firstOrNull() ?: ""
         val endTime = sectionTimes[endSection]?.split("-")?.lastOrNull() ?: ""
@@ -294,8 +294,8 @@ private fun CourseItemContent(course: Course, sectionTimes: Map<Int, String>, pa
             Text(
                 text = buildString {
                     append(course.getTimeDisplayText())
-                    if (course.classroom.isNotEmpty()) append(" | ").append(course.classroom)
-                    if (course.teacher.isNotEmpty()) append(" | ").append(course.teacher)
+                    if (showClassroom && course.classroom.isNotEmpty()) append(" | ").append(course.classroom)
+                    if (showTeacher && course.teacher.isNotEmpty()) append(" | ").append(course.teacher)
                 },
                 style = MiuixTheme.textStyles.body2.copy(fontSize = 14.sp),
                 color = MiuixTheme.colorScheme.onSurfaceVariantSummary
@@ -357,6 +357,8 @@ fun TodayScreen(
     cardAlpha: Float = 0.15f,
     wallpaperBlur: Boolean = false,
     liquidGlassBackdrop: Backdrop? = null,
+    showClassroom: Boolean = true,
+    showTeacher: Boolean = true,
     // Activity 层提升的状态，return@Scaffold 不会销毁
     externalListState: androidx.compose.foundation.lazy.LazyListState = rememberLazyListState(),
 ) {
@@ -594,6 +596,8 @@ fun TodayScreen(
                                     sectionTimes = sectionTimes,
                                     morningSections = morningSections,
                                     afternoonSections = afternoonSections,
+                                    showClassroom = showClassroom,
+                                    showTeacher = showTeacher,
                                     wallpaperBackdrop = if (hasWallpaper) cardBackdrop else null,
                                     blurRadius = cardBlurRadius,
                                     surfaceOpacity = highlightCardOpacity
@@ -618,7 +622,7 @@ fun TodayScreen(
                             ),
                             verticalArrangement = Arrangement.spacedBy(12.dp)
                         ) {
-                            addCourseSections(morningCourses, afternoonCourses, eveningCourses, pageCourses, isPageToday, pageDate, courses, hiddenCourseIds, sectionTimes, onCourseClick, if (hasWallpaper) cardBackdrop else null, cardBlurRadius, courseCardOpacity)
+                            addCourseSections(morningCourses, afternoonCourses, eveningCourses, pageCourses, isPageToday, pageDate, courses, hiddenCourseIds, sectionTimes, onCourseClick, if (hasWallpaper) cardBackdrop else null, cardBlurRadius, courseCardOpacity, showClassroom, showTeacher)
                         }
                     }
                 } else {
@@ -664,13 +668,15 @@ fun TodayScreen(
                                     sectionTimes = sectionTimes,
                                     morningSections = morningSections,
                                     afternoonSections = afternoonSections,
+                                    showClassroom = showClassroom,
+                                    showTeacher = showTeacher,
                                     wallpaperBackdrop = if (hasWallpaper) cardBackdrop else null,
                                     blurRadius = cardBlurRadius,
                                     surfaceOpacity = highlightCardOpacity
                                 )
                             }
                         }
-                        addCourseSections(morningCourses, afternoonCourses, eveningCourses, pageCourses, isPageToday, pageDate, courses, hiddenCourseIds, sectionTimes, onCourseClick, if (hasWallpaper) cardBackdrop else null, cardBlurRadius, courseCardOpacity)
+                        addCourseSections(morningCourses, afternoonCourses, eveningCourses, pageCourses, isPageToday, pageDate, courses, hiddenCourseIds, sectionTimes, onCourseClick, if (hasWallpaper) cardBackdrop else null, cardBlurRadius, courseCardOpacity, showClassroom, showTeacher)
                     }
                 }
             }
@@ -897,7 +903,7 @@ private fun QuoteCard(hour: Int, wallpaperBackdrop: Backdrop? = null, blurRadius
         "这个点的你，听课全靠意志力在硬撑",
         "别努力了，今天已经没救了，明天再说（假的）",
         "撑到放学你就是今天的英雄——惰性英雄",
-        "最后两节，是你一天中演技最高的时刻",
+        "上课时，是你一天中演技最高的时刻",
         "别装了，你早就在想着晚饭了",
         "下午的你像在跑马拉松，其实只想躺平",
         "离自由还有两节课，宫斗剧都不敢这么演"
@@ -1115,7 +1121,9 @@ private fun androidx.compose.foundation.lazy.LazyListScope.addCourseSections(
     onCourseClick: (courses: List<Course>, cardLeft: Float, cardTop: Float, cardWidth: Float, cardHeight: Float, snapshot: android.graphics.Bitmap?, courseIdToHide: String) -> Unit,
     wallpaperBackdrop: Backdrop? = null,
     blurRadius: Float = 0f,
-    surfaceOpacity: Float
+    surfaceOpacity: Float,
+    showClassroom: Boolean = true,
+    showTeacher: Boolean = true
 ) {
     if (morningCourses.isNotEmpty()) {
         item {
@@ -1128,7 +1136,7 @@ private fun androidx.compose.foundation.lazy.LazyListScope.addCourseSections(
                 BlurCard(cornerRadius = 20.dp, wallpaperBackdrop = wallpaperBackdrop, blurRadius = blurRadius, surfaceOpacity = surfaceOpacity, modifier = Modifier.fillMaxWidth()) {
                     Column {
                         morningCourses.forEach { course ->
-                            CourseItemWithClick(course, courses, hiddenCourseIds, sectionTimes, pageDate, onCourseClick, wallpaperBackdrop != null)
+                            CourseItemWithClick(course, courses, hiddenCourseIds, sectionTimes, pageDate, onCourseClick, wallpaperBackdrop != null, showClassroom, showTeacher)
                         }
                     }
                 }
@@ -1146,7 +1154,7 @@ private fun androidx.compose.foundation.lazy.LazyListScope.addCourseSections(
                 BlurCard(cornerRadius = 20.dp, wallpaperBackdrop = wallpaperBackdrop, blurRadius = blurRadius, surfaceOpacity = surfaceOpacity, modifier = Modifier.fillMaxWidth()) {
                     Column {
                         afternoonCourses.forEach { course ->
-                            CourseItemWithClick(course, courses, hiddenCourseIds, sectionTimes, pageDate, onCourseClick, wallpaperBackdrop != null)
+                            CourseItemWithClick(course, courses, hiddenCourseIds, sectionTimes, pageDate, onCourseClick, wallpaperBackdrop != null, showClassroom, showTeacher)
                         }
                     }
                 }
@@ -1164,7 +1172,7 @@ private fun androidx.compose.foundation.lazy.LazyListScope.addCourseSections(
                 BlurCard(cornerRadius = 20.dp, wallpaperBackdrop = wallpaperBackdrop, blurRadius = blurRadius, surfaceOpacity = surfaceOpacity, modifier = Modifier.fillMaxWidth()) {
                     Column {
                         eveningCourses.forEach { course ->
-                            CourseItemWithClick(course, courses, hiddenCourseIds, sectionTimes, pageDate, onCourseClick, wallpaperBackdrop != null)
+                            CourseItemWithClick(course, courses, hiddenCourseIds, sectionTimes, pageDate, onCourseClick, wallpaperBackdrop != null, showClassroom, showTeacher)
                         }
                     }
                 }
@@ -1193,7 +1201,9 @@ private fun CourseItemWithClick(
     sectionTimes: Map<Int, String>,
     pageDate: LocalDate,
     onCourseClick: (courses: List<Course>, cardLeft: Float, cardTop: Float, cardWidth: Float, cardHeight: Float, snapshot: android.graphics.Bitmap?, courseIdToHide: String) -> Unit,
-    hasWallpaper: Boolean = false
+    hasWallpaper: Boolean = false,
+    showClassroom: Boolean = true,
+    showTeacher: Boolean = true
 ) {
     var itemBounds by remember { mutableStateOf<androidx.compose.ui.geometry.Rect?>(null) }
     val isHidden = course.id in hiddenCourseIds
@@ -1222,7 +1232,7 @@ private fun CourseItemWithClick(
                     }
                 }
         ) {
-            CourseItemContent(course, sectionTimes, pageDate)
+            CourseItemContent(course, sectionTimes, pageDate, showClassroom, showTeacher)
         }
     }
 }

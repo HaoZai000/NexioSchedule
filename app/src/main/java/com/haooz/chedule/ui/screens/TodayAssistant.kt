@@ -724,6 +724,8 @@ fun TodayAssistantCard(
     sectionTimes: Map<Int, String>,
     morningSections: Int,
     afternoonSections: Int,
+    showClassroom: Boolean = true,
+    showTeacher: Boolean = true,
     wallpaperBackdrop: com.kyant.backdrop.Backdrop? = null,
     blurRadius: Float = 0f,
     surfaceOpacity: Float
@@ -818,12 +820,14 @@ fun TodayAssistantCard(
                 nextCourse != null -> nextCourse.teacher
                 else -> ""
             }
-            if (location.isNotBlank() || teacher.isNotBlank()) {
+            val displayLocation = if (showClassroom) location else ""
+            val displayTeacher = if (showTeacher) teacher else ""
+            if (displayLocation.isNotBlank() || displayTeacher.isNotBlank()) {
                 Text(
                     text = buildString {
-                        if (location.isNotBlank()) append(location)
-                        if (location.isNotBlank() && teacher.isNotBlank()) append(" | ")
-                        if (teacher.isNotBlank()) append(teacher)
+                        if (displayLocation.isNotBlank()) append(displayLocation)
+                        if (displayLocation.isNotBlank() && displayTeacher.isNotBlank()) append(" | ")
+                        if (displayTeacher.isNotBlank()) append(displayTeacher)
                     },
                     style = MiuixTheme.textStyles.body2.copy(fontSize = 14.sp),
                     color = MiuixTheme.colorScheme.onSurfaceVariantSummary

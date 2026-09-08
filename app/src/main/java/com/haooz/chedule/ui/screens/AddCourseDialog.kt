@@ -168,6 +168,7 @@ fun AddCourseDialog(
     onDismiss: () -> Unit,
     onConfirm: (Course) -> Unit,
     onDelete: (String) -> Unit,
+    sectionTimes: Map<Int, String> = emptyMap(),
 ) {
     val isEdit = course != null
     val hapticFeedback = LocalHapticFeedback.current
@@ -210,6 +211,22 @@ fun AddCourseDialog(
     var tempStartMinute by remember(show) { mutableIntStateOf(parseTimeMinute(course?.customStartTime)) }
     var tempEndHour by remember(show) { mutableIntStateOf(parseTimeHour(course?.customEndTime)) }
     var tempEndMinute by remember(show) { mutableIntStateOf(parseTimeMinute(course?.customEndTime)) }
+
+    // 勾选自定义时间时，自动从节次时间预填
+    LaunchedEffect(form.isCustomTime) {
+        if (form.isCustomTime) {
+            val sectionStart = sectionTimes[form.startSection]?.split("-")?.firstOrNull()?.trim()
+            val sectionEnd = sectionTimes[form.endSection]?.split("-")?.lastOrNull()?.trim()
+            if (sectionStart != null && sectionEnd != null) {
+                form.customStartTime = sectionStart
+                form.customEndTime = sectionEnd
+                tempStartHour = parseTimeHour(sectionStart)
+                tempStartMinute = parseTimeMinute(sectionStart)
+                tempEndHour = parseTimeHour(sectionEnd)
+                tempEndMinute = parseTimeMinute(sectionEnd)
+            }
+        }
+    }
 
     var currentOccupiedWeeks by remember { mutableStateOf<Set<Int>>(emptySet()) }
     // 占用周次的计算与"剔除已占周次"合并进同一个协程：原先拆成两个 LaunchedEffect，
@@ -1075,8 +1092,7 @@ private fun SectionTimeCard(
                 title = "上课时间",
                 endActions = {
                     Text(
-                        text = if (form.customStartTime.isNotBlank() && form.customEndTime.isNotBlank())
-                            "${form.customStartTime} - ${form.customEndTime}" else "未设置",
+                        text = "${form.customStartTime} - ${form.customEndTime}",
                         fontSize = 14.5.sp,
                         color = MiuixTheme.colorScheme.onSurfaceVariantActions
                     )

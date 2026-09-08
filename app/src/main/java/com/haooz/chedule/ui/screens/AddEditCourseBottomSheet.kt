@@ -93,6 +93,7 @@ fun AddEditCourseBottomSheet(
     onConfirm: (Course) -> Unit,
     editCourse: Course? = null,
     getOccupiedWeeks: (dayOfWeek: Int, startSection: Int, endSection: Int, excludeIds: List<String>, startTime: String?, endTime: String?) -> Set<Int> = { _, _, _, _, _, _ -> emptySet() },
+    sectionTimes: Map<Int, String> = emptyMap(),
 ) {
     val hapticFeedback = LocalHapticFeedback.current
     val totalWeeks = 20
@@ -139,6 +140,22 @@ fun AddEditCourseBottomSheet(
     var tempStartMinute by remember(show) { mutableIntStateOf(parseTimeMinute(editCourse?.customStartTime)) }
     var tempEndHour by remember(show) { mutableIntStateOf(parseTimeHour(editCourse?.customEndTime)) }
     var tempEndMinute by remember(show) { mutableIntStateOf(parseTimeMinute(editCourse?.customEndTime)) }
+
+    // 勾选自定义时间时，自动从节次时间预填
+    LaunchedEffect(isCustomTime) {
+        if (isCustomTime) {
+            val sectionStart = sectionTimes[startSection]?.split("-")?.firstOrNull()?.trim()
+            val sectionEnd = sectionTimes[endSection]?.split("-")?.lastOrNull()?.trim()
+            if (sectionStart != null && sectionEnd != null) {
+                customStartTime = sectionStart
+                customEndTime = sectionEnd
+                tempStartHour = parseTimeHour(sectionStart)
+                tempStartMinute = parseTimeMinute(sectionStart)
+                tempEndHour = parseTimeHour(sectionEnd)
+                tempEndMinute = parseTimeMinute(sectionEnd)
+            }
+        }
+    }
 
     // 根据当前选择的星期、节次和自定义时间动态计算已占用的周次（排除自身）
     var currentOccupiedWeeks by remember { mutableStateOf<Set<Int>>(emptySet()) }
@@ -461,8 +478,7 @@ fun AddEditCourseBottomSheet(
                         title = "上课时间",
                         endActions = {
                             Text(
-                                text = if (customStartTime.isNotBlank() && customEndTime.isNotBlank())
-                                    "$customStartTime - $customEndTime" else "未设置",
+                                text = "$customStartTime - $customEndTime",
                                 fontSize = 14.5.sp,
                                 color = MiuixTheme.colorScheme.onSurfaceVariantActions
                             )

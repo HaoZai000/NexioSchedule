@@ -19,6 +19,7 @@ import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.size
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableStateOf
@@ -55,6 +56,7 @@ import com.haooz.chedule.ui.screens.CourseEditScreen
 import com.haooz.chedule.ui.theme.CourseScheduleTheme
 import com.haooz.chedule.ui.utils.applyThemeAwareSystemBars
 import com.haooz.chedule.viewmodel.CourseViewModel
+import com.haooz.chedule.viewmodel.SettingsViewModel
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import top.yukonga.miuix.kmp.basic.Scaffold
@@ -103,6 +105,8 @@ class CourseManageActivity : ComponentActivity() {
                 val shortcutMenuBackdrop = com.kyant.backdrop.backdrops.rememberLayerBackdrop()
                 val scrollBehavior = rememberSharedScrollBehavior()
                 val courseViewModel: CourseViewModel = viewModel()
+                val settingsViewModel: SettingsViewModel = viewModel()
+                val sectionTimes by settingsViewModel.sectionTimes.collectAsState()
 
                 // Edit screen state
                 var showEditScreen by remember { mutableStateOf(false) }
@@ -453,7 +457,8 @@ class CourseManageActivity : ComponentActivity() {
                                     endTime = endTime
                                 )
                             },
-                            liquidGlassBackdrop = editLiquidGlassBackdrop
+                            liquidGlassBackdrop = editLiquidGlassBackdrop,
+                            sectionTimes = sectionTimes
                         )
                     }
 
