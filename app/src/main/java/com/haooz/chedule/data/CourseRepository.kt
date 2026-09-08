@@ -25,6 +25,19 @@ class CourseRepository private constructor(context: Context) {
     // 占用周次缓存：避免每次编辑都重新计算
     private val occupiedWeeksCache = mutableMapOf<String, Set<Int>>()
 
+    // 时间配置缓存：getPeriodTimes 等为高频调用，原本每次都要走一次 prefs 读取 + Gson 反序列化
+    private val timeConfigCache = mutableMapOf<Long, TimeConfig>()
+    // 时间配置 ID 列表缓存：getScheduleTimeConfigId 每次都要解析一次字符串
+    private var timeConfigIdsCache: List<Long>? = null
+    // 当前课表 ID 缓存：几乎所有 key 拼接都经过它，是全类最热路径
+    private var currentScheduleIdCache: String? = null
+    // 课表名列表缓存：getCurrentScheduleId 内部的校验依赖它
+    private var scheduleNamesCache: List<String>? = null
+    // 全局节次时间缓存：由三个时段 map 合并而来，节数/节次时间未变时可复用
+    private var globalSectionTimesCache: Map<Int, String>? = null
+    // 搭配外观快照缓存：一个搭配的全部外观参数已收敛为单个 JSON，读一次即可
+    private val combinationStyleCache = mutableMapOf<Long, CombinationStyle>()
+
     // 壁纸内存缓存：避免每次进入搭配页都重新解码 PNG（解码耗时是主要瓶颈）
     // 按可用内存的 1/8 计算，单位为字节
     private val wallpaperCache: android.util.LruCache<Long, android.graphics.Bitmap> =
@@ -44,15 +57,56 @@ class CourseRepository private constructor(context: Context) {
     // 变更回调
     var onCourseChanged: ((action: String, courseId: String) -> Unit)? = null
 
+    /**
+     * 统一失效全部内存缓存。
+     *
+     * 凡是绕过本类 setter、直接改写 prefs 的地方（导入备份 / 删除课表 / 重命名课表 / 迁移）
+     * 都必须调用，否则会读到与磁盘不一致的陈旧数据。
+     */
+    private fun invalidateAllCaches() {
+        courseCache.clear()
+        occupiedWeeksCache.clear()
+        timeConfigCache.clear()
+        timeConfigIdsCache = null
+        currentScheduleIdCache = null
+        scheduleNamesCache = null
+        globalSectionTimesCache = null
+        combinationStyleCache.clear()
+    }
+
+    /**
+     * 失效节次时间相关的缓存。
+     * 节数或节次时间变化会同时影响全局节次时间映射与分钟级占用判断。
+     */
+    private fun invalidateTimeCaches() {
+        occupiedWeeksCache.clear()
+        globalSectionTimesCache = null
+    }
+
+    /**
+     * 批量设置写入中：为 true 时 [notifyCourseChanged] 不再逐次写时间戳 / 清缓存 / 回调 UI，
+     * 由批量结束时统一执行一次，避免连续写入导致的重复磁盘提交与 UI 抖动。
+     */
+    private var batchingSettings = false
+
     private fun notifyCourseChanged(action: String, courseId: String = "") {
         if (action == "settings") {
-            // 设置变更时更新时间戳，确保本地修改不会被远程覆盖
-            val prefix = getScheduleKeyPrefix()
-            prefs.edit { putLong("${prefix}_settings_last_modified", System.currentTimeMillis()) }
-            // 节次时间/节数变化会影响分钟级占用判断，需要清空占用周次缓存
-            occupiedWeeksCache.clear()
+            // 批量模式下延迟到批次结束统一提交
+            if (batchingSettings) return
+            commitSettingsChanged()
+            return
         }
         onCourseChanged?.invoke(action, courseId)
+    }
+
+    /**
+     * 提交一次设置变更：更新时间戳（确保本地修改不被远程覆盖）、失效时间缓存、通知 UI。
+     */
+    private fun commitSettingsChanged() {
+        val prefix = getScheduleKeyPrefix()
+        prefs.edit { putLong("${prefix}_settings_last_modified", System.currentTimeMillis()) }
+        invalidateTimeCaches()
+        onCourseChanged?.invoke("settings", "")
     }
 
     companion object {
@@ -75,10 +129,6 @@ class CourseRepository private constructor(context: Context) {
         private const val KEY_SHOW_WEEKEND = "show_weekend"
         private const val KEY_SMART_WEEKEND = "smart_weekend"
         private const val KEY_SHOW_NON_CURRENT_WEEK = "show_non_current_week"
-        private const val KEY_MORNING_SECTIONS = "morning_sections"
-        private const val KEY_AFTERNOON_SECTIONS = "afternoon_sections"
-        private const val KEY_EVENING_SECTIONS = "evening_sections"
-        private const val KEY_SECTION_TIMES = "section_times"
         private const val KEY_QUICK_TIME_ENABLED = "quick_time_enabled"
         private const val KEY_CLASS_DURATION = "class_duration"
         private const val KEY_SHORT_BREAK = "short_break"
@@ -100,18 +150,21 @@ class CourseRepository private constructor(context: Context) {
         private const val KEY_SHIFT_MODE = "shift_mode_enabled"
         private const val KEY_SHIFT_SELECTED_SCHEDULES = "shift_selected_schedules"
         private const val KEY_DEFAULT_HOMEPAGE = "default_homepage"
-        private const val KEY_NAV_BAR_STYLE = "nav_bar_style"
-        private const val KEY_TODAY_SHOW_WALLPAPER = "today_show_wallpaper"
         private const val KEY_WIDGET_PADDING_MODE = "widget_padding_mode"
+        private const val KEY_TODAY_SHOW_WALLPAPER = "today_show_wallpaper"
         @Suppress("UNUSED") private const val KEY_WALLPAPER_OFFSET_X = "wallpaper_offset_x"
         @Suppress("UNUSED") private const val KEY_WALLPAPER_OFFSET_Y = "wallpaper_offset_y"
         @Suppress("UNUSED") private const val KEY_WALLPAPER_SCALE = "wallpaper_scale"
         @Suppress("UNUSED") private const val WALLPAPER_FILE_NAME = "schedule_wallpaper.png"
         private const val SCHEDULE_KEY_PREFIX = "schedule_"
         // 多搭配支持
+        // 注意：当前只有单搭配，KEY_COMBINATION_IDS 恒为 "0"（见 migrateToCombinationsIfNeeded）。
+        // 保留 id 维度是为了不破坏数据结构，将来要恢复多搭配时无需再改存储。
         private const val KEY_COMBINATION_IDS = "combination_ids"
         private const val KEY_CURRENT_COMBINATION_ID = "current_combination_id"
         private const val COMBINATION_WALLPAPER_PREFIX = "combination_wallpaper_"
+        // 外观参数的合并存储键（取代下面 17 个 comb_xxx_{id} 分散键）
+        private const val COMBINATION_STYLE_PREFIX = "combination_style_"
         private const val KEY_COMBINATION_OFFSET_X_PREFIX = "comb_offset_x_"
         private const val KEY_COMBINATION_OFFSET_Y_PREFIX = "comb_offset_y_"
         private const val KEY_COMBINATION_SCALE_PREFIX = "comb_scale_"
@@ -203,7 +256,14 @@ class CourseRepository private constructor(context: Context) {
      * Gson 反序列化绕过 Kotlin non-null 检查，后加的字段在旧 JSON 中缺失时会被设为 null
      * 直接调用 copy() 会因将 null 传给 non-null 参数而 NPE
      */
-    @Suppress("SENSELESS_COMPARISON", "ELVIS_ALWAYS_NULL", "NULLABILITY_MISMATCH_BASED_ON_JAVA_ANNOTATIONS")
+    // USELESS_ELVIS：以下 ?: 在编译器看来永远走左值，但 Gson 用 UnsafeAllocator 绕过构造器反序列化，
+    // 旧 JSON 缺失字段时这些"非空"字段会是 null，运行期必须兜底，不能删。
+    @Suppress(
+        "SENSELESS_COMPARISON",
+        "ELVIS_ALWAYS_NULL",
+        "USELESS_ELVIS",
+        "NULLABILITY_MISMATCH_BASED_ON_JAVA_ANNOTATIONS"
+    )
     private fun sanitizeCourses(courses: List<Course>): List<Course> {
         return courses.map { course ->
             if (course.scheduleId == null || course.selectedWeeks == null
@@ -273,7 +333,7 @@ class CourseRepository private constructor(context: Context) {
                             addCourseWeeks(occupied, course)
                         }
                     }
-                    occupiedWeeksCache["${day}_${start}_${end}"] = occupied
+                    occupiedWeeksCache[occupiedWeeksKey(day, start, end)] = occupied
                 }
             }
         }
@@ -361,38 +421,35 @@ class CourseRepository private constructor(context: Context) {
         val courses = getAllCourses().toMutableList()
         val index = courses.indexOfFirst { it.id == courseId }
         if (index != -1) {
-            val course = courses[index]
-            // 计算有效的周次列表
-            val currentSelectedWeeks = course.selectedWeeks.ifEmpty {
-                // 如果没有 selectedWeeks，根据 startWeek/endWeek/weekType 生成
-                val weeks = mutableListOf<Int>()
-                for (w in course.startWeek..course.endWeek) {
-                    when (course.weekType) {
-                        Course.WEEK_TYPE_ODD -> if (w % 2 == 1) weeks.add(w)
-                        Course.WEEK_TYPE_EVEN -> if (w % 2 == 0) weeks.add(w)
-                        else -> weeks.add(w)
-                    }
-                }
-                weeks
-            }
-            // 从有效周次中移除指定周次
-            val newSelectedWeeks = currentSelectedWeeks.filter { it != week }
-            if (newSelectedWeeks.isEmpty()) {
+            val updated = removeWeekFrom(courses[index], week)
+            if (updated == null) {
                 // 所有周次都已移除，删除整个课程
                 courses.removeAt(index)
             } else {
-                // 更新课程的周次列表
-                courses[index] = course.copy(
-                    selectedWeeks = newSelectedWeeks,
-                    startWeek = newSelectedWeeks.min(),
-                    endWeek = newSelectedWeeks.max(),
-                    lastModified = System.currentTimeMillis()
-                )
+                courses[index] = updated
             }
             saveCourses(courses, notify = false)
             // 不在此处触发 onCourseChanged，由 ViewModel 统一处理 UI 更新，避免竞态
         }
         return courses
+    }
+
+    /**
+     * 从课程中移除指定周次。
+     *
+     * @return 移除后的新课程；若该周是课程的最后一周，返回 null 表示整条课程应被删除。
+     */
+    private fun removeWeekFrom(course: Course, week: Int, resetWeekType: Boolean = false): Course? {
+        val remaining = resolveSelectedWeeks(course).filter { it != week }
+        if (remaining.isEmpty()) return null
+        return course.copy(
+            selectedWeeks = remaining,
+            startWeek = remaining.min(),
+            endWeek = remaining.max(),
+            // 冲突处理路径调用方置 ALL（与原行为一致）；单独删除某周时保持原 weekType
+            weekType = if (resetWeekType) Course.WEEK_TYPE_ALL else course.weekType,
+            lastModified = System.currentTimeMillis()
+        )
     }
 
     /**
@@ -444,95 +501,13 @@ class CourseRepository private constructor(context: Context) {
         targetStartSection: Int,
         targetEndSection: Int
     ): List<Course> {
-        val courses = getAllCourses().toMutableList()
-        val sourceIdx = courses.indexOfFirst { it.id == sourceCourseId }
-        if (sourceIdx == -1) return courses
-        val source = courses[sourceIdx]
-
-        // 位置未变化，直接返回
-        if (source.dayOfWeek == targetDayOfWeek &&
-            source.startSection == targetStartSection &&
-            source.endSection == targetEndSection
-        ) return courses
-
-        val currentSelectedWeeks = resolveSelectedWeeks(source)
-        if (week !in currentSelectedWeeks) return courses
-
-        // 构造目标位置的临时课程对象，用于同源判断
-        val targetTemp = source.copy(
-            dayOfWeek = targetDayOfWeek,
-            startSection = targetStartSection,
-            endSection = targetEndSection
-        )
-
-        // 查找目标位置是否已有同源课程
-        val mergeTargetIdx = courses.indexOfFirst { existing ->
-            existing.id != source.id && isSameCourseIdentity(existing, targetTemp)
-        }
-
-        if (mergeTargetIdx != -1) {
-            // 情况3：目标位置有同源课程，合并周次
-            val mergeTarget = courses[mergeTargetIdx]
-            val mergeWeeks = resolveSelectedWeeks(mergeTarget).toMutableSet()
-            mergeWeeks.add(week)
-            val sortedWeeks = mergeWeeks.sorted()
-            courses[mergeTargetIdx] = mergeTarget.copy(
-                selectedWeeks = sortedWeeks,
-                startWeek = sortedWeeks.min(),
-                endWeek = sortedWeeks.max(),
-                weekType = Course.WEEK_TYPE_ALL,
-                lastModified = System.currentTimeMillis()
-            )
-            // 从源课程移除该周
-            val sourceWeeks = currentSelectedWeeks.filter { it != week }
-            if (sourceWeeks.isEmpty()) {
-                // 源课程所有周次已合并到同源课程，删除源课程
-                // 注意：此时只修改了 mergeTargetIdx 处的元素，未删除过任何元素，sourceIdx 仍有效
-                courses.removeAt(sourceIdx)
-            } else {
-                // 源课程还有其他周次，更新剩余周次
-                courses[sourceIdx] = source.copy(
-                    selectedWeeks = sourceWeeks,
-                    startWeek = sourceWeeks.min(),
-                    endWeek = sourceWeeks.max(),
-                    weekType = Course.WEEK_TYPE_ALL,
-                    lastModified = System.currentTimeMillis()
-                )
-            }
-        } else if (currentSelectedWeeks.size == 1 && currentSelectedWeeks.first() == week) {
-            // 情况1：源课程只在该周有效，直接改位置
-            courses[sourceIdx] = source.copy(
-                dayOfWeek = targetDayOfWeek,
-                startSection = targetStartSection,
-                endSection = targetEndSection,
-                lastModified = System.currentTimeMillis()
-            )
-        } else {
-            // 情况2：源课程多周有效，拆分
-            val sourceWeeks = currentSelectedWeeks.filter { it != week }
-            courses[sourceIdx] = source.copy(
-                selectedWeeks = sourceWeeks,
-                startWeek = sourceWeeks.min(),
-                endWeek = sourceWeeks.max(),
-                weekType = Course.WEEK_TYPE_ALL,
-                lastModified = System.currentTimeMillis()
-            )
-            val newCourse = source.copy(
-                id = java.util.UUID.randomUUID().toString(),
-                dayOfWeek = targetDayOfWeek,
-                startSection = targetStartSection,
-                endSection = targetEndSection,
-                selectedWeeks = listOf(week),
-                startWeek = week,
-                endWeek = week,
-                weekType = Course.WEEK_TYPE_ALL,
-                lastModified = System.currentTimeMillis()
-            )
-            courses.add(newCourse)
-        }
-        saveCourses(courses, notify = false)
+        val courses = getAllCourses()
+        val result = moveWeekInPlace(
+            courses, sourceCourseId, week, targetDayOfWeek, targetStartSection, targetEndSection
+        ) ?: return courses
+        saveCourses(result, notify = false)
         // 不在此处触发 onCourseChanged，由 ViewModel 统一处理 UI 更新，避免竞态
-        return courses
+        return result
     }
 
     /**
@@ -573,25 +548,15 @@ class CourseRepository private constructor(context: Context) {
             .toList()
 
         // 对每个冲突课程执行按周删除
-        var result = courses
+        val result = courses.toMutableList()
         for (id in conflictIds) {
             val idx = result.indexOfFirst { it.id == id }
             if (idx == -1) continue
-            val course = result[idx]
-            val currentSelectedWeeks = resolveSelectedWeeks(course)
-            val newSelectedWeeks = currentSelectedWeeks.filter { it != week }
-            result = result.toMutableList().also { list ->
-                if (newSelectedWeeks.isEmpty()) {
-                    list.removeAt(idx)
-                } else {
-                    list[idx] = course.copy(
-                        selectedWeeks = newSelectedWeeks,
-                        startWeek = newSelectedWeeks.min(),
-                        endWeek = newSelectedWeeks.max(),
-                        weekType = Course.WEEK_TYPE_ALL,
-                        lastModified = System.currentTimeMillis()
-                    )
-                }
+            val updated = removeWeekFrom(result[idx], week, resetWeekType = true)
+            if (updated == null) {
+                result.removeAt(idx)
+            } else {
+                result[idx] = updated
             }
         }
         // 保存中间结果，避免 moveCourseForWeek 重新读取旧数据
@@ -631,11 +596,11 @@ class CourseRepository private constructor(context: Context) {
         // 双方互换位置：源移到目标位置，目标移到源位置
         // 复用 moveCourseForWeek 的拆分+合并逻辑，分两步执行
         // 第一步：源课程移到目标位置（会自动处理与目标位置其他课程的同源合并）
-        var result = courses
-        result = applyMoveInPlace(result, src.id, week, tgtPos.first, tgtPos.second, tgtPos.third)
+        var result: MutableList<Course> = courses
+        moveWeekInPlace(result, src.id, week, tgtPos.first, tgtPos.second, tgtPos.third)?.let { result = it }
         // 第二步：目标课程移到源原位置
         // 注意：第一步后源课程可能已拆分，src 的 id 仍在原课程（已移除该周）
-        result = applyMoveInPlace(result, tgt.id, week, srcPos.first, srcPos.second, srcPos.third)
+        moveWeekInPlace(result, tgt.id, week, srcPos.first, srcPos.second, srcPos.third)?.let { result = it }
 
         saveCourses(result, notify = false)
         // 不在此处触发 onCourseChanged，由 ViewModel 统一处理 UI 更新，避免竞态
@@ -643,29 +608,31 @@ class CourseRepository private constructor(context: Context) {
     }
 
     /**
-     * 在给定列表上执行 moveCourseForWeek 的拆分+合并逻辑（原地操作，不保存）
-     * 返回修改后的列表
+     * 在给定列表上执行"按周移动"的拆分+合并逻辑（原地操作，不保存）。
+     *
+     * @return 修改后的新列表；无需改动（课程不存在 / 目标位置相同 / 该周无效）时返回 null，
+     *         调用方可据此跳过一次无意义的落盘。
      */
-    private fun applyMoveInPlace(
+    private fun moveWeekInPlace(
         courses: List<Course>,
         sourceCourseId: String,
         week: Int,
         targetDayOfWeek: Int,
         targetStartSection: Int,
         targetEndSection: Int
-    ): MutableList<Course> {
+    ): MutableList<Course>? {
         val result = courses.toMutableList()
         val sourceIdx = result.indexOfFirst { it.id == sourceCourseId }
-        if (sourceIdx == -1) return result
+        if (sourceIdx == -1) return null
         val source = result[sourceIdx]
 
         if (source.dayOfWeek == targetDayOfWeek &&
             source.startSection == targetStartSection &&
             source.endSection == targetEndSection
-        ) return result
+        ) return null
 
         val currentSelectedWeeks = resolveSelectedWeeks(source)
-        if (week !in currentSelectedWeeks) return result
+        if (week !in currentSelectedWeeks) return null
 
         val targetTemp = source.copy(
             dayOfWeek = targetDayOfWeek,
@@ -1007,48 +974,14 @@ class CourseRepository private constructor(context: Context) {
         if (scheduleId == getCurrentScheduleId()) notifyCourseChanged("settings")
     }
 
-    private fun getDefaultTimesForPeriod(period: String): Map<Int, String> = when (period) {
-        "morning" -> Course.defaultMorningTimes
-        "afternoon" -> Course.defaultAfternoonTimes
-        "evening" -> Course.defaultEveningTimes
-        else -> emptyMap()
-    }
-
-    /**
-     * 迁移旧版节次时间格式到新的时段分离格式
-     * 旧格式：全局绝对节次号作为key（如 "3" -> "10:00-10:45"）
-     * 新格式：时段前缀+相对节次号（如 "morning_3" -> "10:00-10:45"）
-     * 迁移逻辑：根据上午/下午/晚上节数，将绝对节次映射到对应时段的相对节次
-     */
-    private fun migrateOldSectionTimes(raw: Map<*, *>, period: String): Map<Int, String> {
-        val oldMap = mutableMapOf<Int, String>()
-        for ((k, v) in raw) {
-            val intKey = (k as? String)?.toIntOrNull() ?: continue
-            oldMap[intKey] = v as String
-        }
-        if (oldMap.isEmpty()) return getDefaultTimesForPeriod(period)
-        val m = getMorningSections()
-        val a = getAfternoonSections()
-        val defaults = getDefaultTimesForPeriod(period)
-        val result = mutableMapOf<Int, String>()
-        when (period) {
-            "morning" -> for (i in 1..6) result[i] = oldMap[i] ?: defaults[i] ?: ""
-            "afternoon" -> for (i in 1..6) result[i] = oldMap[m + i] ?: defaults[i] ?: ""
-            "evening" -> for (i in 1..6) result[i] = oldMap[m + a + i] ?: defaults[i] ?: ""
-        }
-        savePeriodTimes(period, result)
-        return result
-    }
-
+    // --- 旧版遗留影子 prefs 的读取口 ---
+    // 引入 TimeConfig 之后，节数 / 节次时间 / 快速时间参数的唯一数据源是 TimeConfig，
+    // 下面这些 getter 读的 schedule_{课表}_* 键只在 TimeConfig.fromRepository() 做版本迁移时被读过一次。
+    // 保留原因：迁移路径要读旧数据，exportAllPreferences 也依赖这套键做导出兼容。
+    // 日常读写一律走 TimeConfig，不要在这里新增逻辑。
     fun getQuickTimeEnabled(): Boolean {
         val key = "${getScheduleKeyPrefix()}$KEY_QUICK_TIME_ENABLED"
         return prefs.getBoolean(key, false)
-    }
-
-    fun setQuickTimeEnabled(enabled: Boolean) {
-        val key = "${getScheduleKeyPrefix()}$KEY_QUICK_TIME_ENABLED"
-        prefs.edit { putBoolean(key, enabled) }
-        notifyCourseChanged("settings")
     }
 
     fun getClassDuration(): Int {
@@ -1056,21 +989,9 @@ class CourseRepository private constructor(context: Context) {
         return safeGetInt(key, 45)
     }
 
-    fun setClassDuration(minutes: Int) {
-        val key = "${getScheduleKeyPrefix()}$KEY_CLASS_DURATION"
-        prefs.edit {putInt(key, minutes) }
-        notifyCourseChanged("settings")
-    }
-
     fun getShortBreak(): Int {
         val key = "${getScheduleKeyPrefix()}$KEY_SHORT_BREAK"
         return safeGetInt(key, 10)
-    }
-
-    fun setShortBreak(minutes: Int) {
-        val key = "${getScheduleKeyPrefix()}$KEY_SHORT_BREAK"
-        prefs.edit {putInt(key, minutes) }
-        notifyCourseChanged("settings")
     }
 
     fun getLongBreakEnabled(): Boolean {
@@ -1078,21 +999,9 @@ class CourseRepository private constructor(context: Context) {
         return prefs.getBoolean(key, false)
     }
 
-    fun setLongBreakEnabled(enabled: Boolean) {
-        val key = "${getScheduleKeyPrefix()}${KEY_LONG_BREAK}_enabled"
-        prefs.edit {putBoolean(key, enabled) }
-        notifyCourseChanged("settings")
-    }
-
     fun getLongBreakMorning(): Int {
         val key = "${getScheduleKeyPrefix()}${KEY_LONG_BREAK}_morning"
         return safeGetInt(key, 20)
-    }
-
-    fun setLongBreakMorning(minutes: Int) {
-        val key = "${getScheduleKeyPrefix()}${KEY_LONG_BREAK}_morning"
-        prefs.edit {putInt(key, minutes)}
-        notifyCourseChanged("settings")
     }
 
     fun getLongBreakAfternoon(): Int {
@@ -1100,21 +1009,9 @@ class CourseRepository private constructor(context: Context) {
         return safeGetInt(key, 20)
     }
 
-    fun setLongBreakAfternoon(minutes: Int) {
-        val key = "${getScheduleKeyPrefix()}${KEY_LONG_BREAK}_afternoon"
-        prefs.edit {putInt(key, minutes)}
-        notifyCourseChanged("settings")
-    }
-
     fun getLongBreakEvening(): Int {
         val key = "${getScheduleKeyPrefix()}${KEY_LONG_BREAK}_evening"
         return safeGetInt(key, 20)
-    }
-
-    fun setLongBreakEvening(minutes: Int) {
-        val key = "${getScheduleKeyPrefix()}${KEY_LONG_BREAK}_evening"
-        prefs.edit {putInt(key, minutes)}
-        notifyCourseChanged("settings")
     }
 
     fun getLongBreakMorningSection(): Int {
@@ -1122,21 +1019,9 @@ class CourseRepository private constructor(context: Context) {
         return safeGetInt(key, 2)
     }
 
-    fun setLongBreakMorningSection(section: Int) {
-        val key = "${getScheduleKeyPrefix()}${KEY_LONG_BREAK}_morning_section"
-        prefs.edit {putInt(key, section)}
-        notifyCourseChanged("settings")
-    }
-
     fun getLongBreakAfternoonSection(): Int {
         val key = "${getScheduleKeyPrefix()}${KEY_LONG_BREAK}_afternoon_section"
         return safeGetInt(key, 2)
-    }
-
-    fun setLongBreakAfternoonSection(section: Int) {
-        val key = "${getScheduleKeyPrefix()}${KEY_LONG_BREAK}_afternoon_section"
-        prefs.edit {putInt(key, section)}
-        notifyCourseChanged("settings")
     }
 
     fun getLongBreakEveningSection(): Int {
@@ -1144,21 +1029,9 @@ class CourseRepository private constructor(context: Context) {
         return safeGetInt(key, 2)
     }
 
-    fun setLongBreakEveningSection(section: Int) {
-        val key = "${getScheduleKeyPrefix()}${KEY_LONG_BREAK}_evening_section"
-        prefs.edit { putInt(key, section) }
-        notifyCourseChanged("settings")
-    }
-
     fun getMorningStartHour(): Int {
         val key = "${getScheduleKeyPrefix()}$KEY_MORNING_START"
         return safeGetInt(key, 8)
-    }
-
-    fun setMorningStartHour(hour: Int) {
-        val key = "${getScheduleKeyPrefix()}$KEY_MORNING_START"
-        prefs.edit { putInt(key, hour) }
-        notifyCourseChanged("settings")
     }
 
     fun getMorningStartMinute(): Int {
@@ -1166,21 +1039,9 @@ class CourseRepository private constructor(context: Context) {
         return safeGetInt(key, 0)
     }
 
-    fun setMorningStartMinute(minute: Int) {
-        val key = "${getScheduleKeyPrefix()}${KEY_MORNING_START}_min"
-        prefs.edit { putInt(key, minute) }
-        notifyCourseChanged("settings")
-    }
-
     fun getAfternoonStartHour(): Int {
         val key = "${getScheduleKeyPrefix()}$KEY_AFTERNOON_START"
         return safeGetInt(key, 14)
-    }
-
-    fun setAfternoonStartHour(hour: Int) {
-        val key = "${getScheduleKeyPrefix()}$KEY_AFTERNOON_START"
-        prefs.edit { putInt(key, hour) }
-        notifyCourseChanged("settings")
     }
 
     fun getAfternoonStartMinute(): Int {
@@ -1188,32 +1049,14 @@ class CourseRepository private constructor(context: Context) {
         return safeGetInt(key, 0)
     }
 
-    fun setAfternoonStartMinute(minute: Int) {
-        val key = "${getScheduleKeyPrefix()}${KEY_AFTERNOON_START}_min"
-        prefs.edit {putInt(key, minute) }
-        notifyCourseChanged("settings")
-    }
-
     fun getEveningStartHour(): Int {
         val key = "${getScheduleKeyPrefix()}$KEY_EVENING_START"
         return safeGetInt(key, 18)
     }
 
-    fun setEveningStartHour(hour: Int) {
-        val key = "${getScheduleKeyPrefix()}$KEY_EVENING_START"
-        prefs.edit { putInt(key, hour) }
-        notifyCourseChanged("settings")
-    }
-
     fun getEveningStartMinute(): Int {
         val key = "${getScheduleKeyPrefix()}${KEY_EVENING_START}_min"
         return safeGetInt(key, 30)
-    }
-
-    fun setEveningStartMinute(minute: Int) {
-        val key = "${getScheduleKeyPrefix()}${KEY_EVENING_START}_min"
-        prefs.edit {putInt(key, minute) }
-        notifyCourseChanged("settings")
     }
 
     fun getPreClassReminder(): Boolean {
@@ -1329,8 +1172,7 @@ class CourseRepository private constructor(context: Context) {
     ): Set<Int> {
         // 无排除条件且非自定义时间时使用缓存
         if (excludeIds.isEmpty() && startTime == null && endTime == null) {
-            val cacheKey = "${dayOfWeek}_${startSection}_${endSection}"
-            occupiedWeeksCache[cacheKey]?.let { return it }
+            occupiedWeeksCache[occupiedWeeksKey(dayOfWeek, startSection, endSection)]?.let { return it }
         }
 
         val sectionTimes = getGlobalSectionTimes()
@@ -1357,12 +1199,19 @@ class CourseRepository private constructor(context: Context) {
 
         // 无排除条件且非自定义时间时存入缓存
         if (excludeIds.isEmpty() && startTime == null && endTime == null) {
-            val cacheKey = "${dayOfWeek}_${startSection}_${endSection}"
-            occupiedWeeksCache[cacheKey] = occupied
+            occupiedWeeksCache[occupiedWeeksKey(dayOfWeek, startSection, endSection)] = occupied
         }
 
         return occupied
     }
+
+    /**
+     * 占用周次的缓存键。
+     * 必须带上课表 ID：课程数据与节次时间都随课表变化，
+     * 仅用 "天_起节_止节" 会在切换课表后命中另一课表的缓存。
+     */
+    private fun occupiedWeeksKey(dayOfWeek: Int, startSection: Int, endSection: Int): String =
+        "${getCurrentScheduleId()}_${dayOfWeek}_${startSection}_${endSection}"
 
     /**
      * 将 "HH:mm" 时间字符串转换为分钟数（自当日 00:00 起），无法解析时返回 null
@@ -1381,16 +1230,19 @@ class CourseRepository private constructor(context: Context) {
      * 上午保持原编号，下午偏移上午节数，晚上偏移上午+下午节数
      */
     private fun getGlobalSectionTimes(): Map<Int, String> {
+        globalSectionTimesCache?.let { return it }
         val morning = getPeriodTimes("morning")
         val afternoon = getPeriodTimes("afternoon")
         val evening = getPeriodTimes("evening")
         val morningSections = getMorningSections()
         val afternoonSections = getAfternoonSections()
-        return buildMap {
+        val times = buildMap {
             morning.forEach { (k, v) -> put(k, v) }
             afternoon.forEach { (k, v) -> put(morningSections + k, v) }
             evening.forEach { (k, v) -> put(morningSections + afternoonSections + k, v) }
         }
+        globalSectionTimesCache = times
+        return times
     }
 
     /**
@@ -1459,8 +1311,9 @@ class CourseRepository private constructor(context: Context) {
      * 获取所有课表名称
      */
     fun getScheduleNames(): List<String> {
+        scheduleNamesCache?.let { return it }
         val json = prefs.getString(KEY_SCHEDULE_NAMES, null)
-        return try {
+        val names = try {
             if (json.isNullOrBlank()) listOf("默认课表")
             else {
                 val parsed: List<String>? = gson.fromJson(json, object : TypeToken<List<String>>() {}.type)
@@ -1469,24 +1322,32 @@ class CourseRepository private constructor(context: Context) {
         } catch (_: Exception) {
             listOf("默认课表")
         }
+        scheduleNamesCache = names
+        return names
     }
 
     /**
      * 保存课表名称列表
      */
-   internal fun saveScheduleNames(names: List<String>) {
+    internal fun saveScheduleNames(names: List<String>) {
         val json = gson.toJson(names)
         prefs.edit(commit = true) { putString(KEY_SCHEDULE_NAMES, json) }
+        // 课表列表变化会让"当前课表 ID 是否仍有效"的结论失效
+        scheduleNamesCache = names
+        currentScheduleIdCache = null
     }
 
     /**
      * 获取当前选中的课表ID
      */
     fun getCurrentScheduleId(): String {
+        currentScheduleIdCache?.let { return it }
         val saved = prefs.getString(KEY_CURRENT_SCHEDULE_ID, "默认课表") ?: "默认课表"
         // 如果当前课表不在课表列表中，回退到第一个课表
         val names = getScheduleNames()
-        return if (saved in names) saved else names.first()
+        val resolved = if (saved in names) saved else names.first()
+        currentScheduleIdCache = resolved
+        return resolved
     }
 
     /**
@@ -1494,6 +1355,9 @@ class CourseRepository private constructor(context: Context) {
      */
     fun setCurrentScheduleId(scheduleId: String) {
         prefs.edit { putString(KEY_CURRENT_SCHEDULE_ID, scheduleId) }
+        currentScheduleIdCache = scheduleId
+        // 课表切换后，占用周次与全局节次时间都基于"当前课表"计算，必须失效
+        invalidateTimeCaches()
         notifyCourseChanged("settings")
     }
 
@@ -1597,6 +1461,9 @@ class CourseRepository private constructor(context: Context) {
                 }
             }
         }
+        // 直接改写了 prefs：该课表的课程缓存与时间配置缓存全部失效，
+        // 否则新建同名课表时会读到已删除的旧数据
+        invalidateAllCaches()
         // 如果删除的是当前课表，切换到第一个课表
         if (getCurrentScheduleId() == name) {
             setCurrentScheduleId(names.first())
@@ -1656,6 +1523,9 @@ class CourseRepository private constructor(context: Context) {
                     }
                 }
             }
+            // 课表重命名改写了 schedule_* 键前缀并可能改写当前课表 ID，
+            // 旧的课程缓存、课表 ID 缓存、时间配置绑定缓存一律失效
+            invalidateAllCaches()
         }
         notifyCourseChanged("settings")
         return names
@@ -1680,6 +1550,8 @@ class CourseRepository private constructor(context: Context) {
      */
     fun setScheduleTimeConfigId(scheduleId: String, timeConfigId: Long) {
         prefs.edit { putLong("$SCHEDULE_TIME_CONFIG_PREFIX$scheduleId", timeConfigId) }
+        // 绑定关系变化后该课表读到的节数/节次时间会随之改变
+        invalidateTimeCaches()
     }
 
     /**
@@ -1752,6 +1624,113 @@ class CourseRepository private constructor(context: Context) {
     /** 设置当前选中的搭配 ID */
     fun setCurrentCombinationId(id: Long) {
         prefs.edit { putLong(KEY_CURRENT_COMBINATION_ID, id) }
+    }
+
+    // --- 批量写入支持 ---
+
+    /**
+     * 批量写入中复用的 Editor；非批量时为 null，各写入点独立提交。
+     *
+     * 存在意义：保存一次搭配会连续调用 16 个 save*，原本就是 16 次独立磁盘事务，
+     * 用 [batchEdit] 包裹后合并为一次提交。
+     */
+    private var pendingEditor: SharedPreferences.Editor? = null
+
+    /** 所有写入的统一入口：批量模式下复用 Editor，否则独立提交 */
+    private fun edit(commit: Boolean = false, block: SharedPreferences.Editor.() -> Unit) {
+        val pending = pendingEditor
+        if (pending != null) {
+            block(pending)
+        } else {
+            prefs.edit(commit = commit) { block(this) }
+        }
+    }
+
+    /**
+     * 把块内所有 prefs 写入合并为一次提交。可嵌套（内层直接复用外层 Editor）。
+     */
+    fun batchEdit(block: () -> Unit) {
+        val outer = pendingEditor
+        if (outer != null) {
+            block()
+            return
+        }
+        val editor = prefs.edit()
+        pendingEditor = editor
+        try {
+            block()
+        } finally {
+            pendingEditor = null
+        }
+        editor.apply()
+    }
+
+    // --- 搭配外观：17 个分散键收敛为单个 JSON ---
+
+    /**
+     * 读取搭配外观快照（带缓存）。
+     * 旧版本散落在 `comb_xxx_{id}` 的 17 个键在首次读取时自动迁移为单个 JSON。
+     */
+    private fun getCombinationStyle(id: Long): CombinationStyle {
+        combinationStyleCache[id]?.let { return it }
+        val json = prefs.getString("$COMBINATION_STYLE_PREFIX$id", null)
+        val style = if (json != null) {
+            runCatching { gson.fromJson(json, CombinationStyle::class.java) }.getOrNull()
+                ?: CombinationStyle()
+        } else {
+            readLegacyCombinationStyle(id).also { saveCombinationStyle(id, it) }
+        }
+        combinationStyleCache[id] = style
+        return style
+    }
+
+    private fun saveCombinationStyle(id: Long, style: CombinationStyle) {
+        edit { putString("$COMBINATION_STYLE_PREFIX$id", gson.toJson(style)) }
+        combinationStyleCache[id] = style
+    }
+
+    /** 在现有快照基础上做一次变更并落盘 */
+    private fun updateCombinationStyle(id: Long, transform: (CombinationStyle) -> CombinationStyle) {
+        saveCombinationStyle(id, transform(getCombinationStyle(id)))
+    }
+
+    /**
+     * 从旧版 17 个分散键读取外观参数（迁移专用）。
+     * 每个默认值都与迁移前对应 getter 保持一致，确保升级前后行为不变。
+     */
+    private fun readLegacyCombinationStyle(id: Long): CombinationStyle {
+        val isLightKey = "${KEY_COMBINATION_WALLPAPER_IS_LIGHT_PREFIX}$id"
+        return CombinationStyle(
+            offsetX = prefs.getFloat("${KEY_COMBINATION_OFFSET_X_PREFIX}$id", 0f),
+            offsetY = prefs.getFloat("${KEY_COMBINATION_OFFSET_Y_PREFIX}$id", 0f),
+            scale = prefs.getFloat("${KEY_COMBINATION_SCALE_PREFIX}$id", 1f),
+            cardBlur = prefs.getFloat("${KEY_COMBINATION_CARD_BLUR_PREFIX}$id", 0f),
+            cardAlpha = prefs.getFloat("${KEY_COMBINATION_CARD_ALPHA_PREFIX}$id", 0.15f),
+            cardHeight = prefs.getFloat("${KEY_COMBINATION_CARD_HEIGHT_PREFIX}$id", 54f),
+            cardCornerRadius = prefs.getFloat("${KEY_COMBINATION_CARD_CORNER_PREFIX}$id", 8f),
+            wallpaperBrightness = prefs.getFloat("${KEY_COMBINATION_WALLPAPER_BRIGHTNESS_PREFIX}$id", 0f),
+            wallpaperIsLight = if (prefs.contains(isLightKey)) prefs.getBoolean(isLightKey, false) else null,
+            showBreakDividers = prefs.getBoolean("${KEY_COMBINATION_SHOW_BREAK_DIVIDERS_PREFIX}$id", true),
+            cardContentAlignment = CardContentAlignment.fromOrdinal(
+                prefs.getInt(
+                    "${KEY_COMBINATION_CARD_CONTENT_ALIGNMENT_PREFIX}$id",
+                    CardContentAlignment.CENTER_CENTER.ordinal
+                )
+            ),
+            cardTextColor = CardTextColor.fromOrdinal(
+                prefs.getInt("${KEY_COMBINATION_CARD_TEXT_COLOR_PREFIX}$id", CardTextColor.COLORFUL.ordinal)
+            ),
+            cardTextScale = prefs.getFloat("${KEY_COMBINATION_CARD_TEXT_SCALE_PREFIX}$id", 1f),
+            showClassroom = prefs.getBoolean("${KEY_COMBINATION_SHOW_CLASSROOM_PREFIX}$id", true),
+            showTeacher = prefs.getBoolean("${KEY_COMBINATION_SHOW_TEACHER_PREFIX}$id", true),
+            cardRefraction = CardRefractionLevel.fromOrdinal(
+                prefs.getInt(
+                    "${KEY_COMBINATION_CARD_REFRACTION_PREFIX}$id",
+                    CardRefractionLevel.DEFAULT.ordinal
+                )
+            ),
+            wallpaperBlur = prefs.getBoolean("${KEY_COMBINATION_WALLPAPER_BLUR_PREFIX}$id", false)
+        )
     }
 
     /** 壁纸的目标存储/解码分辨率（屏幕分辨率），用于平衡显示质量与内存占用 */
@@ -1833,137 +1812,82 @@ class CourseRepository private constructor(context: Context) {
     }
 
     /** 保存指定搭配的偏移和缩放 */
-    fun saveCombinationState(id: Long, offsetX: Float, offsetY: Float, scale: Float) {
-        prefs.edit {
-            putFloat("${KEY_COMBINATION_OFFSET_X_PREFIX}$id", offsetX)
-                .putFloat("${KEY_COMBINATION_OFFSET_Y_PREFIX}$id", offsetY)
-                .putFloat("${KEY_COMBINATION_SCALE_PREFIX}$id", scale)
-        }
-    }
+    fun saveCombinationState(id: Long, offsetX: Float, offsetY: Float, scale: Float) =
+        updateCombinationStyle(id) { it.copy(offsetX = offsetX, offsetY = offsetY, scale = scale) }
 
-    fun getCombinationOffsetX(id: Long): Float = prefs.getFloat("${KEY_COMBINATION_OFFSET_X_PREFIX}$id", 0f)
-    fun getCombinationOffsetY(id: Long): Float = prefs.getFloat("${KEY_COMBINATION_OFFSET_Y_PREFIX}$id", 0f)
-    fun getCombinationScale(id: Long): Float = prefs.getFloat("${KEY_COMBINATION_SCALE_PREFIX}$id", 1f)
+    fun getCombinationOffsetX(id: Long): Float = getCombinationStyle(id).offsetX
+    fun getCombinationOffsetY(id: Long): Float = getCombinationStyle(id).offsetY
+    fun getCombinationScale(id: Long): Float = getCombinationStyle(id).scale
 
-    fun saveCombinationCardBlur(id: Long, blurRadius: Float) {
-        prefs.edit {
-            putFloat("${KEY_COMBINATION_CARD_BLUR_PREFIX}$id", blurRadius)
-        }
-    }
+    fun saveCombinationCardBlur(id: Long, blurRadius: Float) =
+        updateCombinationStyle(id) { it.copy(cardBlur = blurRadius) }
 
-    fun getCombinationCardBlur(id: Long): Float = prefs.getFloat("${KEY_COMBINATION_CARD_BLUR_PREFIX}$id", 0f)
+    fun getCombinationCardBlur(id: Long): Float = getCombinationStyle(id).cardBlur
 
-    fun saveCombinationCardAlpha(id: Long, alpha: Float) {
-        prefs.edit {
-            putFloat("${KEY_COMBINATION_CARD_ALPHA_PREFIX}$id", alpha)
-        }
-    }
+    fun saveCombinationCardAlpha(id: Long, alpha: Float) =
+        updateCombinationStyle(id) { it.copy(cardAlpha = alpha) }
 
-    fun getCombinationCardAlpha(id: Long): Float = prefs.getFloat("${KEY_COMBINATION_CARD_ALPHA_PREFIX}$id", 0.15f)
+    fun getCombinationCardAlpha(id: Long): Float = getCombinationStyle(id).cardAlpha
 
-    fun saveCombinationCardHeight(id: Long, height: Float) {
-        prefs.edit {
-                putFloat("${KEY_COMBINATION_CARD_HEIGHT_PREFIX}$id", height)
-        }
-    }
+    fun saveCombinationCardHeight(id: Long, height: Float) =
+        updateCombinationStyle(id) { it.copy(cardHeight = height) }
 
-    fun getCombinationCardHeight(id: Long): Float = prefs.getFloat("${KEY_COMBINATION_CARD_HEIGHT_PREFIX}$id", 54f)
+    fun getCombinationCardHeight(id: Long): Float = getCombinationStyle(id).cardHeight
 
-    fun saveCombinationCardCornerRadius(id: Long, cornerRadius: Float) {
-        prefs.edit {
-            putFloat("${KEY_COMBINATION_CARD_CORNER_PREFIX}$id", cornerRadius)
-        }
-    }
+    fun saveCombinationCardCornerRadius(id: Long, cornerRadius: Float) =
+        updateCombinationStyle(id) { it.copy(cardCornerRadius = cornerRadius) }
 
-    fun getCombinationCardCornerRadius(id: Long): Float = prefs.getFloat("${KEY_COMBINATION_CARD_CORNER_PREFIX}$id", 8f)
+    fun getCombinationCardCornerRadius(id: Long): Float = getCombinationStyle(id).cardCornerRadius
 
-    fun saveCombinationWallpaperBrightness(id: Long, brightness: Float) {
-        prefs.edit {
-            putFloat("${KEY_COMBINATION_WALLPAPER_BRIGHTNESS_PREFIX}$id", brightness)
-        }
-    }
+    fun saveCombinationWallpaperBrightness(id: Long, brightness: Float) =
+        updateCombinationStyle(id) { it.copy(wallpaperBrightness = brightness) }
 
-    fun getCombinationWallpaperBrightness(id: Long): Float = prefs.getFloat("${KEY_COMBINATION_WALLPAPER_BRIGHTNESS_PREFIX}$id", 0f)
+    fun getCombinationWallpaperBrightness(id: Long): Float = getCombinationStyle(id).wallpaperBrightness
 
-    fun saveCombinationWallpaperIsLight(id: Long, isLight: Boolean?) {
-        prefs.edit {
-            if (isLight == null) remove("${KEY_COMBINATION_WALLPAPER_IS_LIGHT_PREFIX}$id")
-            else putBoolean("${KEY_COMBINATION_WALLPAPER_IS_LIGHT_PREFIX}$id", isLight)
-        }
-    }
+    fun saveCombinationWallpaperIsLight(id: Long, isLight: Boolean?) =
+        updateCombinationStyle(id) { it.copy(wallpaperIsLight = isLight) }
 
-    fun getCombinationWallpaperIsLight(id: Long): Boolean? {
-        val key = "${KEY_COMBINATION_WALLPAPER_IS_LIGHT_PREFIX}$id"
-        return if (prefs.contains(key)) prefs.getBoolean(key, false) else null
-    }
+    fun getCombinationWallpaperIsLight(id: Long): Boolean? = getCombinationStyle(id).wallpaperIsLight
 
-    fun saveCombinationShowBreakDividers(id: Long, show: Boolean) {
-        prefs.edit {
-                putBoolean("${KEY_COMBINATION_SHOW_BREAK_DIVIDERS_PREFIX}$id", show)
-        }
-    }
+    fun saveCombinationShowBreakDividers(id: Long, show: Boolean) =
+        updateCombinationStyle(id) { it.copy(showBreakDividers = show) }
 
-    fun getCombinationShowBreakDividers(id: Long): Boolean = prefs.getBoolean("${KEY_COMBINATION_SHOW_BREAK_DIVIDERS_PREFIX}$id", true)
+    fun getCombinationShowBreakDividers(id: Long): Boolean = getCombinationStyle(id).showBreakDividers
 
-    fun saveCombinationCardContentAlignment(id: Long, alignment: CardContentAlignment) {
-        prefs.edit {
-            putInt("${KEY_COMBINATION_CARD_CONTENT_ALIGNMENT_PREFIX}$id", alignment.ordinal)
-        }
-    }
+    fun saveCombinationCardContentAlignment(id: Long, alignment: CardContentAlignment) =
+        updateCombinationStyle(id) { it.copy(cardContentAlignment = alignment) }
 
-    fun getCombinationCardContentAlignment(id: Long): CardContentAlignment =
-        CardContentAlignment.fromOrdinal(prefs.getInt("${KEY_COMBINATION_CARD_CONTENT_ALIGNMENT_PREFIX}$id", CardContentAlignment.CENTER_CENTER.ordinal))
+    fun getCombinationCardContentAlignment(id: Long): CardContentAlignment = getCombinationStyle(id).safeAlignment
 
-    fun saveCombinationCardTextColor(id: Long, color: CardTextColor) {
-        prefs.edit {
-                putInt("${KEY_COMBINATION_CARD_TEXT_COLOR_PREFIX}$id", color.ordinal)
-        }
-    }
+    fun saveCombinationCardTextColor(id: Long, color: CardTextColor) =
+        updateCombinationStyle(id) { it.copy(cardTextColor = color) }
 
-    fun getCombinationCardTextColor(id: Long): CardTextColor =
-        CardTextColor.fromOrdinal(prefs.getInt("${KEY_COMBINATION_CARD_TEXT_COLOR_PREFIX}$id", CardTextColor.COLORFUL.ordinal))
+    fun getCombinationCardTextColor(id: Long): CardTextColor = getCombinationStyle(id).safeTextColor
 
-    fun saveCombinationCardTextScale(id: Long, scale: Float) {
-        prefs.edit {
-            putFloat("${KEY_COMBINATION_CARD_TEXT_SCALE_PREFIX}$id", scale)
-        }
-    }
+    fun saveCombinationCardTextScale(id: Long, scale: Float) =
+        updateCombinationStyle(id) { it.copy(cardTextScale = scale) }
 
-    fun getCombinationCardTextScale(id: Long): Float =
-        prefs.getFloat("${KEY_COMBINATION_CARD_TEXT_SCALE_PREFIX}$id", 1f)
+    fun getCombinationCardTextScale(id: Long): Float = getCombinationStyle(id).cardTextScale
 
-    fun saveCombinationShowClassroom(id: Long, show: Boolean) {
-        prefs.edit {
-            putBoolean("${KEY_COMBINATION_SHOW_CLASSROOM_PREFIX}$id", show)
-        }
-    }
+    fun saveCombinationShowClassroom(id: Long, show: Boolean) =
+        updateCombinationStyle(id) { it.copy(showClassroom = show) }
 
-    fun getCombinationShowClassroom(id: Long): Boolean = prefs.getBoolean("${KEY_COMBINATION_SHOW_CLASSROOM_PREFIX}$id", true)
+    fun getCombinationShowClassroom(id: Long): Boolean = getCombinationStyle(id).showClassroom
 
-    fun saveCombinationShowTeacher(id: Long, show: Boolean) {
-        prefs.edit {
-            putBoolean("${KEY_COMBINATION_SHOW_TEACHER_PREFIX}$id", show)
-        }
-    }
+    fun saveCombinationShowTeacher(id: Long, show: Boolean) =
+        updateCombinationStyle(id) { it.copy(showTeacher = show) }
 
-    fun getCombinationShowTeacher(id: Long): Boolean = prefs.getBoolean("${KEY_COMBINATION_SHOW_TEACHER_PREFIX}$id", true)
+    fun getCombinationShowTeacher(id: Long): Boolean = getCombinationStyle(id).showTeacher
 
-    fun saveCombinationCardRefraction(id: Long, level: CardRefractionLevel) {
-        prefs.edit {
-            putInt("${KEY_COMBINATION_CARD_REFRACTION_PREFIX}$id", level.ordinal)
-        }
-    }
+    fun saveCombinationCardRefraction(id: Long, level: CardRefractionLevel) =
+        updateCombinationStyle(id) { it.copy(cardRefraction = level) }
 
-    fun getCombinationCardRefraction(id: Long): CardRefractionLevel =
-        CardRefractionLevel.fromOrdinal(prefs.getInt("${KEY_COMBINATION_CARD_REFRACTION_PREFIX}$id", CardRefractionLevel.DEFAULT.ordinal))
+    fun getCombinationCardRefraction(id: Long): CardRefractionLevel = getCombinationStyle(id).safeRefraction
 
-    fun saveCombinationWallpaperBlur(id: Long, blur: Boolean) {
-        prefs.edit {
-            putBoolean("${KEY_COMBINATION_WALLPAPER_BLUR_PREFIX}$id", blur)
-        }
-    }
+    fun saveCombinationWallpaperBlur(id: Long, blur: Boolean) =
+        updateCombinationStyle(id) { it.copy(wallpaperBlur = blur) }
 
-    fun getCombinationWallpaperBlur(id: Long): Boolean = prefs.getBoolean("${KEY_COMBINATION_WALLPAPER_BLUR_PREFIX}$id", false)
+    fun getCombinationWallpaperBlur(id: Long): Boolean = getCombinationStyle(id).wallpaperBlur
 
     /** 迁移：如果只有旧的单搭配数据（无 combination_ids），将其作为 id=0 的搭配 */
     fun migrateToCombinationsIfNeeded() {
@@ -1988,22 +1912,32 @@ class CourseRepository private constructor(context: Context) {
 
     /** 获取所有时间配置 ID 列表（按创建顺序） */
     fun getTimeConfigIds(): List<Long> {
-        val idsStr = prefs.getString(KEY_TIME_CONFIG_IDS, null) ?: return listOf(0L)
-        // 兼容两种格式：逗号分隔 "1,2,3" 和 JSON 数组 "[1,2,3]"
-        val cleaned = idsStr.trim()
-        return if (cleaned.startsWith("[")) {
-            // JSON 数组格式
-            try {
-                val type = object : TypeToken<List<Long>>() {}.type
-                val list: List<Long> = gson.fromJson(cleaned, type) ?: emptyList()
-                list
-            } catch (_: Exception) {
-                emptyList()
-            }
+        timeConfigIdsCache?.let { return it }
+        val idsStr = prefs.getString(KEY_TIME_CONFIG_IDS, null)
+        val ids = if (idsStr == null) {
+            listOf(0L)
         } else {
-            // 逗号分隔格式
-            cleaned.split(",").mapNotNull { it.toLongOrNull() }
+            // 兼容两种格式：逗号分隔 "1,2,3" 和 JSON 数组 "[1,2,3]"
+            val cleaned = idsStr.trim()
+            if (cleaned.startsWith("[")) {
+                try {
+                    val type = object : TypeToken<List<Long>>() {}.type
+                    gson.fromJson<List<Long>>(cleaned, type) ?: emptyList()
+                } catch (_: Exception) {
+                    emptyList()
+                }
+            } else {
+                cleaned.split(",").mapNotNull { it.toLongOrNull() }
+            }
         }
+        timeConfigIdsCache = ids
+        return ids
+    }
+
+    /** 持久化时间配置 ID 列表并同步缓存 */
+    private fun saveTimeConfigIds(ids: List<Long>) {
+        prefs.edit { putString(KEY_TIME_CONFIG_IDS, ids.joinToString(",")) }
+        timeConfigIdsCache = ids
     }
 
     /** 获取当前选中的时间配置 ID */
@@ -2037,26 +1971,34 @@ class CourseRepository private constructor(context: Context) {
 
     /** 获取指定 ID 的时间配置 */
     fun getTimeConfig(id: Long): TimeConfig {
+        timeConfigCache[id]?.let { return it }
         val key = "$TIME_CONFIG_PREFIX$id"
         val json = prefs.getString(key, null)
         if (json.isNullOrEmpty()) {
             // 没有找到配置，返回默认配置
             return TimeConfig(id = id, name = "默认配置")
         }
-        return try {
-            val config = gson.fromJson(json, TimeConfig::class.java)
+        val config = try {
+            val parsed = gson.fromJson(json, TimeConfig::class.java)
             // 验证解析结果
-            config?.copy(id = id) ?: TimeConfig(id = id, name = "默认配置")
+            parsed?.copy(id = id) ?: TimeConfig(id = id, name = "默认配置")
         } catch (_: Exception) {
             TimeConfig(id = id, name = "默认配置")
         }
+        timeConfigCache[id] = config
+        return config
     }
 
-    /** 保存时间配置 */
+    /**
+     * 保存时间配置。
+     * 节数与节次时间均来自这里，因此同时失效占用周次与全局节次时间缓存。
+     */
     fun saveTimeConfig(config: TimeConfig) {
         val key = "${TIME_CONFIG_PREFIX}${config.id}"
         val json = gson.toJson(config)
         prefs.edit { putString(key, json) }
+        timeConfigCache[config.id] = config
+        invalidateTimeCaches()
     }
 
     /** 添加新时间配置，返回新 ID */
@@ -2065,9 +2007,7 @@ class CourseRepository private constructor(context: Context) {
         val newId = (ids.maxOrNull() ?: -1L) + 1L
         val newConfig = config.copy(id = newId)
         ids.add(newId)
-        prefs.edit {
-            putString(KEY_TIME_CONFIG_IDS, ids.joinToString(","))
-        }
+        saveTimeConfigIds(ids)
         saveTimeConfig(newConfig)
         return newId
     }
@@ -2076,16 +2016,15 @@ class CourseRepository private constructor(context: Context) {
     fun deleteTimeConfig(id: Long) {
         val ids = getTimeConfigIds().toMutableList()
         if (!ids.remove(id)) return
-        prefs.edit {
-            putString(KEY_TIME_CONFIG_IDS, ids.joinToString(","))
-                .remove("${TIME_CONFIG_PREFIX}$id")
-        }
+        saveTimeConfigIds(ids)
+        prefs.edit { remove("${TIME_CONFIG_PREFIX}$id") }
+        timeConfigCache.remove(id)
         // 若删除的是当前配置，且仍有其他配置，则切换到第一个
         if (ids.isNotEmpty() && getCurrentTimeConfigId() == id) {
             setCurrentTimeConfigId(ids.first())
         } else if (ids.isEmpty()) {
             // 删光后重新创建一个默认配置 id=0
-            prefs.edit { putString(KEY_TIME_CONFIG_IDS, "0") }
+            saveTimeConfigIds(listOf(0L))
             setCurrentTimeConfigId(0L)
         }
     }
@@ -2251,57 +2190,115 @@ class CourseRepository private constructor(context: Context) {
         return newStart + relative
     }
 
-    /** 将时间配置应用到当前课表的设置 */
+    /**
+     * 按 "period_index" 取出某一时段的节次时间（相对节次号 -> "HH:mm-HH:mm"）
+     */
+    private fun extractPeriodTimes(
+        sectionTimes: Map<String, String>,
+        period: String
+    ): Map<Int, String> {
+        val result = mutableMapOf<Int, String>()
+        for ((k, v) in sectionTimes) {
+            if (!k.startsWith("${period}_")) continue
+            val idx = k.removePrefix("${period}_").toIntOrNull() ?: continue
+            result[idx] = v
+        }
+        return result
+    }
+
+    /**
+     * 将时间配置应用到当前课表的设置。
+     *
+     * 旧实现逐个调用 20+ 个 setter，造成 20+ 次磁盘提交、20+ 次缓存清空与 20+ 次 UI 回调；
+     * 且 savePeriodTimes() 内部会把 quickTimeEnabled 重置为 false，
+     * 导致前面刚写入的快速时间开关被静默覆盖（切换时间配置后快速时间总是被关掉）。
+     * 这里改为一次性构造完整配置后单次写入，并修正开关被覆盖的问题。
+     */
     private fun applyTimeConfigToSchedule(config: TimeConfig) {
-        setMorningSections(config.morningSections)
-        setAfternoonSections(config.afternoonSections)
-        setEveningSections(config.eveningSections)
-        setQuickTimeEnabled(config.quickTimeEnabled)
-        setClassDuration(config.classDuration)
-        setShortBreak(config.shortBreak)
-        setLongBreakEnabled(config.longBreakEnabled)
-        setLongBreakMorning(config.longBreakMorning)
-        setLongBreakAfternoon(config.longBreakAfternoon)
-        setLongBreakEvening(config.longBreakEvening)
-        setLongBreakMorningSection(config.longBreakMorningSection)
-        setLongBreakAfternoonSection(config.longBreakAfternoonSection)
-        setLongBreakEveningSection(config.longBreakEveningSection)
-        setMorningStartHour(config.morningStartHour)
-        setMorningStartMinute(config.morningStartMinute)
-        setAfternoonStartHour(config.afternoonStartHour)
-        setAfternoonStartMinute(config.afternoonStartMinute)
-        setEveningStartHour(config.eveningStartHour)
-        setEveningStartMinute(config.eveningStartMinute)
-        // 保存节次时间
-        if (config.sectionTimes.isNotEmpty()) {
-            // 按时段分组保存
-            val morningTimes = mutableMapOf<Int, String>()
-            val afternoonTimes = mutableMapOf<Int, String>()
-            val eveningTimes = mutableMapOf<Int, String>()
-            for ((k, v) in config.sectionTimes) {
-                when {
-                    k.startsWith("morning_") -> {
-                        val idx = k.removePrefix("morning_").toIntOrNull()
-                        if (idx != null) morningTimes[idx] = v
-                    }
-                    k.startsWith("afternoon_") -> {
-                        val idx = k.removePrefix("afternoon_").toIntOrNull()
-                        if (idx != null) afternoonTimes[idx] = v
-                    }
-                    k.startsWith("evening_") -> {
-                        val idx = k.removePrefix("evening_").toIntOrNull()
-                        if (idx != null) eveningTimes[idx] = v
-                    }
-                }
+        val scheduleId = getCurrentScheduleId()
+        val configId = getScheduleTimeConfigId(scheduleId)
+        val base = getTimeConfig(configId)
+
+        // 节次时间：配置为空时整体回退到默认时段时间；
+        // 配置非空但某时段缺失时，保留该时段原有值（与旧 savePeriodTimes 行为一致）
+        val sectionTimes: Map<String, String> = if (config.sectionTimes.isNotEmpty()) {
+            val merged = base.sectionTimes.toMutableMap()
+            for (period in listOf("morning", "afternoon", "evening")) {
+                val times = extractPeriodTimes(config.sectionTimes, period)
+                if (times.isEmpty()) continue
+                merged.keys.filter { it.startsWith("${period}_") }.forEach { merged.remove(it) }
+                times.forEach { (idx, v) -> merged["${period}_$idx"] = v }
             }
-            if (morningTimes.isNotEmpty()) savePeriodTimes("morning", morningTimes)
-            if (afternoonTimes.isNotEmpty()) savePeriodTimes("afternoon", afternoonTimes)
-            if (eveningTimes.isNotEmpty()) savePeriodTimes("evening", eveningTimes)
+            merged
         } else {
-            // sectionTimes 为空时，使用默认时间
-            savePeriodTimes("morning", Course.defaultMorningTimes)
-            savePeriodTimes("afternoon", Course.defaultAfternoonTimes)
-            savePeriodTimes("evening", Course.defaultEveningTimes)
+            buildMap {
+                Course.defaultMorningTimes.forEach { (k, v) -> put("morning_$k", v) }
+                Course.defaultAfternoonTimes.forEach { (k, v) -> put("afternoon_$k", v) }
+                Course.defaultEveningTimes.forEach { (k, v) -> put("evening_$k", v) }
+            }
+        }
+
+        batchingSettings = true
+        try {
+            saveTimeConfig(
+                base.copy(
+                    morningSections = config.morningSections,
+                    afternoonSections = config.afternoonSections,
+                    eveningSections = config.eveningSections,
+                    // 与原 4x2 版本行为一致：应用配置时快速时间开关保持关闭
+                    // （旧实现中 savePeriodTimes 会把它重置为 false，这里显式保持该结果）
+                    quickTimeEnabled = false,
+                    classDuration = config.classDuration,
+                    shortBreak = config.shortBreak,
+                    longBreakEnabled = config.longBreakEnabled,
+                    longBreakMorning = config.longBreakMorning,
+                    longBreakAfternoon = config.longBreakAfternoon,
+                    longBreakEvening = config.longBreakEvening,
+                    longBreakMorningSection = config.longBreakMorningSection,
+                    longBreakAfternoonSection = config.longBreakAfternoonSection,
+                    longBreakEveningSection = config.longBreakEveningSection,
+                    morningStartHour = config.morningStartHour,
+                    morningStartMinute = config.morningStartMinute,
+                    afternoonStartHour = config.afternoonStartHour,
+                    afternoonStartMinute = config.afternoonStartMinute,
+                    eveningStartHour = config.eveningStartHour,
+                    eveningStartMinute = config.eveningStartMinute,
+                    sectionTimes = sectionTimes
+                )
+            )
+            writeLegacyTimeShadowPrefs(scheduleId, config)
+        } finally {
+            batchingSettings = false
+        }
+        commitSettingsChanged()
+    }
+
+    /**
+     * 写入旧版遗留的影子 prefs（schedule_{课表}_*）。
+     *
+     * 这些键在引入 TimeConfig 后已无读取方：节数/节次时间统一从 TimeConfig 读，
+     * 快速时间相关 getter 在仓库内更是零调用；保留仅因 exportAllPreferences 会导出它们，
+     * 用于旧版本回滚。此处把原先分散在 17 个 setter 中的写入合并为一次提交。
+     */
+    private fun writeLegacyTimeShadowPrefs(scheduleId: String, config: TimeConfig) {
+        val prefix = getScheduleKeyPrefix(scheduleId)
+        prefs.edit {
+            putBoolean("${prefix}$KEY_QUICK_TIME_ENABLED", config.quickTimeEnabled)
+            putInt("${prefix}$KEY_CLASS_DURATION", config.classDuration)
+            putInt("${prefix}$KEY_SHORT_BREAK", config.shortBreak)
+            putBoolean("${prefix}${KEY_LONG_BREAK}_enabled", config.longBreakEnabled)
+            putInt("${prefix}${KEY_LONG_BREAK}_morning", config.longBreakMorning)
+            putInt("${prefix}${KEY_LONG_BREAK}_afternoon", config.longBreakAfternoon)
+            putInt("${prefix}${KEY_LONG_BREAK}_evening", config.longBreakEvening)
+            putInt("${prefix}${KEY_LONG_BREAK}_morning_section", config.longBreakMorningSection)
+            putInt("${prefix}${KEY_LONG_BREAK}_afternoon_section", config.longBreakAfternoonSection)
+            putInt("${prefix}${KEY_LONG_BREAK}_evening_section", config.longBreakEveningSection)
+            putInt("${prefix}$KEY_MORNING_START", config.morningStartHour)
+            putInt("${prefix}${KEY_MORNING_START}_min", config.morningStartMinute)
+            putInt("${prefix}$KEY_AFTERNOON_START", config.afternoonStartHour)
+            putInt("${prefix}${KEY_AFTERNOON_START}_min", config.afternoonStartMinute)
+            putInt("${prefix}$KEY_EVENING_START", config.eveningStartHour)
+            putInt("${prefix}${KEY_EVENING_START}_min", config.eveningStartMinute)
         }
     }
 
@@ -2329,7 +2326,6 @@ class CourseRepository private constructor(context: Context) {
             KEY_SHIFT_MODE,
             KEY_SHIFT_SELECTED_SCHEDULES,
             KEY_DEFAULT_HOMEPAGE,
-            KEY_NAV_BAR_STYLE,
             KEY_TIME_CONFIG_IDS,
             KEY_CURRENT_TIME_CONFIG_ID
         )
@@ -2401,9 +2397,8 @@ class CourseRepository private constructor(context: Context) {
                 }
             }
         }
-        // 清除缓存，确保 UI 刷新
-        courseCache.clear()
-        occupiedWeeksCache.clear()
+        // 备份数据直接覆盖了 prefs，所有内存缓存一律失效
+        invalidateAllCaches()
         onCourseChanged?.invoke("restore", "")
     }
 
@@ -2467,9 +2462,8 @@ class CourseRepository private constructor(context: Context) {
         val key = "${prefix}$KEY_COURSES"
         val json = gson.toJson(courses)
         prefs.edit { putString(key, json) }
-        // 清除缓存，确保 UI 刷新
-        courseCache.clear()
-        occupiedWeeksCache.clear()
+        // 直接写入了课程数据，缓存失效以确保 UI 读到新数据
+        invalidateAllCaches()
 
         // 为新课表创建时间配置并绑定
         val existingConfigId = getScheduleTimeConfigId(scheduleName)

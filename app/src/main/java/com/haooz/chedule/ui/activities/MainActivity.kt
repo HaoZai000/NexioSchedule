@@ -267,8 +267,9 @@ class MainActivity : ComponentActivity() {
                     val ids = repo.getCombinationIds()
                     val currentId = repo.getCurrentCombinationId()
                     val idx = ids.indexOf(currentId).coerceAtLeast(0)
-                    cachedCombinationIds = ids
-                    cachedCurrentCombinationIndex = idx
+                    // 单搭配模式：只缓存当前搭配，后续启动不必再读其余旧搭配
+                    cachedCombinationIds = if (ids.isEmpty()) emptyList() else listOf(currentId)
+                    cachedCurrentCombinationIndex = 0
                     if (ids.isNotEmpty()) {
                         val currentIdValue = ids[idx]
                         cachedWallpaperBitmap = repo.loadCombinationWallpaper(currentIdValue)
@@ -1017,14 +1018,12 @@ fun CourseScheduleApp() {
         val cachedIds = MainActivity.cachedCombinationIds
         val cachedIdx = MainActivity.cachedCurrentCombinationIndex
 
-        val ids: List<Long>
         val currentIndex: Int
 
         if (cached != null && cachedIds.isNotEmpty()) {
             // 有缓存：直接构建 combinations 列表，bitmap 用缓存
-            ids = cachedIds
             currentIndex = cachedIdx
-            val list = ids.mapIndexed { index, id ->
+            val list = cachedIds.mapIndexed { index, id ->
                 com.haooz.chedule.data.Combination(
                     id = id,
                     bitmap = if (index == currentIndex) cached else null,
@@ -1049,8 +1048,12 @@ fun CourseScheduleApp() {
                     wallpaperBlur = wallpaperRepository.getCombinationWallpaperBlur(id)
                 )
             }
-            combinations = list
-            currentCombinationIndex = currentIndex
+            // 单搭配模式：只保留当前搭配，其余旧搭配数据不再加载，
+            // 避免主界面与进入课表外观时读取的组合不一致（随机出现旧搭配）。
+            // 裁剪必须在赋值前完成：先赋全量列表再裁掉会额外触发一轮全量重组。
+            val cachedCombOnly = list.getOrNull(currentIndex)
+            combinations = if (cachedCombOnly != null) listOf(cachedCombOnly) else emptyList()
+            currentCombinationIndex = 0
         } else {
             // 无缓存：走原有逻辑
             val phase1 = withContext(Dispatchers.IO) {
@@ -1090,22 +1093,19 @@ fun CourseScheduleApp() {
                         wallpaperBlur = wallpaperRepository.getCombinationWallpaperBlur(id)
                     )
                 }
-                Triple(list, loadedIds, loadedIndex)
+                // 只需列表与当前下标：搭配 id 列表在裁剪为单搭配后不再需要外传
+                Pair(list, loadedIndex)
             }
-            ids = phase1.second
-            currentIndex = phase1.third
-            combinations = phase1.first
-            currentCombinationIndex = currentIndex
-            // 更新缓存
-            MainActivity.cachedCombinationIds = ids
-            MainActivity.cachedCurrentCombinationIndex = currentIndex
+            currentIndex = phase1.second
+            // 单搭配模式：同上，裁剪必须在赋值前完成，避免多触发一轮全量重组
+            val currentCombOnly = phase1.first.getOrNull(currentIndex)
+            combinations = if (currentCombOnly != null) listOf(currentCombOnly) else emptyList()
+            currentCombinationIndex = 0
+            // 更新缓存：只缓存当前搭配，下次启动不必再读其余旧搭配
+            MainActivity.cachedCombinationIds =
+                if (currentCombOnly != null) listOf(currentCombOnly.id) else emptyList()
+            MainActivity.cachedCurrentCombinationIndex = 0
         }
-
-        // 单搭配模式：只保留当前选中的那个搭配，其余旧搭配数据不再加载，
-        // 避免主界面与进入课表外观时读取的组合不一致（随机出现旧搭配）。
-        val currentCombOnly = combinations.getOrNull(currentCombinationIndex)
-        combinations = if (currentCombOnly != null) listOf(currentCombOnly) else emptyList()
-        currentCombinationIndex = 0
 
         // 同步当前搭配状态到 wallpaperBitmap/Offset/Scale（主界面使用）
         val curr = combinations.getOrNull(0)
@@ -2695,73 +2695,76 @@ fun CourseScheduleApp() {
                     // 截取当前 MainActivity 快照（包含课表+新壁纸）作为卡片预览（仅内存，不持久化）
                     val capturedSnapshot = captureMainContentBitmap()
                     val saveJob = launch(Dispatchers.IO) {
-                        if (bitmap != null) {
-                            wallpaperRepository.saveCombinationWallpaper(combId, bitmap)
-                        } else {
-                            // 清除壁纸：删除磁盘文件，否则旧壁纸会在再次应用/重启后恢复
-                            wallpaperRepository.clearCombinationWallpaper(combId)
+                        // 合并为一次磁盘提交：原本这里是 16 次独立的 prefs.edit
+                        wallpaperRepository.batchEdit {
+                            if (bitmap != null) {
+                                wallpaperRepository.saveCombinationWallpaper(combId, bitmap)
+                            } else {
+                                // 清除壁纸：删除磁盘文件，否则旧壁纸会在再次应用/重启后恢复
+                                wallpaperRepository.clearCombinationWallpaper(combId)
+                            }
+                            wallpaperRepository.saveCombinationState(
+                                combId,
+                                wallpaperOffset.x,
+                                wallpaperOffset.y,
+                                wallpaperScale
+                            )
+                            val appearanceToSave = currentAppearance()
+                            wallpaperRepository.saveCombinationCardBlur(
+                                combId,
+                                appearanceToSave.cardBlurRadius
+                            )
+                            wallpaperRepository.saveCombinationCardAlpha(
+                                combId,
+                                appearanceToSave.cardAlpha
+                            )
+                            wallpaperRepository.saveCombinationCardHeight(
+                                combId,
+                                appearanceToSave.cardHeight
+                            )
+                            wallpaperRepository.saveCombinationCardCornerRadius(
+                                combId,
+                                appearanceToSave.cardCornerRadius
+                            )
+                            wallpaperRepository.saveCombinationWallpaperBrightness(
+                                combId,
+                                appearanceToSave.wallpaperBrightness
+                            )
+                            wallpaperRepository.saveCombinationWallpaperIsLight(combId, isLight)
+                            wallpaperRepository.saveCombinationShowBreakDividers(
+                                combId,
+                                appearanceToSave.showBreakDividers
+                            )
+                            wallpaperRepository.saveCombinationCardContentAlignment(
+                                combId,
+                                appearanceToSave.cardContentAlignment
+                            )
+                            wallpaperRepository.saveCombinationCardTextColor(
+                                combId,
+                                appearanceToSave.cardTextColor
+                            )
+                            wallpaperRepository.saveCombinationCardTextScale(
+                                combId,
+                                appearanceToSave.cardTextScale
+                            )
+                            wallpaperRepository.saveCombinationShowClassroom(
+                                combId,
+                                appearanceToSave.showClassroom
+                            )
+                            wallpaperRepository.saveCombinationShowTeacher(
+                                combId,
+                                appearanceToSave.showTeacher
+                            )
+                            wallpaperRepository.saveCombinationCardRefraction(
+                                combId,
+                                appearanceToSave.cardRefraction
+                            )
+                            wallpaperRepository.saveCombinationWallpaperBlur(
+                                combId,
+                                appearanceToSave.wallpaperBlur
+                            )
+                            wallpaperRepository.setCurrentCombinationId(combId)
                         }
-                        wallpaperRepository.saveCombinationState(
-                            combId,
-                            wallpaperOffset.x,
-                            wallpaperOffset.y,
-                            wallpaperScale
-                        )
-                        val appearanceToSave = currentAppearance()
-                        wallpaperRepository.saveCombinationCardBlur(
-                            combId,
-                            appearanceToSave.cardBlurRadius
-                        )
-                        wallpaperRepository.saveCombinationCardAlpha(
-                            combId,
-                            appearanceToSave.cardAlpha
-                        )
-                        wallpaperRepository.saveCombinationCardHeight(
-                            combId,
-                            appearanceToSave.cardHeight
-                        )
-                        wallpaperRepository.saveCombinationCardCornerRadius(
-                            combId,
-                            appearanceToSave.cardCornerRadius
-                        )
-                        wallpaperRepository.saveCombinationWallpaperBrightness(
-                            combId,
-                            appearanceToSave.wallpaperBrightness
-                        )
-                        wallpaperRepository.saveCombinationWallpaperIsLight(combId, isLight)
-                        wallpaperRepository.saveCombinationShowBreakDividers(
-                            combId,
-                            appearanceToSave.showBreakDividers
-                        )
-                        wallpaperRepository.saveCombinationCardContentAlignment(
-                            combId,
-                            appearanceToSave.cardContentAlignment
-                        )
-                        wallpaperRepository.saveCombinationCardTextColor(
-                            combId,
-                            appearanceToSave.cardTextColor
-                        )
-                        wallpaperRepository.saveCombinationCardTextScale(
-                            combId,
-                            appearanceToSave.cardTextScale
-                        )
-                        wallpaperRepository.saveCombinationShowClassroom(
-                            combId,
-                            appearanceToSave.showClassroom
-                        )
-                        wallpaperRepository.saveCombinationShowTeacher(
-                            combId,
-                            appearanceToSave.showTeacher
-                        )
-                        wallpaperRepository.saveCombinationCardRefraction(
-                            combId,
-                            appearanceToSave.cardRefraction
-                        )
-                        wallpaperRepository.saveCombinationWallpaperBlur(
-                            combId,
-                            appearanceToSave.wallpaperBlur
-                        )
-                        wallpaperRepository.setCurrentCombinationId(combId)
                     }
                     // 同步到当前搭配对象（快照仅存内存）
                     val idx = currentCombinationIndex

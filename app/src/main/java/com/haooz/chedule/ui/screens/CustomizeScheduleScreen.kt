@@ -243,12 +243,7 @@ fun CustomizeScheduleScreen(
         } else 1f
     }
 
-    // 模糊支持检测（API 31+ 支持 graphicsLayer blurRadius）
 
-    // 液态玻璃支持（空采样：不采样实时底层内容，仅保留轻量着色效果）。
-    // 页面背景/顶底栏下方表面本身已不透明，无需真实模糊；且避免 MIUI 的
-    // MiBackgroundBlurBlend 采样含自身图层的渲染内容，导致渲染树无限递归（SIGSEGV）。
-    // 两个 BlurBottomSheet 内部的玻璃组件改用弹窗自身 backdrop（LocalSheetContentBackdrop）。
     val liquidGlassBackdrop = com.kyant.backdrop.backdrops.rememberLayerBackdrop {
         drawRect(Color.Transparent)
     }
@@ -258,8 +253,7 @@ fun CustomizeScheduleScreen(
         selectedContainerColor = Color.Transparent,
     )
 
-    // 页面根层背景 backdrop（空采样：只画表面色，不采样实时内容）。
-    // 页面背景下方表面本身已不透明，无需真实模糊；避免 MIUI 的 MiBackgroundBlurBlend
+    // 页面背景下方表面本身已不透明，无需真实模糊；
     // 采样含自身图层的渲染内容，导致渲染树无限递归（SIGSEGV）。
     val sheetBackdropColor = MiuixTheme.colorScheme.surface
     val sheetBackdrop = rememberLayerBackdrop {

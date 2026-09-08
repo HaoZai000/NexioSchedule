@@ -32,6 +32,41 @@ data class Combination(
     var wallpaperBlur: Boolean = false
 )
 
+/**
+ * 搭配外观的持久化快照。
+ *
+ * 历史原因：外观参数是逐个版本加进来的，每加一个就多一个 SharedPreferences 键
+ * （`comb_xxx_{搭配id}`），最终变成加载一个搭配要读 17 次 prefs、保存要写 16 次独立事务。
+ * 这里把 17 个键收敛成单个 JSON，读写各一次；旧的分散键在首次读取时自动迁移。
+ *
+ * 注意：Gson 用 UnsafeAllocator 绕过构造器反序列化，Kotlin 默认值不生效，
+ * 缺失字段会被置 null。所以枚举字段声明为可空并配 safe getter（同 [SpecialBlock.items] 的处理）。
+ */
+data class CombinationStyle(
+    val offsetX: Float = 0f,
+    val offsetY: Float = 0f,
+    val scale: Float = 1f,
+    val cardBlur: Float = 0f,
+    val cardAlpha: Float = 0.15f,
+    val cardHeight: Float = 54f,
+    val cardCornerRadius: Float = 8f,
+    val wallpaperBrightness: Float = 0f,
+    // 三态：null = 无壁纸/未测光，true = 亮色壁纸，false = 暗色壁纸
+    val wallpaperIsLight: Boolean? = null,
+    val showBreakDividers: Boolean = true,
+    val cardContentAlignment: CardContentAlignment? = null,
+    val cardTextColor: CardTextColor? = null,
+    val cardTextScale: Float = 1f,
+    val showClassroom: Boolean = true,
+    val showTeacher: Boolean = true,
+    val cardRefraction: CardRefractionLevel? = null,
+    val wallpaperBlur: Boolean = false
+) {
+    val safeAlignment: CardContentAlignment get() = cardContentAlignment ?: CardContentAlignment.CENTER_CENTER
+    val safeTextColor: CardTextColor get() = cardTextColor ?: CardTextColor.COLORFUL
+    val safeRefraction: CardRefractionLevel get() = cardRefraction ?: CardRefractionLevel.DEFAULT
+}
+
 /** 卡片文字颜色模式 */
 enum class CardTextColor(val label: String) {
     COLORFUL("彩色"),
