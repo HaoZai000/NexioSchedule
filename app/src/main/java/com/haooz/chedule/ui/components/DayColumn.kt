@@ -19,10 +19,14 @@ import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.drawBehind
+import androidx.compose.ui.draw.drawWithContent
 import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.RoundRect
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
+import androidx.compose.ui.graphics.drawOutline
+import androidx.compose.ui.graphics.drawscope.DrawScope
+import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalDensity
@@ -725,11 +729,14 @@ fun SpecialBandOverlay(
     cardBlurRadius: Float,
     cardAlpha: Float,
     cardRefraction: com.haooz.chedule.data.CardRefractionLevel = com.haooz.chedule.data.CardRefractionLevel.DEFAULT,
+    isTablet: Boolean = false,
     wallpaperBackdrop: Backdrop?
 ) {
     val shownName = name.ifBlank { "特殊课程" }
     // 因子基于原始 cardAlpha，确保默认时因子恒为 1；仅对最终 alpha 做 0~1 保护
     val alphaFactor = cardAlpha / 0.15f
+    // 与课程卡片一致：平板上圆角放大 1.3 倍
+    val effectiveCornerRadius = if (isTablet) cardCornerRadius * 1.3f else cardCornerRadius
     val bgColor = if (isDark) {
         Color.White.copy(alpha = (0.06f * alphaFactor).coerceIn(0f, 1f))
     } else {
@@ -737,9 +744,9 @@ fun SpecialBandOverlay(
     }
 
     if (hasBlur && wallpaperBackdrop != null) {
-        key(cardCornerRadius) {
-            val backdropShape = remember(cardCornerRadius) { ContinuousRoundedRectangle((cardCornerRadius).dp) }
-            val edgeLightShape = remember(cardCornerRadius) { ContinuousRoundedRectangle(cardCornerRadius.dp) }
+        key(effectiveCornerRadius) {
+            val backdropShape = remember(effectiveCornerRadius) { ContinuousRoundedRectangle(effectiveCornerRadius.dp) }
+            val edgeLightShape = remember(effectiveCornerRadius) { ContinuousRoundedRectangle(effectiveCornerRadius.dp) }
             val density = LocalDensity.current
             val blurPx = with(density) { remember(cardBlurRadius) { cardBlurRadius.dp.toPx() } }
             val lensRadiusPx = with(density) { remember(cardRefraction) { cardRefraction.lensRadiusDp.dp.toPx() } }
@@ -759,6 +766,19 @@ fun SpecialBandOverlay(
                     }
                 }
             }
+            // 关键：onDrawSurface 必须固定下来。否则每次重组都是新的 lambda，
+            // drawBackdrop 的 element 判不等 → 每次重组都重新录制壁纸层 + 重跑一次 GPU 模糊。
+            // 滑动课表/拖动外观滑块时模糊层被反复重建，视觉上就表现为"特殊课程没有模糊"。
+            val onBandSurface: DrawScope.() -> Unit = remember(bgColor, overlayColor) {
+                {
+                    drawRect(bgColor)
+                    drawRect(overlayColor)
+                }
+            }
+            // 与课程卡片一致的同色描边（缓存 outline，避免每帧重建路径）
+            val outlineColor = remember(bgColor) { bgColor.copy(alpha = 0.05f) }
+            val outlineStroke = remember(density) { Stroke(with(density) { 2.dp.toPx() }) }
+            val outlineCache = remember { OutlineCache() }
             Box(
                 modifier = Modifier
                     .fillMaxSize()
@@ -769,11 +789,30 @@ fun SpecialBandOverlay(
                         effects = bandEffects,
                         highlight = null,
                         shadow = null,
-                        onDrawSurface = {
-                            drawRect(bgColor)
-                            drawRect(overlayColor)
-                        }
+                        downsampleScale = 0.48f,
+                        onDrawSurface = onBandSurface
                     )
+                    .drawWithContent {
+                        drawContent()
+                        val radiusDp = effectiveCornerRadius.dp
+                        if (outlineCache.width != size.width ||
+                            outlineCache.height != size.height ||
+                            outlineCache.radius != radiusDp.value ||
+                            outlineCache.layoutDirection != layoutDirection
+                        ) {
+                            outlineCache.outline = ContinuousRoundedRectangle(radiusDp)
+                                .createOutline(size, layoutDirection, this)
+                            outlineCache.width = size.width
+                            outlineCache.height = size.height
+                            outlineCache.radius = radiusDp.value
+                            outlineCache.layoutDirection = layoutDirection
+                        }
+                        drawOutline(
+                            outline = outlineCache.outline!!,
+                            color = outlineColor,
+                            style = outlineStroke
+                        )
+                    }
                     .edgeLight(shape = edgeLightShape, edgeLight = rememberCourseCardEdgeLight())
             ) {
                 SpecialBandContent(shownName)
@@ -785,7 +824,7 @@ fun SpecialBandOverlay(
                 .fillMaxSize()
                 .padding(horizontal = 2.dp, vertical = 2.dp)
                 .drawBehind {
-                    val cornerPx = cardCornerRadius.dp.toPx()
+                    val cornerPx = effectiveCornerRadius.dp.toPx()
                     drawRoundRect(
                         color = bgColor,
                         cornerRadius = CornerRadius(cornerPx)

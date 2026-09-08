@@ -178,6 +178,32 @@ private fun parseTimeHm(time: String): Pair<Int, Int> {
 private fun specialBlockSummary(block: SpecialBlock): String
 = "${block.startTime}-${block.endTime}"
 
+/**
+ * 解析 "HH:mm" 为分钟数；解析失败时返回 Int.MAX_VALUE，
+ * 使无法解析的条目在排序时落在末尾，避免破坏整体顺序。
+ */
+private fun parseTimeToMinutesForSort(time: String): Int {
+    return try {
+        val parts = time.split(":")
+        if (parts.size == 2) parts[0].toInt() * 60 + parts[1].toInt() else Int.MAX_VALUE
+    } catch (_: Exception) {
+        Int.MAX_VALUE
+    }
+}
+
+/**
+ * 按开始时间（其次结束时间、再次名称）对特殊时段块列表排序。
+ * 修复：特殊课程列表此前按用户插入顺序展示（如先加"午休"再加"午餐"会出现错乱），
+ * 改为按时间先后正确排列。
+ */
+private fun sortSpecialBlocksByTime(blocks: List<SpecialBlock>): List<SpecialBlock> {
+    return blocks.sortedWith(
+        compareBy<SpecialBlock> { parseTimeToMinutesForSort(it.startTime) }
+            .thenBy { parseTimeToMinutesForSort(it.endTime) }
+            .thenBy { it.name }
+    )
+}
+
 @SuppressLint("DefaultLocale", "AutoboxingStateValueProperty", "ConfigurationScreenWidthHeight")
 @Composable
 fun TimeConfigEditScreen(
@@ -255,7 +281,7 @@ fun TimeConfigEditScreen(
     var showSectionCountDialog by remember { mutableStateOf(false) }
 
     // 特殊时段块弹窗状态
-    var specialBlocks by remember { mutableStateOf(timeConfig.specialBlocks) }
+    var specialBlocks by remember { mutableStateOf(sortSpecialBlocksByTime(timeConfig.specialBlocks)) }
     var showSpecialDialog by remember { mutableStateOf(false) }
     var editingSpecialIndex by remember { mutableIntStateOf(-1) } // -1 表示新增
     var tempSpecialName by remember { mutableStateOf("") }
@@ -1095,7 +1121,8 @@ fun TimeConfigEditScreen(
                                                     }
                                                 )
                                             } else {
-                                                specialBlocks.forEachIndexed { index, block ->
+                                                // 始终按开始时间排序展示，避免特殊课程出现"午休排在午餐之前"等错乱
+                                                sortSpecialBlocksByTime(specialBlocks).forEachIndexed { index, block ->
                                                     ArrowPreference(
                                                         title = if (block.name.isNotBlank()) block.name else "特殊课程",
                                                         summary = specialBlockSummary(block),
@@ -1671,7 +1698,8 @@ fun TimeConfigEditScreen(
                                             } else {
                                                 updated[editingSpecialIndex] = block
                                             }
-                                            specialBlocks = updated
+                                            // 保持列表按时间排序，避免"午休排在午餐之前"等错乱
+                                            specialBlocks = sortSpecialBlocksByTime(updated)
                                             showSpecialDialog = false
                                         },
                                         colors = ButtonDefaults.textButtonColorsPrimary(),
@@ -1732,9 +1760,9 @@ fun TimeConfigEditScreen(
                                     {
                                         hapticFeedback.performHapticFeedback(HapticFeedbackType.Confirm)
                                         if (editingSpecialIndex in specialBlocks.indices) {
-                                            specialBlocks = specialBlocks.toMutableList().apply {
-                                                removeAt(editingSpecialIndex)
-                                            }
+                                            specialBlocks = sortSpecialBlocksByTime(
+                                                specialBlocks.toMutableList().apply { removeAt(editingSpecialIndex) }
+                                            )
                                         }
                                         showSpecialDeleteConfirm = false
                                         showSpecialDialog = false

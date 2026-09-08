@@ -634,6 +634,7 @@ fun MainScheduleScreen(
                                 cardBlurRadius = cardBlurRadius,
                                 cardAlpha = cardAlpha,
                                 cardRefraction = cardRefraction,
+                                isTablet = isTablet,
                                 wallpaperBackdrop = if (wallpaperBitmap != null) {
                                     if (hasSharedBlur) sharedBlurManager else courseCardBackdrop
                                 } else null

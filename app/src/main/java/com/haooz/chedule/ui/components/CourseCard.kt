@@ -632,7 +632,8 @@ private fun CardContent(course: Course, sectionCount: Int, textColor: Color, has
  * 原来每张卡片每帧都重建一次（滑动时约 40~80 张 × 2 页）。
  * 只在 (尺寸, 圆角, layoutDirection) 变化时重建，其余帧直接复用。
  */
-private class OutlineCache {
+// 描边 outline 缓存：课程卡片与特殊课程长条共用（跨文件复用，故非 private）
+internal class OutlineCache {
     var width: Float = Float.NaN
     var height: Float = Float.NaN
     var radius: Float = Float.NaN
