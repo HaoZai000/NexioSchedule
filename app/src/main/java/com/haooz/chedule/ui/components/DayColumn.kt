@@ -2,8 +2,12 @@ package com.haooz.chedule.ui.components
 
 import android.annotation.SuppressLint
 import androidx.compose.foundation.ExperimentalFoundationApi
+import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.detectTapGestures
+import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
@@ -12,12 +16,14 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.key
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.draw.drawWithContent
 import androidx.compose.ui.geometry.CornerRadius
@@ -730,7 +736,11 @@ fun SpecialBandOverlay(
     cardAlpha: Float,
     cardRefraction: com.haooz.chedule.data.CardRefractionLevel = com.haooz.chedule.data.CardRefractionLevel.DEFAULT,
     isTablet: Boolean = false,
-    wallpaperBackdrop: Backdrop?
+    wallpaperBackdrop: Backdrop?,
+    // 内部按星期划分的子块（如周一~周二"画黑板报"）；为空时退化为整条显示名称
+    items: List<com.haooz.chedule.data.SpecialItem> = emptyList(),
+    // 当前实际显示的星期列表（智能周末模式下可能只有 1..5），决定列宽与子块定位
+    dayRange: List<Int> = emptyList()
 ) {
     val shownName = name.ifBlank { "特殊课程" }
     // 因子基于原始 cardAlpha，确保默认时因子恒为 1；仅对最终 alpha 做 0~1 保护
@@ -815,7 +825,14 @@ fun SpecialBandOverlay(
                     }
                     .edgeLight(shape = edgeLightShape, edgeLight = rememberCourseCardEdgeLight())
             ) {
-                SpecialBandContent(shownName)
+                SpecialBandBody(
+                    name = shownName,
+                    items = items,
+                    dayRange = dayRange,
+                    isDark = isDark,
+                    alphaFactor = alphaFactor,
+                    cornerRadius = effectiveCornerRadius
+                )
             }
         }
     } else {
@@ -831,7 +848,14 @@ fun SpecialBandOverlay(
                     )
                 }
         ) {
-            SpecialBandContent(shownName)
+            SpecialBandBody(
+                name = shownName,
+                items = items,
+                dayRange = dayRange,
+                isDark = isDark,
+                alphaFactor = alphaFactor,
+                cornerRadius = effectiveCornerRadius
+            )
         }
     }
 }
@@ -849,5 +873,131 @@ private fun SpecialBandContent(name: String) {
             maxLines = 2,
             textAlign = TextAlign.Center
         )
+    }
+}
+
+/**
+ * 特殊课程横带的内部内容。
+ *
+ * 当该横带内已划分星期子块时：按 [dayRange] 均分列宽，把每个子块渲染成跨列连续矩形
+ * （如周一~周二一个矩形，周三单独一个），未被任何子块覆盖的星期渲染成透明可点击区域，
+ * 点击后由外部弹出添加弹窗；点击已有矩形则进入编辑。
+ *
+ * 当没有子块时退化为原来的整条居中显示名称。
+ */
+@Composable
+private fun SpecialBandBody(
+    name: String,
+    items: List<com.haooz.chedule.data.SpecialItem>,
+    dayRange: List<Int>,
+    isDark: Boolean,
+    alphaFactor: Float,
+    cornerRadius: Float
+) {
+    if (items.isEmpty() || dayRange.isEmpty()) {
+        SpecialBandContent(name)
+        return
+    }
+
+    BoxWithConstraints(modifier = Modifier.fillMaxSize()) {
+        val dayCount = dayRange.size
+        val dayWidth = maxWidth / dayCount
+        val itemShape = remember(cornerRadius) { ContinuousRoundedRectangle((cornerRadius * 0.8f).dp) }
+        val itemBgColor = if (isDark) {
+            Color.White.copy(alpha = (0.06f * alphaFactor).coerceIn(0f, 1f))
+        } else {
+            Color.Black.copy(alpha = (0.06f * alphaFactor).coerceIn(0f, 1f))
+        }
+        val itemTextColor = if (isDark) Color.White.copy(alpha = 0.78f) else Color.Black.copy(alpha = 0.74f)
+
+        // 已划分的子块矩形：跨 startDay..endDay 连续
+        items.forEach { item ->
+            val fromIdx = dayRange.indexOf(item.startDay)
+            val toIdx = dayRange.indexOf(item.endDay)
+            // 该子块与当前显示的星期没有交集（如只在周末而周末未显示）时跳过
+            if (fromIdx < 0 || toIdx < 0 || toIdx < fromIdx) return@forEach
+            Box(
+                modifier = Modifier
+                    .offset(x = dayWidth * fromIdx)
+                    .width(dayWidth * (toIdx - fromIdx + 1))
+                    .fillMaxHeight()
+                    // 相邻子卡间距 = 2+2=4dp；为了让外侧（首/尾卡到横带边缘）与内侧间距均衡：
+                    // 所有卡上下间距 +2，最左卡左侧 +2、最右卡右侧 +2，内卡相互间距保持不变
+                    .padding(
+                        start = if (fromIdx == 0) 4.dp else 2.dp,
+                        end = if (toIdx == dayRange.size - 1) 4.dp else 2.dp,
+                        top = 4.dp,
+                        bottom = 4.dp
+                    )
+                    .clip(itemShape)
+                    .background(itemBgColor),
+                contentAlignment = Alignment.Center
+            ) {
+                Text(
+                    text = item.name.ifBlank { "未命名" },
+                    style = MiuixTheme.textStyles.body2.copy(fontWeight = FontWeight.Medium),
+                    color = itemTextColor,
+                    maxLines = 2,
+                    textAlign = TextAlign.Center
+                )
+            }
+        }
+    }
+}
+
+/**
+ * 特殊课程横带的**点击交互层**（完全透明，只处理点击）。
+ *
+ * 必须放在课表 Row **之上**单独渲染：DayColumn 的「空节次交互层」是 fillMaxHeight 且带
+ * pointerInput + detectTapGestures，会消费整个列高上的点击事件。横带若只在下层绘制，
+ * 点击永远轮不到它 —— 视觉留在下层（避免遮挡自定义时间课程），点击由本层在上层接管。
+ *
+ * 子块矩形区域 → 编辑该子块；未被任何子块覆盖的星期 → 新增子块。
+ */
+@Composable
+fun SpecialBandClickLayer(
+    items: List<com.haooz.chedule.data.SpecialItem>,
+    dayRange: List<Int>,
+    onItemClick: (com.haooz.chedule.data.SpecialItem) -> Unit,
+    onEmptyClick: (Int) -> Unit
+) {
+    if (dayRange.isEmpty()) return
+
+    BoxWithConstraints(modifier = Modifier.fillMaxSize()) {
+        val dayWidth = maxWidth / dayRange.size
+
+        items.forEach { item ->
+            val fromIdx = dayRange.indexOf(item.startDay)
+            val toIdx = dayRange.indexOf(item.endDay)
+            if (fromIdx < 0 || toIdx < 0 || toIdx < fromIdx) return@forEach
+            Box(
+                modifier = Modifier
+                    .offset(x = dayWidth * fromIdx)
+                    .width(dayWidth * (toIdx - fromIdx + 1))
+                    .fillMaxHeight()
+                    .clickable(
+                        interactionSource = remember { MutableInteractionSource() },
+                        indication = null
+                    ) { onItemClick(item) }
+            )
+        }
+
+        // 未被覆盖的星期：完全透明但可点击，点击后添加子块。
+        // 填满时不存在空白格，因此天然满足"填满后不允许再添加"。
+        dayRange.forEachIndexed { idx, day ->
+            val occupied = items.any { item -> day in item.startDay..item.endDay }
+            if (!occupied) {
+                Box(
+                    modifier = Modifier
+                        .offset(x = dayWidth * idx)
+                        .width(dayWidth)
+                        .fillMaxHeight()
+                        .clickable(
+                            interactionSource = remember { MutableInteractionSource() },
+                            indication = null
+                        ) { onEmptyClick(day) }
+                )
+            }
+        }
     }
 }

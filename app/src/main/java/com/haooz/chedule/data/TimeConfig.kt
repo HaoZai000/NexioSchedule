@@ -1,6 +1,18 @@
 package com.haooz.chedule.data
 
 /**
+ * 特殊课程内部按星期划分的子块（如周一~周二"画黑板报"、周三"检查卫生"）。
+ *
+ * 一个特殊课程时间段（[SpecialBlock]）内部可容纳多个子块，各子块的星期区间互不重叠。
+ */
+data class SpecialItem(
+    val id: Long = 0L,
+    val name: String = "",       // 如"画黑板报""检查卫生"
+    val startDay: Int = 1,       // 起始星期 1..7
+    val endDay: Int = 1          // 结束星期 1..7，取值 >= startDay
+)
+
+/**
  * 特殊时段块（无编号，如早读/大课间/眼保健操）。
  * 按自定义起止时间沿时间轴定位，挤出让出纵向空间，不计入课程提醒。
  */
@@ -8,8 +20,15 @@ data class SpecialBlock(
     val id: Long = 0L,
     val name: String = "",          // 如"早读""眼保健操"
     val startTime: String = "08:00",
-    val endTime: String = "08:40"
-)
+    val endTime: String = "08:40",
+    // 内部按星期划分的子块。
+    // 注意：Gson 反序列化旧版本数据时该字段缺失会被置为 null（Kotlin 默认值不生效），
+    // 所以声明为可空，统一通过 [safeItems] 访问，避免升级后崩溃。
+    val items: List<SpecialItem>? = null
+) {
+    /** 子块列表，兼容旧数据缺失 items 字段的情况 */
+    val safeItems: List<SpecialItem> get() = items ?: emptyList()
+}
 
 /**
  * 时间配置数据类 - 存储多套时间设置

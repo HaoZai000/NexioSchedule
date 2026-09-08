@@ -10,7 +10,9 @@ data class SpecialGridBand(
     val height: Float,
     val name: String,
     val startTime: String,
-    val endTime: String
+    val endTime: String,
+    // 来源 SpecialBlock 的 id：横带需要据此取回内部按星期划分的子块
+    val blockId: Long = 0L
 )
 
 /**
@@ -176,7 +178,7 @@ fun computeSpecialGridLayout(
                 displayTop = div + dividerGap
             }
         }
-        SpecialGridBand(displayTop, b.height, sp.name, sp.startTime, sp.endTime)
+        SpecialGridBand(displayTop, b.height, sp.name, sp.startTime, sp.endTime, sp.id)
     }
 
     val baseTotal = (sectionTop[totalSections] ?: 0f) + cardHeightPerSection

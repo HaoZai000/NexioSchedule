@@ -1690,7 +1690,9 @@ fun TimeConfigEditScreen(
                                                 id = if (editingSpecialIndex == -1) System.currentTimeMillis() else specialBlocks[editingSpecialIndex].id,
                                                 name = tempSpecialName,
                                                 startTime = startStr,
-                                                endTime = endStr
+                                                endTime = endStr,
+                                                // 编辑时保留内部按星期划分的子块，避免编辑名称/时间后丢失
+                                                items = if (editingSpecialIndex == -1) null else specialBlocks[editingSpecialIndex].items
                                             )
                                             val updated = specialBlocks.toMutableList()
                                             if (editingSpecialIndex == -1) {

@@ -2,6 +2,7 @@
 package com.haooz.chedule.ui.screens
 
 import android.annotation.SuppressLint
+import android.widget.Toast
 import androidx.compose.animation.core.CubicBezierEasing
 import androidx.compose.animation.core.animate
 import androidx.compose.animation.core.animateFloatAsState
@@ -41,6 +42,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
@@ -76,6 +78,7 @@ import com.haooz.chedule.ui.basic.LiquidTopBarButton
 import com.haooz.chedule.ui.basic.SharedScrollBehavior
 import com.haooz.chedule.ui.components.DayColumn
 import com.haooz.chedule.ui.components.SectionColumn
+import com.haooz.chedule.ui.components.SpecialBandClickLayer
 import com.haooz.chedule.ui.components.SpecialBandOverlay
 import com.haooz.chedule.ui.components.computeSpecialGridLayout
 import com.haooz.chedule.ui.components.scheduleContentTopPadding
@@ -93,14 +96,18 @@ import com.kyant.backdrop.isRenderEffectSupported
 import com.kyant.capsule.ContinuousRoundedRectangle
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
+import top.yukonga.miuix.kmp.basic.ButtonDefaults
 import top.yukonga.miuix.kmp.basic.Card
 import top.yukonga.miuix.kmp.basic.CardDefaults
+import top.yukonga.miuix.kmp.basic.NativeMiuixTextField
+import top.yukonga.miuix.kmp.basic.TextButton
 import top.yukonga.miuix.kmp.icon.MiuixIcons
 import top.yukonga.miuix.kmp.icon.extended.Add
 import top.yukonga.miuix.kmp.overlay.BlurBottomSheet
 import top.yukonga.miuix.kmp.overlay.BlurBottomSheetTablet
 import top.yukonga.miuix.kmp.overlay.LocalSheetContentBackdrop
 import top.yukonga.miuix.kmp.overlay.LocalSheetTopBarMaterial
+import top.yukonga.miuix.kmp.overlay.OverlayDialog
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 import top.yukonga.miuix.kmp.utils.PressFeedbackType
 import top.yukonga.miuix.kmp.utils.scrollEndHaptic
@@ -209,6 +216,15 @@ fun MainScheduleScreen(
     val sectionTimes by settingsViewModel.sectionTimes.collectAsState()
     val sectionNames by settingsViewModel.sectionNames.collectAsState()
     val specialBlocks by settingsViewModel.specialBlocks.collectAsState()
+    // ---- 特殊课程内部「星期子块」的编辑状态 ----
+    // 一个特殊课程时间段内可划分多个不重叠的星期区间（如周一~周二"画黑板报"）。
+    // 状态提升到页面顶层：弹窗在顶层作用域渲染，点击横带只写这些状态。
+    var showSpecialItemDialog by remember { mutableStateOf(false) }
+    var specialItemEditingBlockId by remember { mutableLongStateOf(0L) }
+    var specialItemEditingId by remember { mutableLongStateOf(-1L) } // -1 表示新增
+    var specialItemName by remember { mutableStateOf("") }
+    // 选中的星期集合（支持不连续点选；保存时自动合并为连续区间：{1,3,4} → 1 一块、34 一块）
+    var specialItemSelectedDays by remember { mutableStateOf(setOf<Int>()) }
     val hapticFeedback = LocalHapticFeedback.current
     val configuration = LocalConfiguration.current
     val isTablet = configuration.screenWidthDp >= 600
@@ -611,9 +627,19 @@ fun MainScheduleScreen(
                     LaunchedEffect(isGridScrolling) {
                         if (!isGridScrolling) lastDayBoundsVersion++
                     }
+                    // 按周计算要显示的天数范围（智能周末模式下，不同周可能显示不同天数）
+                    // 调休补班日由 weekendDaysByWeek 顶层的 holidayIndex 感知，视为"有课"显示
+                    // 提升到 Row 之外：特殊课程横带要按同一套列宽切分内部星期子块
+                    val pageDayRange = remember(weekendDaysByWeek, week) {
+                        (1..5).toList() + (weekendDaysByWeek[week] ?: emptySet()).filter { it in 6..7 }
+                    }
                     // 特殊课程：横贯整个课表的横色带（覆盖周一到周日所有星期列）。
                     // 作为 Row 下层的背景条带，起止时间由左侧时间列（SectionColumn）标注。
                     specialGrid.specialBands.forEach { band ->
+                        // 该横带内已划分的星期子块
+                        val bandItems = remember(specialBlocks, band.blockId) {
+                            specialBlocks.firstOrNull { it.id == band.blockId }?.safeItems ?: emptyList()
+                        }
                         // 只在周一到周日课表列范围内渲染横带，不覆盖左侧时间轴列；
                         // 起止时间由图例时间列（SectionColumn 的 SpecialTimeLabel）单独显示
                         Box(
@@ -621,9 +647,11 @@ fun MainScheduleScreen(
                                 .fillMaxWidth()
                                 .height(band.height.dp)
                                 .offset(y = band.top.dp)
+                                // end 与下方 Row 的 end padding 保持一致，
+                                // 使横带内部子块能与 DayColumn 星期列逐列对齐
                                 .padding(
                                     start = (if (isTablet) 24.dp else 0.dp) + (if (isTablet) 56.dp else 36.dp),
-                                    end = if (isTablet) 24.dp else 4.dp
+                                    end = if (isTablet) 24.dp else 2.dp
                                 )
                         ) {
                             SpecialBandOverlay(
@@ -637,7 +665,9 @@ fun MainScheduleScreen(
                                 isTablet = isTablet,
                                 wallpaperBackdrop = if (wallpaperBitmap != null) {
                                     if (hasSharedBlur) sharedBlurManager else courseCardBackdrop
-                                } else null
+                                } else null,
+                                items = bandItems,
+                                dayRange = pageDayRange
                             )
                         }
                     }
@@ -664,11 +694,7 @@ fun MainScheduleScreen(
                             hasWallpaper = wallpaperBitmap != null
                         )
 
-                        // 按周计算要显示的天数范围（智能周末模式下，不同周可能显示不同天数）
-                        // 调休补班日由 weekendDaysByWeek 顶层的 holidayIndex 感知，视为"有课"显示
-                        val pageDayRange = remember(weekendDaysByWeek, week) {
-                            (1..5).toList() + (weekendDaysByWeek[week] ?: emptySet()).filter { it in 6..7 }
-                        }
+                        // pageDayRange 已提升到 Row 之外（特殊课程横带需要同一套列宽）
 
                         pageDayRange.forEach { dayOfWeek ->
                             // 按需计算并缓存：仅在访问时计算，不在顶层读取 pagerState.currentPage
@@ -788,6 +814,45 @@ fun MainScheduleScreen(
                                             if (!scrollingState.value) lastDayBoundsVersion++
                                         }
                                     }
+                            )
+                        }
+                    }
+
+                    // 特殊课程横带的点击交互层：必须渲染在 Row **之上**。
+                    // DayColumn 的「空节次交互层」是 fillMaxHeight + pointerInput，会消费整个列高上的点击，
+                    // 横带视觉层留在下层（避免遮挡自定义时间课程），点击由本层在上层接管。
+                    specialGrid.specialBands.forEach { band ->
+                        val bandItems = remember(specialBlocks, band.blockId) {
+                            specialBlocks.firstOrNull { it.id == band.blockId }?.safeItems ?: emptyList()
+                        }
+                        Box(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .height(band.height.dp)
+                                .offset(y = band.top.dp)
+                                .padding(
+                                    start = (if (isTablet) 24.dp else 0.dp) + (if (isTablet) 56.dp else 36.dp),
+                                    end = if (isTablet) 24.dp else 2.dp
+                                )
+                        ) {
+                            SpecialBandClickLayer(
+                                items = bandItems,
+                                dayRange = pageDayRange,
+                                onItemClick = { item ->
+                                    specialItemEditingBlockId = band.blockId
+                                    specialItemEditingId = item.id
+                                    specialItemName = item.name
+                                    specialItemSelectedDays = (item.startDay..item.endDay).toSet()
+                                    showSpecialItemDialog = true
+                                },
+                                onEmptyClick = { day ->
+                                    // 空白格只在未填满时出现，因此填满后天然无法再添加
+                                    specialItemEditingBlockId = band.blockId
+                                    specialItemEditingId = -1L
+                                    specialItemName = ""
+                                    specialItemSelectedDays = setOf(day)
+                                    showSpecialItemDialog = true
+                                }
                             )
                         }
                     }
@@ -1184,7 +1249,249 @@ fun MainScheduleScreen(
             endAction = detailEndAction,
             content = detailContent,
         )
+
+        // 特殊课程内部「星期子块」的添加/编辑弹窗
+        val editingBlock = specialBlocks.firstOrNull { it.id == specialItemEditingBlockId }
+        // 计算已被占用的星期（编辑时排除自己，否则无法取消自己占用的格子）
+        val occupiedDays = (editingBlock?.safeItems ?: emptyList())
+            .filter { it.id != specialItemEditingId }
+            .flatMap { it.startDay..it.endDay }
+            .toSet()
+        SpecialItemEditDialog(
+            show = showSpecialItemDialog,
+            isEditing = specialItemEditingId != -1L,
+            name = specialItemName,
+            selectedDays = specialItemSelectedDays,
+            occupiedDays = occupiedDays,
+            liquidGlassBackdrop = liquidGlassBackdrop,
+            onNameChange = { specialItemName = it },
+            onDayToggle = { day ->
+                specialItemSelectedDays = if (day in specialItemSelectedDays) {
+                    specialItemSelectedDays - day
+                } else {
+                    specialItemSelectedDays + day
+                }
+            },
+            onDismiss = { showSpecialItemDialog = false },
+            onSave = {
+                val block = editingBlock
+                if (block == null) {
+                    showSpecialItemDialog = false
+                } else {
+                    val trimmedName = specialItemName.trim()
+                    val selected = specialItemSelectedDays.sorted()
+                    when {
+                        trimmedName.isBlank() -> {
+                            Toast.makeText(scheduleContext, "请输入名称", Toast.LENGTH_SHORT).show()
+                        }
+                        selected.isEmpty() -> {
+                            Toast.makeText(scheduleContext, "请选择至少一个星期", Toast.LENGTH_SHORT).show()
+                        }
+                        else -> {
+                            // 把点选的不连续星期合并成连续区间
+                            // 例 {1,3,4} → [(1,1), (3,4)]，保存后自动生成两个子块
+                            val ranges = mergeConsecutiveDays(selected)
+                            // 编辑时先移除旧子块，再按新区间追加；新增时直接追加
+                            val base = block.safeItems.filter { it.id != specialItemEditingId }
+                            val newItems = ranges.map { (s, e) ->
+                                com.haooz.chedule.data.SpecialItem(
+                                    id = System.currentTimeMillis(),
+                                    name = trimmedName,
+                                    startDay = s,
+                                    endDay = e
+                                )
+                            }
+                            val finalItems = (base + newItems).sortedBy { it.startDay }
+                            settingsViewModel.updateSpecialBlocks(
+                                specialBlocks.map {
+                                    if (it.id == specialItemEditingBlockId) it.copy(items = finalItems) else it
+                                }
+                            )
+                            showSpecialItemDialog = false
+                        }
+                    }
+                }
+            },
+            onDelete = {
+                val block = editingBlock
+                if (block != null) {
+                    settingsViewModel.updateSpecialBlocks(
+                        specialBlocks.map {
+                            if (it.id == specialItemEditingBlockId) {
+                                it.copy(items = block.safeItems.filter { item -> item.id != specialItemEditingId })
+                            } else it
+                        }
+                    )
+                }
+                showSpecialItemDialog = false
+            }
+        )
     }
+}
+
+/** 特殊课程子块弹窗里周一~周日的格子标签 */
+private val SPECIAL_WEEK_LABELS = arrayOf("一", "二", "三", "四", "五", "六", "日")
+
+/**
+ * 特殊课程内部「星期子块」的添加/编辑弹窗。
+ *
+ * 交互：填写名称 + 点选多个星期格子（可点 1、3、4 这样的不连续组合）。
+ * 保存时自动把点选的不连续星期合并为连续区间，如 {1,3,4} → 周一一个子块、周三~周四一个子块。
+ * 已被同横带内其他子块占用的星期格子会**置灰不可点**，避免重叠。
+ */
+@Composable
+private fun SpecialItemEditDialog(
+    show: Boolean,
+    isEditing: Boolean,
+    name: String,
+    selectedDays: Set<Int>,
+    occupiedDays: Set<Int>,
+    liquidGlassBackdrop: com.kyant.backdrop.Backdrop?,
+    onNameChange: (String) -> Unit,
+    onDayToggle: (Int) -> Unit,
+    onDismiss: () -> Unit,
+    onSave: () -> Unit,
+    onDelete: () -> Unit
+) {
+    OverlayDialog(
+        title = if (isEditing) "编辑安排" else "添加安排",
+        summary = null,
+        show = show,
+        onDismissRequest = onDismiss,
+        liquidGlassBackdrop = liquidGlassBackdrop
+    ) {
+        Column(
+            modifier = Modifier.fillMaxWidth(),
+            verticalArrangement = Arrangement.spacedBy(12.dp)
+        ) {
+            NativeMiuixTextField(
+                value = name,
+                onValueChange = onNameChange,
+                label = "名称",
+                useLabelAsPlaceholder = true,
+                singleLine = true,
+                modifier = Modifier.fillMaxWidth(),
+                requestFocus = show
+            )
+            // 实时展示选中的星期集合，按连续区间分组显示：{1,3,4} → "周一 / 周三~周四"
+            val rangesLabel = if (selectedDays.isEmpty()) {
+                "点选下方星期（不连续可分段保存）"
+            } else {
+                mergeConsecutiveDays(selectedDays.sorted()).joinToString(" / ") { (s, e) ->
+                    if (s == e) "周${SPECIAL_WEEK_LABELS[s - 1]}"
+                    else "周${SPECIAL_WEEK_LABELS[s - 1]}~周${SPECIAL_WEEK_LABELS[e - 1]}"
+                }
+            }
+            Text(
+                text = rangesLabel,
+                style = MiuixTheme.textStyles.body2,
+                color = MiuixTheme.colorScheme.onSurfaceVariantActions
+            )
+            WeekDayRangeSelector(
+                selectedDays = selectedDays,
+                occupiedDays = occupiedDays,
+                onDayToggle = onDayToggle
+            )
+            Row(
+                modifier = Modifier.fillMaxWidth().padding(top = 4.dp),
+                horizontalArrangement = Arrangement.spacedBy(12.dp)
+            ) {
+                TextButton(
+                    text = "取消",
+                    onClick = onDismiss,
+                    modifier = Modifier.weight(1f)
+                )
+                TextButton(
+                    text = "保存",
+                    onClick = onSave,
+                    colors = ButtonDefaults.textButtonColorsPrimary(),
+                    modifier = Modifier.weight(1f)
+                )
+            }
+            if (isEditing) {
+                TextButton(
+                    text = "删除该安排",
+                    onClick = onDelete,
+                    textColor = Color(0xFFF44336),
+                    modifier = Modifier.fillMaxWidth()
+                )
+            }
+        }
+    }
+}
+
+/**
+ * 周一~周日格子多选器。
+ *
+ * 三种状态：
+ * - **已选中**（[selectedDays] 内）：主色高亮，可再次点击取消。
+ * - **已被占用**（[occupiedDays] 内，且不在 [selectedDays]）：置灰 + 不可点击。
+ *   编辑自身时占用方应排除自己对应的格子，否则无法取消自己占用的格子。
+ * - **可点**：正常背景色，点击 toggle 入选中集合。
+ */
+@Composable
+private fun WeekDayRangeSelector(
+    selectedDays: Set<Int>,
+    occupiedDays: Set<Int>,
+    onDayToggle: (Int) -> Unit
+) {
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.spacedBy(6.dp)
+    ) {
+        for (day in 1..7) {
+            val selected = day in selectedDays
+            val occupied = day in occupiedDays && !selected
+            Box(
+                modifier = Modifier
+                    .weight(1f)
+                    .height(40.dp)
+                    .clip(ContinuousRoundedRectangle(10.dp))
+                    .background(
+                        when {
+                            selected -> MiuixTheme.colorScheme.primary
+                            occupied -> MiuixTheme.colorScheme.onSurface.copy(alpha = 0.04f)
+                            else -> MiuixTheme.colorScheme.onSurface.copy(alpha = 0.08f)
+                        }
+                    )
+                    .clickable(enabled = !occupied) { onDayToggle(day) },
+                contentAlignment = Alignment.Center
+            ) {
+                Text(
+                    text = SPECIAL_WEEK_LABELS[day - 1],
+                    style = MiuixTheme.textStyles.body2,
+                    color = when {
+                        selected -> Color.White
+                        // 占用时与背景同色化，呈现明显的"不可选"观感
+                        occupied -> MiuixTheme.colorScheme.onSurface.copy(alpha = 0.25f)
+                        else -> MiuixTheme.colorScheme.onSurface
+                    }
+                )
+            }
+        }
+    }
+}
+
+/**
+ * 把点选的星期集合按连续区间合并：{1,3,4} → [(1,1), (3,4)]。
+ * 输入应为已排序的星期列表，输出每个区间为 (start, end)。
+ */
+private fun mergeConsecutiveDays(sortedDays: List<Int>): List<Pair<Int, Int>> {
+    if (sortedDays.isEmpty()) return emptyList()
+    val ranges = mutableListOf<Pair<Int, Int>>()
+    var start = sortedDays[0]
+    var end = sortedDays[0]
+    for (i in 1 until sortedDays.size) {
+        if (sortedDays[i] == end + 1) {
+            end = sortedDays[i]
+        } else {
+            ranges.add(start to end)
+            start = sortedDays[i]
+            end = sortedDays[i]
+        }
+    }
+    ranges.add(start to end)
+    return ranges
 }
 
 /**

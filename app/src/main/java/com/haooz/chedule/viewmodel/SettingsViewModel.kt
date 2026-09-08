@@ -246,6 +246,16 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
     fun getAfternoonTimes(): Map<Int, String> = _afternoonTimes.value
     fun getEveningTimes(): Map<Int, String> = _eveningTimes.value
 
+    /**
+     * 更新特殊课程列表（含每个特殊课程内部的星期子块）并持久化到当前时间配置。
+     * 写回后同步刷新 StateFlow，使课表横带即时重绘。
+     */
+    fun updateSpecialBlocks(blocks: List<com.haooz.chedule.data.SpecialBlock>) {
+        val config = repository.getCurrentTimeConfig()
+        repository.saveTimeConfig(config.copy(specialBlocks = blocks))
+        _specialBlocks.value = blocks
+    }
+
     fun saveMorningTimes(times: Map<Int, String>) {
         _morningTimes.value = times
         repository.savePeriodTimes("morning", times)
