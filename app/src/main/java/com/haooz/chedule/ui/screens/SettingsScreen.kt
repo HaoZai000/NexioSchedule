@@ -51,6 +51,7 @@ import com.haooz.chedule.ui.activities.CourseReminderActivity
 import com.haooz.chedule.ui.activities.CourseTimeSettingsActivity
 import com.haooz.chedule.ui.activities.HolidaySettingsActivity
 import com.haooz.chedule.ui.activities.PreferenceSettingsActivity
+import com.haooz.chedule.ui.activities.UpdateSettingsActivity
 import com.haooz.chedule.ui.activities.WidgetIntroActivity
 import com.haooz.chedule.ui.basic.SharedScrollBehavior
 import com.haooz.chedule.ui.utils.isAppDarkTheme
@@ -347,7 +348,7 @@ fun SettingsScreen(
                                     }
                                 )
                                 ArrowPreference(
-                                    title = "假期调休设置",
+                                    title = "节假日与调休",
                                     holdDownState = activeSecondaryActivity == "HolidaySettingsActivity",
                                     onClick = {
                                         context.startActivity(Intent(context, HolidaySettingsActivity::class.java))
@@ -359,13 +360,6 @@ fun SettingsScreen(
                                     onClick = {
                                         val intent = Intent(context, WidgetIntroActivity::class.java)
                                         context.startActivity(intent)
-                                    }
-                                )
-                                ArrowPreference(
-                                    title = "排班课表",
-                                    summary = "对比查看多个课表的排班情况",
-                                    onClick = {
-                                        showShiftModeConfirmDialog = true
                                     }
                                 )
                             }
@@ -535,10 +529,17 @@ fun SettingsScreen(
                                     }
                                 )
                                 ArrowPreference(
+                                    title = "更新设置",
+                                    holdDownState = activeSecondaryActivity == "UpdateSettingsActivity",
+                                    onClick = {
+                                        val intent = Intent(context, UpdateSettingsActivity::class.java)
+                                        context.startActivity(intent)
+                                    }
+                                )
+                                ArrowPreference(
                                     title = "关于应用",
                                     holdDownState = activeSecondaryActivity in setOf(
                                         "AboutActivity",
-                                        "UpdateSettingsActivity",
                                         "AppreciateAuthorActivity",
                                         "ChangelogActivity"
                                     ),

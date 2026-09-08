@@ -25,10 +25,8 @@ import androidx.compose.ui.draw.blur
 import androidx.compose.ui.graphics.ColorFilter
 import androidx.compose.ui.graphics.TransformOrigin
 import androidx.compose.ui.graphics.graphicsLayer
-import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.platform.LocalDensity
-import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.zIndex
@@ -59,9 +57,7 @@ internal fun ScheduleBottomBar(
     liquidGlassBackdrop: Backdrop? = null,
     addButton: @Composable () -> Unit = {}
 ) {
-    val hapticFeedback = LocalHapticFeedback.current
     val onSelect: (Int) -> Unit = { idx ->
-        hapticFeedback.performHapticFeedback(HapticFeedbackType.Confirm)
         onTabSelected(idx)
     }
 

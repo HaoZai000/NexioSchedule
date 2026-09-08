@@ -68,7 +68,6 @@ import androidx.core.graphics.createBitmap
 import com.haooz.chedule.R
 import com.haooz.chedule.ui.basic.CollapsibleTopAppBar
 import com.haooz.chedule.ui.basic.LiquidTopBarButton
-import top.yukonga.miuix.kmp.overlay.OverlayDialog
 import com.haooz.chedule.ui.basic.ProgressiveBlurTopBar
 import com.haooz.chedule.ui.basic.rememberSharedScrollBehavior
 import com.haooz.chedule.ui.data.changelogData
@@ -93,6 +92,7 @@ import top.yukonga.miuix.kmp.icon.MiuixIcons
 import top.yukonga.miuix.kmp.icon.basic.ArrowRight
 import top.yukonga.miuix.kmp.icon.extended.ChevronBackward
 import top.yukonga.miuix.kmp.icon.extended.ChevronForward
+import top.yukonga.miuix.kmp.overlay.OverlayDialog
 import top.yukonga.miuix.kmp.preference.ArrowPreference
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 import top.yukonga.miuix.kmp.utils.scrollEndHaptic
@@ -408,29 +408,15 @@ private fun AboutScreen(onBack: () -> Unit, liquidGlassBackdrop: com.kyant.backd
                                 modifier = Modifier.fillMaxWidth()
                             ) {
                                 ArrowPreference(
-                                    title = "更新设置",
+                                    title = "交流与反馈",
                                     onClick = {
                                         val intent =
-                                            Intent(context, UpdateSettingsActivity::class.java)
+                                            Intent(context, CommunicationActivity::class.java)
                                         context.startActivity(intent)
                                     }
                                 )
                                 ArrowPreference(
                                     title = "项目仓库",
-                                    endActions = {
-                                        Text(
-                                            text = "反馈与建议",
-                                            fontSize = 14.sp,
-                                            color = MiuixTheme.colorScheme.primary,
-                                            modifier = Modifier.clickable(
-                                                interactionSource = null,
-                                                indication = null
-                                            ) {
-                                                hapticFeedback.performHapticFeedback(HapticFeedbackType.VirtualKey)
-                                                uriHandler.openUri("https://github.com/HaoZai000/NexioSchedule/issues")
-                                            }
-                                        )
-                                    },
                                     onClick = {
                                         showRepoDialog = true
                                     }

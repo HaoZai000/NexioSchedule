@@ -100,7 +100,7 @@
         <activity
             android:name=".ui.activities.CourseTimeSettingsActivity"
             android:exported="false"
-            android:label="课表时间设置"
+            android:label="课表节数与时间"
             android:theme="@style/Theme.课程表"
             android:windowSoftInputMode="adjustResize" />
         <activity
@@ -118,7 +118,7 @@
         <activity
             android:name=".ui.activities.HolidaySettingsActivity"
             android:exported="false"
-            android:label="假期调休设置"
+            android:label="节假日与调休"
             android:theme="@style/Theme.课程表"
             android:windowSoftInputMode="adjustResize" />
         <activity
@@ -140,7 +140,7 @@
         <activity
             android:name=".ui.activities.AppreciateAuthorActivity"
             android:exported="false"
-            android:label="赞赏作者"
+            android:label="捐赠支持"
             android:theme="@style/Theme.课程表" />
         <activity
             android:name=".ui.activities.ChangelogActivity"
@@ -153,9 +153,14 @@
             android:label="更新设置"
             android:theme="@style/Theme.课程表" />
         <activity
+            android:name=".ui.activities.CommunicationActivity"
+            android:exported="false"
+            android:label="交流与反馈"
+            android:theme="@style/Theme.课程表" />
+        <activity
             android:name=".ui.activities.PreferenceSettingsActivity"
             android:exported="false"
-            android:label="偏好设置"
+            android:label="应用偏好设置"
             android:theme="@style/Theme.课程表" />
         <activity
             android:name=".ui.activities.WebDavSettingsActivity"

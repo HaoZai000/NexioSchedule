@@ -111,8 +111,8 @@ class HolidaySettingsActivity : ComponentActivity() {
                             blurAlpha = topBarBlurAlpha,
                         ) {
                             CollapsibleTopAppBar(
-                                title = "假期调休设置",
-                                largeTitle = "假期调休设置",
+                                title = "节假日与调休",
+                                largeTitle = "节假日与调休",
                                 scrollBehavior = scrollBehavior,
                                 contentPadding = {},
                                 onAlphaChanged = { bd, _ -> topBarBlurAlpha = bd },
