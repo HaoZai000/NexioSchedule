@@ -54,7 +54,8 @@ fun LiquidTopBarButton(
     shadowAlpha: Float = 1f,
     iconTint: Color = Color.Unspecified,
     containerColor: Color = Color.Unspecified,
-    draggable: Boolean = false
+    draggable: Boolean = false,
+    performHapticFeedback: Boolean = true
 ) {
     val animationScope = rememberCoroutineScope()
     val hapticFeedback = LocalHapticFeedback.current
@@ -134,7 +135,9 @@ fun LiquidTopBarButton(
                     interactionSource = interactionSource,
                     role = Role.Button,
                     onClick = {
-                        hapticFeedback.performHapticFeedback(HapticFeedbackType.Confirm)
+                        if (performHapticFeedback) {
+                            hapticFeedback.performHapticFeedback(HapticFeedbackType.Confirm)
+                        }
                         onClick()
                     }
                 )

@@ -303,6 +303,7 @@ fun SwitchScheduleScreen(
                                 backdrop = liquidGlassBackdrop,
                                 icon = if (isEditMode) MiuixIcons.Normal.Close else MiuixIcons.ChevronBackward,
                                 contentDescription = if (isEditMode) "关闭" else "返回",
+                                performHapticFeedback = false,
                                 iconSize = if (isEditMode) 24.dp else 25.dp,
                                 iconOffset = if (isEditMode) DpOffset.Zero else DpOffset(
                                     x = (-2).dp,

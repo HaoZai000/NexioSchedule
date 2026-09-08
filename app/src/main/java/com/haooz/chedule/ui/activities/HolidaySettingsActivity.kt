@@ -122,6 +122,7 @@ class HolidaySettingsActivity : ComponentActivity() {
                                         backdrop = liquidGlassBackdrop,
                                         icon = MiuixIcons.ChevronBackward,
                                         contentDescription = "返回",
+                                        performHapticFeedback = false,
                                         iconSize = 25.dp,
                                         iconOffset = DpOffset((-2).dp, 0.dp),
                                         backdropAlpha = backdropAlpha,

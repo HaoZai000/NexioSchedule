@@ -225,6 +225,7 @@ private fun AboutScreen(onBack: () -> Unit, liquidGlassBackdrop: com.kyant.backd
                             backdrop = liquidGlassBackdrop,
                             icon = MiuixIcons.ChevronBackward,
                             contentDescription = "返回",
+                            performHapticFeedback = false,
                             iconSize = 24.dp,
                             iconOffset = DpOffset(x = (-2).dp, y = 0.dp),
                             backdropAlpha = backdropAlpha,
