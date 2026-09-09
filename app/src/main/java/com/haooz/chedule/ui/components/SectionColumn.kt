@@ -1,11 +1,13 @@
 package com.haooz.chedule.ui.components
 
 import android.annotation.SuppressLint
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.offset
+import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -20,6 +22,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.haooz.chedule.data.Course
 import com.haooz.chedule.ui.utils.isAppDarkTheme
+import com.kyant.capsule.ContinuousRoundedRectangle
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 
 /**
@@ -112,9 +115,10 @@ fun SectionColumn(
 
 @Composable
 private fun SectionItem(section: Int, startTime: String, endTime: String, yOffset: Int, cardHeightPerSection: Float = 54f, isCurrentSection: Boolean = false, hasWallpaper: Boolean = false, sectionNames: Map<Int, String> = emptyMap()) {
-    val primaryColor = MiuixTheme.colorScheme.primary
     val onSurfaceColor = MiuixTheme.colorScheme.onSurface
     val onSurfaceVariantColor = MiuixTheme.colorScheme.onSurfaceVariantActions
+    // 课程表界面高亮蓝色固定 #3482FF，不随深色模式变暗
+    val highlightColor = Color(0xFF3482FF)
     val baseBody2 = MiuixTheme.textStyles.body2
     val baseFootnote2 = MiuixTheme.textStyles.footnote2
 
@@ -131,9 +135,9 @@ private fun SectionItem(section: Int, startTime: String, endTime: String, yOffse
     val nameStyle = if (customName != null) {
         sectionStyle.copy(fontSize = 11.sp, fontWeight = FontWeight.Medium)
     } else sectionStyle
-    val sectionColor = if (isCurrentSection) primaryColor else onSurfaceColor
+    val sectionColor = if (isCurrentSection) highlightColor else onSurfaceColor
     val timeStyle = remember(baseFootnote2) { baseFootnote2.copy(fontSize = 10.sp) }
-    val timeColor = if (isCurrentSection) primaryColor else onSurfaceVariantColor
+    val timeColor = if (isCurrentSection) highlightColor else onSurfaceVariantColor
 
     Box(
         modifier = Modifier

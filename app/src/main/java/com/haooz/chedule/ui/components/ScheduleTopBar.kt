@@ -6,6 +6,7 @@ import androidx.compose.animation.core.CubicBezierEasing
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -24,6 +25,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.layout
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.Dp
@@ -37,6 +39,8 @@ import com.haooz.chedule.ui.basic.CollapsibleTopAppBarDefaults.CollapsedHeight
 import com.haooz.chedule.ui.basic.LiquidTopBarButton
 import com.haooz.chedule.ui.basic.ProgressiveBlurTopBar
 import com.haooz.chedule.ui.basic.SharedScrollBehavior
+import com.haooz.chedule.ui.utils.isAppDarkTheme
+import com.kyant.capsule.ContinuousRoundedRectangle
 import top.yukonga.miuix.kmp.basic.Text
 import top.yukonga.miuix.kmp.icon.MiuixIcons
 import top.yukonga.miuix.kmp.icon.extended.ConvertFile
@@ -262,8 +266,12 @@ private fun DayOfWeekRow(
             val index = dayOfWeek - 1
             val name = DAY_NAMES[index]
             val isToday = dayOfWeek == currentDayOfWeek && isCurrentWeek
+
+            val todayHighlightColor = Color(0xFF3482FF)
             Box(
-                modifier = Modifier.weight(1f).height(40.dp),
+                modifier = Modifier
+                    .weight(1f)
+                    .height(40.dp),
                 contentAlignment = Alignment.Center
             ) {
                 Column(horizontalAlignment = Alignment.CenterHorizontally) {
@@ -272,7 +280,7 @@ private fun DayOfWeekRow(
                         style = MiuixTheme.textStyles.footnote1.copy(
                             fontWeight = if (isToday) FontWeight.Bold else FontWeight.Normal
                         ),
-                        color = if (isToday) MiuixTheme.colorScheme.primary
+                        color = if (isToday) todayHighlightColor
                         else MiuixTheme.colorScheme.onSurface
                     )
                     if (weekDates.isNotEmpty() && index < weekDates.size) {
@@ -282,7 +290,7 @@ private fun DayOfWeekRow(
                         Text(
                             text = dateText,
                             style = MiuixTheme.textStyles.footnote2,
-                            color = if (isToday) MiuixTheme.colorScheme.primary
+                            color = if (isToday) todayHighlightColor
                             else MiuixTheme.colorScheme.onSurfaceVariantActions
                         )
                     }

@@ -159,7 +159,7 @@ class CourseWidgetProviderPad : AppWidgetProvider() {
             val remaining1 = if (showTomorrow) null else getRemainingMinutes(start1, end1, currentMinutes)
             // 色条位图使用不透明卡片底色填充，避免透明像素在部分桌面被渲染成灰色框
             views.setBitmap(R.id.widget_color1, "setImageBitmap",
-                createColorBarBitmap(c1.colorRes.toInt(),
+                createColorBarBitmap(context, c1.colorRes.toInt(),
                     if (remaining1 != null) {
                         if (dark) ACTIVE_CARD_OPAQUE_BG_DARK else ACTIVE_CARD_OPAQUE_BG_LIGHT
                     } else {
@@ -181,7 +181,7 @@ class CourseWidgetProviderPad : AppWidgetProvider() {
                 views.setTextViewText(R.id.widget_time_end2, end2)
                 val remaining2 = if (showTomorrow) null else getRemainingMinutes(start2, end2, currentMinutes)
                 views.setBitmap(R.id.widget_color2, "setImageBitmap",
-                    createColorBarBitmap(c2.colorRes.toInt(),
+                    createColorBarBitmap(context, c2.colorRes.toInt(),
                         if (remaining2 != null) {
                             if (dark) ACTIVE_CARD_OPAQUE_BG_DARK else ACTIVE_CARD_OPAQUE_BG_LIGHT
                         } else {
@@ -241,8 +241,8 @@ class CourseWidgetProviderPad : AppWidgetProvider() {
     private fun getCourseEndTime(course: Course, repository: CourseRepository): String? =
         com.haooz.chedule.data.CourseTimeResolver.getEndTime(course, repository)
 
-    private fun createColorBarBitmap(color: Int, background: Int): Bitmap {
-        val density = WidgetTextSizes.REFERENCE_DENSITY
+    private fun createColorBarBitmap(context: Context, color: Int, background: Int): Bitmap {
+        val density = WidgetTextSizes.deviceDensity(context)
         val width = (4 * density).toInt()
         val height = (28 * density).toInt()
         // 用不透明卡片底色填充整张位图，避免任何透明像素被桌面渲染成灰色框

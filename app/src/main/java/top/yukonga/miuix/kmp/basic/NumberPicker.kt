@@ -4,6 +4,8 @@
 package top.yukonga.miuix.kmp.basic
 
 import androidx.compose.animation.core.Animatable
+import androidx.compose.animation.core.SpringSpec
+import androidx.compose.animation.core.calculateTargetValue
 import androidx.compose.animation.core.exponentialDecay
 import androidx.compose.animation.core.spring
 import androidx.compose.foundation.gestures.Orientation
@@ -24,7 +26,6 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
-import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clipToBounds
@@ -42,7 +43,6 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.util.lerp
-import kotlinx.coroutines.flow.distinctUntilChanged
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 import kotlin.math.abs
 import kotlin.math.roundToInt
@@ -87,71 +87,82 @@ fun NumberPicker(
     }
 
     val currentOnValueChange by rememberUpdatedState(onValueChange)
+    val latestValue by rememberUpdatedState(value.coerceIn(range))
     val itemCount = range.last - range.first + 1
     val coercedValue = value.coerceIn(range)
     val currentIndex = coercedValue - range.first
     val halfVisibleCount = visibleItemCount / 2
     val hapticFeedback = LocalHapticFeedback.current
 
-    // Drag offset (updated synchronously, no coroutine needed)
-    var dragOffset by remember { mutableFloatStateOf(0f) }
-    // Fling/snap animated offset
-    val flingAnimatable = remember { Animatable(0f) }
+    // 中心项的「虚拟位置」，可以带小数。整数部分即当前停在中心的 item 下标。
+    // base 承载惯性 / 吸附动画，dragDelta 承载拖拽期间的实时位移，二者相加即真实位置。
+    // 用绝对位置而不是「相对已选中项的偏移」，是为了让「提交选中值」和「视觉位置」始终解耦，
+    // 这样在动画中途提交也不会引起画面跳动。
+    val base = remember { Animatable(currentIndex.toFloat()) }
+    var dragDelta by remember { mutableFloatStateOf(0f) }
     var isDragging by remember { mutableStateOf(false) }
-    var isUserScrolling by remember { mutableStateOf(false) }
+    var isSettling by remember { mutableStateOf(false) }
     var itemHeightPx by remember { mutableIntStateOf(0) }
 
-    // Total offset combines drag + fling
-    val totalOffset by remember {
-        derivedStateOf { dragOffset + flingAnimatable.value }
-    }
+    val position by remember { derivedStateOf { base.value + dragDelta } }
 
-    // Sync offset when value changes externally
-    LaunchedEffect(coercedValue) {
-        if (!isDragging && dragOffset == 0f) {
-            flingAnimatable.snapTo(0f)
-        }
-    }
-
-    // Haptic feedback when crossing item boundaries during scroll
-    val effectiveIndex by remember(currentIndex, itemCount, wrapAround) {
-        derivedStateOf {
-            val rawIndex = currentIndex + totalOffset.roundToInt()
-            if (wrapAround) {
-                ((rawIndex % itemCount) + itemCount) % itemCount
-            } else {
-                rawIndex.coerceIn(0, itemCount - 1)
-            }
-        }
-    }
-
+    // 跨过 item 边界时的震动：直接由拖拽回调和动画逐帧回调触发，
+    // 不再用 snapshotFlow——它只发信号不携带数值，两次变化合并到同一帧时会漏掉一次。
     var lastHapticIndex by remember { mutableIntStateOf(currentIndex) }
-    LaunchedEffect(Unit) {
-        snapshotFlow { effectiveIndex }
-            .distinctUntilChanged()
-            .collect { index ->
-                if (index != lastHapticIndex) {
-                    if (isUserScrolling) {
-                        hapticFeedback.performHapticFeedback(HapticFeedbackType.TextHandleMove)
-                    }
-                    lastHapticIndex = index
-                }
-            }
+
+    fun tickHaptic(rawIndex: Int) {
+        if (rawIndex != lastHapticIndex) {
+            lastHapticIndex = rawIndex
+            hapticFeedback.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+        }
     }
 
-    val totalHeight = itemHeight * visibleItemCount
+    // 把虚拟位置换算成 range 内的真实值并回调给外部
+    fun commitPosition(pos: Float) {
+        val rawIndex = pos.roundToInt()
+        val newIndex = if (wrapAround) {
+            ((rawIndex % itemCount) + itemCount) % itemCount
+        } else {
+            rawIndex.coerceIn(0, itemCount - 1)
+        }
+        val newValue = range.first + newIndex
+        if (newValue != latestValue) {
+            currentOnValueChange(newValue)
+        }
+    }
+
+    // 把惯性落点吸附到最近的整格
+    fun snapToItem(projected: Float): Float {
+        val rounded = projected.roundToInt().toFloat()
+        return if (wrapAround) rounded else rounded.coerceIn(0f, (itemCount - 1).toFloat())
+    }
+
+    // 外部（非本组件自身）改动 value，或 range 发生变化时，把位置同步过去
+    LaunchedEffect(coercedValue, itemCount, wrapAround) {
+        if (wrapAround) {
+            base.updateBounds(Float.NEGATIVE_INFINITY, Float.POSITIVE_INFINITY)
+        } else {
+            base.updateBounds(0f, (itemCount - 1).toFloat())
+        }
+        if (!isDragging && !isSettling) {
+            dragDelta = 0f
+            base.snapTo(currentIndex.toFloat())
+            lastHapticIndex = currentIndex
+        }
+    }
 
     val draggableState = rememberDraggableState { delta ->
         if (itemHeightPx > 0) {
-            val newOffset = dragOffset - delta / itemHeightPx
-            dragOffset = if (wrapAround) {
-                newOffset
+            val raw = base.value + dragDelta - delta / itemHeightPx
+            dragDelta = if (wrapAround) {
+                raw - base.value
             } else {
-                newOffset.coerceIn(
-                    -(currentIndex.toFloat()),
-                    (itemCount - 1 - currentIndex).toFloat(),
-                )
+                raw.coerceIn(0f, (itemCount - 1).toFloat()) - base.value
             }
+            val currentPosition = base.value + dragDelta
+            // 拖拽过程中就实时提交，手指还没抬起时点「确定」也能拿到正确的值
+            commitPosition(currentPosition)
+            tickHaptic(currentPosition.roundToInt())
         }
     }
 
@@ -159,7 +170,7 @@ fun NumberPicker(
     Box(
         modifier = modifier
             .fillMaxWidth()
-            .height(totalHeight)
+            .height(itemHeight * visibleItemCount)
             .clipToBounds()
             .semantics {
                 contentDescription = "$displayValue, ${range.first} - ${range.last}"
@@ -173,52 +184,56 @@ fun NumberPicker(
                         orientation = Orientation.Vertical,
                         state = draggableState,
                         onDragStarted = {
-                            // Stop any ongoing fling animation
-                            flingAnimatable.stop()
-                            // Absorb fling remainder into drag
-                            dragOffset += flingAnimatable.value
-                            flingAnimatable.snapTo(0f)
                             isDragging = true
-                            isUserScrolling = true
+                            // 打断正在进行的惯性/吸附动画，从当前视觉位置接着拖
+                            base.stop()
+                            dragDelta = 0f
                         },
                         onDragStopped = { velocity ->
                             isDragging = false
                             if (itemHeightPx > 0) {
-                                // Transfer drag offset to fling animatable
-                                val currentDragOffset = dragOffset
-                                dragOffset = 0f
-                                flingAnimatable.snapTo(currentDragOffset)
+                                // 把拖拽位移并入动画基准
+                                val startPosition = base.value + dragDelta
+                                dragDelta = 0f
+                                base.snapTo(startPosition)
 
                                 val velocityInItems = -velocity / itemHeightPx
-                                val decay = exponentialDecay<Float>(frictionMultiplier = 2f)
-                                // Set bounds for non-wrap mode
-                                if (!wrapAround) {
-                                    val min = -(currentIndex.toFloat())
-                                    val max = (itemCount - 1 - currentIndex).toFloat()
-                                    flingAnimatable.updateBounds(min, max)
-                                }
-                                // Fling with real decay for natural inertia
-                                flingAnimatable.animateDecay(velocityInItems, decay)
-                                // Reset bounds
-                                flingAnimatable.updateBounds(Float.NEGATIVE_INFINITY, Float.POSITIVE_INFINITY)
-                                // Snap to nearest item
-                                val snappedTarget = flingAnimatable.value.roundToInt().toFloat()
-                                flingAnimatable.animateTo(
-                                    targetValue = snappedTarget,
-                                    animationSpec = spring(dampingRatio = 1f, stiffness = 400f),
+                                val decay = exponentialDecay<Float>(
+                                    frictionMultiplier = NumberPickerDefaults.FlingFrictionMultiplier,
+                                    absVelocityThreshold = NumberPickerDefaults.FlingVelocityThreshold,
                                 )
-                                val offsetInt = flingAnimatable.value.roundToInt()
-                                val newIndex = if (wrapAround) {
-                                    ((currentIndex + offsetInt) % itemCount + itemCount) % itemCount
-                                } else {
-                                    (currentIndex + offsetInt).coerceIn(0, itemCount - 1)
+                                // 先算出惯性最终会停在哪一格并立刻提交。
+                                // 这样即使用户在吸附动画结束前就点「确定」/ 关闭弹窗，
+                                // 拿到的也是滚轮最终会停留的那一项，而不是起手前那一项。
+                                val target = snapToItem(
+                                    decay.calculateTargetValue(startPosition, velocityInItems),
+                                )
+                                isSettling = true
+                                commitPosition(target)
+                                try {
+                                    val decayResult = base.animateDecay(velocityInItems, decay) {
+                                        tickHaptic(base.value.roundToInt())
+                                    }
+                                    // 用惯性结束时的残余速度衔接吸附动画，
+                                    // 避免「滑行 → 顿一下 → 再吸附」的割裂感。
+                                    // 注意不能读 base.velocity：动画结束后它会被重置为 0。
+                                    base.animateTo(
+                                        targetValue = target,
+                                        animationSpec = NumberPickerDefaults.SnapSpring,
+                                        initialVelocity = decayResult.endState.velocity,
+                                    ) {
+                                        tickHaptic(base.value.roundToInt())
+                                    }
+                                    // wrap 模式下位置会一直累加，归一化避免长时间滚动后精度下降
+                                    if (wrapAround && !isDragging) {
+                                        val normalized =
+                                            ((base.value.roundToInt() % itemCount) + itemCount) % itemCount
+                                        base.snapTo(normalized.toFloat())
+                                        lastHapticIndex = normalized
+                                    }
+                                } finally {
+                                    if (!isDragging) isSettling = false
                                 }
-                                val newValue = range.first + newIndex
-                                if (newValue != coercedValue) {
-                                    currentOnValueChange(newValue)
-                                }
-                                isUserScrolling = false
-                                flingAnimatable.snapTo(0f)
                             }
                         },
                     )
@@ -229,15 +244,15 @@ fun NumberPicker(
         contentAlignment = Alignment.Center,
     ) {
         if (itemHeightPx > 0) {
-            val currentTotalOffset = totalOffset
-            val centerItemOffset = currentTotalOffset - currentTotalOffset.roundToInt()
-            val roundedOffset = currentTotalOffset.roundToInt()
+            val currentPosition = position
+            val roundedOffset = currentPosition.roundToInt()
+            val centerItemOffset = currentPosition - roundedOffset
             val selectedColor = colors.selectedTextColor(enabled)
             val unselectedColor = colors.unselectedTextColor(enabled)
             val resolvedTextStyle = if (textStyle.fontWeight == null) textStyle.copy(fontWeight = FontWeight.SemiBold) else textStyle
 
             for (i in -halfVisibleCount - 1..halfVisibleCount + 1) {
-                val rawItemIndex = currentIndex + i + roundedOffset
+                val rawItemIndex = roundedOffset + i
                 val itemIndex = if (wrapAround) {
                     ((rawItemIndex % itemCount) + itemCount) % itemCount
                 } else {
@@ -285,6 +300,36 @@ fun NumberPicker(
 object NumberPickerDefaults {
 
     val ItemHeight = 45.dp
+
+    /**
+     * 惯性滑动的摩擦系数。越大 → 滑得越近、停得越快。
+     */
+    const val FlingFrictionMultiplier: Float = 1.1f
+
+    /**
+     * 惯性滑动的结束速度阈值，单位是「项/秒」。
+     * 指数衰减的尾巴极长（速度越低爬得越慢），减速到该值就直接交给吸附动画收尾，
+     * 调大能显著缩短「滑很久才停下来」的时间，是改善吸附手感最有效的旋钮。
+     */
+    const val FlingVelocityThreshold: Float = 4f
+
+    /**
+     * 吸附动画的阻尼比，1f 为临界阻尼（不过冲）。
+     */
+    const val SnapDampingRatio: Float = 1f
+
+    /**
+     * 吸附动画的刚度，越大吸附越干脆。
+     */
+    const val SnapStiffness: Float = 1000f
+
+    /**
+     * 吸附到最近一格的动画规格。
+     */
+    val SnapSpring: SpringSpec<Float> = spring(
+        dampingRatio = SnapDampingRatio,
+        stiffness = SnapStiffness,
+    )
 
     /**
      * Creates the default [NumberPickerColors] for a [NumberPicker].

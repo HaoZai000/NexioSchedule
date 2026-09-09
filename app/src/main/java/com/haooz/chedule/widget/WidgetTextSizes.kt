@@ -1,5 +1,5 @@
-/** 小组件文本尺寸工具：固定以 480dpi（density=3.0）换算 px 重设文本，
- *  使文本不随系统字体缩放（fontScale）和设备 dpi 变化 */
+/** 小组件文本尺寸工具：按设备像素密度（dp）重设文本与位图尺寸，
+ *  使小组件在不同密度设备上等比缩放；文本用 DIP，不随系统字体缩放（fontScale）变化 */
 package com.haooz.chedule.widget
 
 import android.content.Context
@@ -10,8 +10,11 @@ import com.haooz.chedule.R
 
 object WidgetTextSizes {
 
-    /** 参考密度：480dpi 对应的 density 值，所有尺寸统一按此换算 */
-    const val REFERENCE_DENSITY = 3.0f
+    /** 返回设备当前像素密度（dp→px 换算系数） */
+    fun deviceDensity(context: Context): Float = context.resources.displayMetrics.density
+
+    /** 将 dp 按设备密度换算为 px */
+    fun dpToPx(context: Context, dp: Float): Float = dp * deviceDensity(context)
 
     // ---- 主题相关：小组件位图背景需随深浅色选择不透明底色，避免透明像素被桌面渲染成灰色/白色框 ----
     /** 课程卡片（非进行中）底色：浅色=白 / 深色=#262626（对应 widget_card_background 两套） */
@@ -43,8 +46,8 @@ object WidgetTextSizes {
         }
     }
 
-    private fun setTextSize(views: RemoteViews, id: Int, sp: Int) {
-        views.setTextViewTextSize(id, TypedValue.COMPLEX_UNIT_PX, sp * REFERENCE_DENSITY)
+    private fun setTextSize(views: RemoteViews, id: Int, dp: Int) {
+        views.setTextViewTextSize(id, TypedValue.COMPLEX_UNIT_DIP, dp.toFloat())
     }
 
     /** 课程表小组件（widget_course_reminder_standard） */

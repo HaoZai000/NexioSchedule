@@ -61,7 +61,7 @@ class TodayCourseWidgetProviderStandard : AppWidgetProvider() {
         val repository = CourseRepository(context)
         val dark = WidgetTextSizes.isDark(context)
         val views = RemoteViews(context.packageName, R.layout.widget_today_course_standard)
-        applyWidgetMode(views, repository)
+        applyWidgetMode(views, context, repository)
         WidgetTextSizes.applyTodayCourse(views)
 
         val currentWeek = repository.getCurrentWeek()
@@ -177,7 +177,7 @@ class TodayCourseWidgetProviderStandard : AppWidgetProvider() {
             for (i in dotIds.indices) {
                 if (i < dotCourses.size) {
                     views.setViewVisibility(dotIds[i], View.VISIBLE)
-                    views.setImageViewBitmap(dotIds[i], createCircleBitmap(dotCourses[i].colorRes.toInt(),
+                    views.setImageViewBitmap(dotIds[i], createCircleBitmap(context, dotCourses[i].colorRes.toInt(),
                         if (dark) WidgetTextSizes.TODAY_BG_DARK else WidgetTextSizes.TODAY_BG_LIGHT))
                 } else {
                     views.setViewVisibility(dotIds[i], View.GONE)
@@ -217,6 +217,7 @@ class TodayCourseWidgetProviderStandard : AppWidgetProvider() {
 
     private fun applyWidgetMode(
         views: RemoteViews,
+        context: Context,
         repository: CourseRepository
     ) {
         // 0=标准(0/0), 1=4×6(12/14), 2=4×7(8/10)
@@ -228,14 +229,14 @@ class TodayCourseWidgetProviderStandard : AppWidgetProvider() {
         views.setViewPadding(
             R.id.widget_standard_root,
             0,
-            (top * WidgetTextSizes.REFERENCE_DENSITY).toInt(),
+            WidgetTextSizes.dpToPx(context, top).toInt(),
             0,
-            (bottom * WidgetTextSizes.REFERENCE_DENSITY).toInt()
+            WidgetTextSizes.dpToPx(context, bottom).toInt()
         )
     }
 
-    private fun createCircleBitmap(color: Int, background: Int): Bitmap {
-        val size = 24
+    private fun createCircleBitmap(context: Context, color: Int, background: Int): Bitmap {
+        val size = (7 * WidgetTextSizes.deviceDensity(context)).toInt()
         // 用不透明的卡片底色填充，避免透明像素被桌面渲染成灰色方块
         val bitmap = createBitmap(size, size).apply { eraseColor(background) }
         val canvas = Canvas(bitmap)
