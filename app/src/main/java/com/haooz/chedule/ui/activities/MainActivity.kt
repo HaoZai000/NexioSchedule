@@ -247,10 +247,15 @@ class MainActivity : ComponentActivity() {
         extractIntentData(intent)
         updateFreeformWindowState()
         handleReminderSettingsIntent(intent)
-        CourseReminderHelper.startReminderService(this)
 
-        // 初始化超级岛通知助手
-        IslandNotificationHelper.init(this)
+        // 提醒闹钟调度会读取并反序列化全部课程再逐个注册闹钟，超级岛初始化要走 Shizuku
+        // 跨进程 binder。两者都与"首帧要显示什么"无关，放到后台执行，不与首帧渲染抢主线程。
+        val appContext = applicationContext
+        kotlinx.coroutines.CoroutineScope(Dispatchers.IO).launch {
+            CourseReminderHelper.startReminderService(appContext)
+            // 初始化超级岛通知助手
+            IslandNotificationHelper.init(appContext)
+        }
 
         // 接入统计上报：active 每次启动上报；install 仅每个设备首次上报
         com.haooz.chedule.data.StatsReporter.init(this)
@@ -788,10 +793,14 @@ fun CourseScheduleApp() {
     val resumeCount = activity?.resumeCount ?: 0
     // 从其他 Activity 返回时刷新设置（如教务导入应用了预设时间段）
     LaunchedEffect(resumeCount) {
-        if (resumeCount > 0) {
-            settingsViewModel.refreshSettings()
+        // 只在"返回"时刷新：冷启动的第一次 onResume 时，各 ViewModel 刚把数据加载完，
+        // 这里再全量刷一遍（设置 + 全部课程 + 所有课表摘要）纯属重复开销，会明显拖慢首屏。
+        if (resumeCount > 1) {
+            withContext(Dispatchers.IO) {
+                settingsViewModel.refreshSettings()
+                scheduleViewModel.refreshScheduleList()
+            }
             viewModel.reloadCourses()
-            scheduleViewModel.refreshScheduleList()
         }
     }
     val config = LocalConfiguration.current
@@ -804,26 +813,32 @@ fun CourseScheduleApp() {
     val screenHPx = with(density) { config.screenHeightDp.dp.toPx() }
 
     // 预热 RenderEffect：创建一个不可见的 Box 触发 drawBackdrop 初始化，
-    // 避免首次打开 BlurBottomSheet 时掉帧
+    // 避免首次打开 BlurBottomSheet 时掉帧。
+    // 预热要创建 GraphicsLayer + RenderEffect，本身有成本，因此等首帧出来之后再挂载，
+    // 不占用冷启动首帧的合成时间。
     val warmupBlurPx = with(density) { 24.dp.toPx() }
-    Box(
-        modifier = Modifier
-            .size(1.dp)
-            .graphicsLayer { alpha = 0f }
-            .then(
-                if (android.os.Build.VERSION.SDK_INT >= 33) {
-                    Modifier.drawBackdrop(
-                        backdrop = liquidGlassBackdrop,
-                        shape = { androidx.compose.foundation.shape.RoundedCornerShape(36.dp) },
-                        effects = {
-                            vibrancy()
-                            blur(warmupBlurPx)
-                        },
-                        highlight = null
-                    )
-                } else Modifier
-            )
-    )
+    var blurWarmupReady by remember { mutableStateOf(false) }
+    LaunchedEffect(Unit) { blurWarmupReady = true }
+    if (blurWarmupReady) {
+        Box(
+            modifier = Modifier
+                .size(1.dp)
+                .graphicsLayer { alpha = 0f }
+                .then(
+                    if (android.os.Build.VERSION.SDK_INT >= 33) {
+                        Modifier.drawBackdrop(
+                            backdrop = liquidGlassBackdrop,
+                            shape = { androidx.compose.foundation.shape.RoundedCornerShape(36.dp) },
+                            effects = {
+                                vibrancy()
+                                blur(warmupBlurPx)
+                            },
+                            highlight = null
+                        )
+                    } else Modifier
+                )
+        )
+    }
     val railState = if (navBarStyle == "rail") rememberNavigationRailState() else null
     val railPaddingStart by animateDpAsState(
         targetValue = if (navBarStyle == "rail") {

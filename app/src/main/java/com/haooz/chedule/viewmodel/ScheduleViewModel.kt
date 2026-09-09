@@ -2,8 +2,11 @@ package com.haooz.chedule.viewmodel
 
 import android.app.Application
 import androidx.lifecycle.AndroidViewModel
+import androidx.lifecycle.viewModelScope
 import com.haooz.chedule.data.CourseRepository
 import com.haooz.chedule.reminder.CourseReminderHelper
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -29,7 +32,11 @@ class ScheduleViewModel(application: Application) : AndroidViewModel(application
     val scheduleSummaries: StateFlow<Map<String, String>> = _scheduleSummaries.asStateFlow()
 
     init {
-        refreshScheduleList()
+        // 每个课表的摘要都要把该课表的全部课程 JSON 反序列化一遍，课表多时开销可观。
+        // 首屏并不展示这些摘要（只在"切换课表"页用到），放到后台线程算，不阻塞首帧。
+        viewModelScope.launch(Dispatchers.IO) {
+            refreshScheduleList()
+        }
     }
 
     /**

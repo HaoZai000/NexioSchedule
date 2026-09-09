@@ -89,7 +89,9 @@ class CourseViewModel(application: Application) : AndroidViewModel(application) 
         viewModelScope.launch(Dispatchers.IO) {
             loadCourses()
         }
-        rescheduleReminders()
+        // 注意：此处原先在主线程同步调用 rescheduleReminders()，会走一遍全量课程反序列化
+        // 并逐个注册闹钟，是冷启动主线程的主要阻塞点；且与 MainActivity 的启动调度完全重复。
+        // repository.onCourseChanged 回调负责重排，这里不再重复执行。
     }
 
     private fun rescheduleReminders() {

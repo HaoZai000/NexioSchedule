@@ -73,3 +73,4 @@ materialKolor-utilities = { group = "com.materialkolor", name = "material-color-
 [plugins]
 android-application = { id = "com.android.application", version.ref = "agp" }     # Android 应用插件
 kotlin-compose = { id = "org.jetbrains.kotlin.plugin.compose", version.ref = "kotlin" }  # Compose 编译插件
+# 注：AGP 9.0 起内置 Kotlin 支持，不再需要 org.jetbrains.kotlin.android 插件
