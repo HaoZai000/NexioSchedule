@@ -61,7 +61,7 @@ class TodayCourseWidgetProviderPad : AppWidgetProvider() {
         val repository = CourseRepository(context)
         val dark = WidgetTextSizes.isDark(context)
         val views = RemoteViews(context.packageName, R.layout.widget_today_course_standard)
-        WidgetTextSizes.applyTodayCourse(views)
+        WidgetTextSizes.applyTodayCoursePad(views)
 
         val currentWeek = repository.getCurrentWeek()
         // getTodayOfWeek/getTodayCourses 统一在 CourseReminderHelper（含 workSwap / 节假日 / 周次范围 / 排序），

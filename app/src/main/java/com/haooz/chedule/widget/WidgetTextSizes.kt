@@ -77,4 +77,32 @@ object WidgetTextSizes {
         setTextSize(views, R.id.widget_remaining_text, 12)
         setTextSize(views, R.id.widget_empty_text, 14)
     }
+
+    /** 课程表小组件 Pad 版（复用标准布局 widget_course_reminder_standard，仅字号放大 1.5 倍） */
+    fun applyCourseReminderPad(views: RemoteViews) {
+        setTextSize(views, R.id.widget_title, 21)
+        setTextSize(views, R.id.widget_week, 21)
+        setTextSize(views, R.id.widget_time_start1, 18)
+        setTextSize(views, R.id.widget_time_end1, 18)
+        setTextSize(views, R.id.widget_name1, 21)
+        setTextSize(views, R.id.widget_info1, 18)
+        setTextSize(views, R.id.widget_now1, 21)
+        setTextSize(views, R.id.widget_time_start2, 18)
+        setTextSize(views, R.id.widget_time_end2, 18)
+        setTextSize(views, R.id.widget_name2, 21)
+        setTextSize(views, R.id.widget_info2, 18)
+        setTextSize(views, R.id.widget_now2, 21)
+        setTextSize(views, R.id.widget_empty_text, 21)
+    }
+
+    /** 今日课程小组件 Pad 版（复用标准布局 widget_today_course_standard，仅字号放大 1.5 倍） */
+    fun applyTodayCoursePad(views: RemoteViews) {
+        setTextSize(views, R.id.widget_title, 21)
+        setTextSize(views, R.id.widget_week, 21)
+        setTextSize(views, R.id.widget_course_name, 25)
+        setTextSize(views, R.id.widget_course_time, 21)
+        setTextSize(views, R.id.widget_course_location, 21)
+        setTextSize(views, R.id.widget_remaining_text, 18)
+        setTextSize(views, R.id.widget_empty_text, 21)
+    }
 }
