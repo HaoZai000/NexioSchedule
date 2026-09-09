@@ -302,26 +302,30 @@ object NumberPickerDefaults {
     val ItemHeight = 45.dp
 
     /**
-     * 惯性滑动的摩擦系数。越大 → 滑得越近、停得越快。
+     * 惯性滑动的摩擦系数。越大 → 减速越猛、滑得越近、停得越快；调小则滑行更绵长柔和。
      */
-    const val FlingFrictionMultiplier: Float = 1.1f
+    const val FlingFrictionMultiplier: Float = 1.0f
 
     /**
      * 惯性滑动的结束速度阈值，单位是「项/秒」。
-     * 指数衰减的尾巴极长（速度越低爬得越慢），减速到该值就直接交给吸附动画收尾，
-     * 调大能显著缩短「滑很久才停下来」的时间，是改善吸附手感最有效的旋钮。
+     * 指数衰减的尾巴极长（速度越低爬得越慢），减速到该值就带着这个残余速度交给吸附动画收尾。
+     * 调大 → 更早交给弹簧、总时长更短；调小 → 惯性自己多滑一段、减速更均匀绵软。
      */
-    const val FlingVelocityThreshold: Float = 4f
+    const val FlingVelocityThreshold: Float = 3.4f
 
     /**
-     * 吸附动画的阻尼比，1f 为临界阻尼（不过冲）。
+     * 吸附动画的阻尼比：
+     * - `1f` 临界阻尼，最快停住但完全没有回弹，收尾偏生硬
+     * - `0.6 ~ 0.7` 轻微欠阻尼，会柔和地过冲一点点再荡回来（约 7~8px）
+     * - 再小回弹幅度会明显变大，容易显得「晃」
      */
-    const val SnapDampingRatio: Float = 1f
+    const val SnapDampingRatio: Float = 0.78f
 
     /**
-     * 吸附动画的刚度，越大吸附越干脆。
+     * 吸附动画的刚度，决定把滚轮「拽」到目标格的力度。
+     * 越大吸附越干脆也越生硬；调小收尾更柔和，但停稳所需时间会变长。
      */
-    const val SnapStiffness: Float = 1000f
+    const val SnapStiffness: Float = 200f
 
     /**
      * 吸附到最近一格的动画规格。
