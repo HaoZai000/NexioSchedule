@@ -160,7 +160,7 @@ fun MainScheduleScreen(
     pagerState: PagerState,
     hiddenCourseIds: Set<String> = emptySet(),
     draggingCourseIds: Set<String> = emptySet(),
-    onCourseClick: (courses: List<Course>, cardLeft: Float, cardTop: Float, cardWidth: Float, cardHeight: Float, snapshot: android.graphics.Bitmap?, courseIdToHide: String) -> Unit = { _, _, _, _, _, _, _ -> },
+    onCourseClick: (courses: List<Course>, cardLeft: Float, cardTop: Float, cardWidth: Float, cardHeight: Float, snapshot: android.graphics.Bitmap?, courseIdToHide: String, targetWeek: Int) -> Unit = { _, _, _, _, _, _, _, _ -> },
     onPopupStateChange: (Boolean) -> Unit = {},
     onEmptyLongPress: () -> Unit = {},
     onCourseLongPress: (course: Course, cardLeft: Float, cardTop: Float, width: Float, height: Float, backdrop: com.kyant.backdrop.Backdrop?, currentWeek: Int) -> Unit = { _, _, _, _, _, _, _ -> },
@@ -1175,6 +1175,10 @@ fun MainScheduleScreen(
                         onClick = {
                             // Open course detail page with all courses of the same name
                             val coursesForDetail = courses.filter { it.name == course.name }
+                            // 详情页据此自动滚动到对应周：本周有课用当前查看周，否则回退到离当前查看周最近的上课周
+                            val targetWeek = if (course.isActiveInWeek(viewingWeek)) viewingWeek
+                            else if (viewingWeek < course.startWeek) course.startWeek
+                            else course.endWeek
                             val bounds = cardBoundsHolder.rect
                             if (bounds != null) {
                                 onCourseClick(
@@ -1184,7 +1188,8 @@ fun MainScheduleScreen(
                                     bounds.width,
                                     bounds.height,
                                     null,
-                                    course.id
+                                    course.id,
+                                    targetWeek
                                 )
                             }
                         }

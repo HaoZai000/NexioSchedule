@@ -851,6 +851,8 @@ fun CourseScheduleApp() {
     var showDetail by remember { mutableStateOf(false) }
 
     var detailFromToday by remember { mutableStateOf(false) }
+    // 打开课程详情时所点击卡片所在的周次（用于详情页自动滚动定位）
+    var detailTargetWeek by remember { mutableIntStateOf(0) }
     var hiddenCourseIds by remember { mutableStateOf(setOf<String>()) }
 
     // 拖拽课程卡片状态
@@ -1480,7 +1482,8 @@ fun CourseScheduleApp() {
         cardWidth: Float,
         cardHeight: Float,
         fromToday: Boolean,
-        courseIdToHide: String = courses.firstOrNull()?.id ?: ""
+        courseIdToHide: String = courses.firstOrNull()?.id ?: "",
+        targetWeek: Int = 0
     ) {
         detailCourses = courses
         detailCardLeft = cardLeft
@@ -1488,6 +1491,7 @@ fun CourseScheduleApp() {
         detailCardWidth = cardWidth
         detailCardHeight = cardHeight
         detailFromToday = fromToday
+        detailTargetWeek = targetWeek
         coroutineScope.launch {
             // 先截取全屏快照（在隐藏课程之前，确保快照内容完整）
             val fullSnapshot = captureMainContentBitmap()
@@ -1901,7 +1905,7 @@ fun CourseScheduleApp() {
                                             viewModel = viewModel,
                                             settingsViewModel = settingsViewModel,
                                             hiddenCourseIds = hiddenCourseIds,
-                                            onCourseClick = { courses, left, top, width, height, _, courseIdToHide ->
+                                            onCourseClick = { courses, left, top, width, height, _, courseIdToHide, targetWeek ->
                                                 openCourseDetail(
                                                     courses,
                                                     left,
@@ -1909,7 +1913,8 @@ fun CourseScheduleApp() {
                                                     width,
                                                     height,
                                                     fromToday = true,
-                                                    courseIdToHide = courseIdToHide
+                                                    courseIdToHide = courseIdToHide,
+                                                    targetWeek = targetWeek
                                                 )
                                             },
                                             pagerState = todayPagerState,
@@ -1949,7 +1954,7 @@ fun CourseScheduleApp() {
                                             pagerState = pagerState,
                                             hiddenCourseIds = hiddenCourseIds,
                                             draggingCourseIds = draggingCourseIds,
-                                            onCourseClick = { courses, left, top, width, height, _, courseIdToHide ->
+                                            onCourseClick = { courses, left, top, width, height, _, courseIdToHide, targetWeek ->
                                                 openCourseDetail(
                                                     courses,
                                                     left,
@@ -1957,7 +1962,8 @@ fun CourseScheduleApp() {
                                                     width,
                                                     height,
                                                     fromToday = false,
-                                                    courseIdToHide = courseIdToHide
+                                                    courseIdToHide = courseIdToHide,
+                                                    targetWeek = targetWeek
                                                 )
                                             },
                                             onPopupStateChange = { showCourseDetailPopup = it },
@@ -2989,6 +2995,7 @@ fun CourseScheduleApp() {
                 fromToday = detailFromToday,
                 sectionTimes = sectionTimes,
                 classStartTime = classStartTime,
+                targetWeek = detailTargetWeek,
                 onBackStart = {
                     coroutineScope.launch {
                         launch {

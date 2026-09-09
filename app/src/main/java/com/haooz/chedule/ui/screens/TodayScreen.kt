@@ -338,7 +338,7 @@ fun TodayScreen(
     viewModel: CourseViewModel,
     settingsViewModel: SettingsViewModel,
     hiddenCourseIds: Set<String> = emptySet(),
-    onCourseClick: (courses: List<Course>, cardLeft: Float, cardTop: Float, cardWidth: Float, cardHeight: Float, snapshot: android.graphics.Bitmap?, courseIdToHide: String) -> Unit = { _, _, _, _, _, _, _ -> },
+    onCourseClick: (courses: List<Course>, cardLeft: Float, cardTop: Float, cardWidth: Float, cardHeight: Float, snapshot: android.graphics.Bitmap?, courseIdToHide: String, targetWeek: Int) -> Unit = { _, _, _, _, _, _, _, _ -> },
     pagerState: androidx.compose.foundation.pager.PagerState,
     navBarStyle: String = "standard",
     onScrollYChanged: (Int) -> Unit = {},
@@ -622,7 +622,7 @@ fun TodayScreen(
                             ),
                             verticalArrangement = Arrangement.spacedBy(12.dp)
                         ) {
-                            addCourseSections(morningCourses, afternoonCourses, eveningCourses, pageCourses, isPageToday, pageDate, courses, hiddenCourseIds, sectionTimes, onCourseClick, if (hasWallpaper) cardBackdrop else null, cardBlurRadius, courseCardOpacity, showClassroom, showTeacher)
+                            addCourseSections(morningCourses, afternoonCourses, eveningCourses, pageCourses, isPageToday, pageDate, pageWeek, courses, hiddenCourseIds, sectionTimes, onCourseClick, if (hasWallpaper) cardBackdrop else null, cardBlurRadius, courseCardOpacity, showClassroom, showTeacher)
                         }
                     }
                 } else {
@@ -676,7 +676,7 @@ fun TodayScreen(
                                 )
                             }
                         }
-                        addCourseSections(morningCourses, afternoonCourses, eveningCourses, pageCourses, isPageToday, pageDate, courses, hiddenCourseIds, sectionTimes, onCourseClick, if (hasWallpaper) cardBackdrop else null, cardBlurRadius, courseCardOpacity, showClassroom, showTeacher)
+                        addCourseSections(morningCourses, afternoonCourses, eveningCourses, pageCourses, isPageToday, pageDate, pageWeek, courses, hiddenCourseIds, sectionTimes, onCourseClick, if (hasWallpaper) cardBackdrop else null, cardBlurRadius, courseCardOpacity, showClassroom, showTeacher)
                     }
                 }
             }
@@ -1115,10 +1115,11 @@ private fun androidx.compose.foundation.lazy.LazyListScope.addCourseSections(
     pageCourses: List<Course>,
     isPageToday: Boolean,
     pageDate: LocalDate,
+    pageWeek: Int,
     courses: List<Course>,
     hiddenCourseIds: Set<String>,
     sectionTimes: Map<Int, String>,
-    onCourseClick: (courses: List<Course>, cardLeft: Float, cardTop: Float, cardWidth: Float, cardHeight: Float, snapshot: android.graphics.Bitmap?, courseIdToHide: String) -> Unit,
+    onCourseClick: (courses: List<Course>, cardLeft: Float, cardTop: Float, cardWidth: Float, cardHeight: Float, snapshot: android.graphics.Bitmap?, courseIdToHide: String, targetWeek: Int) -> Unit,
     wallpaperBackdrop: Backdrop? = null,
     blurRadius: Float = 0f,
     surfaceOpacity: Float,
@@ -1136,7 +1137,7 @@ private fun androidx.compose.foundation.lazy.LazyListScope.addCourseSections(
                 BlurCard(cornerRadius = 20.dp, wallpaperBackdrop = wallpaperBackdrop, blurRadius = blurRadius, surfaceOpacity = surfaceOpacity, modifier = Modifier.fillMaxWidth()) {
                     Column {
                         morningCourses.forEach { course ->
-                            CourseItemWithClick(course, courses, hiddenCourseIds, sectionTimes, pageDate, onCourseClick, wallpaperBackdrop != null, showClassroom, showTeacher)
+                            CourseItemWithClick(course, courses, hiddenCourseIds, sectionTimes, pageDate, pageWeek, onCourseClick, wallpaperBackdrop != null, showClassroom, showTeacher)
                         }
                     }
                 }
@@ -1154,7 +1155,7 @@ private fun androidx.compose.foundation.lazy.LazyListScope.addCourseSections(
                 BlurCard(cornerRadius = 20.dp, wallpaperBackdrop = wallpaperBackdrop, blurRadius = blurRadius, surfaceOpacity = surfaceOpacity, modifier = Modifier.fillMaxWidth()) {
                     Column {
                         afternoonCourses.forEach { course ->
-                            CourseItemWithClick(course, courses, hiddenCourseIds, sectionTimes, pageDate, onCourseClick, wallpaperBackdrop != null, showClassroom, showTeacher)
+                            CourseItemWithClick(course, courses, hiddenCourseIds, sectionTimes, pageDate, pageWeek, onCourseClick, wallpaperBackdrop != null, showClassroom, showTeacher)
                         }
                     }
                 }
@@ -1172,7 +1173,7 @@ private fun androidx.compose.foundation.lazy.LazyListScope.addCourseSections(
                 BlurCard(cornerRadius = 20.dp, wallpaperBackdrop = wallpaperBackdrop, blurRadius = blurRadius, surfaceOpacity = surfaceOpacity, modifier = Modifier.fillMaxWidth()) {
                     Column {
                         eveningCourses.forEach { course ->
-                            CourseItemWithClick(course, courses, hiddenCourseIds, sectionTimes, pageDate, onCourseClick, wallpaperBackdrop != null, showClassroom, showTeacher)
+                            CourseItemWithClick(course, courses, hiddenCourseIds, sectionTimes, pageDate, pageWeek, onCourseClick, wallpaperBackdrop != null, showClassroom, showTeacher)
                         }
                     }
                 }
@@ -1200,7 +1201,8 @@ private fun CourseItemWithClick(
     hiddenCourseIds: Set<String>,
     sectionTimes: Map<Int, String>,
     pageDate: LocalDate,
-    onCourseClick: (courses: List<Course>, cardLeft: Float, cardTop: Float, cardWidth: Float, cardHeight: Float, snapshot: android.graphics.Bitmap?, courseIdToHide: String) -> Unit,
+    pageWeek: Int,
+    onCourseClick: (courses: List<Course>, cardLeft: Float, cardTop: Float, cardWidth: Float, cardHeight: Float, snapshot: android.graphics.Bitmap?, courseIdToHide: String, targetWeek: Int) -> Unit,
     hasWallpaper: Boolean = false,
     showClassroom: Boolean = true,
     showTeacher: Boolean = true
@@ -1228,7 +1230,7 @@ private fun CourseItemWithClick(
                     val bounds = itemBounds
                     if (bounds != null) {
                         val sameNameCourses = allCourses.filter { it.name == course.name }
-                        onCourseClick(sameNameCourses, bounds.left, bounds.top, bounds.width, bounds.height, null, course.id)
+                        onCourseClick(sameNameCourses, bounds.left, bounds.top, bounds.width, bounds.height, null, course.id, pageWeek)
                     }
                 }
         ) {

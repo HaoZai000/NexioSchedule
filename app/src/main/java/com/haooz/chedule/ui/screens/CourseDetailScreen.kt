@@ -27,9 +27,13 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.snapshotFlow
+import androidx.compose.runtime.withFrameNanos
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -125,15 +129,19 @@ fun CourseDetailScreen(
     fromToday: Boolean = false,
     sectionTimes: Map<Int, String>,
     classStartTime: String,
+    // 点击来源所在的周次（今日页=当前浏览日期所在周，bottomsheet=当前查看周），
+    // 进入后自动滚动到对应周分组；<=0 表示不滚动。
+    targetWeek: Int = 0,
     onBackStart: () -> Unit,
     onBack: () -> Unit,
 ) {
     val courseName = courses.firstOrNull()?.name ?: ""
-    // 按周数排序，最大排在最上
-    val sortedCourses = remember(courses) { courses.sortedByDescending { it.endWeek } }
+    // 按周数正序排序，小周在最上
+    val sortedCourses = remember(courses) { courses.sortedBy { it.startWeek } }
 
     // 预计算周分组数据，避免在 LazyColumn 内重复计算
-    val groupedByWeek = remember(sortedCourses) {
+    // 返回有序列表（周次升序），便于按索引定位并自动滚动
+    val weekGroups = remember(sortedCourses) {
         val weekEntries = sortedCourses.flatMap { course ->
             val weeks = course.selectedWeeks.ifEmpty {
                 (course.startWeek..course.endWeek).filter { week ->
@@ -145,8 +153,8 @@ fun CourseDetailScreen(
                 }
             }
             weeks.map { week -> week to course }
-        }.sortedByDescending { it.first }
-        weekEntries.groupBy { it.first }
+        }.sortedBy { it.first }
+        weekEntries.groupBy { it.first }.toSortedMap().toList()
     }
 
     val liquidGlassBackdrop = rememberLayerBackdrop()
@@ -369,6 +377,32 @@ fun CourseDetailScreen(
                                 )
                         ) {
                             val listState = rememberLazyListState()
+                            // 程序化滚动（进入时定位到来源周）不经过 nestedScroll，
+                            // 与 SchoolSelectionScreen 同款处理：监听 listState 同步 contentOffset 与标题栏收起/展开
+                            var isProgrammaticScroll by remember { mutableStateOf(false) }
+                            var lastCollapsed by remember { mutableStateOf(false) }
+                            val scrollThresholdPx = with(density) { 10.dp.toPx() }
+                            LaunchedEffect(listState) {
+                                snapshotFlow {
+                                    listState.firstVisibleItemIndex to listState.firstVisibleItemScrollOffset
+                                }.collect { (index, offset) ->
+                                    val state = scrollBehavior.state
+                                    val shouldCollapse = index > 0 || offset > scrollThresholdPx
+                                    // 同步 contentOffset 用于顶栏按钮材质/阴影
+                                    if (shouldCollapse && state.contentOffset >= -scrollThresholdPx) {
+                                        state.contentOffset = -scrollThresholdPx - 1f
+                                    } else if (!shouldCollapse && state.contentOffset < 0f) {
+                                        state.contentOffset = 0f
+                                    }
+                                    // 仅程序化滚动时收起/展开标题栏，手动 fling 由 nestedScroll 处理避免冲突
+                                    if (isProgrammaticScroll && shouldCollapse != lastCollapsed) {
+                                        lastCollapsed = shouldCollapse
+                                        if (shouldCollapse) scrollBehavior.collapse() else scrollBehavior.expand()
+                                    } else if (!isProgrammaticScroll) {
+                                        lastCollapsed = shouldCollapse
+                                    }
+                                }
+                            }
                             Card(
                                 modifier = Modifier.fillMaxSize().background(MiuixTheme.colorScheme.surface),
                                 insideMargin = PaddingValues(0.dp),
@@ -378,6 +412,47 @@ fun CourseDetailScreen(
                             ) {
                                 val topBarHeightDp = with(density) {
                                     scrollBehavior.currentHeightPx.toDp()
+                                }
+                                // 列表顶部留白（与下方 contentPadding 一致）
+                                val topContentPadding = paddingValues.calculateTopPadding() + topBarHeightDp - 82.dp
+                                // 顶栏高度随折叠变化，滚动过程中要读到最新值
+                                val latestTopPadding by rememberUpdatedState(topContentPadding)
+                                // 进入后连贯滚动到来源周所在分组；找不到该周时回退到最接近的一周
+                                LaunchedEffect(weekGroups, targetWeek) {
+                                    if (targetWeek <= 0 || weekGroups.isEmpty()) return@LaunchedEffect
+                                    val exact = weekGroups.indexOfFirst { it.first == targetWeek }
+                                    val index = if (exact >= 0) exact else {
+                                        var best = -1
+                                        var bestDiff = Int.MAX_VALUE
+                                        weekGroups.forEachIndexed { i, (week, _) ->
+                                            val diff = kotlin.math.abs(week - targetWeek)
+                                            if (diff < bestDiff) {
+                                                bestDiff = diff
+                                                best = i
+                                            }
+                                        }
+                                        best
+                                    }
+                                    if (index > 0) {
+                                        // 等入场形变/淡入基本完成再滚，避免用户在内容还没看清时就已经"瞬移"到位
+                                        delay(400.milliseconds)
+                                        // 负偏移：让目标周标题停在顶栏下方，而不是被顶栏盖住
+                                        val offsetPx = with(density) { -latestTopPadding.roundToPx() }
+                                        // 顶栏的收起/展开由上面的 listState 监听负责（程序化滚动不走 nestedScroll）
+                                        isProgrammaticScroll = true
+                                        listState.animateScrollToItem(index, offsetPx)
+                                        isProgrammaticScroll = false
+                                        // 顶栏收起后自身变矮 → 列表顶部留白跟着变小，按收起后的留白再校正落点，
+                                        // 否则目标周标题会整体上移被顶栏压住
+                                        withFrameNanos { }
+                                        withFrameNanos { }
+                                        val finalOffsetPx = with(density) { -latestTopPadding.roundToPx() }
+                                        if (finalOffsetPx != offsetPx) {
+                                            isProgrammaticScroll = true
+                                            listState.animateScrollToItem(index, finalOffsetPx)
+                                            isProgrammaticScroll = false
+                                        }
+                                    }
                                 }
                                 LazyColumn(
                                     state = listState,
@@ -390,13 +465,13 @@ fun CourseDetailScreen(
                                         .nestedScroll(scrollBehavior.nestedScrollConnection),
                                     contentPadding = PaddingValues(
                                         start = tabletHorizontalPadding,
-                                        top = paddingValues.calculateTopPadding() + topBarHeightDp - 82.dp,
+                                        top = topContentPadding,
                                         end = tabletHorizontalPadding,
                                         bottom = 120.dp
                                     ),
                                     verticalArrangement = Arrangement.spacedBy(12.dp)
                                 ) {
-                                    groupedByWeek.forEach { (week, weekCourses) ->
+                                    weekGroups.forEach { (week, weekCourses) ->
                                         item {
                                             Column {
                                                 SmallTitle(
