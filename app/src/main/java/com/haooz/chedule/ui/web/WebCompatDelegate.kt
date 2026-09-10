@@ -2,7 +2,59 @@
 package com.haooz.chedule.ui.web
 
 import android.graphics.Bitmap
+import android.util.Log
 import android.webkit.*
+import androidx.webkit.ScriptHandler
+import androidx.webkit.WebViewCompat
+import androidx.webkit.WebViewFeature
+
+private const val TAG = "WebCompatDelegate"
+
+/** 桌面模式下使用的页面布局宽度（CSS px），见 desktopViewportContent() 的说明 */
+private const val DESKTOP_LAYOUT_WIDTH = 1280
+
+/**
+ * 桌面模式视口覆盖脚本（document-start 注入，先于页面自身脚本执行）。
+ *
+ * 为什么非得这么早：本校门户在 `$(document).ready` 里就把 `body` 宽度量下来、
+ * 把像素尺寸写进登录弹窗的行内样式（qsflat 全站没有任何 resize 监听），
+ * 等 onPageFinished 再改 viewport 已经无从纠正。
+ */
+private fun buildDesktopViewportScript(content: String): String = """
+    (function () {
+        var CONTENT = '$content';
+        var FLAG = 'data-nexio-desktop-viewport';
+        function apply() {
+            if (!document.head) return false;
+            // 页面自带的 viewport meta 一律清掉，只留我们这一条
+            var metas = document.head.querySelectorAll('meta[name="viewport"]');
+            for (var i = metas.length - 1; i >= 0; i--) {
+                if (!metas[i].hasAttribute(FLAG)) metas[i].parentNode.removeChild(metas[i]);
+            }
+            var mine = document.head.querySelector('meta[' + FLAG + ']');
+            if (!mine) {
+                mine = document.createElement('meta');
+                mine.setAttribute('name', 'viewport');
+                mine.setAttribute(FLAG, '1');
+                document.head.appendChild(mine);
+            }
+            if (mine.getAttribute('content') !== CONTENT) mine.setAttribute('content', CONTENT);
+            return true;
+        }
+        function boot() {
+            // 文档开始时 head 还不存在，等它出现
+            if (!document.head) { setTimeout(boot, 0); return; }
+            apply();
+            document.addEventListener('DOMContentLoaded', apply);
+            document.addEventListener('load', apply);
+            // 站点自己的 viewport meta 可能比 boot 更晚才被解析到，出现即清除
+            new MutationObserver(function () {
+                if (document.head.querySelector('meta[name="viewport"]:not([' + FLAG + '])')) apply();
+            }).observe(document.head, { childList: true });
+        }
+        boot();
+    })();
+""".trimIndent()
 
 /**
  * 注入到 WebView 的 Promise 桥接基础设施
@@ -95,6 +147,69 @@ val JS_PROMISE_BRIDGE = """
  */
 class WebCompatDelegate(private val webView: WebView) {
 
+    private var viewportScriptHandler: ScriptHandler? = null
+
+    /** document-start 视口覆盖是否已生效；为 false 时由 onPageFinished 兜底注入 */
+    var desktopViewportOverrideActive = false
+        private set
+
+    /**
+     * 启用/关闭桌面模式视口覆盖。
+     *
+     * 返回是否成功走 document-start 注入；返回 false 时页面脚本已经跑过，
+     * onPageFinished 兜底只能纠正页面自身布局，站点脚本里写死的像素尺寸无力回天。
+     */
+    fun applyDesktopViewportOverride(enabled: Boolean): Boolean {
+        viewportScriptHandler?.remove()
+        viewportScriptHandler = null
+        desktopViewportOverrideActive = false
+        if (!enabled) return false
+        if (!WebViewFeature.isFeatureSupported(WebViewFeature.DOCUMENT_START_SCRIPT)) {
+            Log.w(TAG, "WebView 不支持 document-start 脚本，回退到 onPageFinished 注入")
+            return false
+        }
+        return try {
+            viewportScriptHandler = WebViewCompat.addDocumentStartJavaScript(
+                webView,
+                buildDesktopViewportScript(desktopViewportContent()),
+                setOf("*")
+            )
+            desktopViewportOverrideActive = true
+            true
+        } catch (e: Exception) {
+            Log.w(TAG, "document-start 视口注入失败，回退到 onPageFinished 注入", e)
+            false
+        }
+    }
+
+    /**
+     * 桌面视口 content。
+     *
+     * 布局宽度取 max(1280, 屏幕宽度)：门户 `.main-content` 上限 1600、登录页 `#login`
+     * 固定 1000 宽（表单右边界约 883），1280 下两者都完整可见。
+     *
+     * initial-scale 必须取 `屏幕宽度 / 布局宽度`，两个参数互相自洽；
+     * 若写成 width=1280 + 固定 initial-scale=0.28，Chrome 会把布局宽度撑成
+     * max(1280, 屏幕宽度/0.28)≈1403，整页多出一截且缩得过小。
+     */
+    private fun desktopViewportContent(): String {
+        val cssWidth = viewportWidthInCssPx()
+        val layoutWidth = maxOf(DESKTOP_LAYOUT_WIDTH, cssWidth)
+        val scale = cssWidth.toDouble() / layoutWidth
+        // 必须锁 Locale：默认区域（如德语）会把小数点写成逗号，CSS 直接失效
+        return "width=$layoutWidth, initial-scale=" + "%.4f".format(java.util.Locale.US, scale)
+    }
+
+    /** WebView 的 CSS 像素宽度：优先实际布局宽度（分屏/自由窗口下才正确），未布局时退回屏幕宽度 */
+    private fun viewportWidthInCssPx(): Int {
+        val density = webView.resources.displayMetrics.density
+        if (density > 0f && webView.width > 0) {
+            val cssWidth = (webView.width / density).toInt()
+            if (cssWidth > 0) return cssWidth
+        }
+        return webView.context.resources.configuration.screenWidthDp
+    }
+
     /**
      * 增强 WebView 基础配置
      */
@@ -153,7 +268,8 @@ class WebCompatDelegate(private val webView: WebView) {
                 view?.let { wv ->
                     wv.evaluateJavascript(JS_INTERCEPT_POST, null)
                     wv.evaluateJavascript(JS_PROMISE_BRIDGE, null)
-                    if (isDesktopMode) {
+                    // 正常情况下视口已由 document-start 脚本注入；只有老 WebView 走到这里兜底
+                    if (isDesktopMode && !desktopViewportOverrideActive) {
                         injectDesktopViewport(wv)
                     }
                 }
@@ -168,9 +284,11 @@ class WebCompatDelegate(private val webView: WebView) {
     }
 
     /**
-     * 注入桌面模式 viewport，强制 16:9 布局触发网站桌面版显示
+     * onPageFinished 兜底注入桌面模式 viewport（仅老 WebView 用）。
+     * 此时页面脚本已执行完毕，只能保证页面自身布局正确，站点脚本里写死的像素尺寸纠正不了。
      */
     private fun injectDesktopViewport(view: WebView) {
+        val content = desktopViewportContent()
         view.evaluateJavascript(
             """
             (function() {
@@ -180,7 +298,7 @@ class WebCompatDelegate(private val webView: WebView) {
                 }
                 var meta = document.createElement('meta');
                 meta.name = "viewport";
-                meta.content = "width=1280, initial-scale=0.28, minimum-scale=0.1, maximum-scale=5.0, user-scalable=yes";
+                meta.content = "$content";
                 document.head.appendChild(meta);
             })();
             """.trimIndent(),

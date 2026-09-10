@@ -13,6 +13,7 @@ composeBom = "2026.05.01"             # Compose BOM 版本对齐
 material3 = "1.5.0-alpha19"           # Material3 (MotionScheme 公开 API 需要此版本)
 window = "1.5.1"                      # Jetpack WindowManager（Activity 嵌入，最新稳定版）
 startupRuntime = "1.2.0"              # App Startup（自动初始化 Activity 嵌入规则）
+webkit = "1.17.0"                     # AndroidX WebKit（document-start 脚本注入，桌面版视口需在页面脚本前生效）
 
 # 第三方 UI
 miuix = "0.9.3"                       # Miuix 小米风格组件库
@@ -38,6 +39,7 @@ androidx-activity-compose = { group = "androidx.activity", name = "activity-comp
 # Activity 嵌入（大屏分屏）
 androidx-window = { group = "androidx.window", name = "window", version.ref = "window" }                           # Jetpack WindowManager
 androidx-startup-runtime = { group = "androidx.startup", name = "startup-runtime", version.ref = "startupRuntime" }  # App Startup 自动初始化
+androidx-webkit = { group = "androidx.webkit", name = "webkit", version.ref = "webkit" }                           # WebViewCompat / WebViewFeature（document-start JS）
 
 # ===== Compose（BOM 统一管理版本）=====
 androidx-compose-bom = { group = "androidx.compose", name = "compose-bom", version.ref = "composeBom" }            # Compose 版本对齐 BOM

@@ -181,6 +181,9 @@ fun WebViewScreen(
         }
     }
 
+    // 委托实例要跨桌面模式切换复用：document-start 脚本的句柄挂在它身上，每次重建会丢掉旧句柄
+    val compatDelegate = remember(webView) { WebCompatDelegate(webView) }
+
     var importCompleted by remember { mutableStateOf(false) }
 
     val currentOnImportComplete by rememberUpdatedState(onImportComplete)
@@ -330,8 +333,9 @@ fun WebViewScreen(
     }
 
     LaunchedEffect(isDesktopMode) {
-        val compatDelegate = WebCompatDelegate(webView)
         compatDelegate.enhanceSettings(isDesktopMode)
+        // 视口覆盖必须赶在页面自身脚本之前注册，晚了站点就把像素尺寸写死了（登录弹窗会留在屏外）
+        compatDelegate.applyDesktopViewportOverride(isDesktopMode)
         webView.settings.userAgentString = if (isDesktopMode) DESKTOP_USER_AGENT
         else WebSettings.getDefaultUserAgent(context)
 
@@ -406,6 +410,10 @@ fun WebViewScreen(
                 }
             }
         ) { }
+
+        // 桌面模式切换后要重新加载才生效：document-start 脚本只对新的文档起作用。
+        // 统一在这里触发，避免切换处抢在脚本注册之前 reload。
+        if (webView.url != null) webView.reload()
     }
 
     LaunchedEffect(currentUrl) {
@@ -432,7 +440,7 @@ fun WebViewScreen(
     }
 
     LaunchedEffect(onExecuteImportRef) { onExecuteImportRef?.invoke(onExecuteImport) }
-    LaunchedEffect(onToggleDesktopModeRef) { onToggleDesktopModeRef?.invoke { isDesktopMode = !isDesktopMode; webView.reload() } }
+    LaunchedEffect(onToggleDesktopModeRef) { onToggleDesktopModeRef?.invoke { isDesktopMode = !isDesktopMode } }
 
     Box(modifier = Modifier.fillMaxSize().background(MiuixTheme.colorScheme.surface)) {
         Scaffold(
@@ -573,7 +581,6 @@ fun WebViewScreen(
                                 .clickable {
                                     hapticFeedback.performHapticFeedback(HapticFeedbackType.VirtualKey)
                                     isDesktopMode = !isDesktopMode
-                                    webView.reload()
                                 }
                         ) {
                             Text(

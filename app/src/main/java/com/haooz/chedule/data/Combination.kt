@@ -2,6 +2,8 @@ package com.haooz.chedule.data
 
 import android.graphics.Bitmap
 import androidx.compose.ui.geometry.Offset
+import com.google.gson.Gson
+import com.google.gson.JsonObject
 
 /**
  * 搭配数据模型：一个搭配对应一张壁纸及其偏移/缩放，以及完整快照预览
@@ -65,6 +67,51 @@ data class CombinationStyle(
     val safeAlignment: CardContentAlignment get() = cardContentAlignment ?: CardContentAlignment.CENTER_CENTER
     val safeTextColor: CardTextColor get() = cardTextColor ?: CardTextColor.COLORFUL
     val safeRefraction: CardRefractionLevel get() = cardRefraction ?: CardRefractionLevel.DEFAULT
+
+    val safeCardTextScale: Float get() = if (cardTextScale > 0f) cardTextScale else 1f
+
+    /**
+     * 卡片每节高度（dp），带下限兜底。
+     *
+     * 这是最后一道保险：整张课表的网格高度由 `cardHeight × 总节数` 算出，
+     * 一旦为 0，网格高度塌成 0、整页静默空白（不崩、无日志）——正是 v1.5.0 升级事故的最终表现。
+     * 自定义页滑杆的取值区间是 34f..92f，0 从来不是一个有意义的取值，所以这里兜到默认值。
+     */
+    val safeCardHeight: Float get() = if (cardHeight > 0f) cardHeight else CARD_HEIGHT_DEFAULT
+
+    companion object {
+        /** 卡片每节高度的默认值，与自定义页滑杆一致 */
+        const val CARD_HEIGHT_DEFAULT = 54f
+
+        /**
+         * 本快照在 JSON 里应当出现的字段名（只用于校验，不参与取值）。
+         */
+        private val FIELD_NAMES = setOf(
+            "offsetX", "offsetY", "scale", "cardBlur", "cardAlpha", "cardHeight",
+            "cardCornerRadius", "wallpaperBrightness", "wallpaperIsLight",
+            "showBreakDividers", "cardContentAlignment", "cardTextColor",
+            "cardTextScale", "showClassroom", "showTeacher", "cardRefraction",
+            "wallpaperBlur"
+        )
+
+        /**
+         * 严格解析搭配外观快照：只有 JSON 里**至少命中一个已知字段名**时才采信，否则返回 null。
+         *
+         * 为什么需要这道校验：v1.5.0 正式版（e51c159）的 `proguard-rules.pro` 漏了本类的 keep 规则，
+         * R8 把类名连同全部字段名一起改掉了。它写进 `combination_style_<id>` 的 JSON 键名因此是
+         * 混淆后的短名（形如 `{"a":54.0,...}`）；当前版本按真实字段名去读一个都匹配不上，
+         * 而 Gson 又用 UnsafeAllocator 绕过构造器（Kotlin 默认值不生效），字段全部停在 Java 默认值：
+         * `cardHeight=0` → 网格高度 0 → 课表页空白。
+         *
+         * 键名已经丢失、无法反推映射，所以这里如实判为"不可用快照"。调用方据此**丢弃并恢复默认外观**，
+         * 同时覆写回正常格式，实现一次性自愈（反正那几个字段也读不出来，重置比留着一个坏快照好）。
+         */
+        fun parseSnapshotOrNull(gson: Gson, json: String): CombinationStyle? {
+            val obj = runCatching { gson.fromJson(json, JsonObject::class.java) }.getOrNull() ?: return null
+            if (obj.keySet().none { it in FIELD_NAMES }) return null
+            return runCatching { gson.fromJson(json, CombinationStyle::class.java) }.getOrNull()
+        }
+    }
 }
 
 /** 卡片文字颜色模式 */

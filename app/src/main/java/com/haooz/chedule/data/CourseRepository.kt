@@ -1674,16 +1674,22 @@ class CourseRepository private constructor(context: Context) {
 
     /**
      * 读取搭配外观快照（带缓存）。
-     * 旧版本散落在 `comb_xxx_{id}` 的 17 个键在首次读取时自动迁移为单个 JSON。
+     *
+     * 两条分支：
+     *  - 从未写过 JSON（老版本用户）→ 走旧版分散键 `comb_xxx_{id}` 迁移，写回单个 JSON。
+     *  - 有 JSON 就必须能认出是本类写出的（见 [CombinationStyle.parseSnapshotOrNull]）。
+     *    v1.5.0 正式版的 R8 混淆快照键名不可辨认、读不出任何字段，直接丢弃并**恢复默认**，
+     *    同时覆写回正常格式——只自愈一次，之后不再重复。
+     *    （若不处理：cardHeight 会停在 0，课表页整页静默空白。）
      */
     private fun getCombinationStyle(id: Long): CombinationStyle {
         combinationStyleCache[id]?.let { return it }
         val json = prefs.getString("$COMBINATION_STYLE_PREFIX$id", null)
-        val style = if (json != null) {
-            runCatching { gson.fromJson(json, CombinationStyle::class.java) }.getOrNull()
-                ?: CombinationStyle()
-        } else {
+        val style = if (json == null) {
             readLegacyCombinationStyle(id).also { saveCombinationStyle(id, it) }
+        } else {
+            CombinationStyle.parseSnapshotOrNull(gson, json)
+                ?: CombinationStyle().also { saveCombinationStyle(id, it) }
         }
         combinationStyleCache[id] = style
         return style
@@ -1837,7 +1843,7 @@ class CourseRepository private constructor(context: Context) {
     fun saveCombinationCardHeight(id: Long, height: Float) =
         updateCombinationStyle(id) { it.copy(cardHeight = height) }
 
-    fun getCombinationCardHeight(id: Long): Float = getCombinationStyle(id).cardHeight
+    fun getCombinationCardHeight(id: Long): Float = getCombinationStyle(id).safeCardHeight
 
     fun saveCombinationCardCornerRadius(id: Long, cornerRadius: Float) =
         updateCombinationStyle(id) { it.copy(cardCornerRadius = cornerRadius) }
