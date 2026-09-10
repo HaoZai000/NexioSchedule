@@ -163,6 +163,27 @@ import kotlin.time.Duration.Companion.milliseconds
 import androidx.compose.ui.graphics.Color as ComposeColor
 import com.kyant.backdrop.backdrops.layerBackdrop as liquidGlassLayerBackdrop
 
+/**
+ * 按 0.25px 量化缓存 RenderEffect。
+ * graphicsLayer 每帧都会执行 lambda，直接 new 一个 RenderEffect 会同时产生 Java 对象与
+ * native 对象，一段 560ms 的动画就是 ~34 个，GC 会明显抖。量化后复用同一个对象。
+ */
+private class BlurEffectCache {
+    private var cachedPx = Float.NaN
+    private var cached: androidx.compose.ui.graphics.RenderEffect? = null
+
+    fun get(px: Float): androidx.compose.ui.graphics.RenderEffect {
+        val quantized = (px * 4f).toInt().toFloat() / 4f
+        if (cachedPx != quantized || cached == null) {
+            cachedPx = quantized
+            cached = android.graphics.RenderEffect.createBlurEffect(
+                quantized, quantized, android.graphics.Shader.TileMode.CLAMP
+            ).asComposeRenderEffect()
+        }
+        return cached!!
+    }
+}
+
 class MainActivity : ComponentActivity() {
 
     companion object {
@@ -1163,14 +1184,20 @@ fun CourseScheduleApp() {
         }
     }
     var mainContentSnapshot by remember { mutableStateOf<android.graphics.Bitmap?>(null) }
-    var switchScreenSnapshot by remember { mutableStateOf<android.graphics.Bitmap?>(null) }
+    // 覆盖层是否激活。原先用切换页的整屏位图当哨兵，但覆盖层从不绘制它，
+    // 白养一张 ~10MB 全屏 Bitmap，故改用布尔量
+    var switchOverlayActive by remember { mutableStateOf(false) }
     var switchCardSnapshot by remember { mutableStateOf<android.graphics.Bitmap?>(null) }
+    // switchCardBounds：动画实际使用的卡片矩形（窗口坐标系），形变插值的起止依据
     var switchCardBounds by remember { mutableStateOf<androidx.compose.ui.geometry.Rect?>(null) }
+    // switchCurrentCardBounds：切换页上报的「当前课表卡片」位置，退出时若拿不到截图就退而用它
     var switchCurrentCardBounds by remember {
         mutableStateOf<androidx.compose.ui.geometry.Rect?>(
             null
         )
     }
+    // switchContentRootX/Y：切换页内容根在窗口中的偏移，卡片 bounds 是页面坐标系，
+    //   覆盖层用窗口坐标系，两者靠它换算
     var switchContentRootX by remember { mutableFloatStateOf(0f) }
 
     // MainScheduleScreen 状态提升到 Activity 层，return@Scaffold 不会销毁
@@ -1183,6 +1210,7 @@ fun CourseScheduleApp() {
     val todayListState = rememberLazyListState()
     var switchContentRootY by remember { mutableFloatStateOf(0f) }
     var switchAnimJob by remember { mutableStateOf<kotlinx.coroutines.Job?>(null) }
+    // switchAnimForward = true 表示正在「进入」切换页，false 表示「退出」回主内容
     var switchAnimForward by remember { mutableStateOf(false) }
     var switchAnimRunning by remember { mutableStateOf(false) }
     // 切换课表后的异步重载任务，快照截取前需 join 等待新课表数据就绪
@@ -1201,10 +1229,8 @@ fun CourseScheduleApp() {
     }
     val switchReturnBgScrim = remember { Animatable(0f) }
     val screenGraphicsLayer = rememberGraphicsLayer()
-    // 主内容快照改为「按需录制」：
-    // record() 会把整棵主内容树（3 个 tab + 壁纸 + 课程卡片）再完整画一遍，常驻每帧录制
-    // 等于把每帧的绘制开销直接翻倍，且与内部各 backdrop 的录制相互嵌套放大成 4 倍。
-    // 这里只在真正要 toImageBitmap() 前录一帧，其余帧完全不录。
+    // 主内容快照按需录制：record() 会把整棵主内容树（3 个 tab + 壁纸 + 课程卡片）再画一遍，
+    // 常驻每帧录制等于绘制开销翻倍，且与内部 backdrop 的录制嵌套放大。只在截图前录一帧。
     class MainSnapshotRequester {
         var lastRecordedToken: Int = 0
     }
@@ -1465,13 +1491,11 @@ fun CourseScheduleApp() {
         val sectionH = geom.sectionHeightPx
         val dividerH = with(density) { 24.dp.toPx() }
         var cursor = 0f
-        // 上午
         for (s in 1..geom.morningSections) {
             if (relY < cursor + sectionH) return day to s
             cursor += sectionH
         }
         if (geom.showBreakDividers) cursor += dividerH
-        // 下午
         val afternoonStart = geom.morningSections + 1
         for (i in 1..geom.afternoonSections) {
             val s = afternoonStart + i - 1
@@ -1479,7 +1503,6 @@ fun CourseScheduleApp() {
             cursor += sectionH
         }
         if (geom.showBreakDividers) cursor += dividerH
-        // 晚上
         val eveningStart = afternoonStart + geom.afternoonSections
         for (i in 1..geom.eveningSections) {
             val s = eveningStart + i - 1
@@ -1633,8 +1656,11 @@ fun CourseScheduleApp() {
     }
 
     var showSwitchSchedule by remember { mutableStateOf(false) }
+    // switchPendingReverse：切换页已就位、等待播放「进入」动画（p 1→0）
     var switchPendingReverse by remember { mutableStateOf(false) }
+    // switchCapturingSnapshot：截图期间切换页先藏起来（alpha=0），截完才显示
     var switchCapturingSnapshot by remember { mutableStateOf(false) }
+    // scheduleChanged：本次在切换页改过课表，退出前要重新截主内容快照
     var scheduleChanged by remember { mutableStateOf(false) }
     var showMorePopup by remember { mutableStateOf(false) }
     var showTodayMorePopup by remember { mutableStateOf(false) }
@@ -1642,8 +1668,6 @@ fun CourseScheduleApp() {
     var todayJumpToDateTrigger by remember { mutableIntStateOf(0) }
 
     val isViewingCurrentWeek = currentViewingWeek == currentWeek
-
-    // 退出缩放中心：与搭配界面卡片中心对齐
 
     // 分屏分割线：在最外层 Box 绘制，层级高于所有内部模糊层，避免被顶部模糊层遮挡
     // MainActivity 是分屏左侧（primary），其最右侧即为左右分界处
@@ -1706,7 +1730,7 @@ fun CourseScheduleApp() {
             }
         val isEntryAnimating = showSwitchSchedule && switchAnimForward && switchAnimRunning
         val mainContentAlpha = when {
-            showSwitchSchedule && switchScreenSnapshot != null -> 0f
+            showSwitchSchedule && switchOverlayActive -> 0f
             else -> 1f
         }
         val mainContentBlurDp =
@@ -1841,10 +1865,12 @@ fun CourseScheduleApp() {
                             onOpenSwitchSchedule = {
                                 if (!isShiftMode && !showSwitchSchedule) {
                                     coroutineScope.launch {
-                                        mainContentSnapshot = captureMainContentBitmap()
+                                        // 先让切换页进入组合（首帧组合 + 布局最贵），与快照截取并行。
+                                        // 原串行流程要先等 2 帧 + 全屏回读，期间界面完全没反应。
                                         switchPendingReverse = true
                                         switchCapturingSnapshot = true
                                         showSwitchSchedule = true
+                                        mainContentSnapshot = captureMainContentBitmap()
                                     }
                                 }
                             },
@@ -1884,10 +1910,9 @@ fun CourseScheduleApp() {
                         Box(modifier = Modifier.fillMaxSize())
                         return@Scaffold
                     }
-                    // 不再用 combinations.isEmpty() 门控整个内容区：
-                    // 课程网格（TodayScreen/MainScheduleScreen）只依赖 viewModel，与壁纸加载解耦。
-                    // 壁纸未就绪时 wallpaperBitmap=null，MainScheduleScreen 内部显示主题底色，课程方块照常渲染。
-                    // 搭配相关的操作（新建/删除/编辑）在各自回调里已有 getOrNull 守卫，空列表时不会越界。
+                    // 不再用 combinations.isEmpty() 门控内容区：课程网格只依赖 viewModel，
+                    // 与壁纸加载解耦；壁纸未就绪时 MainScheduleScreen 内部显示主题底色照常渲染。
+                    // 搭配操作（新建/删除/编辑）在各自回调里已有 getOrNull 守卫，空列表不会越界。
                     Box(
                         modifier = Modifier
                             .fillMaxSize()
@@ -2229,7 +2254,6 @@ fun CourseScheduleApp() {
                         liquidGlassBackdrop = liquidGlassBackdrop,
                     )
 
-                    // 更新弹窗
                     UpdateDialog(liquidGlassBackdrop = liquidGlassBackdrop)
 
                     // 跳转周数弹窗（提升到 MainActivity，排班/课程表均可用）
@@ -2291,7 +2315,6 @@ fun CourseScheduleApp() {
                         }
                     }
 
-                    // 添加课程对话框
                     val showAddDialog by viewModel.showAddDialog.collectAsState()
                     val editingCourse by viewModel.editingCourse.collectAsState()
                     val selectedStartSection by viewModel.selectedStartSection.collectAsState()
@@ -2342,7 +2365,6 @@ fun CourseScheduleApp() {
                             )
                         }
                     }
-                    // 删除本周课程确认弹窗
                     DeleteWeekCourseDialog(
                         show = showDeleteConfirmDialog,
                         course = deleteConfirmCourse,
@@ -2352,7 +2374,6 @@ fun CourseScheduleApp() {
                         hapticFeedback = hapticFeedback,
                         onDismiss = { showDeleteConfirmDialog = false },
                     )
-                    // 调课冲突弹窗
                     RescheduleConflictDialog(
                         show = showRescheduleConflictDialog,
                         source = draggedCardCourse,
@@ -2777,9 +2798,7 @@ fun CourseScheduleApp() {
                     savedWallpaperOffset = wallpaperOffset
                     savedWallpaperScale = wallpaperScale
                     savedAppearance = currentAppearance()
-                    // 等待磁盘保存完成
                     saveJob.join()
-                    // 开始退出动画
                     isApplyingCustomize = true
                     // 从当前开洞大小（0.75）开始放大到全屏，而非从卡片预览大小（0.65）
                     customizeExitScale.snapTo(cutoutMainScale.value)
@@ -3038,32 +3057,32 @@ fun CourseScheduleApp() {
                 }
             )
         }
-        // 切换课表页
+        // 切换课表页：整段是一个「卡片 ↔ 全屏」的形变动画，进度 p = switchAnimProgress。
+        //   p=1 覆盖层铺满全屏（主内容的样子），p=0 缩到卡片大小（切换页里那张卡）。
+        //   进入 p:1→0（主内容缩成卡片，切换页从放大模糊态回正），退出 p:0→1。
+        //   switchAnimForward = 方向，switchCapturingSnapshot = 截图期间用 alpha=0 藏起本页。
         if (showSwitchSchedule) {
             val windowInfo = androidx.compose.ui.platform.LocalWindowInfo.current
             val screenWidth = windowInfo.containerSize.width.toFloat()
             val screenHeight = windowInfo.containerSize.height.toFloat()
             val p = switchAnimProgress.value
             val switchPageScale = remember { Animatable(1f) }
-            val switchPageBlur = remember { Animatable(5f) }
-            // 切换课表页始终渲染（底层，截取快照期间隐藏）
+            // 初值 0f：首帧（整页首次组合，最贵的一帧）不挂 RenderEffect
+            val switchPageBlur = remember { Animatable(0f) }
+            // RenderEffect 每帧新建会同时产生 Java 与 native 对象，按 0.25px 量化缓存复用
+            val blurEffectCache = remember { BlurEffectCache() }
             Box(
                 modifier = Modifier
                     .fillMaxSize()
-                    .graphicsLayer {
-                        if (switchPageBlur.value > 0.01f) {
-                            val px = switchPageBlur.value * density.density
-                            renderEffect = android.graphics.RenderEffect.createBlurEffect(
-                                px, px, android.graphics.Shader.TileMode.CLAMP
-                            ).asComposeRenderEffect()
-                        } else {
-                            renderEffect = null
-                        }
-                    }
+                    // blur / scale / alpha 合成一层，少一次离屏合成
                     .graphicsLayer {
                         alpha = if (switchCapturingSnapshot) 0f else 1f
                         scaleX = switchPageScale.value
                         scaleY = switchPageScale.value
+                        val r = switchPageBlur.value
+                        renderEffect = if (r > 0.01f) {
+                            blurEffectCache.get(r * density.density)
+                        } else null
                     }
             ) {
                 SwitchScheduleScreen(
@@ -3076,16 +3095,12 @@ fun CourseScheduleApp() {
                         switchAnimJob = coroutineScope.launch {
                             if (scheduleChanged && !wasForward) {
                                 scheduleChanged = false
-                                // 等待异步重载完成，确保网格渲染的是新课表数据
-                                switchReloadJob?.join()
+                                switchReloadJob?.join()   // 等异步重载，否则网格还是旧课表
                                 switchReloadJob = null
-                                // 清除旧快照后等待新课表渲染，再录到新课表网格。
-                                // 快照从 screenGraphicsLayer（主内容层）读取，切换页是独立图层不会被录进快照，
-                                // 因此无需隐藏切换页，让切换页保持可见即可遮住主内容，避免露出背景或网格的中间帧
+                                // 切换页在独立图层，录不进主内容快照，无需为截图隐藏它
                                 mainContentSnapshot = null
-                                // 等待新课表完成渲染：withFrameNanos 在帧开始返回，此时 graphicsLayer
-                                // 装的还是上一帧（旧课表）内容；需等待多帧以确保 reloadCourses 触发的
-                                // 深层重组 + 绘制已完成，才能录到新课表网格
+                                // withFrameNanos 在帧开始返回、装的是上一帧，需多等一帧才录得到新课表。
+                                // 只等 1 帧：深层重组若没画完，仍会录到旧课表（已知隐患）
                                 withFrameNanos { }
                                 mainContentSnapshot = try {
                                     captureMainContentBitmap()
@@ -3098,7 +3113,7 @@ fun CourseScheduleApp() {
                             val currentBounds = switchCurrentCardBounds
                             val screenBitmap = switchPageBitmap ?: mainContentSnapshot
                             if (currentBounds != null && screenBitmap != null) {
-                                switchScreenSnapshot = screenBitmap
+                                switchOverlayActive = true
                                 switchCardBounds = currentBounds
                                 switchCardSnapshot = try {
                                     val x = currentBounds.left.toInt()
@@ -3143,7 +3158,7 @@ fun CourseScheduleApp() {
                                 )
                             }
                             showSwitchSchedule = false
-                            switchScreenSnapshot = null
+                            switchOverlayActive = false
                             switchCardSnapshot = null
                             switchCardBounds = null
                             switchCurrentCardBounds = null
@@ -3155,6 +3170,12 @@ fun CourseScheduleApp() {
                         switchReloadJob = viewModel.reloadCourses()
                         settingsViewModel.refreshSettings()
                         scheduleChanged = true
+                        // 切换页是直接改 repository 的，必须把 ScheduleViewModel 拉回一致，
+                        // 否则它持有的课表列表 / 当前课表会一直停留在旧值。
+                        // 摘要要反序列化全部课表的课程 JSON，放 IO 线程，别压在动画上。
+                        coroutineScope.launch(Dispatchers.IO) {
+                            scheduleViewModel.refreshScheduleList()
+                        }
                     },
                     onCardClick = { bounds ->
                         switchCardBounds = bounds
@@ -3167,16 +3188,12 @@ fun CourseScheduleApp() {
                         switchAnimJob = coroutineScope.launch {
                             if (scheduleChanged) {
                                 scheduleChanged = false
-                                // 等待异步重载完成，确保网格渲染的是新课表数据
-                                switchReloadJob?.join()
+                                switchReloadJob?.join()   // 等异步重载，否则网格还是旧课表
                                 switchReloadJob = null
-                                // 清除旧快照后等待新课表渲染，再录到新课表网格。
-                                // 快照从 screenGraphicsLayer（主内容层）读取，切换页是独立图层不会被录进快照，
-                                // 因此无需隐藏切换页，让切换页保持可见即可遮住主内容，避免露出背景或网格的中间帧
+                                // 切换页在独立图层，录不进主内容快照，无需为截图隐藏它
                                 mainContentSnapshot = null
-                                // 等待新课表完成渲染：withFrameNanos 在帧开始返回，此时 graphicsLayer
-                                // 装的还是上一帧（旧课表）内容；需等待多帧以确保 reloadCourses 触发的
-                                // 深层重组 + 绘制已完成，才能录到新课表网格
+                                // withFrameNanos 在帧开始返回、装的是上一帧，需多等一帧才录得到新课表。
+                                // 只等 1 帧：深层重组若没画完，仍会录到旧课表（已知隐患）
                                 withFrameNanos { }
                                 mainContentSnapshot = try {
                                     captureMainContentBitmap()
@@ -3184,7 +3201,7 @@ fun CourseScheduleApp() {
                                     mainContentSnapshot
                                 }
                             }
-                            switchScreenSnapshot = screenBitmap
+                            switchOverlayActive = true
                             switchCardSnapshot = cardBitmap
                             switchCardBounds = bounds
                             val currentProgress = switchAnimProgress.value
@@ -3217,7 +3234,7 @@ fun CourseScheduleApp() {
                             )
                             switchAnimRunning = false
                             showSwitchSchedule = false
-                            switchScreenSnapshot = null
+                            switchOverlayActive = false
                             switchCardSnapshot = null
                             switchCardBounds = null
                             mainContentSnapshot = null
@@ -3238,23 +3255,30 @@ fun CourseScheduleApp() {
                                 right = switchContentRootX + cardBounds.right,
                                 bottom = switchContentRootY + cardBounds.bottom
                             )
-                            val cardSnap = try {
-                                val x = cardBounds.left.toInt().coerceIn(0, screenBitmap.width - 1)
-                                val y = cardBounds.top.toInt().coerceIn(0, screenBitmap.height - 1)
-                                val w = cardBounds.width.toInt().coerceIn(1, screenBitmap.width - x)
-                                val h =
-                                    cardBounds.height.toInt().coerceIn(1, screenBitmap.height - y)
-                                android.graphics.Bitmap.createBitmap(screenBitmap, x, y, w, h)
-                            } catch (_: Exception) {
-                                null
-                            }
+                            // 截图失败时 cardSnap 为 null，动画照常跑（覆盖层只是没有卡片位图），
+                            // 不能因为一次 GPU 回读失败就让页面永远停在 alpha=0
+                            val cardSnap = if (screenBitmap != null) {
+                                try {
+                                    val x =
+                                        cardBounds.left.toInt().coerceIn(0, screenBitmap.width - 1)
+                                    val y =
+                                        cardBounds.top.toInt().coerceIn(0, screenBitmap.height - 1)
+                                    val w =
+                                        cardBounds.width.toInt().coerceIn(1, screenBitmap.width - x)
+                                    val h = cardBounds.height.toInt()
+                                        .coerceIn(1, screenBitmap.height - y)
+                                    android.graphics.Bitmap.createBitmap(screenBitmap, x, y, w, h)
+                                } catch (_: Exception) {
+                                    null
+                                }
+                            } else null
                             switchAnimJob = coroutineScope.launch {
                                 switchAnimProgress.snapTo(1f)
                                 switchPageScale.snapTo(1.08f)
                                 switchPageBlur.snapTo(5f)
                                 switchReturnBgScrim.snapTo(0.4f)
                                 switchCapturingSnapshot = false
-                                switchScreenSnapshot = screenBitmap
+                                switchOverlayActive = true
                                 switchCardBounds = cardBoundsInScreen
                                 switchCardSnapshot = cardSnap
                                 val remainingDuration = 350
@@ -3293,7 +3317,7 @@ fun CourseScheduleApp() {
                                         easing = OobeCubicOutEasing
                                     )
                                 )
-                                switchScreenSnapshot = null
+                                switchOverlayActive = false
                                 switchCardSnapshot = null
                                 switchCardBounds = null
                                 switchAnimRunning = false
@@ -3310,8 +3334,9 @@ fun CourseScheduleApp() {
                     initialScheduleSummaries = scheduleViewModel.scheduleSummaries.collectAsState().value
                 )
             }
-            // 动画覆盖层（顶层）
-            if (switchScreenSnapshot != null) {
+            // 覆盖层：用 p 在卡片矩形 ↔ 全屏之间插值出位置/尺寸/圆角，
+            // 里面叠卡片快照（p 越小越实）与主内容快照（p 越大越实）交叉淡入淡出
+            if (switchOverlayActive) {
                 val sBounds = switchCardBounds
                 val cLeft: Float
                 val cTop: Float

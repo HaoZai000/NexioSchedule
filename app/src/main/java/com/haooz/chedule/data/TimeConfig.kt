@@ -27,7 +27,8 @@ data class SpecialBlock(
     val items: List<SpecialItem>? = null
 ) {
     /** 子块列表，兼容旧数据缺失 items 字段的情况 */
-    val safeItems: List<SpecialItem> get() = items ?: emptyList()
+    val safeItems: List<SpecialItem>
+        get() = items?.filterIsInstance<SpecialItem>() ?: emptyList()
 }
 
 /**

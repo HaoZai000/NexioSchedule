@@ -1985,8 +1985,15 @@ class CourseRepository private constructor(context: Context) {
         }
         val config = try {
             val parsed = gson.fromJson(json, TimeConfig::class.java)
-            // 验证解析结果
-            parsed?.copy(id = id) ?: TimeConfig(id = id, name = "默认配置")
+            // 兼容旧版/跨版本数据：R8 曾剥离未 keep 类的泛型签名，Gson 会把 specialBlocks /
+            // items 里的元素按 Object 解析成原始 Map，后续 UI 强转会崩溃。这里统一清洗，
+            // 且清洗后的对象随下次 saveTimeConfig 写回干净数据（自愈）
+            parsed?.copy(
+                id = id,
+                specialBlocks = parsed.specialBlocks
+                    .filterIsInstance<SpecialBlock>()
+                    .map { it.copy(items = it.items?.filterIsInstance<SpecialItem>()) }
+            ) ?: TimeConfig(id = id, name = "默认配置")
         } catch (_: Exception) {
             TimeConfig(id = id, name = "默认配置")
         }
@@ -2457,6 +2464,14 @@ class CourseRepository private constructor(context: Context) {
             val endSection = (courseMap["endSection"] as? Number)?.toInt() ?: return@mapNotNull null
             @Suppress("UNCHECKED_CAST")
             val selectedWeeks = (courseMap["selectedWeeks"] as? List<Number>)?.map { it.toInt() } ?: emptyList()
+            // 当前版本的备份会显式导出 startWeek/endWeek/weekType。
+            // 旧版备份只写了把起止周展开后的 selectedWeeks，此时回退用 min/max 推断，
+            // 单双周（weekType）已无从还原，只能保持 0。
+            val explicitStartWeek = (courseMap["startWeek"] as? Number)?.toInt()
+            val explicitEndWeek = (courseMap["endWeek"] as? Number)?.toInt()
+            val weekType = (courseMap["weekType"] as? Number)?.toInt() ?: 0
+            val startWeek = explicitStartWeek ?: selectedWeeks.minOrNull() ?: 1
+            val endWeek = maxOf(startWeek, explicitEndWeek ?: selectedWeeks.maxOrNull() ?: 20)
 
             val exportedColor = (courseMap["colorRes"] as? Number)?.toLong()
             val color = exportedColor ?: run {
@@ -2476,9 +2491,9 @@ class CourseRepository private constructor(context: Context) {
                 isCustomTime = (courseMap["isCustomTime"] as? Boolean) ?: false,
                 customStartTime = courseMap["customStartTime"] as? String,
                 customEndTime = courseMap["customEndTime"] as? String,
-                startWeek = selectedWeeks.minOrNull() ?: 1,
-                endWeek = selectedWeeks.maxOrNull() ?: 20,
-                weekType = 0,
+                startWeek = startWeek,
+                endWeek = endWeek,
+                weekType = weekType,
                 colorRes = color,
                 selectedWeeks = selectedWeeks
             )

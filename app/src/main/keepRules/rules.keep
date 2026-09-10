@@ -1,29 +1,19 @@
 # ============================================================
-# R8 rules for KeCB — minimal, precise
+# 此文件已停用 —— 规则已全部合并到 app/proguard-rules.pro
 # ============================================================
-
-# --- R8 全局优化开关 ------------------------------------------
--allowaccessmodification
-
-# --- Gson ----------------------------------------------------
--keepattributes Signature
--keepattributes *Annotation*
-
-# Only Course is serialized via Gson; keep its fields for reflection
--keep class com.haooz.chedule.data.Course { <fields>; }
-
-# TypeToken is used via anonymous subclasses (e.g. object : TypeToken<List<Course>>() {})
--keep class * extends com.google.gson.reflect.TypeToken { <init>(); }
--keep class com.google.gson.reflect.TypeToken { *; }
-
-# --- Compose -------------------------------------------------
-# R8 compat mode handles Compose internals; only protect @Composable entry points
--keepclassmembers class * {
-    @androidx.compose.runtime.Composable <methods>;
-}
-
-# --- ViewModel ------------------------------------------------
--keep class com.haooz.chedule.viewmodel.CourseViewModel { *; }
-
-# --- Kotlin ---------------------------------------------------
--keepclassmembers class **$WhenMappings { <fields>; }
+#
+# 为什么要注意这个文件：
+#   AGP 会自动把 app/src/main/keepRules/*.keep 一并喂给 R8，
+#   而 build 脚本里搜不到任何引用，所以它一直在生效却很难被发现。
+#   验证方式：app/build/outputs/mapping/release/configuration.txt
+#   会把它作为单独一段列出来。
+#
+# 为什么停用：
+#   这里的规则原本几乎全部是 app/proguard-rules.pro 的子集，两份并存容易
+#   "改了一份漏另一份"。唯一的例外是全类路径的
+#     -keepclassmembers class * { @androidx.compose.runtime.Composable <methods>; }
+#   它会阻止所有 @Composable 方法重命名并阻断 R8 的横向内联 / 类合并，
+#   实测占 APK 约 622 KB，已移除。移除后已用真机逐页验证
+#   （课程表 / 课程详情 / 今日 / 我的 / 设置）与超级岛测试通知。
+#
+# ⚠️ 不要再在这里添加规则，请统一改 app/proguard-rules.pro。

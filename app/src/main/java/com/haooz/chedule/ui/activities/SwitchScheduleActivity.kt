@@ -48,11 +48,9 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
-import androidx.compose.runtime.snapshotFlow
 import androidx.compose.runtime.withFrameNanos
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.blur
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.drawWithContent
 import androidx.compose.ui.focus.FocusRequester
@@ -60,6 +58,7 @@ import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.TransformOrigin
 import androidx.compose.ui.graphics.asAndroidBitmap
+import androidx.compose.ui.graphics.asComposeRenderEffect
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.rememberGraphicsLayer
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
@@ -88,7 +87,6 @@ import com.kyant.backdrop.effects.lens
 import com.kyant.backdrop.effects.vibrancy
 import com.kyant.capsule.ContinuousCapsule
 import kotlinx.coroutines.delay
-import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.launch
 import top.yukonga.miuix.kmp.basic.ButtonDefaults
 import top.yukonga.miuix.kmp.basic.Card
@@ -98,8 +96,6 @@ import top.yukonga.miuix.kmp.basic.NativeMiuixTextField
 import top.yukonga.miuix.kmp.basic.Scaffold
 import top.yukonga.miuix.kmp.basic.SmallTitle
 import top.yukonga.miuix.kmp.basic.TextButton
-import top.yukonga.miuix.kmp.blur.layerBackdrop
-import top.yukonga.miuix.kmp.blur.rememberLayerBackdrop
 import top.yukonga.miuix.kmp.icon.MiuixIcons
 import top.yukonga.miuix.kmp.icon.extended.Add
 import top.yukonga.miuix.kmp.icon.extended.ChevronBackward
@@ -152,7 +148,7 @@ fun SwitchScheduleScreen(
     onCardClick: (androidx.compose.ui.geometry.Rect) -> Unit = { _ -> onBack(null) },
     onCardSnapshot: (screenBitmap: android.graphics.Bitmap, cardBitmap: android.graphics.Bitmap, bounds: androidx.compose.ui.geometry.Rect) -> Unit = { _, _, _ -> },
     onCurrentCardBounds: (androidx.compose.ui.geometry.Rect) -> Unit = {},
-    onScreenReady: (screenBitmap: android.graphics.Bitmap, cardBounds: androidx.compose.ui.geometry.Rect) -> Unit = { _, _ -> },
+    onScreenReady: (screenBitmap: android.graphics.Bitmap?, cardBounds: androidx.compose.ui.geometry.Rect) -> Unit = { _, _ -> },
     onContentOffset: (x: Float, y: Float) -> Unit = { _, _ -> },
     pageScale: Float = 1f,
     initialScheduleNames: List<String>? = null,
@@ -160,12 +156,28 @@ fun SwitchScheduleScreen(
     initialScheduleSummaries: Map<String, String>? = null
 ) {
     val context = androidx.compose.ui.platform.LocalContext.current
+    val density = androidx.compose.ui.platform.LocalDensity.current
     val repository = remember { CourseRepository(context) }
     val scrollBehavior = rememberSharedScrollBehavior()
-    var listScrollY by remember { mutableIntStateOf(0) }
     val hapticFeedback = androidx.compose.ui.platform.LocalHapticFeedback.current
     val screenGraphicsLayer = rememberGraphicsLayer()
     val scope = rememberCoroutineScope()
+    // 页面快照「按需录制」：record() 会把整页（液态玻璃顶栏 + LazyColumn + backdrop 录制）再离屏
+    // 完整画一遍，常驻每帧录制等于把每帧绘制成本翻倍，进/退动画期间必掉帧。
+    // 只在真正要 toImageBitmap() 前录一帧，其余帧完全不录（与 MainActivity 主内容快照同一套做法）。
+    val lastRecordedSnapshotToken = remember { intArrayOf(0) }
+    var snapshotToken by remember { mutableIntStateOf(0) }
+    val capturePageBitmap: suspend () -> android.graphics.Bitmap? = {
+        snapshotToken++
+        // 等一帧让 draw 阶段完成录制，再等一帧确保该帧已提交
+        withFrameNanos { }
+        withFrameNanos { }
+        try {
+            screenGraphicsLayer.toImageBitmap().asAndroidBitmap()
+        } catch (_: Exception) {
+            null
+        }
+    }
     var contentRootX by remember { mutableFloatStateOf(0f) }
     var contentRootY by remember { mutableFloatStateOf(0f) }
 
@@ -175,7 +187,12 @@ fun SwitchScheduleScreen(
         )
     }
     LaunchedEffect(Unit) {
-        scheduleNames = repository.getScheduleNames()
+        // initial 值来自 ScheduleViewModel 的实时 StateFlow，已经是最新；再读一次磁盘只会
+        // 让首帧之后立刻多一次重组，正好压在进场动画的头几帧上。独立 Activity 启动时
+        // （initial 为 null）仍然需要读。
+        if (initialScheduleNames == null) {
+            scheduleNames = repository.getScheduleNames()
+        }
     }
     var currentScheduleId by remember {
         mutableStateOf(
@@ -183,7 +200,9 @@ fun SwitchScheduleScreen(
         )
     }
     LaunchedEffect(Unit) {
-        currentScheduleId = repository.getCurrentScheduleId()
+        if (initialCurrentScheduleId == null) {
+            currentScheduleId = repository.getCurrentScheduleId()
+        }
     }
     var scheduleSummaries by remember {
         mutableStateOf(
@@ -210,24 +229,14 @@ fun SwitchScheduleScreen(
         repository.switchToSchedule(firstSchedule)
         onScheduleChanged()
         scope.launch {
-            withFrameNanos { }
-            withFrameNanos { }
-            val bitmap = try {
-                screenGraphicsLayer.toImageBitmap().asAndroidBitmap()
-            } catch (_: Exception) {
-                null
-            }
-            onBack(bitmap)
+            onBack(capturePageBitmap())
         }
     }
     val focusRequester = remember { FocusRequester() }
     val editFocusRequester = remember { FocusRequester() }
     val checkboxStates = remember { mutableStateMapOf<String, Boolean>() }
-    val backgroundColor = MiuixTheme.colorScheme.surface
-    val backdrop = rememberLayerBackdrop {
-        drawRect(backgroundColor) // 确保捕获到不透明背景
-        drawContent()
-    }
+    // 注意：这里不要再挂一个未被消费的 layerBackdrop —— 它会把整页内容每帧额外离屏录制一遍，
+    // 而录制结果没有任何 drawBackdrop 使用，等于白烧一整条渲染管线。
     val liquidGlassBackdrop = com.kyant.backdrop.backdrops.rememberLayerBackdrop()
     val isTablet = LocalConfiguration.current.screenWidthDp >= 600
     val tabletHorizontalPadding = if (isTablet) {
@@ -389,7 +398,18 @@ fun SwitchScheduleScreen(
                     Box(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .blur(if (bottombarBlur.value > 0f) bottombarBlur.value.dp else 0.dp)
+                            // 在 graphicsLayer 的 lambda 里读 Animatable：Modifier.blur(半径) 会随半径
+                            // 变化重建整条 modifier 链，且读在组合作用域里会让整条底栏（含 drawBackdrop
+                            // 液态玻璃）每帧重组。放到 lambda 里只触发重绘，不触发重组。
+                            .graphicsLayer {
+                                val r = bottombarBlur.value
+                                renderEffect = if (r > 0.01f) {
+                                    val px = r * density.density
+                                    android.graphics.RenderEffect.createBlurEffect(
+                                        px, px, android.graphics.Shader.TileMode.CLAMP
+                                    ).asComposeRenderEffect()
+                                } else null
+                            }
                             .graphicsLayer {
                                 transformOrigin = TransformOrigin(0.5f, 1f)
                                 scaleX = 0.6f + 0.4f * appear
@@ -479,23 +499,20 @@ fun SwitchScheduleScreen(
                         onContentOffset(pos.x, pos.y)
                     }
                     .drawWithContent {
-                        screenGraphicsLayer.record {
-                            this@drawWithContent.drawContent()
+                        // 只在被请求时录制一帧（见 capturePageBitmap），避免每帧重复渲染整页
+                        if (lastRecordedSnapshotToken[0] != snapshotToken) {
+                            lastRecordedSnapshotToken[0] = snapshotToken
+                            screenGraphicsLayer.record {
+                                this@drawWithContent.drawContent()
+                            }
                         }
                         drawContent()
                     }
-                    .layerBackdrop(backdrop)
                     .liquidGlassLayerBackdrop(liquidGlassBackdrop)
             ) {
+                // 注意：这里不要再 collect firstVisibleItemScrollOffset 写 state ——
+                // 那会让整页在滚动时每像素重组一次（listScrollY 之前根本没被读取，纯属白烧）。
                 val listState = rememberLazyListState()
-                LaunchedEffect(listState) {
-                    snapshotFlow { listState.firstVisibleItemScrollOffset }
-                        .distinctUntilChanged()
-                        .collect { offset ->
-                            listScrollY = offset
-                        }
-                }
-                val density = androidx.compose.ui.platform.LocalDensity.current
                 val topBarHeightDp = with(density) {
                     scrollBehavior.currentHeightPx.toDp()
                 }
@@ -534,20 +551,16 @@ fun SwitchScheduleScreen(
                             LaunchedEffect(firstCardBounds) {
                                 val bounds = firstCardBounds
                                 if (bounds != null) {
-                                    withFrameNanos { }
-                                    withFrameNanos { }
-                                    try {
-                                        val bitmap =
-                                            screenGraphicsLayer.toImageBitmap().asAndroidBitmap()
-                                        val adjustedBounds = androidx.compose.ui.geometry.Rect(
-                                            left = (bounds.left - contentRootX) / pageScale,
-                                            top = (bounds.top - contentRootY) / pageScale,
-                                            right = (bounds.right - contentRootX) / pageScale,
-                                            bottom = (bounds.bottom - contentRootY) / pageScale
-                                        )
-                                        onScreenReady(bitmap, adjustedBounds)
-                                    } catch (_: Exception) {
-                                    }
+                                val bitmap = capturePageBitmap()
+                                // 截图失败也要回调：否则 switchCapturingSnapshot 永远为 true，
+                                // 页面会一直停在 alpha=0 的黑屏上
+                                val adjustedBounds = androidx.compose.ui.geometry.Rect(
+                                    left = (bounds.left - contentRootX) / pageScale,
+                                    top = (bounds.top - contentRootY) / pageScale,
+                                    right = (bounds.right - contentRootX) / pageScale,
+                                    bottom = (bounds.bottom - contentRootY) / pageScale
+                                )
+                                onScreenReady(bitmap, adjustedBounds)
                                 }
                             }
                             Card(
@@ -714,12 +727,8 @@ fun SwitchScheduleScreen(
                                                 val bounds = cardBounds
                                                 if (bounds != null) {
                                                     scope.launch {
-                                                        withFrameNanos { }
-                                                        withFrameNanos { }
-                                                        try {
-                                                            val fullBitmap =
-                                                                screenGraphicsLayer.toImageBitmap()
-                                                                    .asAndroidBitmap()
+                                                        val fullBitmap = capturePageBitmap()
+                                                        if (fullBitmap != null) {
                                                             val x =
                                                                 (bounds.left - contentRootX).toInt()
                                                                     .coerceIn(
@@ -749,7 +758,6 @@ fun SwitchScheduleScreen(
                                                                 cardBitmap,
                                                                 bounds
                                                             )
-                                                        } catch (_: Exception) {
                                                         }
                                                         onCardClick(bounds)
                                                     }

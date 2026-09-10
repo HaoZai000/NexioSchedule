@@ -41,9 +41,14 @@ class ScheduleViewModel(application: Application) : AndroidViewModel(application
 
     /**
      * 刷新课表列表和摘要
+     *
+     * 注意：切换课表页（SwitchScheduleScreen）是直接调 repository 改磁盘的，不会走本 ViewModel
+     * 的 switchToSchedule()，所以「当前课表」也必须在这里一并从磁盘同步回来，
+     * 否则 _currentScheduleName 会一直是旧值（表现为切换后重新打开切换页，当前课表没变）。
      */
     fun refreshScheduleList() {
         _scheduleNames.value = repository.getScheduleNames()
+        _currentScheduleName.value = repository.getCurrentScheduleId()
         val summaries = mutableMapOf<String, String>()
         _scheduleNames.value.forEach { name ->
             summaries[name] = repository.getScheduleSummary(name)

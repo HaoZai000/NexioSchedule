@@ -153,8 +153,12 @@ fun CourseDetailScreen(
                 }
             }
             weeks.map { week -> week to course }
-        }.sortedBy { it.first }
+        }
+        // 先按周次升序分组，组内再按星期几、起始节次排序，保证同一周内课程顺序正确
         weekEntries.groupBy { it.first }.toSortedMap().toList()
+            .map { (week, entries) ->
+                week to entries.sortedWith(compareBy({ it.second.dayOfWeek }, { it.second.startSection }))
+            }
     }
 
     val liquidGlassBackdrop = rememberLayerBackdrop()

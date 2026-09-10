@@ -3,6 +3,7 @@ package com.haooz.chedule.ui.activities
 
 import android.annotation.SuppressLint
 import android.app.Application
+import android.content.Context
 import android.net.Uri
 import android.os.Environment
 import android.widget.Toast
@@ -84,6 +85,22 @@ import java.util.Date
 import java.util.Locale
 import kotlin.time.Duration.Companion.milliseconds
 
+private const val BACKUP_DIR_NAME = "Neixo_Schedule"
+
+/** 解析单个备份文件前允许的最大体积，避免把超大/无关文件整个读进内存 */
+private const val MAX_BACKUP_PARSE_BYTES = 8L * 1024 * 1024
+
+/** 备份体：要么是单课表备份，要么是覆盖式全量备份 */
+private sealed interface BackupPayload {
+    data class Single(
+        val scheduleName: String,
+        val courses: List<Map<String, Any>>,
+        val timeConfig: Map<String, Any>?
+    ) : BackupPayload
+
+    data class Full(val data: Map<String, Any>) : BackupPayload
+}
+
 private data class BackupFileInfo(
     val file: File,
     val fileName: String,
@@ -91,13 +108,54 @@ private data class BackupFileInfo(
     val scheduleName: String?,
     val scheduleCount: Int,
     val timestamp: String,
-    val size: String
+    val size: String,
+    val isFullBackup: Boolean
 )
 
-private fun getBackupDir(): File {
-    val downloads = Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS)
-    return File(downloads, "Neixo_Schedule")
+/**
+ * 备份目录。优先公共 Download（用户能在文件管理器里看到、方便拷走）；
+ * 分区存储下该目录可能不可写（取决于系统策略与授权状态），此时降级到应用私有
+ * Download 目录，避免整个备份功能失效。
+ */
+private fun getBackupDir(context: Context): File {
+    val publicDir = File(
+        Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS),
+        BACKUP_DIR_NAME
+    )
+    if (isUsableDir(publicDir)) return publicDir
+    val privateDir = File(
+        context.getExternalFilesDir(Environment.DIRECTORY_DOWNLOADS) ?: context.filesDir,
+        BACKUP_DIR_NAME
+    )
+    privateDir.mkdirs()
+    return privateDir
 }
+
+private fun isUsableDir(dir: File): Boolean = try {
+    (dir.exists() || dir.mkdirs()) && dir.canWrite()
+} catch (_: Exception) {
+    false
+}
+
+/**
+ * 扫描用的候选目录（公共 + 私有）。两个都扫，这样在两种存储环境之间切换时
+ * 历史备份不会凭空"消失"。
+ */
+private fun candidateBackupDirs(context: Context): List<File> {
+    val publicDir = File(
+        Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS),
+        BACKUP_DIR_NAME
+    )
+    val privateDir = File(
+        context.getExternalFilesDir(Environment.DIRECTORY_DOWNLOADS) ?: context.filesDir,
+        BACKUP_DIR_NAME
+    )
+    return listOf(publicDir, privateDir).filter { it.isDirectory }.distinctBy { it.absolutePath }
+}
+
+/** 课表名可能含路径分隔符/非法字符，直接拼进文件名会写失败或写到意外位置 */
+private fun sanitizeFileName(name: String): String =
+    name.replace(Regex("[\\\\/:*?\"<>|]"), "_").trim().ifEmpty { "课表" }
 
 private fun generateBackupFileName(mode: String, scheduleName: String?): String {
     val sdf = SimpleDateFormat("yyyyMMdd_HHmmss", Locale.getDefault())
@@ -105,12 +163,16 @@ private fun generateBackupFileName(mode: String, scheduleName: String?): String 
     return if (mode == "all") {
         "全部备份_$timestamp.json"
     } else {
-        "${scheduleName ?: "课表"}_$timestamp.json"
+        "${sanitizeFileName(scheduleName ?: "课表")}_$timestamp.json"
     }
 }
 
+/** 文件名形如「<课表名>_yyyyMMdd_HHmmss」，用正则解析，不再依赖固定的后缀长度 */
+private val BACKUP_NAME_REGEX = Regex("^(.+)_(\\d{8}_\\d{6})$")
+
 private fun countSchedulesInBackup(file: File): Int {
     return try {
+        if (file.length() > MAX_BACKUP_PARSE_BYTES) return 0
         val json = file.readText(Charsets.UTF_8)
         val data: Map<String, Any> = Gson().fromJson(json, object : TypeToken<Map<String, Any>>() {}.type)
         if (data.containsKey("schedule_name") && data.containsKey("courses")) {
@@ -130,38 +192,81 @@ private fun countSchedulesInBackup(file: File): Int {
     }
 }
 
-private fun scanBackupFiles(): List<BackupFileInfo> {
-    val dir = getBackupDir()
-    if (!dir.exists()) return emptyList()
-
+private fun scanBackupFiles(context: Context): List<BackupFileInfo> {
     val displaySdf = SimpleDateFormat("yyyy-MM-dd HH:mm:ss", Locale.getDefault())
     val parseSdf = SimpleDateFormat("yyyyMMdd_HHmmss", Locale.getDefault())
 
-    return dir.listFiles()?.filter { it.isFile && it.extension == "json" }?.map { file ->
-        val name = file.nameWithoutExtension
-        val isAllBackup = name.startsWith("全部备份")
-        val type = if (isAllBackup) "全部备份" else "单独课表"
+    return candidateBackupDirs(context)
+        .flatMap { dir -> dir.listFiles()?.asList() ?: emptyList() }
+        .filter { it.isFile && it.extension.equals("json", ignoreCase = true) }
+        .map { file ->
+            val name = file.nameWithoutExtension
+            val isFullBackup = name.startsWith("全部备份")
+            val type = if (isFullBackup) "全部备份" else "单独课表"
 
-        val scheduleName = if (!isAllBackup) {
-            if (name.length > 16) name.dropLast(16) else name
-        } else null
+            val match = BACKUP_NAME_REGEX.matchEntire(name)
+            val scheduleName = if (!isFullBackup) match?.groupValues?.get(1) ?: name else null
 
-        val scheduleCount = countSchedulesInBackup(file)
+            val scheduleCount = countSchedulesInBackup(file)
 
-        val timestamp = try {
-            val timestampStr = if (name.length > 16) name.takeLast(15) else name
-            parseSdf.parse(timestampStr)?.let { displaySdf.format(it) } ?: "未知时间"
-        } catch (_: Exception) {
-            "未知时间"
+            val timestamp = try {
+                match?.let { parseSdf.parse(it.groupValues[2]) }?.let { displaySdf.format(it) } ?: "未知时间"
+            } catch (_: Exception) {
+                "未知时间"
+            }
+
+            val sizeStr = if (file.length() < 1024) "${file.length()} B"
+            else if (file.length() < 1024 * 1024) "${file.length() / 1024} KB"
+            else "${file.length() / (1024 * 1024)} MB"
+
+            BackupFileInfo(file, file.name, type, scheduleName, scheduleCount, timestamp, sizeStr, isFullBackup)
         }
-
-        val sizeStr = if (file.length() < 1024) "${file.length()} B"
-        else if (file.length() < 1024 * 1024) "${file.length() / 1024} KB"
-        else "${file.length() / (1024 * 1024)} MB"
-
-        BackupFileInfo(file, file.name, type, scheduleName, scheduleCount, timestamp, sizeStr)
-    }?.sortedByDescending { it.file.lastModified() } ?: emptyList()
+        .sortedByDescending { it.file.lastModified() }
 }
+
+/**
+ * 解析并校验备份内容。
+ *
+ * 这一步是强制门禁：全量恢复走 [CourseRepository.importAllPreferences]，它会**先清空
+ * 现有全部课表数据再写入**。如果不校验就放行，用户随便选一个无关 JSON 就会把课表全清掉。
+ * 因此这里必须能明确识别出"这是本应用导出的备份"，否则直接抛错。
+ */
+private fun parseBackupPayload(json: String): BackupPayload {
+    // 这里不能写成 mapNotNull/显式可空声明再判空：直接声明为 Map<String, Any> 时
+    // Kotlin 会在赋值处插入空检查并抛 NPE，后面的 ?: 永远不会执行。
+    // 用显式泛型参数 + elvis 才能让"解析失败"走到我们自己的异常分支。
+    val data = Gson().fromJson<Map<String, Any>>(
+        json, object : TypeToken<Map<String, Any>>() {}.type
+    ) ?: throw IllegalArgumentException("文件内容不是有效的 JSON 对象")
+
+    val scheduleName = data["schedule_name"]
+    val courses = data["courses"]
+    if (scheduleName is String && courses is List<*>) {
+        val courseList = courses.filterIsInstance<Map<*, *>>().map {
+            @Suppress("UNCHECKED_CAST")
+            it as Map<String, Any>
+        }
+        @Suppress("UNCHECKED_CAST")
+        val timeConfig = data["time_config"] as? Map<String, Any>
+        return BackupPayload.Single(scheduleName, courseList, timeConfig)
+    }
+
+    val looksLikeFullBackup =
+        data.containsKey("schedule_names") || data.keys.any { it.startsWith("schedule_") }
+    if (!looksLikeFullBackup) {
+        throw IllegalArgumentException("不是本应用导出的备份文件")
+    }
+    return BackupPayload.Full(data)
+}
+
+private fun readExternalBackupJson(context: Context, uri: Uri): String {
+    val inputStream = context.contentResolver.openInputStream(uri)
+        ?: throw IllegalArgumentException("无法读取所选文件")
+    return inputStream.bufferedReader(Charsets.UTF_8).use { it.readText() }
+}
+
+private fun countFullBackupSchedules(data: Map<String, Any>): Int =
+    data.keys.count { it.startsWith("schedule_") && it.endsWith("_courses") }
 
 @SuppressLint("ConfigurationScreenWidthHeight")
 @Composable
@@ -187,27 +292,119 @@ fun LocalBackupScreen(
     val settingsViewModel = remember { SettingsViewModel(context.applicationContext as Application) }
     val scheduleNames by scheduleViewModel.scheduleNames.collectAsState()
 
-    var backupHistory by remember { mutableStateOf(scanBackupFiles()) }
+    // 扫描要读每个 json 并 Gson 全量解析，必须在 IO 线程做；初值留空，由 LaunchedEffect 填充
+    var backupHistory by remember { mutableStateOf<List<BackupFileInfo>>(emptyList()) }
+    var isScanning by remember { mutableStateOf(true) }
     var showRestoreDialog by remember { mutableStateOf(false) }
+    var restorePayload by remember { mutableStateOf<BackupPayload?>(null) }
+    var restoreSourceLabel by remember { mutableStateOf("") }
     var pendingRestoreFile by remember { mutableStateOf<File?>(null) }
+    var pendingRestoreUri by remember { mutableStateOf<Uri?>(null) }
     var showDeleteDialog by remember { mutableStateOf(false) }
     var pendingDeleteFile by remember { mutableStateOf<File?>(null) }
     var isBackingUp by remember { mutableStateOf(false) }
-    var pendingExternalUri by remember { mutableStateOf<Uri?>(null) }
-    var showExternalRestoreDialog by remember { mutableStateOf(false) }
+    var isRestoring by remember { mutableStateOf(false) }
     var deletingFileName by remember { mutableStateOf<String?>(null) }
+
+    fun refreshHistory() {
+        coroutineScope.launch {
+            isScanning = true
+            val scanned = withContext(Dispatchers.IO) { scanBackupFiles(context) }
+            backupHistory = scanned
+            isScanning = false
+        }
+    }
+
+    /**
+     * 先解析校验，再弹确认框。
+     * 这样非法文件在弹框前就被拦下，且弹框文案能按备份类型给出准确说明。
+     */
+    fun beginRestore(file: File? = null, uri: Uri? = null) {
+        if (isRestoring || showRestoreDialog) return
+        coroutineScope.launch {
+            isRestoring = true
+            val result = withContext(Dispatchers.IO) {
+                runCatching {
+                    val json = when {
+                        file != null -> file.readText(Charsets.UTF_8)
+                        uri != null -> readExternalBackupJson(context, uri)
+                        else -> throw IllegalArgumentException("没有可恢复的文件")
+                    }
+                    parseBackupPayload(json)
+                }
+            }
+            isRestoring = false
+            result.fold(
+                onSuccess = { payload ->
+                    restorePayload = payload
+                    pendingRestoreFile = file
+                    pendingRestoreUri = uri
+                    restoreSourceLabel = file?.name ?: "外部文件"
+                    showRestoreDialog = true
+                },
+                onFailure = { e ->
+                    Toast.makeText(
+                        context,
+                        "无法识别备份文件：${e.message ?: "格式错误"}",
+                        Toast.LENGTH_SHORT
+                    ).show()
+                }
+            )
+        }
+    }
+
+    fun applyRestore() {
+        val payload = restorePayload ?: return
+        showRestoreDialog = false
+        restorePayload = null
+        pendingRestoreFile = null
+        pendingRestoreUri = null
+        isRestoring = true
+        coroutineScope.launch {
+            val result = withContext(Dispatchers.IO) {
+                runCatching {
+                    val repository = CourseRepository(context.applicationContext as Application)
+                    when (payload) {
+                        is BackupPayload.Single -> {
+                            // 重名时自动编号，避免覆盖已有课表
+                            val existing = repository.getScheduleNames()
+                            var name = payload.scheduleName
+                            if (name in existing) {
+                                var index = 1
+                                while ("$name($index)" in existing) index++
+                                name = "$name($index)"
+                            }
+                            repository.importSingleSchedule(name, payload.courses, payload.timeConfig)
+                        }
+
+                        is BackupPayload.Full -> repository.importAllPreferences(payload.data)
+                    }
+                    // 等加载完成再提示成功，否则会先弹 Toast 再刷出数据
+                    courseViewModel.reloadCourses().join()
+                    scheduleViewModel.refreshScheduleList()
+                    settingsViewModel.refreshSettings()
+                }
+            }
+            isRestoring = false
+            result.fold(
+                onSuccess = {
+                    Toast.makeText(context, "恢复成功", Toast.LENGTH_SHORT).show()
+                },
+                onFailure = { e ->
+                    Toast.makeText(context, "恢复失败: ${e.message}", Toast.LENGTH_SHORT).show()
+                }
+            )
+        }
+    }
 
     val safLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.OpenDocument()
     ) { uri: Uri? ->
-        uri?.let {
-            pendingExternalUri = it
-            showExternalRestoreDialog = true
-        }
+        uri?.let { beginRestore(uri = it) }
     }
 
     LaunchedEffect(Unit) {
-        backupHistory = scanBackupFiles()
+        refreshHistory()
     }
 
     val isTablet = LocalConfiguration.current.screenWidthDp >= 600
@@ -327,8 +524,10 @@ fun LocalBackupScreen(
                                     val result = withContext(Dispatchers.IO) {
                                         try {
                                             val repository = CourseRepository(context.applicationContext as Application)
-                                            val dir = getBackupDir()
-                                            if (!dir.exists()) dir.mkdirs()
+                                            val dir = getBackupDir(context)
+                                            if (!isUsableDir(dir)) {
+                                                throw IllegalStateException("备份目录不可写：${dir.absolutePath}")
+                                            }
 
                                             val fileName = generateBackupFileName(backupMode, selectedSchedule)
                                             val file = File(dir, fileName)
@@ -354,9 +553,12 @@ fun LocalBackupScreen(
                                                             "customStartTime" to course.customStartTime,
                                                             "customEndTime" to course.customEndTime,
                                                             "colorRes" to course.colorRes,
-                                                            "selectedWeeks" to (course.selectedWeeks.ifEmpty {
-                                                                (course.startWeek..course.endWeek).toList()
-                                                            }).sorted()
+                                                            // selectedWeeks 为空时由 startWeek/endWeek/weekType 描述周次。
+                                                            // 不能把区间展开写进 selectedWeeks：那样会丢掉单双周（weekType）。
+                                                            "selectedWeeks" to course.selectedWeeks.sorted(),
+                                                            "startWeek" to course.startWeek,
+                                                            "endWeek" to course.endWeek,
+                                                            "weekType" to course.weekType
                                                         )
                                                     },
                                                     "time_config" to mapOf(
@@ -380,7 +582,7 @@ fun LocalBackupScreen(
                                     result.fold(
                                         onSuccess = { name ->
                                             Toast.makeText(context, "备份成功: $name", Toast.LENGTH_SHORT).show()
-                                            backupHistory = scanBackupFiles()
+                                            refreshHistory()
                                         },
                                         onFailure = { e ->
                                             Toast.makeText(context, "备份失败: ${e.message}", Toast.LENGTH_SHORT).show()
@@ -408,7 +610,7 @@ fun LocalBackupScreen(
                         insideMargin = PaddingValues(horizontal = 16.dp, vertical = 14.dp)
                     ) {
                         Text(
-                            text = "暂无备份记录",
+                            text = if (isScanning) "正在扫描备份文件..." else "暂无备份记录",
                             fontSize = 14.sp,
                             color = MiuixTheme.colorScheme.onSurfaceVariantActions
                         )
@@ -473,8 +675,7 @@ fun LocalBackupScreen(
                                                 hapticFeedback.performHapticFeedback(
                                                     HapticFeedbackType.VirtualKey
                                                 )
-                                                pendingRestoreFile = info.file
-                                                showRestoreDialog = true
+                                                beginRestore(file = info.file)
                                             }
                                             .padding(horizontal = 20.dp, vertical = 8.dp),
                                         contentAlignment = Alignment.Center
@@ -533,7 +734,11 @@ fun LocalBackupScreen(
                             summary = "从其他位置选择备份文件进行恢复",
                             onClick = {
                                 hapticFeedback.performHapticFeedback(HapticFeedbackType.VirtualKey)
-                                safLauncher.launch(arrayOf("application/json"))
+                                // 不限定 mime：各厂商文件管理器对 .json 上报的 mime 不一致
+                                // （text/plain / application/octet-stream 都有），
+                                // 限定 application/json 会让用户根本选不到文件。
+                                // 合法性由 parseBackupPayload 把关，放开 mime 是安全的。
+                                safLauncher.launch(arrayOf("*/*"))
                             }
                         )
                     }
@@ -542,15 +747,34 @@ fun LocalBackupScreen(
         }
     }
 
-    val restoreDialogFile = pendingRestoreFile
+    val restorePayloadValue = restorePayload
+    val restoreIsFull = restorePayloadValue is BackupPayload.Full
+    val restoreSummary = when (restorePayloadValue) {
+        is BackupPayload.Full -> {
+            val count = countFullBackupSchedules(restorePayloadValue.data)
+            "「$restoreSourceLabel」\n" +
+                "这是全量备份，包含 $count 个课表。\n" +
+                "恢复会先清除现有全部课表与时间配置，再整体覆盖为备份内容，此操作不可撤销。"
+        }
+
+        is BackupPayload.Single -> {
+            "「$restoreSourceLabel」\n" +
+                "这是单课表备份，包含 ${restorePayloadValue.courses.size} 门课程。\n" +
+                "将新建课表「${restorePayloadValue.scheduleName}」（重名时自动编号），不影响现有课表。"
+        }
+
+        null -> ""
+    }
     OverlayDialog(
-        title = "恢复备份",
-        summary = if (restoreDialogFile != null) "确定要恢复备份「${restoreDialogFile.name}」吗？\n将创建一个新的课表（重名时自动编号）" else "",
+        title = if (restoreIsFull) "恢复全部备份" else "恢复备份",
+        summary = restoreSummary,
         show = showRestoreDialog,
         liquidGlassBackdrop = liquidGlassBackdrop,
         onDismissRequest = {
             showRestoreDialog = false
+            restorePayload = null
             pendingRestoreFile = null
+            pendingRestoreUri = null
         }
     ) {
         Column(
@@ -568,65 +792,17 @@ fun LocalBackupScreen(
                     onClick = {
                         hapticFeedback.performHapticFeedback(HapticFeedbackType.Confirm)
                         showRestoreDialog = false
+                        restorePayload = null
                         pendingRestoreFile = null
+                        pendingRestoreUri = null
                     },
                     modifier = Modifier.weight(1f)
                 )
                 TextButton(
-                    text = "确定恢复",
+                    text = if (restoreIsFull) "覆盖恢复" else "确定恢复",
                     onClick = {
                         hapticFeedback.performHapticFeedback(HapticFeedbackType.Confirm)
-                        showRestoreDialog = false
-                        coroutineScope.launch {
-                            val file = pendingRestoreFile ?: return@launch
-                            pendingRestoreFile = null
-                            val result = withContext(Dispatchers.IO) {
-                                try {
-                                    val json = file.readText(Charsets.UTF_8)
-                                    val type = object : TypeToken<Map<String, Any>>() {}.type
-                                    val data: Map<String, Any> = Gson().fromJson(json, type)
-
-                                    val repository = CourseRepository(context.applicationContext as Application)
-
-                                    if (data.containsKey("courses") && data.containsKey("schedule_name")) {
-                                        val originalName = data["schedule_name"] as String
-                                        @Suppress("UNCHECKED_CAST")
-                                        val courses = data["courses"] as List<Map<String, Any>>
-                                        @Suppress("UNCHECKED_CAST")
-                                        val timeConfig = data["time_config"] as? Map<String, Any>
-                                        // 如果同名课表已存在，自动生成新名称
-                                        val scheduleName = if (scheduleViewModel.scheduleNames.value.contains(originalName)) {
-                                            var index = 1
-                                            while (scheduleViewModel.scheduleNames.value.contains("$originalName($index)")) {
-                                                index++
-                                            }
-                                            "$originalName($index)"
-                                        } else {
-                                            originalName
-                                        }
-                                        repository.importSingleSchedule(scheduleName, courses, timeConfig)
-                                        scheduleViewModel.refreshScheduleList()
-                                    } else {
-                                        repository.importAllPreferences(data)
-                                    }
-                                    // 刷新 ViewModel，确保 UI 立即更新
-                                    courseViewModel.reloadCourses()
-                                    scheduleViewModel.refreshScheduleList()
-                                    settingsViewModel.refreshSettings()
-                                    Result.success(Unit)
-                                } catch (e: Exception) {
-                                    Result.failure(e)
-                                }
-                            }
-                            result.fold(
-                                onSuccess = {
-                                    Toast.makeText(context, "恢复成功", Toast.LENGTH_SHORT).show()
-                                },
-                                onFailure = { e ->
-                                    Toast.makeText(context, "恢复失败: ${e.message}", Toast.LENGTH_SHORT).show()
-                                }
-                            )
-                        }
+                        applyRestore()
                     },
                     colors = ButtonDefaults.textButtonColorsPrimary(),
                     modifier = Modifier.weight(1f)
@@ -669,19 +845,32 @@ fun LocalBackupScreen(
                     text = "删除",
                     onClick = {
                         hapticFeedback.performHapticFeedback(HapticFeedbackType.Confirm)
-                        deletingFileName = pendingDeleteFile?.name
+                        // 必须先把目标文件捕获成局部变量：删除动画有 300ms 延迟，
+                        // 期间若用户点了另一个文件的删除按钮，pendingDeleteFile 会被覆盖，
+                        // 原来的协程就会去删新选中的文件（旧版 bug：删错且原文件没删掉）
+                        val target = pendingDeleteFile ?: return@TextButton
                         showDeleteDialog = false
+                        pendingDeleteFile = null
+                        deletingFileName = target.name
                         coroutineScope.launch {
-                            delay(300.milliseconds)
                             try {
-                                pendingDeleteFile?.delete()
-                                Toast.makeText(context, "删除成功", Toast.LENGTH_SHORT).show()
-                                backupHistory = scanBackupFiles()
+                                delay(300.milliseconds)
+                                if (target.delete()) {
+                                    Toast.makeText(context, "删除成功", Toast.LENGTH_SHORT).show()
+                                } else {
+                                    Toast.makeText(
+                                        context,
+                                        "删除失败：文件不存在或不可写",
+                                        Toast.LENGTH_SHORT
+                                    ).show()
+                                }
+                                refreshHistory()
                             } catch (e: Exception) {
                                 Toast.makeText(context, "删除失败: ${e.message}", Toast.LENGTH_SHORT).show()
+                            } finally {
+                                // 放在 finally：否则扫描抛异常时该卡片会永久停在 alpha=0
+                                deletingFileName = null
                             }
-                            deletingFileName = null
-                            pendingDeleteFile = null
                         }
                     },
                     textColor = Color(0xFFF44336),
@@ -691,100 +880,4 @@ fun LocalBackupScreen(
         }
     }
 
-    val externalRestoreUri = pendingExternalUri
-    OverlayDialog(
-        title = "恢复外部备份",
-        summary = if (externalRestoreUri != null) "确定要恢复从外部选择的备份文件吗？\n将创建一个新的课表（重名时自动编号）" else "",
-        show = showExternalRestoreDialog,
-        liquidGlassBackdrop = liquidGlassBackdrop,
-        onDismissRequest = {
-            showExternalRestoreDialog = false
-            pendingExternalUri = null
-        }
-    ) {
-        Column(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalAlignment = Alignment.CenterHorizontally
-        ) {
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(top = 16.dp),
-                horizontalArrangement = Arrangement.spacedBy(12.dp)
-            ) {
-                TextButton(
-                    text = "取消",
-                    onClick = {
-                        hapticFeedback.performHapticFeedback(HapticFeedbackType.Confirm)
-                        showExternalRestoreDialog = false
-                        pendingExternalUri = null
-                    },
-                    modifier = Modifier.weight(1f)
-                )
-                TextButton(
-                    text = "确定恢复",
-                    onClick = {
-                        hapticFeedback.performHapticFeedback(HapticFeedbackType.Confirm)
-                        showExternalRestoreDialog = false
-                        coroutineScope.launch {
-                            val uri = pendingExternalUri ?: return@launch
-                            pendingExternalUri = null
-                            val result = withContext(Dispatchers.IO) {
-                                try {
-                                    val inputStream = context.contentResolver.openInputStream(uri)
-                                    val json = inputStream?.bufferedReader(Charsets.UTF_8)?.use { it.readText() }
-                                        ?: throw Exception("无法读取文件")
-                                    inputStream.close()
-
-                                    val type = object : TypeToken<Map<String, Any>>() {}.type
-                                    val data: Map<String, Any> = Gson().fromJson(json, type)
-
-                                    val repository = CourseRepository(context.applicationContext as Application)
-
-                                    if (data.containsKey("courses") && data.containsKey("schedule_name")) {
-                                        val originalName = data["schedule_name"] as String
-                                        @Suppress("UNCHECKED_CAST")
-                                        val courses = data["courses"] as List<Map<String, Any>>
-                                        @Suppress("UNCHECKED_CAST")
-                                        val timeConfig = data["time_config"] as? Map<String, Any>
-                                        // 如果同名课表已存在，自动生成新名称
-                                        val scheduleName = if (scheduleViewModel.scheduleNames.value.contains(originalName)) {
-                                            var index = 1
-                                            while (scheduleViewModel.scheduleNames.value.contains("$originalName($index)")) {
-                                                index++
-                                            }
-                                            "$originalName($index)"
-                                        } else {
-                                            originalName
-                                        }
-                                        repository.importSingleSchedule(scheduleName, courses, timeConfig)
-                                        scheduleViewModel.refreshScheduleList()
-                                    } else {
-                                        repository.importAllPreferences(data)
-                                    }
-                                    // 刷新 ViewModel，确保 UI 立即更新
-                                    courseViewModel.reloadCourses()
-                                    scheduleViewModel.refreshScheduleList()
-                                    settingsViewModel.refreshSettings()
-                                    Result.success(Unit)
-                                } catch (e: Exception) {
-                                    Result.failure(e)
-                                }
-                            }
-                            result.fold(
-                                onSuccess = {
-                                    Toast.makeText(context, "恢复成功", Toast.LENGTH_SHORT).show()
-                                },
-                                onFailure = { e ->
-                                    Toast.makeText(context, "恢复失败: ${e.message}", Toast.LENGTH_SHORT).show()
-                                }
-                            )
-                        }
-                    },
-                    colors = ButtonDefaults.textButtonColorsPrimary(),
-                    modifier = Modifier.weight(1f)
-                )
-            }
-        }
-    }
 }
