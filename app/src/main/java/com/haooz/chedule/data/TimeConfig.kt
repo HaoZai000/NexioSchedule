@@ -10,7 +10,30 @@ data class SpecialItem(
     val name: String = "",       // 如"画黑板报""检查卫生"
     val startDay: Int = 1,       // 起始星期 1..7
     val endDay: Int = 1          // 结束星期 1..7，取值 >= startDay
-)
+) {
+    companion object {
+        /**
+         * 把 Gson 可能留下的"原始形态"还原成 [SpecialItem]。
+         *
+         * 背景：R8 在未 keep 这些类时会剥掉字段的泛型签名，Gson 于是把
+         * `List<SpecialItem>` 的元素按 Object 解析成 LinkedTreeMap，之后任何
+         * `as SpecialItem` 强转都会抛 ClassCastException —— v1.5.0 正式版的线上崩溃
+         * 正是这条：SpecialBandBody 里 `item.startDay` 抛 `nq1 cannot be cast to n63`。
+         * 这里遇到 Map 就按字段名手工还原，既不崩、也不丢用户已录入的子块。
+         */
+        internal fun fromRaw(raw: Any?): SpecialItem? = when (raw) {
+            is SpecialItem -> raw
+            is Map<*, *> -> SpecialItem(
+                id = (raw["id"] as? Number)?.toLong() ?: 0L,
+                name = raw["name"] as? String ?: "",
+                startDay = (raw["startDay"] as? Number)?.toInt() ?: 1,
+                endDay = (raw["endDay"] as? Number)?.toInt() ?: 1
+            )
+
+            else -> null
+        }
+    }
+}
 
 /**
  * 特殊时段块（无编号，如早读/大课间/眼保健操）。
@@ -26,9 +49,33 @@ data class SpecialBlock(
     // 所以声明为可空，统一通过 [safeItems] 访问，避免升级后崩溃。
     val items: List<SpecialItem>? = null
 ) {
-    /** 子块列表，兼容旧数据缺失 items 字段的情况 */
+    /**
+     * 子块列表。同时兜住两种情况：
+     *  1. 旧数据缺失 items 字段（Gson 会置为 null）；
+     *  2. R8 剥掉泛型签名，导致元素被解析成 Map。
+     *
+     * 这里刻意先把 items 转成 `List<*>`（擦除类型）再逐元素判断。
+     * **不要**直接写 `items?.filterIsInstance<SpecialItem>()`：那个接收者的静态类型
+     * 已经是 `List<SpecialItem>`，编译器/R8 有可能把这次过滤当成恒等变换而消除，
+     * 坏元素于是照样漏进 UI（v1.5.0 的崩溃就是这么穿过去的）。
+     */
     val safeItems: List<SpecialItem>
-        get() = items?.filterIsInstance<SpecialItem>() ?: emptyList()
+        get() = (items as List<*>?).orEmpty().mapNotNull { SpecialItem.fromRaw(it) }
+
+    companion object {
+        internal fun fromRaw(raw: Any?): SpecialBlock? = when (raw) {
+            is SpecialBlock -> raw
+            is Map<*, *> -> SpecialBlock(
+                id = (raw["id"] as? Number)?.toLong() ?: 0L,
+                name = raw["name"] as? String ?: "",
+                startTime = raw["startTime"] as? String ?: "08:00",
+                endTime = raw["endTime"] as? String ?: "08:40",
+                items = (raw["items"] as? List<*>)?.mapNotNull { SpecialItem.fromRaw(it) }
+            )
+
+            else -> null
+        }
+    }
 }
 
 /**
@@ -75,6 +122,14 @@ data class TimeConfig(
     // 特殊时段块（无编号，如早读/大课间/眼保健操），不计入课程提醒
     val specialBlocks: List<SpecialBlock> = emptyList()
 ) {
+
+    /**
+     * 特殊时段块列表。同 [SpecialBlock.safeItems]：先擦除类型再逐元素还原，
+     * 兜住"R8 剥掉泛型签名 → Gson 把元素解析成 Map"的情况。
+     * 需要遍历 specialBlocks 的地方都应通过这个 getter 访问。
+     */
+    val safeSpecialBlocks: List<SpecialBlock>
+        get() = (specialBlocks as List<*>?).orEmpty().mapNotNull { SpecialBlock.fromRaw(it) }
 
     /**
      * 获取指定时段的节次时间映射

@@ -1986,13 +1986,11 @@ class CourseRepository private constructor(context: Context) {
         val config = try {
             val parsed = gson.fromJson(json, TimeConfig::class.java)
             // 兼容旧版/跨版本数据：R8 曾剥离未 keep 类的泛型签名，Gson 会把 specialBlocks /
-            // items 里的元素按 Object 解析成原始 Map，后续 UI 强转会崩溃。这里统一清洗，
-            // 且清洗后的对象随下次 saveTimeConfig 写回干净数据（自愈）
+            // items 里的元素按 Object 解析成原始 Map，后续 UI 强转会崩溃。这里统一还原
+            // （Map → 数据类，不丢数据），且清洗后的对象随下次 saveTimeConfig 写回干净数据（自愈）
             parsed?.copy(
                 id = id,
-                specialBlocks = parsed.specialBlocks
-                    .filterIsInstance<SpecialBlock>()
-                    .map { it.copy(items = it.items?.filterIsInstance<SpecialItem>()) }
+                specialBlocks = parsed.safeSpecialBlocks
             ) ?: TimeConfig(id = id, name = "默认配置")
         } catch (_: Exception) {
             TimeConfig(id = id, name = "默认配置")
