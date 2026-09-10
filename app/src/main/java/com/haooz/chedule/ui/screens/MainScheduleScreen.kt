@@ -162,7 +162,8 @@ fun MainScheduleScreen(
     draggingCourseIds: Set<String> = emptySet(),
     onCourseClick: (courses: List<Course>, cardLeft: Float, cardTop: Float, cardWidth: Float, cardHeight: Float, snapshot: android.graphics.Bitmap?, courseIdToHide: String, targetWeek: Int) -> Unit = { _, _, _, _, _, _, _, _ -> },
     onPopupStateChange: (Boolean) -> Unit = {},
-    onEmptyLongPress: () -> Unit = {},
+    // 空白格长按：星期 + 节次 + 格子中心X/顶部Y/宽/高（Root 绝对坐标 px）
+    onEmptyLongPress: (day: Int, section: Int, centerX: Float, cellTopY: Float, width: Float, height: Float) -> Unit = { _, _, _, _, _, _ -> },
     onCourseLongPress: (course: Course, cardLeft: Float, cardTop: Float, width: Float, height: Float, backdrop: com.kyant.backdrop.Backdrop?, currentWeek: Int) -> Unit = { _, _, _, _, _, _, _ -> },
     onCourseDragStart: (courseId: String) -> Unit = { _ -> },
     onCourseDrag: (courseId: String, offsetX: Float, offsetY: Float) -> Unit = { _, _, _ -> },
@@ -748,6 +749,15 @@ fun MainScheduleScreen(
                             val stableOnEmptyClick: (Int) -> Unit = remember(dayOfWeek) {
                                 { section -> viewModel.showAddDialog(dayOfWeek, section) }
                             }
+                            val stableOnEmptyLongPress: (Int, Float, Float, Float, Float) -> Unit =
+                                remember(dayOfWeek, onEmptyLongPress) {
+                                    { section, centerX, cellTopY, width, height ->
+                                        // 长按进入菜单时清掉 pending 添加卡，避免两层交互叠加
+                                        pendingDay = -1
+                                        pendingSection = -1
+                                        onEmptyLongPress(dayOfWeek, section, centerX, cellTopY, width, height)
+                                    }
+                                }
                             val stableOnCourseLongPress: (Course, Float, Float, Float, Float, com.kyant.backdrop.Backdrop?, Int) -> Unit =
                                 remember(page, dayOfWeek) {
                                     { course, left, top, width, height, _, cWeek ->
@@ -761,7 +771,7 @@ fun MainScheduleScreen(
                                 courses = filteredDayCourses,
                                 onCourseClick = stableOnCourseClick,
                                 onEmptyClick = stableOnEmptyClick,
-                                onEmptyLongPress = onEmptyLongPress,
+                                onEmptyLongPress = stableOnEmptyLongPress,
                                 morningSections = morningSections,
                                 afternoonSections = afternoonSections,
                                 eveningSections = eveningSections,

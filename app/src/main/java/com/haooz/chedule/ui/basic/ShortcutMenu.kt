@@ -35,6 +35,7 @@ import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.layout.positionInWindow
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalWindowInfo
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.core.graphics.toColorInt
 import com.haooz.chedule.ui.effects.edgelight.edgeLight
@@ -56,7 +57,8 @@ private val ShadowPadding = 12.dp
 data class ShortcutMenuItem(
     val icon: ImageVector,
     val label: String,
-    val onClick: () -> Unit
+    val onClick: () -> Unit,
+    val iconSize: Dp = 26.dp
 )
 
 @Composable
@@ -65,6 +67,7 @@ fun ShortcutMenu(
     items: List<ShortcutMenuItem>,
     modifier: Modifier = Modifier,
     backdrop: Backdrop,
+    anchorRightPx: Float = Float.MAX_VALUE,
     onDismiss: () -> Unit = {},
     onMeasuredSize: (width: Int, height: Int) -> Unit = { _, _ -> }
 ) {
@@ -80,18 +83,21 @@ fun ShortcutMenu(
     val scale = remember { Animatable(0f) }
     val alpha = remember { Animatable(0f) }
 
-    // 挨边检测：菜单右边缘距屏幕右边不足安全边距时，改为向左展开
+    // 默认向右展开；可见右边缘超出屏幕安全边距时向左平移，右边缘对齐卡片右边缘
+    // 菜单 layout 宽含左右 ShadowPadding，可见右边缘 = menuPositionX + menuWidth - ShadowPadding
     var menuPositionX by remember { mutableStateOf(0f) }
     var menuWidth by remember { mutableStateOf(0) }
-    val safetyPaddingPx = with(density) { 8.dp.toPx() }
-    val shouldExpandLeft = remember(menuPositionX, menuWidth, containerWidthPx) {
-        val rightEdge = menuPositionX + menuWidth
-        rightEdge > containerWidthPx - safetyPaddingPx
+    val safetyPaddingPx = with(density) { 4.dp.toPx() }
+    val shadowPadPx = with(density) { ShadowPadding.toPx() }
+    val screenRightEdge = containerWidthPx - safetyPaddingPx
+    val shouldShiftLeft = remember(menuPositionX, menuWidth, screenRightEdge) {
+        val visibleRightEdge = menuPositionX + menuWidth - shadowPadPx
+        visibleRightEdge > screenRightEdge
     }
-    val shiftLeftPx = if (shouldExpandLeft) {
-        // 向左平移使右边缘贴到 (屏幕右边 - 安全边距)
-        (menuPositionX + menuWidth - (containerWidthPx - safetyPaddingPx))
-            .coerceAtLeast(0f)
+    // 左移目标：卡片右边缘（不超出屏幕安全边距）
+    val shiftTarget = minOf(anchorRightPx, screenRightEdge)
+    val shiftLeftPx = if (shouldShiftLeft) {
+        (menuPositionX + menuWidth - shadowPadPx - shiftTarget).coerceAtLeast(0f)
     } else 0f
 
     LaunchedEffect(show) {
@@ -131,14 +137,12 @@ fun ShortcutMenu(
                 scaleX = scale.value
                 scaleY = scale.value
                 this.alpha = alpha.value
-                // 挨着屏幕右边时 pivot 改为右下角(向左展开)，整体向左平移以留在屏幕内，并额外向右偏移 14dp
+                // 需要左移时 pivot 改为右下角(向左展开)，整体向左平移对齐目标右边缘
                 transformOrigin = TransformOrigin(
-                    if (shouldExpandLeft) 1f else 0f,
+                    if (shouldShiftLeft) 1f else 0f,
                     1f
                 )
-                translationX = if (shouldExpandLeft) {
-                    -shiftLeftPx + with(density) { 18.dp.toPx() }
-                } else 0f
+                translationX = if (shouldShiftLeft) -shiftLeftPx else 0f
                 clip = false
             }
             .drawBehind {
@@ -206,7 +210,7 @@ fun ShortcutMenu(
                             imageVector = item.icon,
                             contentDescription = item.label,
                             tint = MiuixTheme.colorScheme.onSurface,
-                            modifier = Modifier.size(26.dp)
+                            modifier = Modifier.size(item.iconSize)
                         )
                     }
                 }

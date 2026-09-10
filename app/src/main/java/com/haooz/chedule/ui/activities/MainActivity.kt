@@ -78,6 +78,7 @@ import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalHapticFeedback
+import androidx.compose.ui.state.ToggleableState
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.DpOffset
 import androidx.compose.ui.unit.IntOffset
@@ -90,6 +91,7 @@ import androidx.core.graphics.scale
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.window.embedding.SplitController
 import com.haooz.chedule.data.Course
+import com.haooz.chedule.data.ThemeMode
 import com.haooz.chedule.reminder.CourseReminderHelper
 import com.haooz.chedule.reminder.IslandNotificationHelper
 import com.haooz.chedule.ui.basic.CollapsibleTopAppBar
@@ -123,7 +125,6 @@ import com.haooz.chedule.ui.utils.applyThemeAwareSystemBars
 import com.haooz.chedule.ui.utils.isAppDarkTheme
 import com.haooz.chedule.ui.utils.rememberAppSettingDark
 import com.haooz.chedule.ui.utils.rememberScheduleThemeMode
-import com.haooz.chedule.data.ThemeMode
 import com.haooz.chedule.viewmodel.CourseViewModel
 import com.haooz.chedule.viewmodel.ScheduleViewModel
 import com.haooz.chedule.viewmodel.SettingsViewModel
@@ -137,20 +138,23 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import top.yukonga.miuix.kmp.basic.ButtonDefaults
+import top.yukonga.miuix.kmp.basic.Checkbox
 import top.yukonga.miuix.kmp.basic.NavigationRailDefaults
 import top.yukonga.miuix.kmp.basic.NumberPicker
 import top.yukonga.miuix.kmp.basic.Scaffold
 import top.yukonga.miuix.kmp.basic.TextButton
 import top.yukonga.miuix.kmp.basic.rememberNavigationRailState
-import top.yukonga.miuix.kmp.blur.layerBackdrop
 import top.yukonga.miuix.kmp.blur.rememberLayerBackdrop
 import top.yukonga.miuix.kmp.icon.MiuixIcons
 import top.yukonga.miuix.kmp.icon.basic.FastForward
+import top.yukonga.miuix.kmp.icon.extended.Add
 import top.yukonga.miuix.kmp.icon.extended.Background
 import top.yukonga.miuix.kmp.icon.extended.Backup
+import top.yukonga.miuix.kmp.icon.extended.Copy
 import top.yukonga.miuix.kmp.icon.extended.Delete
 import top.yukonga.miuix.kmp.icon.extended.Edit
 import top.yukonga.miuix.kmp.icon.extended.More
+import top.yukonga.miuix.kmp.icon.extended.Paste
 import top.yukonga.miuix.kmp.icon.extended.Reset
 import top.yukonga.miuix.kmp.overlay.OverlayDialog
 import top.yukonga.miuix.kmp.squircle.addSquircleRect
@@ -444,9 +448,93 @@ private fun DeleteWeekCourseDialog(
     hapticFeedback: androidx.compose.ui.hapticfeedback.HapticFeedback,
     onDismiss: () -> Unit,
 ) {
+    var deleteAllWeeks by remember(show) { mutableStateOf(false) }
     OverlayDialog(
-        title = "删除本周课程",
-        summary = "确定要删除「${course?.name}」在第${week}周的课程吗？\n此操作不可撤销。",
+        title = if (deleteAllWeeks) "删除课程" else "删除本周课程",
+        summary = if (deleteAllWeeks) {
+            "确定要删除「${course?.name}」的全部课程吗？\n此操作不可撤销。"
+        } else {
+            "确定要删除「${course?.name}」在第${week}周的课程吗？\n此操作不可撤销。"
+        },
+        show = show,
+        liquidGlassBackdrop = liquidGlassBackdrop,
+        onDismissRequest = onDismiss
+    ) {
+        Column(modifier = Modifier.fillMaxWidth()) {
+            // 删除范围选择
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(start = 4.dp, end = 4.dp, top = 4.dp, bottom = 8.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Checkbox(
+                    state = if (deleteAllWeeks) ToggleableState.On else ToggleableState.Off,
+                    onClick = {
+                        deleteAllWeeks = !deleteAllWeeks
+                    }
+                )
+                Spacer(modifier = Modifier.size(8.dp))
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(
+                        text = "删除全部周",
+                        style = MiuixTheme.textStyles.body1,
+                        color = MiuixTheme.colorScheme.onSurface
+                    )
+                    Text(
+                        text = if (deleteAllWeeks) "删除该课程的所有周次" else "关闭则仅删除第${week}周",
+                        style = MiuixTheme.textStyles.body2,
+                        color = MiuixTheme.colorScheme.onSurfaceVariantActions
+                    )
+                }
+            }
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(top = 16.dp),
+                horizontalArrangement = Arrangement.spacedBy(12.dp)
+            ) {
+                TextButton(
+                    text = "取消",
+                    onClick = {
+                        hapticFeedback.performHapticFeedback(HapticFeedbackType.Confirm)
+                        onDismiss()
+                    },
+                    modifier = Modifier.weight(1f)
+                )
+                TextButton(
+                    text = "删除",
+                    onClick = {
+                        hapticFeedback.performHapticFeedback(HapticFeedbackType.Confirm)
+                        course?.let {
+                            if (deleteAllWeeks) viewModel.deleteCourse(it.id)
+                            else viewModel.deleteCourseForWeek(it.id, week)
+                        }
+                        onDismiss()
+                    },
+                    textColor = Color(0xFFF44336),
+                    modifier = Modifier.weight(1f)
+                )
+            }
+        }
+    }
+}
+
+/** 粘贴范围弹窗：选择粘贴全部周还是仅当前周 */
+@Composable
+private fun PasteRangeDialog(
+    show: Boolean,
+    courseName: String,
+    viewModel: CourseViewModel,
+    currentWeek: Int,
+    liquidGlassBackdrop: com.kyant.backdrop.Backdrop?,
+    hapticFeedback: androidx.compose.ui.hapticfeedback.HapticFeedback,
+    onPaste: (allWeeks: Boolean) -> Unit,
+    onDismiss: () -> Unit,
+) {
+    OverlayDialog(
+        title = "粘贴课程",
+        summary = "选择「${courseName}」的粘贴范围",
         show = show,
         liquidGlassBackdrop = liquidGlassBackdrop,
         onDismissRequest = onDismiss
@@ -458,21 +546,20 @@ private fun DeleteWeekCourseDialog(
             horizontalArrangement = Arrangement.spacedBy(12.dp)
         ) {
             TextButton(
-                text = "取消",
+                text = "全部周",
                 onClick = {
                     hapticFeedback.performHapticFeedback(HapticFeedbackType.Confirm)
-                    onDismiss()
+                    onPaste(true)
                 },
                 modifier = Modifier.weight(1f)
             )
             TextButton(
-                text = "删除",
+                text = "当前周",
+                textColor = MiuixTheme.colorScheme.primary,
                 onClick = {
                     hapticFeedback.performHapticFeedback(HapticFeedbackType.Confirm)
-                    course?.let { viewModel.deleteCourseForWeek(it.id, week) }
-                    onDismiss()
+                    onPaste(false)
                 },
-                textColor = Color(0xFFF44336),
                 modifier = Modifier.weight(1f)
             )
         }
@@ -928,6 +1015,15 @@ fun CourseScheduleApp() {
     var shortcutMenuPosition by remember { mutableStateOf(Offset.Zero) }
     var shortcutMenuSize by remember { mutableStateOf(IntSize.Zero) }
     var shortcutMenuBackdrop by remember { mutableStateOf<com.kyant.backdrop.Backdrop?>(null) }
+    // 卡片/格子宽度：左移时菜单右边缘对齐卡片右边缘
+    var shortcutMenuAnchorWidth by remember { mutableFloatStateOf(0f) }
+    // 空白格长按菜单：(星期, 起始节次)，null 表示未打开；粘贴目标 = 长按格
+    var emptyCellMenuTarget by remember { mutableStateOf<Pair<Int, Int>?>(null) }
+    // 课程复制剪贴板：页面会话级（切页/进程结束时随 Activity 销毁），再次复制覆盖，粘贴后保留
+    var copiedCourseForPaste by remember { mutableStateOf<Course?>(null) }
+    // 粘贴范围弹窗：点粘贴后弹出，选择「全部周」或「当前周」
+    var showPasteRangeDialog by remember { mutableStateOf(false) }
+    var pasteRangeTarget by remember { mutableStateOf<Pair<Int, Int>?>(null) }
     // 删除确认弹窗状态
     var showDeleteConfirmDialog by remember { mutableStateOf(false) }
     var deleteConfirmCourse by remember { mutableStateOf<Course?>(null) }
@@ -1218,10 +1314,10 @@ fun CourseScheduleApp() {
     val switchAnimProgress = remember { Animatable(0f) }
     val backgroundScale = remember { Animatable(1f) }
     val managePageBlurRadius = remember { Animatable(0f) }
-    // 长按快捷菜单显示时的背景模糊
+    // 长按快捷菜单显示时的背景模糊（仅课程长按菜单；空白格菜单不模糊）
     val shortcutMenuBlurRadius = remember { Animatable(0f) }
-    LaunchedEffect(shortcutMenuVisible) {
-        if (shortcutMenuVisible) {
+    LaunchedEffect(shortcutMenuVisible, shortcutMenuCourse) {
+        if (shortcutMenuVisible && shortcutMenuCourse != null) {
             launch { shortcutMenuBlurRadius.animateTo(10f, tween(280)) }
         } else {
             launch { shortcutMenuBlurRadius.animateTo(0f, tween(250)) }
@@ -2007,6 +2103,15 @@ fun CourseScheduleApp() {
                                                 )
                                             },
                                             onPopupStateChange = { showCourseDetailPopup = it },
+                                            onEmptyLongPress = { day, section, centerX, cellTopY, width, height ->
+                                                // 若课程快捷菜单开着，先关掉再开空白格菜单
+                                                shortcutMenuCourse = null
+                                                emptyCellMenuTarget = day to section
+                                                shortcutMenuVisible = true
+                                                // 菜单按格子左上角定位（与课程菜单同一套偏移公式）
+                                                shortcutMenuPosition = Offset(centerX - width / 2f, cellTopY)
+                                                shortcutMenuAnchorWidth = width
+                                            },
                                             onCourseLongPress = { course, left, top, width, height, backdrop, currentWeek ->
                                                 hapticFeedback.performHapticFeedback(
                                                     HapticFeedbackType.LongPress
@@ -2022,10 +2127,12 @@ fun CourseScheduleApp() {
                                                 draggedCardSize = Offset(width, height)
                                                 draggedCardBackdrop = backdrop
                                                 shortcutMenuCourse = course
+                                                emptyCellMenuTarget = null
                                                 shortcutMenuVisible = true
                                                 // 快捷菜单仍按左上角定位，把中心点转回左上角
                                                 shortcutMenuPosition =
                                                     Offset(left - width / 2f, top - height / 2f)
+                                                shortcutMenuAnchorWidth = width
                                                 shortcutMenuBackdrop = backdrop
                                             },
                                             onCourseDragStart = { _ ->
@@ -2168,13 +2275,19 @@ fun CourseScheduleApp() {
                                             liquidGlassBackdrop = liquidGlassBackdrop,
                                             onGridGeometryChange = { geom -> gridGeometry = geom },
                                             dropHighlight = run {
-                                                val target = pendingDropTarget
-                                                val source = draggedCardCourse
-                                                if (floatingCardVisible && target != null && source != null) {
-                                                    val sectionSpan =
-                                                        source.endSection - source.startSection
-                                                    target.first to (target.second..(target.second + sectionSpan))
-                                                } else null
+                                                // 空白格长按菜单打开时高亮目标格
+                                                val emptyTarget = emptyCellMenuTarget
+                                                if (emptyTarget != null && shortcutMenuVisible) {
+                                                    emptyTarget.first to (emptyTarget.second..emptyTarget.second)
+                                                } else {
+                                                    val target = pendingDropTarget
+                                                    val source = draggedCardCourse
+                                                    if (floatingCardVisible && target != null && source != null) {
+                                                        val sectionSpan =
+                                                            source.endSection - source.startSection
+                                                        target.first to (target.second..(target.second + sectionSpan))
+                                                    } else null
+                                                }
                                             },
                                             scheduleScrollBehavior = scheduleScrollBehavior,
                                             paddingValues = paddingValues,
@@ -2374,6 +2487,71 @@ fun CourseScheduleApp() {
                         hapticFeedback = hapticFeedback,
                         onDismiss = { showDeleteConfirmDialog = false },
                     )
+                    PasteRangeDialog(
+                        show = showPasteRangeDialog,
+                        courseName = copiedCourseForPaste?.name ?: "",
+                        viewModel = viewModel,
+                        currentWeek = currentWeek,
+                        liquidGlassBackdrop = liquidGlassBackdrop,
+                        hapticFeedback = hapticFeedback,
+                        onPaste = { allWeeks ->
+                            val meta = copiedCourseForPaste
+                            val target = pasteRangeTarget
+                            if (meta != null && target != null) {
+                                val (day, section) = target
+                                val span = (meta.endSection - meta.startSection).coerceAtLeast(0)
+                                val endSection = section + span
+                                if (endSection > totalSections) {
+                                    android.widget.Toast.makeText(context, "空间不足，无法粘贴", android.widget.Toast.LENGTH_SHORT).show()
+                                } else {
+                                    val conflicts = viewModel.getCoursesAtSlot(currentWeek, day, section, endSection)
+                                        .filter { it.isActiveInWeek(currentWeek) }
+                                    if (conflicts.isNotEmpty()) {
+                                        android.widget.Toast.makeText(context, "目标位置有课，无法粘贴", android.widget.Toast.LENGTH_SHORT).show()
+                                    } else {
+                                        val pasted = if (allWeeks) {
+                                            // 全部周：保留原课程的周次设置
+                                            meta.copy(
+                                                id = java.util.UUID.randomUUID().toString(),
+                                                dayOfWeek = day,
+                                                startSection = section,
+                                                endSection = endSection,
+                                                scheduleId = "",
+                                                isCustomTime = false,
+                                                customStartTime = null,
+                                                customEndTime = null,
+                                                lastModified = System.currentTimeMillis()
+                                            )
+                                        } else {
+                                            // 当前周：仅本周
+                                            meta.copy(
+                                                id = java.util.UUID.randomUUID().toString(),
+                                                dayOfWeek = day,
+                                                startSection = section,
+                                                endSection = endSection,
+                                                startWeek = currentWeek,
+                                                endWeek = currentWeek,
+                                                weekType = Course.WEEK_TYPE_ALL,
+                                                selectedWeeks = emptyList(),
+                                                scheduleId = "",
+                                                isCustomTime = false,
+                                                customStartTime = null,
+                                                customEndTime = null,
+                                                lastModified = System.currentTimeMillis()
+                                            )
+                                        }
+                                        viewModel.addCourse(pasted)
+                                    }
+                                }
+                            }
+                            showPasteRangeDialog = false
+                            pasteRangeTarget = null
+                        },
+                        onDismiss = {
+                            showPasteRangeDialog = false
+                            pasteRangeTarget = null
+                        },
+                    )
                     RescheduleConflictDialog(
                         show = showRescheduleConflictDialog,
                         source = draggedCardCourse,
@@ -2541,7 +2719,7 @@ fun CourseScheduleApp() {
             }
         }
         // 快捷菜单：点击外部关闭（先触发退出动画，动画结束再清空状态）
-        if (shortcutMenuCourse != null) {
+        if (shortcutMenuCourse != null || emptyCellMenuTarget != null) {
             Box(
                 modifier = Modifier
                     .fillMaxSize()
@@ -2555,16 +2733,17 @@ fun CourseScheduleApp() {
                         coroutineScope.launch {
                             delay(220.milliseconds)
                             shortcutMenuCourse = null
+                            emptyCellMenuTarget = null
                         }
                     }
             )
         }
-        // 快捷菜单浮层
+        // 快捷菜单浮层：课程长按（编辑/删除/复制）或空白格长按（粘贴/添加）共用
         val activeShortcutCourse = shortcutMenuCourse
-        if (activeShortcutCourse != null) {
-            ShortcutMenu(
-                show = shortcutMenuVisible,
-                items = listOf(
+        val activeEmptyTarget = emptyCellMenuTarget
+        if (activeShortcutCourse != null || activeEmptyTarget != null) {
+            val menuItems = if (activeShortcutCourse != null) {
+                listOf(
                     ShortcutMenuItem(
                         icon = MiuixIcons.Edit,
                         label = "编辑",
@@ -2576,6 +2755,20 @@ fun CourseScheduleApp() {
                                 shortcutMenuCourse = null
                             }
                             viewModel.showEditDialog(activeShortcutCourse)
+                        }
+                    ),
+                    ShortcutMenuItem(
+                        icon = MiuixIcons.Copy,
+                        label = "复制",
+                        onClick = {
+                            copiedCourseForPaste = activeShortcutCourse
+                            shortcutMenuVisible = false
+                            dismissFloatingCard()
+                            coroutineScope.launch {
+                                delay(240.milliseconds)
+                                shortcutMenuCourse = null
+                            }
+                            android.widget.Toast.makeText(context, "已复制", android.widget.Toast.LENGTH_SHORT).show()
                         }
                     ),
                     ShortcutMenuItem(
@@ -2592,12 +2785,58 @@ fun CourseScheduleApp() {
                             showDeleteConfirmDialog = true
                         }
                     )
-                ),
+                )
+            } else {
+                val emptyDay = activeEmptyTarget?.first ?: -1
+                val emptySection = activeEmptyTarget?.second ?: -1
+                buildList {
+                    if (copiedCourseForPaste != null && activeEmptyTarget != null) {
+                        add(
+                            ShortcutMenuItem(
+                                icon = MiuixIcons.Paste,
+                                label = "粘贴",
+                                onClick = {
+                                    // 先弹粘贴范围弹窗，用户选择「全部周」或「当前周」后再执行粘贴
+                                    pasteRangeTarget = emptyDay to emptySection
+                                    showPasteRangeDialog = true
+                                    shortcutMenuVisible = false
+                                    coroutineScope.launch {
+                                        delay(240.milliseconds)
+                                        emptyCellMenuTarget = null
+                                    }
+                                }
+                            )
+                        )
+                    }
+                    if (activeEmptyTarget != null) {
+                        add(
+                            ShortcutMenuItem(
+                                icon = MiuixIcons.Add,
+                                label = "添加",
+                                iconSize = 24.dp,
+                                onClick = {
+                                    viewModel.showAddDialog(emptyDay, emptySection)
+                                    shortcutMenuVisible = false
+                                    coroutineScope.launch {
+                                        delay(240.milliseconds)
+                                        emptyCellMenuTarget = null
+                                    }
+                                }
+                            )
+                        )
+                    }
+                }
+            }
+            ShortcutMenu(
+                show = shortcutMenuVisible,
+                items = menuItems,
                 modifier = Modifier.offset(
-                    x = with(density) { shortcutMenuPosition.x.toDp() - 14.dp },
+                    // 菜单 layout 含 ShadowPadding(12dp)，左移 12dp 使可见左边缘与卡片左边缘对齐
+                    x = with(density) { shortcutMenuPosition.x.toDp() - 12.dp },
                     y = with(density) { (shortcutMenuPosition.y - shortcutMenuSize.height).toDp() + 6.dp }
                 ),
                 backdrop = liquidGlassBackdrop,
+                anchorRightPx = shortcutMenuPosition.x + shortcutMenuAnchorWidth,
                 onMeasuredSize = { width, height ->
                     shortcutMenuSize = IntSize(width, height)
                 },
@@ -2607,6 +2846,7 @@ fun CourseScheduleApp() {
                     coroutineScope.launch {
                         delay(220.milliseconds)
                         shortcutMenuCourse = null
+                        emptyCellMenuTarget = null
                     }
                 }
             )

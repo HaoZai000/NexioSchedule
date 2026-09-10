@@ -27,6 +27,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.draw.drawWithContent
 import androidx.compose.ui.geometry.CornerRadius
+import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.RoundRect
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
@@ -35,6 +36,7 @@ import androidx.compose.ui.graphics.drawscope.DrawScope
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.text.font.FontWeight
@@ -78,7 +80,8 @@ fun DayColumn(
     courses: List<Course>,
     onCourseClick: (Course) -> Unit,
     onEmptyClick: (Int) -> Unit,
-    onEmptyLongPress: () -> Unit = {},
+    // 空白格长按：section + 格子中心/顶部在 Root 中的绝对坐标与尺寸（px），供上层定位快捷菜单
+    onEmptyLongPress: (section: Int, centerX: Float, cellTopY: Float, width: Float, height: Float) -> Unit = { _, _, _, _, _ -> },
     morningSections: Int = 4,
     afternoonSections: Int = 4,
     eveningSections: Int = 3,
@@ -165,12 +168,8 @@ fun DayColumn(
             }
         }
     }
-    // 落点高亮背景色：让用户清楚看到落点位置
-    val dropHighlightColor = if (hasBlur) {
-        if (isDark) Color.Black.copy(alpha = 0.2f) else Color.White.copy(alpha = 0.15f)
-    } else {
-        if (isDark) Color.White.copy(alpha = 0.06f) else Color.Black.copy(alpha = 0.04f)
-    }
+    // 落点高亮背景色：对齐 PendingSectionBox（加号卡片）的灰色风格
+    val dropHighlightColor = Color(0xFF9E9E9E).copy(alpha = if (isDark) 0.13f else 0.15f)
 
     Box(
         modifier = modifier
@@ -190,10 +189,21 @@ fun DayColumn(
 
             // 1. 空节次交互层 —— 单节点承载所有空节次的点击/长按，依据 Y 坐标换算节次，
             //    并将拖拽落点高亮一并绘制于此，减少每页布局节点数（原每个节次一个 Box）
+            // 空节次交互层在 Root 中的边界：长按时据此计算格子绝对坐标供上层定位快捷菜单
+            val emptyLayerBounds = remember { FloatArray(4) }
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
                     .fillMaxHeight()
+                    .onGloballyPositioned { coordinates ->
+                        if (gridScrollFlag?.scrolling != true) {
+                            val pos = coordinates.localToRoot(Offset.Zero)
+                            emptyLayerBounds[0] = pos.x
+                            emptyLayerBounds[1] = pos.y
+                            emptyLayerBounds[2] = coordinates.size.width.toFloat()
+                            emptyLayerBounds[3] = coordinates.size.height.toFloat()
+                        }
+                    }
                     .drawBehind {
                         val range = dropHighlightSections ?: return@drawBehind
                         val cornerPx = cardCornerRadius.dp.toPx()
@@ -235,6 +245,29 @@ fun DayColumn(
                                     onPendingChange(dayOfWeek, section)
                                 }
                             },
+                            onLongPress = { offset ->
+                                val y = offset.y
+                                var section = -1
+                                for (s in 1..totalSectionsGrid) {
+                                    val topDp = grid.sectionTop[s] ?: continue
+                                    val topPx = with(density) { topDp.dp.toPx() }
+                                    if (y >= topPx && y < topPx + perSectionPx) {
+                                        section = s
+                                        break
+                                    }
+                                }
+                                if (section in 1..totalSectionsGrid && section !in occupiedSections) {
+                                    hapticFeedback.performHapticFeedback(HapticFeedbackType.LongPress)
+                                    val cellTopPx = with(density) { (grid.sectionTop[section] ?: 0f).dp.toPx() }
+                                    onEmptyLongPress(
+                                        section,
+                                        emptyLayerBounds[0] + emptyLayerBounds[2] / 2f,
+                                        emptyLayerBounds[1] + cellTopPx,
+                                        emptyLayerBounds[2],
+                                        perSectionPx
+                                    )
+                                }
+                            }
                         )
                     }
             )
@@ -258,6 +291,44 @@ fun DayColumn(
                         onEmptyClick = onEmptyClick
                     )
                 }
+            }
+
+            // 壁纸模式下的落点高亮：对齐 PendingSectionBox 加号卡片的 backdrop 样式
+            // 非壁纸模式由上方 drawBehind 绘制纯色高亮
+            if (hasBlur && wallpaperBackdrop != null && dropHighlightSections != null) {
+                val hlRange = dropHighlightSections!!
+                val hlTop = sectionTopDp(hlRange.first)
+                val hlHeight = (hlRange.last - hlRange.first + 1) * cardHeightPerSection
+                val hlShape = remember(cardCornerRadius) { ContinuousRoundedRectangle(cardCornerRadius.dp) }
+                val hlBlurPx = with(density) { remember(cardBlurRadius) { cardBlurRadius.dp.toPx() } }
+                val isSharedBlur = wallpaperBackdrop is SharedBlurBackdrop
+                val hlEffects: com.kyant.backdrop.BackdropEffectScope.() -> Unit = remember(isSharedBlur, hlBlurPx) {
+                    {
+                        if (!isSharedBlur) blur(hlBlurPx)
+                    }
+                }
+                // 对齐 PendingSectionBox 的 surface 颜色
+                val hlSurfaceColor = remember(isDark) {
+                    if (isDark) Color(0xFF242424).copy(alpha = 0.64f) else Color(0xFFF0F0F0).copy(alpha = 0.5f)
+                }
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(hlHeight.dp)
+                        .offset(y = hlTop.dp)
+                        .padding(horizontal = 2.dp, vertical = 2.dp)
+                        .drawBackdrop(
+                            backdrop = wallpaperBackdrop!!,
+                            shape = { hlShape },
+                            effects = hlEffects,
+                            highlight = null,
+                            shadow = null,
+                            onDrawSurface = {
+                                drawRect(hlSurfaceColor)
+                            }
+                        )
+                        .edgeLight(shape = hlShape, edgeLight = rememberCourseCardEdgeLight())
+                )
             }
 
             // 特殊课程横带统一在整表层（MainScheduleScreen）按时间插值横贯所有星期列渲染，
