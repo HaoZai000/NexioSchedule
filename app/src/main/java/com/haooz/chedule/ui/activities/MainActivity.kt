@@ -1009,6 +1009,8 @@ fun CourseScheduleApp() {
     var isSnapping by remember { mutableStateOf(false) }
     val floatingOffsetX = remember { Animatable(0f) }
     val floatingOffsetY = remember { Animatable(0f) }
+    // 粘贴飞行：复用长按浮层卡片，直线飞向目标格，前段快放大到 1.4、后段快缩小回 1.0
+    var isPasteFlight by remember { mutableStateOf(false) }
     // 快捷菜单状态
     var shortcutMenuCourse by remember { mutableStateOf<Course?>(null) }
     var shortcutMenuVisible by remember { mutableStateOf(false) }
@@ -1536,6 +1538,87 @@ fun CourseScheduleApp() {
                 dismissFloatingCard()
             }
         }
+
+    /**
+     * 粘贴飞行动画：复用长按浮层卡片。
+     * 直线飞向目标格（位移线性），前 30% 放大到 1.4、后段快速缩回 1.0；结束后回调 onFinished 提交粘贴。
+     * 无法定位时直接回调，不播动画。
+     */
+    val playPasteFlightAnimation: (
+        source: Course,
+        targetDay: Int,
+        targetSection: Int,
+        onFinished: () -> Unit
+    ) -> Unit = { source, targetDay, targetSection, onFinished ->
+        val span = (source.endSection - source.startSection).coerceAtLeast(0)
+        val sourceCenter = computeTargetCenter(source.dayOfWeek, source.startSection, span)
+        val targetCenter = computeTargetCenter(targetDay, targetSection, span)
+        val sourceBounds = gridGeometry?.dayBounds?.get(source.dayOfWeek)
+        val sectionH = gridGeometry?.sectionHeightPx
+        if (sourceCenter != null && targetCenter != null && sourceBounds != null && sectionH != null && sectionH > 0f) {
+            coroutineScope.launch {
+                // 等弹窗退场后再起飞，避免叠在一起
+                delay(120.milliseconds)
+                // 原卡片保持可见（复制语义），仅浮层克隆飞行
+                draggedCardCourse = source
+                draggedWeek = currentWeek
+                draggedCardPosition = sourceCenter
+                draggedCardOffset = Offset.Zero
+                // 卡片左右各 2dp padding，与 CourseCard 默认 padding 对齐
+                val cardPadPx = with(density) { 2.dp.toPx() }
+                draggedCardSize = Offset(
+                    (sourceBounds[1] - sourceBounds[0] - cardPadPx * 2f).coerceAtLeast(1f),
+                    (span + 1) * sectionH
+                )
+                isPasteFlight = true
+                isSnapping = true
+                floatingCardVisible = true
+                floatingOffsetX.snapTo(0f)
+                floatingOffsetY.snapTo(0f)
+                floatingScale.snapTo(1f)
+
+                // 位移 ease-in-out（两边慢中间快）；缩放保持线性
+                val dx = targetCenter.x - sourceCenter.x
+                val dy = targetCenter.y - sourceCenter.y
+                val peakScale = 1.4f
+                val growSpan = 0.5f
+                val shrinkSpan = 0.5f
+                val durationNanos = 480_000_000L
+                val moveEase = CubicBezierEasing(0.55f, 0f, 0.45f, 1f)
+                val startNanos = withFrameNanos { it }
+                while (true) {
+                    val now = withFrameNanos { it }
+                    val raw = ((now - startNanos).toFloat() / durationNanos).coerceIn(0f, 1f)
+                    val t = moveEase.transform(raw)
+                    floatingOffsetX.snapTo(dx * t)
+                    floatingOffsetY.snapTo(dy * t)
+                    val scale = when {
+                        raw <= growSpan -> 1f + (peakScale - 1f) * (raw / growSpan)
+                        raw >= 1f - shrinkSpan -> {
+                            val s = (raw - (1f - shrinkSpan)) / shrinkSpan
+                            peakScale + (1f - peakScale) * s
+                        }
+                        else -> peakScale
+                    }
+                    floatingScale.snapTo(scale)
+                    if (raw >= 1f) break
+                }
+
+                // 落地后立刻换上真实课程并撤掉浮层，避免双影
+                floatingCardVisible = false
+                isSnapping = false
+                isPasteFlight = false
+                draggedCardCourse = null
+                draggedCardOffset = Offset.Zero
+                floatingOffsetX.snapTo(0f)
+                floatingOffsetY.snapTo(0f)
+                floatingScale.snapTo(0.94f)
+                onFinished()
+            }
+        } else {
+            onFinished()
+        }
+    }
 
     /** 回弹动画：浮层从当前位置动画回到原位再消失 */
     val snapFloatingCardToOrigin: () -> Unit = {
@@ -2540,7 +2623,15 @@ fun CourseScheduleApp() {
                                                 lastModified = System.currentTimeMillis()
                                             )
                                         }
-                                        viewModel.addCourse(pasted)
+                                        // 直线飞到目标格，前段快放大/后段快缩小，落地后再写入课程
+                                        playPasteFlightAnimation(
+                                            meta,
+                                            day,
+                                            section
+                                        ) {
+                                            viewModel.addCourse(pasted)
+                                            hapticFeedback.performHapticFeedback(HapticFeedbackType.Confirm)
+                                        }
                                     }
                                 }
                             }
@@ -2679,8 +2770,9 @@ fun CourseScheduleApp() {
                         val offsetY = with(density) { (centerY - heightPx / 2f).toDp() }
                         val width = with(density) { widthPx.toDp() }
                         val height = with(density) { heightPx.toDp() }
-                        LaunchedEffect(floatingCardVisible) {
-                            if (floatingCardVisible) {
+                        LaunchedEffect(floatingCardVisible, isPasteFlight) {
+                            // 粘贴飞行自行控制缩放，跳过长按入场 0.94→1.04
+                            if (floatingCardVisible && !isPasteFlight) {
                                 floatingScale.snapTo(0.94f)
                                 floatingScale.animateTo(1.04f, tween(durationMillis = 120))
                             }
@@ -2698,7 +2790,8 @@ fun CourseScheduleApp() {
                         ) {
                             CourseCard(
                                 course = course,
-                                isCurrentWeek = course.isActiveInWeek(draggedWeek),
+                                // 粘贴飞行强制本周样式，避免源课不在当前周时飞出灰卡
+                                isCurrentWeek = if (isPasteFlight) true else course.isActiveInWeek(draggedWeek),
                                 wallpaperBackdrop = if (wallpaperBitmap != null) liquidGlassBackdrop else null,
                                 cardBlurRadius = displayAppearance.cardBlurRadius,
                                 cardAlpha = displayAppearance.cardAlpha,
