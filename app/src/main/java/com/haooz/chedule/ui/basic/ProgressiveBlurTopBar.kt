@@ -28,13 +28,11 @@ import java.util.concurrent.atomic.AtomicInteger
 private val progressiveBlurShaderSeq = AtomicInteger(0)
 
 /**
- * 渐进模糊顶部栏容器
+ * 顶部栏渐进模糊：模糊半径随 Y 从顶部最大连续收到 0。
  *
- * 半径随 Y 连续变化的真渐进模糊：顶部最大，向下收到 0。
- * 实现只走 AGSL 多重采样，**不挂 Compose BlurEffect**：
- * 流程：抖动多重采样（消文字星点）→ 轻量空间去噪（平掉细噪）。
- *
- * downsampleScale = 1f：顶栏区域小，用全分辨率录制。
+ * 管线（API 33+）：AGSL 抖动多重采样 → 轻量空间去噪。
+ * 不用 Compose BlurEffect——在每帧重录的 GraphicsLayer 上滚动会闪。
+ * downsampleScale = 1，避免默认 0.42 降采样在慢滑时跳格抖动。
  *
  * API < 33 降级为表面色渐变遮罩。
  */
@@ -57,8 +55,8 @@ fun ProgressiveBlurTopBar(
     }
 
     val blurShapeBlock: () -> androidx.compose.ui.graphics.Shape = remember { { RectangleShape } }
-    // 每个实例必须用独立 key：ShaderRegistry 按 key 共享同一份 android.graphics.RuntimeShader，
-    // 今日/课表/设置顶栏会同时挂载，共用 key 会互相覆盖 uniform，慢滑时表现为一闪一闪。
+    // ShaderRegistry 按 key 共享 RuntimeShader；多顶栏同时挂载时必须各用独立 key，
+    // 否则会互相覆盖 uniform，慢滑表现为闪烁。
     val shaderKey = remember {
         "ProgressiveBlurRadial_${progressiveBlurShaderSeq.incrementAndGet()}"
     }
@@ -67,40 +65,26 @@ fun ProgressiveBlurTopBar(
         remember(shaderKey, denoiseKey, tintColor, tintIntensity) {
             {
                 val maxRadiusPx = 12f.dp.toPx()
-                // 扩一圈录制边距：边缘采样可以摸到框外真实内容，减轻顶边/侧边发虚
+                // 录制缓冲向外扩一圈，边缘采样可摸到框外真实内容
                 padding = maxRadiusPx
                 val pad = padding * downsampleScale
                 val contentW = size.width * downsampleScale
                 val contentH = size.height * downsampleScale
-                runtimeShaderEffect(
-                    shaderKey,
-                    PROGRESSIVE_BLUR_SHADER,
-                    "content"
-                ) {
-                    // contentOrigin/Size：可见区域在带 padding 缓冲里的位置与尺寸
+                val bufferW = contentW + 2f * pad
+                val bufferH = contentH + 2f * pad
+
+                runtimeShaderEffect(shaderKey, PROGRESSIVE_BLUR_SHADER, "content") {
                     setFloatUniform("contentOrigin", pad, pad)
                     setFloatUniform("contentSize", contentW, contentH)
-                    setFloatUniform(
-                        "bufferSize",
-                        contentW + 2f * pad,
-                        contentH + 2f * pad
-                    )
+                    setFloatUniform("bufferSize", bufferW, bufferH)
                     setFloatUniform("maxRadius", maxRadiusPx * downsampleScale)
                     setColorUniform("tint", tintColor)
                     setFloatUniform("tintIntensity", tintIntensity)
                 }
-                runtimeShaderEffect(
-                    denoiseKey,
-                    PROGRESSIVE_DENOISE_SHADER,
-                    "content"
-                ) {
+                runtimeShaderEffect(denoiseKey, PROGRESSIVE_DENOISE_SHADER, "content") {
                     setFloatUniform("contentOrigin", pad, pad)
                     setFloatUniform("contentSize", contentW, contentH)
-                    setFloatUniform(
-                        "bufferSize",
-                        contentW + 2f * pad,
-                        contentH + 2f * pad
-                    )
+                    setFloatUniform("bufferSize", bufferW, bufferH)
                     setFloatUniform("maxRadius", maxRadiusPx * downsampleScale)
                 }
             }
@@ -119,7 +103,6 @@ fun ProgressiveBlurTopBar(
                         effects = blurEffects,
                         highlight = null,
                         shadow = null,
-                        // 全分辨率：避免 0.42 降采样在慢滑时跳格抖动
                         downsampleScale = 1f
                     )
             )
@@ -149,6 +132,14 @@ fun ProgressiveBlurTopBar(
     }
 }
 
+// 两端导数为 0 的 S 曲线，收尾比 smoothstep 更绵
+private const val SOFTER_STEP = """
+float softerstep(float a, float b, float x) {
+    float s = clamp((x - a) / max(b - a, 0.0001), 0.0, 1.0);
+    return s * s * s * (s * (s * 6.0 - 15.0) + 10.0);
+}
+"""
+
 private const val PROGRESSIVE_BLUR_SHADER = """
 uniform shader content;
 uniform float2 contentOrigin;
@@ -157,6 +148,8 @@ uniform float2 bufferSize;
 uniform float maxRadius;
 layout(color) uniform half4 tint;
 uniform float tintIntensity;
+
+$SOFTER_STEP
 
 float hash12(float2 p) {
     float3 p3 = fract(float3(p.xyx) * 0.1031);
@@ -170,8 +163,8 @@ half4 progressiveBlur(float2 coord, float radius) {
     }
     half4 sum = half4(0.0);
     float wsum = 0.0;
-    // 高半径时采样点距 > 文字笔画宽，固定螺旋会把笔画打成「星星点点」。
-    // 每个像素随机旋转核 + 轻微径向抖动，把规则点阵打散成细噪，视觉上更接近真模糊。
+    // 高半径时采样点距大于笔画宽，固定螺旋会把文字打成星点；
+    // 逐像素旋转核 + 径向扰动，把规则点阵打散成细噪。
     float spin = hash12(coord) * 6.2831853;
     for (int i = 0; i < 64; i++) {
         float fi = float(i);
@@ -180,10 +173,9 @@ half4 progressiveBlur(float2 coord, float radius) {
         float a = fi * 2.39996323 + spin;
         float2 o = float2(cos(a), sin(a)) * r;
         float w = exp(-r * r / max(0.85 * radius * radius, 0.001));
-        // 采样夹在带 padding 的缓冲内，边缘可以摸到框外真实内容
         float2 sc = clamp(coord + o, float2(0.0), max(bufferSize - 1.0, float2(0.0)));
         half4 c = content.eval(sc);
-        // 近透明样本不参与平均，避免顶边/状态栏空隙把 alpha 洗掉、露出下面清晰层
+        // 近透明样本不参与平均，避免顶边空隙把 alpha 洗掉、露出清晰层
         if (c.a > 0.02) {
             sum += c * w;
             wsum += w;
@@ -195,21 +187,13 @@ half4 progressiveBlur(float2 coord, float radius) {
     return sum / wsum;
 }
 
-float softerstep(float a, float b, float x) {
-    float s = clamp((x - a) / max(b - a, 0.0001), 0.0, 1.0);
-    return s * s * s * (s * (s * 6.0 - 15.0) + 10.0);
-}
-
 half4 main(float2 coord) {
     // 可见区域从 contentOrigin 起算，padding 边距不参与 Y 渐变
-    float t = clamp(
-        (coord.y - contentOrigin.y) / max(contentSize.y, 1.0),
-        0.0, 1.0
-    );
-    // smoothstep：比 softerstep 略快进入糊感，但仍比 sqrt 从 0 陡升要缓
+    float t = clamp((coord.y - contentOrigin.y) / max(contentSize.y, 1.0), 0.0, 1.0);
     float u = 1.0 - smoothstep(0.0, 1.0, t);
     float radius = maxRadius * u;
     half4 color = progressiveBlur(coord, radius);
+    // 仅末端收透明度，消掉与下方清晰内容的接缝
     float edge = softerstep(0.88, 1.0, t);
     color *= (1.0 - edge);
     if (tintIntensity > 0.0) {
@@ -219,10 +203,7 @@ half4 main(float2 coord) {
 }
 """
 
-/**
- * 轻量空间去噪：对上一阶段（抖动多重采样）的结果做小半径盒式平均。
- * 半径与渐进模糊强度成正比，底部自然退化为直通。
- */
+/** 对上一阶段结果做小半径盒式平均，压掉抖动细噪；半径与模糊强度成正比。 */
 private const val PROGRESSIVE_DENOISE_SHADER = """
 uniform shader content;
 uniform float2 contentOrigin;
@@ -230,20 +211,13 @@ uniform float2 contentSize;
 uniform float2 bufferSize;
 uniform float maxRadius;
 
-float softerstep(float a, float b, float x) {
-    float s = clamp((x - a) / max(b - a, 0.0001), 0.0, 1.0);
-    return s * s * s * (s * (s * 6.0 - 15.0) + 10.0);
-}
+$SOFTER_STEP
 
 half4 main(float2 coord) {
-    float t = clamp(
-        (coord.y - contentOrigin.y) / max(contentSize.y, 1.0),
-        0.0, 1.0
-    );
+    float t = clamp((coord.y - contentOrigin.y) / max(contentSize.y, 1.0), 0.0, 1.0);
     // 与渐进模糊同一套曲线，避免两阶段半径不一致
     float u = 1.0 - smoothstep(0.0, 1.0, t);
-    float radius = maxRadius * u;
-    float r = radius * 0.18;
+    float r = maxRadius * u * 0.18;
     if (r < 0.4) {
         return content.eval(coord);
     }
