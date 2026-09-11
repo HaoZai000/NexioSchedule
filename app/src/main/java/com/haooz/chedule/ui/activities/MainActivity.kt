@@ -577,7 +577,9 @@ private fun RescheduleConflictDialog(
     viewModel: CourseViewModel,
     liquidGlassBackdrop: com.kyant.backdrop.Backdrop?,
     hapticFeedback: androidx.compose.ui.hapticfeedback.HapticFeedback,
-    onDismiss: () -> Unit,
+    onCancel: () -> Unit,
+    onOverwriteResolved: () -> Unit,
+    onSwapResolved: () -> Unit,
     onOverwrite: (Set<String>) -> Unit,
     onSwap: (Set<String>) -> Unit,
 ) {
@@ -592,7 +594,7 @@ private fun RescheduleConflictDialog(
         },
         show = show,
         liquidGlassBackdrop = liquidGlassBackdrop,
-        onDismissRequest = onDismiss
+        onDismissRequest = onCancel
     ) {
         Row(
             modifier = Modifier
@@ -605,7 +607,7 @@ private fun RescheduleConflictDialog(
                 modifier = Modifier.weight(1f),
                 onClick = {
                     hapticFeedback.performHapticFeedback(HapticFeedbackType.Confirm)
-                    onDismiss()
+                    onCancel()
                 },
             )
             TextButton(
@@ -627,7 +629,7 @@ private fun RescheduleConflictDialog(
                             onOverwrite(sourceCourses.map { it.id }.toSet())
                         }
                     }
-                    onDismiss()
+                    onOverwriteResolved()
                 },
             )
             TextButton(
@@ -657,7 +659,7 @@ private fun RescheduleConflictDialog(
                             onSwap(allAnimated)
                         }
                     }
-                    onDismiss()
+                    onSwapResolved()
                 },
             )
         }
@@ -1011,6 +1013,17 @@ fun CourseScheduleApp() {
     val floatingOffsetY = remember { Animatable(0f) }
     // 粘贴飞行：复用长按浮层卡片，直线飞向目标格，前段快放大到 1.4、后段快缩小回 1.0
     var isPasteFlight by remember { mutableStateOf(false) }
+    // 调课冲突悬停：浮层移到目标卡上方并上下浮动，直到用户在弹窗中做出选择
+    var isConflictHover by remember { mutableStateOf(false) }
+    var conflictHoverBobJob by remember { mutableStateOf<kotlinx.coroutines.Job?>(null) }
+    // 交换飞行：被交换的目标课变成第二浮层，与源浮层同时交叉飞行
+    var swapFlightVisible by remember { mutableStateOf(false) }
+    var swapFlightCourse by remember { mutableStateOf<Course?>(null) }
+    var swapFlightOriginCenter by remember { mutableStateOf(Offset.Zero) }
+    var swapFlightWidth by remember { mutableFloatStateOf(0f) }
+    val swapFlightOffsetX = remember { Animatable(0f) }
+    val swapFlightOffsetY = remember { Animatable(0f) }
+    val swapFlightScale = remember { Animatable(1f) }
     // 快捷菜单状态
     var shortcutMenuCourse by remember { mutableStateOf<Course?>(null) }
     var shortcutMenuVisible by remember { mutableStateOf(false) }
@@ -1434,8 +1447,21 @@ fun CourseScheduleApp() {
     }
 
     val coroutineScope = rememberCoroutineScope()
+    // 停止冲突悬停浮动
+    val stopConflictHover: () -> Unit = {
+        conflictHoverBobJob?.cancel()
+        conflictHoverBobJob = null
+        isConflictHover = false
+    }
+    // 清理交换第二浮层
+    val clearSwapFlight: () -> Unit = {
+        swapFlightVisible = false
+        swapFlightCourse = null
+    }
     // 关闭浮层：先播退场动画（scale 1.04→1.0），动画结束再清空状态，让原卡片 alpha 恢复 1
     val dismissFloatingCard: () -> Unit = {
+        stopConflictHover()
+        clearSwapFlight()
         coroutineScope.launch {
             floatingScale.animateTo(1f, tween(durationMillis = 180))
             isDraggingCard = false
@@ -1648,6 +1674,184 @@ fun CourseScheduleApp() {
             pendingDropTarget = null
             isSnapping = false
             floatingScale.snapTo(0.94f)
+        }
+    }
+
+    /**
+     * 粘贴节奏飞行：从当前悬停 offset 飞到 destOffset，缩放 1→1.4→1.0，结束后收起浮层。
+     */
+    fun flyFloatingCardWithPasteMotion(destOffsetX: Float, destOffsetY: Float) {
+        stopConflictHover()
+        coroutineScope.launch {
+            isSnapping = true
+            isPasteFlight = true
+            val startX = floatingOffsetX.value
+            val startY = floatingOffsetY.value
+            val peakScale = 1.4f
+            val growSpan = 0.5f
+            val shrinkSpan = 0.5f
+            val durationNanos = 480_000_000L
+            val moveEase = CubicBezierEasing(0.55f, 0f, 0.45f, 1f)
+            floatingScale.snapTo(1f)
+            val startNanos = withFrameNanos { it }
+            while (true) {
+                val now = withFrameNanos { it }
+                val raw = ((now - startNanos).toFloat() / durationNanos).coerceIn(0f, 1f)
+                val t = moveEase.transform(raw)
+                floatingOffsetX.snapTo(startX + (destOffsetX - startX) * t)
+                floatingOffsetY.snapTo(startY + (destOffsetY - startY) * t)
+                val scale = when {
+                    raw <= growSpan -> 1f + (peakScale - 1f) * (raw / growSpan)
+                    raw >= 1f - shrinkSpan -> {
+                        val s = (raw - (1f - shrinkSpan)) / shrinkSpan
+                        peakScale + (1f - peakScale) * s
+                    }
+                    else -> peakScale
+                }
+                floatingScale.snapTo(scale)
+                if (raw >= 1f) break
+            }
+            isDraggingCard = false
+            floatingCardVisible = false
+            draggingCourseIds = emptySet()
+            draggedCardCourse = null
+            draggedCardOffset = Offset.Zero
+            pendingDropTarget = null
+            isSnapping = false
+            isPasteFlight = false
+            floatingOffsetX.snapTo(0f)
+            floatingOffsetY.snapTo(0f)
+            floatingScale.snapTo(0.94f)
+            clearSwapFlight()
+        }
+    }
+
+    /**
+     * 冲突取消：复用粘贴飞行节奏，从悬停位置连贯飞回原位再收起浮层。
+     */
+    val flyFloatingCardHome: () -> Unit = {
+        flyFloatingCardWithPasteMotion(0f, 0f)
+    }
+
+    /**
+     * 覆盖确认：复用粘贴飞行节奏，从悬停位置飞到目标格再落地收起。
+     */
+    val flyFloatingCardToDropTarget: () -> Unit = {
+        val source = draggedCardCourse
+        val target = pendingDropTarget
+        if (source != null && target != null) {
+            val span = source.endSection - source.startSection
+            val targetCenter = computeTargetCenter(target.first, target.second, span)
+            if (targetCenter != null) {
+                flyFloatingCardWithPasteMotion(
+                    targetCenter.x - draggedCardPosition.x,
+                    targetCenter.y - draggedCardPosition.y
+                )
+            } else {
+                dismissFloatingCard()
+            }
+        } else {
+            dismissFloatingCard()
+        }
+    }
+
+    /**
+     * 交换双浮层：源浮层从悬停点飞向目标格，被交换课从目标格飞向原位，
+     * 两套粘贴节奏（480ms / 1→1.4→1.0）同时进行。
+     */
+    val flySwapCards: (conflictCourse: Course) -> Unit = { conflictCourse ->
+        stopConflictHover()
+        val source = draggedCardCourse
+        val dropTarget = pendingDropTarget
+        if (source == null || dropTarget == null) {
+            clearSwapFlight()
+            dismissFloatingCard()
+        } else {
+            val sourceSpan = source.endSection - source.startSection
+            val targetCenter = computeTargetCenter(dropTarget.first, dropTarget.second, sourceSpan)
+            val occupiedSpan = conflictCourse.endSection - conflictCourse.startSection
+            val occupiedCenter = computeTargetCenter(
+                conflictCourse.dayOfWeek,
+                conflictCourse.startSection,
+                occupiedSpan
+            )
+            if (targetCenter == null || occupiedCenter == null) {
+                clearSwapFlight()
+                dismissFloatingCard()
+            } else {
+                coroutineScope.launch {
+                    // 第二浮层：被交换的目标课
+                    val sectionH = gridGeometry?.sectionHeightPx ?: 0f
+                    val bounds = gridGeometry?.dayBounds?.get(conflictCourse.dayOfWeek)
+                    val cardPadPx = with(density) { 2.dp.toPx() }
+                    swapFlightCourse = conflictCourse
+                    swapFlightOriginCenter = occupiedCenter
+                    swapFlightWidth = if (bounds != null && bounds.size >= 2) {
+                        (bounds[1] - bounds[0] - cardPadPx * 2f).coerceAtLeast(1f)
+                    } else {
+                        draggedCardSize.x
+                    }
+                    swapFlightOffsetX.snapTo(0f)
+                    swapFlightOffsetY.snapTo(0f)
+                    swapFlightScale.snapTo(1f)
+                    swapFlightVisible = true
+
+                    // 源浮层
+                    isSnapping = true
+                    isPasteFlight = true
+                    floatingScale.snapTo(1f)
+                    val srcStartX = floatingOffsetX.value
+                    val srcStartY = floatingOffsetY.value
+                    val srcEndX = targetCenter.x - draggedCardPosition.x
+                    val srcEndY = targetCenter.y - draggedCardPosition.y
+                    // 目标课终点：源课原中心
+                    val tgtEndX = draggedCardPosition.x - occupiedCenter.x
+                    val tgtEndY = draggedCardPosition.y - occupiedCenter.y
+
+                    val peakScale = 1.4f
+                    val growSpan = 0.5f
+                    val shrinkSpan = 0.5f
+                    val durationNanos = 480_000_000L
+                    val moveEase = CubicBezierEasing(0.55f, 0f, 0.45f, 1f)
+                    val startNanos = withFrameNanos { it }
+                    while (true) {
+                        val now = withFrameNanos { it }
+                        val raw = ((now - startNanos).toFloat() / durationNanos).coerceIn(0f, 1f)
+                        val t = moveEase.transform(raw)
+                        floatingOffsetX.snapTo(srcStartX + (srcEndX - srcStartX) * t)
+                        floatingOffsetY.snapTo(srcStartY + (srcEndY - srcStartY) * t)
+                        swapFlightOffsetX.snapTo(tgtEndX * t)
+                        swapFlightOffsetY.snapTo(tgtEndY * t)
+                        val scale = when {
+                            raw <= growSpan -> 1f + (peakScale - 1f) * (raw / growSpan)
+                            raw >= 1f - shrinkSpan -> {
+                                val s = (raw - (1f - shrinkSpan)) / shrinkSpan
+                                peakScale + (1f - peakScale) * s
+                            }
+                            else -> peakScale
+                        }
+                        floatingScale.snapTo(scale)
+                        swapFlightScale.snapTo(scale)
+                        if (raw >= 1f) break
+                    }
+
+                    clearSwapFlight()
+                    isDraggingCard = false
+                    floatingCardVisible = false
+                    draggingCourseIds = emptySet()
+                    draggedCardCourse = null
+                    draggedCardOffset = Offset.Zero
+                    pendingDropTarget = null
+                    isSnapping = false
+                    isPasteFlight = false
+                    floatingOffsetX.snapTo(0f)
+                    floatingOffsetY.snapTo(0f)
+                    floatingScale.snapTo(0.94f)
+                    swapFlightOffsetX.snapTo(0f)
+                    swapFlightOffsetY.snapTo(0f)
+                    swapFlightScale.snapTo(1f)
+                }
+            }
         }
     }
 
@@ -2292,6 +2496,18 @@ fun CourseScheduleApp() {
                                                                 targetStart,
                                                                 targetEnd
                                                             )
+                                                            // 单周调课可能拆分/合并出新 id，
+                                                            // 按目标位重新收集并隐藏，避免真实卡片与浮层叠影
+                                                            draggingCourseIds =
+                                                                viewModel.getCoursesAtSlot(
+                                                                    week,
+                                                                    target.first,
+                                                                    targetStart,
+                                                                    targetEnd
+                                                                )
+                                                                    .filter { it.isActiveInWeek(week) }
+                                                                    .map { it.id }
+                                                                    .toSet()
                                                             snapFloatingCardToTarget(
                                                                 target.first,
                                                                 targetStart,
@@ -2319,26 +2535,111 @@ fun CourseScheduleApp() {
                                                                 }
                                                             }
                                                         } else {
-                                                            // 有课：暂存冲突信息，弹出对话框让用户选择"覆盖"或"交换"
+                                                            // 有课：暂存冲突信息，弹出对话框；浮层不闪退，
+                                                            // 连贯移到目标卡上方并上下浮动等用户选择
                                                             pendingConflictCourse =
                                                                 conflicts.first()
-                                                            // 暂存目标位置到 draggedCardCourse 的临时字段不容易，借助独立状态
                                                             pendingDropTarget =
                                                                 target.first to targetStart
                                                             showRescheduleConflictDialog = true
-                                                            // 不立刻关闭浮层，等用户选择后再处理
-                                                            // 但浮层要先隐藏，避免遮挡对话框
-                                                            coroutineScope.launch {
-                                                                floatingScale.animateTo(
-                                                                    1f,
-                                                                    tween(durationMillis = 180)
+                                                            val hoverTargetCenter =
+                                                                computeTargetCenter(
+                                                                    target.first,
+                                                                    targetStart,
+                                                                    sectionSpan
                                                                 )
-                                                                delay(180.milliseconds)
-                                                                isDraggingCard = false
-                                                                floatingCardVisible = false
-                                                                draggingCourseIds = emptySet()
-                                                                // 不清空 draggedCardCourse/pendingDropTarget，待对话框处理后再清
-                                                                draggedCardOffset = Offset.Zero
+                                                            if (hoverTargetCenter != null) {
+                                                                coroutineScope.launch {
+                                                                    stopConflictHover()
+                                                                    isConflictHover = true
+                                                                    isSnapping = true
+                                                                    floatingOffsetX.snapTo(
+                                                                        draggedCardOffset.x
+                                                                    )
+                                                                    floatingOffsetY.snapTo(
+                                                                        draggedCardOffset.y
+                                                                    )
+                                                                    val sectionHPx =
+                                                                        gridGeometry?.sectionHeightPx
+                                                                            ?: 0f
+                                                                    val floatH =
+                                                                        (sectionSpan + 1) * sectionHPx
+                                                                    val gap = with(density) {
+                                                                        10.dp.toPx()
+                                                                    }
+                                                                    // 悬在目标卡上方：中心再上移一整张浮层高度 + 间距
+                                                                    val hoverOffsetX =
+                                                                        hoverTargetCenter.x -
+                                                                                draggedCardPosition.x
+                                                                    val hoverOffsetY =
+                                                                        hoverTargetCenter.y -
+                                                                                draggedCardPosition.y -
+                                                                                floatH - gap
+                                                                    val settleEase =
+                                                                        CubicBezierEasing(
+                                                                            0.32f, 0.72f, 0.28f, 1f
+                                                                        )
+                                                                    val jobX = launch {
+                                                                        floatingOffsetX.animateTo(
+                                                                            hoverOffsetX,
+                                                                            tween(
+                                                                                durationMillis = 420,
+                                                                                easing = settleEase
+                                                                            )
+                                                                        )
+                                                                    }
+                                                                    val jobY = launch {
+                                                                        floatingOffsetY.animateTo(
+                                                                            hoverOffsetY,
+                                                                            tween(
+                                                                                durationMillis = 420,
+                                                                                easing = settleEase
+                                                                            )
+                                                                        )
+                                                                    }
+                                                                    val jobScale = launch {
+                                                                        floatingScale.animateTo(
+                                                                            1.04f,
+                                                                            tween(durationMillis = 420)
+                                                                        )
+                                                                    }
+                                                                    jobX.join(); jobY.join(); jobScale.join()
+                                                                    // 上下浮动，表示仍在「拿着」这张卡
+                                                                    val bobAmp = with(density) {
+                                                                        4.dp.toPx()
+                                                                    }
+                                                                    conflictHoverBobJob = launch {
+                                                                        while (true) {
+                                                                            floatingOffsetY.animateTo(
+                                                                                hoverOffsetY + bobAmp,
+                                                                                tween(
+                                                                                    durationMillis = 1400,
+                                                                                    easing = FastOutSlowInEasing
+                                                                                )
+                                                                            )
+                                                                            floatingOffsetY.animateTo(
+                                                                                hoverOffsetY - bobAmp,
+                                                                                tween(
+                                                                                    durationMillis = 1400,
+                                                                                    easing = FastOutSlowInEasing
+                                                                                )
+                                                                            )
+                                                                        }
+                                                                    }
+                                                                }
+                                                            } else {
+                                                                // 无网格几何时退回旧逻辑：缩回后隐藏
+                                                                coroutineScope.launch {
+                                                                    floatingScale.animateTo(
+                                                                        1f,
+                                                                        tween(durationMillis = 180)
+                                                                    )
+                                                                    delay(180.milliseconds)
+                                                                    isDraggingCard = false
+                                                                    floatingCardVisible = false
+                                                                    draggingCourseIds = emptySet()
+                                                                    draggedCardOffset = Offset.Zero
+                                                                }
                                                             }
                                                         }
                                                     } else {
@@ -2652,11 +2953,57 @@ fun CourseScheduleApp() {
                         viewModel = viewModel,
                         liquidGlassBackdrop = liquidGlassBackdrop,
                         hapticFeedback = hapticFeedback,
-                        onDismiss = {
+                        onCancel = {
                             showRescheduleConflictDialog = false
                             pendingConflictCourse = null
-                            pendingDropTarget = null
-                            draggedCardCourse = null
+                            // 取消：复用粘贴动画节奏，飞回原位
+                            flyFloatingCardHome()
+                        },
+                        onOverwriteResolved = {
+                            showRescheduleConflictDialog = false
+                            pendingConflictCourse = null
+                            // 覆盖：先隐藏目标位课程，再复用粘贴动画飞到目标格落地
+                            val source = draggedCardCourse
+                            val target = pendingDropTarget
+                            val week = draggedWeek
+                            if (source != null && target != null) {
+                                val span = source.endSection - source.startSection
+                                val atTarget = viewModel.getCoursesAtSlot(
+                                    week, target.first, target.second, target.second + span
+                                )
+                                draggingCourseIds = atTarget
+                                    .filter { it.isActiveInWeek(week) }
+                                    .map { it.id }
+                                    .toSet()
+                            }
+                            flyFloatingCardToDropTarget()
+                        },
+                        onSwapResolved = {
+                            showRescheduleConflictDialog = false
+                            val conflict = pendingConflictCourse
+                            pendingConflictCourse = null
+                            // 交换：先隐藏两侧课程，双浮层同时交叉飞行
+                            val source = draggedCardCourse
+                            val target = pendingDropTarget
+                            val week = draggedWeek
+                            if (source != null && target != null) {
+                                val span = source.endSection - source.startSection
+                                val atTarget = viewModel.getCoursesAtSlot(
+                                    week, target.first, target.second, target.second + span
+                                )
+                                val atSource = viewModel.getCoursesAtSlot(
+                                    week, source.dayOfWeek, source.startSection, source.endSection
+                                )
+                                draggingCourseIds = (atTarget + atSource)
+                                    .filter { it.isActiveInWeek(week) }
+                                    .map { it.id }
+                                    .toSet()
+                            }
+                            if (conflict != null) {
+                                flySwapCards(conflict)
+                            } else {
+                                dismissFloatingCard()
+                            }
                         },
                         onOverwrite = { ids ->
                             animateInCourseIds = ids
@@ -2792,6 +3139,51 @@ fun CourseScheduleApp() {
                                 course = course,
                                 // 粘贴飞行强制本周样式，避免源课不在当前周时飞出灰卡
                                 isCurrentWeek = if (isPasteFlight) true else course.isActiveInWeek(draggedWeek),
+                                wallpaperBackdrop = if (wallpaperBitmap != null) liquidGlassBackdrop else null,
+                                cardBlurRadius = displayAppearance.cardBlurRadius,
+                                cardAlpha = displayAppearance.cardAlpha,
+                                cardHeightPerSection = displayAppearance.cardHeight,
+                                cardCornerRadius = displayAppearance.cardCornerRadius,
+                                isTablet = isTablet,
+                                cardContentAlignment = displayAppearance.cardContentAlignment,
+                                cardTextColor = displayAppearance.cardTextColor,
+                                cardTextScale = displayAppearance.cardTextScale,
+                                showClassroom = displayAppearance.showClassroom,
+                                showTeacher = displayAppearance.showTeacher,
+                                disablePadding = true,
+                                onClick = {}
+                            )
+                        }
+                    }
+                }
+                // 交换第二浮层：被交换的目标课，与源浮层同时交叉飞行
+                if (swapFlightVisible) {
+                    val swapCourse = swapFlightCourse
+                    if (swapCourse != null) {
+                        val centerX = swapFlightOriginCenter.x + swapFlightOffsetX.value
+                        val centerY = swapFlightOriginCenter.y + swapFlightOffsetY.value
+                        val widthPx = swapFlightWidth
+                        val sectionCount = swapCourse.endSection - swapCourse.startSection + 1
+                        val sectionH = gridGeometry?.sectionHeightPx
+                            ?: with(density) { displayAppearance.cardHeight.dp.toPx() }
+                        val heightPx = sectionCount * sectionH
+                        val offsetX = with(density) { (centerX - widthPx / 2f).toDp() }
+                        val offsetY = with(density) { (centerY - heightPx / 2f).toDp() }
+                        val width = with(density) { widthPx.toDp() }
+                        val height = with(density) { heightPx.toDp() }
+                        Box(
+                            modifier = Modifier
+                                .offset(x = offsetX, y = offsetY)
+                                .size(width = width, height = height)
+                                .padding(vertical = 2.dp)
+                                .graphicsLayer {
+                                    scaleX = swapFlightScale.value
+                                    scaleY = swapFlightScale.value
+                                }
+                        ) {
+                            CourseCard(
+                                course = swapCourse,
+                                isCurrentWeek = true,
                                 wallpaperBackdrop = if (wallpaperBitmap != null) liquidGlassBackdrop else null,
                                 cardBlurRadius = displayAppearance.cardBlurRadius,
                                 cardAlpha = displayAppearance.cardAlpha,
