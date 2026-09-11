@@ -57,7 +57,6 @@ fun ProgressiveBlurTopBar(
 
     val blurShapeBlock: () -> androidx.compose.ui.graphics.Shape = remember { { RectangleShape } }
     // ShaderRegistry 按 key 共享 RuntimeShader；多顶栏同时挂载时必须各用独立 key，
-    // 否则会互相覆盖 uniform，慢滑表现为闪烁。
     val shaderKey = remember {
         "ProgressiveBlurRadial_${progressiveBlurShaderSeq.incrementAndGet()}"
     }
@@ -230,8 +229,8 @@ half4 main(float2 coord) {
     half4 sum = content.eval(coord);
     float wsum = 1.0;
     float2 dir = float2(1.0, 0.0);
-    float2 g = float2(cos(0.5235987756), sin(0.5235987756));
-    for (int i = 0; i < 12; i++) {
+    float2 g = float2(cos(0.7853981634), sin(0.7853981634));
+    for (int i = 0; i < 8; i++) {
         float2 sc = clamp(coord + dir * r, float2(0.0), max(bufferSize - 1.0, float2(0.0)));
         half4 c = content.eval(sc);
         if (c.a > 0.02) {
