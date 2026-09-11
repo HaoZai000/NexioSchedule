@@ -165,6 +165,8 @@ import top.yukonga.miuix.kmp.theme.MiuixTheme
 import top.yukonga.miuix.kmp.theme.ThemeController
 import java.time.LocalDate
 import java.util.Calendar
+import kotlin.math.PI
+import kotlin.math.sin
 import kotlin.time.Duration.Companion.milliseconds
 import androidx.compose.ui.graphics.Color as ComposeColor
 import com.kyant.backdrop.backdrops.layerBackdrop as liquidGlassLayerBackdrop
@@ -1487,6 +1489,27 @@ fun CourseScheduleApp() {
     }
 
     /**
+     * 粘贴飞行缩放曲线：
+     * 前半升到 peakScale，中段落回 1.0，末段落地轻弹（轻微放大再归位）。
+     */
+    fun pasteFlightScaleAt(raw: Float, peakScale: Float): Float {
+        val growSpan = 0.5f
+        val landStart = 0.86f
+        return when {
+            raw <= growSpan -> 1f + (peakScale - 1f) * (raw / growSpan)
+            raw <= landStart -> {
+                val s = (raw - growSpan) / (landStart - growSpan)
+                peakScale + (1f - peakScale) * s
+            }
+            else -> {
+                // 落地：1 → 1.05 → 1
+                val local = (raw - landStart) / (1f - landStart)
+                1f + 0.05f * sin(PI * local).toFloat()
+            }
+        }
+    }
+
+    /**
      * 计算目标落点位置卡片正中心的绝对坐标（root px）
      * 用于吸附动画：浮层从当前位置移动到目标位置中心
      */
@@ -1538,6 +1561,11 @@ fun CourseScheduleApp() {
                     // 初始化吸附起点为当前拖拽 offset
                     floatingOffsetX.snapTo(draggedCardOffset.x)
                     floatingOffsetY.snapTo(draggedCardOffset.y)
+                    // 浮层快落地时（约 80%）先开涟漪，邻卡在真卡显现前就开始动
+                    val jobRipple = launch {
+                        delay(176.milliseconds)
+                        triggerLandRipple(targetCenter)
+                    }
                     // 并行执行位移和缩小动画
                     val jobX = launch {
                         floatingOffsetX.animateTo(
@@ -1558,10 +1586,11 @@ fun CourseScheduleApp() {
                         )
                     }
                     val jobScale =
-                        launch { floatingScale.animateTo(1f, tween(durationMillis = 220)) }
-                    jobX.join(); jobY.join(); jobScale.join()
-                    // 落地涟漪
-                    triggerLandRipple(targetCenter)
+                        launch { floatingScale.animateTo(1f, tween(durationMillis = 180)) }
+                    jobX.join(); jobY.join(); jobScale.join(); jobRipple.join()
+                    // 落地轻弹：轻微放大再归位
+                    floatingScale.animateTo(1.05f, tween(55, easing = FastOutSlowInEasing))
+                    floatingScale.animateTo(1f, tween(110, easing = FastOutSlowInEasing))
                     // 清空状态，原卡片在目标位置显现
                     isDraggingCard = false
                     floatingCardVisible = false
@@ -1615,14 +1644,13 @@ fun CourseScheduleApp() {
                 floatingOffsetY.snapTo(0f)
                 floatingScale.snapTo(1f)
 
-                // 位移 ease-in-out（两边慢中间快）；缩放保持线性
+                // 位移 ease-in-out（两边慢中间快）；缩放：升到 1.4 再回落，落地轻弹
                 val dx = targetCenter.x - sourceCenter.x
                 val dy = targetCenter.y - sourceCenter.y
                 val peakScale = 1.4f
-                val growSpan = 0.5f
-                val shrinkSpan = 0.5f
                 val durationNanos = 480_000_000L
                 val moveEase = CubicBezierEasing(0.55f, 0f, 0.45f, 1f)
+                var rippleFired = false
                 val startNanos = withFrameNanos { it }
                 while (true) {
                     val now = withFrameNanos { it }
@@ -1630,20 +1658,16 @@ fun CourseScheduleApp() {
                     val t = moveEase.transform(raw)
                     floatingOffsetX.snapTo(dx * t)
                     floatingOffsetY.snapTo(dy * t)
-                    val scale = when {
-                        raw <= growSpan -> 1f + (peakScale - 1f) * (raw / growSpan)
-                        raw >= 1f - shrinkSpan -> {
-                            val s = (raw - (1f - shrinkSpan)) / shrinkSpan
-                            peakScale + (1f - peakScale) * s
-                        }
-                        else -> peakScale
+                    floatingScale.snapTo(pasteFlightScaleAt(raw, peakScale))
+                    // 快落地时先开涟漪，邻卡在真卡显现前就开始动
+                    if (!rippleFired && raw >= 0.8f) {
+                        rippleFired = true
+                        triggerLandRipple(targetCenter)
                     }
-                    floatingScale.snapTo(scale)
                     if (raw >= 1f) break
                 }
 
                 // 落地后立刻换上真实课程并撤掉浮层，避免双影
-                triggerLandRipple(targetCenter)
                 floatingCardVisible = false
                 isSnapping = false
                 isPasteFlight = false
@@ -1691,7 +1715,7 @@ fun CourseScheduleApp() {
     }
 
     /**
-     * 粘贴节奏飞行：从当前悬停 offset 飞到 destOffset，缩放 1→1.4→1.0，结束后收起浮层。
+     * 粘贴节奏飞行：从当前悬停 offset 飞到 destOffset，结束后收起浮层。
      */
     fun flyFloatingCardWithPasteMotion(destOffsetX: Float, destOffsetY: Float) {
         stopConflictHover()
@@ -1701,11 +1725,10 @@ fun CourseScheduleApp() {
             val startX = floatingOffsetX.value
             val startY = floatingOffsetY.value
             val peakScale = 1.4f
-            val growSpan = 0.5f
-            val shrinkSpan = 0.5f
             val durationNanos = 480_000_000L
             val moveEase = CubicBezierEasing(0.55f, 0f, 0.45f, 1f)
             floatingScale.snapTo(1f)
+            var rippleFired = false
             val startNanos = withFrameNanos { it }
             while (true) {
                 val now = withFrameNanos { it }
@@ -1713,24 +1736,18 @@ fun CourseScheduleApp() {
                 val t = moveEase.transform(raw)
                 floatingOffsetX.snapTo(startX + (destOffsetX - startX) * t)
                 floatingOffsetY.snapTo(startY + (destOffsetY - startY) * t)
-                val scale = when {
-                    raw <= growSpan -> 1f + (peakScale - 1f) * (raw / growSpan)
-                    raw >= 1f - shrinkSpan -> {
-                        val s = (raw - (1f - shrinkSpan)) / shrinkSpan
-                        peakScale + (1f - peakScale) * s
-                    }
-                    else -> peakScale
+                floatingScale.snapTo(pasteFlightScaleAt(raw, peakScale))
+                if (!rippleFired && raw >= 0.8f) {
+                    rippleFired = true
+                    triggerLandRipple(
+                        Offset(
+                            draggedCardPosition.x + destOffsetX,
+                            draggedCardPosition.y + destOffsetY
+                        )
+                    )
                 }
-                floatingScale.snapTo(scale)
                 if (raw >= 1f) break
             }
-            // 落地涟漪
-            triggerLandRipple(
-                Offset(
-                    draggedCardPosition.x + destOffsetX,
-                    draggedCardPosition.y + destOffsetY
-                )
-            )
             isDraggingCard = false
             floatingCardVisible = false
             draggingCourseIds = emptySet()
@@ -1829,10 +1846,9 @@ fun CourseScheduleApp() {
                     val tgtEndY = draggedCardPosition.y - occupiedCenter.y
 
                     val peakScale = 1.4f
-                    val growSpan = 0.5f
-                    val shrinkSpan = 0.5f
                     val durationNanos = 480_000_000L
                     val moveEase = CubicBezierEasing(0.55f, 0f, 0.45f, 1f)
+                    var rippleFired = false
                     val startNanos = withFrameNanos { it }
                     while (true) {
                         val now = withFrameNanos { it }
@@ -1842,21 +1858,16 @@ fun CourseScheduleApp() {
                         floatingOffsetY.snapTo(srcStartY + (srcEndY - srcStartY) * t)
                         swapFlightOffsetX.snapTo(tgtEndX * t)
                         swapFlightOffsetY.snapTo(tgtEndY * t)
-                        val scale = when {
-                            raw <= growSpan -> 1f + (peakScale - 1f) * (raw / growSpan)
-                            raw >= 1f - shrinkSpan -> {
-                                val s = (raw - (1f - shrinkSpan)) / shrinkSpan
-                                peakScale + (1f - peakScale) * s
-                            }
-                            else -> peakScale
-                        }
+                        val scale = pasteFlightScaleAt(raw, peakScale)
                         floatingScale.snapTo(scale)
                         swapFlightScale.snapTo(scale)
+                        if (!rippleFired && raw >= 0.8f) {
+                            rippleFired = true
+                            triggerLandRipple(targetCenter)
+                        }
                         if (raw >= 1f) break
                     }
 
-                    // 双卡同时落地，以目标格为冲击点触发涟漪
-                    triggerLandRipple(targetCenter)
                     clearSwapFlight()
                     isDraggingCard = false
                     floatingCardVisible = false
