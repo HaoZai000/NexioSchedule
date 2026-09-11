@@ -1628,7 +1628,7 @@ fun CourseScheduleApp() {
                 delay(120.milliseconds)
                 // 原卡片保持可见（复制语义），仅浮层克隆飞行
                 draggedCardCourse = source
-                draggedWeek = currentWeek
+                draggedWeek = currentViewingWeek
                 draggedCardPosition = sourceCenter
                 draggedCardOffset = Offset.Zero
                 // 卡片左右各 2dp padding，与 CourseCard 默认 padding 对齐
@@ -2915,7 +2915,7 @@ fun CourseScheduleApp() {
                         show = showPasteRangeDialog,
                         courseName = copiedCourseForPaste?.name ?: "",
                         viewModel = viewModel,
-                        currentWeek = currentWeek,
+                        currentWeek = currentViewingWeek,
                         liquidGlassBackdrop = liquidGlassBackdrop,
                         hapticFeedback = hapticFeedback,
                         onPaste = { allWeeks ->
@@ -2925,11 +2925,13 @@ fun CourseScheduleApp() {
                                 val (day, section) = target
                                 val span = (meta.endSection - meta.startSection).coerceAtLeast(0)
                                 val endSection = section + span
+                                // 「当前周」= 正在浏览的周，不是日历上的 currentWeek
+                                val pasteWeek = currentViewingWeek
                                 if (endSection > totalSections) {
                                     android.widget.Toast.makeText(context, "空间不足，无法粘贴", android.widget.Toast.LENGTH_SHORT).show()
                                 } else {
-                                    val conflicts = viewModel.getCoursesAtSlot(currentWeek, day, section, endSection)
-                                        .filter { it.isActiveInWeek(currentWeek) }
+                                    val conflicts = viewModel.getCoursesAtSlot(pasteWeek, day, section, endSection)
+                                        .filter { it.isActiveInWeek(pasteWeek) }
                                     if (conflicts.isNotEmpty()) {
                                         android.widget.Toast.makeText(context, "目标位置有课，无法粘贴", android.widget.Toast.LENGTH_SHORT).show()
                                     } else {
@@ -2947,14 +2949,14 @@ fun CourseScheduleApp() {
                                                 lastModified = System.currentTimeMillis()
                                             )
                                         } else {
-                                            // 当前周：仅本周
+                                            // 当前周：仅粘贴到正在浏览的这一周
                                             meta.copy(
                                                 id = java.util.UUID.randomUUID().toString(),
                                                 dayOfWeek = day,
                                                 startSection = section,
                                                 endSection = endSection,
-                                                startWeek = currentWeek,
-                                                endWeek = currentWeek,
+                                                startWeek = pasteWeek,
+                                                endWeek = pasteWeek,
                                                 weekType = Course.WEEK_TYPE_ALL,
                                                 selectedWeeks = emptyList(),
                                                 scheduleId = "",

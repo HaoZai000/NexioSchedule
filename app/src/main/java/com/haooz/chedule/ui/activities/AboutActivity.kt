@@ -264,16 +264,18 @@ private fun AboutScreen(onBack: () -> Unit, liquidGlassBackdrop: com.kyant.backd
                     horizontalAlignment = Alignment.CenterHorizontally,
                 ) {
                     val appIcon = remember {
-                        val drawable = context.applicationInfo.icon.let { resId ->
-                            context.getDrawable(resId)
+                        val drawable = try {
+                            context.packageManager.getApplicationIcon(context.packageName)
+                        } catch (_: Exception) {
+                            context.applicationInfo.icon
+                                .takeIf { it != 0 }
+                                ?.let { id -> runCatching { context.getDrawable(id) }.getOrNull() }
                         }
                         if (drawable != null) {
-                            val bitmap = createBitmap(
-                                drawable.intrinsicWidth.coerceAtLeast(1),
-                                drawable.intrinsicHeight.coerceAtLeast(1)
-                            )
+                            val size = maxOf(drawable.intrinsicWidth, drawable.intrinsicHeight, 1)
+                            val bitmap = createBitmap(size, size)
                             val canvas = Canvas(bitmap)
-                            drawable.setBounds(0, 0, canvas.width, canvas.height)
+                            drawable.setBounds(0, 0, size, size)
                             drawable.draw(canvas)
                             bitmap.asImageBitmap()
                         } else null
