@@ -30,9 +30,10 @@ private val progressiveBlurShaderSeq = AtomicInteger(0)
 /**
  * 顶部栏渐进模糊：模糊半径随 Y 从顶部最大连续收到 0。
  *
- * 管线（API 33+）：AGSL 抖动多重采样 → 轻量空间去噪。
+ * 管线（API 33+）：AGSL 32 点抖动多重采样 → 轻量空间去噪。
  * 不用 Compose BlurEffect——在每帧重录的 GraphicsLayer 上滚动会闪。
  * downsampleScale = 1，避免默认 0.42 降采样在慢滑时跳格抖动。
+ * Shader：黄金角递推、单次 hash；padding 区不上屏直接直通（AGSL 不支持 const 数组表）。
  *
  * API < 33 降级为表面色渐变遮罩。
  */
@@ -161,25 +162,25 @@ half4 progressiveBlur(float2 coord, float radius) {
     if (radius < 0.5) {
         return content.eval(coord);
     }
+    float h = hash12(coord);
+    float2 dir = float2(cos(h * 6.2831853), sin(h * 6.2831853));
+    float2 g = float2(cos(2.39996323), sin(2.39996323));
     half4 sum = half4(0.0);
     float wsum = 0.0;
-    // 高半径时采样点距大于笔画宽，固定螺旋会把文字打成星点；
-    // 逐像素旋转核 + 径向扰动，把规则点阵打散成细噪。
-    float spin = hash12(coord) * 6.2831853;
-    for (int i = 0; i < 64; i++) {
+    for (int i = 0; i < 32; i++) {
         float fi = float(i);
-        float r = radius * pow((fi + 0.5) / 64.0, 0.5);
-        r *= 0.90 + 0.20 * hash12(coord + float2(fi, 1.7));
-        float a = fi * 2.39996323 + spin;
-        float2 o = float2(cos(a), sin(a)) * r;
-        float w = exp(-r * r / max(0.85 * radius * radius, 0.001));
+        float ff = (fi + 0.5) / 32.0;
+        float r = radius * sqrt(ff);
+        r *= 0.90 + 0.20 * fract(h * 93.9898 + fi * 0.7548776662);
+        float2 o = dir * r;
+        float w = exp(-ff / 0.85);
         float2 sc = clamp(coord + o, float2(0.0), max(bufferSize - 1.0, float2(0.0)));
         half4 c = content.eval(sc);
-        // 近透明样本不参与平均，避免顶边空隙把 alpha 洗掉、露出清晰层
         if (c.a > 0.02) {
             sum += c * w;
             wsum += w;
         }
+        dir = float2(dir.x * g.x - dir.y * g.y, dir.x * g.y + dir.y * g.x);
     }
     if (wsum < 0.0001) {
         return content.eval(coord);
@@ -188,12 +189,16 @@ half4 progressiveBlur(float2 coord, float radius) {
 }
 
 half4 main(float2 coord) {
-    // 可见区域从 contentOrigin 起算，padding 边距不参与 Y 渐变
-    float t = clamp((coord.y - contentOrigin.y) / max(contentSize.y, 1.0), 0.0, 1.0);
+    // padding 边距不上屏：直接直通
+    float2 local = coord - contentOrigin;
+    if (local.x < 0.0 || local.y < 0.0 ||
+        local.x >= contentSize.x || local.y >= contentSize.y) {
+        return content.eval(coord);
+    }
+    float t = clamp(local.y / max(contentSize.y, 1.0), 0.0, 1.0);
     float u = 1.0 - smoothstep(0.0, 1.0, t);
     float radius = maxRadius * u;
     half4 color = progressiveBlur(coord, radius);
-    // 仅末端收透明度，消掉与下方清晰内容的接缝
     float edge = softerstep(0.88, 1.0, t);
     color *= (1.0 - edge);
     if (tintIntensity > 0.0) {
@@ -203,7 +208,7 @@ half4 main(float2 coord) {
 }
 """
 
-/** 对上一阶段结果做小半径盒式平均，压掉抖动细噪；半径与模糊强度成正比。 */
+/** 小半径盒式平均，压掉上一阶段抖动细噪；半径与模糊强度成正比。 */
 private const val PROGRESSIVE_DENOISE_SHADER = """
 uniform shader content;
 uniform float2 contentOrigin;
@@ -211,27 +216,29 @@ uniform float2 contentSize;
 uniform float2 bufferSize;
 uniform float maxRadius;
 
-$SOFTER_STEP
-
 half4 main(float2 coord) {
-    float t = clamp((coord.y - contentOrigin.y) / max(contentSize.y, 1.0), 0.0, 1.0);
-    // 与渐进模糊同一套曲线，避免两阶段半径不一致
-    float u = 1.0 - smoothstep(0.0, 1.0, t);
-    float r = maxRadius * u * 0.18;
+    float2 local = coord - contentOrigin;
+    if (local.x < 0.0 || local.y < 0.0 ||
+        local.x >= contentSize.x || local.y >= contentSize.y) {
+        return content.eval(coord);
+    }
+    float t = clamp(local.y / max(contentSize.y, 1.0), 0.0, 1.0);
+    float r = maxRadius * (1.0 - smoothstep(0.0, 1.0, t)) * 0.18;
     if (r < 0.4) {
         return content.eval(coord);
     }
     half4 sum = content.eval(coord);
     float wsum = 1.0;
+    float2 dir = float2(1.0, 0.0);
+    float2 g = float2(cos(0.5235987756), sin(0.5235987756));
     for (int i = 0; i < 12; i++) {
-        float a = float(i) * 0.5235987756;
-        float2 o = float2(cos(a), sin(a)) * r;
-        float2 sc = clamp(coord + o, float2(0.0), max(bufferSize - 1.0, float2(0.0)));
+        float2 sc = clamp(coord + dir * r, float2(0.0), max(bufferSize - 1.0, float2(0.0)));
         half4 c = content.eval(sc);
         if (c.a > 0.02) {
             sum += c;
             wsum += 1.0;
         }
+        dir = float2(dir.x * g.x - dir.y * g.y, dir.x * g.y + dir.y * g.x);
     }
     return sum / wsum;
 }
