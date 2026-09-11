@@ -26,16 +26,17 @@ import com.kyant.backdrop.effects.runtimeShaderEffect
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 
 /**
- * 渐变模糊顶部栏容器
+ * 渐进模糊顶部栏容器
  *
- * 在液态玻璃模式下，为顶部栏提供渐变模糊效果。
- * 模糊层在底层，内容在顶层，避免循环采样。
- * API < 33 时降级为渐变遮罩。
+ * 半径随 Y 连续变化的真渐进模糊：顶部最大，向下收到 0。
  *
- * @param backdrop 液态玻璃 backdrop
- * @param modifier 外部 modifier
- * @param height 模糊区域基础高度（不含状态栏）
- * @param content 顶部栏内容（通常是 SmallTopAppBar）
+ * 重影处理：
+ * - 64 点黄金螺旋 + 中心加密，把硬边副本融开
+ * - 1dp 高斯当重建滤波，只抹亚像素笔画，几乎看不出底板
+ * - 仅最末端（约 12%）softerstep 消掉 1dp 与清晰内容的硬边，
+ *   中上部不整层淡出，保持连贯的渐进糊感
+ *
+ * API < 33 降级为表面色渐变遮罩。
  */
 @Composable
 fun ProgressiveBlurTopBar(
@@ -48,7 +49,6 @@ fun ProgressiveBlurTopBar(
     content: @Composable BoxScope.() -> Unit
 ) {
     val density = LocalDensity.current
-    // 显式传入 height 时直接使用；否则按状态栏自适应：有状态栏 80dp+状态栏，无状态栏 120dp
     val totalHeight = if (height != Dp.Unspecified) {
         height
     } else {
@@ -56,43 +56,31 @@ fun ProgressiveBlurTopBar(
         if (statusBarHeight > 0.dp) 80.dp + statusBarHeight else 120.dp
     }
 
-    // drawPlainBackdrop 的 element 用引用比较 shape/effects（ShapeProvider 无 equals），
-    // 组合期每次新建 lambda 都会让节点 update → invalidateDraw → 重新录层 + 重新模糊。
-    // 顶栏渐变模糊在滚动时会逐帧重组（blurAlpha 在组合期被读取），必须把这两个 lambda 固定。
     val blurShapeBlock: () -> androidx.compose.ui.graphics.Shape = remember { { RectangleShape } }
-    val blurEffects: com.kyant.backdrop.BackdropEffectScope.() -> Unit = remember(tintColor, tintIntensity) {
-        {
-            blur(4f.dp.toPx())
-            runtimeShaderEffect(
-                "ProgressiveBlurAlphaMask",
-                """
-    uniform shader content;
-    uniform float2 size;
-    layout(color) uniform half4 tint;
-    uniform float tintIntensity;
-
-    half4 main(float2 coord) {
-        float blurAlpha = smoothstep(size.y, size.y * 0.6, coord.y);
-        float tintAlpha = smoothstep(size.y, size.y * 0.7, coord.y);
-        return mix(content.eval(coord) * blurAlpha, tint * tintAlpha, tintIntensity);
-    }""",
-                "content"
-            ) {
-                // size uniform 需按降采样比例缩放，与模糊缓冲的实际像素范围对齐
-                setFloatUniform(
-                    "size",
-                    size.width * downsampleScale,
-                    size.height * downsampleScale
-                )
-                setColorUniform("tint", tintColor)
-                setFloatUniform("tintIntensity", tintIntensity)
+    val blurEffects: com.kyant.backdrop.BackdropEffectScope.() -> Unit =
+        remember(tintColor, tintIntensity) {
+            {
+                // 1dp：只当多重采样的抗锯齿，肉眼几乎无「底板感」
+                blur(0.5f.dp.toPx())
+                runtimeShaderEffect(
+                    "ProgressiveBlurRadial",
+                    PROGRESSIVE_BLUR_SHADER,
+                    "content"
+                ) {
+                    setFloatUniform(
+                        "size",
+                        size.width * downsampleScale,
+                        size.height * downsampleScale
+                    )
+                    setFloatUniform("maxRadius", 20f.dp.toPx() * downsampleScale)
+                    setColorUniform("tint", tintColor)
+                    setFloatUniform("tintIntensity", tintIntensity)
+                }
             }
         }
-    }
 
     Box(modifier = modifier) {
         if (Build.VERSION.SDK_INT >= 33) {
-            // 模糊层 - 在底层，采样 backdrop（API 33+）
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -105,7 +93,6 @@ fun ProgressiveBlurTopBar(
                     )
             )
         } else {
-            // 渐变遮罩降级（API < 33）- 先快后慢的渐变
             val gradientColor = MiuixTheme.colorScheme.surface
             val endY = totalHeight.value * density.density
             Box(
@@ -127,7 +114,56 @@ fun ProgressiveBlurTopBar(
                     )
             )
         }
-        // 内容层 - 在顶层
         content()
     }
 }
+
+private const val PROGRESSIVE_BLUR_SHADER = """
+uniform shader content;
+uniform float2 size;
+uniform float maxRadius;
+layout(color) uniform half4 tint;
+uniform float tintIntensity;
+
+half4 progressiveBlur(float2 coord, float radius) {
+    if (radius < 0.5) {
+        return content.eval(coord);
+    }
+    half4 sum = half4(0.0);
+    float wsum = 0.0;
+    // 64 点：点多副本碎，硬边更易融成连续糊，而不是几道重影
+    // pow(x, 0.62) 把采样往中心挤，文字先被高频平均，再向外扩散
+    for (int i = 0; i < 64; i++) {
+        float fi = float(i);
+        float r = radius * pow((fi + 0.5) / 64.0, 0.62);
+        float a = fi * 2.39996323;
+        float2 o = float2(cos(a), sin(a)) * r;
+        float w = exp(-r * r / max(0.45 * radius * radius, 0.001));
+        sum += content.eval(coord + o) * w;
+        wsum += w;
+    }
+    return sum / max(wsum, 0.0001);
+}
+
+// 两端更软的 S 曲线，避免 smoothstep 在收尾处仍留下可察觉的棱
+float softerstep(float a, float b, float x) {
+    float s = clamp((x - a) / max(b - a, 0.0001), 0.0, 1.0);
+    return s * s * s * (s * (s * 6.0 - 15.0) + 10.0);
+}
+
+half4 main(float2 coord) {
+    float t = clamp(coord.y / max(size.y, 1.0), 0.0, 1.0);
+    // 顶部保持较大半径，向下连续收到 0
+    float u = 1.0 - smoothstep(0.0, 1.0, t);
+    float radius = maxRadius * sqrt(u);
+    half4 color = progressiveBlur(coord, radius);
+    // 只在最末端消掉 1dp 底板与清晰内容的硬边。
+    // 区间压得很窄 + softerstep：中上部几乎无感，不会像整段淡出带那样把糊感洗掉
+    float edge = softerstep(0.88, 1.0, t);
+    color *= (1.0 - edge);
+    if (tintIntensity > 0.0) {
+        color = mix(color, tint * (1.0 - edge), tintIntensity * sqrt(u));
+    }
+    return color;
+}
+"""
