@@ -21,20 +21,20 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import com.kyant.backdrop.Backdrop
 import com.kyant.backdrop.drawPlainBackdrop
-import com.kyant.backdrop.effects.blur
 import com.kyant.backdrop.effects.runtimeShaderEffect
 import top.yukonga.miuix.kmp.theme.MiuixTheme
+import java.util.concurrent.atomic.AtomicInteger
+
+private val progressiveBlurShaderSeq = AtomicInteger(0)
 
 /**
  * 渐进模糊顶部栏容器
  *
  * 半径随 Y 连续变化的真渐进模糊：顶部最大，向下收到 0。
  *
- * 重影处理：
- * - 64 点黄金螺旋 + 中心加密，把硬边副本融开
- * - 1dp 高斯当重建滤波，只抹亚像素笔画，几乎看不出底板
- * - 仅最末端（约 12%）softerstep 消掉 1dp 与清晰内容的硬边，
- *   中上部不整层淡出，保持连贯的渐进糊感
+ * 实现只走 AGSL 多重采样，**不挂 Compose BlurEffect**：
+ * 系统 blur 在「每帧重录的 GraphicsLayer + RenderEffect」上滚动时很容易一闪一闪，
+ * 和半径/采样无关。硬边重影靠采样密度压，不靠 BlurEffect 底噪。
  *
  * API < 33 降级为表面色渐变遮罩。
  */
@@ -57,13 +57,17 @@ fun ProgressiveBlurTopBar(
     }
 
     val blurShapeBlock: () -> androidx.compose.ui.graphics.Shape = remember { { RectangleShape } }
+    // 每个实例必须用独立 key：ShaderRegistry 按 key 共享同一份 android.graphics.RuntimeShader，
+    // 今日/课表/设置顶栏会同时挂载，共用 key 会互相覆盖 uniform，慢滑时表现为一闪一闪。
+    val shaderKey = remember {
+        "ProgressiveBlurRadial_${progressiveBlurShaderSeq.incrementAndGet()}"
+    }
     val blurEffects: com.kyant.backdrop.BackdropEffectScope.() -> Unit =
-        remember(tintColor, tintIntensity) {
+        remember(shaderKey, tintColor, tintIntensity) {
             {
-                // 1dp：只当多重采样的抗锯齿，肉眼几乎无「底板感」
-                blur(0.5f.dp.toPx())
+
                 runtimeShaderEffect(
-                    "ProgressiveBlurRadial",
+                    shaderKey,
                     PROGRESSIVE_BLUR_SHADER,
                     "content"
                 ) {
@@ -132,10 +136,10 @@ half4 progressiveBlur(float2 coord, float radius) {
     half4 sum = half4(0.0);
     float wsum = 0.0;
     // 64 点：点多副本碎，硬边更易融成连续糊，而不是几道重影
-    // pow(x, 0.62) 把采样往中心挤，文字先被高频平均，再向外扩散
+    // pow(x, 0.5) = sqrt：面积均匀分布；比 0.62 更靠外一点，外圈也够密
     for (int i = 0; i < 64; i++) {
         float fi = float(i);
-        float r = radius * pow((fi + 0.5) / 64.0, 0.62);
+        float r = radius * pow((fi + 0.5) / 64.0, 0.5);
         float a = fi * 2.39996323;
         float2 o = float2(cos(a), sin(a)) * r;
         float w = exp(-r * r / max(0.45 * radius * radius, 0.001));

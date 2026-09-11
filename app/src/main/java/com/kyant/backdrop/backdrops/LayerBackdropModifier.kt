@@ -77,7 +77,11 @@ private class LayerBackdropNode(
         drawContent()
         val w = size.width.roundToInt()
         val h = size.height.roundToInt()
-        if (needsRecord || recordedW != w || recordedH != h) {
+        // recordKey == null：内容可能每帧变化（滚动中的课表/顶栏），必须每帧重录。
+        // 之前误写成只在 needsRecord/尺寸变化时录，与文档「null = 每帧录制」不一致，
+        // 会导致采样层停在旧帧，和当帧内容对不齐，慢滑时看起来发闪。
+        val shouldRecord = recordKey == null || needsRecord || recordedW != w || recordedH != h
+        if (shouldRecord) {
             needsRecord = false
             recordedW = w
             recordedH = h
