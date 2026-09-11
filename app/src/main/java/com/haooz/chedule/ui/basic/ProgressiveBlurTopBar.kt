@@ -33,8 +33,8 @@ private val progressiveBlurShaderSeq = AtomicInteger(0)
  * 半径随 Y 连续变化的真渐进模糊：顶部最大，向下收到 0。
  *
  * 实现只走 AGSL 多重采样，**不挂 Compose BlurEffect**：
- * 系统 blur 在「每帧重录的 GraphicsLayer + RenderEffect」上滚动时很容易一闪一闪，
- * 和半径/采样无关。硬边重影靠采样密度压，不靠 BlurEffect 底噪。
+ * 系统 blur 在「每帧重录的 GraphicsLayer + RenderEffect」上滚动时很容易一闪一闪。
+ * 流程：抖动多重采样（消文字星点）→ 轻量空间去噪（平掉细噪）。
  *
  * API < 33 降级为表面色渐变遮罩。
  */
@@ -62,10 +62,11 @@ fun ProgressiveBlurTopBar(
     val shaderKey = remember {
         "ProgressiveBlurRadial_${progressiveBlurShaderSeq.incrementAndGet()}"
     }
+    val denoiseKey = remember(shaderKey) { "${shaderKey}_denoise" }
     val blurEffects: com.kyant.backdrop.BackdropEffectScope.() -> Unit =
-        remember(shaderKey, tintColor, tintIntensity) {
+        remember(shaderKey, denoiseKey, tintColor, tintIntensity) {
             {
-
+                val maxRadiusPx = 16f.dp.toPx()
                 runtimeShaderEffect(
                     shaderKey,
                     PROGRESSIVE_BLUR_SHADER,
@@ -76,9 +77,23 @@ fun ProgressiveBlurTopBar(
                         size.width * downsampleScale,
                         size.height * downsampleScale
                     )
-                    setFloatUniform("maxRadius", 20f.dp.toPx() * downsampleScale)
+                    setFloatUniform("maxRadius", maxRadiusPx * downsampleScale)
                     setColorUniform("tint", tintColor)
                     setFloatUniform("tintIntensity", tintIntensity)
+                }
+                // 抖动去星点后会留细噪：串一道轻量空间平均。
+                // 半径跟模糊强度走（约 18%），只平噪、不把渐进糊感洗掉。
+                runtimeShaderEffect(
+                    denoiseKey,
+                    PROGRESSIVE_DENOISE_SHADER,
+                    "content"
+                ) {
+                    setFloatUniform(
+                        "size",
+                        size.width * downsampleScale,
+                        size.height * downsampleScale
+                    )
+                    setFloatUniform("maxRadius", maxRadiusPx * downsampleScale)
                 }
             }
         }
@@ -129,20 +144,29 @@ uniform float maxRadius;
 layout(color) uniform half4 tint;
 uniform float tintIntensity;
 
+float hash12(float2 p) {
+    float3 p3 = fract(float3(p.xyx) * 0.1031);
+    p3 += dot(p3, p3.yzx + 33.33);
+    return fract((p3.x + p3.y) * p3.z);
+}
+
 half4 progressiveBlur(float2 coord, float radius) {
     if (radius < 0.5) {
         return content.eval(coord);
     }
     half4 sum = half4(0.0);
     float wsum = 0.0;
-    // 64 点：点多副本碎，硬边更易融成连续糊，而不是几道重影
-    // pow(x, 0.5) = sqrt：面积均匀分布；比 0.62 更靠外一点，外圈也够密
+    // 高半径时采样点距 > 文字笔画宽，固定螺旋会把笔画打成「星星点点」。
+    // 每个像素随机旋转核 + 轻微径向抖动，把规则点阵打散成细噪，视觉上更接近真模糊。
+    float spin = hash12(coord) * 6.2831853;
     for (int i = 0; i < 64; i++) {
         float fi = float(i);
         float r = radius * pow((fi + 0.5) / 64.0, 0.5);
-        float a = fi * 2.39996323;
+        r *= 0.90 + 0.20 * hash12(coord + float2(fi, 1.7));
+        float a = fi * 2.39996323 + spin;
         float2 o = float2(cos(a), sin(a)) * r;
-        float w = exp(-r * r / max(0.45 * radius * radius, 0.001));
+        // 权重略放平（σ 更大），外圈点不要过稀，避免只在中心糊、外围拖出亮斑
+        float w = exp(-r * r / max(0.85 * radius * radius, 0.001));
         sum += content.eval(coord + o) * w;
         wsum += w;
     }
@@ -169,5 +193,35 @@ half4 main(float2 coord) {
         color = mix(color, tint * (1.0 - edge), tintIntensity * sqrt(u));
     }
     return color;
+}
+"""
+
+/**
+ * 轻量空间去噪：对上一阶段（抖动多重采样）的结果做小半径盒式平均。
+ * 半径与渐进模糊强度成正比，底部自然退化为直通。
+ */
+private const val PROGRESSIVE_DENOISE_SHADER = """
+uniform shader content;
+uniform float2 size;
+uniform float maxRadius;
+
+half4 main(float2 coord) {
+    float t = clamp(coord.y / max(size.y, 1.0), 0.0, 1.0);
+    float u = 1.0 - smoothstep(0.0, 1.0, t);
+    float radius = maxRadius * sqrt(u);
+    float r = radius * 0.18;
+    if (r < 0.4) {
+        return content.eval(coord);
+    }
+    half4 sum = content.eval(coord);
+    float wsum = 1.0;
+    // 12 向等权环：盒式平均，比高斯更擅长压细噪
+    for (int i = 0; i < 12; i++) {
+        float a = float(i) * 0.5235987756;
+        float2 o = float2(cos(a), sin(a)) * r;
+        sum += content.eval(coord + o);
+        wsum += 1.0;
+    }
+    return sum / wsum;
 }
 """
