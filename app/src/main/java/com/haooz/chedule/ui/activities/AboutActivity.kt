@@ -3,6 +3,7 @@ package com.haooz.chedule.ui.activities
 
 import android.annotation.SuppressLint
 import android.content.Intent
+import android.graphics.Bitmap
 import android.graphics.Canvas
 import android.os.Bundle
 import androidx.activity.ComponentActivity
@@ -277,7 +278,7 @@ private fun AboutScreen(onBack: () -> Unit, liquidGlassBackdrop: com.kyant.backd
                             val canvas = Canvas(bitmap)
                             drawable.setBounds(0, 0, size, size)
                             drawable.draw(canvas)
-                            bitmap.asImageBitmap()
+                            cropBitmapToOpaque(bitmap).asImageBitmap()
                         } else null
                     }
                     Box(
@@ -952,4 +953,34 @@ private fun AboutScreen(onBack: () -> Unit, liquidGlassBackdrop: com.kyant.backd
             }
         }
     }
+}
+
+/** 裁掉 AdaptiveIcon 画布四周透明区域，避免 About 页图标显得过小。 */
+private fun cropBitmapToOpaque(source: Bitmap): Bitmap {
+    val width = source.width
+    val height = source.height
+    if (width <= 0 || height <= 0) return source
+    val pixels = IntArray(width * height)
+    source.getPixels(pixels, 0, width, 0, 0, width, height)
+    var minX = width
+    var minY = height
+    var maxX = -1
+    var maxY = -1
+    var index = 0
+    for (y in 0 until height) {
+        for (x in 0 until width) {
+            if (pixels[index] ushr 24 != 0) {
+                if (x < minX) minX = x
+                if (x > maxX) maxX = x
+                if (y < minY) minY = y
+                if (y > maxY) maxY = y
+            }
+            index++
+        }
+    }
+    if (maxX < minX || maxY < minY) return source
+    val croppedWidth = maxX - minX + 1
+    val croppedHeight = maxY - minY + 1
+    if (croppedWidth == width && croppedHeight == height) return source
+    return Bitmap.createBitmap(source, minX, minY, croppedWidth, croppedHeight)
 }
