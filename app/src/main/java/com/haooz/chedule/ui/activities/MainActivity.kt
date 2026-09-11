@@ -104,7 +104,9 @@ import com.haooz.chedule.ui.basic.ShortcutMenu
 import com.haooz.chedule.ui.basic.ShortcutMenuItem
 import com.haooz.chedule.ui.basic.rememberSharedScrollBehavior
 import com.haooz.chedule.ui.components.CourseCard
+import com.haooz.chedule.ui.components.LandRippleSpec
 import com.haooz.chedule.ui.components.LiquidAddButton
+import com.haooz.chedule.ui.components.LocalLandRipple
 import com.haooz.chedule.ui.components.ScheduleBottomBar
 import com.haooz.chedule.ui.components.ScheduleTopBar
 import com.haooz.chedule.ui.components.ShareImportDialog
@@ -1013,6 +1015,9 @@ fun CourseScheduleApp() {
     val floatingOffsetY = remember { Animatable(0f) }
     // 粘贴飞行：复用长按浮层卡片，直线飞向目标格，前段快放大到 1.4、后段快缩小回 1.0
     var isPasteFlight by remember { mutableStateOf(false) }
+    // 浮层落地冲击波：周围课程卡按距离延迟涟漪
+    var landRippleCenter by remember { mutableStateOf(Offset.Zero) }
+    var landRippleToken by remember { mutableIntStateOf(0) }
     // 调课冲突悬停：浮层移到目标卡上方并上下浮动，直到用户在弹窗中做出选择
     var isConflictHover by remember { mutableStateOf(false) }
     var conflictHoverBobJob by remember { mutableStateOf<kotlinx.coroutines.Job?>(null) }
@@ -1447,6 +1452,11 @@ fun CourseScheduleApp() {
     }
 
     val coroutineScope = rememberCoroutineScope()
+    // 触发落地涟漪
+    val triggerLandRipple: (Offset) -> Unit = { center ->
+        landRippleCenter = center
+        landRippleToken++
+    }
     // 停止冲突悬停浮动
     val stopConflictHover: () -> Unit = {
         conflictHoverBobJob?.cancel()
@@ -1550,6 +1560,8 @@ fun CourseScheduleApp() {
                     val jobScale =
                         launch { floatingScale.animateTo(1f, tween(durationMillis = 220)) }
                     jobX.join(); jobY.join(); jobScale.join()
+                    // 落地涟漪
+                    triggerLandRipple(targetCenter)
                     // 清空状态，原卡片在目标位置显现
                     isDraggingCard = false
                     floatingCardVisible = false
@@ -1631,6 +1643,7 @@ fun CourseScheduleApp() {
                 }
 
                 // 落地后立刻换上真实课程并撤掉浮层，避免双影
+                triggerLandRipple(targetCenter)
                 floatingCardVisible = false
                 isSnapping = false
                 isPasteFlight = false
@@ -1711,6 +1724,13 @@ fun CourseScheduleApp() {
                 floatingScale.snapTo(scale)
                 if (raw >= 1f) break
             }
+            // 落地涟漪
+            triggerLandRipple(
+                Offset(
+                    draggedCardPosition.x + destOffsetX,
+                    draggedCardPosition.y + destOffsetY
+                )
+            )
             isDraggingCard = false
             floatingCardVisible = false
             draggingCourseIds = emptySet()
@@ -1835,6 +1855,8 @@ fun CourseScheduleApp() {
                         if (raw >= 1f) break
                     }
 
+                    // 双卡同时落地，以目标格为冲击点触发涟漪
+                    triggerLandRipple(targetCenter)
                     clearSwapFlight()
                     isDraggingCard = false
                     floatingCardVisible = false
@@ -2371,7 +2393,13 @@ fun CourseScheduleApp() {
                                             .graphicsLayer { alpha = if (selectedTab == 1) 1f else 0f }
                                             .drawWithContent { if (selectedTab == 1) drawContent() }
                                     ) {
-                                        MainScheduleScreen(
+                                        CompositionLocalProvider(
+                                            LocalLandRipple provides LandRippleSpec(
+                                                center = landRippleCenter,
+                                                token = landRippleToken
+                                            )
+                                        ) {
+                                            MainScheduleScreen(
                                             viewModel = viewModel,
                                             settingsViewModel = settingsViewModel,
                                             pagerState = pagerState,
@@ -2680,6 +2708,7 @@ fun CourseScheduleApp() {
                                             externalSelectedCourse = scheduleSelectedCourse,
                                             externalSelectedCourses = scheduleSelectedCourses
                                         )
+                                        }
                                     }
 
                                     Box(

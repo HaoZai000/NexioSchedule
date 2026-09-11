@@ -2,6 +2,7 @@ package com.haooz.chedule.ui.components
 
 import android.annotation.SuppressLint
 import androidx.compose.animation.core.Animatable
+import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.gestures.awaitEachGesture
@@ -21,6 +22,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.compositionLocalOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableStateOf
@@ -58,8 +60,17 @@ import top.yukonga.miuix.kmp.basic.Card
 import top.yukonga.miuix.kmp.basic.CardDefaults
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 import top.yukonga.miuix.kmp.utils.PressFeedbackType
+import kotlin.math.hypot
 import kotlin.time.Duration.Companion.milliseconds
 import android.graphics.Color as AndroidColor
+
+/** 浮层落地冲击波：中心坐标 + 自增 token，触发周围课程卡涟漪 */
+data class LandRippleSpec(
+    val center: Offset = Offset.Zero,
+    val token: Int = 0,
+)
+
+val LocalLandRipple = compositionLocalOf { LandRippleSpec() }
 
 @Composable
 fun CourseCard(
@@ -102,6 +113,27 @@ fun CourseCard(
     val isDark = isAppDarkTheme()
     val scope = rememberCoroutineScope()
     val localDensity = LocalDensity.current
+
+    // 落地涟漪：全表覆盖，近处几乎立刻、远处按距离铺开先后
+    val landRipple = LocalLandRipple.current
+    val rippleScale = remember { Animatable(1f) }
+    val cardBoundsPx = remember { FloatArray(4) }
+    LaunchedEffect(landRipple.token) {
+        if (landRipple.token == 0) return@LaunchedEffect
+        val cx = cardBoundsPx[0]
+        val cy = cardBoundsPx[1]
+        if (cx == 0f && cy == 0f) return@LaunchedEffect
+        val dist = hypot(cx - landRipple.center.x, cy - landRipple.center.y)
+        // 冲击点附近不延迟，往外再按距离拉开先后
+        val delayMs = if (dist < 90f) {
+            0L
+        } else {
+            ((dist - 90f) * 0.3f).toLong().coerceAtMost(400L)
+        }
+        if (delayMs > 0) delay(delayMs)
+        rippleScale.animateTo(1.08f, tween(80, easing = FastOutSlowInEasing))
+        rippleScale.animateTo(1f, tween(320, easing = FastOutSlowInEasing))
+    }
 
     val effectiveAlpha = if (hasBlur) cardAlpha * 1.6f else cardAlpha
     // 假期课程与调休课程沿用非本周课程的灰色，不再使用课程自身颜色
@@ -146,9 +178,6 @@ fun CourseCard(
         key(effectiveCornerRadius) {
             var isPressed by remember { mutableStateOf(false) }
             val scale = remember { Animatable(1f) }
-            // 卡片几何（centerX, centerY, width, height）仅在手势触发（长按）时读取，
-            // 用普通数组存储，避免滑动期间 onGloballyPositioned 逐帧写 snapshot 状态
-            val cardBoundsPx = remember { FloatArray(4) }
             val backdropShape = remember(effectiveCornerRadius) { ContinuousRoundedRectangle(effectiveCornerRadius.dp) }
             val blurPx = with(localDensity) { remember(cardBlurRadius) { cardBlurRadius.dp.toPx() } }
             val lensRadiusPx = with(localDensity) { remember(cardRefraction) { cardRefraction.lensRadiusDp.dp.toPx() } }
@@ -202,8 +231,9 @@ fun CourseCard(
                     .height(cardHeight)
                     .then(if (disablePadding) Modifier else Modifier.padding(horizontal = 2.dp, vertical = 2.dp))
                     .graphicsLayer {
-                        scaleX = scale.value
-                        scaleY = scale.value
+                        val s = scale.value * rippleScale.value
+                        scaleX = s
+                        scaleY = s
                         alpha = if (isDragging) 0f else 1f
                     }
                     .onGloballyPositioned { coordinates ->
@@ -345,15 +375,14 @@ fun CourseCard(
             }
         }
     } else {
-        // 卡片几何（centerX, centerY, width, height）仅在手势触发（长按）时读取，
-        // 用普通数组存储，避免滑动期间 onGloballyPositioned 逐帧写 snapshot 状态
-        val cardBoundsPx = remember { FloatArray(4) }
         Box(
             modifier = modifier
                 .fillMaxWidth()
                 .height(cardHeight)
                 .then(if (disablePadding) Modifier else Modifier.padding(horizontal = 2.dp, vertical = 2.dp))
                 .graphicsLayer {
+                    scaleX = rippleScale.value
+                    scaleY = rippleScale.value
                     alpha = if (isDragging) 0f else 1f
                 }
                 .onGloballyPositioned { coordinates ->
