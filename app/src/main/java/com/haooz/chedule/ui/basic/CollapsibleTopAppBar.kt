@@ -308,7 +308,7 @@ fun CollapsibleTopAppBar(
     startAction: @Composable ((backdropAlpha: Float, shadowAlpha: Float) -> Unit)? = null,
     // 右侧自定义 Composable（接收 backdropAlpha、shadowAlpha 用于液态玻璃按钮动画）
     endAction: @Composable ((backdropAlpha: Float, shadowAlpha: Float) -> Unit)? = null,
-    gradientMaskHeight: Dp = CollapsibleTopAppBarDefaults.CollapsedHeight + 70.dp,
+    gradientMaskHeight: Dp = CollapsibleTopAppBarDefaults.CollapsedHeight + 60.dp,
     // 暴露当前的 backdropAlpha/shadowAlpha，供外部组件（如搜索框）同步动画
     onAlphaChanged: (backdropAlpha: Float, shadowAlpha: Float) -> Unit = { _, _ -> },
 ) {
