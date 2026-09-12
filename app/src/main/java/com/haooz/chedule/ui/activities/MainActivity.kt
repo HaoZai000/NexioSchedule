@@ -17,7 +17,9 @@ import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.CubicBezierEasing
 import androidx.compose.animation.core.FastOutSlowInEasing
+import androidx.compose.animation.core.Spring
 import androidx.compose.animation.core.animateDpAsState
+import androidx.compose.animation.core.spring
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
@@ -51,6 +53,7 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
@@ -992,6 +995,10 @@ fun CourseScheduleApp() {
     var draggedCardPosition by remember { mutableStateOf(Offset.Zero) }
     var draggedCardSize by remember { mutableStateOf(Offset.Zero) }
     var draggedCardOffset by remember { mutableStateOf(Offset.Zero) }
+    // 拖拽末速度（px/s），松手吸附时作为 spring 初速度
+    var dragVelocity by remember { mutableStateOf(Offset.Zero) }
+    var lastDragTimeMs by remember { mutableLongStateOf(0L) }
+    var lastDragOffset by remember { mutableStateOf(Offset.Zero) }
     var draggedCardBackdrop by remember { mutableStateOf<com.kyant.backdrop.Backdrop?>(null) }
     var draggedWeek by remember { mutableIntStateOf(1) }
     // 网格几何信息：拖拽落点检测使用
@@ -1482,6 +1489,9 @@ fun CourseScheduleApp() {
             draggingCourseIds = emptySet()
             draggedCardCourse = null
             draggedCardOffset = Offset.Zero
+            dragVelocity = Offset.Zero
+            lastDragTimeMs = 0L
+            lastDragOffset = Offset.Zero
             pendingDropTarget = null
             isSnapping = false
             // 重置为入场起始值，避免下次显示时首帧渲染残留的 1.0 造成抖动
@@ -1547,57 +1557,49 @@ fun CourseScheduleApp() {
     }
 
     /**
-     * 启动吸附动画：浮层从当前 offset 移动到目标位置中心，同时缩小到 1f
-     * 动画结束后清空状态，原卡片在目标位置显现
+     * 空位调课吸附：spring 带回弹吸进目标格，带上拖拽末速度；中段开涟漪，稳定后直接收起。
      */
     val snapFloatingCardToTarget: (dayOfWeek: Int, startSection: Int, sectionSpan: Int) -> Unit =
         { day, section, span ->
             val targetCenter = computeTargetCenter(day, section, span)
             if (targetCenter != null) {
-                // 目标 offset = 目标中心 - 原卡片中心（原卡片中心 = draggedCardPosition）
                 val targetOffsetX = targetCenter.x - draggedCardPosition.x
                 val targetOffsetY = targetCenter.y - draggedCardPosition.y
                 coroutineScope.launch {
                     isSnapping = true
-                    // 初始化吸附起点为当前拖拽 offset
                     floatingOffsetX.snapTo(draggedCardOffset.x)
                     floatingOffsetY.snapTo(draggedCardOffset.y)
-                    // 浮层快落地时（约 80%）先开涟漪，邻卡在真卡显现前就开始动
-                    val jobRipple = launch {
-                        delay(176.milliseconds)
+                    launch {
+                        delay(120.milliseconds)
                         triggerLandRipple(targetCenter)
                     }
-                    // 并行执行位移和缩小动画
+                    // 明显一点的 spring：吸进格子时有回弹
+                    val snapSpec = spring<Float>(
+                        dampingRatio = 0.58f,
+                        stiffness = Spring.StiffnessMediumLow
+                    )
+                    val scaleSpec = spring<Float>(
+                        dampingRatio = 0.7f,
+                        stiffness = Spring.StiffnessMedium
+                    )
                     val jobX = launch {
-                        floatingOffsetX.animateTo(
-                            targetOffsetX,
-                            tween(
-                                durationMillis = 220,
-                                easing = CubicBezierEasing(0.34f, 1.1f, 0.3f, 1f)
-                            )
-                        )
+                        floatingOffsetX.animateTo(targetOffsetX, snapSpec, dragVelocity.x)
                     }
                     val jobY = launch {
-                        floatingOffsetY.animateTo(
-                            targetOffsetY,
-                            tween(
-                                durationMillis = 220,
-                                easing = CubicBezierEasing(0.34f, 1.1f, 0.3f, 1f)
-                            )
-                        )
+                        floatingOffsetY.animateTo(targetOffsetY, snapSpec, dragVelocity.y)
                     }
-                    val jobScale =
-                        launch { floatingScale.animateTo(1f, tween(durationMillis = 180)) }
-                    jobX.join(); jobY.join(); jobScale.join(); jobRipple.join()
-                    // 落地轻弹：轻微放大再归位
-                    floatingScale.animateTo(1.05f, tween(55, easing = FastOutSlowInEasing))
-                    floatingScale.animateTo(1f, tween(110, easing = FastOutSlowInEasing))
-                    // 清空状态，原卡片在目标位置显现
+                    val jobScale = launch {
+                        floatingScale.animateTo(1f, scaleSpec)
+                    }
+                    jobX.join(); jobY.join(); jobScale.join()
                     isDraggingCard = false
                     floatingCardVisible = false
                     draggingCourseIds = emptySet()
                     draggedCardCourse = null
                     draggedCardOffset = Offset.Zero
+                    dragVelocity = Offset.Zero
+                    lastDragTimeMs = 0L
+                    lastDragOffset = Offset.Zero
                     pendingDropTarget = null
                     isSnapping = false
                     floatingScale.snapTo(0.94f)
@@ -1684,31 +1686,36 @@ fun CourseScheduleApp() {
         }
     }
 
-    /** 回弹动画：浮层从当前位置动画回到原位再消失 */
+    /** 回弹动画：原地长按松手，spring 吸回原位再消失 */
     val snapFloatingCardToOrigin: () -> Unit = {
         coroutineScope.launch {
             isSnapping = true
             floatingOffsetX.snapTo(draggedCardOffset.x)
             floatingOffsetY.snapTo(draggedCardOffset.y)
+            val snapSpec = spring<Float>(
+                dampingRatio = 0.58f,
+                stiffness = Spring.StiffnessMediumLow
+            )
+            val scaleSpec = spring<Float>(
+                dampingRatio = 0.7f,
+                stiffness = Spring.StiffnessMedium
+            )
             val jobX = launch {
-                floatingOffsetX.animateTo(
-                    0f,
-                    tween(durationMillis = 220, easing = CubicBezierEasing(0.34f, 1.1f, 0.3f, 1f))
-                )
+                floatingOffsetX.animateTo(0f, snapSpec, dragVelocity.x)
             }
             val jobY = launch {
-                floatingOffsetY.animateTo(
-                    0f,
-                    tween(durationMillis = 220, easing = CubicBezierEasing(0.34f, 1.1f, 0.3f, 1f))
-                )
+                floatingOffsetY.animateTo(0f, snapSpec, dragVelocity.y)
             }
-            val jobScale = launch { floatingScale.animateTo(1f, tween(durationMillis = 220)) }
+            val jobScale = launch { floatingScale.animateTo(1f, scaleSpec) }
             jobX.join(); jobY.join(); jobScale.join()
             isDraggingCard = false
             floatingCardVisible = false
             draggingCourseIds = emptySet()
             draggedCardCourse = null
             draggedCardOffset = Offset.Zero
+            dragVelocity = Offset.Zero
+            lastDragTimeMs = 0L
+            lastDragOffset = Offset.Zero
             pendingDropTarget = null
             isSnapping = false
             floatingScale.snapTo(0.94f)
@@ -2452,6 +2459,9 @@ fun CourseScheduleApp() {
                                                 // left/top 现在是卡片正中心绝对坐标，浮层按中心对齐使用
                                                 draggedCardPosition = Offset(left, top)
                                                 draggedCardOffset = Offset.Zero
+                                                dragVelocity = Offset.Zero
+                                                lastDragTimeMs = 0L
+                                                lastDragOffset = Offset.Zero
                                                 draggedCardSize = Offset(width, height)
                                                 draggedCardBackdrop = backdrop
                                                 shortcutMenuCourse = course
@@ -2476,7 +2486,19 @@ fun CourseScheduleApp() {
                                                 }
                                             },
                                             onCourseDrag = { _, offsetX, offsetY ->
-                                                draggedCardOffset = Offset(offsetX, offsetY)
+                                                // 跟手 1:1；同时估算末速度供松手 spring
+                                                val now = android.os.SystemClock.uptimeMillis()
+                                                val newOffset = Offset(offsetX, offsetY)
+                                                if (lastDragTimeMs != 0L) {
+                                                    val dt = (now - lastDragTimeMs).coerceAtLeast(1L)
+                                                    dragVelocity = Offset(
+                                                        (newOffset.x - lastDragOffset.x) / dt * 1000f,
+                                                        (newOffset.y - lastDragOffset.y) / dt * 1000f
+                                                    )
+                                                }
+                                                lastDragTimeMs = now
+                                                lastDragOffset = newOffset
+                                                draggedCardOffset = newOffset
                                                 // 实时计算落点：x 用浮层中心，y 用卡片第一格中心（卡片顶部 + 半节高）
                                                 // 卡片高度基于 course 实时计算，避免 draggedCardSize 缓存旧值导致偏移
                                                 val course = draggedCardCourse
@@ -2640,7 +2662,7 @@ fun CourseScheduleApp() {
                                                                     }
                                                                     val jobScale = launch {
                                                                         floatingScale.animateTo(
-                                                                            1.04f,
+                                                                            1.08f,
                                                                             tween(durationMillis = 420)
                                                                         )
                                                                     }
@@ -3145,7 +3167,7 @@ fun CourseScheduleApp() {
                             "render course=${course.name}, sec=${course.startSection}-${course.endSection}, draggedCardSize=${draggedCardSize}"
                         )
                         // draggedCardPosition 为卡片正中心绝对坐标，浮层按中心对齐：offset = 中心 - 半宽
-                        // 吸附期间使用 floatingOffsetAnim 替代 draggedCardOffset，实现从当前位置到目标位置的动画
+                        // 吸附：floatingOffset；拖拽：跟手 draggedCardOffset
                         val currentOffsetX =
                             if (isSnapping) floatingOffsetX.value else draggedCardOffset.x
                         val currentOffsetY =
@@ -3167,7 +3189,7 @@ fun CourseScheduleApp() {
                             // 粘贴飞行自行控制缩放，跳过长按入场 0.94→1.04
                             if (floatingCardVisible && !isPasteFlight) {
                                 floatingScale.snapTo(0.94f)
-                                floatingScale.animateTo(1.04f, tween(durationMillis = 120))
+                                floatingScale.animateTo(1.08f, tween(durationMillis = 120))
                             }
                         }
 
@@ -3364,7 +3386,7 @@ fun CourseScheduleApp() {
                 modifier = Modifier.offset(
                     // 菜单 layout 含 ShadowPadding(12dp)，左移 12dp 使可见左边缘与卡片左边缘对齐
                     x = with(density) { shortcutMenuPosition.x.toDp() - 12.dp },
-                    y = with(density) { (shortcutMenuPosition.y - shortcutMenuSize.height).toDp() + 6.dp }
+                    y = with(density) { (shortcutMenuPosition.y - shortcutMenuSize.height).toDp() + 8.dp }
                 ),
                 backdrop = liquidGlassBackdrop,
                 anchorRightPx = shortcutMenuPosition.x + shortcutMenuAnchorWidth,

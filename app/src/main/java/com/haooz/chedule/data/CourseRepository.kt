@@ -253,12 +253,13 @@ class CourseRepository private constructor(context: Context) {
     }
 
     /**
-     * 修复旧数据中 scheduleId/selectedWeeks 可能为 null 的问题
-     * Gson 反序列化绕过 Kotlin non-null 检查，后加的字段在旧 JSON 中缺失时会被设为 null
-     * 直接调用 copy() 会因将 null 传给 non-null 参数而 NPE
+     * 修复旧数据中字段可能为 null 的问题。
+     *
+     * Gson 用 UnsafeAllocator 绕过构造器，Kotlin 默认值不生效；后加的字段在旧 JSON 中
+     * 缺失时会是 null。直接 `copy()` / 访问非空字段都会 NPE。
+     * 这里无条件重建，保证所有非空字段拿到默认值。
      */
-    // USELESS_ELVIS：以下 ?: 在编译器看来永远走左值，但 Gson 用 UnsafeAllocator 绕过构造器反序列化，
-    // 旧 JSON 缺失字段时这些"非空"字段会是 null，运行期必须兜底，不能删。
+    // USELESS_ELVIS：以下 ?: 在编译器看来永远走左值，但 Gson 反序列化后字段可能是 null
     @Suppress(
         "SENSELESS_COMPARISON",
         "ELVIS_ALWAYS_NULL",
@@ -267,30 +268,25 @@ class CourseRepository private constructor(context: Context) {
     )
     private fun sanitizeCourses(courses: List<Course>): List<Course> {
         return courses.map { course ->
-            if (course.scheduleId == null || course.selectedWeeks == null
-                || course.customStartTime == null || course.customEndTime == null) {
-                Course(
-                    id = course.id ?: "",
-                    name = course.name ?: "",
-                    classroom = course.classroom ?: "",
-                    teacher = course.teacher ?: "",
-                    dayOfWeek = course.dayOfWeek,
-                    startSection = course.startSection,
-                    endSection = course.endSection,
-                    startWeek = course.startWeek,
-                    endWeek = course.endWeek,
-                    weekType = course.weekType,
-                    colorRes = course.colorRes,
-                    selectedWeeks = course.selectedWeeks ?: emptyList(),
-                    scheduleId = course.scheduleId ?: "",
-                    lastModified = course.lastModified,
-                    isCustomTime = course.isCustomTime,
-                    customStartTime = course.customStartTime,
-                    customEndTime = course.customEndTime
-                )
-            } else {
-                course
-            }
+            Course(
+                id = course.id ?: "",
+                name = course.name ?: "",
+                classroom = course.classroom ?: "",
+                teacher = course.teacher ?: "",
+                dayOfWeek = course.dayOfWeek,
+                startSection = course.startSection,
+                endSection = course.endSection,
+                startWeek = course.startWeek,
+                endWeek = course.endWeek,
+                weekType = course.weekType,
+                colorRes = course.colorRes,
+                selectedWeeks = course.selectedWeeks ?: emptyList(),
+                scheduleId = course.scheduleId ?: "",
+                lastModified = course.lastModified,
+                isCustomTime = course.isCustomTime,
+                customStartTime = course.customStartTime,
+                customEndTime = course.customEndTime
+            )
         }
     }
 
@@ -1465,6 +1461,10 @@ class CourseRepository private constructor(context: Context) {
                     remove(key)
                 }
             }
+            // 时间配置绑定键是 schedule_time_config_{name}，
+            // 不匹配 schedule_{name}_ 前缀，必须单独删；
+            // 否则同名课表删了再导入会撞上残留绑定，跳过新建时间配置。
+            remove("$SCHEDULE_TIME_CONFIG_PREFIX$name")
         }
         // 直接改写了 prefs：该课表的课程缓存与时间配置缓存全部失效，
         // 否则新建同名课表时会读到已删除的旧数据
@@ -1507,7 +1507,8 @@ class CourseRepository private constructor(context: Context) {
                                 if (suffix == KEY_COURSES) {
                                     val type = object : TypeToken<List<Course>>() {}.type
                                     try {
-                                        val courses: List<Course> = gson.fromJson(value, type) ?: emptyList()
+                                        // 先 sanitize：旧 JSON 字段可能为 null，直接 copy() 会 NPE
+                                        val courses = sanitizeCourses(gson.fromJson(value, type) ?: emptyList())
                                         val updated = courses.map { it.copy(scheduleId = newName) }
                                         putString(newKey, gson.toJson(updated))
                                     } catch (_: Exception) {
@@ -1526,6 +1527,16 @@ class CourseRepository private constructor(context: Context) {
                         }
                         remove(key)
                     }
+                }
+            }
+            // schedule_time_config_{old} 不匹配 schedule_{old}_ 前缀，
+            // 上面的循环迁不到，必须单独搬，否则重命名后课表会丢时间配置绑定
+            val oldBoundKey = "$SCHEDULE_TIME_CONFIG_PREFIX$oldName"
+            if (prefs.contains(oldBoundKey)) {
+                val boundId = prefs.getLong(oldBoundKey, 0L)
+                prefs.edit(commit = true) {
+                    putLong("$SCHEDULE_TIME_CONFIG_PREFIX$newName", boundId)
+                    remove(oldBoundKey)
                 }
             }
             // 课表重命名改写了 schedule_* 键前缀并可能改写当前课表 ID，
@@ -1991,13 +2002,29 @@ class CourseRepository private constructor(context: Context) {
         }
         val config = try {
             val parsed = gson.fromJson(json, TimeConfig::class.java)
-            // 兼容旧版/跨版本数据：R8 曾剥离未 keep 类的泛型签名，Gson 会把 specialBlocks /
-            // items 里的元素按 Object 解析成原始 Map，后续 UI 强转会崩溃。这里统一还原
-            // （Map → 数据类，不丢数据），且清洗后的对象随下次 saveTimeConfig 写回干净数据（自愈）
-            parsed?.copy(
-                id = id,
-                specialBlocks = parsed.safeSpecialBlocks
-            ) ?: TimeConfig(id = id, name = "默认配置")
+            if (parsed == null) {
+                TimeConfig(id = id, name = "默认配置")
+            } else {
+                // 兼容旧版/跨版本数据：specialBlocks/items 可能是 Map 或字段为 null，
+                // 统一经 safeSpecialBlocks 还原；清洗后的对象随下次 saveTimeConfig 写回（自愈）。
+                // sectionTimes/sectionNames 等 Map 字段在旧 JSON 中可能缺失 → null。
+                // copy() 会把 null 传给非空参数抛 NPE，外层 catch 会误判成坏数据并整份重置成默认，
+                // 用户会静默丢失节次时间。这里先兜成 emptyMap 再 copy。
+                // USELESS_ELVIS：Gson 反序列化后非空字段仍可能是 null
+                @Suppress(
+                    "SENSELESS_COMPARISON",
+                    "ELVIS_ALWAYS_NULL",
+                    "USELESS_ELVIS",
+                    "NULLABILITY_MISMATCH_BASED_ON_JAVA_ANNOTATIONS"
+                )
+                parsed.copy(
+                    id = id,
+                    name = parsed.name ?: "默认配置",
+                    sectionTimes = parsed.sectionTimes ?: emptyMap(),
+                    sectionNames = parsed.sectionNames ?: emptyMap(),
+                    specialBlocks = parsed.safeSpecialBlocks
+                )
+            }
         } catch (_: Exception) {
             TimeConfig(id = id, name = "默认配置")
         }
@@ -2403,6 +2430,7 @@ class CourseRepository private constructor(context: Context) {
             remove(KEY_SHIFT_SELECTED_SCHEDULES)
             remove(KEY_TIME_CONFIG_IDS)
             remove(KEY_CURRENT_TIME_CONFIG_ID)
+            remove(KEY_DEFAULT_HOMEPAGE)
 
             // 写入备份数据
             for ((key, value) in data) {
@@ -2466,8 +2494,10 @@ class CourseRepository private constructor(context: Context) {
             val dayOfWeek = (courseMap["dayOfWeek"] as? Number)?.toInt() ?: return@mapNotNull null
             val startSection = (courseMap["startSection"] as? Number)?.toInt() ?: return@mapNotNull null
             val endSection = (courseMap["endSection"] as? Number)?.toInt() ?: return@mapNotNull null
-            @Suppress("UNCHECKED_CAST")
-            val selectedWeeks = (courseMap["selectedWeeks"] as? List<Number>)?.map { it.toInt() } ?: emptyList()
+            // Gson 反序列化 JSON 数组元素可能是 Double/Integer，用 List<*> + as? Number 更稳
+            val selectedWeeks = (courseMap["selectedWeeks"] as? List<*>)
+                ?.mapNotNull { (it as? Number)?.toInt() }
+                ?: emptyList()
             // 当前版本的备份会显式导出 startWeek/endWeek/weekType。
             // 旧版备份只写了把起止周展开后的 selectedWeeks，此时回退用 min/max 推断，
             // 单双周（weekType）已无从还原，只能保持 0。
@@ -2509,25 +2539,56 @@ class CourseRepository private constructor(context: Context) {
         // 直接写入了课程数据，缓存失效以确保 UI 读到新数据
         invalidateAllCaches()
 
-        // 为新课表创建时间配置并绑定
-        val existingConfigId = getScheduleTimeConfigId(scheduleName)
-        if (existingConfigId == 0L) {
+        // 为导入课表建立独立时间配置并绑定。
+        //
+        // 不能依赖 getScheduleTimeConfigId(...) == 0L 判断「尚未绑定」：
+        // 该方法在无绑定时会 fallback 到「第一个已有时间配置」，本机只要已有任意配置
+        // 就不会走到新建分支，备份里的 time_config 会被静默丢弃。
+        //
+        // 也不能只看 prefs.contains(boundKey)：deleteSchedule 历史上不清理
+        // schedule_time_config_*，同名课表删了再导入会撞上残留绑定。
+        //
+        // 因此：只要备份带了 time_config 就强制新建并覆盖绑定；没有 time_config 时
+        // 仅在确实无绑定的情况下复制当前配置。
+        val boundKey = "$SCHEDULE_TIME_CONFIG_PREFIX$scheduleName"
+        if (timeConfigData != null || !prefs.contains(boundKey)) {
             val newConfig = if (timeConfigData != null) {
-                // 从导入数据创建时间配置
+                // 从导入数据创建时间配置（旧备份可能只含部分字段，其余走默认值）
                 val sectionTimesMap = mutableMapOf<String, String>()
-                @Suppress("UNCHECKED_CAST")
-                (timeConfigData["sectionTimes"] as? Map<String, String>)?.forEach { (k, v) ->
-                    sectionTimesMap[k] = v
+                (timeConfigData["sectionTimes"] as? Map<*, *>)?.forEach { (k, v) ->
+                    if (k is String && v is String) sectionTimesMap[k] = v
                 }
-                @Suppress("UNCHECKED_CAST")
-                val importedSectionNames = (timeConfigData["sectionNames"] as? Map<String, String>) ?: emptyMap()
+                val importedSectionNames = mutableMapOf<String, String>()
+                (timeConfigData["sectionNames"] as? Map<*, *>)?.forEach { (k, v) ->
+                    if (k is String && v is String) importedSectionNames[k] = v
+                }
+                val importedSpecialBlocks = (timeConfigData["specialBlocks"] as? List<*>)
+                    ?.mapNotNull { SpecialBlock.fromRaw(it) }
+                    ?: emptyList()
                 TimeConfig(
                     name = scheduleName,
                     morningSections = (timeConfigData["morningSections"] as? Number)?.toInt() ?: 4,
                     afternoonSections = (timeConfigData["afternoonSections"] as? Number)?.toInt() ?: 4,
                     eveningSections = (timeConfigData["eveningSections"] as? Number)?.toInt() ?: 4,
+                    quickTimeEnabled = (timeConfigData["quickTimeEnabled"] as? Boolean) ?: false,
+                    classDuration = (timeConfigData["classDuration"] as? Number)?.toInt() ?: 45,
+                    shortBreak = (timeConfigData["shortBreak"] as? Number)?.toInt() ?: 10,
+                    longBreakEnabled = (timeConfigData["longBreakEnabled"] as? Boolean) ?: false,
+                    longBreakMorning = (timeConfigData["longBreakMorning"] as? Number)?.toInt() ?: 20,
+                    longBreakAfternoon = (timeConfigData["longBreakAfternoon"] as? Number)?.toInt() ?: 20,
+                    longBreakEvening = (timeConfigData["longBreakEvening"] as? Number)?.toInt() ?: 20,
+                    longBreakMorningSection = (timeConfigData["longBreakMorningSection"] as? Number)?.toInt() ?: 2,
+                    longBreakAfternoonSection = (timeConfigData["longBreakAfternoonSection"] as? Number)?.toInt() ?: 2,
+                    longBreakEveningSection = (timeConfigData["longBreakEveningSection"] as? Number)?.toInt() ?: 2,
+                    morningStartHour = (timeConfigData["morningStartHour"] as? Number)?.toInt() ?: 8,
+                    morningStartMinute = (timeConfigData["morningStartMinute"] as? Number)?.toInt() ?: 0,
+                    afternoonStartHour = (timeConfigData["afternoonStartHour"] as? Number)?.toInt() ?: 14,
+                    afternoonStartMinute = (timeConfigData["afternoonStartMinute"] as? Number)?.toInt() ?: 0,
+                    eveningStartHour = (timeConfigData["eveningStartHour"] as? Number)?.toInt() ?: 18,
+                    eveningStartMinute = (timeConfigData["eveningStartMinute"] as? Number)?.toInt() ?: 30,
                     sectionTimes = sectionTimesMap,
-                    sectionNames = importedSectionNames
+                    sectionNames = importedSectionNames,
+                    specialBlocks = importedSpecialBlocks
                 )
             } else {
                 // 没有导入时间配置，复制当前课表的

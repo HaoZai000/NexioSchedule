@@ -53,6 +53,7 @@ private fun parseMinutesHm(time: String?): Int {
  *
  * @param dividerGap 午休/晚休分界带高度（dp，0 表示不显示）
  */
+@Suppress("USELESS_ELVIS", "SENSELESS_COMPARISON", "ELVIS_ALWAYS_NULL")
 fun computeSpecialGridLayout(
     morningSections: Int,
     afternoonSections: Int,
@@ -178,7 +179,16 @@ fun computeSpecialGridLayout(
                 displayTop = div + dividerGap
             }
         }
-        SpecialGridBand(displayTop, b.height, sp.name, sp.startTime, sp.endTime, sp.id)
+        // name/startTime/endTime 理论上已由 SpecialBlock.fromRaw 兜底；这里再兜一层，
+        // 避免任何旁路传入 Gson 留下的 null 字段导致非空参数 NPE（R8 下表现为 getClass() on null）
+        SpecialGridBand(
+            displayTop,
+            b.height,
+            sp.name ?: "",
+            sp.startTime ?: "08:00",
+            sp.endTime ?: "08:40",
+            sp.id
+        )
     }
 
     val baseTotal = (sectionTop[totalSections] ?: 0f) + cardHeightPerSection

@@ -20,14 +20,25 @@ data class SpecialItem(
          * `as SpecialItem` 强转都会抛 ClassCastException —— v1.5.0 正式版的线上崩溃
          * 正是这条：SpecialBandBody 里 `item.startDay` 抛 `nq1 cannot be cast to n63`。
          * 这里遇到 Map 就按字段名手工还原，既不崩、也不丢用户已录入的子块。
+         *
+         * 已是 [SpecialItem] 实例时同样重建：Gson 用 UnsafeAllocator 绕过构造器，
+         * 旧 JSON 缺失 `name` 会得到 null 字段，UI 侧 Text/非空参数会崩。
          */
+        // USELESS_ELVIS：以下 ?: 编译期看似走左值，但 Gson 反序列化后字段可能是 null
+        @Suppress("SENSELESS_COMPARISON", "USELESS_ELVIS", "ELVIS_ALWAYS_NULL")
         internal fun fromRaw(raw: Any?): SpecialItem? = when (raw) {
-            is SpecialItem -> raw
+            is SpecialItem -> SpecialItem(
+                id = raw.id,
+                name = raw.name ?: "",
+                startDay = if (raw.startDay in 1..7) raw.startDay else 1,
+                endDay = if (raw.endDay in 1..7) raw.endDay else 1
+            )
+
             is Map<*, *> -> SpecialItem(
                 id = (raw["id"] as? Number)?.toLong() ?: 0L,
                 name = raw["name"] as? String ?: "",
-                startDay = (raw["startDay"] as? Number)?.toInt() ?: 1,
-                endDay = (raw["endDay"] as? Number)?.toInt() ?: 1
+                startDay = (raw["startDay"] as? Number)?.toInt()?.takeIf { it in 1..7 } ?: 1,
+                endDay = (raw["endDay"] as? Number)?.toInt()?.takeIf { it in 1..7 } ?: 1
             )
 
             else -> null
@@ -63,8 +74,25 @@ data class SpecialBlock(
         get() = (items as List<*>?).orEmpty().mapNotNull { SpecialItem.fromRaw(it) }
 
     companion object {
+        /**
+         * 把 Gson 可能留下的"原始形态"还原成 [SpecialBlock]。
+         *
+         * 已是 [SpecialBlock] 实例时也必须重建：keep 规则生效后 Gson 会生成真正的
+         * SpecialBlock，但 UnsafeAllocator 绕过 Kotlin 默认值，旧 JSON 缺
+         * name/startTime/endTime 时字段为 null。若原样返回，`SpecialGridBand.<init>`
+         * 的非空 String 参数会抛 NPE（R8 优化后表现为 `Object.getClass()` on null）。
+         */
+        // USELESS_ELVIS：以下 ?: 编译期看似走左值，但 Gson 反序列化后字段可能是 null
+        @Suppress("SENSELESS_COMPARISON", "USELESS_ELVIS", "ELVIS_ALWAYS_NULL")
         internal fun fromRaw(raw: Any?): SpecialBlock? = when (raw) {
-            is SpecialBlock -> raw
+            is SpecialBlock -> SpecialBlock(
+                id = raw.id,
+                name = raw.name ?: "",
+                startTime = raw.startTime ?: "08:00",
+                endTime = raw.endTime ?: "08:40",
+                items = (raw.items as List<*>?).orEmpty().mapNotNull { SpecialItem.fromRaw(it) }
+            )
+
             is Map<*, *> -> SpecialBlock(
                 id = (raw["id"] as? Number)?.toLong() ?: 0L,
                 name = raw["name"] as? String ?: "",

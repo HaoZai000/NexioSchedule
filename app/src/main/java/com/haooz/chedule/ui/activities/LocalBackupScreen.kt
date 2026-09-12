@@ -566,7 +566,26 @@ fun LocalBackupScreen(
                                                         "afternoonSections" to timeConfig.afternoonSections,
                                                         "eveningSections" to timeConfig.eveningSections,
                                                         "sectionTimes" to timeConfig.sectionTimes,
-                                                        "sectionNames" to timeConfig.sectionNames
+                                                        "sectionNames" to timeConfig.sectionNames,
+                                                        // 特殊时段块：必须经 safeSpecialBlocks，避免 null 字段/Map 形态写进备份
+                                                        "specialBlocks" to timeConfig.safeSpecialBlocks,
+                                                        // 快速时间与长课间等：否则开启快速时间的配置恢复后会算错节次时间
+                                                        "quickTimeEnabled" to timeConfig.quickTimeEnabled,
+                                                        "classDuration" to timeConfig.classDuration,
+                                                        "shortBreak" to timeConfig.shortBreak,
+                                                        "longBreakEnabled" to timeConfig.longBreakEnabled,
+                                                        "longBreakMorning" to timeConfig.longBreakMorning,
+                                                        "longBreakAfternoon" to timeConfig.longBreakAfternoon,
+                                                        "longBreakEvening" to timeConfig.longBreakEvening,
+                                                        "longBreakMorningSection" to timeConfig.longBreakMorningSection,
+                                                        "longBreakAfternoonSection" to timeConfig.longBreakAfternoonSection,
+                                                        "longBreakEveningSection" to timeConfig.longBreakEveningSection,
+                                                        "morningStartHour" to timeConfig.morningStartHour,
+                                                        "morningStartMinute" to timeConfig.morningStartMinute,
+                                                        "afternoonStartHour" to timeConfig.afternoonStartHour,
+                                                        "afternoonStartMinute" to timeConfig.afternoonStartMinute,
+                                                        "eveningStartHour" to timeConfig.eveningStartHour,
+                                                        "eveningStartMinute" to timeConfig.eveningStartMinute
                                                     )
                                                 )
                                             }

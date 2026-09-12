@@ -164,21 +164,28 @@ class AndroidBridge(
                     return@post
                 }
 
+                // name/teacher/position/weeks 等非空字段：脚本缺键时 Gson 会置 null，这里兜默认值
+                @Suppress(
+                    "USELESS_ELVIS",
+                    "SENSELESS_COMPARISON",
+                    "ELVIS_ALWAYS_NULL",
+                    "UNNECESSARY_SAFE_CALL"
+                )
                 val courses = importedCourses.map { json ->
                     val color = json.color?.toLong()
-                        ?: getOrAssignColorByName(json.name)
+                        ?: getOrAssignColorByName(json.name ?: "")
                     Course(
                         id = json.id ?: UUID.randomUUID().toString(),
-                        name = json.name,
-                        classroom = json.position,
-                        teacher = json.teacher,
+                        name = json.name ?: "",
+                        classroom = json.position ?: "",
+                        teacher = json.teacher ?: "",
                         dayOfWeek = json.day,
                         startSection = json.startSection ?: 1,
                         endSection = json.endSection ?: json.startSection ?: 1,
-                        startWeek = json.weeks.minOrNull() ?: 1,
-                        endWeek = json.weeks.maxOrNull() ?: 20,
+                        startWeek = json.weeks?.minOrNull() ?: 1,
+                        endWeek = json.weeks?.maxOrNull() ?: 20,
                         weekType = Course.WEEK_TYPE_ALL,
-                        selectedWeeks = json.weeks.sorted(),
+                        selectedWeeks = json.weeks?.sorted() ?: emptyList(),
                         colorRes = color,
                         isCustomTime = json.isCustomTime,
                         customStartTime = json.customStartTime,
