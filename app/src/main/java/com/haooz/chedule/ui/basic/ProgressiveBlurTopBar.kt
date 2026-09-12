@@ -45,6 +45,8 @@ fun ProgressiveBlurTopBar(
     tintIntensity: Float = 0.2f,
     tintColor: Color = MiuixTheme.colorScheme.surface,
     blurAlpha: Float = 1f,
+    /** 底端透明淡出起点（0–1，相对糊层高度）。越小过渡越长。 */
+    edgeFadeStart: Float = 0.88f,
     content: @Composable BoxScope.() -> Unit
 ) {
     val density = LocalDensity.current
@@ -62,7 +64,7 @@ fun ProgressiveBlurTopBar(
     }
     val denoiseKey = remember(shaderKey) { "${shaderKey}_denoise" }
     val blurEffects: com.kyant.backdrop.BackdropEffectScope.() -> Unit =
-        remember(shaderKey, denoiseKey, tintColor, tintIntensity) {
+        remember(shaderKey, denoiseKey, tintColor, tintIntensity, edgeFadeStart) {
             {
                 val maxRadiusPx = 12f.dp.toPx()
                 // 录制缓冲向外扩一圈，边缘采样可摸到框外真实内容
@@ -78,6 +80,7 @@ fun ProgressiveBlurTopBar(
                     setFloatUniform("contentSize", contentW, contentH)
                     setFloatUniform("bufferSize", bufferW, bufferH)
                     setFloatUniform("maxRadius", maxRadiusPx * downsampleScale)
+                    setFloatUniform("edgeFadeStart", edgeFadeStart)
                     setColorUniform("tint", tintColor)
                     setFloatUniform("tintIntensity", tintIntensity)
                 }
@@ -146,6 +149,7 @@ uniform float2 contentOrigin;
 uniform float2 contentSize;
 uniform float2 bufferSize;
 uniform float maxRadius;
+uniform float edgeFadeStart;
 layout(color) uniform half4 tint;
 uniform float tintIntensity;
 
@@ -198,7 +202,7 @@ half4 main(float2 coord) {
     float u = 1.0 - smoothstep(0.0, 1.0, t);
     float radius = maxRadius * u;
     half4 color = progressiveBlur(coord, radius);
-    float edge = softerstep(0.88, 1.0, t);
+    float edge = softerstep(edgeFadeStart, 1.0, t);
     color *= (1.0 - edge);
     if (tintIntensity > 0.0) {
         color = mix(color, tint * (1.0 - edge), tintIntensity * u);

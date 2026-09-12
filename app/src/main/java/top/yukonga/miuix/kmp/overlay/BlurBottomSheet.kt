@@ -355,29 +355,9 @@ private fun BlurBottomSheetContent(
                 }
                 .imePadding()
                 .clip(sheetShape)
-                .then(
-                    if (liquidGlassBackdrop != null && Build.VERSION.SDK_INT >= 33) {
-                        val blurPx = with(density) { blurRadius.dp.toPx() }
-                        val backdropEffects: com.kyant.backdrop.BackdropEffectScope.() -> Unit = remember(liquidGlassBackdrop, blurPx) {
-                            {
-                                vibrancy()
-                                blur(blurPx)
-                            }
-                        }
-                        Modifier.drawBackdrop(
-                            backdrop = liquidGlassBackdrop,
-                            shape = sheetShapeBlock,
-                            effects = backdropEffects,
-                            highlight = null
-                        )
-                    } else {
-                        Modifier
-                    }
-                )
+                // 弹窗本体不做壁纸玻璃模糊，纯实色
                 .edgeLight(shape = sheetShape, edgeLight = rememberDefaultEdgeLight())
-                .background(sheetBgColor.copy(alpha = sheetBackgroundAlpha ?: if (liquidGlassBackdrop != null)
-                    if (Build.VERSION.SDK_INT >= 33) 0.9f else 1f
-                    else 1f))
+                .background(sheetBgColor)
                 .pointerInput(Unit) {
                     // 消费弹窗空白处的点击，防止事件穿透到背景层触发关闭
                     detectTapGestures(onTap = {})
@@ -489,36 +469,27 @@ private fun BlurBottomSheetContent(
                     launch { backdropAlpha.animateTo(target, spec) }
                 }
 
-                // 捕获弹窗内容的 backdrop（先画不透明背景，再画内容，确保采样到不透明像素）
-                // 必须在 CompositionLocalProvider 之前创建，才能随 provider 一起下发给弹窗内部的玻璃组件。
-                val sheetBackdropColor = if (isDark) Color(0xFF1E1E1E) else Color(0xFFF4F4F4)
-                val sheetContentBackdrop = rememberLayerBackdrop {
-                    drawRect(sheetBackdropColor)
-                    drawContent()
-                }
-
-                // 直接在内容层回调：backdrop 就绪时（弹窗首帧后）调用一次。
-                // 不经 State 中转，写入不触发任何重组，避免弹窗内容在打开动画期间被重跑。
+                // 录制时先铺 sheetBgColor：只进 backdrop，不改屏幕上的合成。
+                // 空隙/上边距才有实底，渐进模糊底边不会和外壳颜色对不齐。
+                val sheetContentBackdrop = rememberLayerBackdrop(
+                    onDraw = remember(sheetBgColor) {
+                        {
+                            drawRect(sheetBgColor)
+                            drawContent()
+                        }
+                    }
+                )
                 LaunchedEffect(sheetContentBackdrop) {
                     onSheetContentBackdropCreated?.invoke(sheetContentBackdrop)
                 }
 
-                // 进入动画是否播完。derivedStateOf 只在该布尔翻转一次时重组，不会逐帧重组。
                 val enterDone by remember(animationProgress) {
                     derivedStateOf { animationProgress.value >= 1f }
                 }
-                // 内容 backdrop 与顶栏渐变模糊都推迟到进入动画结束后再挂载。
-                // 挂载内容 backdrop 的代价是把整棵弹窗内容树再完整录制进一个 GraphicsLayer，
-                // 那正好压在滑入动画的头几帧；顶栏渐变模糊还有 AGSL 着色器的首次编译开销。
-                // 推迟到画面已经静止后再发生，用户感知不到。
-                // 挂载过一次后就常驻，避免退出动画时反复卸载/重挂造成抖动。
+                // 进入动画结束后再挂录制 + 渐进模糊，避开首帧 AGSL 编译掉帧
                 var sheetBackdropMounted by remember { mutableStateOf(skipEnterAnimation) }
                 LaunchedEffect(enterDone) { if (enterDone) sheetBackdropMounted = true }
 
-                // 未挂载期间的占位 backdrop：静态纯色，零录制成本。
-                // 弹窗背景本身不透明，顶栏与空白区下方本来就是纯 sheetBgColor，
-                // 采样结果与真实内容 backdrop 一致，玻璃材质看不出切换。
-                // 绘制范围刻意放大到自身三倍：模糊会向外扩散采样，只画满自身尺寸会让边缘采到空白。
                 val placeholderOnDraw: DrawScope.() -> Unit = remember(sheetBgColor) {
                     {
                         drawRect(
@@ -539,11 +510,12 @@ private fun BlurBottomSheetContent(
                     // 拖拽手柄（仅按下放大动画）
                     DragHandleArea()
 
-                    // 内容区域（底层，用 layerBackdrop 捕获内容；nestedScroll 接入顶栏滚动行为）
+                    // 内容区域（layerBackdrop 捕获「底色+内容」）
                     Box(
                         modifier = Modifier
-                            .nestedScroll(proxyConnection)
+                            .fillMaxWidth()
                             .wrapContentHeight()
+                            .nestedScroll(proxyConnection)
                             .then(
                                 if (sheetBackdropMounted) {
                                     Modifier.layerBackdrop(sheetContentBackdrop)
@@ -553,18 +525,16 @@ private fun BlurBottomSheetContent(
                         content()
                     }
 
-                    // 渐变模糊遮罩（采样弹窗内容）：进入动画期间完全不挂载。
-                    // 除了省掉模糊本身的开销，更关键的是 runtimeShaderEffect 的 AGSL 着色器会在首次绘制时
-                    // 编译（十几到几十毫秒），落在滑入动画的头几帧就是肉眼可见的掉帧。
-                    // 推迟到动画结束后再挂载，编译开销就发生在画面已经静止时，用户感知不到。
+                    // 顶部渐进模糊：只盖标题下方一条，常显；采样已不透明的内容层
                     if (sheetBackdropMounted) {
                         ProgressiveBlurTopBar(
                             backdrop = sheetContentBackdrop,
                             height = 84.dp,
                             tintColor = sheetBgColor,
                             tintIntensity = 0f,
-                            blurAlpha = backdropAlpha.value,
-                            modifier = Modifier.zIndex(1f)
+                            blurAlpha = 1f,
+                            edgeFadeStart = 0.55f,
+                            modifier = Modifier.fillMaxWidth().zIndex(1f)
                         ) {
                             Box(modifier = Modifier.fillMaxWidth().height(60.dp))
                         }

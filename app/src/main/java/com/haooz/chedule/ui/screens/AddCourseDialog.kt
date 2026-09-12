@@ -62,6 +62,7 @@ import com.haooz.chedule.ui.utils.LocalForcedDarkTheme
 import com.haooz.chedule.ui.utils.isAppDarkTheme
 import com.haooz.chedule.ui.utils.overScrollVertical
 import com.haooz.chedule.ui.utils.rememberAppSettingDark
+import com.kyant.backdrop.Backdrop
 import kotlinx.coroutines.delay
 import top.yukonga.miuix.kmp.basic.Button
 import top.yukonga.miuix.kmp.basic.ButtonDefaults
@@ -78,10 +79,9 @@ import top.yukonga.miuix.kmp.icon.extended.Add
 import top.yukonga.miuix.kmp.icon.extended.Close
 import top.yukonga.miuix.kmp.icon.extended.Delete
 import top.yukonga.miuix.kmp.icon.extended.Ok
+import top.yukonga.miuix.kmp.overlay.BackdropHolder
 import top.yukonga.miuix.kmp.overlay.BlurBottomSheet
 import top.yukonga.miuix.kmp.overlay.BlurBottomSheetTablet
-import com.kyant.backdrop.Backdrop
-import top.yukonga.miuix.kmp.overlay.BackdropHolder
 import top.yukonga.miuix.kmp.overlay.LocalSheetContentBackdrop
 import top.yukonga.miuix.kmp.overlay.LocalSheetTopBarMaterial
 import top.yukonga.miuix.kmp.overlay.OverlayDialog
@@ -257,13 +257,16 @@ fun AddCourseDialog(
     val oddWeeks = remember(allWeeks) { allWeeks.filter { it % 2 == 1 } }
     val evenWeeks = remember(allWeeks) { allWeeks.filter { it % 2 == 0 } }
 
-    val selectableWeeks = remember(allWeeks, currentOccupiedWeeks) { allWeeks.filter { it !in currentOccupiedWeeks } }
+    val selectableWeeks =
+        remember(allWeeks, currentOccupiedWeeks) { allWeeks.filter { it !in currentOccupiedWeeks } }
     val selectableOddWeeks = remember(selectableWeeks) { selectableWeeks.filter { it % 2 == 1 } }
     val selectableEvenWeeks = remember(selectableWeeks) { selectableWeeks.filter { it % 2 == 0 } }
     // 注意：下面这 5 个布尔不能再在这里算 —— 它们要读 form.selectedWeeks，
     // 一旦在父级作用域读取，点一个周次格子就会让整个弹窗重组。已下沉到 WeekSettingCard。
-    val hasOccupiedOddWeeks = remember(selectableOddWeeks, oddWeeks) { selectableOddWeeks.size != oddWeeks.size }
-    val hasOccupiedEvenWeeks = remember(selectableEvenWeeks, evenWeeks) { selectableEvenWeeks.size != evenWeeks.size }
+    val hasOccupiedOddWeeks =
+        remember(selectableOddWeeks, oddWeeks) { selectableOddWeeks.size != oddWeeks.size }
+    val hasOccupiedEvenWeeks =
+        remember(selectableEvenWeeks, evenWeeks) { selectableEvenWeeks.size != evenWeeks.size }
 
     var showSectionDialog by remember { mutableStateOf(false) }
     var showColorDialog by remember { mutableStateOf(false) }
@@ -277,9 +280,17 @@ fun AddCourseDialog(
     val onConfirmClick: () -> Unit = {
         hapticFeedback.performHapticFeedback(HapticFeedbackType.Confirm)
         if (form.name.isBlank()) {
-            android.widget.Toast.makeText(context, "请输入课程名称", android.widget.Toast.LENGTH_SHORT).show()
+            android.widget.Toast.makeText(
+                context,
+                "请输入课程名称",
+                android.widget.Toast.LENGTH_SHORT
+            ).show()
         } else if (form.selectedWeeks.isEmpty()) {
-            android.widget.Toast.makeText(context, "请选择上课周次", android.widget.Toast.LENGTH_SHORT).show()
+            android.widget.Toast.makeText(
+                context,
+                "请选择上课周次",
+                android.widget.Toast.LENGTH_SHORT
+            ).show()
         } else if (form.startSection <= form.endSection) {
             val sortedWeeks = form.selectedWeeks.sorted()
             val minWeek = sortedWeeks.first()
@@ -397,78 +408,78 @@ fun AddCourseDialog(
             )
         }
     } else {
-    BlurBottomSheet(
-        show = show,
-        title = if (isEdit) "编辑课程" else "添加课程",
-        liquidGlassBackdrop = null,
-        dimBackground = true,
-        fillMaxHeight = true,
-        sheetOffsetDp = statusBarsPadding + 5.dp,
-        onDismissRequest = onDismiss,
-        onSheetContentBackdropCreated = { sheetContentBackdropHolder.value = it },
-        startAction = {
-            val material = LocalSheetTopBarMaterial.current
-            LiquidTopBarButton(
-                onClick = {
-                    onDismiss()
+        BlurBottomSheet(
+            show = show,
+            title = if (isEdit) "编辑课程" else "添加课程",
+            liquidGlassBackdrop = null,
+            dimBackground = true,
+            fillMaxHeight = true,
+            sheetOffsetDp = statusBarsPadding + 5.dp,
+            onDismissRequest = onDismiss,
+            onSheetContentBackdropCreated = { sheetContentBackdropHolder.value = it },
+            startAction = {
+                val material = LocalSheetTopBarMaterial.current
+                LiquidTopBarButton(
+                    onClick = {
+                        onDismiss()
+                    },
+                    backdrop = LocalSheetContentBackdrop.current ?: liquidGlassBackdrop!!,
+                    icon = MiuixIcons.Normal.Close,
+                    contentDescription = "关闭",
+                    modifier = Modifier.padding(start = 18.dp),
+                    iconSize = 24.dp,
+                    backdropAlpha = material.backdropAlpha,
+                    shadowAlpha = material.shadowAlpha,
+                )
+            },
+            endAction = {
+                val material = LocalSheetTopBarMaterial.current
+                LiquidTopBarButton(
+                    onClick = onConfirmClick,
+                    backdrop = LocalSheetContentBackdrop.current ?: liquidGlassBackdrop!!,
+                    icon = MiuixIcons.Ok,
+                    contentDescription = "确定",
+                    modifier = Modifier.padding(end = 18.dp),
+                    iconSize = 25.dp,
+                    backdropAlpha = material.backdropAlpha,
+                    shadowAlpha = material.shadowAlpha,
+                )
+            },
+        ) {
+            AddCourseDialogContent(
+                isEdit = isEdit,
+                isDark = isDark,
+                revealStep = revealStep,
+                form = form,
+                totalWeeks = totalWeeks,
+                currentOccupiedWeeks = currentOccupiedWeeks,
+                selectableWeeks = selectableWeeks,
+                selectableOddWeeks = selectableOddWeeks,
+                selectableEvenWeeks = selectableEvenWeeks,
+                hasOccupiedOddWeeks = hasOccupiedOddWeeks,
+                hasOccupiedEvenWeeks = hasOccupiedEvenWeeks,
+                // 这些回调体内解引用 form 的当前字段（调用时才读），
+                // 因此不存在"捕获旧值"的问题，改完节次/颜色再打开也是最新的
+                onShowSectionDialog = {
+                    tempStartSection = form.startSection
+                    tempEndSection = form.endSection
+                    showSectionDialog = true
                 },
-                backdrop = LocalSheetContentBackdrop.current ?: liquidGlassBackdrop!!,
-                icon = MiuixIcons.Normal.Close,
-                contentDescription = "关闭",
-                modifier = Modifier.padding(start = 18.dp),
-                iconSize = 24.dp,
-                backdropAlpha = material.backdropAlpha,
-                shadowAlpha = material.shadowAlpha,
+                onShowColorDialog = {
+                    customColor = Color(form.selectedColor)
+                    showColorDialog = true
+                },
+                onShowTimeDialog = {
+                    tempStartHour = parseTimeHour(form.customStartTime)
+                    tempStartMinute = parseTimeMinute(form.customStartTime)
+                    tempEndHour = parseTimeHour(form.customEndTime)
+                    tempEndMinute = parseTimeMinute(form.customEndTime)
+                    timeError = false
+                    showTimeDialog = true
+                },
+                onDeleteClick = { showDeleteDialog = true },
             )
-        },
-        endAction = {
-            val material = LocalSheetTopBarMaterial.current
-            LiquidTopBarButton(
-                onClick = onConfirmClick,
-                backdrop = LocalSheetContentBackdrop.current ?: liquidGlassBackdrop!!,
-                icon = MiuixIcons.Ok,
-                contentDescription = "确定",
-                modifier = Modifier.padding(end = 18.dp),
-                iconSize = 25.dp,
-                backdropAlpha = material.backdropAlpha,
-                shadowAlpha = material.shadowAlpha,
-            )
-        },
-    ) {
-        AddCourseDialogContent(
-            isEdit = isEdit,
-            isDark = isDark,
-            revealStep = revealStep,
-            form = form,
-            totalWeeks = totalWeeks,
-            currentOccupiedWeeks = currentOccupiedWeeks,
-            selectableWeeks = selectableWeeks,
-            selectableOddWeeks = selectableOddWeeks,
-            selectableEvenWeeks = selectableEvenWeeks,
-            hasOccupiedOddWeeks = hasOccupiedOddWeeks,
-            hasOccupiedEvenWeeks = hasOccupiedEvenWeeks,
-            // 这些回调体内解引用 form 的当前字段（调用时才读），
-            // 因此不存在"捕获旧值"的问题，改完节次/颜色再打开也是最新的
-            onShowSectionDialog = {
-                tempStartSection = form.startSection
-                tempEndSection = form.endSection
-                showSectionDialog = true
-            },
-            onShowColorDialog = {
-                customColor = Color(form.selectedColor)
-                showColorDialog = true
-            },
-            onShowTimeDialog = {
-                tempStartHour = parseTimeHour(form.customStartTime)
-                tempStartMinute = parseTimeMinute(form.customStartTime)
-                tempEndHour = parseTimeHour(form.customEndTime)
-                tempEndMinute = parseTimeMinute(form.customEndTime)
-                timeError = false
-                showTimeDialog = true
-            },
-            onDeleteClick = { showDeleteDialog = true },
-        )
-    }
+        }
     } // end of if (isTablet) else
 
     // 删除确认弹窗（强制跟随应用主题）
@@ -520,88 +531,88 @@ fun AddCourseDialog(
     ) {
         MiuixTheme(controller = appDialogController) {
             CompositionLocalProvider(LocalForcedDarkTheme provides null) {
-        Column(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalAlignment = Alignment.CenterHorizontally
-        ) {
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceEvenly
-            ) {
                 Column(
-                    horizontalAlignment = Alignment.CenterHorizontally,
-                    modifier = Modifier.weight(1f)
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalAlignment = Alignment.CenterHorizontally
                 ) {
-                    Text(
-                        text = "开始",
-                        style = MiuixTheme.textStyles.footnote1,
-                        color = MiuixTheme.colorScheme.onSurfaceVariantActions,
-                        modifier = Modifier.padding(top = 4.dp, bottom = 12.dp)
-                    )
-                    // 把"结束 >= 开始"的夹取放在同一个快照里同步完成，
-                    // 既省掉 LaunchedEffect 带来的一帧延迟，也避免结束滚轮的 range 一直变
-                    NumberPicker(
-                        value = tempStartSection,
-                        onValueChange = {
-                            tempStartSection = it
-                            if (tempEndSection < it) tempEndSection = it
-                        },
-                        range = 1..totalSections,
-                        visibleItemCount = 3,
-                        itemHeight = 50.dp
-                    )
-                }
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceEvenly
+                    ) {
+                        Column(
+                            horizontalAlignment = Alignment.CenterHorizontally,
+                            modifier = Modifier.weight(1f)
+                        ) {
+                            Text(
+                                text = "开始",
+                                style = MiuixTheme.textStyles.footnote1,
+                                color = MiuixTheme.colorScheme.onSurfaceVariantActions,
+                                modifier = Modifier.padding(top = 4.dp, bottom = 12.dp)
+                            )
+                            // 把"结束 >= 开始"的夹取放在同一个快照里同步完成，
+                            // 既省掉 LaunchedEffect 带来的一帧延迟，也避免结束滚轮的 range 一直变
+                            NumberPicker(
+                                value = tempStartSection,
+                                onValueChange = {
+                                    tempStartSection = it
+                                    if (tempEndSection < it) tempEndSection = it
+                                },
+                                range = 1..totalSections,
+                                visibleItemCount = 3,
+                                itemHeight = 50.dp
+                            )
+                        }
 
-                Column(
-                    horizontalAlignment = Alignment.CenterHorizontally,
-                    modifier = Modifier.weight(1f)
-                ) {
-                    Text(
-                        text = "结束",
-                        style = MiuixTheme.textStyles.footnote1,
-                        color = MiuixTheme.colorScheme.onSurfaceVariantActions,
-                        modifier = Modifier.padding(top = 4.dp, bottom = 12.dp)
-                    )
-                    // 范围固定为 1..totalSections：拖动"开始"时不再反复重建本滚轮
-                    NumberPicker(
-                        value = tempEndSection,
-                        onValueChange = { tempEndSection = it },
-                        range = 1..totalSections,
-                        visibleItemCount = 3,
-                        itemHeight = 50.dp
-                    )
-                }
-            }
+                        Column(
+                            horizontalAlignment = Alignment.CenterHorizontally,
+                            modifier = Modifier.weight(1f)
+                        ) {
+                            Text(
+                                text = "结束",
+                                style = MiuixTheme.textStyles.footnote1,
+                                color = MiuixTheme.colorScheme.onSurfaceVariantActions,
+                                modifier = Modifier.padding(top = 4.dp, bottom = 12.dp)
+                            )
+                            // 范围固定为 1..totalSections：拖动"开始"时不再反复重建本滚轮
+                            NumberPicker(
+                                value = tempEndSection,
+                                onValueChange = { tempEndSection = it },
+                                range = 1..totalSections,
+                                visibleItemCount = 3,
+                                itemHeight = 50.dp
+                            )
+                        }
+                    }
 
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(top = 16.dp),
-                horizontalArrangement = Arrangement.spacedBy(12.dp)
-            ) {
-                TextButton(
-                    text = "取消",
-                    onClick = {
-                        hapticFeedback.performHapticFeedback(HapticFeedbackType.Confirm)
-                        showSectionDialog = false
-                    },
-                    modifier = Modifier.weight(1f)
-                )
-TextButton(
-                        text = "确定",
-                        onClick = {
-                            hapticFeedback.performHapticFeedback(HapticFeedbackType.Confirm)
-                            if (tempStartSection <= tempEndSection) {
-                                form.startSection = tempStartSection
-                                form.endSection = tempEndSection
-                            }
-                            showSectionDialog = false
-                        },
-                    colors = ButtonDefaults.textButtonColorsPrimary(),
-                    modifier = Modifier.weight(1f)
-                )
-            }
-        }
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(top = 16.dp),
+                        horizontalArrangement = Arrangement.spacedBy(12.dp)
+                    ) {
+                        TextButton(
+                            text = "取消",
+                            onClick = {
+                                hapticFeedback.performHapticFeedback(HapticFeedbackType.Confirm)
+                                showSectionDialog = false
+                            },
+                            modifier = Modifier.weight(1f)
+                        )
+                        TextButton(
+                            text = "确定",
+                            onClick = {
+                                hapticFeedback.performHapticFeedback(HapticFeedbackType.Confirm)
+                                if (tempStartSection <= tempEndSection) {
+                                    form.startSection = tempStartSection
+                                    form.endSection = tempEndSection
+                                }
+                                showSectionDialog = false
+                            },
+                            colors = ButtonDefaults.textButtonColorsPrimary(),
+                            modifier = Modifier.weight(1f)
+                        )
+                    }
+                }
             }
         }
     }
@@ -615,64 +626,65 @@ TextButton(
     ) {
         MiuixTheme(controller = appDialogController) {
             CompositionLocalProvider(LocalForcedDarkTheme provides null) {
-        Column(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalAlignment = Alignment.CenterHorizontally
-        ) {
-            TimeRangePickerGroup(
-                startHour = tempStartHour,
-                startMinute = tempStartMinute,
-                endHour = tempEndHour,
-                endMinute = tempEndMinute,
-                onStartHourChange = { tempStartHour = it; timeError = false },
-                onStartMinuteChange = { tempStartMinute = it; timeError = false },
-                onEndHourChange = { tempEndHour = it; timeError = false },
-                onEndMinuteChange = { tempEndMinute = it; timeError = false }
-            )
-            if (timeError) {
-                Text(
-                    text = "结束时间需晚于开始时间",
-                    style = MiuixTheme.textStyles.footnote1,
-                    color = Color(0xFFF44336),
-                    modifier = Modifier.padding(top = 8.dp)
-                )
-            }
+                Column(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalAlignment = Alignment.CenterHorizontally
+                ) {
+                    TimeRangePickerGroup(
+                        startHour = tempStartHour,
+                        startMinute = tempStartMinute,
+                        endHour = tempEndHour,
+                        endMinute = tempEndMinute,
+                        onStartHourChange = { tempStartHour = it; timeError = false },
+                        onStartMinuteChange = { tempStartMinute = it; timeError = false },
+                        onEndHourChange = { tempEndHour = it; timeError = false },
+                        onEndMinuteChange = { tempEndMinute = it; timeError = false }
+                    )
+                    if (timeError) {
+                        Text(
+                            text = "结束时间需晚于开始时间",
+                            style = MiuixTheme.textStyles.footnote1,
+                            color = Color(0xFFF44336),
+                            modifier = Modifier.padding(top = 8.dp)
+                        )
+                    }
 
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(top = 16.dp),
-                horizontalArrangement = Arrangement.spacedBy(12.dp)
-            ) {
-                TextButton(
-                    text = "取消",
-                    onClick = {
-                        hapticFeedback.performHapticFeedback(HapticFeedbackType.Confirm)
-                        showTimeDialog = false
-                        timeError = false
-                    },
-                    modifier = Modifier.weight(1f)
-                )
-                TextButton(
-                    text = "确定",
-                    onClick = {
-                        hapticFeedback.performHapticFeedback(HapticFeedbackType.Confirm)
-                        val startMinutes = tempStartHour * 60 + tempStartMinute
-                        val endMinutes = tempEndHour * 60 + tempEndMinute
-                        if (endMinutes > startMinutes) {
-                            form.customStartTime = formatTime(tempStartHour, tempStartMinute)
-                            form.customEndTime = formatTime(tempEndHour, tempEndMinute)
-                            timeError = false
-                            showTimeDialog = false
-                        } else {
-                            timeError = true
-                        }
-                    },
-                    colors = ButtonDefaults.textButtonColorsPrimary(),
-                    modifier = Modifier.weight(1f)
-                )
-            }
-        }
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(top = 16.dp),
+                        horizontalArrangement = Arrangement.spacedBy(12.dp)
+                    ) {
+                        TextButton(
+                            text = "取消",
+                            onClick = {
+                                hapticFeedback.performHapticFeedback(HapticFeedbackType.Confirm)
+                                showTimeDialog = false
+                                timeError = false
+                            },
+                            modifier = Modifier.weight(1f)
+                        )
+                        TextButton(
+                            text = "确定",
+                            onClick = {
+                                hapticFeedback.performHapticFeedback(HapticFeedbackType.Confirm)
+                                val startMinutes = tempStartHour * 60 + tempStartMinute
+                                val endMinutes = tempEndHour * 60 + tempEndMinute
+                                if (endMinutes > startMinutes) {
+                                    form.customStartTime =
+                                        formatTime(tempStartHour, tempStartMinute)
+                                    form.customEndTime = formatTime(tempEndHour, tempEndMinute)
+                                    timeError = false
+                                    showTimeDialog = false
+                                } else {
+                                    timeError = true
+                                }
+                            },
+                            colors = ButtonDefaults.textButtonColorsPrimary(),
+                            modifier = Modifier.weight(1f)
+                        )
+                    }
+                }
             }
         }
     }
@@ -714,10 +726,11 @@ TextButton(
                             text = "确定",
                             onClick = {
                                 hapticFeedback.performHapticFeedback(HapticFeedbackType.Confirm)
-                                form.selectedColor = (customColor.alpha * 255).toInt().toLong() shl 24 or
-                                        ((customColor.red * 255).toInt().toLong() shl 16) or
-                                        ((customColor.green * 255).toInt().toLong() shl 8) or
-                                        (customColor.blue * 255).toInt().toLong()
+                                form.selectedColor =
+                                    (customColor.alpha * 255).toInt().toLong() shl 24 or
+                                            ((customColor.red * 255).toInt().toLong() shl 16) or
+                                            ((customColor.green * 255).toInt().toLong() shl 8) or
+                                            (customColor.blue * 255).toInt().toLong()
                                 showColorDialog = false
                             },
                             colors = ButtonDefaults.textButtonColorsPrimary(),
@@ -829,7 +842,9 @@ private fun AddCourseDialogContent(
         CardReveal(visible = revealStep >= 5, index = 5) {
             if (isEdit) {
                 Button(
-                    modifier = Modifier.fillMaxWidth().height(50.dp),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(50.dp),
                     onClick = {
                         hapticFeedback.performHapticFeedback(HapticFeedbackType.Confirm)
                         stableOnDeleteClick()
@@ -843,7 +858,12 @@ private fun AddCourseDialogContent(
                         tint = Color(0xFFF44336)
                     )
                     Spacer(modifier = Modifier.width(4.dp))
-                    Text("删除", fontSize = 17.sp, fontWeight = FontWeight.Medium, color = Color(0xFFF44336))
+                    Text(
+                        "删除",
+                        fontSize = 17.sp,
+                        fontWeight = FontWeight.Medium,
+                        color = Color(0xFFF44336)
+                    )
                 }
             }
         }
@@ -894,7 +914,7 @@ private fun BasicInfoCard(
         cornerRadius = 20.dp,
         modifier = Modifier.fillMaxWidth(),
         colors = CardDefaults.defaultColors(
-            color = if (isDark) Color(0xFF363636).copy(alpha = 0.62f) else Color(0xFFFFFFFF).copy(alpha = 0.7f),
+            color = if (isDark) Color(0xFF303030) else Color(0xFFFFFFFF),
             contentColor = MiuixTheme.colorScheme.onSurface
         )
     ) {
@@ -996,7 +1016,7 @@ private fun WeekdayCard(
         cornerRadius = 20.dp,
         modifier = Modifier.fillMaxWidth(),
         colors = CardDefaults.defaultColors(
-            color = if (isDark) Color(0xFF363636).copy(alpha = 0.62f) else Color(0xFFFFFFFF).copy(alpha = 0.7f),
+            color = if (isDark) Color(0xFF303030) else Color(0xFFFFFFFF),
             contentColor = MiuixTheme.colorScheme.onSurface
         )
     ) {
@@ -1041,9 +1061,9 @@ private fun WeekdayCard(
                 for (day in 1..7) {
                     val isSelected = day == currentDay
                     val bgColor = if (isSelected) MiuixTheme.colorScheme.primary
-                        else if (isDark) Color(0xFF363636) else Color(0xFFF2F2F2)
+                    else if (isDark) Color(0xFF363636) else Color(0xFFF2F2F2)
                     val textColor = if (isSelected) Color.White
-                        else MiuixTheme.colorScheme.onSurfaceVariantSummary
+                    else MiuixTheme.colorScheme.onSurfaceVariantSummary
                     Box(
                         modifier = Modifier
                             .weight(1f)
@@ -1082,7 +1102,7 @@ private fun SectionTimeCard(
         cornerRadius = 20.dp,
         modifier = Modifier.fillMaxWidth(),
         colors = CardDefaults.defaultColors(
-            color = if (isDark) Color(0xFF363636).copy(alpha = 0.62f) else Color(0xFFFFFFFF).copy(alpha = 0.7f),
+            color = if (isDark) Color(0xFF303030) else Color(0xFFFFFFFF),
             contentColor = MiuixTheme.colorScheme.onSurface
         )
     ) {
@@ -1131,9 +1151,11 @@ private fun WeekSettingCard(
     val noDaySelected = form.dayOfWeek == 0
     Card(
         cornerRadius = 20.dp,
-        modifier = Modifier.fillMaxWidth().alpha(if (noDaySelected) 0.5f else 1f),
+        modifier = Modifier
+            .fillMaxWidth()
+            .alpha(if (noDaySelected) 0.5f else 1f),
         colors = CardDefaults.defaultColors(
-            color = if (isDark) Color(0xFF363636).copy(alpha = 0.62f) else Color(0xFFFFFFFF).copy(alpha = 0.7f),
+            color = if (isDark) Color(0xFF303030) else Color(0xFFFFFFFF),
             contentColor = MiuixTheme.colorScheme.onSurface
         )
     ) {
@@ -1194,9 +1216,13 @@ private fun WeekSettingCard(
                                 }
                             },
 
-                        )
+                            )
                         Spacer(modifier = Modifier.width(4.dp))
-                        Text(text = "全部", fontSize = 15.sp, color = MiuixTheme.colorScheme.onSurfaceVariantSummary)
+                        Text(
+                            text = "全部",
+                            fontSize = 15.sp,
+                            color = MiuixTheme.colorScheme.onSurfaceVariantSummary
+                        )
                     }
 
                     // 单周
@@ -1219,9 +1245,13 @@ private fun WeekSettingCard(
                                 }
                             },
 
-                        )
+                            )
                         Spacer(modifier = Modifier.width(4.dp))
-                        Text(text = "单周", fontSize = 15.sp, color = MiuixTheme.colorScheme.onSurfaceVariantSummary)
+                        Text(
+                            text = "单周",
+                            fontSize = 15.sp,
+                            color = MiuixTheme.colorScheme.onSurfaceVariantSummary
+                        )
                     }
 
                     // 双周
@@ -1246,9 +1276,13 @@ private fun WeekSettingCard(
                                 }
                             },
 
-                        )
+                            )
                         Spacer(modifier = Modifier.width(4.dp))
-                        Text(text = "双周", fontSize = 15.sp, color = MiuixTheme.colorScheme.onSurfaceVariantSummary)
+                        Text(
+                            text = "双周",
+                            fontSize = 15.sp,
+                            color = MiuixTheme.colorScheme.onSurfaceVariantSummary
+                        )
                     }
                 }
             }
@@ -1367,7 +1401,7 @@ private fun ColorCard(
         cornerRadius = 20.dp,
         modifier = Modifier.fillMaxWidth(),
         colors = CardDefaults.defaultColors(
-            color = if (isDark) Color(0xFF363636).copy(alpha = 0.62f) else Color(0xFFFFFFFF).copy(alpha = 0.7f),
+            color = if (isDark) Color(0xFF303030) else Color(0xFFFFFFFF),
             contentColor = MiuixTheme.colorScheme.onSurface
         )
     ) {
@@ -1387,13 +1421,18 @@ private fun ColorCard(
                 )
             }
             Column(
-                modifier = Modifier.fillMaxWidth().padding(start = 16.dp, end = 16.dp, bottom = 12.dp),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(start = 16.dp, end = 16.dp, bottom = 12.dp),
                 verticalArrangement = Arrangement.spacedBy(12.dp)
             ) {
                 val colorColumns = 6
                 val allColors = remember { Course.courseColors }
                 val totalItems = remember(allColors) { allColors.size + 1 }
-                val colorRows = remember(totalItems, colorColumns) { (totalItems + colorColumns - 1) / colorColumns }
+                val colorRows = remember(
+                    totalItems,
+                    colorColumns
+                ) { (totalItems + colorColumns - 1) / colorColumns }
                 for (row in 0 until colorRows) {
                     Row(
                         modifier = Modifier.fillMaxWidth(),
@@ -1556,7 +1595,9 @@ private fun TimeRangePickerGroup(
             style = MiuixTheme.textStyles.paragraph,
             fontWeight = FontWeight.Bold,
             color = MiuixTheme.colorScheme.onSurface,
-            modifier = Modifier.padding().offset(y = (-2).dp)
+            modifier = Modifier
+                .padding()
+                .offset(y = (-2).dp)
         )
         val sMinIdx = minuteValues.indexOf(startMinute).coerceAtLeast(0)
         NumberPicker(
@@ -1592,7 +1633,9 @@ private fun TimeRangePickerGroup(
             style = MiuixTheme.textStyles.paragraph,
             fontWeight = FontWeight.Bold,
             color = MiuixTheme.colorScheme.onSurface,
-            modifier = Modifier.padding().offset(y = (-2).dp)
+            modifier = Modifier
+                .padding()
+                .offset(y = (-2).dp)
         )
         val eMinIdx = minuteValues.indexOf(endMinute).coerceAtLeast(0)
         NumberPicker(

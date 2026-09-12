@@ -319,9 +319,7 @@ fun AddEditCourseBottomSheet(
                 cornerRadius = 20.dp,
                 modifier = Modifier.fillMaxWidth(),
                 colors = CardDefaults.defaultColors(
-                    color = if (isAppDarkTheme()) Color(0xFF363636).copy(alpha = 0.62f) else Color(
-                        0xFFFFFFFF
-                    ).copy(alpha = 0.7f),
+                    color = if (isAppDarkTheme()) Color(0xFF303030) else Color(0xFFFFFFFF),
                     contentColor = MiuixTheme.colorScheme.onSurface
                 ),
             ) {
@@ -386,9 +384,7 @@ fun AddEditCourseBottomSheet(
                 cornerRadius = 20.dp,
                 modifier = Modifier.fillMaxWidth(),
                 colors = CardDefaults.defaultColors(
-                    color = if (isAppDarkTheme()) Color(0xFF363636).copy(alpha = 0.62f) else Color(
-                        0xFFFFFFFF
-                    ).copy(alpha = 0.7f),
+                    color = if (isAppDarkTheme()) Color(0xFF303030) else Color(0xFFFFFFFF),
                     contentColor = MiuixTheme.colorScheme.onSurface
                 ),
             ) {
@@ -467,9 +463,7 @@ fun AddEditCourseBottomSheet(
                 cornerRadius = 20.dp,
                 modifier = Modifier.fillMaxWidth(),
                 colors = CardDefaults.defaultColors(
-                    color = if (isAppDarkTheme()) Color(0xFF363636).copy(alpha = 0.62f) else Color(
-                        0xFFFFFFFF
-                    ).copy(alpha = 0.7f),
+                    color = if (isAppDarkTheme()) Color(0xFF303030) else Color(0xFFFFFFFF),
                     contentColor = MiuixTheme.colorScheme.onSurface
                 ),
             ) {
@@ -523,9 +517,7 @@ fun AddEditCourseBottomSheet(
                     .fillMaxWidth()
                     .alpha(if (noDaySelected) 0.5f else 1f),
                 colors = CardDefaults.defaultColors(
-                    color = if (isAppDarkTheme()) Color(0xFF363636).copy(alpha = 0.62f) else Color(
-                        0xFFFFFFFF
-                    ).copy(alpha = 0.7f),
+                    color = if (isAppDarkTheme()) Color(0xFF303030) else Color(0xFFFFFFFF),
                     contentColor = MiuixTheme.colorScheme.onSurface
                 ),
             ) {

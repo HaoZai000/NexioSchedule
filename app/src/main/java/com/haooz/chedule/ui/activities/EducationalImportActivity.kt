@@ -278,11 +278,9 @@ class EducationalImportActivity : ComponentActivity() {
                             }
                         }
 
-                        var topBarBlurAlpha by remember { mutableStateOf(0f) }
                         ProgressiveBlurTopBar(
                             backdrop = liquidGlassBackdrop,
                             height = blurHeight,
-                            blurAlpha = topBarBlurAlpha,
                         ) {
                             CollapsibleTopAppBar(
                                 title = "选择学校",
@@ -294,7 +292,6 @@ class EducationalImportActivity : ComponentActivity() {
                                 onAlphaChanged = { bd, sh ->
                                     searchBackdropAlpha = bd
                                     searchShadowAlpha = sh
-                                    topBarBlurAlpha = bd
                                 },
                                 startAction = { backdropAlpha, shadowAlpha ->
                                     LiquidTopBarButton(

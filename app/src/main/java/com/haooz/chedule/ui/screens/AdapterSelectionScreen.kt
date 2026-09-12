@@ -280,7 +280,7 @@ private fun AdapterRow(
     onClick: () -> Unit
 ) {
     Surface(
-        color = if (isAppDarkTheme()) Color(0xFF363636).copy(alpha = 0.62f) else Color(0xFFFFFFFF).copy(alpha = 0.7f),
+        color = if (isAppDarkTheme()) Color(0xFF303030) else Color(0xFFFFFFFF),
         modifier = Modifier
             .fillMaxWidth()
             .clip(ContinuousRoundedRectangle(20.dp))

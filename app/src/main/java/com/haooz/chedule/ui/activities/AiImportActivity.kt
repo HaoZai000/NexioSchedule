@@ -52,10 +52,8 @@ class AiImportActivity : ComponentActivity() {
 
                 Scaffold(
                     topBar = {
-                        var topBarBlurAlpha by remember { mutableFloatStateOf(0f) }
                         ProgressiveBlurTopBar(
                             backdrop = liquidGlassBackdrop,
-                            blurAlpha = topBarBlurAlpha,
                         ) {
                             CollapsibleTopAppBar(
                                 title = "AI 文本导入",
@@ -63,7 +61,6 @@ class AiImportActivity : ComponentActivity() {
                                 modifier = Modifier,
                                 scrollBehavior = scrollBehavior,
                                 contentPadding = {},
-                                onAlphaChanged = { bd, _ -> topBarBlurAlpha = bd },
                                 startAction = { backdropAlpha, shadowAlpha ->
                                     LiquidTopBarButton(
                                         onClick = { finish() },

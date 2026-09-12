@@ -204,11 +204,9 @@ private fun AboutScreen(onBack: () -> Unit, liquidGlassBackdrop: com.kyant.backd
 
     Scaffold(
         topBar = {
-            var topBarBlurAlpha by remember { mutableFloatStateOf(0f) }
             ProgressiveBlurTopBar(
                 backdrop = liquidGlassBackdrop,
                 tintIntensity = scrollProgress * 0.2f,
-                blurAlpha = topBarBlurAlpha,
             ) {
                 CollapsibleTopAppBar(
                     title = "关于应用",
@@ -219,7 +217,6 @@ private fun AboutScreen(onBack: () -> Unit, liquidGlassBackdrop: com.kyant.backd
                     modifier = Modifier,
                     scrollBehavior = scrollBehavior,
                     contentPadding = {},
-                    onAlphaChanged = { bd, _ -> topBarBlurAlpha = bd },
                     startAction = { backdropAlpha, shadowAlpha ->
                         LiquidTopBarButton(
                             onClick = { onBack() },

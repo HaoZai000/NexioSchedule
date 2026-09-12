@@ -189,10 +189,8 @@ class CourseTimeSettingsActivity : ComponentActivity() {
                             var topBarHeight by remember { mutableStateOf(0.dp) }
                             Scaffold(
                                 topBar = {
-                                    var topBarBlurAlpha by remember { mutableFloatStateOf(0f) }
                                     ProgressiveBlurTopBar(
                                         backdrop = liquidGlassBackdrop,
-                                        blurAlpha = topBarBlurAlpha,
                                     ) {
                                         CollapsibleTopAppBar(
                                             title = "课表节数与时间",
@@ -200,7 +198,6 @@ class CourseTimeSettingsActivity : ComponentActivity() {
                                             modifier = Modifier.zIndex(1f),
                                             scrollBehavior = scrollBehavior,
                                             contentPadding = { height -> topBarHeight = height },
-                                            onAlphaChanged = { bd, _ -> topBarBlurAlpha = bd },
                                             startAction = { backdropAlpha, shadowAlpha ->
                                                 LiquidTopBarButton(
                                                     onClick = { finish() },

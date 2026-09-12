@@ -1179,7 +1179,7 @@ fun MainScheduleScreen(
                         pressFeedbackType = PressFeedbackType.None,
                         showIndication = true,
                         colors = CardDefaults.defaultColors(
-                            color = if (isAppDarkTheme()) Color(0xFF363636).copy(alpha = 0.62f) else Color(0xFFFFFFFF).copy(alpha = 0.7f),
+                            color = if (isAppDarkTheme()) Color(0xFF303030) else Color(0xFFFFFFFF),
                             contentColor = MiuixTheme.colorScheme.onSurface
                         ),
                         onClick = {

@@ -52,10 +52,8 @@ class WidgetIntroActivity : ComponentActivity() {
 
                 Scaffold(
                     topBar = {
-                        var topBarBlurAlpha by remember { mutableFloatStateOf(0f) }
                         ProgressiveBlurTopBar(
                             backdrop = liquidGlassBackdrop,
-                            blurAlpha = topBarBlurAlpha,
                         ) {
                             CollapsibleTopAppBar(
                                 title = "桌面小部件",
@@ -63,7 +61,6 @@ class WidgetIntroActivity : ComponentActivity() {
                                 modifier = Modifier,
                                 scrollBehavior = scrollBehavior,
                                 contentPadding = {},
-                                onAlphaChanged = { bd, _ -> topBarBlurAlpha = bd },
                                 startAction = { backdropAlpha, shadowAlpha ->
                                     LiquidTopBarButton(
                                         onClick = { finish() },

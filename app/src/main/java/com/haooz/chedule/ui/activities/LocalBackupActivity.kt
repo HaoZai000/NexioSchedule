@@ -52,10 +52,8 @@ class LocalBackupActivity : ComponentActivity() {
 
                 Scaffold(
                     topBar = {
-                        var topBarBlurAlpha by remember { mutableFloatStateOf(0f) }
                         ProgressiveBlurTopBar(
                             backdrop = liquidGlassBackdrop,
-                            blurAlpha = topBarBlurAlpha,
                         ) {
                             CollapsibleTopAppBar(
                                 title = "本地备份",
@@ -63,7 +61,6 @@ class LocalBackupActivity : ComponentActivity() {
                                 modifier = Modifier,
                                 scrollBehavior = scrollBehavior,
                                 contentPadding = {},
-                                onAlphaChanged = { bd, _ -> topBarBlurAlpha = bd },
                                 startAction = { backdropAlpha, shadowAlpha ->
                                     LiquidTopBarButton(
                                         onClick = { finish() },
