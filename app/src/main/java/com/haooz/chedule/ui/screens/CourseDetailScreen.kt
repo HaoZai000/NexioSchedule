@@ -58,7 +58,7 @@ import com.haooz.chedule.ui.effects.motion.OobeCubicOutEasing
 import com.haooz.chedule.ui.effects.motion.OobeFifthpowerOutEasing
 import com.haooz.chedule.ui.effects.motion.OobeQuadraticOutEasing
 import com.haooz.chedule.ui.effects.motion.OobeQuartOutEasing
-import com.haooz.chedule.ui.utils.consumeAllTouches
+import com.haooz.chedule.ui.utils.blockTouchPassThrough
 import com.haooz.chedule.ui.utils.isAppDarkTheme
 import com.haooz.chedule.ui.utils.overScrollVertical
 import com.kyant.backdrop.backdrops.rememberLayerBackdrop
@@ -276,8 +276,8 @@ fun CourseDetailScreen(
                 if (isDark) ComposeColor(0xFF2C2C2C).copy(alpha = animState.value.bgAlpha)
                 else ComposeColor.Black.copy(alpha = animState.value.bgAlpha)
             )
-            // 空 pointerInput 不会 consume，退出动画期间点击会穿透到下层课表/sheet
-            .consumeAllTouches()
+            // 只挡下层穿透、不 consume：consumeAllTouches 会连 LazyColumn 拖动一起吃掉
+            .blockTouchPassThrough()
     ) {
         val s = animState.value
         val clipShape = remember { AnimClipShape(screenWidth, screenCornerRadius, startCornerRadiusPx, animState) }

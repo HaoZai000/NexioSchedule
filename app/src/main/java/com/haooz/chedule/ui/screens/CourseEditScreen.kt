@@ -73,7 +73,7 @@ import com.haooz.chedule.ui.effects.motion.OobeCubicOutEasing
 import com.haooz.chedule.ui.effects.motion.OobeFifthpowerOutEasing
 import com.haooz.chedule.ui.effects.motion.OobeQuadraticOutEasing
 import com.haooz.chedule.ui.effects.motion.OobeQuartOutEasing
-import com.haooz.chedule.ui.utils.consumeAllTouches
+import com.haooz.chedule.ui.utils.blockTouchPassThrough
 import com.haooz.chedule.ui.utils.isAppDarkTheme
 import com.haooz.chedule.ui.utils.overScrollVertical
 import com.kyant.capsule.ContinuousRoundedRectangle
@@ -418,8 +418,8 @@ fun CourseEditScreen(
                 if (isDark) ComposeColor(0xFF2C2C2C).copy(alpha = animState.value.bgAlpha)
                 else ComposeColor.Black.copy(alpha = animState.value.bgAlpha)
             )
-            // 空 pointerInput 不会 consume，动画期间点击会穿透
-            .consumeAllTouches()
+            // 只挡下层穿透、不 consume，避免内部列表/控件滑不动
+            .blockTouchPassThrough()
     ) {
         val s = animState.value
         val clipShape = remember {

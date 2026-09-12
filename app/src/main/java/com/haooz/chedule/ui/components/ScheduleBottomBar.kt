@@ -91,7 +91,7 @@ internal fun ScheduleBottomBar(
                         .fillMaxWidth(0.42f)
                         .height(56.dp)
                 ) {
-                    LiquidBottomTab({ onSelect(0) }) {
+                    LiquidBottomTab(index = 0, onClick = { onSelect(0) }) {
                         Image(
                             modifier = Modifier.size(24.dp),
                             imageVector = MiuixIcons.Months,
@@ -100,7 +100,7 @@ internal fun ScheduleBottomBar(
                         )
                         Text("排班课表", fontSize = 11.sp, color = iconTint)
                     }
-                    LiquidBottomTab({ onSelect(1) }) {
+                    LiquidBottomTab(index = 1, onClick = { onSelect(1) }) {
                         Image(
                             modifier = Modifier.size(24.dp),
                             imageVector = MiuixIcons.Demibold.Settings,
@@ -170,7 +170,7 @@ internal fun ScheduleBottomBar(
                         .zIndex(1f)
                         .onGloballyPositioned { navBarWidthPx = it.size.width.toFloat() }
                 ) {
-                    LiquidBottomTab({ onSelect(0) }) {
+                    LiquidBottomTab(index = 0, onClick = { onSelect(0) }) {
                         Image(
                             modifier = Modifier.size(24.dp),
                             imageVector = MiuixIcons.Album,
@@ -179,7 +179,7 @@ internal fun ScheduleBottomBar(
                         )
                         Text("今日", fontSize = 11.sp, color = iconTint)
                     }
-                    LiquidBottomTab({ onSelect(1) }) {
+                    LiquidBottomTab(index = 1, onClick = { onSelect(1) }) {
                         Image(
                             modifier = Modifier.size(24.dp),
                             imageVector = MiuixIcons.Months,
@@ -188,7 +188,7 @@ internal fun ScheduleBottomBar(
                         )
                         Text("课程表", fontSize = 11.sp, color = iconTint)
                     }
-                    LiquidBottomTab({ onSelect(2) }) {
+                    LiquidBottomTab(index = 2, onClick = { onSelect(2) }) {
                         Image(
                             modifier = Modifier.size(24.dp),
                             imageVector = MiuixIcons.ContactsCircle,

@@ -22,12 +22,13 @@ suspend fun PointerInputScope.inspectDragGestures(
         val initialDown = awaitFirstDown(false, PointerEventPass.Initial)
 
         val down = awaitFirstDown(false)
+        val drag = initialDown
 
         onDragStart(down)
-        onDrag(initialDown, Offset.Zero)
+        onDrag(drag, Offset.Zero)
         val upEvent =
             drag(
-                pointerId = initialDown.id,
+                pointerId = drag.id,
                 onDrag = { onDrag(it, it.positionChange()) }
             )
         if (upEvent == null) {

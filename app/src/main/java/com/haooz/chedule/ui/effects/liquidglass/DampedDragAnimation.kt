@@ -11,11 +11,15 @@ import androidx.compose.ui.input.pointer.util.VelocityTracker
 import androidx.compose.ui.unit.IntSize
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.android.awaitFrame
+import kotlinx.coroutines.flow.filter
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import kotlin.math.abs
 import kotlin.time.Clock
 
+/**
+ * 复刻自 AndroidLiquidGlass-kmp catalog/utils/DampedDragAnimation.kt
+ */
 class DampedDragAnimation(
     private val animationScope: CoroutineScope,
     val initialValue: Float,
@@ -31,13 +35,13 @@ class DampedDragAnimation(
     private val valueAnimationSpec =
         spring(1f, 1000f, visibilityThreshold)
     private val velocityAnimationSpec =
-        spring(1f, 300f, visibilityThreshold * 10f)
+        spring(0.5f, 300f, visibilityThreshold * 10f)
     private val pressProgressAnimationSpec =
         spring(1f, 1000f, 0.001f)
     private val scaleXAnimationSpec =
-        spring(1f, 250f, 0.001f)
+        spring(0.6f, 250f, 0.001f)
     private val scaleYAnimationSpec =
-        spring(1f, 250f, 0.001f)
+        spring(0.7f, 250f, 0.001f)
 
     private val valueAnimation =
         Animatable(initialValue, visibilityThreshold)
@@ -95,7 +99,9 @@ class DampedDragAnimation(
             awaitFrame()
             if (value != targetValue) {
                 val threshold = (valueRange.endInclusive - valueRange.start) * 0.025f
-                snapshotFlow { valueAnimation.value }.first { abs(it - valueAnimation.targetValue) < threshold }
+                snapshotFlow { valueAnimation.value }
+                    .filter { abs(it - valueAnimation.targetValue) < threshold }
+                    .first()
             }
             launch { pressProgressAnimation.animateTo(0f, pressProgressAnimationSpec) }
             launch { scaleXAnimation.animateTo(initialScale, scaleXAnimationSpec) }
@@ -120,6 +126,23 @@ class DampedDragAnimation(
                     launch { velocityAnimation.animateTo(0f, velocityAnimationSpec) }
                 }
                 release()
+            }
+        }
+    }
+
+    /**
+     * 只移动并保持按压态，不自动 release。
+     * 供 tab 按下跟手用：飞行动画结束仍保持玻璃高光，等松手再 [release]。
+     */
+    fun animateToValueKeepingPress(value: Float) {
+        animationScope.launch {
+            mutatorMutex.mutate {
+                press()
+                val targetValue = value.coerceIn(valueRange)
+                launch { valueAnimation.animateTo(targetValue, valueAnimationSpec) }
+                if (velocity != 0f) {
+                    launch { velocityAnimation.animateTo(0f, velocityAnimationSpec) }
+                }
             }
         }
     }
