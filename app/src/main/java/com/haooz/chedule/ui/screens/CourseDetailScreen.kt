@@ -42,7 +42,6 @@ import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.input.nestedscroll.nestedScroll
-import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalDensity
@@ -59,6 +58,7 @@ import com.haooz.chedule.ui.effects.motion.OobeCubicOutEasing
 import com.haooz.chedule.ui.effects.motion.OobeFifthpowerOutEasing
 import com.haooz.chedule.ui.effects.motion.OobeQuadraticOutEasing
 import com.haooz.chedule.ui.effects.motion.OobeQuartOutEasing
+import com.haooz.chedule.ui.utils.consumeAllTouches
 import com.haooz.chedule.ui.utils.isAppDarkTheme
 import com.haooz.chedule.ui.utils.overScrollVertical
 import com.kyant.backdrop.backdrops.rememberLayerBackdrop
@@ -276,9 +276,8 @@ fun CourseDetailScreen(
                 if (isDark) ComposeColor(0xFF2C2C2C).copy(alpha = animState.value.bgAlpha)
                 else ComposeColor.Black.copy(alpha = animState.value.bgAlpha)
             )
-            .pointerInput(Unit) {
-                // Block touch events without the overhead of clickable
-            }
+            // 空 pointerInput 不会 consume，退出动画期间点击会穿透到下层课表/sheet
+            .consumeAllTouches()
     ) {
         val s = animState.value
         val clipShape = remember { AnimClipShape(screenWidth, screenCornerRadius, startCornerRadiusPx, animState) }

@@ -12,7 +12,6 @@ import androidx.compose.animation.core.Spring
 import androidx.compose.animation.core.spring
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.Orientation
 import androidx.compose.foundation.gestures.awaitFirstDown
 import androidx.compose.foundation.gestures.detectTapGestures
@@ -46,6 +45,7 @@ import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -87,6 +87,7 @@ import com.kyant.backdrop.drawBackdrop
 import com.kyant.backdrop.effects.blur
 import com.kyant.backdrop.effects.vibrancy
 import com.kyant.capsule.ContinuousRoundedRectangle
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import top.yukonga.miuix.kmp.anim.folmeSpring
 import top.yukonga.miuix.kmp.theme.ColorSchemeMode
@@ -313,15 +314,16 @@ private fun BlurBottomSheetContent(
         Modifier.drawBehind { drawRect(Color.Black.copy(alpha = 0.2f * animationProgress.value)) }
     } else Modifier
 
+    // 外层 lambda 身份不稳定时不要拿它当 pointerInput key，否则每次重组都会重启手势协程
+    val currentOnDismissRequest by rememberUpdatedState(onDismissRequest)
+
     Box(
         modifier = Modifier
             .fillMaxSize()
             .then(dimModifier)
-            .clickable(
-                interactionSource = null,
-                indication = null,
-                onClick = onDismissRequest,
-            ),
+            .pointerInput(Unit) {
+                detectTapGestures(onTap = { currentOnDismissRequest() })
+            },
     ) {
         // 弹窗最底部兜底偏移用的窗口高度：在组合期读取一次，避免进入/拖拽动画期间逐帧做密度换算
         val windowHeightPx = with(density) { windowInfo.containerDpSize.height.toPx() }
@@ -483,12 +485,15 @@ private fun BlurBottomSheetContent(
                     onSheetContentBackdropCreated?.invoke(sheetContentBackdrop)
                 }
 
-                val enterDone by remember(animationProgress) {
-                    derivedStateOf { animationProgress.value >= 1f }
-                }
-                // 进入动画结束后再挂录制 + 渐进模糊，避开首帧 AGSL 编译掉帧
+                // 原先等 enterDone 再挂 backdrop/AGSL，编译卡顿正好落在「动画刚结束、用户准备点遮罩」的窗口，
+                // 表现为遮罩暂时点不动、返回键却可以。改为进入动画早期挂载，让卡顿被滑入过程盖住。
                 var sheetBackdropMounted by remember { mutableStateOf(skipEnterAnimation) }
-                LaunchedEffect(enterDone) { if (enterDone) sheetBackdropMounted = true }
+                LaunchedEffect(show) {
+                    if (show && !skipEnterAnimation) {
+                        delay(80)
+                        sheetBackdropMounted = true
+                    }
+                }
 
                 val placeholderOnDraw: DrawScope.() -> Unit = remember(sheetBgColor) {
                     {

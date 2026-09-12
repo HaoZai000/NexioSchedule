@@ -9,7 +9,6 @@ import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.CubicBezierEasing
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
@@ -30,6 +29,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -71,6 +71,7 @@ import com.kyant.backdrop.drawBackdrop
 import com.kyant.backdrop.effects.blur
 import com.kyant.backdrop.effects.vibrancy
 import com.kyant.capsule.ContinuousRoundedRectangle
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import top.yukonga.miuix.kmp.anim.folmeSpring
 import top.yukonga.miuix.kmp.theme.ColorSchemeMode
@@ -227,6 +228,9 @@ private fun BlurBottomSheetTabletContent(
         Modifier.drawBehind { drawRect(Color.Black.copy(alpha = 0.2f * animationProgress.value)) }
     } else Modifier
 
+    // 外层 lambda 身份不稳定时不要拿它当 pointerInput key
+    val currentOnDismissRequest by rememberUpdatedState(onDismissRequest)
+
     // 弹窗形状与 drawBackdrop 的 shape lambda 必须固定引用：
     // drawBackdrop 的 ModifierNodeElement 用「引用」比较 shape 与 effects，ShapeProvider 没有实现 equals，
     // 组合期每次 `ContinuousRoundedRectangle(38.dp)` 都是新对象、每次 `{ ... }` 都是新 lambda，
@@ -238,11 +242,9 @@ private fun BlurBottomSheetTabletContent(
         modifier = Modifier
             .fillMaxSize()
             .then(dimModifier)
-            .clickable(
-                interactionSource = null,
-                indication = null,
-                onClick = onDismissRequest,
-            ),
+            .pointerInput(Unit) {
+                detectTapGestures(onTap = { currentOnDismissRequest() })
+            },
         contentAlignment = if (isBottomAligned) Alignment.BottomCenter else Alignment.Center,
     ) {
         val sheetModifier = Modifier
@@ -339,11 +341,14 @@ private fun BlurBottomSheetTabletContent(
                     onSheetContentBackdropCreated?.invoke(sheetContentBackdrop)
                 }
 
-                val enterDone by remember(animationProgress) {
-                    derivedStateOf { animationProgress.value >= 1f }
-                }
+                // 进入动画早期挂载，避免 AGSL 编译卡顿落在动画刚结束、用户准备点遮罩的窗口
                 var sheetBackdropMounted by remember { mutableStateOf(skipEnterAnimation) }
-                LaunchedEffect(enterDone) { if (enterDone) sheetBackdropMounted = true }
+                LaunchedEffect(show) {
+                    if (show && !skipEnterAnimation) {
+                        delay(80)
+                        sheetBackdropMounted = true
+                    }
+                }
 
                 val placeholderOnDraw: DrawScope.() -> Unit = remember(sheetBgColor) {
                     {

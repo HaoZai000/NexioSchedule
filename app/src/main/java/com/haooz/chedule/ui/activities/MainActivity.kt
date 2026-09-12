@@ -124,6 +124,7 @@ import com.haooz.chedule.ui.theme.CourseScheduleTheme
 import com.haooz.chedule.ui.utils.LocalForcedDarkTheme
 import com.haooz.chedule.ui.utils.applyNavigationBarIsDark
 import com.haooz.chedule.ui.utils.applyThemeAwareSystemBars
+import com.haooz.chedule.ui.utils.consumeAllTouches
 import com.haooz.chedule.ui.utils.isAppDarkTheme
 import com.haooz.chedule.ui.utils.rememberAppSettingDark
 import com.haooz.chedule.ui.utils.rememberScheduleThemeMode
@@ -2321,9 +2322,10 @@ fun CourseScheduleApp() {
                         )
                     }
                 ) { paddingValues ->
-                    // 课程详情动画期间：跳过内容重组，用快照 Image 替代
+                    // 课程详情动画期间：跳过内容重组，用快照 Image 替代。
+                    // 占位 Box 必须吃满触摸，否则详情页退出瞬间真实课表已重组、事件会穿到卡片上。
                     if (showDetail && mainContentSnapshot != null) {
-                        Box(modifier = Modifier.fillMaxSize())
+                        Box(modifier = Modifier.fillMaxSize().consumeAllTouches())
                         return@Scaffold
                     }
                     // 不再用 combinations.isEmpty() 门控内容区：课程网格只依赖 viewModel，
@@ -3114,12 +3116,14 @@ fun CourseScheduleApp() {
                     scaffoldContent()
                 }
             }
-            // 课程详情动画期间：用静态快照替代实际内容渲染，降低性能负载
+            // 课程详情动画期间：用静态快照替代实际内容渲染，降低性能负载。
+            // 快照层也要拦截触摸：showDetail 已 false、真实课表刚重组、快照尚未清除的短暂窗口里，
+            // 否则点击会直接落到课程卡片上。
             if (mainContentSnapshot != null) {
                 Image(
                     bitmap = mainContentSnapshot!!.asImageBitmap(),
                     contentDescription = null,
-                    modifier = Modifier.fillMaxSize(),
+                    modifier = Modifier.fillMaxSize().consumeAllTouches(),
                     contentScale = ContentScale.Crop
                 )
             }
