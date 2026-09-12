@@ -150,7 +150,6 @@ import top.yukonga.miuix.kmp.basic.NumberPicker
 import top.yukonga.miuix.kmp.basic.Scaffold
 import top.yukonga.miuix.kmp.basic.TextButton
 import top.yukonga.miuix.kmp.basic.rememberNavigationRailState
-import top.yukonga.miuix.kmp.blur.rememberLayerBackdrop
 import top.yukonga.miuix.kmp.icon.MiuixIcons
 import top.yukonga.miuix.kmp.icon.basic.FastForward
 import top.yukonga.miuix.kmp.icon.extended.Add
@@ -892,11 +891,6 @@ fun CourseScheduleApp() {
         }
     }
 
-    val backgroundColor = MiuixTheme.colorScheme.surface
-    val backdrop = rememberLayerBackdrop {
-        drawRect(backgroundColor)
-        drawContent()
-    }
     val isDark = isAppDarkTheme()
     val liquidGlassBackdrop = com.kyant.backdrop.backdrops.rememberLayerBackdrop()
 
@@ -3386,7 +3380,7 @@ fun CourseScheduleApp() {
                 modifier = Modifier.offset(
                     // 菜单 layout 含 ShadowPadding(12dp)，左移 12dp 使可见左边缘与卡片左边缘对齐
                     x = with(density) { shortcutMenuPosition.x.toDp() - 12.dp },
-                    y = with(density) { (shortcutMenuPosition.y - shortcutMenuSize.height).toDp() + 8.dp }
+                    y = with(density) { (shortcutMenuPosition.y - shortcutMenuSize.height).toDp() + 4.dp }
                 ),
                 backdrop = liquidGlassBackdrop,
                 anchorRightPx = shortcutMenuPosition.x + shortcutMenuAnchorWidth,

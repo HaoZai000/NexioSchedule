@@ -25,6 +25,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.compositionLocalOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.key
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
@@ -115,11 +116,15 @@ fun CourseCard(
     val localDensity = LocalDensity.current
 
     // 落地涟漪：全表覆盖，近处几乎立刻、远处按距离铺开先后
+    // 初始记为当前 token，避免卡片新进组合树（如退出详情页）时误触发旧涟漪
     val landRipple = LocalLandRipple.current
     val rippleScale = remember { Animatable(1f) }
     val cardBoundsPx = remember { FloatArray(4) }
+    val lastRippleToken = remember { mutableIntStateOf(landRipple.token) }
     LaunchedEffect(landRipple.token) {
         if (landRipple.token == 0) return@LaunchedEffect
+        if (landRipple.token == lastRippleToken.intValue) return@LaunchedEffect
+        lastRippleToken.intValue = landRipple.token
         val cx = cardBoundsPx[0]
         val cy = cardBoundsPx[1]
         if (cx == 0f && cy == 0f) return@LaunchedEffect
