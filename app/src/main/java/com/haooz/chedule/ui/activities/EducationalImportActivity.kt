@@ -81,6 +81,7 @@ import top.yukonga.miuix.kmp.blur.rememberLayerBackdrop
 import top.yukonga.miuix.kmp.icon.MiuixIcons
 import top.yukonga.miuix.kmp.icon.extended.ChevronBackward
 import top.yukonga.miuix.kmp.icon.extended.Close
+import top.yukonga.miuix.kmp.icon.extended.Refresh
 import top.yukonga.miuix.kmp.icon.extended.Update
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 import com.kyant.backdrop.backdrops.layerBackdrop as liquidGlassLayerBackdrop
@@ -226,6 +227,9 @@ class EducationalImportActivity : ComponentActivity() {
         var currentAssetJsPath by remember { mutableStateOf<String?>(null) }
         var executeImportAction by remember { mutableStateOf<(() -> Unit)?>(null) }
         var toggleDesktopModeAction by remember { mutableStateOf<(() -> Unit)?>(null) }
+        var webPageTitle by remember { mutableStateOf("加载中...") }
+        var reloadWebViewAction by remember { mutableStateOf<(() -> Unit)?>(null) }
+        val webViewScrollBehavior = rememberSharedScrollBehavior()
 
         when (currentScreen) {
             "selection" -> {
@@ -407,49 +411,113 @@ class EducationalImportActivity : ComponentActivity() {
                 val school = selectedSchool
                 val adapter = selectedAdapter
                 if (school != null && adapter != null) {
-                    Box(Modifier.fillMaxSize()) {
-                        WebViewScreen(
-                            school = school,
-                            adapterId = adapter.adapterId,
-                            importUrl = adapter.importUrl,
-                            assetJsPath = adapter.assetJsPath,
-                            liquidGlassBackdrop = liquidGlassBackdrop,
-                            scheduleNames = scheduleNames,
-                            currentScheduleName = currentScheduleName,
-                            onBack = {
-                                selectedSchool = null
-                                currentScreen = "selection"
-                            },
-                            onImportComplete = { courses ->
-                                // AndroidBridge 已为导入课程设置 scheduleId（目标课表，空为当前课表）
-                                val targetScheduleId = courses.firstOrNull()?.scheduleId?.takeIf { it.isNotEmpty() }
-                                if (targetScheduleId != null && targetScheduleId != currentScheduleName) {
-                                    scheduleViewModel.saveCoursesToSchedule(targetScheduleId, courses)
-                                } else {
-                                    courseViewModel.replaceCourses(courses)
-                                }
-                                scheduleViewModel.refreshScheduleList()
-                                Toast.makeText(this@EducationalImportActivity, "课程已保存，共 ${courses.size} 门课程", Toast.LENGTH_SHORT).show()
-                            },
-                            onTaskCompleted = {
-                                val prefs = getSharedPreferences("edu_import_prefs", MODE_PRIVATE)
-                                val hasPresetTimeSlots = prefs.getString("preset_time_slots", null) != null
-                                val targetScheduleId = prefs.getString("target_schedule_id", null)
+                    val hapticFeedback = LocalHapticFeedback.current
 
-                                if (hasPresetTimeSlots) {
-                                    applyPresetTimeSlots(settingsViewModel, scheduleViewModel, targetScheduleId)
-                                }
-                                val hasStartDate = prefs.getString("semester_start_date", null) != null
-                                val hasTotalWeeks = prefs.getInt("semester_total_weeks", -1) > 0
-                                if (hasStartDate || hasTotalWeeks) {
-                                    applyImportedScheduleConfig(courseViewModel)
-                                }
-                            },
-                            onDesktopModeChanged = { isDesktopMode = it },
-                            onAssetJsPathChanged = { currentAssetJsPath = it },
-                            onExecuteImportRef = { action -> executeImportAction = action },
-                            onToggleDesktopModeRef = { action -> toggleDesktopModeAction = action }
-                        )
+                    Scaffold { paddingValues ->
+                        val topBarHeightDp = with(androidx.compose.ui.platform.LocalDensity.current) {
+                            (webViewScrollBehavior.currentHeightPx).toDp()
+                        }
+                        val statusBarHeight = WindowInsets.statusBars
+                            .asPaddingValues().calculateTopPadding()
+                        val blurHeight = statusBarHeight + CollapsedHeight + 40.dp
+                        // 顶栏与底部胶囊共用：录的是 WebView Offscreen 层
+                        val webContentBackdrop = com.kyant.backdrop.backdrops.rememberLayerBackdrop()
+
+                        Box(modifier = Modifier.fillMaxSize()) {
+                            WebViewScreen(
+                                school = school,
+                                adapterId = adapter.adapterId,
+                                importUrl = adapter.importUrl,
+                                assetJsPath = adapter.assetJsPath,
+                                webContentBackdrop = webContentBackdrop,
+                                // 与选择页同构：Scaffold padding + 顶栏高度，内容贴在顶栏下
+                                contentTopPadding = (
+                                    paddingValues.calculateTopPadding() + topBarHeightDp + 12.dp
+                                ).coerceAtLeast(0.dp),
+                                scheduleNames = scheduleNames,
+                                currentScheduleName = currentScheduleName,
+                                onBack = {
+                                    selectedSchool = null
+                                    currentScreen = "selection"
+                                },
+                                onImportComplete = { courses ->
+                                    // AndroidBridge 已为导入课程设置 scheduleId（目标课表，空为当前课表）
+                                    val targetScheduleId = courses.firstOrNull()?.scheduleId?.takeIf { it.isNotEmpty() }
+                                    if (targetScheduleId != null && targetScheduleId != currentScheduleName) {
+                                        scheduleViewModel.saveCoursesToSchedule(targetScheduleId, courses)
+                                    } else {
+                                        courseViewModel.replaceCourses(courses)
+                                    }
+                                    scheduleViewModel.refreshScheduleList()
+                                    Toast.makeText(this@EducationalImportActivity, "课程已保存，共 ${courses.size} 门课程", Toast.LENGTH_SHORT).show()
+                                },
+                                onTaskCompleted = {
+                                    val prefs = getSharedPreferences("edu_import_prefs", MODE_PRIVATE)
+                                    val hasPresetTimeSlots = prefs.getString("preset_time_slots", null) != null
+                                    val targetScheduleId = prefs.getString("target_schedule_id", null)
+
+                                    if (hasPresetTimeSlots) {
+                                        applyPresetTimeSlots(settingsViewModel, scheduleViewModel, targetScheduleId)
+                                    }
+                                    val hasStartDate = prefs.getString("semester_start_date", null) != null
+                                    val hasTotalWeeks = prefs.getInt("semester_total_weeks", -1) > 0
+                                    if (hasStartDate || hasTotalWeeks) {
+                                        applyImportedScheduleConfig(courseViewModel)
+                                    }
+                                },
+                                onPageTitleChanged = { webPageTitle = it },
+                                onDesktopModeChanged = { isDesktopMode = it },
+                                onAssetJsPathChanged = { currentAssetJsPath = it },
+                                onExecuteImportRef = { action -> executeImportAction = action },
+                                onToggleDesktopModeRef = { action -> toggleDesktopModeAction = action },
+                                onReloadRef = { action -> reloadWebViewAction = action }
+                            )
+
+                            ProgressiveBlurTopBar(
+                                backdrop = webContentBackdrop,
+                                height = blurHeight,
+                            ) {
+                                CollapsibleTopAppBar(
+                                    title = webPageTitle,
+                                    showLargeTitle = false,
+                                    showShadow = true,
+                                    modifier = Modifier,
+                                    scrollBehavior = webViewScrollBehavior,
+                                    contentPadding = {},
+                                    startAction = { backdropAlpha, shadowAlpha ->
+                                        LiquidTopBarButton(
+                                            onClick = {
+                                                hapticFeedback.performHapticFeedback(HapticFeedbackType.VirtualKey)
+                                                selectedSchool = null
+                                                currentScreen = "selection"
+                                            },
+                                            backdrop = liquidGlassBackdrop,
+                                            icon = MiuixIcons.Close,
+                                            contentDescription = "关闭",
+                                            performHapticFeedback = false,
+                                            iconSize = 22.dp,
+                                            backdropAlpha = backdropAlpha,
+                                            shadowAlpha = shadowAlpha,
+                                        )
+                                    },
+                                    endAction = { backdropAlpha, shadowAlpha ->
+                                        LiquidTopBarButton(
+                                            onClick = {
+                                                hapticFeedback.performHapticFeedback(HapticFeedbackType.VirtualKey)
+                                                reloadWebViewAction?.invoke()
+                                            },
+                                            backdrop = liquidGlassBackdrop,
+                                            icon = MiuixIcons.Refresh,
+                                            contentDescription = "刷新",
+                                            performHapticFeedback = false,
+                                            iconSize = 24.dp,
+                                            backdropAlpha = backdropAlpha,
+                                            shadowAlpha = shadowAlpha,
+                                        )
+                                    },
+                                )
+                            }
+                        }
                     }
                 }
             }

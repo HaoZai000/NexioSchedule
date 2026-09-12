@@ -2,8 +2,16 @@
 package com.haooz.chedule.ui.screens
 
 import android.annotation.SuppressLint
+import android.app.Activity
+import android.content.ContextWrapper
+import android.graphics.Bitmap
+import android.graphics.Rect
 import android.net.http.SslError
+import android.os.Handler
+import android.os.Looper
 import android.util.Log
+import android.view.Choreographer
+import android.view.PixelCopy
 import android.view.ViewGroup
 import android.webkit.ConsoleMessage
 import android.webkit.CookieManager
@@ -20,6 +28,7 @@ import androidx.activity.compose.BackHandler
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -27,7 +36,6 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -55,13 +63,16 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.CompositingStrategy
 import androidx.compose.ui.graphics.Shape
+import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.graphics.drawscope.DrawScope
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalHapticFeedback
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.TextFieldValue
 import androidx.compose.ui.text.style.TextOverflow
@@ -72,13 +83,10 @@ import androidx.compose.ui.viewinterop.AndroidView
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
 import androidx.core.net.toUri
+import com.haooz.chedule.R
 import com.haooz.chedule.data.Course
 import com.haooz.chedule.data.school.SchoolData
 import com.haooz.chedule.data.school.ScriptRepository
-import com.haooz.chedule.ui.basic.CollapsibleTopAppBar
-import com.haooz.chedule.ui.basic.LiquidTopBarButton
-import com.haooz.chedule.ui.basic.ProgressiveBlurTopBar
-import com.haooz.chedule.ui.basic.rememberSharedScrollBehavior
 import com.haooz.chedule.ui.effects.edgelight.edgeLight
 import com.haooz.chedule.ui.effects.edgelight.rememberDefaultEdgeLight
 import com.haooz.chedule.ui.utils.isAppDarkTheme
@@ -88,7 +96,6 @@ import com.haooz.chedule.ui.web.WebPostBridge
 import com.kyant.backdrop.BackdropEffectScope
 import com.kyant.backdrop.backdrops.LayerBackdrop
 import com.kyant.backdrop.backdrops.layerBackdrop
-import com.kyant.backdrop.backdrops.rememberLayerBackdrop
 import com.kyant.backdrop.drawBackdrop
 import com.kyant.backdrop.effects.blur
 import com.kyant.backdrop.effects.lens
@@ -100,14 +107,12 @@ import top.yukonga.miuix.kmp.basic.ButtonDefaults
 import top.yukonga.miuix.kmp.basic.Icon
 import top.yukonga.miuix.kmp.basic.IconButton
 import top.yukonga.miuix.kmp.basic.NativeMiuixTextField
-import top.yukonga.miuix.kmp.basic.Scaffold
 import top.yukonga.miuix.kmp.basic.Surface
 import top.yukonga.miuix.kmp.basic.TextButton
 import top.yukonga.miuix.kmp.icon.MiuixIcons
-import top.yukonga.miuix.kmp.icon.extended.Close
 import top.yukonga.miuix.kmp.icon.extended.Download
-import top.yukonga.miuix.kmp.icon.extended.Refresh
 import top.yukonga.miuix.kmp.theme.MiuixTheme
+import java.util.concurrent.atomic.AtomicBoolean
 
 private const val DESKTOP_USER_AGENT =
     "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
@@ -142,16 +147,19 @@ fun WebViewScreen(
     adapterId: String,
     importUrl: String?,
     assetJsPath: String?,
-    liquidGlassBackdrop: LayerBackdrop,
+    webContentBackdrop: LayerBackdrop,
+    contentTopPadding: Dp = 0.dp,
     scheduleNames: List<String> = emptyList(),
     currentScheduleName: String = "",
     onBack: () -> Unit,
     onImportComplete: (List<Course>) -> Unit,
     onTaskCompleted: () -> Unit = {},
+    onPageTitleChanged: (String) -> Unit = {},
     onDesktopModeChanged: (Boolean) -> Unit = {},
     onAssetJsPathChanged: (String?) -> Unit = {},
     onExecuteImportRef: ((() -> Unit) -> Unit)? = null,
-    onToggleDesktopModeRef: ((() -> Unit) -> Unit)? = null
+    onToggleDesktopModeRef: ((() -> Unit) -> Unit)? = null,
+    onReloadRef: ((() -> Unit) -> Unit)? = null
 ) {
     val context = LocalContext.current
     val isTablet = LocalConfiguration.current.screenWidthDp >= 600
@@ -164,10 +172,10 @@ fun WebViewScreen(
     var pageTitle by remember { mutableStateOf("加载中...") }
     var isDesktopMode by remember { mutableStateOf(isTablet) }
     val hapticFeedback = LocalHapticFeedback.current
-    val scrollBehavior = rememberSharedScrollBehavior()
 
     LaunchedEffect(isDesktopMode) { onDesktopModeChanged(isDesktopMode) }
     LaunchedEffect(assetJsPath) { onAssetJsPathChanged(assetJsPath) }
+    LaunchedEffect(pageTitle) { onPageTitleChanged(pageTitle) }
 
     // 进入页面时按需预下载适配脚本，失败不阻塞页面
     LaunchedEffect(school.resourceFolder, assetJsPath) {
@@ -193,8 +201,76 @@ fun WebViewScreen(
         }
     }
 
-    // 专供底部胶囊采样的 WebView 内容层；不能复用外层 liquidGlassBackdrop（那是选择页的 Compose 层）
-    val webContentBackdrop = rememberLayerBackdrop()
+    // WebView 内容层由 Activity 创建并传入：顶栏 ProgressiveBlurTopBar 与底部胶囊共用
+    // 顶栏空白区：每帧截页面最上面 1px，FillBounds 垂直拉伸铺满 contentTopPadding
+    var webTopMirrorBitmap by remember { mutableStateOf<Bitmap?>(null) }
+    val edgeSampleHandler = remember { Handler(Looper.getMainLooper()) }
+    val pixelCopyInFlight = remember { AtomicBoolean(false) }
+    val mirrorFrameRunning = remember { AtomicBoolean(false) }
+
+    val captureWebTopMirror: (WebView) -> Unit = remember {
+        { target ->
+            // 上一帧还没回来就跳过，避免 PixelCopy 排队打满
+            if (!pixelCopyInFlight.compareAndSet(false, true)) return@remember
+            try {
+                val activity = target.context.findActivity()
+                val window = activity?.window
+                val width = target.width
+                val height = target.height
+                if (window != null && width > 0 && height > 0) {
+                    val location = IntArray(2)
+                    target.getLocationInWindow(location)
+                    // 只取页面最上面 1px
+                    val src = Rect(
+                        location[0],
+                        location[1],
+                        location[0] + width,
+                        location[1] + 1
+                    )
+                    val bitmap = Bitmap.createBitmap(width, 1, Bitmap.Config.ARGB_8888)
+                    PixelCopy.request(
+                        window,
+                        src,
+                        bitmap,
+                        { result ->
+                            if (result == PixelCopy.SUCCESS) {
+                                webTopMirrorBitmap?.takeIf { !it.isRecycled }?.recycle()
+                                webTopMirrorBitmap = bitmap
+                            } else {
+                                bitmap.recycle()
+                            }
+                            pixelCopyInFlight.set(false)
+                        },
+                        edgeSampleHandler
+                    )
+                } else {
+                    pixelCopyInFlight.set(false)
+                }
+            } catch (_: Throwable) {
+                pixelCopyInFlight.set(false)
+            }
+        }
+    }
+
+    DisposableEffect(webView, captureWebTopMirror) {
+        val choreographer = Choreographer.getInstance()
+        val frameCallback = object : Choreographer.FrameCallback {
+            override fun doFrame(frameTimeNanos: Long) {
+                if (!mirrorFrameRunning.get()) return
+                captureWebTopMirror(webView)
+                choreographer.postFrameCallback(this)
+            }
+        }
+        mirrorFrameRunning.set(true)
+        choreographer.postFrameCallback(frameCallback)
+        onDispose {
+            mirrorFrameRunning.set(false)
+            choreographer.removeFrameCallback(frameCallback)
+            webTopMirrorBitmap?.takeIf { !it.isRecycled }?.recycle()
+            webTopMirrorBitmap = null
+        }
+    }
+
     val webDockShapeBlock: () -> Shape = remember { { ContinuousCapsule() } }
     // 与 LiquidBottomTabs 可见层同一套玻璃参数
     val webDockEffects: BackdropEffectScope.() -> Unit = remember {
@@ -477,94 +553,55 @@ fun WebViewScreen(
 
     LaunchedEffect(onExecuteImportRef) { onExecuteImportRef?.invoke(onExecuteImport) }
     LaunchedEffect(onToggleDesktopModeRef) { onToggleDesktopModeRef?.invoke { isDesktopMode = !isDesktopMode } }
+    LaunchedEffect(onReloadRef) { onReloadRef?.invoke { webView.reload() } }
 
     Box(modifier = Modifier.fillMaxSize()) {
         // 生产者包住 WebView：底部玻璃从这里实时采样页面像素
+        // 顶栏在 Activity 层，这里只负责页面 + 底部胶囊
         Box(
             modifier = Modifier
                 .fillMaxSize()
                 .background(MiuixTheme.colorScheme.surface)
                 .layerBackdrop(webContentBackdrop)
         ) {
-            Scaffold(
-                contentWindowInsets = WindowInsets(0, 0, 0, 0),
-                topBar = {
-                    ProgressiveBlurTopBar(
-                        backdrop = liquidGlassBackdrop,
-                    ) {
-                        CollapsibleTopAppBar(
-                            title = pageTitle,
-                            showLargeTitle = false,
-                            // WebView 无嵌套滚动，按钮玻璃材质不跟随内容，始终显示
-                            showShadow = true,
-                            modifier = Modifier,
-                            scrollBehavior = scrollBehavior,
-                            contentPadding = {},
-                            startAction = { backdropAlpha, shadowAlpha ->
-                                LiquidTopBarButton(
-                                    onClick = {
-                                        hapticFeedback.performHapticFeedback(HapticFeedbackType.VirtualKey)
-                                        onBack()
-                                    },
-                                    backdrop = liquidGlassBackdrop,
-                                    icon = MiuixIcons.Close,
-                                    contentDescription = "关闭",
-                                    performHapticFeedback = false,
-                                    iconSize = 22.dp,
-                                    backdropAlpha = backdropAlpha,
-                                    shadowAlpha = shadowAlpha,
-                                )
-                            },
-                            endAction = { backdropAlpha, shadowAlpha ->
-                                LiquidTopBarButton(
-                                    onClick = {
-                                        hapticFeedback.performHapticFeedback(HapticFeedbackType.VirtualKey)
-                                        webView.reload()
-                                    },
-                                    backdrop = liquidGlassBackdrop,
-                                    icon = MiuixIcons.Refresh,
-                                    contentDescription = "刷新",
-                                    performHapticFeedback = false,
-                                    iconSize = 24.dp,
-                                    backdropAlpha = backdropAlpha,
-                                    shadowAlpha = shadowAlpha,
-                                )
-                            },
-                        )
-                    }
-                }
-            ) { paddingValues ->
-                Box(
+            // 顶栏区域：页面最上面 1px 垂直拉伸，供 ProgressiveBlurTopBar 采样
+            webTopMirrorBitmap?.let { edge ->
+                Image(
+                    bitmap = edge.asImageBitmap(),
+                    contentDescription = null,
                     modifier = Modifier
-                        .padding(
-                            top = paddingValues.calculateTopPadding() - 24.dp,
-                            bottom = paddingValues.calculateBottomPadding()
-                        )
+                        .fillMaxWidth()
+                        .height(contentTopPadding),
+                    contentScale = ContentScale.FillBounds
+                )
+            }
+            Box(
+                modifier = Modifier
+                    .padding(top = contentTopPadding)
+                    .fillMaxSize()
+            ) {
+                AndroidView(
+                    modifier = Modifier
                         .fillMaxSize()
-                ) {
-                    AndroidView(
-                        modifier = Modifier
-                            .fillMaxSize()
-                            .graphicsLayer {
-                                compositingStrategy = CompositingStrategy.Offscreen
-                            },
-                        factory = { webView },
-                        update = {}
-                    )
+                        .graphicsLayer {
+                            compositingStrategy = CompositingStrategy.Offscreen
+                        },
+                    factory = { webView },
+                    update = {}
+                )
 
-                    AnimatedVisibility(
-                        visible = loadingProgress in 0.01f..0.99f,
-                        enter = fadeIn(),
-                        exit = fadeOut(),
-                        modifier = Modifier.align(Alignment.TopCenter)
-                    ) {
-                        Box(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .height(3.dp)
-                                .background(MiuixTheme.colorScheme.primary)
-                        )
-                    }
+                AnimatedVisibility(
+                    visible = loadingProgress in 0.01f..0.99f,
+                    enter = fadeIn(),
+                    exit = fadeOut(),
+                    modifier = Modifier.align(Alignment.TopCenter)
+                ) {
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(3.dp)
+                            .background(MiuixTheme.colorScheme.primary)
+                    )
                 }
             }
         }
@@ -609,6 +646,7 @@ private fun WebImportDockContent(
     onExecuteImport: () -> Unit,
     importEnabled: Boolean
 ) {
+    val isLightTheme = !isAppDarkTheme()
     Row(
         modifier = Modifier
             .fillMaxWidth()
@@ -616,7 +654,7 @@ private fun WebImportDockContent(
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.SpaceBetween
     ) {
-        Column(modifier = Modifier.weight(1f)) {
+        Column(modifier = Modifier.weight(1f).padding(end = 8.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Text(
                     text = schoolName,
@@ -628,15 +666,13 @@ private fun WebImportDockContent(
                     modifier = Modifier.weight(1f, fill = false)
                 )
                 Spacer(Modifier.width(6.dp))
+                // 仅展示当前模式，不可点击
                 Surface(
                     shape = ContinuousRoundedRectangle(4.dp),
                     color = if (isDesktopMode)
                         MiuixTheme.colorScheme.primary.copy(alpha = 0.12f)
                     else
-                        Color(0xFF66BB6A).copy(alpha = 0.15f),
-                    modifier = Modifier
-                        .clip(ContinuousRoundedRectangle(4.dp))
-                        .clickable(onClick = onToggleDesktopMode)
+                        Color(0xFF66BB6A).copy(alpha = 0.15f)
                 ) {
                     Text(
                         text = if (isDesktopMode) "桌面版" else "手机版",
@@ -648,37 +684,60 @@ private fun WebImportDockContent(
                         modifier = Modifier.padding(horizontal = 4.dp, vertical = 2.dp)
                     )
                 }
-                Spacer(Modifier.width(20.dp))
+                // 标签不要顶到右侧按钮
+                Spacer(Modifier.width(8.dp))
             }
             Spacer(Modifier.height(4.dp))
             Text(
-                text = "登录教务系统 → 进入课表页面 → 执行导入",
+                text = "登录教务系统 → 进入课表 → 执行导入",
                 fontSize = 12.sp,
                 color = MiuixTheme.colorScheme.onSurfaceVariantActions
             )
         }
 
-        Surface(
-            modifier = Modifier.size(44.dp),
-            shape = ContinuousRoundedRectangle(22.dp),
-            color = if (importEnabled)
-                MiuixTheme.colorScheme.primary
-            else
-                MiuixTheme.colorScheme.surfaceVariant
+        Row(
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+            verticalAlignment = Alignment.CenterVertically
         ) {
-            IconButton(
-                onClick = onExecuteImport,
-                enabled = importEnabled
+            // 手机/电脑切换：固定图标、不随状态变色
+            Surface(
+                modifier = Modifier.size(44.dp),
+                shape = ContinuousRoundedRectangle(22.dp),
+                color = if (isLightTheme) Color.Black.copy(alpha = 0.08f)
+                else Color.White.copy(alpha = 0.1f)
             ) {
-                Icon(
-                    MiuixIcons.Normal.Download,
-                    contentDescription = "执行导入",
-                    modifier = Modifier.size(26.dp),
-                    tint = if (importEnabled)
-                        MiuixTheme.colorScheme.onPrimary
-                    else
-                        MiuixTheme.colorScheme.onSurfaceVariantActions
-                )
+                IconButton(onClick = onToggleDesktopMode) {
+                    Icon(
+                        painter = painterResource(R.drawable.ic_phone_pc),
+                        contentDescription = "切换手机版/桌面版",
+                        modifier = Modifier.size(22.dp),
+                        tint = if (isLightTheme) Color.Black else Color.White
+                    )
+                }
+            }
+
+            Surface(
+                modifier = Modifier.size(44.dp),
+                shape = ContinuousRoundedRectangle(22.dp),
+                color = if (importEnabled)
+                    MiuixTheme.colorScheme.primary
+                else
+                    MiuixTheme.colorScheme.surfaceVariant
+            ) {
+                IconButton(
+                    onClick = onExecuteImport,
+                    enabled = importEnabled
+                ) {
+                    Icon(
+                        MiuixIcons.Normal.Download,
+                        contentDescription = "执行导入",
+                        modifier = Modifier.size(26.dp),
+                        tint = if (importEnabled)
+                            MiuixTheme.colorScheme.onPrimary
+                        else
+                            MiuixTheme.colorScheme.onSurfaceVariantActions
+                    )
+                }
             }
         }
     }
@@ -999,4 +1058,10 @@ private fun CourseTablePickerDialog(
             }
         }
     }
+}
+
+private tailrec fun android.content.Context.findActivity(): Activity? = when (this) {
+    is Activity -> this
+    is ContextWrapper -> baseContext.findActivity()
+    else -> null
 }
