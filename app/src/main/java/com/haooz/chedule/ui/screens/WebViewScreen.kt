@@ -537,7 +537,7 @@ fun WebViewScreen(
                 Box(
                     modifier = Modifier
                         .padding(
-                            top = paddingValues.calculateTopPadding() + 24.dp,
+                            top = paddingValues.calculateTopPadding() - 24.dp,
                             bottom = paddingValues.calculateBottomPadding()
                         )
                         .fillMaxSize()
