@@ -213,6 +213,8 @@ class CourseRepository private constructor(context: Context) {
         courseCache[scheduleId]?.let { return it }
         val key = "$SCHEDULE_KEY_PREFIX${scheduleId}_$KEY_COURSES"
         val json = prefs.getString(key, null) ?: return emptyList()
+        // 1.5.0 R8 混淆字段名的坏 JSON：按真名读会得到空壳课程，不当成有效课表
+        if (!coursesJsonLooksValid(json)) return emptyList()
         val type = object : TypeToken<List<Course>>() {}.type
         return try {
             val courses = sanitizeCourses(gson.fromJson(json, type) ?: emptyList())
@@ -266,6 +268,22 @@ class CourseRepository private constructor(context: Context) {
         "USELESS_ELVIS",
         "NULLABILITY_MISMATCH_BASED_ON_JAVA_ANNOTATIONS"
     )
+    /**
+     * 课程列表 JSON 是否包含可识别字段名。
+     *
+     * v1.5.0 若漏 keep Course，R8 会写出 `{"a":"...","b":1}` 这类键名，
+     * 1.5.1 按真名去读会得到一堆空课程（name/dayOfWeek 全空/0）。
+     * 这里无法还原已被混淆的数据，但可以避免把坏 JSON 当成「已导入的空课表」
+     * 静默覆盖；调用方应视为无课并保留原 JSON 供用户从备份恢复。
+     */
+    private fun coursesJsonLooksValid(json: String): Boolean {
+        // 任一稳定字段名出现即可（课程 JSON 数组元素里这些键必有其一）
+        return json.contains("\"name\"") ||
+            json.contains("\"dayOfWeek\"") ||
+            json.contains("\"startSection\"") ||
+            json.contains("\"id\"")
+    }
+
     private fun sanitizeCourses(courses: List<Course>): List<Course> {
         return courses.map { course ->
             Course(
@@ -298,6 +316,7 @@ class CourseRepository private constructor(context: Context) {
         courseCache[scheduleId]?.let { return it }
         val key = "${getScheduleKeyPrefix()}$KEY_COURSES"
         val json = prefs.getString(key, null) ?: return emptyList()
+        if (!coursesJsonLooksValid(json)) return emptyList()
         val type = object : TypeToken<List<Course>>() {}.type
         return try {
             val courses = sanitizeCourses(gson.fromJson(json, type) ?: emptyList())
@@ -1996,37 +2015,27 @@ class CourseRepository private constructor(context: Context) {
         timeConfigCache[id]?.let { return it }
         val key = "$TIME_CONFIG_PREFIX$id"
         val json = prefs.getString(key, null)
+        val fallback = TimeConfig(id = id, name = "默认配置")
         if (json.isNullOrEmpty()) {
-            // 没有找到配置，返回默认配置
-            return TimeConfig(id = id, name = "默认配置")
+            return fallback
         }
         val config = try {
-            val parsed = gson.fromJson(json, TimeConfig::class.java)
+            val parsed = TimeConfig.parseSnapshotOrNull(gson, json)
             if (parsed == null) {
-                TimeConfig(id = id, name = "默认配置")
+                // R8 混淆键名等坏 JSON：丢弃并覆写默认配置，避免每次启动都读到 0 节
+                saveTimeConfig(fallback)
+                fallback
             } else {
-                // 兼容旧版/跨版本数据：specialBlocks/items 可能是 Map 或字段为 null，
-                // 统一经 safeSpecialBlocks 还原；清洗后的对象随下次 saveTimeConfig 写回（自愈）。
-                // sectionTimes/sectionNames 等 Map 字段在旧 JSON 中可能缺失 → null。
-                // copy() 会把 null 传给非空参数抛 NPE，外层 catch 会误判成坏数据并整份重置成默认，
-                // 用户会静默丢失节次时间。这里先兜成 emptyMap 再 copy。
-                // USELESS_ELVIS：Gson 反序列化后非空字段仍可能是 null
-                @Suppress(
-                    "SENSELESS_COMPARISON",
-                    "ELVIS_ALWAYS_NULL",
-                    "USELESS_ELVIS",
-                    "NULLABILITY_MISMATCH_BASED_ON_JAVA_ANNOTATIONS"
-                )
-                parsed.copy(
-                    id = id,
-                    name = parsed.name ?: "默认配置",
-                    sectionTimes = parsed.sectionTimes ?: emptyMap(),
-                    sectionNames = parsed.sectionNames ?: emptyMap(),
-                    specialBlocks = parsed.safeSpecialBlocks
-                )
+                // 兼容旧版/跨版本/Gson 空字段，并识别「三段节数全 0」的 R8 混淆坏快照
+                val sanitized = TimeConfig.sanitize(id, parsed)
+                // 坏快照自愈：用清洗后的真名字段覆写回 prefs，避免下次再踩
+                if (sanitized != parsed || !json.contains("morningSections")) {
+                    saveTimeConfig(sanitized)
+                }
+                sanitized
             }
         } catch (_: Exception) {
-            TimeConfig(id = id, name = "默认配置")
+            fallback
         }
         timeConfigCache[id] = config
         return config

@@ -44,6 +44,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.haooz.chedule.data.Course
 import com.haooz.chedule.ui.basic.LiquidTopBarButton
+import com.haooz.chedule.ui.components.WeekRangeSelectGrid
 import com.haooz.chedule.ui.utils.isAppDarkTheme
 import com.haooz.chedule.ui.utils.overScrollVertical
 import kotlinx.coroutines.delay
@@ -638,81 +639,23 @@ fun AddEditCourseBottomSheet(
 
                     Spacer(modifier = Modifier.height(10.dp))
 
-                    // 周次网格
-                    val columns = 6
-                    val rows =
-                        remember(totalWeeks, columns) { (totalWeeks + columns - 1) / columns }
-                    val primaryColor = MiuixTheme.colorScheme.primary
-                    val outlineColor = MiuixTheme.colorScheme.outline
-                    val onSurfaceSummaryColor = MiuixTheme.colorScheme.onSurfaceVariantSummary
-                    val occupiedColor = if (isDark) Color(0xFF4A4A4A) else Color(0xFFF0F0F0)
-                    val defaultCardColor = if (isDark) Color(0xFF363636) else Color(0xFFF2F2F2)
-
-                    val weekStates = (1..totalWeeks).map { weekNum ->
-                        val isSelected = weekNum in selectedWeeks
-                        val isOccupied = weekNum in currentOccupiedWeeks
-                        Triple(weekNum, isSelected, isOccupied)
-                    }
-
-                    Column(
-                        modifier = Modifier.fillMaxWidth(),
-                        verticalArrangement = Arrangement.spacedBy(6.dp)
-                    ) {
-                        for (row in 0 until rows) {
-                            Row(
-                                modifier = Modifier.fillMaxWidth(),
-                                horizontalArrangement = Arrangement.spacedBy(6.dp)
-                            ) {
-                                for (col in 0 until columns) {
-                                    val idx = row * columns + col
-                                    if (idx < weekStates.size) {
-                                        val (weekNum, isSelected, isOccupied) = weekStates[idx]
-                                        val cardColor = when {
-                                            noDaySelected -> defaultCardColor
-                                            isSelected -> primaryColor
-                                            isOccupied -> occupiedColor
-                                            else -> defaultCardColor
-                                        }
-                                        val textColor = when {
-                                            noDaySelected -> if (isDark) Color(0xFF606060) else outlineColor
-                                            isSelected -> Color.White
-                                            isOccupied -> if (isDark) Color(0xFF606060) else outlineColor
-                                            else -> onSurfaceSummaryColor
-                                        }
-                                        Box(
-                                            modifier = Modifier
-                                                .weight(1f)
-                                                .height(32.dp)
-                                                .squircleClip(10.dp)
-                                                .background(cardColor)
-                                                .then(
-                                                    if (noDaySelected || isOccupied) Modifier
-                                                    else Modifier.clickable(
-                                                        interactionSource = null,
-                                                        indication = null,
-                                                    ) {
-                                                        if (isSelected) {
-                                                            selectedWeeks.remove(weekNum)
-                                                        } else {
-                                                            selectedWeeks.add(weekNum)
-                                                        }
-                                                    }
-                                                ),
-                                            contentAlignment = Alignment.Center
-                                        ) {
-                                            Text(
-                                                text = "$weekNum",
-                                                fontSize = 13.sp,
-                                                color = textColor
-                                            )
-                                        }
-                                    } else {
-                                        Spacer(modifier = Modifier.weight(1f))
-                                    }
-                                }
-                            }
-                        }
-                    }
+                    // 周次网格：支持按住滑动选择连续区间（1→8 选中 1~8）
+                    WeekRangeSelectGrid(
+                        totalWeeks = totalWeeks,
+                        selectedWeeks = selectedWeeks.toSet(),
+                        occupiedWeeks = currentOccupiedWeeks,
+                        enabled = !noDaySelected,
+                        isDark = isDark,
+                        onToggleWeek = { week ->
+                            if (week in selectedWeeks) selectedWeeks.remove(week)
+                            else selectedWeeks.add(week)
+                        },
+                        onReplaceWeeks = { weeks ->
+                            selectedWeeks.clear()
+                            selectedWeeks.addAll(weeks)
+                        },
+                        modifier = Modifier.fillMaxWidth()
+                    )
                 }
             }
             }

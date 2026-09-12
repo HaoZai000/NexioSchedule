@@ -192,6 +192,8 @@ fun CustomizeScheduleScreen(
     screenCornerRadius: Float,
     onDismiss: () -> Unit,
     onApply: () -> Unit,
+    /** 默认主题实时预览：只改内存中的临时档位，点「应用」后才写入 SharedPreferences */
+    onThemeModePreview: (ThemeMode) -> Unit = {},
     onPickWallpaper: () -> Unit = {},
     onClearWallpaper: () -> Unit = {},
     combinations: List<Combination> = emptyList(),
@@ -1405,8 +1407,9 @@ fun CustomizeScheduleScreen(
                                         text = mode.label,
                                         selected = themeModeValue == mode,
                                         onClick = {
+                                            // 仅本地预览；与卡片模糊等外观项一致，点「应用」才持久化
                                             themeModeValue = mode
-                                            themePrefs.edit().putString(ThemeMode.SCHEDULE_THEME_MODE_KEY, mode.prefsValue).apply()
+                                            onThemeModePreview(mode)
                                         }
                                     )
                                 }

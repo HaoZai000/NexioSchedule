@@ -58,6 +58,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.haooz.chedule.data.Course
 import com.haooz.chedule.ui.basic.LiquidTopBarButton
+import com.haooz.chedule.ui.components.WeekRangeSelectGrid
 import com.haooz.chedule.ui.utils.LocalForcedDarkTheme
 import com.haooz.chedule.ui.utils.isAppDarkTheme
 import com.haooz.chedule.ui.utils.overScrollVertical
@@ -1289,104 +1290,24 @@ private fun WeekSettingCard(
 
             Spacer(modifier = Modifier.height(10.dp))
 
-            // 周次网格
-            val columns = 6
-            val rows = remember(totalWeeks, columns) { (totalWeeks + columns - 1) / columns }
-            val outlineColor = MiuixTheme.colorScheme.outline
-            val onSurfaceSummaryColor = MiuixTheme.colorScheme.onSurfaceVariantSummary
-            val occupiedColor = if (isDark) Color(0xFF4A4A4A) else Color(0xFFF0F0F0)
-
-            // 选中态/非选中态在 WeekCell 内部读取 form.selectedWeeks，
-            // 点单个格子只重组那一个 Box，不再波及整个网格
-            Column(
-                modifier = Modifier.fillMaxWidth(),
-                verticalArrangement = Arrangement.spacedBy(6.dp)
-            ) {
-                for (row in 0 until rows) {
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.spacedBy(6.dp)
-                    ) {
-                        for (col in 0 until columns) {
-                            val idx = row * columns + col
-                            if (idx < totalWeeks) {
-                                WeekCell(
-                                    weekNum = idx + 1,
-                                    isOccupied = (idx + 1) in currentOccupiedWeeks,
-                                    noDaySelected = noDaySelected,
-                                    isDark = isDark,
-                                    outlineColor = outlineColor,
-                                    onSurfaceSummaryColor = onSurfaceSummaryColor,
-                                    occupiedColor = occupiedColor,
-                                    form = form,
-                                )
-                            } else {
-                                Spacer(modifier = Modifier.weight(1f))
-                            }
-                        }
-                    }
-                }
-            }
+            // 周次网格：支持按住滑动选择连续区间（1→8 选中 1~8）
+            WeekRangeSelectGrid(
+                totalWeeks = totalWeeks,
+                selectedWeeks = form.selectedWeeks.toSet(),
+                occupiedWeeks = currentOccupiedWeeks,
+                enabled = !noDaySelected,
+                isDark = isDark,
+                onToggleWeek = { week ->
+                    if (week in form.selectedWeeks) form.selectedWeeks.remove(week)
+                    else form.selectedWeeks.add(week)
+                },
+                onReplaceWeeks = { weeks ->
+                    form.selectedWeeks.clear()
+                    form.selectedWeeks.addAll(weeks)
+                },
+                modifier = Modifier.fillMaxWidth()
+            )
         }
-    }
-}
-
-/**
- * 单个周次格子。
- *
- * isSelected 在 cell 内部读取 form.selectedWeeks；点击直接写 form.selectedWeeks。
- * 这样某个格子被点选只触发这一个 WeekCell 的重组，外层网格整列不再重画。
- *
- * noDaySelected / isOccupied 通过参数下传——它们一周次内至多变化一次，
- * 在父级读一次后下传最划算（form.selectedWeeks 之外的读取仍然走父级）。
- */
-@Composable
-private fun RowScope.WeekCell(
-    weekNum: Int,
-    isOccupied: Boolean,
-    noDaySelected: Boolean,
-    isDark: Boolean,
-    outlineColor: Color,
-    onSurfaceSummaryColor: Color,
-    occupiedColor: Color,
-    form: AddCourseFormState,
-) {
-    val isSelected = weekNum in form.selectedWeeks
-    val primaryColor = MiuixTheme.colorScheme.primary
-    val bgColor = when {
-        isSelected -> primaryColor
-        isOccupied -> occupiedColor
-        else -> if (isDark) Color(0xFF363636) else Color(0xFFF2F2F2)
-    }
-    val contentTextColor = when {
-        noDaySelected -> outlineColor
-        isSelected -> Color.White
-        isOccupied -> outlineColor
-        else -> onSurfaceSummaryColor
-    }
-    Box(
-        modifier = Modifier
-            .weight(1f)
-            .height(32.dp)
-            .squircleClip(10.dp)
-            .background(bgColor)
-            .then(
-                if (noDaySelected || isOccupied) Modifier
-                else Modifier.clickable(
-                    interactionSource = null,
-                    indication = null,
-                ) {
-                    if (isSelected) form.selectedWeeks.remove(weekNum)
-                    else form.selectedWeeks.add(weekNum)
-                }
-            ),
-        contentAlignment = Alignment.Center
-    ) {
-        Text(
-            text = "$weekNum",
-            fontSize = 13.sp,
-            color = contentTextColor
-        )
     }
 }
 

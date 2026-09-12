@@ -243,6 +243,67 @@ data class TimeConfig(
 
     companion object {
         /**
+         * JSON 中应当出现的字段名（用于识别 R8 混淆后的坏快照，不参与取值）。
+         *
+         * v1.5.0 正式版若漏 keep，R8 会把字段名改成 a/b/c，写出的 JSON
+         * `{"a":4,"b":4,...}` 在 1.5.1（已 keep 真名）下读不回来：
+         * Gson UnsafeAllocator 把 Int 留在 0 → 上午/下午/晚上全是 0 节，课表塌空。
+         */
+        private val FIELD_NAMES = setOf(
+            "id", "name", "morningSections", "afternoonSections", "eveningSections",
+            "quickTimeEnabled", "classDuration", "shortBreak",
+            "sectionTimes", "sectionNames", "specialBlocks"
+        )
+
+        /**
+         * 严格解析时间配置：JSON 键名一个已知字段都不像时判为 R8 混淆坏数据，返回 null。
+         */
+        fun parseSnapshotOrNull(gson: com.google.gson.Gson, json: String): TimeConfig? {
+            val obj = runCatching {
+                gson.fromJson(json, com.google.gson.JsonObject::class.java)
+            }.getOrNull() ?: return null
+            if (obj.keySet().none { it in FIELD_NAMES }) return null
+            return runCatching { gson.fromJson(json, TimeConfig::class.java) }.getOrNull()
+        }
+
+        /**
+         * 清洗 Gson 反序列化结果：
+         * - 非空字段可能为 null（UnsafeAllocator 绕过构造器）
+         * - 三段节数全为 0 视为坏数据（升级/混淆事故），恢复默认 4/4/4
+         * - 单段节数越界时夹到 0..6（0 表示该时段无课，合法）
+         */
+        // USELESS_ELVIS：Gson 反序列化后非空字段仍可能是 null
+        @Suppress("SENSELESS_COMPARISON", "ELVIS_ALWAYS_NULL", "USELESS_ELVIS")
+        fun sanitize(id: Long, raw: TimeConfig): TimeConfig {
+            val total = raw.morningSections + raw.afternoonSections + raw.eveningSections
+            val (morning, afternoon, evening) = if (total <= 0) {
+                Triple(DEFAULT_MORNING_SECTIONS, DEFAULT_AFTERNOON_SECTIONS, DEFAULT_EVENING_SECTIONS)
+            } else {
+                Triple(
+                    raw.morningSections.coerceIn(0, 6),
+                    raw.afternoonSections.coerceIn(0, 6),
+                    raw.eveningSections.coerceIn(0, 6)
+                )
+            }
+            return raw.copy(
+                id = id,
+                name = raw.name ?: "默认配置",
+                morningSections = morning,
+                afternoonSections = afternoon,
+                eveningSections = evening,
+                classDuration = if (raw.classDuration > 0) raw.classDuration else 45,
+                shortBreak = if (raw.shortBreak >= 0) raw.shortBreak else 10,
+                sectionTimes = raw.sectionTimes ?: emptyMap(),
+                sectionNames = raw.sectionNames ?: emptyMap(),
+                specialBlocks = raw.safeSpecialBlocks
+            )
+        }
+
+        const val DEFAULT_MORNING_SECTIONS = 4
+        const val DEFAULT_AFTERNOON_SECTIONS = 4
+        const val DEFAULT_EVENING_SECTIONS = 4
+
+        /**
          * 默认时间段的节次时间
          */
         private fun getDefaultTimesForPeriod(period: String): Map<Int, String> = when (period) {

@@ -1093,12 +1093,16 @@ fun CourseScheduleApp() {
     val todayPageShowsWallpaper = selectedTab == 0 && todayShowWallpaper
     // 默认主题(跟随壁纸/跟随应用/浅色模式/深色模式)：仅决定今日页与课程表页的主题来源，
     // 使用独立偏好 key，与全局主题开关完全隔离，不影响其它任何页面。
-    val scheduleThemeMode = rememberScheduleThemeMode()
+    val persistedScheduleThemeMode = rememberScheduleThemeMode()
+    // 搭配页编辑中的临时档位：点下拉只写这里，「应用」才落盘；「取消」清空回退
+    var pendingScheduleThemeMode by remember { mutableStateOf<ThemeMode?>(null) }
+    val scheduleThemeMode = pendingScheduleThemeMode ?: persistedScheduleThemeMode
     val forcedDark = if (isShiftMode) null
-    else if (selectedTab == 2) null
+    else if (selectedTab == 2 && !showCustomizePage) null
     // 无壁纸时整个"默认主题"选项不生效，两页一律跟随应用（清除壁纸后可恢复）
     else if (combIsLight == null) null
-    else if (selectedTab == 1 || todayPageShowsWallpaper) {
+    // 搭配页打开时始终按默认主题预览（否则从「今日」且未开显示壁纸进入时，改主题会像失效）
+    else if (selectedTab == 1 || todayPageShowsWallpaper || showCustomizePage) {
         when (scheduleThemeMode) {
             ThemeMode.FOLLOW_WALLPAPER -> !combIsLight
             ThemeMode.FOLLOW_APP -> null
@@ -2017,6 +2021,8 @@ fun CourseScheduleApp() {
             customizeCoverActive = true
             customizeCoverScale.snapTo(1f)
             customizeCoverAlpha.snapTo(1f)
+            // 进入搭配页时丢弃未落盘的主题预览，从当前已保存档位开始
+            pendingScheduleThemeMode = null
             delay(280.milliseconds)
             launch {
                 // 同步主界面的开洞缩放(0.75)，transformOrigin 对齐开洞中心
@@ -3122,10 +3128,16 @@ fun CourseScheduleApp() {
             // 始终用 MiuixTheme 包裹脚手架，保持组合结构恒定；
             // 有壁纸时 controller 跟随壁纸强制主题，无壁纸时跟随应用设置。
             // 结构恒定可避免 tab 切换深浅变化时底栏被重建导致滑块动画丢失。
+            // ThemeController 实例也保持不变：mode 是 mutableState，原地切换即可，
+            // 重建实例会让整棵脚手架（含底栏玻璃）在有壁纸/无壁纸 tab 之间切换时卡一帧。
             val effectiveForcedDark = if (captureThemeActive) captureThemeIsDark else forcedDark
             val effectiveDark = effectiveForcedDark ?: appSettingDark
-            val pageController = remember(effectiveDark) {
+            val pageController = remember {
                 ThemeController(if (effectiveDark) ColorSchemeMode.Dark else ColorSchemeMode.Light)
+            }
+            androidx.compose.runtime.SideEffect {
+                pageController.colorSchemeMode =
+                    if (effectiveDark) ColorSchemeMode.Dark else ColorSchemeMode.Light
             }
             MiuixTheme(controller = pageController) {
                 CompositionLocalProvider(LocalForcedDarkTheme provides effectiveForcedDark) {
@@ -3148,8 +3160,12 @@ fun CourseScheduleApp() {
         // 有壁纸时跟随壁纸主题，无壁纸时跟随应用设置
         val overlayEffectiveForcedDark = if (captureThemeActive) captureThemeIsDark else forcedDark
         val overlayEffectiveDark = overlayEffectiveForcedDark ?: appSettingDark
-        val overlayPageController = remember(overlayEffectiveDark) {
+        val overlayPageController = remember {
             ThemeController(if (overlayEffectiveDark) ColorSchemeMode.Dark else ColorSchemeMode.Light)
+        }
+        androidx.compose.runtime.SideEffect {
+            overlayPageController.colorSchemeMode =
+                if (overlayEffectiveDark) ColorSchemeMode.Dark else ColorSchemeMode.Light
         }
         MiuixTheme(controller = overlayPageController) {
             CompositionLocalProvider(LocalForcedDarkTheme provides overlayEffectiveForcedDark) {
@@ -3458,6 +3474,8 @@ fun CourseScheduleApp() {
             }
             val dismissCustomize: () -> Unit = {
                 isApplyingCustomize = false
+                // 取消：丢弃默认主题的未落盘预览，回退到进入前的档位
+                pendingScheduleThemeMode = null
                 coroutineScope.launch {
                     blurSnapshotJob?.cancel()
                     // 不在此恢复主界面内容：动画期间主界面保持被编辑后的实时状态，
@@ -3565,6 +3583,14 @@ fun CourseScheduleApp() {
                             )
                             wallpaperRepository.setCurrentCombinationId(combId)
                         }
+                        // 默认主题：搭配页里只做了内存预览，点「应用」才写入偏好
+                        pendingScheduleThemeMode?.let { mode ->
+                            context.getSharedPreferences("app_theme_prefs", android.content.Context.MODE_PRIVATE)
+                                .edit()
+                                .putString(ThemeMode.SCHEDULE_THEME_MODE_KEY, mode.prefsValue)
+                                .apply()
+                            pendingScheduleThemeMode = null
+                        }
                     }
                     // 同步到当前搭配对象（快照仅存内存）
                     val idx = currentCombinationIndex
@@ -3606,6 +3632,7 @@ fun CourseScheduleApp() {
                     screenCornerRadius = screenCornerRadius,
                     onDismiss = dismissCustomize,
                     onApply = applyCustomize,
+                    onThemeModePreview = { mode -> pendingScheduleThemeMode = mode },
                     onPickWallpaper = {
                         wallpaperPickerLauncher.launch(
                             androidx.activity.result.PickVisualMediaRequest(

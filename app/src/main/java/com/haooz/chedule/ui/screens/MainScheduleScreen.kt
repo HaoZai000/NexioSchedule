@@ -447,13 +447,22 @@ fun MainScheduleScreen(
     val scheduleIsDark = isAppDarkTheme()
     val wallpaperBackdropColor = if (scheduleIsDark) Color(0xFF000000) else Color(0xFFF7F7F7)
 
+    // onDraw 必须是稳定 lambda：rememberLayerBackdrop 以 onDraw 为 key，
+    // 若每次重组都新建闭包，主题/数据一变就会换掉 LayerBackdrop 实例，
+    // SharedBlur 与全部课卡采样跟着重建，tab 切换时底栏玻璃会卡一帧。
+    val wallpaperBackColorState = rememberUpdatedState(wallpaperBackdropColor)
+    val wallpaperOnDraw: androidx.compose.ui.graphics.drawscope.ContentDrawScope.() -> Unit =
+        remember {
+            {
+                drawRect(wallpaperBackColorState.value)
+                drawContent()
+            }
+        }
+
     // Kyant Backdrop：供课程卡片 drawBackdrop 使用
     // 添加 wallpaperBitmap 作为 key，当壁纸变化时强制重建 backdrop，确保重新录制壁纸内容
     val courseCardBackdrop = key(wallpaperBitmap) {
-        rememberKyantLayerBackdrop {
-            drawRect(wallpaperBackdropColor)
-            drawContent()
-        }
+        rememberKyantLayerBackdrop(onDraw = wallpaperOnDraw)
     }
 
     // 共享模糊 Backdrop：仅在有壁纸时创建；无壁纸路径不走 drawBackdrop，无需预渲染层
