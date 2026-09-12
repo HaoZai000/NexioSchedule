@@ -37,11 +37,15 @@ fun SectionColumn(
     sectionTimes: Map<Int, String> = Course.defaultSectionTimes,
     sectionNames: Map<Int, String> = emptyMap(),
     specialBlocks: List<com.haooz.chedule.data.SpecialBlock> = emptyList(),
+    // 由页面层统一计算一次，与 DayColumn 共享；为空时列内自算（兼容旧调用方）
+    grid: SpecialGridLayout? = null,
     cardHeightPerSection: Float = 54f,
     showBreakDividers: Boolean = true,
     currentSection: Int = -1,
     isTablet: Boolean = false,
     hasWallpaper: Boolean = false,
+    // 由页面层统一读取；未传时列内自算（兼容旧调用方）
+    isDark: Boolean = isAppDarkTheme(),
     @SuppressLint("ModifierParameter") modifier: Modifier = Modifier
 ) {
     // 缓存时间字符串拆分结果，避免每次重组重复 split
@@ -54,7 +58,7 @@ fun SectionColumn(
     }
 
     // 特殊课程为时间轴浮层：节次保持固定位置，时间列在对应高度显示特殊课程起止时间
-    val grid = remember(
+    val effectiveGrid = grid ?: remember(
         totalSections, morningSections, afternoonSections, eveningSections,
         specialBlocks, sectionTimes, cardHeightPerSection, showBreakDividers
     ) {
@@ -68,7 +72,7 @@ fun SectionColumn(
             dividerGap = if (showBreakDividers) 24 else 0
         )
     }
-    val totalHeight = grid.totalHeight.toInt()
+    val totalHeight = effectiveGrid.totalHeight.toInt()
 
     val sectionWidth = if (isTablet) 56.dp else 36.dp
 
@@ -80,7 +84,7 @@ fun SectionColumn(
         // 上午节次
         (1..morningSections).forEach { section ->
             val (startTime, endTime) = timePairs[section - 1]
-            SectionItem(section, startTime, endTime, grid.sectionTop[section]?.toInt() ?: 0, cardHeightPerSection, section == currentSection, hasWallpaper, sectionNames)
+            SectionItem(section, startTime, endTime, effectiveGrid.sectionTop[section]?.toInt() ?: 0, cardHeightPerSection, section == currentSection, hasWallpaper, sectionNames, isDark)
         }
 
         // 下午节次
@@ -88,7 +92,7 @@ fun SectionColumn(
         val afternoonEnd = morningSections + afternoonSections
         (afternoonStart..afternoonEnd).forEach { section ->
             val (startTime, endTime) = timePairs[section - 1]
-            SectionItem(section, startTime, endTime, grid.sectionTop[section]?.toInt() ?: 0, cardHeightPerSection, section == currentSection, hasWallpaper, sectionNames)
+            SectionItem(section, startTime, endTime, effectiveGrid.sectionTop[section]?.toInt() ?: 0, cardHeightPerSection, section == currentSection, hasWallpaper, sectionNames, isDark)
         }
 
         // 晚上节次
@@ -96,17 +100,18 @@ fun SectionColumn(
         val eveningEnd = morningSections + afternoonSections + eveningSections
         (eveningStart..eveningEnd).forEach { section ->
             val (startTime, endTime) = timePairs[section - 1]
-            SectionItem(section, startTime, endTime, grid.sectionTop[section]?.toInt() ?: 0, cardHeightPerSection, section == currentSection, hasWallpaper, sectionNames)
+            SectionItem(section, startTime, endTime, effectiveGrid.sectionTop[section]?.toInt() ?: 0, cardHeightPerSection, section == currentSection, hasWallpaper, sectionNames, isDark)
         }
 
         // 特殊课程：无编号，左侧时间列在对应高度显示其起止时间
-        grid.specialBands.forEach { band ->
+        effectiveGrid.specialBands.forEach { band ->
             SpecialTimeLabel(
                 startTime = band.startTime,
                 endTime = band.endTime,
                 top = band.top,
                 height = band.height,
                 hasWallpaper = hasWallpaper,
+                isDark = isDark,
                 sectionWidth = sectionWidth
             )
         }
@@ -114,7 +119,7 @@ fun SectionColumn(
 }
 
 @Composable
-private fun SectionItem(section: Int, startTime: String, endTime: String, yOffset: Int, cardHeightPerSection: Float = 54f, isCurrentSection: Boolean = false, hasWallpaper: Boolean = false, sectionNames: Map<Int, String> = emptyMap()) {
+private fun SectionItem(section: Int, startTime: String, endTime: String, yOffset: Int, cardHeightPerSection: Float = 54f, isCurrentSection: Boolean = false, hasWallpaper: Boolean = false, sectionNames: Map<Int, String> = emptyMap(), isDark: Boolean) {
     val onSurfaceColor = MiuixTheme.colorScheme.onSurface
     val onSurfaceVariantColor = MiuixTheme.colorScheme.onSurfaceVariantActions
     // 课程表界面高亮蓝色固定 #3482FF，不随深色模式变暗
@@ -149,9 +154,9 @@ private fun SectionItem(section: Int, startTime: String, endTime: String, yOffse
         Column(
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
-            OutlinedText(displayText, nameStyle, sectionColor, hasWallpaper)
-            OutlinedText(startTime, timeStyle, timeColor, hasWallpaper)
-            OutlinedText(endTime, timeStyle, timeColor, hasWallpaper)
+            OutlinedText(displayText, nameStyle, sectionColor, hasWallpaper, isDark)
+            OutlinedText(startTime, timeStyle, timeColor, hasWallpaper, isDark)
+            OutlinedText(endTime, timeStyle, timeColor, hasWallpaper, isDark)
         }
     }
 }
@@ -166,6 +171,7 @@ private fun SpecialTimeLabel(
     top: Float,
     height: Float,
     hasWallpaper: Boolean,
+    isDark: Boolean,
     sectionWidth: androidx.compose.ui.unit.Dp
 ) {
     val baseFootnote2 = MiuixTheme.textStyles.footnote2
@@ -181,8 +187,8 @@ private fun SpecialTimeLabel(
         Column(
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
-            OutlinedText(startTime, timeStyle, timeColor, hasWallpaper)
-            OutlinedText(endTime, timeStyle, timeColor, hasWallpaper)
+            OutlinedText(startTime, timeStyle, timeColor, hasWallpaper, isDark)
+            OutlinedText(endTime, timeStyle, timeColor, hasWallpaper, isDark)
         }
     }
 }
@@ -195,10 +201,10 @@ private fun OutlinedText(
     text: String,
     style: TextStyle,
     color: Color,
-    hasWallpaper: Boolean
+    hasWallpaper: Boolean,
+    isDark: Boolean
 ) {
     if (hasWallpaper) {
-        val isDark = isAppDarkTheme()
         val shadowColor = if (isDark) Color.Black else Color.White
         val shadowStyle = remember(style, isDark) {
             style.copy(

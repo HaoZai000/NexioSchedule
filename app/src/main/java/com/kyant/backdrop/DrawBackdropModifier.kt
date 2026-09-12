@@ -80,6 +80,29 @@ fun Modifier.drawPlainBackdrop(
         )
 }
 
+/**
+ * 可视区（window 坐标，px）。用于跳过完全在视口外的 drawBackdrop 重录。
+ * 滚动容器通过非 state 字段更新，采样侧在 draw 阶段读取，不触发重组。
+ */
+val LocalBackdropViewport = androidx.compose.runtime.staticCompositionLocalOf<BackdropViewport?> { null }
+
+class BackdropViewport {
+    @Volatile
+    var topPx: Float = Float.NEGATIVE_INFINITY
+
+    @Volatile
+    var bottomPx: Float = Float.POSITIVE_INFINITY
+
+    fun containsOrIntersects(top: Float, bottom: Float): Boolean {
+        return bottom >= topPx && top <= bottomPx
+    }
+}
+
+private fun offsetSame(a: Float, b: Float): Boolean {
+    if (a.isNaN() && b.isNaN()) return true
+    return a == b
+}
+
 fun Modifier.drawBackdrop(
     backdrop: Backdrop,
     shape: () -> Shape,
@@ -90,6 +113,7 @@ fun Modifier.drawBackdrop(
     layerBlock: (GraphicsLayerScope.() -> Unit)? = null,
     exportedBackdrop: LayerBackdrop? = null,
     downsampleScale: Float = DOWNSAMPLE_SCALE,
+    viewport: BackdropViewport? = null,
     onDrawBehind: (DrawScope.() -> Unit)? = null,
     onDrawBackdrop: DrawScope.(drawBackdrop: DrawScope.() -> Unit) -> Unit = DefaultOnDrawBackdrop,
     onDrawSurface: (DrawScope.() -> Unit)? = null,
@@ -142,6 +166,7 @@ fun Modifier.drawBackdrop(
                 layerBlock = layerBlock,
                 exportedBackdrop = exportedBackdrop,
                 downsampleScale = downsampleScale,
+                viewport = viewport,
                 onDrawBehind = onDrawBehind,
                 onDrawBackdrop = onDrawBackdrop,
                 onDrawSurface = onDrawSurface,
@@ -157,6 +182,7 @@ private class DrawBackdropElement(
     val layerBlock: (GraphicsLayerScope.() -> Unit)?,
     val exportedBackdrop: LayerBackdrop?,
     val downsampleScale: Float = DOWNSAMPLE_SCALE,
+    val viewport: BackdropViewport? = null,
     val onDrawBehind: (DrawScope.() -> Unit)?,
     val onDrawBackdrop: DrawScope.(drawBackdrop: DrawScope.() -> Unit) -> Unit,
     val onDrawSurface: (DrawScope.() -> Unit)?,
@@ -171,6 +197,7 @@ private class DrawBackdropElement(
             layerBlock = layerBlock,
             exportedBackdrop = exportedBackdrop,
             downsampleScale = downsampleScale,
+            viewport = viewport,
             onDrawBehind = onDrawBehind,
             onDrawBackdrop = onDrawBackdrop,
             onDrawSurface = onDrawSurface,
@@ -193,6 +220,7 @@ private class DrawBackdropElement(
             node.exportedBackdrop = exportedBackdrop
         }
         node.downsampleScale = downsampleScale
+        node.viewport = viewport
         node.onDrawBehind = onDrawBehind
         node.onDrawBackdrop = onDrawBackdrop
         node.onDrawSurface = onDrawSurface
@@ -227,6 +255,8 @@ private class DrawBackdropElement(
         if (effects != other.effects) return false
         if (layerBlock != other.layerBlock) return false
         if (exportedBackdrop != other.exportedBackdrop) return false
+        if (downsampleScale != other.downsampleScale) return false
+        if (viewport !== other.viewport) return false
         if (onDrawBehind != other.onDrawBehind) return false
         if (onDrawBackdrop != other.onDrawBackdrop) return false
         if (onDrawSurface != other.onDrawSurface) return false
@@ -242,6 +272,8 @@ private class DrawBackdropElement(
         result = 31 * result + effects.hashCode()
         result = 31 * result + (layerBlock?.hashCode() ?: 0)
         result = 31 * result + (exportedBackdrop?.hashCode() ?: 0)
+        result = 31 * result + downsampleScale.hashCode()
+        result = 31 * result + (viewport?.hashCode() ?: 0)
         result = 31 * result + (onDrawBehind?.hashCode() ?: 0)
         result = 31 * result + onDrawBackdrop.hashCode()
         result = 31 * result + (onDrawSurface?.hashCode() ?: 0)
@@ -257,6 +289,7 @@ private class DrawBackdropNode(
     var layerBlock: (GraphicsLayerScope.() -> Unit)?,
     var exportedBackdrop: LayerBackdrop?,
     var downsampleScale: Float = DOWNSAMPLE_SCALE,
+    var viewport: BackdropViewport? = null,
     var onDrawBehind: (DrawScope.() -> Unit)?,
     var onDrawBackdrop: DrawScope.(drawBackdrop: DrawScope.() -> Unit) -> Unit,
     var onDrawSurface: (DrawScope.() -> Unit)?,
@@ -275,6 +308,15 @@ private class DrawBackdropNode(
         }
 
     private var graphicsLayer: GraphicsLayer? = null
+
+    // 共享/源层采样缓存：内容版本、偏移、缓冲尺寸均未变时跳过 recordLayer
+    private var lastSampleSource: Any? = null
+    private var lastSampleVersion: Int = -1
+    private var lastSampleOffsetX = Float.NaN
+    private var lastSampleOffsetY = Float.NaN
+    private var lastSampleW = -1
+    private var lastSampleH = -1
+    private var lastSampleLayer: GraphicsLayer? = null
 
     private val layoutLayerBlock: GraphicsLayerScope.() -> Unit = {
         clip = true
@@ -312,9 +354,26 @@ private class DrawBackdropNode(
         canvas.restore()
     }
 
-    private val drawBackdropLayer: DrawScope.() -> Unit = {
+    private val drawBackdropLayer: DrawScope.() -> Unit = drawBackdropLayer@{
         val layer = graphicsLayer
         if (layer != null) {
+            val viewport = viewport
+            if (viewport != null && layoutCoordinates != null) {
+                val winTop = try {
+                    layoutCoordinates!!.positionInWindow().y
+                } catch (_: Exception) {
+                    Float.NaN
+                }
+                if (!winTop.isNaN()) {
+                    val winBottom = winTop + size.height
+                    if (!viewport.containsOrIntersects(winTop, winBottom)) {
+                        // 完全在视口外：跳过采样录制与放大绘制。表面色/文字仍由 draw() 照常画，
+                        // 被父级裁剪后不可见，但保证滚回视口时路径完整。
+                        return@drawBackdropLayer
+                    }
+                }
+            }
+
             val padding = padding
             val size = size
             val scaledPadding = padding * downsampleScale
@@ -337,41 +396,94 @@ private class DrawBackdropNode(
 
             if (useSharedMode) {
                 // ===== 共享模式：从共享预渲染层采样 =====
-                val cardPos = cardCoords
-                val sourcePos = sourceCoords
+                val cardPos = cardCoords!!
+                val sourcePos = sourceCoords!!
                 val offset = try {
                     sourcePos.localPositionOf(cardPos)
                 } catch (_: Exception) {
                     cardPos.positionInWindow() - sourcePos.positionInWindow()
                 }
 
-                val sharedLayerNonNull = sharedLayer
-                recordLayer(
-                    this@DrawBackdropNode,
-                    layer,
-                    size = cardBufferSize,
-                    block = {
-                        val canvas = drawContext.canvas
-                        canvas.save()
-                        // 共享层和录制 buffer 都在 downsampleScale 分辨率下
-                        // 只需平移将共享层中卡片对应区域对齐到 buffer 原点
-                        // 公式：buffer_point = shared_point - offset * downsampleScale
-                        canvas.translate(
-                            -offset.x * downsampleScale + scaledPadding,
-                            -offset.y * downsampleScale + scaledPadding
-                        )
-                        drawLayer(sharedLayerNonNull)
-                        canvas.restore()
-                    }
-                )
+                val sharedLayerNonNull = sharedLayer!!
+                val sourceVersion = backdrop.contentVersion
+                val needsRecordSample = lastSampleLayer !== sharedLayerNonNull ||
+                    lastSampleVersion != sourceVersion ||
+                    !offsetSame(lastSampleOffsetX, offset.x) ||
+                    !offsetSame(lastSampleOffsetY, offset.y) ||
+                    lastSampleW != cardBufferSize.width ||
+                    lastSampleH != cardBufferSize.height
+
+                if (needsRecordSample) {
+                    recordLayer(
+                        this@DrawBackdropNode,
+                        layer,
+                        size = cardBufferSize,
+                        block = {
+                            val canvas = drawContext.canvas
+                            canvas.save()
+                            // 共享层和录制 buffer 都在 downsampleScale 分辨率下
+                            // 只需平移将共享层中卡片对应区域对齐到 buffer 原点
+                            // 公式：buffer_point = shared_point - offset * downsampleScale
+                            canvas.translate(
+                                -offset.x * downsampleScale + scaledPadding,
+                                -offset.y * downsampleScale + scaledPadding
+                            )
+                            drawLayer(sharedLayerNonNull)
+                            canvas.restore()
+                        }
+                    )
+                    lastSampleSource = sharedBackdrop
+                    lastSampleVersion = sourceVersion
+                    lastSampleOffsetX = offset.x
+                    lastSampleOffsetY = offset.y
+                    lastSampleW = cardBufferSize.width
+                    lastSampleH = cardBufferSize.height
+                    lastSampleLayer = sharedLayerNonNull
+                }
             } else {
                 // ===== 原有模式：独立录制壁纸 =====
-                recordLayer(
-                    this@DrawBackdropNode,
-                    layer,
-                    size = cardBufferSize,
-                    block = recordBackdropBlock
-                )
+                val sourceVersion = backdrop.contentVersion
+                // 非共享模式下卡片相对壁纸的偏移也进入指纹：滚动/平移时必须重录。
+                // 组合 backdrop（底栏滑块等）没有单一 layerCoordinates，算不出偏移时
+                // 不能证明“内容没变”，必须每帧重录，否则长按/动画会冻在旧采样上。
+                var sampleX = Float.NaN
+                var sampleY = Float.NaN
+                val sourceCoordsForPlain = (backdrop as? LayerBackdrop)?.layerCoordinates
+                    ?: (backdrop as? SharedBlurBackdrop)?.sourceLayerCoordinates
+                val canFingerprintOffset = sourceCoordsForPlain != null && cardCoords != null
+                if (canFingerprintOffset) {
+                    val off = try {
+                        sourceCoordsForPlain!!.localPositionOf(cardCoords!!)
+                    } catch (_: Exception) {
+                        cardCoords!!.positionInWindow() - sourceCoordsForPlain!!.positionInWindow()
+                    }
+                    sampleX = off.x
+                    sampleY = off.y
+                }
+                val needsRecordSample = !canFingerprintOffset ||
+                    lastSampleSource !== backdrop ||
+                    lastSampleVersion != sourceVersion ||
+                    !offsetSame(lastSampleOffsetX, sampleX) ||
+                    !offsetSame(lastSampleOffsetY, sampleY) ||
+                    lastSampleW != cardBufferSize.width ||
+                    lastSampleH != cardBufferSize.height ||
+                    lastSampleLayer !== layer
+
+                if (needsRecordSample) {
+                    recordLayer(
+                        this@DrawBackdropNode,
+                        layer,
+                        size = cardBufferSize,
+                        block = recordBackdropBlock
+                    )
+                    lastSampleSource = backdrop
+                    lastSampleVersion = sourceVersion
+                    lastSampleOffsetX = sampleX
+                    lastSampleOffsetY = sampleY
+                    lastSampleW = cardBufferSize.width
+                    lastSampleH = cardBufferSize.height
+                    lastSampleLayer = layer
+                }
             }
 
             layer.topLeft = IntOffset.Zero
@@ -470,5 +582,12 @@ private class DrawBackdropNode(
         effectScope.reset()
         layoutCoordinates = null
         exportedBackdrop?.layerCoordinates = null
+        lastSampleSource = null
+        lastSampleVersion = -1
+        lastSampleOffsetX = Float.NaN
+        lastSampleOffsetY = Float.NaN
+        lastSampleW = -1
+        lastSampleH = -1
+        lastSampleLayer = null
     }
 }

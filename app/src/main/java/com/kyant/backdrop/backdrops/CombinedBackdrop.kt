@@ -46,6 +46,11 @@ private class Combined2Backdrops(
     override val isCoordinatesDependent: Boolean =
         backdrop1.isCoordinatesDependent || backdrop2.isCoordinatesDependent
 
+    // 采样侧靠 contentVersion 判断是否可跳过重录；组合源必须汇总子源版本，
+    // 否则任一子层重录后组合侧仍显示旧版（底栏滑块长按会“冻住”）。
+    override val contentVersion: Int
+        get() = backdrop1.contentVersion * 31 + backdrop2.contentVersion
+
     override fun DrawScope.drawBackdrop(
         density: Density,
         coordinates: LayoutCoordinates?,
@@ -68,6 +73,10 @@ private class Combined3Backdrops(
                 backdrop2.isCoordinatesDependent ||
                 backdrop3.isCoordinatesDependent
 
+    override val contentVersion: Int
+        get() = (backdrop1.contentVersion * 31 + backdrop2.contentVersion) * 31 +
+            backdrop3.contentVersion
+
     override fun DrawScope.drawBackdrop(
         density: Density,
         coordinates: LayoutCoordinates?,
@@ -86,6 +95,13 @@ private class CombinedBackdrops(
 
     override val isCoordinatesDependent: Boolean =
         backdrops.any { it.isCoordinatesDependent }
+
+    override val contentVersion: Int
+        get() {
+            var v = 1
+            for (b in backdrops) v = v * 31 + b.contentVersion
+            return v
+        }
 
     override fun DrawScope.drawBackdrop(
         density: Density,

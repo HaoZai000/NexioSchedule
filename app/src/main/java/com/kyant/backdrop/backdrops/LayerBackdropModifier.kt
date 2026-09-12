@@ -3,6 +3,7 @@ package com.kyant.backdrop.backdrops
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.drawscope.ContentDrawScope
 import androidx.compose.ui.layout.LayoutCoordinates
+import androidx.compose.ui.layout.positionInWindow
 import androidx.compose.ui.node.DrawModifierNode
 import androidx.compose.ui.node.GlobalPositionAwareModifierNode
 import androidx.compose.ui.node.ModifierNodeElement
@@ -88,12 +89,22 @@ private class LayerBackdropNode(
             recordLayer(this@LayerBackdropNode, backdrop.graphicsLayer) {
                 backdrop.onDraw(this@draw)
             }
+            backdrop.contentVersion++
         }
     }
 
     override fun onGloballyPositioned(coordinates: LayoutCoordinates) {
         if (coordinates.isAttached) {
-            backdrop.layerCoordinates = coordinates
+            val prev = backdrop.layerCoordinates
+            // LayoutCoordinates 通常按实例比较 equals。位置/尺寸未变时不要换实例，
+            // 否则下游读 layerCoordinates 的 draw 节点会被无意义地整批 invalidate。
+            val changed = prev == null ||
+                prev.isAttached != coordinates.isAttached ||
+                prev.positionInWindow() != coordinates.positionInWindow() ||
+                prev.size != coordinates.size
+            if (changed) {
+                backdrop.layerCoordinates = coordinates
+            }
         }
     }
 

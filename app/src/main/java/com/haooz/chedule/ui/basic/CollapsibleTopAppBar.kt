@@ -302,6 +302,8 @@ fun CollapsibleTopAppBar(
     showSmallTitle: Boolean? = null,
     showShadow: Boolean? = null,
     showGradientOverlay: Boolean = true,
+    /** 标题色；默认随主题。WebView 页可按页面顶色传黑白 */
+    titleColor: Color = MiuixTheme.colorScheme.onSurface,
     scrollBehavior: SharedScrollBehavior? = null,
     contentPadding: (Dp) -> Unit = {},
     // 左侧自定义 Composable（接收 backdropAlpha、shadowAlpha 用于液态玻璃按钮动画）
@@ -481,7 +483,7 @@ fun CollapsibleTopAppBar(
                 ) {
                     Text(
                         text = title,
-                        color = MiuixTheme.colorScheme.onSurface,
+                        color = titleColor,
                         fontSize = 19.sp,
                         fontWeight = FontWeight.Medium,
                         overflow = TextOverflow.Ellipsis,

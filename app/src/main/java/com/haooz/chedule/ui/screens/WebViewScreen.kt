@@ -71,6 +71,7 @@ import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
@@ -103,6 +104,7 @@ import com.kyant.backdrop.effects.vibrancy
 import com.kyant.capsule.ContinuousCapsule
 import com.kyant.capsule.ContinuousRoundedRectangle
 import kotlinx.coroutines.launch
+import kotlin.math.abs
 import top.yukonga.miuix.kmp.basic.ButtonDefaults
 import top.yukonga.miuix.kmp.basic.Icon
 import top.yukonga.miuix.kmp.basic.IconButton
@@ -116,6 +118,131 @@ import java.util.concurrent.atomic.AtomicBoolean
 
 private const val DESKTOP_USER_AGENT =
     "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
+
+/** 顶栏色条采样高度：只取页面最顶部几行，用来统计主导底色 */
+private const val TOP_MIRROR_SAMPLE_HEIGHT_PX = 12
+
+/** 主导色与上一帧接近时的通道阈值，低于此视为同一颜色 */
+private const val TOP_MIRROR_COLOR_CLOSE_DELTA = 20
+
+/**
+ * 在 [src] 全图里取出现次数最多的颜色。
+ *
+ * 返回 ARGB；[prevColor] 为上一帧色（-1 表示无）。
+ *
+ * 滞回：新色与上一帧接近则直接用；差得远时，只有当「接近上一帧的像素」不再占优
+ * （新众数明显更多，或上一帧色已几乎消失）才切换，避免左右对半来回闪；
+ * 同时也不会像「占比不足 55% 就锁死」那样，把加载时的白色一直粘住。
+ */
+private fun pickDominantColor(src: Bitmap, prevColor: Int): Int {
+    val width = src.width
+    val height = src.height
+    if (width <= 0 || height <= 0) {
+        return if (prevColor != -1) prevColor else 0xFF808080.toInt()
+    }
+
+    val pixels = IntArray(width * height)
+    src.getPixels(pixels, 0, width, 0, 0, width, height)
+    val total = pixels.size
+
+    // 4bit/通道量化：key = 0..4095
+    val counts = IntArray(4096)
+    val sumR = IntArray(4096)
+    val sumG = IntArray(4096)
+    val sumB = IntArray(4096)
+    val touched = IntArray(total.coerceAtMost(4096))
+    var touchedN = 0
+
+    val pr = if (prevColor != -1) (prevColor ushr 16) and 0xFF else -1
+    val pg = if (prevColor != -1) (prevColor ushr 8) and 0xFF else -1
+    val pb = if (prevColor != -1) prevColor and 0xFF else -1
+    var prevNearCount = 0
+
+    for (i in pixels.indices) {
+        val c = pixels[i]
+        val r = (c ushr 16) and 0xFF
+        val g = (c ushr 8) and 0xFF
+        val b = c and 0xFF
+        if (pr >= 0 &&
+            abs(r - pr) <= TOP_MIRROR_COLOR_CLOSE_DELTA &&
+            abs(g - pg) <= TOP_MIRROR_COLOR_CLOSE_DELTA &&
+            abs(b - pb) <= TOP_MIRROR_COLOR_CLOSE_DELTA
+        ) {
+            prevNearCount++
+        }
+        val key = ((r ushr 4) shl 8) or ((g ushr 4) shl 4) or (b ushr 4)
+        if (counts[key] == 0) {
+            if (touchedN < touched.size) {
+                touched[touchedN] = key
+                touchedN++
+            }
+        }
+        counts[key]++
+        sumR[key] += r
+        sumG[key] += g
+        sumB[key] += b
+    }
+
+    if (touchedN == 0) {
+        return if (prevColor != -1) prevColor else 0xFF808080.toInt()
+    }
+
+    var bestKey = touched[0]
+    var bestCount = counts[bestKey]
+    var t = 1
+    while (t < touchedN) {
+        val k = touched[t]
+        val cnt = counts[k]
+        if (cnt > bestCount) {
+            bestCount = cnt
+            bestKey = k
+        }
+        t++
+    }
+
+    val n = bestCount.coerceAtLeast(1)
+    val avgR = (sumR[bestKey] / n).coerceIn(0, 255)
+    val avgG = (sumG[bestKey] / n).coerceIn(0, 255)
+    val avgB = (sumB[bestKey] / n).coerceIn(0, 255)
+    val color = (0xFF shl 24) or (avgR shl 16) or (avgG shl 8) or avgB
+
+    if (prevColor == -1) return color
+
+    val close = abs(pr - avgR) <= TOP_MIRROR_COLOR_CLOSE_DELTA &&
+        abs(pg - avgG) <= TOP_MIRROR_COLOR_CLOSE_DELTA &&
+        abs(pb - avgB) <= TOP_MIRROR_COLOR_CLOSE_DELTA
+    if (close) return color
+
+    // 上一帧色已几乎不在采样里，或新众数比「接近上一帧的像素」多 5% 以上 → 切换
+    // 对半开时两边接近，维持上一帧；页面真变色时 prevNearCount 会掉下去，能切走
+    if (prevNearCount * 20 < total || bestCount * 100 > prevNearCount * 105) {
+        return color
+    }
+    return prevColor
+}
+
+private fun dominantColorBitmap(color: Int): Bitmap {
+    val out = Bitmap.createBitmap(1, 1, Bitmap.Config.ARGB_8888)
+    out.setPixel(0, 0, color)
+    return out
+}
+
+/** 顶栏色切换时的每帧插值系数：越小越慢、越绵 */
+private const val TOP_MIRROR_COLOR_LERP = 0.16f
+
+private fun lerpArgb(from: Int, to: Int, t: Float): Int {
+    if (from == to) return to
+    val fr = (from ushr 16) and 0xFF
+    val fg = (from ushr 8) and 0xFF
+    val fb = from and 0xFF
+    val tr = (to ushr 16) and 0xFF
+    val tg = (to ushr 8) and 0xFF
+    val tb = to and 0xFF
+    val r = (fr + (tr - fr) * t).toInt().coerceIn(0, 255)
+    val g = (fg + (tg - fg) * t).toInt().coerceIn(0, 255)
+    val b = (fb + (tb - fb) * t).toInt().coerceIn(0, 255)
+    return (0xFF shl 24) or (r shl 16) or (g shl 8) or b
+}
 
 private data class AlertData(
     val title: String,
@@ -157,6 +284,8 @@ fun WebViewScreen(
     onPageTitleChanged: (String) -> Unit = {},
     onDesktopModeChanged: (Boolean) -> Unit = {},
     onAssetJsPathChanged: (String?) -> Unit = {},
+    /** 顶栏空白区当前上屏色（已含插值），供顶栏标题/图标按明暗切黑白 */
+    onTopColorChanged: (Color) -> Unit = {},
     onExecuteImportRef: ((() -> Unit) -> Unit)? = null,
     onToggleDesktopModeRef: ((() -> Unit) -> Unit)? = null,
     onReloadRef: ((() -> Unit) -> Unit)? = null
@@ -176,6 +305,7 @@ fun WebViewScreen(
     LaunchedEffect(isDesktopMode) { onDesktopModeChanged(isDesktopMode) }
     LaunchedEffect(assetJsPath) { onAssetJsPathChanged(assetJsPath) }
     LaunchedEffect(pageTitle) { onPageTitleChanged(pageTitle) }
+    val currentOnTopColorChanged by rememberUpdatedState(onTopColorChanged)
 
     // 进入页面时按需预下载适配脚本，失败不阻塞页面
     LaunchedEffect(school.resourceFolder, assetJsPath) {
@@ -202,14 +332,21 @@ fun WebViewScreen(
     }
 
     // WebView 内容层由 Activity 创建并传入：顶栏 ProgressiveBlurTopBar 与底部胶囊共用
-    // 顶栏空白区：每帧截页面最上面 1px，FillBounds 垂直拉伸铺满 contentTopPadding
+    // 顶栏空白区：采样页面顶部一小段，取全图众数色做成 1×1，FillBounds 铺满 contentTopPadding。
+    // 大面积底色压倒文字笔画；整条纯色填充，没有拉伸字形问题。
     var webTopMirrorBitmap by remember { mutableStateOf<Bitmap?>(null) }
+    // 上一帧主导色（滞回用）与当前已上屏颜色（插值用）
+    val lastTopMirrorColor = remember { intArrayOf(-1) }
+    val lastAppliedMirrorColor = remember { intArrayOf(-1) }
     val edgeSampleHandler = remember { Handler(Looper.getMainLooper()) }
+    val density = LocalDensity.current
+    val topMirrorVisiblePx = with(density) { contentTopPadding.roundToPx() }
     val pixelCopyInFlight = remember { AtomicBoolean(false) }
     val mirrorFrameRunning = remember { AtomicBoolean(false) }
 
-    val captureWebTopMirror: (WebView) -> Unit = remember {
+    val captureWebTopMirror: (WebView) -> Unit = remember(topMirrorVisiblePx) {
         { target ->
+            if (topMirrorVisiblePx <= 0) return@remember
             // 上一帧还没回来就跳过，避免 PixelCopy 排队打满
             if (!pixelCopyInFlight.compareAndSet(false, true)) return@remember
             try {
@@ -218,26 +355,55 @@ fun WebViewScreen(
                 val width = target.width
                 val height = target.height
                 if (window != null && width > 0 && height > 0) {
+                    // 只采样固定高度的一小段：足够判断色块/文字，又比整条 top padding 便宜
+                    val strip = TOP_MIRROR_SAMPLE_HEIGHT_PX.coerceAtMost(height)
                     val location = IntArray(2)
                     target.getLocationInWindow(location)
-                    // 只取页面最上面 1px
                     val src = Rect(
                         location[0],
                         location[1],
                         location[0] + width,
-                        location[1] + 1
+                        location[1] + strip
                     )
-                    val bitmap = Bitmap.createBitmap(width, 1, Bitmap.Config.ARGB_8888)
+                    val raw = Bitmap.createBitmap(width, strip, Bitmap.Config.ARGB_8888)
                     PixelCopy.request(
                         window,
                         src,
-                        bitmap,
+                        raw,
                         { result ->
                             if (result == PixelCopy.SUCCESS) {
-                                webTopMirrorBitmap?.takeIf { !it.isRecycled }?.recycle()
-                                webTopMirrorBitmap = bitmap
+                                val target = pickDominantColor(raw, lastTopMirrorColor[0])
+                                raw.recycle()
+                                lastTopMirrorColor[0] = target
+
+                                val prevApplied = lastAppliedMirrorColor[0]
+                                val color = if (prevApplied == -1) {
+                                    target
+                                } else {
+                                    val lerped = lerpArgb(prevApplied, target, TOP_MIRROR_COLOR_LERP)
+                                    // 已非常接近目标时贴齐，避免长期停在中间色
+                                    val dr = abs(((lerped ushr 16) and 0xFF) - ((target ushr 16) and 0xFF))
+                                    val dg = abs(((lerped ushr 8) and 0xFF) - ((target ushr 8) and 0xFF))
+                                    val db = abs((lerped and 0xFF) - (target and 0xFF))
+                                    if (dr <= 1 && dg <= 1 && db <= 1) target else lerped
+                                }
+                                lastAppliedMirrorColor[0] = color
+
+                                val prevBmp = webTopMirrorBitmap
+                                if (prevBmp == null || prevBmp.isRecycled || prevBmp.getPixel(0, 0) != color) {
+                                    prevBmp?.takeIf { !it.isRecycled }?.recycle()
+                                    webTopMirrorBitmap = dominantColorBitmap(color)
+                                    currentOnTopColorChanged(
+                                        Color(
+                                            red = ((color ushr 16) and 0xFF) / 255f,
+                                            green = ((color ushr 8) and 0xFF) / 255f,
+                                            blue = (color and 0xFF) / 255f,
+                                            alpha = 1f
+                                        )
+                                    )
+                                }
                             } else {
-                                bitmap.recycle()
+                                raw.recycle()
                             }
                             pixelCopyInFlight.set(false)
                         },
@@ -564,7 +730,7 @@ fun WebViewScreen(
                 .background(MiuixTheme.colorScheme.surface)
                 .layerBackdrop(webContentBackdrop)
         ) {
-            // 顶栏区域：页面最上面 1px 垂直拉伸，供 ProgressiveBlurTopBar 采样
+            // 顶栏区域：主导色 1×1 竖直铺开，供 ProgressiveBlurTopBar / 顶栏空白区采样
             webTopMirrorBitmap?.let { edge ->
                 Image(
                     bitmap = edge.asImageBitmap(),

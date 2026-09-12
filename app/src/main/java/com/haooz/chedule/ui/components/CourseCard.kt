@@ -96,6 +96,8 @@ fun CourseCard(
     cardRefraction: com.haooz.chedule.data.CardRefractionLevel = com.haooz.chedule.data.CardRefractionLevel.DEFAULT,
     isDragging: Boolean = false,
     disablePadding: Boolean = false,
+    // 由页面层统一读取，避免每张卡再挂 prefs 监听
+    isDark: Boolean = isAppDarkTheme(),
     // 滑动中标记（非 state 对象，读取不触发重组）：滑动期间卡片坐标逐帧变化，
     // 而这份坐标只在长按拖拽时用得上，滑动中直接跳过每次回调里的 localToRoot 计算
     gridScrollFlag: com.haooz.chedule.ui.screens.GridScrollFlag? = null,
@@ -111,7 +113,6 @@ fun CourseCard(
     val cardHeight = (customCardHeightDp ?: (sectionCount * cardHeightPerSection)).dp
     val hasBlur = wallpaperBackdrop != null
     val effectiveCornerRadius = if (isTablet) (cardCornerRadius * 1.3f) else cardCornerRadius
-    val isDark = isAppDarkTheme()
     val scope = rememberCoroutineScope()
     val localDensity = LocalDensity.current
 
@@ -256,6 +257,7 @@ fun CourseCard(
                         highlight = null,
                         shadow = null,
                         downsampleScale = 0.48f,
+                        viewport = com.kyant.backdrop.LocalBackdropViewport.current,
                         onDrawSurface = onCardSurface
                     )
                     .drawWithContent {
@@ -376,7 +378,7 @@ fun CourseCard(
             ) {
                 CardContent(course, sectionCount, textColor, hasMultipleCourses,
                     isTablet, cardContentAlignment, cardHeight.value, cardHeightPerSection,
-                    isHoliday, isWorkSwap, isCurrentWeek, showClassroom, showTeacher, cardTextScale)
+                    isHoliday, isWorkSwap, isCurrentWeek, showClassroom, showTeacher, cardTextScale, isDark)
             }
         }
     } else {
@@ -498,7 +500,7 @@ fun CourseCard(
             ) {
                 CardContent(course, sectionCount, textColor, hasMultipleCourses,
                     isTablet, cardContentAlignment, cardHeight.value, cardHeightPerSection,
-                    isHoliday, isWorkSwap, isCurrentWeek, showClassroom, showTeacher, cardTextScale)
+                    isHoliday, isWorkSwap, isCurrentWeek, showClassroom, showTeacher, cardTextScale, isDark)
             }
         }
     }
@@ -509,7 +511,8 @@ private fun CardContent(course: Course, sectionCount: Int, textColor: Color, has
                         isTablet: Boolean = false, cardContentAlignment: com.haooz.chedule.data.CardContentAlignment = com.haooz.chedule.data.CardContentAlignment.CENTER_CENTER,
                         cardHeightDp: Float = 0f, cardHeightPerSection: Float = 54f,
                         isHoliday: Boolean = false, isWorkSwap: Boolean = false, isCurrentWeek: Boolean = true,
-                        showClassroom: Boolean = true, showTeacher: Boolean = true, cardTextScale: Float = 1f) {
+                        showClassroom: Boolean = true, showTeacher: Boolean = true, cardTextScale: Float = 1f,
+                        isDark: Boolean = isAppDarkTheme()) {
     val infoFontSize = 11.sp * cardTextScale.coerceIn(0.5f, 2.0f)
     val infoLineHeight = 12.sp * cardTextScale.coerceIn(0.5f, 2.0f)
     val courseNameFontSize = 12.7.sp * cardTextScale.coerceIn(0.5f, 2.0f)
@@ -610,16 +613,16 @@ private fun CardContent(course: Course, sectionCount: Int, textColor: Color, has
             val badgeBackground = if (isWorkSwap && isCurrentWeek) {
                 Color(course.colorRes).copy(alpha = 0.32f)
             } else {
-                if (isAppDarkTheme()) Color.White.copy(alpha = 0.1f) else Color.Black.copy(alpha = 0.08f)
+                if (isDark) Color.White.copy(alpha = 0.1f) else Color.Black.copy(alpha = 0.08f)
             }
             Text(
                 text = badgeText,
                 fontSize = 9.sp,
                 fontWeight = FontWeight.Medium,
                 color = if (isWorkSwap && isCurrentWeek) {
-                    if (isAppDarkTheme()) Color.White.copy(alpha = 0.8f) else Color.White
+                    if (isDark) Color.White.copy(alpha = 0.8f) else Color.White
                 } else {
-                    if (isAppDarkTheme()) Color.White.copy(alpha = 0.4f) else Color.Black.copy(alpha = 0.4f)},
+                    if (isDark) Color.White.copy(alpha = 0.4f) else Color.Black.copy(alpha = 0.4f)},
                 modifier = Modifier
                     .align(Alignment.TopEnd)
                     .padding(if (isTablet) 6.dp else 5.dp)

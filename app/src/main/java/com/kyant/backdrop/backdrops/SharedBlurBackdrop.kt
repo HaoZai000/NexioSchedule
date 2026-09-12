@@ -59,6 +59,10 @@ class SharedBlurBackdrop(
     var sharedDownsampleScale: Float = DOWNSAMPLE_SCALE
         internal set
 
+    /** 共享层像素内容版本：每次重录源层时递增，供采样侧跳过无变化重录 */
+    override var contentVersion: Int = 0
+        internal set
+
     /**
      * 源 Backdrop 的坐标（壁纸层在视图树中的位置）。
      * 供 DrawBackdropNode 计算卡片在壁纸中的偏移量。
@@ -143,12 +147,18 @@ private class SharedBlurRecorderElement(
     }
 
     override fun update(node: SharedBlurRecorderNode) {
-        // 能走到 update 说明 equals 判定有参数变了 → 必须重录一次
+        // 源内容相关参数变化才需要重录降采样层；
+        // 仅 blur 半径变化时只刷新 renderEffect，避免壁纸层被无意义重录。
+        val sourceChanged = node.sharedBackdrop !== sharedBackdrop ||
+            node.downsampleScale != downsampleScale ||
+            node.sourceKey != sourceKey
         node.sharedBackdrop = sharedBackdrop
         node.blurRadiusPx = blurRadiusPx
         node.downsampleScale = downsampleScale
         node.sourceKey = sourceKey
-        node.markNeedsRecord()
+        if (sourceChanged) {
+            node.markNeedsRecord()
+        }
         node.invalidateDraw()
     }
 
@@ -219,10 +229,13 @@ private class SharedBlurRecorderNode(
             // 注入到共享 Backdrop
             sharedBackdrop.sharedSampledLayer = layer
             sharedBackdrop.sharedDownsampleScale = downsampleScale
+            sharedBackdrop.contentVersion++
         }
 
         // 应用模糊 RenderEffect（在 drawLayer 时生效）。
         // 只在半径真正变化时赋值：每帧 new 一个 BlurEffect 会让图层反复失效、重跑一遍 GPU 模糊。
+        // 半径变化不重录源层，但必须抬 contentVersion：课卡是把「已糊好的共享层」烤进各自缓冲的，
+        // 版本不抬会让采样缓存继续用旧糊度，直到滚动/偏移变化才被冲掉。
         if (recordedBlurRadius != blurRadiusPx) {
             recordedBlurRadius = blurRadiusPx
             layer.renderEffect = if (blurRadiusPx > 0f) {
@@ -234,6 +247,7 @@ private class SharedBlurRecorderNode(
                     TileMode.Clamp
                 )
             } else null
+            sharedBackdrop.contentVersion++
         }
     }
 

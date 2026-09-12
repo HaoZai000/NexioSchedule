@@ -36,6 +36,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalHapticFeedback
@@ -228,6 +229,13 @@ class EducationalImportActivity : ComponentActivity() {
         var executeImportAction by remember { mutableStateOf<(() -> Unit)?>(null) }
         var toggleDesktopModeAction by remember { mutableStateOf<(() -> Unit)?>(null) }
         var webPageTitle by remember { mutableStateOf("加载中...") }
+        // 页面顶部取色：按亮度定顶栏标题/图标的黑白，不跟应用深浅色主题
+        var webTopColor by remember { mutableStateOf(Color.White) }
+        val webTopIsLight = remember(webTopColor) {
+            val lum = 0.299f * webTopColor.red + 0.587f * webTopColor.green + 0.114f * webTopColor.blue
+            lum >= 0.55f
+        }
+        val webBarContentColor = if (webTopIsLight) Color.Black else Color.White
         var reloadWebViewAction by remember { mutableStateOf<(() -> Unit)?>(null) }
         val webViewScrollBehavior = rememberSharedScrollBehavior()
 
@@ -467,6 +475,7 @@ class EducationalImportActivity : ComponentActivity() {
                                 },
                                 onPageTitleChanged = { webPageTitle = it },
                                 onDesktopModeChanged = { isDesktopMode = it },
+                                onTopColorChanged = { webTopColor = it },
                                 onAssetJsPathChanged = { currentAssetJsPath = it },
                                 onExecuteImportRef = { action -> executeImportAction = action },
                                 onToggleDesktopModeRef = { action -> toggleDesktopModeAction = action },
@@ -476,11 +485,16 @@ class EducationalImportActivity : ComponentActivity() {
                             ProgressiveBlurTopBar(
                                 backdrop = webContentBackdrop,
                                 height = blurHeight,
+                                // 教务页多为白底：默认 surface 暗色 tint 会在顶上压一层黑罩
+                                tintIntensity = 0f,
                             ) {
                                 CollapsibleTopAppBar(
                                     title = webPageTitle,
                                     showLargeTitle = false,
-                                    showShadow = true,
+                                    // 教务页自带顶栏空白区色条，不需要 AppBar 再叠黑白渐变遮罩
+                                    showShadow = false,
+                                    showGradientOverlay = false,
+                                    titleColor = webBarContentColor,
                                     modifier = Modifier,
                                     scrollBehavior = webViewScrollBehavior,
                                     contentPadding = {},
@@ -493,6 +507,7 @@ class EducationalImportActivity : ComponentActivity() {
                                             },
                                             backdrop = liquidGlassBackdrop,
                                             icon = MiuixIcons.Close,
+                                            iconTint = webBarContentColor.copy(alpha = 0.85f),
                                             contentDescription = "关闭",
                                             performHapticFeedback = false,
                                             iconSize = 22.dp,
@@ -508,6 +523,7 @@ class EducationalImportActivity : ComponentActivity() {
                                             },
                                             backdrop = liquidGlassBackdrop,
                                             icon = MiuixIcons.Refresh,
+                                            iconTint = webBarContentColor.copy(alpha = 0.85f),
                                             contentDescription = "刷新",
                                             performHapticFeedback = false,
                                             iconSize = 24.dp,

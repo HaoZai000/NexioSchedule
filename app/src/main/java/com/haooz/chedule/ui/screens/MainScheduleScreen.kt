@@ -64,6 +64,7 @@ import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.layout.layout
 import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.layout.positionInRoot
+import androidx.compose.ui.layout.positionInWindow
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
@@ -442,7 +443,9 @@ fun MainScheduleScreen(
     }
 
     // 壁纸 LayerBackdrop：捕获壁纸内容供课程卡片 textureBlur 使用
-    val wallpaperBackdropColor = if (isAppDarkTheme()) Color(0xFF000000) else Color(0xFFF7F7F7)
+    // 顶层读取一次主题，避免每列/分界带各自挂 prefs 监听
+    val scheduleIsDark = isAppDarkTheme()
+    val wallpaperBackdropColor = if (scheduleIsDark) Color(0xFF000000) else Color(0xFFF7F7F7)
 
     // Kyant Backdrop：供课程卡片 drawBackdrop 使用
     // 添加 wallpaperBitmap 作为 key，当壁纸变化时强制重建 backdrop，确保重新录制壁纸内容
@@ -453,14 +456,23 @@ fun MainScheduleScreen(
         }
     }
 
-    // 共享模糊 Backdrop：预渲染壁纸到降采样+模糊层，所有卡片共享
-    // 添加 courseCardBackdrop 作为依赖，当 backdrop 重建时同步重建
-    val sharedBlurManager = remember(courseCardBackdrop) { SharedBlurBackdrop(courseCardBackdrop) }
-    val hasSharedBlur = wallpaperBitmap != null && isRenderEffectSupported() && cardBlurRadius > 0f
-
-    DisposableEffect(Unit) {
-        onDispose { sharedBlurManager.release() }
+    // 共享模糊 Backdrop：仅在有壁纸时创建；无壁纸路径不走 drawBackdrop，无需预渲染层
+    val sharedBlurManager = if (wallpaperBitmap != null) {
+        remember(courseCardBackdrop) { SharedBlurBackdrop(courseCardBackdrop) }
+    } else null
+    val hasSharedBlur = sharedBlurManager != null && isRenderEffectSupported() && cardBlurRadius > 0f
+    val activeCardBackdrop: com.kyant.backdrop.Backdrop? = when {
+        wallpaperBitmap == null -> null
+        hasSharedBlur -> sharedBlurManager
+        else -> courseCardBackdrop
     }
+
+    DisposableEffect(sharedBlurManager) {
+        onDispose { sharedBlurManager?.release() }
+    }
+
+    // 课表滚动视口：供 drawBackdrop 跳过屏外卡片采样（非 state 字段，滚动不触发重组）
+    val scheduleViewport = remember { com.kyant.backdrop.BackdropViewport() }
 
     // 壁纸层内容指纹：这些量不变时，壁纸层录制结果与上一帧逐像素相同，
     // 可以整段跳过「壁纸 backdrop 录制」和「共享模糊层降采样+模糊」——
@@ -476,6 +488,9 @@ fun MainScheduleScreen(
         wallpaperBackdropColor
     )
 
+    androidx.compose.runtime.CompositionLocalProvider(
+        com.kyant.backdrop.LocalBackdropViewport provides scheduleViewport
+    ) {
     Box(modifier = Modifier.fillMaxSize()) {
         // 壁纸背景
         if (wallpaperBitmap != null) {
@@ -604,6 +619,12 @@ fun MainScheduleScreen(
                     .scrollEndHaptic(
                         hapticFeedbackType = HapticFeedbackType.TextHandleMove
                     )
+                    .onGloballyPositioned { coordinates ->
+                        // 滚动视口（window 坐标）：内容滚动时本节点位置不变，只在布局变化时写非 state 字段
+                        val pos = coordinates.positionInWindow()
+                        scheduleViewport.topPx = pos.y
+                        scheduleViewport.bottomPx = pos.y + coordinates.size.height
+                    }
                     .verticalScroll(scrollState)
                     // 布局阶段读取顶栏高度：顶栏折叠动画逐帧变化时只触发本节点重新测量/摆放，
                     // 避免在组合期读取 currentHeightPx 导致整个课程表页面逐帧重组。
@@ -658,15 +679,13 @@ fun MainScheduleScreen(
                             SpecialBandOverlay(
                                 name = band.name,
                                 hasBlur = wallpaperBitmap != null,
-                                isDark = isAppDarkTheme(),
+                                isDark = scheduleIsDark,
                                 cardCornerRadius = cardCornerRadius,
                                 cardBlurRadius = cardBlurRadius,
                                 cardAlpha = cardAlpha,
                                 cardRefraction = cardRefraction,
                                 isTablet = isTablet,
-                                wallpaperBackdrop = if (wallpaperBitmap != null) {
-                                    if (hasSharedBlur) sharedBlurManager else courseCardBackdrop
-                                } else null,
+                                wallpaperBackdrop = activeCardBackdrop,
                                 items = bandItems,
                                 dayRange = pageDayRange
                             )
@@ -688,11 +707,13 @@ fun MainScheduleScreen(
                             sectionTimes = sectionTimes,
                             sectionNames = sectionNames,
                             specialBlocks = specialBlocks,
+                            grid = specialGrid,
                             cardHeightPerSection = cardHeightPerSection,
                             showBreakDividers = showBreakDividers,
                             currentSection = if (week == currentWeek) currentSection else -1,
                             isTablet = isTablet,
-                            hasWallpaper = wallpaperBitmap != null
+                            hasWallpaper = wallpaperBitmap != null,
+                            isDark = scheduleIsDark
                         )
 
                         // pageDayRange 已提升到 Row 之外（特殊课程横带需要同一套列宽）
@@ -761,7 +782,7 @@ fun MainScheduleScreen(
                             val stableOnCourseLongPress: (Course, Float, Float, Float, Float, com.kyant.backdrop.Backdrop?, Int) -> Unit =
                                 remember(page, dayOfWeek) {
                                     { course, left, top, width, height, _, cWeek ->
-                                        val backdrop = if (hasSharedBlur) sharedBlurManager else courseCardBackdrop
+                                        val backdrop = activeCardBackdrop ?: courseCardBackdrop
                                         onCourseLongPress(course, left, top, width, height, backdrop, cWeek)
                                     }
                                 }
@@ -777,15 +798,14 @@ fun MainScheduleScreen(
                                 eveningSections = eveningSections,
                                 sectionTimes = sectionTimes,
                                 specialBlocks = specialBlocks,
+                                grid = specialGrid,
                                 currentWeek = displayWeekForDay,
                                 isHoliday = isHoliday,
                                 isWorkSwap = isWorkSwap,
                                 pendingDay = pendingDay,
                                 pendingSection = pendingSection,
                                 onPendingChange = onPendingChange,
-                                wallpaperBackdrop = if (wallpaperBitmap != null) {
-                                    if (hasSharedBlur) sharedBlurManager else courseCardBackdrop
-                                } else null,
+                                wallpaperBackdrop = activeCardBackdrop,
                                 cardBlurRadius = cardBlurRadius,
                                 cardAlpha = cardAlpha,
                                 cardHeightPerSection = cardHeightPerSection,
@@ -805,6 +825,7 @@ fun MainScheduleScreen(
                                 onCourseDragEnd = onCourseDragEnd,
                                 onCourseMenuDismiss = onCourseMenuDismiss,
                                 dropHighlightSections = if (dropHighlight?.first == dayOfWeek) dropHighlight.second else null,
+                                isDark = scheduleIsDark,
                                 modifier = Modifier
                                     .weight(1f)
                                     .onGloballyPositioned { coordinates ->
@@ -919,7 +940,7 @@ fun MainScheduleScreen(
                     if (showBreakDividers) {
                     val dividerShape = ContinuousRoundedRectangle(12.dp)
                     val dividerHorizontalPadding = if (isTablet) 24.dp else 4.dp
-                    val dividerIsDark = isAppDarkTheme()
+                    val dividerIsDark = scheduleIsDark
                     val dividerDensity = LocalDensity.current
                     // 与课程卡片一致的液态玻璃参数
                     val dividerBlurPx = with(dividerDensity) { remember(cardBlurRadius) { cardBlurRadius.dp.toPx() } }
@@ -951,7 +972,7 @@ fun MainScheduleScreen(
                                 .background(dividerFgBase, dividerShape)
                                 .then(
                                     if (hasWallpaperDivider) {
-                                        val dividerBackdrop = if (hasSharedBlur) sharedBlurManager else courseCardBackdrop
+                                        val dividerBackdrop = activeCardBackdrop ?: courseCardBackdrop
                                         val dividerEffects: com.kyant.backdrop.BackdropEffectScope.() -> Unit = remember(dividerBackdrop, dividerBlurPx, dividerLensRadiusPx, dividerLensStrengthPx) {
                                             {
                                                 if (dividerBackdrop !is SharedBlurBackdrop) {
@@ -967,9 +988,12 @@ fun MainScheduleScreen(
                                             highlight = null,
                                             shadow = null,
                                             downsampleScale = 0.48f,
-                                            onDrawSurface = {
-                                                drawRect(dividerFgGlass)
-                                                drawRect(dividerFgOverlay)
+                                            viewport = com.kyant.backdrop.LocalBackdropViewport.current,
+                                            onDrawSurface = remember(dividerFgGlass, dividerFgOverlay) {
+                                                {
+                                                    drawRect(dividerFgGlass)
+                                                    drawRect(dividerFgOverlay)
+                                                }
                                             }
                                         ).edgeLight(shape = dividerEdgeLightShape, edgeLight = rememberCourseCardEdgeLight())
                                     } else Modifier
@@ -1346,6 +1370,7 @@ fun MainScheduleScreen(
             }
         )
     }
+    } // CompositionLocalProvider
 }
 
 /** 特殊课程子块弹窗里周一~周日的格子标签 */

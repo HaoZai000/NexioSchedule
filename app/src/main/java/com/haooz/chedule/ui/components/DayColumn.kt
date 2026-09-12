@@ -45,7 +45,6 @@ import androidx.compose.ui.unit.dp
 import com.haooz.chedule.data.Course
 import com.haooz.chedule.ui.effects.edgelight.edgeLight
 import com.haooz.chedule.ui.effects.edgelight.rememberCourseCardEdgeLight
-import com.haooz.chedule.ui.utils.isAppDarkTheme
 import com.kyant.backdrop.Backdrop
 import com.kyant.backdrop.backdrops.SharedBlurBackdrop
 import com.kyant.backdrop.drawBackdrop
@@ -87,6 +86,8 @@ fun DayColumn(
     eveningSections: Int = 3,
     sectionTimes: Map<Int, String> = Course.defaultSectionTimes,
     specialBlocks: List<com.haooz.chedule.data.SpecialBlock> = emptyList(),
+    // 由页面层统一计算一次，避免 7 列各自重算同一套网格
+    grid: SpecialGridLayout,
     currentWeek: Int = 1,
     isHoliday: Boolean = false,
     isWorkSwap: Boolean = false,
@@ -116,27 +117,12 @@ fun DayColumn(
     dropHighlightSections: IntRange? = null,
     // 滑动中标记（非 state）：透传给课程卡片，滑动期间跳过逐帧坐标计算
     gridScrollFlag: com.haooz.chedule.ui.screens.GridScrollFlag? = null,
-    // 调课后需要淡入放大的课程ID集合
+    // 由页面层统一读取，避免每列再挂 prefs 监听
+    isDark: Boolean = false,
     @SuppressLint("ModifierParameter") modifier: Modifier = Modifier
 ) {
     val totalSectionsGrid = morningSections + afternoonSections + eveningSections
-    // 特殊课程为时间轴浮层：节次保持固定位置，特殊课程按起止时间插值成一整条长卡片
-    val grid = remember(
-        totalSectionsGrid, morningSections, afternoonSections, eveningSections,
-        specialBlocks, sectionTimes, cardHeightPerSection, showBreakDividers
-    ) {
-        computeSpecialGridLayout(
-            morningSections = morningSections,
-            afternoonSections = afternoonSections,
-            eveningSections = eveningSections,
-            specialBlocks = specialBlocks,
-            sectionTimes = sectionTimes,
-            cardHeightPerSection = cardHeightPerSection,
-            dividerGap = if (showBreakDividers) 24 else 0
-        )
-    }
     val totalHeight = grid.totalHeight.toInt()
-    val isDark = isAppDarkTheme()
     val hasBlur = wallpaperBackdrop != null
     val isPendingDay = pendingDay == dayOfWeek
     val hapticFeedback = LocalHapticFeedback.current
@@ -323,6 +309,7 @@ fun DayColumn(
                             effects = hlEffects,
                             highlight = null,
                             shadow = null,
+                            viewport = com.kyant.backdrop.LocalBackdropViewport.current,
                             onDrawSurface = {
                                 drawRect(hlSurfaceColor)
                             }
@@ -360,6 +347,7 @@ fun DayColumn(
                 cardBlurRadius = cardBlurRadius,
                 draggingCourseIds = draggingCourseIds,
                 gridScrollFlag = gridScrollFlag,
+                isDark = isDark,
 
                 onCourseClick = onCourseClick,
                 onCourseLongPress = onCourseLongPress,
@@ -404,6 +392,7 @@ private fun CourseCardsLayer(
     cardBlurRadius: Float,
     draggingCourseIds: Set<String>,
     gridScrollFlag: com.haooz.chedule.ui.screens.GridScrollFlag? = null,
+    isDark: Boolean,
     viewportTopDp: Float = 0f,
     viewportBottomDp: Float = Float.MAX_VALUE,
     onCourseClick: (Course) -> Unit,
@@ -496,6 +485,7 @@ private fun CourseCardsLayer(
                     CourseCard(
                         course = course,
                         gridScrollFlag = gridScrollFlag,
+                        isDark = isDark,
                         isCurrentWeek = isCurrentWeekCourse,
                         isHoliday = isHoliday,
                         isWorkSwap = isWorkSwap,
@@ -537,6 +527,7 @@ private fun CourseCardsLayer(
                     CourseCard(
                         course = displayCourse,
                         gridScrollFlag = gridScrollFlag,
+                        isDark = isDark,
                         isCurrentWeek = isCurrentWeekCourse,
                         isHoliday = isHoliday,
                         isWorkSwap = isWorkSwap,
@@ -625,6 +616,7 @@ private fun PendingSectionBox(
                             effects = pendingEffects,
                             highlight = null,
                             shadow = null,
+                            viewport = com.kyant.backdrop.LocalBackdropViewport.current,
                             onDrawSurface = {
                                 drawRect(surfaceColor)
                             }
@@ -867,6 +859,7 @@ fun SpecialBandOverlay(
                         highlight = null,
                         shadow = null,
                         downsampleScale = 0.48f,
+                        viewport = com.kyant.backdrop.LocalBackdropViewport.current,
                         onDrawSurface = onBandSurface
                     )
                     .drawWithContent {
@@ -928,7 +921,7 @@ fun SpecialBandOverlay(
 }
 
 @Composable
-private fun SpecialBandContent(name: String) {
+private fun SpecialBandContent(name: String, isDark: Boolean) {
     Box(
         modifier = Modifier.fillMaxSize(),
         contentAlignment = Alignment.Center
@@ -936,7 +929,7 @@ private fun SpecialBandContent(name: String) {
         Text(
             text = name,
             style = MiuixTheme.textStyles.body2.copy(fontWeight = FontWeight.Medium),
-            color = if (isAppDarkTheme()) Color.White.copy(alpha = 0.74f) else Color.Black.copy(alpha = 0.74f),
+            color = if (isDark) Color.White.copy(alpha = 0.74f) else Color.Black.copy(alpha = 0.74f),
             maxLines = 2,
             textAlign = TextAlign.Center
         )
@@ -962,7 +955,7 @@ private fun SpecialBandBody(
     cornerRadius: Float
 ) {
     if (items.isEmpty() || dayRange.isEmpty()) {
-        SpecialBandContent(name)
+        SpecialBandContent(name, isDark)
         return
     }
 
