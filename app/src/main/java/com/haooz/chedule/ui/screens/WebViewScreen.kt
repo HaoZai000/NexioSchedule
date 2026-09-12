@@ -21,7 +21,6 @@ import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.foundation.background
-import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -29,15 +28,12 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.WindowInsets
-import androidx.compose.foundation.layout.asPaddingValues
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
-import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.statusBars
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
@@ -57,6 +53,10 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.CompositingStrategy
+import androidx.compose.ui.graphics.Shape
+import androidx.compose.ui.graphics.drawscope.DrawScope
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.platform.LocalConfiguration
@@ -71,25 +71,35 @@ import androidx.compose.ui.unit.sp
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
-import androidx.compose.ui.zIndex
 import androidx.core.net.toUri
 import com.haooz.chedule.data.Course
 import com.haooz.chedule.data.school.SchoolData
 import com.haooz.chedule.data.school.ScriptRepository
+import com.haooz.chedule.ui.basic.CollapsibleTopAppBar
 import com.haooz.chedule.ui.basic.LiquidTopBarButton
 import top.yukonga.miuix.kmp.basic.NativeMiuixTextField
 import com.haooz.chedule.ui.basic.ProgressiveBlurTopBar
+import com.haooz.chedule.ui.basic.rememberSharedScrollBehavior
+import com.haooz.chedule.ui.effects.edgelight.edgeLight
+import com.haooz.chedule.ui.effects.edgelight.rememberDefaultEdgeLight
+import com.haooz.chedule.ui.utils.isAppDarkTheme
 import com.haooz.chedule.ui.web.AndroidBridge
 import com.haooz.chedule.ui.web.WebCompatDelegate
 import com.haooz.chedule.ui.web.WebPostBridge
+import com.kyant.backdrop.BackdropEffectScope
 import com.kyant.backdrop.backdrops.LayerBackdrop
+import com.kyant.backdrop.backdrops.layerBackdrop
+import com.kyant.backdrop.backdrops.rememberLayerBackdrop
+import com.kyant.backdrop.drawBackdrop
+import com.kyant.backdrop.effects.blur
+import com.kyant.backdrop.effects.lens
+import com.kyant.backdrop.effects.vibrancy
 import com.kyant.capsule.ContinuousCapsule
 import com.kyant.capsule.ContinuousRoundedRectangle
 import top.yukonga.miuix.kmp.basic.ButtonDefaults
 import top.yukonga.miuix.kmp.basic.Icon
 import top.yukonga.miuix.kmp.basic.IconButton
 import top.yukonga.miuix.kmp.basic.Scaffold
-import top.yukonga.miuix.kmp.basic.SmallTopAppBar
 import top.yukonga.miuix.kmp.basic.Surface
 import top.yukonga.miuix.kmp.basic.TextButton
 import top.yukonga.miuix.kmp.icon.MiuixIcons
@@ -132,8 +142,7 @@ fun WebViewScreen(
     adapterId: String,
     importUrl: String?,
     assetJsPath: String?,
-    isLiquidGlass: Boolean = false,
-    liquidGlassBackdrop: LayerBackdrop? = null,
+    liquidGlassBackdrop: LayerBackdrop,
     scheduleNames: List<String> = emptyList(),
     currentScheduleName: String = "",
     onBack: () -> Unit,
@@ -155,6 +164,7 @@ fun WebViewScreen(
     var pageTitle by remember { mutableStateOf("加载中...") }
     var isDesktopMode by remember { mutableStateOf(isTablet) }
     val hapticFeedback = LocalHapticFeedback.current
+    val scrollBehavior = rememberSharedScrollBehavior()
 
     LaunchedEffect(isDesktopMode) { onDesktopModeChanged(isDesktopMode) }
     LaunchedEffect(assetJsPath) { onAssetJsPathChanged(assetJsPath) }
@@ -178,8 +188,34 @@ fun WebViewScreen(
                 ViewGroup.LayoutParams.MATCH_PARENT
             )
             setBackgroundColor(Color.Transparent.toArgb())
+            // 与 SleepDown 一致：硬件层 + 后面 AndroidView 的 Offscreen，页面像素才能被 layerBackdrop 录进去
+            setLayerType(android.view.View.LAYER_TYPE_HARDWARE, null)
         }
     }
+
+    // 专供底部胶囊采样的 WebView 内容层；不能复用外层 liquidGlassBackdrop（那是选择页的 Compose 层）
+    val webContentBackdrop = rememberLayerBackdrop()
+    val webDockShapeBlock: () -> Shape = remember { { ContinuousCapsule() } }
+    // 与 LiquidBottomTabs 可见层同一套玻璃参数
+    val webDockEffects: BackdropEffectScope.() -> Unit = remember {
+        {
+            vibrancy()
+            blur(8f.dp.toPx())
+            lens(24f.dp.toPx(), 24f.dp.toPx())
+        }
+    }
+    val isLightTheme = !isAppDarkTheme()
+    val webDockSurfaceColor = if (isLightTheme) {
+        Color(0xFFFFFFFF).copy(alpha = 0.6f)
+    } else {
+        Color(0xFF121212).copy(alpha = 0.54f)
+    }
+    val webDockOnDrawSurface: DrawScope.() -> Unit = remember(webDockSurfaceColor) {
+        {
+            drawRect(webDockSurfaceColor)
+        }
+    }
+    val webDockEdgeLight = rememberDefaultEdgeLight()
 
     // 委托实例要跨桌面模式切换复用：document-start 脚本的句柄挂在它身上，每次重建会丢掉旧句柄
     val compatDelegate = remember(webView) { WebCompatDelegate(webView) }
@@ -442,193 +478,207 @@ fun WebViewScreen(
     LaunchedEffect(onExecuteImportRef) { onExecuteImportRef?.invoke(onExecuteImport) }
     LaunchedEffect(onToggleDesktopModeRef) { onToggleDesktopModeRef?.invoke { isDesktopMode = !isDesktopMode } }
 
-    Box(modifier = Modifier.fillMaxSize().background(MiuixTheme.colorScheme.surface)) {
-        Scaffold(
-            contentWindowInsets = WindowInsets(0, 0, 0, 0),
-            topBar = {
-                if (isLiquidGlass && liquidGlassBackdrop != null) {
-                    val statusBarPadding = WindowInsets.statusBars.asPaddingValues().calculateTopPadding()
+    Box(modifier = Modifier.fillMaxSize()) {
+        // 生产者包住 WebView：底部玻璃从这里实时采样页面像素
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .background(MiuixTheme.colorScheme.surface)
+                .layerBackdrop(webContentBackdrop)
+        ) {
+            Scaffold(
+                contentWindowInsets = WindowInsets(0, 0, 0, 0),
+                topBar = {
                     ProgressiveBlurTopBar(
                         backdrop = liquidGlassBackdrop,
                     ) {
-                        SmallTopAppBar(
-                            color = Color.Transparent,
+                        CollapsibleTopAppBar(
                             title = pageTitle,
-                            modifier = Modifier.zIndex(1f),
-                            navigationIcon = {}
+                            showLargeTitle = false,
+                            // WebView 无嵌套滚动，按钮玻璃材质不跟随内容，始终显示
+                            showShadow = true,
+                            modifier = Modifier,
+                            scrollBehavior = scrollBehavior,
+                            contentPadding = {},
+                            startAction = { backdropAlpha, shadowAlpha ->
+                                LiquidTopBarButton(
+                                    onClick = {
+                                        hapticFeedback.performHapticFeedback(HapticFeedbackType.VirtualKey)
+                                        onBack()
+                                    },
+                                    backdrop = liquidGlassBackdrop,
+                                    icon = MiuixIcons.Close,
+                                    contentDescription = "关闭",
+                                    performHapticFeedback = false,
+                                    iconSize = 22.dp,
+                                    backdropAlpha = backdropAlpha,
+                                    shadowAlpha = shadowAlpha,
+                                )
+                            },
+                            endAction = { backdropAlpha, shadowAlpha ->
+                                LiquidTopBarButton(
+                                    onClick = {
+                                        hapticFeedback.performHapticFeedback(HapticFeedbackType.VirtualKey)
+                                        webView.reload()
+                                    },
+                                    backdrop = liquidGlassBackdrop,
+                                    icon = MiuixIcons.Refresh,
+                                    contentDescription = "刷新",
+                                    performHapticFeedback = false,
+                                    iconSize = 24.dp,
+                                    backdropAlpha = backdropAlpha,
+                                    shadowAlpha = shadowAlpha,
+                                )
+                            },
                         )
-                        Row(
+                    }
+                }
+            ) { paddingValues ->
+                Box(
+                    modifier = Modifier
+                        .padding(
+                            top = paddingValues.calculateTopPadding(),
+                            bottom = paddingValues.calculateBottomPadding()
+                        )
+                        .fillMaxSize()
+                ) {
+                    AndroidView(
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .graphicsLayer {
+                                compositingStrategy = CompositingStrategy.Offscreen
+                            },
+                        factory = { webView },
+                        update = {}
+                    )
+
+                    AnimatedVisibility(
+                        visible = loadingProgress in 0.01f..0.99f,
+                        enter = fadeIn(),
+                        exit = fadeOut(),
+                        modifier = Modifier.align(Alignment.TopCenter)
+                    ) {
+                        Box(
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .zIndex(2f)
-                                .offset(y = if (statusBarPadding > 0.dp) statusBarPadding + 5.dp else 42.dp),
-                            horizontalArrangement = Arrangement.SpaceBetween
-                        ) {
-                            LiquidTopBarButton(
-                                onClick = {
-                                    hapticFeedback.performHapticFeedback(HapticFeedbackType.VirtualKey)
-                                    onBack()
-                                },
-                                backdrop = liquidGlassBackdrop,
-                                icon = MiuixIcons.Close,
-                                contentDescription = "关闭",
-                                modifier = Modifier.offset(x = 20.dp),
-                                iconSize = 22.dp,
-                            )
-                            LiquidTopBarButton(
-                                onClick = {
-                                    hapticFeedback.performHapticFeedback(HapticFeedbackType.VirtualKey)
-                                    webView.reload()
-                                },
-                                backdrop = liquidGlassBackdrop,
-                                icon = MiuixIcons.Refresh,
-                                contentDescription = "刷新",
-                                modifier = Modifier.offset(x = (-20).dp),
-                                iconSize = 24.dp,
-                            )
-                        }
+                                .height(3.dp)
+                                .background(MiuixTheme.colorScheme.primary)
+                        )
                     }
-                } else {
-                    SmallTopAppBar(
-                        title = pageTitle,
-                        navigationIcon = {
-                            IconButton(onClick = {
-                                hapticFeedback.performHapticFeedback(HapticFeedbackType.VirtualKey)
-                                onBack()
-                            }, modifier = Modifier.padding(start = 4.dp)) {
-                                Icon(MiuixIcons.Close, contentDescription = "关闭", modifier = Modifier.size(23.dp))
-                            }
-                        },
-                        actions = {
-                            IconButton(onClick = {
-                                hapticFeedback.performHapticFeedback(HapticFeedbackType.VirtualKey)
-                                webView.reload()
-                            }, modifier = Modifier.padding(end = 4.dp)) {
-                                Icon(MiuixIcons.Refresh, contentDescription = "刷新", modifier = Modifier.size(26.dp))
-                            }
-                        }
-                    )
-                }
-            }
-        ) { paddingValues ->
-            Box(
-                modifier = Modifier
-                    .padding(
-                        top = (paddingValues.calculateTopPadding() + if (isLiquidGlass) (-12).dp else 0.dp).coerceAtLeast(0.dp),
-                        bottom = paddingValues.calculateBottomPadding()
-                    )
-                    .fillMaxSize()
-            ) {
-                AndroidView(
-                    modifier = Modifier.fillMaxSize(),
-                    factory = { webView },
-                    update = {}
-                )
-
-                AnimatedVisibility(
-                    visible = loadingProgress in 0.01f..0.99f,
-                    enter = fadeIn(),
-                    exit = fadeOut(),
-                    modifier = Modifier.align(Alignment.TopCenter)
-                ) {
-                    Box(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .height(3.dp)
-                            .background(MiuixTheme.colorScheme.primary)
-                    )
                 }
             }
         }
 
-        Surface(
+        Box(
             modifier = Modifier
                 .align(Alignment.BottomCenter)
                 .padding(horizontal = 16.dp + tabletHorizontalPadding)
                 .padding(bottom = 24.dp)
-                .border(0.5.dp, MiuixTheme.colorScheme.outline, ContinuousCapsule())
-                .fillMaxWidth(),
-            color = MiuixTheme.colorScheme.surfaceVariant,
-            shape = ContinuousCapsule()
+                .fillMaxWidth()
+                .drawBackdrop(
+                    backdrop = webContentBackdrop,
+                    shape = webDockShapeBlock,
+                    effects = webDockEffects,
+                    highlight = null,
+                    onDrawSurface = webDockOnDrawSurface
+                )
+                .edgeLight(shape = ContinuousCapsule(), edgeLight = webDockEdgeLight)
         ) {
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(start = 20.dp, top = 11.dp, end = 12.dp, bottom = 11.dp),
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.SpaceBetween
-            ) {
-                Column(modifier = Modifier.weight(1f)) {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Text(
-                            text = school.name,
-                            fontSize = 16.sp,
-                            fontWeight = FontWeight.Medium,
-                            color = MiuixTheme.colorScheme.onSurface,
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis,
-                            modifier = Modifier.weight(1f, fill = false)
-                        )
-                        Spacer(Modifier.width(6.dp))
-                        Surface(
-                            shape = ContinuousRoundedRectangle(4.dp),
-                            color = if (isDesktopMode)
-                                MiuixTheme.colorScheme.primary.copy(alpha = 0.12f)
-                            else
-                                Color(0xFF66BB6A).copy(alpha = 0.15f),
-                            modifier = Modifier
-                                .clip(ContinuousRoundedRectangle(4.dp))
-                                .clickable {
-                                    hapticFeedback.performHapticFeedback(HapticFeedbackType.VirtualKey)
-                                    isDesktopMode = !isDesktopMode
-                                }
-                        ) {
-                            Text(
-                                text = if (isDesktopMode) "桌面版" else "手机版",
-                                fontSize = 12.sp,
-                                color = if (isDesktopMode)
-                                    MiuixTheme.colorScheme.primary
-                                else
-                                    Color(0xFF66BB6A),
-                                modifier = Modifier.padding(horizontal = 4.dp, vertical = 2.dp)
-                            )
-                        }
-                        Spacer(Modifier.width(20.dp))
-                    }
-                    Spacer(Modifier.height(4.dp))
+            WebImportDockContent(
+                schoolName = school.name,
+                isDesktopMode = isDesktopMode,
+                onToggleDesktopMode = {
+                    hapticFeedback.performHapticFeedback(HapticFeedbackType.VirtualKey)
+                    isDesktopMode = !isDesktopMode
+                },
+                onExecuteImport = {
+                    hapticFeedback.performHapticFeedback(HapticFeedbackType.Confirm)
+                    onExecuteImport()
+                },
+                importEnabled = assetJsPath != null
+            )
+        }
+    }
+}
+
+@Composable
+private fun WebImportDockContent(
+    schoolName: String,
+    isDesktopMode: Boolean,
+    onToggleDesktopMode: () -> Unit,
+    onExecuteImport: () -> Unit,
+    importEnabled: Boolean
+) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(start = 20.dp, top = 11.dp, end = 12.dp, bottom = 11.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.SpaceBetween
+    ) {
+        Column(modifier = Modifier.weight(1f)) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text(
+                    text = schoolName,
+                    fontSize = 16.sp,
+                    fontWeight = FontWeight.Medium,
+                    color = MiuixTheme.colorScheme.onSurface,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                    modifier = Modifier.weight(1f, fill = false)
+                )
+                Spacer(Modifier.width(6.dp))
+                Surface(
+                    shape = ContinuousRoundedRectangle(4.dp),
+                    color = if (isDesktopMode)
+                        MiuixTheme.colorScheme.primary.copy(alpha = 0.12f)
+                    else
+                        Color(0xFF66BB6A).copy(alpha = 0.15f),
+                    modifier = Modifier
+                        .clip(ContinuousRoundedRectangle(4.dp))
+                        .clickable(onClick = onToggleDesktopMode)
+                ) {
                     Text(
-                        text = "登录教务系统 → 进入课表页面 → 执行导入",
+                        text = if (isDesktopMode) "桌面版" else "手机版",
                         fontSize = 12.sp,
-                        color = MiuixTheme.colorScheme.onSurfaceVariantActions
+                        color = if (isDesktopMode)
+                            MiuixTheme.colorScheme.primary
+                        else
+                            Color(0xFF66BB6A),
+                        modifier = Modifier.padding(horizontal = 4.dp, vertical = 2.dp)
                     )
                 }
+                Spacer(Modifier.width(20.dp))
+            }
+            Spacer(Modifier.height(4.dp))
+            Text(
+                text = "登录教务系统 → 进入课表页面 → 执行导入",
+                fontSize = 12.sp,
+                color = MiuixTheme.colorScheme.onSurfaceVariantActions
+            )
+        }
 
-                Surface(
-                    modifier = Modifier.size(44.dp),
-                    shape = ContinuousRoundedRectangle(22.dp),
-                    color = if (assetJsPath != null)
-                        MiuixTheme.colorScheme.primary
+        Surface(
+            modifier = Modifier.size(44.dp),
+            shape = ContinuousRoundedRectangle(22.dp),
+            color = if (importEnabled)
+                MiuixTheme.colorScheme.primary
+            else
+                MiuixTheme.colorScheme.surfaceVariant
+        ) {
+            IconButton(
+                onClick = onExecuteImport,
+                enabled = importEnabled
+            ) {
+                Icon(
+                    MiuixIcons.Normal.Download,
+                    contentDescription = "执行导入",
+                    modifier = Modifier.size(26.dp),
+                    tint = if (importEnabled)
+                        MiuixTheme.colorScheme.onPrimary
                     else
-                        MiuixTheme.colorScheme.surfaceVariant
-                ) {
-                    IconButton(
-                        onClick = {
-                            hapticFeedback.performHapticFeedback(HapticFeedbackType.Confirm)
-                            onExecuteImport()
-                        },
-                        enabled = assetJsPath != null
-                    ) {
-                        Icon(
-                            MiuixIcons.Normal.Download,
-                            contentDescription = "执行导入",
-                            modifier = Modifier.size(26.dp),
-                            tint = if (assetJsPath != null)
-                                MiuixTheme.colorScheme.onPrimary
-                            else
-                                MiuixTheme.colorScheme.onSurfaceVariantActions
-                        )
-                    }
-                }
+                        MiuixTheme.colorScheme.onSurfaceVariantActions
+                )
             }
         }
     }

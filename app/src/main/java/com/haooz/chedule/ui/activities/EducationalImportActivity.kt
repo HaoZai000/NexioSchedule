@@ -413,7 +413,6 @@ class EducationalImportActivity : ComponentActivity() {
                             adapterId = adapter.adapterId,
                             importUrl = adapter.importUrl,
                             assetJsPath = adapter.assetJsPath,
-                            isLiquidGlass = true,
                             liquidGlassBackdrop = liquidGlassBackdrop,
                             scheduleNames = scheduleNames,
                             currentScheduleName = currentScheduleName,
