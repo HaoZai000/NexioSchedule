@@ -7,7 +7,7 @@ data class ChangelogEntry(
 )
 val changelogData = listOf(
     ChangelogEntry(
-        version = "v1.5.1-0914",
+        version = "v1.5.1-0913",
         date = "2026-09-13",
         changes = listOf(
             "#1.5.0因存在数据被意外混淆，更新1.5.1后，会导致课表外观，课程时间/节数被重置！可提前备份课表，在1.5.1再还原#",
