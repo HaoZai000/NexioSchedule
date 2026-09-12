@@ -4,7 +4,6 @@ package com.haooz.chedule.ui.activities
 import android.annotation.SuppressLint
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -29,7 +28,6 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
@@ -50,7 +48,6 @@ import com.haooz.chedule.ui.basic.SharedScrollBehavior
 import com.haooz.chedule.ui.data.AppreciationItem
 import com.haooz.chedule.ui.utils.overScrollVertical
 import com.kyant.capsule.ContinuousRoundedRectangle
-import kotlinx.coroutines.launch
 import top.yukonga.miuix.kmp.basic.Card
 import top.yukonga.miuix.kmp.basic.Icon
 import top.yukonga.miuix.kmp.basic.Scaffold
@@ -88,18 +85,6 @@ fun AppreciateAuthorScreen(
         hasMore = page.hasMore
         loadingMore = false
     }
-
-    // 刷新：重新拉取第一页并重置分页状态
-    suspend fun refresh() {
-        if (loadingMore) return
-        loadingMore = true
-        val page = AppreciationFetcher.fetch(offset = 0)
-        donations = page.items
-        hasMore = page.hasMore
-        loadingMore = false
-    }
-
-    val scope = rememberCoroutineScope()
 
     val donationList = donations
 
@@ -198,14 +183,11 @@ fun AppreciateAuthorScreen(
                                         modifier = Modifier.offset(x = (-16).dp)
                                     )
                                     Text(
-                                        text = "刷新",
+                                        text = "正在手工填写中",
                                         style = MiuixTheme.textStyles.body2,
-                                        color = MiuixTheme.colorScheme.primary,
+                                        color = MiuixTheme.colorScheme.onSurfaceVariantActions,
                                         modifier = Modifier
                                             .padding(end = 12.dp)
-                                            .clickable {
-                                                scope.launch { refresh() }
-                                            }
                                     )
                                 }
                             }
@@ -301,14 +283,11 @@ fun AppreciateAuthorScreen(
                                     )
                                     Spacer(modifier = Modifier.weight(1f))
                                     Text(
-                                        text = "刷新",
+                                        text = "正在手工填写中",
                                         style = MiuixTheme.textStyles.body2,
-                                        color = MiuixTheme.colorScheme.primary,
+                                        color = MiuixTheme.colorScheme.onSurfaceVariantActions,
                                         modifier = Modifier
                                             .padding(end = 12.dp)
-                                            .clickable {
-                                                scope.launch { refresh() }
-                                            }
                                     )
                             }
                             Card(
