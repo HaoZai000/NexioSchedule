@@ -3793,7 +3793,6 @@ fun CourseScheduleApp() {
                 screenHeight = windowInfo.containerSize.height.toFloat(),
                 screenCornerRadius = screenCornerRadius,
                 cardSnapshot = detailSnapshot,
-                fromToday = detailFromToday,
                 sectionTimes = sectionTimes,
                 classStartTime = classStartTime,
                 targetWeek = detailTargetWeek,

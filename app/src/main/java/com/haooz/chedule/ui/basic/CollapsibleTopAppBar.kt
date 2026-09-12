@@ -142,6 +142,14 @@ class SharedScrollBehavior(
         }
     }
 
+    /** 立即收起标题栏（无动画）。程序化滚动前调用，避免折叠动画与列表滚动抢帧导致二次位移。 */
+    fun collapseImmediately() {
+        val target = state.heightOffsetLimit
+        // 初值 -MAX（大标题尚未测出）或无大标题时的 -1，都不应写入
+        if (target >= -1f || target <= -Float.MAX_VALUE / 2f) return
+        state.heightOffset = target
+    }
+
     /** 带动画展开标题栏 */
     suspend fun expand() {
         val animatable = Animatable(state.heightOffset)

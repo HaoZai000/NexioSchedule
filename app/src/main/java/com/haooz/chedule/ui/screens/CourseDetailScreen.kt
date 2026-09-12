@@ -20,13 +20,13 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
@@ -74,6 +74,7 @@ import top.yukonga.miuix.kmp.icon.MiuixIcons
 import top.yukonga.miuix.kmp.icon.extended.ChevronBackward
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 import top.yukonga.miuix.kmp.utils.scrollEndHaptic
+import kotlin.math.abs
 import kotlin.time.Duration.Companion.milliseconds
 import androidx.compose.ui.graphics.Color as ComposeColor
 import com.kyant.backdrop.backdrops.layerBackdrop as liquidGlassLayerBackdrop
@@ -126,7 +127,6 @@ fun CourseDetailScreen(
     screenHeight: Float,
     screenCornerRadius: Float,
     cardSnapshot: Bitmap?,
-    fromToday: Boolean = false,
     sectionTimes: Map<Int, String>,
     classStartTime: String,
     // 点击来源所在的周次（今日页=当前浏览日期所在周，bottomsheet=当前查看周），
@@ -295,7 +295,7 @@ fun CourseDetailScreen(
                     translationY = s.translationY
                 }
                 .clip(clipShape)
-                .background(if (fromToday) MiuixTheme.colorScheme.background else if (isDark) ComposeColor(0xFF303030) else ComposeColor(0xFFF8F8F8))
+                .background(MiuixTheme.colorScheme.background)
         ) {
             if (cardSnapshot != null && s.snapshotAlpha > 0f) {
                 Image(
@@ -304,7 +304,7 @@ fun CourseDetailScreen(
                     modifier = Modifier
                         .align(Alignment.TopStart)
                         .fillMaxWidth()
-                        .clip(ContinuousRoundedRectangle(22.dp))
+                        .clip(ContinuousRoundedRectangle(20.dp))
                         .graphicsLayer { alpha = s.snapshotAlpha },
                     contentScale = ContentScale.FillWidth
                 )
@@ -437,22 +437,30 @@ fun CourseDetailScreen(
                                     if (index > 0) {
                                         // 等入场形变/淡入基本完成再滚，避免用户在内容还没看清时就已经"瞬移"到位
                                         delay(400.milliseconds)
+                                        // 先立即收起标题栏，让 contentPadding 在整段滚动中保持稳定。
+                                        // 若边滚边弹簧收起，滚到位后高度才落定，会再二次校正位移，观感是两次跳动。
+                                        val barState = scrollBehavior.state
+                                        val wasExpanded =
+                                            barState.heightOffsetLimit < -1f &&
+                                            barState.heightOffset > barState.heightOffsetLimit
+                                        if (wasExpanded) {
+                                            scrollBehavior.collapseImmediately()
+                                            lastCollapsed = true
+                                            if (barState.contentOffset >= -scrollThresholdPx) {
+                                                barState.contentOffset = -scrollThresholdPx - 1f
+                                            }
+                                            // 等 currentHeightPx / contentPadding 按收起后高度重算完
+                                            withFrameNanos { }
+                                            withFrameNanos { }
+                                            withFrameNanos { }
+                                        }
                                         // 负偏移：让目标周标题停在顶栏下方，而不是被顶栏盖住
                                         val offsetPx = with(density) { -latestTopPadding.roundToPx() }
                                         // 顶栏的收起/展开由上面的 listState 监听负责（程序化滚动不走 nestedScroll）
                                         isProgrammaticScroll = true
-                                        listState.animateScrollToItem(index, offsetPx)
+                                        // 单次连贯滚动：远距离限速 + 近目标缓动，避免默认 spring 一闪而过
+                                        listState.smoothScrollToItem(index, offsetPx)
                                         isProgrammaticScroll = false
-                                        // 顶栏收起后自身变矮 → 列表顶部留白跟着变小，按收起后的留白再校正落点，
-                                        // 否则目标周标题会整体上移被顶栏压住
-                                        withFrameNanos { }
-                                        withFrameNanos { }
-                                        val finalOffsetPx = with(density) { -latestTopPadding.roundToPx() }
-                                        if (finalOffsetPx != offsetPx) {
-                                            isProgrammaticScroll = true
-                                            listState.animateScrollToItem(index, finalOffsetPx)
-                                            isProgrammaticScroll = false
-                                        }
                                     }
                                 }
                                 LazyColumn(
@@ -557,6 +565,67 @@ fun CourseDetailScreen(
                         }
                 }
             }
+        }
+    }
+}
+
+/**
+ * 进入详情页时的程序化定位滚动。
+ * 默认 [LazyListState.animateScrollToItem] 对长距离会用 spring 一冲到底，观感像瞬移。
+ * 这里改为：目标不可见时按视口比例快速推进，可见后按剩余距离比例缓动收敛。
+ */
+private suspend fun LazyListState.smoothScrollToItem(
+    index: Int,
+    scrollOffset: Int,
+    maxFrames: Int = 160,
+) {
+    if (index < 0) return
+    scroll {
+        var frames = 0
+        var settled = 0
+        while (frames < maxFrames && settled < 2) {
+            frames++
+            val info = layoutInfo.visibleItemsInfo.find { it.index == index }
+            if (info == null) {
+                settled = 0
+                val forward = index > firstVisibleItemIndex
+                val direction = if (forward) 1f else -1f
+                val viewport =
+                    (layoutInfo.viewportEndOffset - layoutInfo.viewportStartOffset).coerceAtLeast(1)
+                // 临近目标时缩小步长，降低越过目标后再回弹的概率
+                val itemsAway = abs(index - firstVisibleItemIndex)
+                val fraction = when {
+                    itemsAway >= 12 -> 0.22f
+                    itemsAway >= 6 -> 0.14f
+                    itemsAway >= 3 -> 0.09f
+                    else -> 0.06f
+                }
+                scrollBy(direction * viewport * fraction)
+            } else {
+                val delta = info.offset - scrollOffset
+                if (abs(delta) < 1.5f) {
+                    if (delta != 0) scrollBy(delta.toFloat())
+                    settled++
+                } else {
+                    settled = 0
+                    // 可见后按剩余距离比例收敛，越接近越慢
+                    val step = delta * 0.12f
+                    scrollBy(
+                        if (abs(step) < 1f) {
+                            if (delta > 0) 1f else -1f
+                        } else step
+                    )
+                }
+            }
+            withFrameNanos { }
+        }
+        // 帧数兜底后仍未贴齐则精确落位
+        val info = layoutInfo.visibleItemsInfo.find { it.index == index }
+        if (info != null) {
+            val remaining = info.offset - scrollOffset
+            if (remaining != 0) scrollBy(remaining.toFloat())
+        } else {
+            scrollToItem(index, scrollOffset)
         }
     }
 }
