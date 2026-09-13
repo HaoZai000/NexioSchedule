@@ -321,37 +321,11 @@ class CourseRepository private constructor(context: Context) {
         return try {
             val courses = sanitizeCourses(gson.fromJson(json, type) ?: emptyList())
             courseCache[scheduleId] = courses
-            preWarmOccupiedWeeksCache(courses)
+            // 不再全量预热 occupiedWeeksCache：只有添加/编辑课程选周次会用到，
+            // getOccupiedWeeks 首次访问时按需算并缓存即可。冷路径 O(7×节次对×课程) 对首屏是白烧。
             courses
         } catch (_: Exception) {
             emptyList()
-        }
-    }
-
-    /**
-     * 预热占用周次缓存：预计算所有节次组合的占用周次
-     * 占用判断为分钟级时间重叠（自定义时间课程同样参与占用）
-     */
-    private fun preWarmOccupiedWeeksCache(courses: List<Course>) {
-        occupiedWeeksCache.clear()
-        val totalSections = getMorningSections() + getAfternoonSections() + getEveningSections()
-        val sectionTimes = getGlobalSectionTimes()
-        for (day in 1..7) {
-            for (start in 1..totalSections) {
-                for (end in start..totalSections) {
-                    val occupied = mutableSetOf<Int>()
-                    val newStartMin = timeToMinutes(sectionTimes[start]?.substringBefore("-")?.trim())
-                    val newEndMin = timeToMinutes(sectionTimes[end]?.substringAfter("-")?.trim())
-                    courses.forEach { course ->
-                        if (course.dayOfWeek == day &&
-                            isTimeConflict(newStartMin, newEndMin, start, end, course, sectionTimes)
-                        ) {
-                            addCourseWeeks(occupied, course)
-                        }
-                    }
-                    occupiedWeeksCache[occupiedWeeksKey(day, start, end)] = occupied
-                }
-            }
         }
     }
 

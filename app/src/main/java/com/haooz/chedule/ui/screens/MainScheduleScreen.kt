@@ -144,6 +144,28 @@ class GridScrollFlag {
     var scrolling: Boolean = false
 }
 
+/** 按日期展开 Entry（含跨日期 endDate），供假期/调休索引共用 */
+private fun expandEntryByDate(
+    entry: HolidayManager.Entry,
+    put: (String, HolidayManager.Entry) -> Unit
+) {
+    if (entry.endDate.isBlank()) {
+        put(entry.date, entry)
+    } else {
+        runCatching {
+            var d = LocalDate.parse(entry.date)
+            val end = LocalDate.parse(entry.endDate)
+            while (!d.isAfter(end)) {
+                put(d.toString(), entry)
+                d = d.plusDays(1)
+            }
+        }.onFailure {
+            // 解析失败回退到单点
+            put(entry.date, entry)
+        }
+    }
+}
+
 data class ScheduleGridGeometry(
     val dayBounds: Map<Int, FloatArray>,
     val sectionHeightPx: Float,
@@ -359,7 +381,12 @@ fun MainScheduleScreen(
     }
 
     // 一次性加载课表覆盖年份的假期/调休数据，避免逐日重复解析
-    val holidayVersion = HolidayManager.getVersion(scheduleContext)
+    // getVersion 走 SharedPreferences：首次后虽在内存 Map，仍是每次重组同步调用。
+    // 记忆化到 (scheduleContext, dataVersion)：假期编辑页返回会经 MainActivity resume
+    // bump dataVersion，从而重读版本号；课程数据本身不变时不再白读 SP。
+    val holidayVersion = remember(scheduleContext, dataVersion) {
+        HolidayManager.getVersion(scheduleContext)
+    }
     val holidayEntries = remember(
         scheduleContext, dataVersion, holidayVersion, semesterStartMonday, totalWeeks
     ) {
@@ -368,27 +395,29 @@ fun MainScheduleScreen(
             HolidayManager.load(scheduleContext, year)
         }
     }
+
     // 假期索引：日期字符串 -> Entry。课程表每次重组 7 天 × N 条 entries 的 firstOrNull{ matches } 是 O(7*N) 线性扫描，
     // 切页瞬间首帧成本相当大（两个 page 同时计算、且仅 beyondViewportPageCount=1 触发），改成 O(1) HashMap 查找。
     // 跨日期范围的条目（endDate 非空）展开成每个中间日期映射到同一条目，避免拆分多天时丢匹配。
+    // 与调休索引分开：同一天可能同时有假期+调休条目，合并到一个 Map 会互相覆盖。
     val holidayIndex: Map<String, HolidayManager.Entry> = remember(holidayEntries) {
         if (holidayEntries.isEmpty()) emptyMap()
         else HashMap<String, HolidayManager.Entry>(holidayEntries.size * 3).apply {
             holidayEntries.forEach { entry ->
-                if (entry.endDate.isBlank()) {
-                    put(entry.date, entry)
-                } else {
-                    runCatching {
-                        var d = LocalDate.parse(entry.date)
-                        val end = LocalDate.parse(entry.endDate)
-                        while (!d.isAfter(end)) {
-                            put(d.toString(), entry)
-                            d = d.plusDays(1)
-                        }
-                    }.onFailure {
-                        // 解析失败回退到单点
-                        put(entry.date, entry)
-                    }
+                if (entry.type == HolidayManager.TYPE_HOLIDAY) {
+                    expandEntryByDate(entry) { date, e -> put(date, e) }
+                }
+            }
+        }
+    }
+    // 调休索引：filteredCoursesCache 原先 holidayEntries.firstOrNull{ type==WORKSWAP && matches }
+    // 每页 7 天 × 全量 entries 线性扫；改成 O(1) 查表。
+    val workswapIndex: Map<String, HolidayManager.Entry> = remember(holidayEntries) {
+        if (holidayEntries.isEmpty()) emptyMap()
+        else HashMap<String, HolidayManager.Entry>(holidayEntries.size * 3).apply {
+            holidayEntries.forEach { entry ->
+                if (entry.type == HolidayManager.TYPE_WORKSWAP) {
+                    expandEntryByDate(entry) { date, e -> put(date, e) }
                 }
             }
         }
@@ -400,7 +429,7 @@ fun MainScheduleScreen(
     // 切页时 O(1) 查表；依赖任一上游输入变更（courses/dataVersion/holidayVersion/smartWeekend/totalWeeks）才重算。
     val weekendDaysByWeek: Map<Int, Set<Int>> = remember(
         courses, dataVersion, holidayVersion, smartWeekend, totalWeeks,
-        semesterStartMonday, holidayIndex
+        semesterStartMonday, workswapIndex
     ) {
         if (!smartWeekend) {
             (1..totalWeeks).associateWith { setOf(6, 7) }
@@ -411,11 +440,9 @@ fun MainScheduleScreen(
                 val satDate = mondayOfWeek.plusDays(5).toString()
                 val sunDate = mondayOfWeek.plusDays(6).toString()
                 val satActive = courses.any { it.dayOfWeek == 6 && it.isActiveInWeek(week) } ||
-                    (holidayIndex[satDate]?.takeIf { it.type == HolidayManager.TYPE_WORKSWAP }
-                        ?.followWeekday?.let { it in 1..7 } == true)
+                    (workswapIndex[satDate]?.followWeekday?.let { it in 1..7 } == true)
                 val sunActive = courses.any { it.dayOfWeek == 7 && it.isActiveInWeek(week) } ||
-                    (holidayIndex[sunDate]?.takeIf { it.type == HolidayManager.TYPE_WORKSWAP }
-                        ?.followWeekday?.let { it in 1..7 } == true)
+                    (workswapIndex[sunDate]?.followWeekday?.let { it in 1..7 } == true)
                 result[week] = buildSet {
                     if (satActive) add(6)
                     if (sunActive) add(7)
@@ -429,7 +456,7 @@ fun MainScheduleScreen(
     // 值：dayOfWeek -> (displayWeek, 该日课程)，displayWeek 为调休映射后的显示周次
     @Suppress("RedundantInitializer")
     val filteredCoursesCache = remember(
-        coursesByDay, showNonCurrentWeek, dataVersion, holidayVersion
+        coursesByDay, showNonCurrentWeek, dataVersion, holidayVersion, workswapIndex
     ) {
         mutableMapOf<Int, Map<Int, Pair<Int, List<Course>>>>()
     }
@@ -737,15 +764,15 @@ fun MainScheduleScreen(
                                         .plusWeeks((weekForPage - 1).toLong())
                                         .plusDays((dayOfWeek - 1).toLong())
                                     // 调休日按被调星期/周次展示对应课程；仅已配置补班课的条目才生效（未配置时保持原课表）
-                                    val swapForDay = holidayEntries.firstOrNull {
-                                        it.type == HolidayManager.TYPE_WORKSWAP && it.matches(dateForDay.toString())
-                                    }
-                                    val swapConfigured = swapForDay?.followWeekday?.takeIf { it in 1..7 } != null
+                                    // O(1) 查 workswapIndex，替代 holidayEntries.firstOrNull 线性扫
+                                    val swapForDay = workswapIndex[dateForDay.toString()]
                                     val displayDay = swapForDay?.followWeekday?.takeIf { it in 1..7 } ?: dayOfWeek
                                     val displayWeek = swapForDay?.followWeek?.takeIf { it > 0 } ?: weekForPage
                                     val dayCourses = coursesByDay[displayDay] ?: emptyList()
-                                    // 调休日整天替换：显示被调那天的完整课表（含非本周课程），不再按周次过滤
-                                    val courses = if (showNonCurrentWeek || swapConfigured) dayCourses
+                                    // 调休日按 displayWeek（调休映射周次，否则本页周次）过滤，
+                                    // 与普通日一致：关闭「显示非本周课程」时不显示非本周课程。
+                                    // 此前 swapConfigured 会绕过过滤，导致调休日仍露出非本周课程。
+                                    val courses = if (showNonCurrentWeek) dayCourses
                                     else dayCourses.filter { it.isActiveInWeek(displayWeek) }
                                     displayWeek to courses
                                 }
@@ -753,10 +780,9 @@ fun MainScheduleScreen(
                             val dateForDay = semesterStartMonday
                                 .plusWeeks((week - 1).toLong())
                                 .plusDays((dayOfWeek - 1).toLong())
-                            val isHoliday = holidayIndex[dateForDay.toString()]?.type == HolidayManager.TYPE_HOLIDAY
+                            val isHoliday = holidayIndex[dateForDay.toString()] != null
                             // 仅已配置补班课的调休日才标记"调"，未配置（待配置补班）时按普通课表显示
-                            val isWorkSwap = holidayIndex[dateForDay.toString()]
-                                ?.takeIf { it.type == HolidayManager.TYPE_WORKSWAP }
+                            val isWorkSwap = workswapIndex[dateForDay.toString()]
                                 ?.followWeekday?.takeIf { it in 1..7 } != null
                             val stableOnCourseClick: (Course) -> Unit =
                                 remember(page, dayOfWeek, week, displayWeekForDay) {

@@ -58,6 +58,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.withFrameNanos
 import androidx.compose.ui.Alignment
@@ -1423,7 +1424,11 @@ fun CourseScheduleApp() {
 
     val currentViewingWeek = pagerState.currentPage + 1
     val courses by viewModel.courses.collectAsState()
-    val dayRange = remember(currentViewingWeek, smartWeekend, courses.size) {
+    val dataVersion by viewModel.dataVersion.collectAsState()
+    // dataVersion 必须进 key：假期/调休设置返回时 resume 会 reloadCourses 抬 dataVersion，
+    // 但 dayRange 原先只看 (week, smartWeekend, courses.size)，课程数不变时标题星期行不会重算，
+    // 要滑到隔壁周再滑回来才刷新。getWeekendDaysForWeek 内部会读最新 holiday 数据。
+    val dayRange = remember(currentViewingWeek, smartWeekend, courses.size, dataVersion) {
         (1..5).toList() + settingsViewModel.getWeekendDaysForWeek(currentViewingWeek)
             .filter { it in 6..7 }
     }
@@ -2162,6 +2167,89 @@ fun CourseScheduleApp() {
             else managePageBlurRadius.value.dp
         val mainContentBlurModifier =
             if (mainContentBlurDp.value > 0f) Modifier.blur(mainContentBlurDp) else Modifier
+
+        // E：liquidGlass 主内容全树录制的跳帧指纹。
+        // recordKey 覆盖「结构变化」：这些量变了，录制结果必然不同，走 update→markNeedsRecord。
+        // 必须 remember 出稳定 List，否则每次重组 equals 失败会强制 markNeedsRecord，跳过失效。
+        val liquidGlassRecordKey = remember(
+            selectedTab, isShiftMode, showDetail, showCustomizePage, showSwitchSchedule,
+            isWindowCutoutActive, shortcutMenuVisible, isDraggingCard, floatingCardVisible,
+            dataVersion, currentWeek, totalWeeks, currentCombinationIndex, effectiveIsDark,
+            wallpaperBitmap, railState?.isExpanded, scheduleShowCourseDetail.value
+        ) {
+            listOf(
+                selectedTab, isShiftMode, showDetail, showCustomizePage, showSwitchSchedule,
+                isWindowCutoutActive, shortcutMenuVisible, isDraggingCard, floatingCardVisible,
+                dataVersion, currentWeek, totalWeeks, currentCombinationIndex, effectiveIsDark,
+                wallpaperBitmap, railState?.isExpanded == true, scheduleShowCourseDetail.value
+            )
+        }
+        // mustRecord：draw 阶段读滚动/动画（不进组合）。空闲且 recordKey 未变时返回 false，
+        // LayerBackdrop 跳过 recordLayer；滚动/开洞/切换动画期间返回 true，保持与旧版每帧录制一致。
+        // 局部 val（如 isEntryAnimating）不能直接捕获进 remember 的 lambda——会冻在首次组合值；
+        // 一律经 rememberUpdatedState，lambda 引用保持稳定（layerBackdrop 按引用比较）。
+        val latestCutoutScale by rememberUpdatedState(cutoutMainScale.value)
+        val latestBackgroundScale by rememberUpdatedState(backgroundScale.value)
+        val latestSheetOffset by rememberUpdatedState(sheetOffsetY.value)
+        val latestShortcutBlur by rememberUpdatedState(shortcutMenuBlurRadius.value)
+        val latestManageBlur by rememberUpdatedState(managePageBlurRadius.value)
+        val latestSwitchProgress by rememberUpdatedState(switchAnimProgress.value)
+        val latestCustomizeExitScale by rememberUpdatedState(customizeExitScale.value)
+        val latestCustomizeCoverScale by rememberUpdatedState(customizeCoverScale.value)
+        val latestCustomizeCoverAlpha by rememberUpdatedState(customizeCoverAlpha.value)
+        val latestIsWindowCutout by rememberUpdatedState(isWindowCutoutActive)
+        val latestShowCustomize by rememberUpdatedState(showCustomizePage)
+        val latestIsCustomizeExiting by rememberUpdatedState(isCustomizeExiting)
+        val latestSwitchAnimRunning by rememberUpdatedState(switchAnimRunning)
+        val latestSwitchAnimForward by rememberUpdatedState(switchAnimForward)
+        val latestShowSwitch by rememberUpdatedState(showSwitchSchedule)
+        val latestDraggingCard by rememberUpdatedState(isDraggingCard)
+        val latestRailPad by rememberUpdatedState(railPaddingStart)
+        val latestSettingsScrollY by rememberUpdatedState(settingsScrollY)
+        val latestTodayScrollY by rememberUpdatedState(todayScrollY)
+        val liquidGlassMustRecord = remember(scheduleScrollState, todayListState, pagerState, todayPagerState) {
+            // 非 state 帧差：侧栏 padding / 自定义 scrollY 逐帧比较，不进组合
+            var lastRailPad = Float.NaN
+            var lastSettingsScroll = Int.MIN_VALUE
+            var lastTodayScroll = Int.MIN_VALUE
+            {
+                val railPad = latestRailPad.value
+                val settingsScroll = latestSettingsScrollY
+                val todayScroll = latestTodayScrollY
+                val railMoving = railPad != lastRailPad
+                val settingsMoving = settingsScroll != lastSettingsScroll
+                val todayMoving = todayScroll != lastTodayScroll
+                lastRailPad = railPad
+                lastSettingsScroll = settingsScroll
+                lastTodayScroll = todayScroll
+                // 滚动中：课表竖滑 / 今日列表 / 周次横滑 / 今日日切换横滑 / 设置自定义 scrollY
+                scheduleScrollState.isScrollInProgress ||
+                    todayListState.isScrollInProgress ||
+                    pagerState.isScrollInProgress ||
+                    todayPagerState.isScrollInProgress ||
+                    todayMoving ||
+                    settingsMoving ||
+                    railMoving ||
+                    // 开洞编辑：主内容持续缩放，绝不能停录
+                    latestIsWindowCutout ||
+                    (latestShowCustomize && latestIsCustomizeExiting) ||
+                    // 切换课表动画
+                    (latestShowSwitch && latestSwitchAnimForward && latestSwitchAnimRunning) ||
+                    latestSwitchAnimRunning ||
+                    latestShortcutBlur > 0.01f ||
+                    latestManageBlur > 0.01f ||
+                    // 动画进行中（Animatable 值仍在动；静止端点 1f/0.75f/0f/1f 视为可跳过）
+                    (latestCutoutScale != 1f && latestCutoutScale != 0.75f) ||
+                    latestBackgroundScale != 1f ||
+                    latestSheetOffset != 0f ||
+                    (latestSwitchProgress != 0f && latestSwitchProgress != 1f) ||
+                    latestCustomizeExitScale != 1f ||
+                    latestCustomizeCoverScale != 1f ||
+                    latestCustomizeCoverAlpha != 1f ||
+                    // 拖拽课程卡片时像素每帧变
+                    latestDraggingCard
+            }
+        }
         // 主内容（带缩放和裁切）
         Box(
             modifier = Modifier
@@ -2346,11 +2434,17 @@ fun CourseScheduleApp() {
                         Box(
                             modifier = Modifier
                                 .fillMaxSize()
-                                // 注意：开洞（外观页编辑态）时**不能**停录这个 backdrop。
-                                // 洞的尺寸 animW = 屏宽 × cardScale，而主内容也按 cardScale 缩放，
-                                // 因此洞恰好框住整个缩放后的主界面——顶栏/底栏全在洞内可见，
-                                // 停录会让它们的玻璃层采样到空内容，直接表现为"模糊消失"。
-                                .liquidGlassLayerBackdrop(liquidGlassBackdrop)
+                                // E：liquidGlass 全树录制跳帧。
+                                // recordKey = 结构指纹（tab/弹窗/数据版本等），空闲且未变时 update 不会 markNeedsRecord；
+                                // mustRecord 在 draw 阶段读滚动/动画，变化时强制重录，避免采样停在旧帧。
+                                // 注意：开洞（外观页编辑态）时 mustRecord 恒 true，不能停录——
+                                // 洞的尺寸 animW = 屏宽 × cardScale，主内容也按 cardScale 缩放，
+                                // 停录会让顶栏/底栏玻璃采样到空内容，表现为"模糊消失"。
+                                .liquidGlassLayerBackdrop(
+                                    backdrop = liquidGlassBackdrop,
+                                    recordKey = liquidGlassRecordKey,
+                                    mustRecord = liquidGlassMustRecord
+                                )
                         ) {
                             if (!isShiftMode) {
                                 // 始终渲染所有 tab，用 alpha 控制显隐，避免切换时重建导致延迟
