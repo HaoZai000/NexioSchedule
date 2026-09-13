@@ -18,17 +18,25 @@ import kotlin.math.roundToInt
  *   滑动课表时壁纸是静止的，每帧重录一次全屏层纯属白烧。
  *   传 null（默认）保持原行为：每帧录制。
  *   注意：指纹必须覆盖所有能改变被录制内容的因素，否则会用到过期采样。
+ * @param mustRecord draw 阶段强制录制谓词。返回 true 时即使 recordKey 未变也重录。
+ *   用于「结构稳定但滚动/动画仍在改像素」的主内容 liquidGlass：谓词里读 ScrollState/Animatable，
+ *   不进组合，滚动帧只多一次比较。引用须 remember 稳定，否则每次重组 update→markNeedsRecord，跳过失效。
  */
-fun Modifier.layerBackdrop(backdrop: LayerBackdrop, recordKey: Any? = null): Modifier =
-    this then LayerBackdropElement(backdrop, recordKey)
+fun Modifier.layerBackdrop(
+    backdrop: LayerBackdrop,
+    recordKey: Any? = null,
+    mustRecord: (() -> Boolean)? = null
+): Modifier =
+    this then LayerBackdropElement(backdrop, recordKey, mustRecord)
 
 private class LayerBackdropElement(
     val backdrop: LayerBackdrop,
-    val recordKey: Any? = null
+    val recordKey: Any? = null,
+    val mustRecord: (() -> Boolean)? = null
 ) : ModifierNodeElement<LayerBackdropNode>() {
 
     override fun create(): LayerBackdropNode {
-        return LayerBackdropNode(backdrop, recordKey)
+        return LayerBackdropNode(backdrop, recordKey, mustRecord)
     }
 
     override fun update(node: LayerBackdropNode) {
@@ -37,6 +45,7 @@ private class LayerBackdropElement(
             node.backdrop = backdrop
         }
         node.recordKey = recordKey
+        node.mustRecord = mustRecord
         node.markNeedsRecord()
         node.invalidateDraw()
     }
@@ -52,6 +61,8 @@ private class LayerBackdropElement(
 
         if (backdrop != other.backdrop) return false
         if (recordKey != other.recordKey) return false
+        // mustRecord 按引用比较：remember 出来的稳定 lambda 才能让 equals 为 true
+        if (mustRecord !== other.mustRecord) return false
 
         return true
     }
@@ -59,13 +70,15 @@ private class LayerBackdropElement(
     override fun hashCode(): Int {
         var result = backdrop.hashCode()
         result = 31 * result + (recordKey?.hashCode() ?: 0)
+        result = 31 * result + (mustRecord?.hashCode() ?: 0)
         return result
     }
 }
 
 private class LayerBackdropNode(
     var backdrop: LayerBackdrop,
-    var recordKey: Any? = null
+    var recordKey: Any? = null,
+    var mustRecord: (() -> Boolean)? = null
 ) : DrawModifierNode, GlobalPositionAwareModifierNode, Modifier.Node() {
 
     private var needsRecord = true
@@ -81,7 +94,9 @@ private class LayerBackdropNode(
         // recordKey == null：内容可能每帧变化（滚动中的课表/顶栏），必须每帧重录。
         // 之前误写成只在 needsRecord/尺寸变化时录，与文档「null = 每帧录制」不一致，
         // 会导致采样层停在旧帧，和当帧内容对不齐，慢滑时看起来发闪。
-        val shouldRecord = recordKey == null || needsRecord || recordedW != w || recordedH != h
+        // mustRecord：recordKey 非空但滚动/动画仍在改像素时强制重录（draw 阶段读，不触发组合）。
+        val force = mustRecord?.invoke() == true
+        val shouldRecord = recordKey == null || force || needsRecord || recordedW != w || recordedH != h
         if (shouldRecord) {
             needsRecord = false
             recordedW = w
