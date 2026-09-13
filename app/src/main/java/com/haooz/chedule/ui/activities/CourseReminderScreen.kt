@@ -58,7 +58,9 @@ import com.haooz.chedule.reminder.CourseReminderHelper
 import com.haooz.chedule.reminder.IslandNotificationHelper
 import com.haooz.chedule.shizuku.ShizukuManager
 import com.haooz.chedule.ui.basic.OverlayDropdownMenu
+import com.haooz.chedule.ui.basic.CollapsibleTopAppBarDefaults
 import com.haooz.chedule.ui.basic.SharedScrollBehavior
+import com.haooz.chedule.ui.basic.collapsibleTopInset
 import com.haooz.chedule.ui.utils.overScrollVertical
 import com.haooz.chedule.viewmodel.SettingsViewModel
 import top.yukonga.miuix.kmp.basic.ButtonDefaults
@@ -249,9 +251,6 @@ fun CourseReminderScreen(
             ) {
                 val listState = rememberLazyListState()
                 val density = LocalDensity.current
-                val topBarHeightDp = with(density) {
-                    (scrollBehavior?.currentHeightPx ?: 0f).toDp()
-                }
                 LazyColumn(
                     state = listState,
                     modifier = Modifier.fillMaxSize()
@@ -259,12 +258,13 @@ fun CourseReminderScreen(
                         .scrollEndHaptic(
                             hapticFeedbackType = HapticFeedbackType.TextHandleMove
                         )
+                        .collapsibleTopInset(scrollBehavior)
                         .then(
                             scrollBehavior?.let { Modifier.nestedScroll(it.nestedScrollConnection) } ?: Modifier
                         ),
                     contentPadding = PaddingValues(
                         start = tabletHorizontalPadding,
-                        top = paddingValues.calculateTopPadding() + topBarHeightDp + 12.dp,
+                        top = paddingValues.calculateTopPadding() + CollapsibleTopAppBarDefaults.CollapsedHeight + 12.dp,
                         end = tabletHorizontalPadding,
                         bottom = 120.dp
                     ),

@@ -44,7 +44,9 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.haooz.chedule.R
 import com.haooz.chedule.data.AppreciationFetcher
+import com.haooz.chedule.ui.basic.CollapsibleTopAppBarDefaults
 import com.haooz.chedule.ui.basic.SharedScrollBehavior
+import com.haooz.chedule.ui.basic.collapsibleTopInset
 import com.haooz.chedule.ui.data.AppreciationItem
 import com.haooz.chedule.ui.utils.overScrollVertical
 import com.kyant.capsule.ContinuousRoundedRectangle
@@ -108,9 +110,6 @@ fun AppreciateAuthorScreen(
                 .layerBackdrop(backdrop)
         ) {
             val density = androidx.compose.ui.platform.LocalDensity.current
-            val topBarHeightDp = with(density) {
-                (scrollBehavior?.currentHeightPx ?: 0f).toDp()
-            }
             if (isTablet) {
                 // 平板：左侧固定图片 + 右侧独立滚动列表
                 val tabletListState = rememberLazyListState()
@@ -137,7 +136,7 @@ fun AppreciateAuthorScreen(
                         modifier = Modifier
                             .weight(1f)
                             .padding(
-                                top = paddingValues.calculateTopPadding() + topBarHeightDp + 12.dp,
+                                top = paddingValues.calculateTopPadding() + CollapsibleTopAppBarDefaults.CollapsedHeight + 12.dp,
                                 bottom = 60.dp
                             )
                             .aspectRatio(1f),
@@ -164,11 +163,12 @@ fun AppreciateAuthorScreen(
                                 .scrollEndHaptic(
                                     hapticFeedbackType = androidx.compose.ui.hapticfeedback.HapticFeedbackType.TextHandleMove
                                 )
+                                .collapsibleTopInset(scrollBehavior)
                                 .then(
                                     scrollBehavior?.let { Modifier.nestedScroll(it.nestedScrollConnection) } ?: Modifier
                                 ),
                             contentPadding = PaddingValues(
-                                top = paddingValues.calculateTopPadding() + topBarHeightDp + 12.dp,
+                                top = paddingValues.calculateTopPadding() + CollapsibleTopAppBarDefaults.CollapsedHeight + 12.dp,
                                 bottom = 60.dp
                             ),
                             verticalArrangement = Arrangement.spacedBy(0.dp)
@@ -240,13 +240,14 @@ fun AppreciateAuthorScreen(
                         .scrollEndHaptic(
                             hapticFeedbackType = androidx.compose.ui.hapticfeedback.HapticFeedbackType.TextHandleMove
                         )
+                        .collapsibleTopInset(scrollBehavior)
                         .then(
                             scrollBehavior?.let { Modifier.nestedScroll(it.nestedScrollConnection) } ?: Modifier
                         ),
                     contentPadding = PaddingValues(
                         start = tabletHorizontalPadding,
                         end = tabletHorizontalPadding,
-                        top = paddingValues.calculateTopPadding() + topBarHeightDp + 12.dp,
+                        top = paddingValues.calculateTopPadding() + CollapsibleTopAppBarDefaults.CollapsedHeight + 12.dp,
                         bottom = 60.dp
                     ),
                     verticalArrangement = Arrangement.spacedBy(12.dp)

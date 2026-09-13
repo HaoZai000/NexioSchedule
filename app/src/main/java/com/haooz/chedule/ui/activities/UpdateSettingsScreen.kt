@@ -45,7 +45,9 @@ import androidx.core.content.FileProvider
 import androidx.core.content.edit
 import com.haooz.chedule.shizuku.ShizukuManager
 import com.haooz.chedule.ui.basic.OverlayDropdownMenu
+import com.haooz.chedule.ui.basic.CollapsibleTopAppBarDefaults
 import com.haooz.chedule.ui.basic.SharedScrollBehavior
+import com.haooz.chedule.ui.basic.collapsibleTopInset
 import com.haooz.chedule.ui.utils.isAppDarkTheme
 import com.haooz.chedule.ui.utils.overScrollVertical
 import kotlinx.coroutines.Dispatchers
@@ -336,9 +338,6 @@ fun UpdateSettingsScreen(
                     }
             }
             val density = androidx.compose.ui.platform.LocalDensity.current
-            val topBarHeightDp = with(density) {
-                (scrollBehavior?.currentHeightPx ?: 0f).toDp()
-            }
             LazyColumn(
                 state = listState,
                 modifier = Modifier
@@ -347,6 +346,7 @@ fun UpdateSettingsScreen(
                     .scrollEndHaptic(
                         hapticFeedbackType = HapticFeedbackType.TextHandleMove
                     )
+                    .collapsibleTopInset(scrollBehavior)
                     .then(
                         scrollBehavior?.let { Modifier.nestedScroll(it.nestedScrollConnection) }
                             ?: Modifier
@@ -354,7 +354,7 @@ fun UpdateSettingsScreen(
                 contentPadding = PaddingValues(
                     start = tabletHorizontalPadding,
                     end = tabletHorizontalPadding,
-                    top = paddingValues.calculateTopPadding() + topBarHeightDp + 12.dp,
+                    top = paddingValues.calculateTopPadding() + CollapsibleTopAppBarDefaults.CollapsedHeight + 12.dp,
                     bottom = 60.dp
                 ),
                 verticalArrangement = Arrangement.spacedBy(12.dp)

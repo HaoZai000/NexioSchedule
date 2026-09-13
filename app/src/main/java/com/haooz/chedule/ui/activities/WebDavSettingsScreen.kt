@@ -45,7 +45,9 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import com.haooz.chedule.data.SyncManager
 import com.haooz.chedule.data.WebDavManager
 import top.yukonga.miuix.kmp.basic.NativeTextField
+import com.haooz.chedule.ui.basic.CollapsibleTopAppBarDefaults
 import com.haooz.chedule.ui.basic.SharedScrollBehavior
+import com.haooz.chedule.ui.basic.collapsibleTopInset
 import com.haooz.chedule.viewmodel.CourseViewModel
 import com.haooz.chedule.viewmodel.ScheduleViewModel
 import com.haooz.chedule.viewmodel.SettingsViewModel
@@ -201,9 +203,6 @@ fun WebDavSettingsScreen(
                     }
             }
             val density = androidx.compose.ui.platform.LocalDensity.current
-            val topBarHeightDp = with(density) {
-                (scrollBehavior?.currentHeightPx ?: 0f).toDp()
-            }
             LazyColumn(
                 state = listState,
                 modifier = Modifier.fillMaxSize()
@@ -211,13 +210,14 @@ fun WebDavSettingsScreen(
                     .scrollEndHaptic(
                         hapticFeedbackType = HapticFeedbackType.TextHandleMove
                     )
+                    .collapsibleTopInset(scrollBehavior)
                     .then(
                         scrollBehavior?.let { Modifier.nestedScroll(it.nestedScrollConnection) } ?: Modifier
                     ),
                 contentPadding = PaddingValues(
                     start = tabletHorizontalPadding,
                     end = tabletHorizontalPadding,
-                    top = paddingValues.calculateTopPadding() + topBarHeightDp,
+                    top = paddingValues.calculateTopPadding() + CollapsibleTopAppBarDefaults.CollapsedHeight,
                     bottom = 120.dp
                 ),
                 verticalArrangement = Arrangement.spacedBy(12.dp)

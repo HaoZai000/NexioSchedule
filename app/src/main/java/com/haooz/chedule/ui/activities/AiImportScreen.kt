@@ -60,7 +60,9 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.haooz.chedule.data.Course
+import com.haooz.chedule.ui.basic.CollapsibleTopAppBarDefaults
 import com.haooz.chedule.ui.basic.SharedScrollBehavior
+import com.haooz.chedule.ui.basic.collapsibleTopInset
 import com.haooz.chedule.ui.screens.AddCourseDialog
 import com.haooz.chedule.ui.utils.overScrollVertical
 import com.haooz.chedule.viewmodel.CourseViewModel
@@ -215,21 +217,19 @@ fun AiImportScreen(
                 .collect { offset -> listScrollY = offset }
         }
         val density = androidx.compose.ui.platform.LocalDensity.current
-        val topBarHeightDp = with(density) {
-            (scrollBehavior?.currentHeightPx ?: 0f).toDp()
-        }
         LazyColumn(
             state = listState,
             modifier = Modifier.fillMaxSize()
                 .overScrollVertical()
                 .scrollEndHaptic(hapticFeedbackType = HapticFeedbackType.TextHandleMove)
+                .collapsibleTopInset(scrollBehavior)
                 .then(
                     scrollBehavior?.let { Modifier.nestedScroll(it.nestedScrollConnection) } ?: Modifier
                 ),
             contentPadding = PaddingValues(
                 start = tabletHorizontalPadding,
                 end = tabletHorizontalPadding,
-                top = paddingValues.calculateTopPadding() + topBarHeightDp,
+                top = paddingValues.calculateTopPadding() + CollapsibleTopAppBarDefaults.CollapsedHeight,
                 bottom = 120.dp
             ),
             verticalArrangement = Arrangement.spacedBy(12.dp)

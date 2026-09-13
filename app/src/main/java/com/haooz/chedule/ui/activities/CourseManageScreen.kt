@@ -59,7 +59,9 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import com.haooz.chedule.data.Course
 import top.yukonga.miuix.kmp.basic.NativeMiuixTextField
 import top.yukonga.miuix.kmp.overlay.OverlayDialog
+import com.haooz.chedule.ui.basic.CollapsibleTopAppBarDefaults
 import com.haooz.chedule.ui.basic.SharedScrollBehavior
+import com.haooz.chedule.ui.basic.collapsibleTopInset
 import com.haooz.chedule.ui.utils.isAppDarkTheme
 import com.haooz.chedule.ui.utils.overScrollVertical
 import com.haooz.chedule.viewmodel.CourseViewModel
@@ -182,9 +184,6 @@ fun CourseManageScreen(
                         }
                 }
                 val density = androidx.compose.ui.platform.LocalDensity.current
-                val topBarHeightDp = with(density) {
-                    (scrollBehavior?.currentHeightPx ?: 0f).toDp()
-                }
 
                 val groupedCourses = courses
                     .groupBy { it.name }
@@ -195,7 +194,7 @@ fun CourseManageScreen(
                     Column(
                         modifier = Modifier
                             .fillMaxSize()
-                            .padding(top = paddingValues.calculateTopPadding() + topBarHeightDp + 12.dp),
+                            .padding(top = paddingValues.calculateTopPadding() + CollapsibleTopAppBarDefaults.CollapsedHeight + 12.dp),
                         horizontalAlignment = Alignment.CenterHorizontally,
                         verticalArrangement = Arrangement.Center
                     ) {
@@ -221,12 +220,13 @@ fun CourseManageScreen(
                             .scrollEndHaptic(
                                 hapticFeedbackType = HapticFeedbackType.TextHandleMove
                             )
+                            .collapsibleTopInset(scrollBehavior)
                             .then(
                                 scrollBehavior?.let { Modifier.nestedScroll(it.nestedScrollConnection) } ?: Modifier
                             ),
                         contentPadding = PaddingValues(
                             start = tabletHorizontalPadding,
-                            top = paddingValues.calculateTopPadding() + topBarHeightDp + 12.dp,
+                            top = paddingValues.calculateTopPadding() + CollapsibleTopAppBarDefaults.CollapsedHeight + 12.dp,
                             end = tabletHorizontalPadding,
                             bottom = 60.dp
                         ),

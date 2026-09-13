@@ -45,7 +45,9 @@ import androidx.compose.ui.unit.sp
 import com.haooz.chedule.R
 import com.haooz.chedule.data.CourseRepository
 import com.haooz.chedule.ui.basic.OverlayDropdownMenu
+import com.haooz.chedule.ui.basic.CollapsibleTopAppBarDefaults
 import com.haooz.chedule.ui.basic.SharedScrollBehavior
+import com.haooz.chedule.ui.basic.collapsibleTopInset
 import com.haooz.chedule.ui.utils.isAppDarkTheme
 import com.haooz.chedule.ui.utils.overScrollVertical
 import com.haooz.chedule.widget.CourseWidgetProviderStandard
@@ -90,22 +92,20 @@ fun WidgetIntroScreen(
                 .layerBackdrop(backdrop)
         ) {
             val density = LocalDensity.current
-            val topBarHeightDp = with(density) {
-                (scrollBehavior?.currentHeightPx ?: 0f).toDp()
-            }
 
             Column(
                 modifier = Modifier
                     .fillMaxSize()
                     .padding(horizontal = tabletHorizontalPadding)
                     .overScrollVertical()
+                    .collapsibleTopInset(scrollBehavior)
                     .then(
                         scrollBehavior?.let { Modifier.nestedScroll(it.nestedScrollConnection) } ?: Modifier
                     )
                     .verticalScroll(rememberScrollState()),
                 horizontalAlignment = Alignment.CenterHorizontally
             ) {
-                Spacer(modifier = Modifier.height(paddingValues.calculateTopPadding() + topBarHeightDp + 12.dp))
+                Spacer(modifier = Modifier.height(paddingValues.calculateTopPadding() + CollapsibleTopAppBarDefaults.CollapsedHeight + 12.dp))
 
                 val pagerState = rememberPagerState(pageCount = { 2 })
 

@@ -47,7 +47,9 @@ import com.haooz.chedule.data.CourseRepository
 import com.haooz.chedule.data.HolidayManager
 import com.haooz.chedule.reminder.CourseReminderHelper
 import com.haooz.chedule.ui.basic.OverlayDropdownMenu
+import com.haooz.chedule.ui.basic.CollapsibleTopAppBarDefaults
 import com.haooz.chedule.ui.basic.SharedScrollBehavior
+import com.haooz.chedule.ui.basic.collapsibleTopInset
 import com.haooz.chedule.ui.utils.overScrollVertical
 import com.kyant.backdrop.Backdrop
 import com.kyant.capsule.ContinuousRoundedRectangle
@@ -240,22 +242,20 @@ fun HolidaySettingsScreen(
     val workswapEntries = entries.filter { it.type == HolidayManager.TYPE_WORKSWAP }
 
     Scaffold(topBar = {}) { padding ->
-        val topBarHeightDp = with(LocalDensity.current) {
-            (scrollBehavior?.currentHeightPx ?: 0f).toDp()
-        }
         LazyColumn(
             state = listState,
             modifier = Modifier
                 .fillMaxSize()
                 .overScrollVertical()
                 .scrollEndHaptic(hapticFeedbackType = HapticFeedbackType.TextHandleMove)
+                .collapsibleTopInset(scrollBehavior)
                 .then(
                     scrollBehavior?.let { Modifier.nestedScroll(it.nestedScrollConnection) }
                         ?: Modifier
                 ),
             contentPadding = PaddingValues(
                 16.dp,
-                padding.calculateTopPadding() + topBarHeightDp + 12.dp,
+                padding.calculateTopPadding() + CollapsibleTopAppBarDefaults.CollapsedHeight + 12.dp,
                 16.dp,
                 60.dp,
             ),

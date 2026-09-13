@@ -22,7 +22,9 @@ import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.ui.unit.dp
+import com.haooz.chedule.ui.basic.CollapsibleTopAppBarDefaults
 import com.haooz.chedule.ui.basic.SharedScrollBehavior
+import com.haooz.chedule.ui.basic.collapsibleTopInset
 import com.haooz.chedule.ui.utils.overScrollVertical
 import top.yukonga.miuix.kmp.basic.Card
 import top.yukonga.miuix.kmp.basic.Scaffold
@@ -72,14 +74,12 @@ fun CommunicationScreen(
             val tableUrl =
                 "https://docs.qq.com/sheet/DSUV2dWxLa09XQXRZ?tab=BB08J2&scode="
             val density = LocalDensity.current
-            val topBarHeightDp = with(density) {
-                (scrollBehavior?.currentHeightPx ?: 0f).toDp()
-            }
             LazyColumn(
                 state = listState,
                 modifier = Modifier
                     .fillMaxSize()
                     .overScrollVertical()
+                    .collapsibleTopInset(scrollBehavior)
                     .then(
                         scrollBehavior?.let { Modifier.nestedScroll(it.nestedScrollConnection) }
                             ?: Modifier
@@ -87,7 +87,7 @@ fun CommunicationScreen(
                 contentPadding = PaddingValues(
                     start = tabletHorizontalPadding,
                     end = tabletHorizontalPadding,
-                    top = paddingValues.calculateTopPadding() + topBarHeightDp,
+                    top = paddingValues.calculateTopPadding() + CollapsibleTopAppBarDefaults.CollapsedHeight,
                     bottom = 60.dp
                 ),
                 verticalArrangement = Arrangement.spacedBy(12.dp)

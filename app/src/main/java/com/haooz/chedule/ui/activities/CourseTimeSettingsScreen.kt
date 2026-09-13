@@ -51,7 +51,9 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.haooz.chedule.data.CourseRepository
 import com.haooz.chedule.data.TimeConfig
+import com.haooz.chedule.ui.basic.CollapsibleTopAppBarDefaults
 import com.haooz.chedule.ui.basic.SharedScrollBehavior
+import com.haooz.chedule.ui.basic.collapsibleTopInset
 import com.haooz.chedule.ui.utils.isAppDarkTheme
 import kotlinx.coroutines.launch
 import top.yukonga.miuix.kmp.basic.ButtonDefaults
@@ -142,9 +144,6 @@ fun CourseTimeSettingsScreen(
             ) {
                 val listState = rememberLazyListState()
                 val density = LocalDensity.current
-                val topBarHeightDp = with(density) {
-                    (scrollBehavior?.currentHeightPx ?: 0f).toDp()
-                }
                 LazyColumn(
                     state = listState,
                     modifier = Modifier.fillMaxSize()
@@ -152,12 +151,13 @@ fun CourseTimeSettingsScreen(
                         .scrollEndHaptic(
                             hapticFeedbackType = HapticFeedbackType.TextHandleMove
                         )
+                        .collapsibleTopInset(scrollBehavior)
                         .then(
                             scrollBehavior?.let { Modifier.nestedScroll(it.nestedScrollConnection) } ?: Modifier
                         ),
                     contentPadding = PaddingValues(
                         start = tabletHorizontalPadding,
-                        top = paddingValues.calculateTopPadding() + topBarHeightDp + 12.dp,
+                        top = paddingValues.calculateTopPadding() + CollapsibleTopAppBarDefaults.CollapsedHeight + 12.dp,
                         end = tabletHorizontalPadding,
                         bottom = 60.dp
                     ),

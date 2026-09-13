@@ -37,7 +37,9 @@ import com.google.gson.GsonBuilder
 import com.haooz.chedule.data.CourseRepository
 import com.haooz.chedule.data.WebDavManager
 import top.yukonga.miuix.kmp.basic.NativeMiuixTextField
+import com.haooz.chedule.ui.basic.CollapsibleTopAppBarDefaults
 import com.haooz.chedule.ui.basic.SharedScrollBehavior
+import com.haooz.chedule.ui.basic.collapsibleTopInset
 import com.haooz.chedule.ui.screens.applyScheduleData
 import com.haooz.chedule.ui.screens.parseFullScheduleJson
 import com.haooz.chedule.ui.screens.parseIcsFile
@@ -210,21 +212,19 @@ fun BackupAndMigrationScreen(
                 .collect { offset -> listScrollY = offset }
         }
         val density = androidx.compose.ui.platform.LocalDensity.current
-        val topBarHeightDp = with(density) {
-            (scrollBehavior?.currentHeightPx ?: 0f).toDp()
-        }
         LazyColumn(
             state = listState,
             modifier = Modifier.fillMaxSize()
                 .overScrollVertical()
                 .scrollEndHaptic(hapticFeedbackType = HapticFeedbackType.TextHandleMove)
+                .collapsibleTopInset(scrollBehavior)
                 .then(
                     scrollBehavior?.let { Modifier.nestedScroll(it.nestedScrollConnection) } ?: Modifier
                 ),
             contentPadding = PaddingValues(
                 start = tabletHorizontalPadding,
                 end = tabletHorizontalPadding,
-                top = paddingValues.calculateTopPadding() + topBarHeightDp,
+                top = paddingValues.calculateTopPadding() + CollapsibleTopAppBarDefaults.CollapsedHeight,
                 bottom = 60.dp
             ),
             verticalArrangement = Arrangement.spacedBy(12.dp)

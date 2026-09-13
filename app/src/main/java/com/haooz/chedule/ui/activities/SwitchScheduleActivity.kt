@@ -72,8 +72,10 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.haooz.chedule.data.CourseRepository
 import com.haooz.chedule.ui.basic.CollapsibleTopAppBar
+import com.haooz.chedule.ui.basic.CollapsibleTopAppBarDefaults
 import com.haooz.chedule.ui.basic.LiquidTopBarButton
 import com.haooz.chedule.ui.basic.ProgressiveBlurTopBar
+import com.haooz.chedule.ui.basic.collapsibleTopInset
 import com.haooz.chedule.ui.basic.rememberSharedScrollBehavior
 import com.haooz.chedule.ui.effects.edgelight.edgeLight
 import com.haooz.chedule.ui.effects.edgelight.rememberDefaultEdgeLight
@@ -510,9 +512,6 @@ fun SwitchScheduleScreen(
                 // 注意：这里不要再 collect firstVisibleItemScrollOffset 写 state ——
                 // 那会让整页在滚动时每像素重组一次（listScrollY 之前根本没被读取，纯属白烧）。
                 val listState = rememberLazyListState()
-                val topBarHeightDp = with(density) {
-                    scrollBehavior.currentHeightPx.toDp()
-                }
                 Card(
                     modifier = Modifier
                         .fillMaxSize()
@@ -531,11 +530,12 @@ fun SwitchScheduleScreen(
                             .scrollEndHaptic(
                                 hapticFeedbackType = HapticFeedbackType.TextHandleMove
                             )
+                            .collapsibleTopInset(scrollBehavior)
                             .nestedScroll(scrollBehavior.nestedScrollConnection),
                         contentPadding = PaddingValues(
                             start = tabletHorizontalPadding,
                             end = tabletHorizontalPadding,
-                            top = paddingValues.calculateTopPadding() + topBarHeightDp - 82.dp,
+                            top = paddingValues.calculateTopPadding() + CollapsibleTopAppBarDefaults.CollapsedHeight - 82.dp,
                             bottom = 60.dp
                         ),
                         verticalArrangement = Arrangement.spacedBy(12.dp)
