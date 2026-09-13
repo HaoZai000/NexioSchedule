@@ -1,13 +1,23 @@
 ---
 feature: schedule-page-perf-f
-status: in-progress
+status: delivered
 updated: 2026-03-12
-branch: schedule-perf-f
+branch: master
+commits: d0459c0..af318b0
 ---
 
 # 课程表性能 F/G/E + 假期/调休相关 bug 修复
 
 ## Report
+
+**What was built** — F（调休 O(1)+holidayVersion 记忆）、G（occupiedWeeks 懒预热）、E（liquidGlass 全树录制跳帧）及两个假期/调休 bug 修复；与 trae 今日页性能优化一并合入 master。
+
+**Verification** — 各阶段 `gradlew :app:compileDebugKotlin` PASS；合并后 master 复编译 PASS。
+
+**Journey log**
+1. 调休日 `swapConfigured` 曾绕过非本周过滤，属产品语义错误而非纯性能问题。
+2. 标题 `dayRange` 必须挂 `dataVersion`，否则假期返回不切周不刷新。
+3. liquidGlass 跳帧需 draw 阶段 `mustRecord`，不能把滚动值放进组合期 recordKey。
 
 ## [S1] Problem
 
