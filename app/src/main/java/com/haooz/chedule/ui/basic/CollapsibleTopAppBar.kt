@@ -281,6 +281,44 @@ fun rememberSharedScrollBehavior(
     SharedScrollBehavior(state)
 }
 
+/**
+ * 让内容顶部让位给折叠顶栏，且**只在布局阶段读取** [SharedScrollBehavior.currentHeightPx]。
+ *
+ * `currentHeightPx` 在顶栏折叠动画期间逐帧变化（见 [CollapsibleTopAppBar] 测量期按
+ * collapsedFraction 做 lerp 上报）。无论是写成 `Modifier.padding(top = currentHeightPx.toDp())`，
+ * 还是塞进 LazyColumn 的 `contentPadding`，都是在**组合期**读这个状态 —— 顶栏每折叠一帧，
+ * 持有这个读取的整个页面就要重组一次；若页面里全是 ArrowPreference / SwitchPreference
+ * （MiUiX 标了 @NonRestartableComposable，参数不变也无法跳过），代价会被成倍放大。
+ *
+ * 用法：把顶部内边距固定为「状态栏高度 + [CollapsibleTopAppBarDefaults.CollapsedHeight]」，
+ * 展开态多出来的那部分交给本 Modifier 在布局阶段补齐。视觉结果与直接用实测高度做内边距一致
+ * —— 内容始终贴着顶栏下沿，顶栏完全折叠后内容仍可滚到顶栏下方 —— 但每帧只触发重新测量/摆放，
+ * 不再触发重组。
+ *
+ * 顶栏尚未上报高度（`currentHeightPx == 0f`）时按 0 处理，即先按折叠态摆放，测量完成后自行纠正。
+ */
+fun Modifier.collapsibleTopInset(scrollBehavior: SharedScrollBehavior?): Modifier =
+    layout { measurable, constraints ->
+        val collapsedPx = CollapsibleTopAppBarDefaults.CollapsedHeight.roundToPx()
+        val reportedPx = scrollBehavior?.currentHeightPx ?: 0f
+        val extraPx = if (reportedPx > 0f) {
+            (reportedPx.roundToInt() - collapsedPx).coerceAtLeast(0)
+        } else {
+            0
+        }
+        // 与 Modifier.padding(top = extraPx) 等价：上下界同时收窄，子项被要求填满时仍能正确填充
+        // （只收窄 maxHeight 会让 weight(1f) 之类的填充约束失配），自身总高度保持不变。
+        val placeable = measurable.measure(
+            constraints.copy(
+                minHeight = (constraints.minHeight - extraPx).coerceAtLeast(0),
+                maxHeight = (constraints.maxHeight - extraPx).coerceAtLeast(0),
+            )
+        )
+        layout(placeable.width, placeable.height + extraPx) {
+            placeable.place(0, extraPx)
+        }
+    }
+
 // ==================== Defaults ====================
 
 object CollapsibleTopAppBarDefaults {

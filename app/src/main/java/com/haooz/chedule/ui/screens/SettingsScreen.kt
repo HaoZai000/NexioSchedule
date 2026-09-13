@@ -31,6 +31,7 @@ import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
@@ -39,7 +40,6 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.platform.LocalConfiguration
-import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -53,7 +53,9 @@ import com.haooz.chedule.ui.activities.HolidaySettingsActivity
 import com.haooz.chedule.ui.activities.PreferenceSettingsActivity
 import com.haooz.chedule.ui.activities.UpdateSettingsActivity
 import com.haooz.chedule.ui.activities.WidgetIntroActivity
+import com.haooz.chedule.ui.basic.CollapsibleTopAppBarDefaults
 import com.haooz.chedule.ui.basic.SharedScrollBehavior
+import com.haooz.chedule.ui.basic.collapsibleTopInset
 import com.haooz.chedule.ui.utils.isAppDarkTheme
 import com.haooz.chedule.ui.utils.overScrollVertical
 import com.haooz.chedule.viewmodel.CourseViewModel
@@ -110,6 +112,25 @@ private fun getDaysInMonth(year: Int, month: Int): Int {
 }
 
 /**
+ * 「备份与迁移」入口需要高亮的二级页面。
+ *
+ * 提到顶层，避免每次重组都在组合期新建 Set（该页面在顶栏折叠期间会逐帧重组，
+ * 原写法等于每帧分配两个 Set）。
+ */
+private val BackupMigrationActivities = setOf(
+    "BackupAndMigrationActivity",
+    "LocalBackupActivity",
+    "WebDavSettingsActivity",
+)
+
+/** 「关于应用」入口需要高亮的二级页面。理由同上。 */
+private val AboutActivities = setOf(
+    "AboutActivity",
+    "AppreciateAuthorActivity",
+    "ChangelogActivity",
+)
+
+/**
  * 设置页面
  */
 @SuppressLint("ConfigurationScreenWidthHeight")
@@ -135,6 +156,10 @@ fun SettingsScreen(
     val smartWeekend by settingsViewModel.smartWeekend.collectAsState()
     val showNonCurrentWeek by settingsViewModel.showNonCurrentWeek.collectAsState()
     val scheduleNames by scheduleViewModel.scheduleNames.collectAsState()
+    // 只在这里收一次。原先在 scheduleNames.forEach 内部逐个调 collectAsState()：
+    // 每个课表都会新建一个 State 和一条协程收集器；而 collectAsState 内部用 remember，
+    // 在循环里调 remember 会让槽位随列表增删错位（勾选/新建/删除课表时 summary 会串行）。
+    val scheduleSummaries by scheduleViewModel.scheduleSummaries.collectAsState()
     val shiftSelectedSchedules by shiftViewModel.shiftSelectedSchedules.collectAsState()
     val context = androidx.compose.ui.platform.LocalContext.current
     val hapticFeedback = LocalHapticFeedback.current
@@ -155,8 +180,10 @@ fun SettingsScreen(
         viewModel.reloadCourses()
     }
 
-    // 解析开始日期
-    val (tempYearInit, tempMonthInit, tempDayInit) = parseDate(classStartTime)
+    // 解析开始日期（仅用于下面三个临时状态的初值，classStartTime 不变时不重复解析）
+    val (tempYearInit, tempMonthInit, tempDayInit) = remember(classStartTime) {
+        parseDate(classStartTime)
+    }
 
     // 弹窗状态
     var showCurrentWeekDialog by remember { mutableStateOf(false) }
@@ -183,8 +210,6 @@ fun SettingsScreen(
         val screenWidthDp = LocalConfiguration.current.screenWidthDp
         ((screenWidthDp - 600).coerceIn(0, 600) / 600f * 112 + 16).dp
     } else 16.dp
-    val density = LocalDensity.current
-    val topBarHeightDp = with(density) { (settingsScrollBehavior?.currentHeightPx ?: 0f).toDp() }
 
     Box(modifier = Modifier.fillMaxSize()) {
         Scaffold(
@@ -196,31 +221,43 @@ fun SettingsScreen(
                 .layerBackdrop(backdrop)
         ) {
             val listState = rememberLazyListState()
+            // 用 rememberUpdatedState 取最新回调：LaunchedEffect 的 key 只有 listState，
+            // 直接捕获 onScrollYChanged 会一直持着首次组合时的旧闭包。
+            val currentOnScrollYChanged by rememberUpdatedState(onScrollYChanged)
             LaunchedEffect(listState) {
                 snapshotFlow { listState.firstVisibleItemScrollOffset }
                     .collect { offset ->
-                        onScrollYChanged(offset)
+                        currentOnScrollYChanged(offset)
                     }
+            }
+            // 顶栏折叠高度改在布局阶段补齐（collapsibleTopInset），contentPadding 只用固定值。
+            // 原写法在组合期读 currentHeightPx，折叠动画期间每帧都会让整页重组一遍。
+            val scrollBehaviorModifier = remember(settingsScrollBehavior) {
+                settingsScrollBehavior?.let {
+                    Modifier
+                        .collapsibleTopInset(it)
+                        .nestedScroll(it.nestedScrollConnection)
+                } ?: Modifier
             }
             LazyColumn(
                 state = listState,
                 modifier = Modifier
+                    .then(scrollBehaviorModifier)
                     .fillMaxSize()
                     .overScrollVertical()
                     .scrollEndHaptic(
                         hapticFeedbackType = HapticFeedbackType.TextHandleMove
-                    ).then(
-                        settingsScrollBehavior?.let { Modifier.nestedScroll(it.nestedScrollConnection) } ?: Modifier
                     ),
                 contentPadding = PaddingValues(
                     start = tabletHorizontalPadding,
-                    top = paddingValues.calculateTopPadding() + topBarHeightDp,
+                    top = paddingValues.calculateTopPadding() +
+                        CollapsibleTopAppBarDefaults.CollapsedHeight,
                     end = tabletHorizontalPadding,
                     bottom = 120.dp
                 ),
                 verticalArrangement = Arrangement.spacedBy(12.dp)
             ) {
-                item {
+                item(key = "basic") {
                     SmallTitle(
                         text = "基本设置",
                         modifier = Modifier.offset(x = (-16).dp)
@@ -325,7 +362,7 @@ fun SettingsScreen(
 
                 // 特色功能分类
                 if (!isShiftMode) {
-                    item {
+                    item(key = "features") {
                         SmallTitle(
                             text = "特色功能",
                             modifier = Modifier.offset(x = (-16).dp)
@@ -369,7 +406,7 @@ fun SettingsScreen(
 
                 // 排班模式设置（仅在排班模式下显示）
                 if (isShiftMode) {
-                    item {
+                    item(key = "shift_schedules") {
                         SmallTitle(
                             text = "选择对比课表",
                             modifier = Modifier.offset(x = (-16).dp)
@@ -381,10 +418,9 @@ fun SettingsScreen(
                         ) {
                             Column(modifier = Modifier.fillMaxWidth()) {
                                 scheduleNames.forEach { name ->
-                                    val summary = scheduleViewModel.scheduleSummaries.collectAsState().value[name] ?: ""
                                     CheckboxPreference(
                                         title = name,
-                                        summary = summary,
+                                        summary = scheduleSummaries[name] ?: "",
                                         checked = name in shiftSelectedSchedules,
                                         onCheckedChange = { checked ->
                                             val newList = if (checked) {
@@ -401,7 +437,7 @@ fun SettingsScreen(
                         }
                     }
 
-                    item {
+                    item(key = "shift_exit") {
                         top.yukonga.miuix.kmp.basic.Button(
                             modifier = Modifier
                                 .fillMaxWidth()
@@ -427,7 +463,7 @@ fun SettingsScreen(
 
                 // 导入导出分类
                 if (!isShiftMode) {
-                    item {
+                    item(key = "data_manage") {
                         SmallTitle(
                             text = "数据管理",
                             modifier = Modifier.offset(x = (-16).dp)
@@ -470,11 +506,7 @@ fun SettingsScreen(
                                 ArrowPreference(
                                     title = "备份与迁移",
                                     summary = "课表导入导出与备份",
-                                    holdDownState = activeSecondaryActivity in setOf(
-                                        "BackupAndMigrationActivity",
-                                        "LocalBackupActivity",
-                                        "WebDavSettingsActivity"
-                                    ),
+                                    holdDownState = activeSecondaryActivity in BackupMigrationActivities,
                                     onClick = {
                                         val intent = Intent(context, com.haooz.chedule.ui.activities.BackupAndMigrationActivity::class.java)
                                         context.startActivity(intent)
@@ -487,7 +519,7 @@ fun SettingsScreen(
 
                 // 其他分类
                 if (!isShiftMode) {
-                    item {
+                    item(key = "others_title") {
                         SmallTitle(
                             text = "其他",
                             modifier = Modifier.offset(x = (-16).dp)
@@ -511,7 +543,7 @@ fun SettingsScreen(
                             }
                         }
                     }
-                    item {
+                    item(key = "others_prefs") {
                         Card(
                             cornerRadius = 20.dp,
                             modifier = Modifier.fillMaxWidth(),
@@ -538,11 +570,7 @@ fun SettingsScreen(
                                 )
                                 ArrowPreference(
                                     title = "关于应用",
-                                    holdDownState = activeSecondaryActivity in setOf(
-                                        "AboutActivity",
-                                        "AppreciateAuthorActivity",
-                                        "ChangelogActivity"
-                                    ),
+                                    holdDownState = activeSecondaryActivity in AboutActivities,
                                     onClick = {
                                         val intent = Intent(context, AboutActivity::class.java)
                                         context.startActivity(intent)

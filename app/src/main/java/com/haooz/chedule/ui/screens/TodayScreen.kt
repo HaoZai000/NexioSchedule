@@ -56,7 +56,9 @@ import androidx.compose.ui.unit.sp
 import androidx.core.content.edit
 import com.haooz.chedule.data.CardRefractionLevel
 import com.haooz.chedule.data.Course
+import com.haooz.chedule.ui.basic.CollapsibleTopAppBarDefaults
 import com.haooz.chedule.ui.basic.SharedScrollBehavior
+import com.haooz.chedule.ui.basic.collapsibleTopInset
 import com.haooz.chedule.ui.effects.edgelight.edgeLight
 import com.haooz.chedule.ui.effects.edgelight.rememberCardEdgeLight
 import com.haooz.chedule.ui.effects.edgelight.rememberDefaultEdgeLight
@@ -472,7 +474,6 @@ fun TodayScreen(
         val screenWidthDp = LocalConfiguration.current.screenWidthDp
         ((screenWidthDp - 600).coerceIn(0, 600) / 600f * 112 + 16).dp
     } else 16.dp
-    val topBarHeightDp = with(density) { (settingsScrollBehavior?.currentHeightPx ?: 0f).toDp() }
 
     val todayRefraction = cardRefraction
     CompositionLocalProvider(LocalCardRefraction provides todayRefraction) {
@@ -589,9 +590,12 @@ fun TodayScreen(
                             modifier = Modifier
                                 .weight(1f)
                                 .padding(
-                                    top = paddingValues.calculateTopPadding() + topBarHeightDp,
+                                    top = paddingValues.calculateTopPadding() +
+                                        CollapsibleTopAppBarDefaults.CollapsedHeight,
                                     bottom = 60.dp
                                 )
+                                // 展开态多出的高度在布局阶段补，避免组合期读 currentHeightPx
+                                .collapsibleTopInset(settingsScrollBehavior)
                         ) {
                             Text(
                                 text = dateText,
@@ -622,6 +626,7 @@ fun TodayScreen(
                         LazyColumn(
                             modifier = Modifier
                                 .weight(1f)
+                                .collapsibleTopInset(settingsScrollBehavior)
                                 .fillMaxHeight()
                                 .overScrollVertical()
                                 .scrollEndHaptic(
@@ -631,7 +636,8 @@ fun TodayScreen(
                                     if (settingsScrollBehavior != null) Modifier.nestedScroll(settingsScrollBehavior.nestedScrollConnection) else Modifier
                                 ),
                             contentPadding = PaddingValues(
-                                top = paddingValues.calculateTopPadding() + topBarHeightDp + 14.dp,
+                                top = paddingValues.calculateTopPadding() +
+                                    CollapsibleTopAppBarDefaults.CollapsedHeight + 14.dp,
                                 bottom = 120.dp
                             ),
                             verticalArrangement = Arrangement.spacedBy(12.dp)
@@ -644,6 +650,7 @@ fun TodayScreen(
                     LazyColumn(
                         state = externalListState,
                         modifier = Modifier
+                            .collapsibleTopInset(settingsScrollBehavior)
                             .fillMaxSize()
                             .overScrollVertical()
                             .scrollEndHaptic(
@@ -654,7 +661,8 @@ fun TodayScreen(
                             ),
                         contentPadding = PaddingValues(
                             start = tabletHorizontalPadding,
-                                top = paddingValues.calculateTopPadding() + topBarHeightDp,
+                            top = paddingValues.calculateTopPadding() +
+                                CollapsibleTopAppBarDefaults.CollapsedHeight,
                             end = tabletHorizontalPadding,
                             bottom = 120.dp
                         ),
