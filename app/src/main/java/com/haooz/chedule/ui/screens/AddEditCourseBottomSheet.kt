@@ -30,6 +30,8 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
+import androidx.compose.ui.draw.clip
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
@@ -544,9 +546,19 @@ fun AddEditCourseBottomSheet(
                             horizontalArrangement = Arrangement.spacedBy(8.dp),
                             verticalAlignment = Alignment.CenterVertically
                         ) {
-                            // 全部
+                            // 全部：点一次全选，再点一次取消全选
                             Row(
-                                verticalAlignment = Alignment.CenterVertically
+                                verticalAlignment = Alignment.CenterVertically,
+                                modifier = Modifier
+                                    .clip(RoundedCornerShape(8.dp))
+                                    .clickable(enabled = !noDaySelected) {
+                                        if (allSelectableSelected) {
+                                            selectedWeeks.clear()
+                                        } else {
+                                            selectedWeeks.clear()
+                                            selectedWeeks.addAll(selectableWeeks)
+                                        }
+                                    }
                             ) {
                                 Checkbox(
                                     state = if (allSelectableSelected) ToggleableState.On else ToggleableState.Off,

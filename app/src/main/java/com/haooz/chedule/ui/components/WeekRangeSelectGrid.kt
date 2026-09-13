@@ -17,6 +17,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -42,10 +43,11 @@ import kotlin.math.min
  * 周次选择网格。
  *
  * - 单击：切换该周
- * - 按住滑动：从起点周拖到终点周，选中（或反选）二者之间的连续周次；
- *   例如 1→8 选中 1~8，4→8 选中 4~8，2→8 选中 2~8（已占用周自动跳过）
+ * - 按住滑动：从起点周拖到终点周，把二者之间的连续周次**并入**已选集合；
+ *   例如先滑 1→8，再滑 10→14，结果为 1~8 且 10~14（已占用周自动跳过）
  *
- * 起点周在拖动前若已选中，则整段区间执行反选，便于快速清掉一串周次。
+ * 滑选始终追加、不会反选：起点周即使已选中，拖完该区间仍保持选中。
+ * 取消某周请用单击。
  */
 @Composable
 fun WeekRangeSelectGrid(
@@ -74,6 +76,13 @@ fun WeekRangeSelectGrid(
     val cellBounds = remember(totalWeeks) { arrayOfNulls<Rect>(totalWeeks) }
     var gridWidth by remember { mutableStateOf(0) }
 
+    // pointerInput 只以 enabled/totalWeeks/columns 为 key，手势协程不会随选中集重启。
+    // 直接捕获 selectedWeeks 会拿到旧快照：第二次滑选会用空集并集，把上一段冲掉。
+    val selectedWeeksState = rememberUpdatedState(selectedWeeks)
+    val occupiedWeeksState = rememberUpdatedState(occupiedWeeks)
+    val onToggleWeekState = rememberUpdatedState(onToggleWeek)
+    val onReplaceWeeksState = rememberUpdatedState(onReplaceWeeks)
+
     fun weekAtApprox(pos: Offset): Int? {
         if (gridWidth <= 0) return null
         val spacingPx = with(density) { spacing.toPx() }
@@ -97,7 +106,7 @@ fun WeekRangeSelectGrid(
     fun rangeSelection(anchor: Int, target: Int): Set<Int> {
         val lo = min(anchor, target)
         val hi = max(anchor, target)
-        return (lo..hi).filter { it !in occupiedWeeks }.toSet()
+        return (lo..hi).filter { it !in occupiedWeeksState.value }.toSet()
     }
 
     Column(
@@ -109,7 +118,7 @@ fun WeekRangeSelectGrid(
                 awaitEachGesture {
                     val down = awaitFirstDown(requireUnconsumed = false)
                     val downWeek = weekAt(down.position)
-                    if (downWeek == null || downWeek in occupiedWeeks) {
+                    if (downWeek == null || downWeek in occupiedWeeksState.value) {
                         // 等待抬起，避免误消费
                         do {
                             val event = awaitPointerEvent()
@@ -119,9 +128,8 @@ fun WeekRangeSelectGrid(
 
                     var currentWeek: Int = downWeek
                     var dragging = false
-                    var dragRemove = false
-                    val dragBase = selectedWeeks
-                    var lastApplied = selectedWeeks
+                    // 每次新手势都读最新已选集合，保证多段滑选是累加而不是被旧空集覆盖
+                    val dragBase = selectedWeeksState.value
 
                     while (true) {
                         val event = awaitPointerEvent()
@@ -132,7 +140,7 @@ fun WeekRangeSelectGrid(
                         if (!change.pressed) {
                             if (!dragging) {
                                 // 点选：抬起时若几乎未移动则切换
-                                onToggleWeek(downWeek)
+                                onToggleWeekState.value(downWeek)
                             }
                             break
                         }
@@ -142,11 +150,8 @@ fun WeekRangeSelectGrid(
                                 abs(delta.y) > viewConfiguration.touchSlop)
                         ) {
                             dragging = true
-                            dragRemove = downWeek in dragBase
                             haptics.performHapticFeedback(HapticFeedbackType.LongPress)
-                            val initRange = rangeSelection(downWeek, downWeek)
-                            lastApplied = if (dragRemove) dragBase - initRange else dragBase + initRange
-                            onReplaceWeeks(lastApplied)
+                            onReplaceWeeksState.value(dragBase + rangeSelection(downWeek, downWeek))
                             change.consume()
                         }
 
@@ -155,10 +160,7 @@ fun WeekRangeSelectGrid(
                             val week = weekAt(change.position) ?: currentWeek
                             if (week != currentWeek) {
                                 currentWeek = week
-                                val range = rangeSelection(downWeek, week)
-                                lastApplied =
-                                    if (dragRemove) dragBase - range else dragBase + range
-                                onReplaceWeeks(lastApplied)
+                                onReplaceWeeksState.value(dragBase + rangeSelection(downWeek, week))
                             }
                         }
                     }
