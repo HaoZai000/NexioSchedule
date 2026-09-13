@@ -157,9 +157,12 @@ fun invalidateWeatherCache() {
     cachedWeather = null
 }
 
+// 时间解析格式化器（避免每秒循环里重复创建）
+private val TIME_FORMATTER = DateTimeFormatter.ofPattern("HH:mm")
+
 private fun parseTime(timeStr: String): LocalTime? {
     return try {
-        LocalTime.parse(timeStr, DateTimeFormatter.ofPattern("HH:mm"))
+        LocalTime.parse(timeStr, TIME_FORMATTER)
     } catch (_: Exception) {
         null
     }
@@ -481,56 +484,45 @@ private fun rememberCourseStatus(
     sectionTimes: Map<Int, String>
 ): CourseStatus {
     var status by remember { mutableStateOf(CourseStatus()) }
-    LaunchedEffect(courses, sectionTimes) {
+    // 课程时间区间只随 courses/sectionTimes 变化重算一次，循环内直接复用，避免每秒做字符串解析。
+    // 保持原始 courses 顺序（不按开始时间排序），与旧逻辑的 first-match 语义一致。
+    val ranges = remember(courses, sectionTimes) {
+        buildCourseTimeRanges(courses, sectionTimes, sortByStart = false)
+    }
+    LaunchedEffect(ranges) {
         while (true) {
             val now = LocalTime.now()
-            val current = courses.find { course ->
-                val startStr = course.getEffectiveStartTime(sectionTimes) ?: return@find false
-                val endStr = course.getEffectiveEndTime(sectionTimes) ?: return@find false
-                val start = parseTime(startStr) ?: return@find false
-                val end = parseTime(endStr) ?: return@find false
-                !now.isBefore(start) && !now.isAfter(end)
-            }
-            val next = courses.find { course ->
-                val startStr = course.getEffectiveStartTime(sectionTimes) ?: return@find false
-                val start = parseTime(startStr) ?: return@find false
-                now.isBefore(start)
-            }
+            val current = ranges.find { !now.isBefore(it.start) && !now.isAfter(it.end) }
+            val next = ranges.find { now.isBefore(it.start) }
             val message = when {
                 current != null -> {
-                    val endStr = current.getEffectiveEndTime(sectionTimes) ?: ""
-                    val end = parseTime(endStr)
-                    if (end != null) {
-                        val minutes = java.time.Duration.between(now, end).toMinutes()
-                        if (minutes >= 60) {
-                            val hours = minutes / 60
-                            val mins = minutes % 60 + 1
-                            if (mins >= 60) "还剩 ${hours + 1}小时"
-                            else "还剩 ${hours}小时${mins}分钟"
-                        } else {
-                            "还剩 ${minutes + 1} 分钟"
-                        }
-                    } else ""
+                    val minutes = java.time.Duration.between(now, current.end).toMinutes()
+                    if (minutes >= 60) {
+                        val hours = minutes / 60
+                        val mins = minutes % 60 + 1
+                        if (mins >= 60) "还剩 ${hours + 1}小时"
+                        else "还剩 ${hours}小时${mins}分钟"
+                    } else {
+                        "还剩 ${minutes + 1} 分钟"
+                    }
                 }
                 next != null -> {
-                    val startStr = next.getEffectiveStartTime(sectionTimes) ?: ""
-                    val start = parseTime(startStr)
-                    if (start != null) {
-                        val minutes = java.time.Duration.between(now, start).toMinutes()
-                        if (minutes >= 60) {
-                            val hours = minutes / 60
-                            val mins = minutes % 60 + 1
-                            if (mins >= 60) "${hours + 1}小时后"
-                            else "${hours}小时${mins}分钟后"
-                        } else {
-                            "${minutes + 1} 分钟后"
-                        }
-                    } else ""
+                    val minutes = java.time.Duration.between(now, next.start).toMinutes()
+                    if (minutes >= 60) {
+                        val hours = minutes / 60
+                        val mins = minutes % 60 + 1
+                        if (mins >= 60) "${hours + 1}小时后"
+                        else "${hours}小时${mins}分钟后"
+                    } else {
+                        "${minutes + 1} 分钟后"
+                    }
                 }
                 courses.isEmpty() -> ""
                 else -> ""
             }
-            status = CourseStatus(current, next, message)
+            val newStatus = CourseStatus(current?.course, next?.course, message)
+            // 门控：文案未变化时（绝大多数秒）不写状态，避免每秒重组
+            if (newStatus != status) status = newStatus
             delay(1000L.milliseconds)
         }
     }
@@ -547,15 +539,17 @@ private data class CourseTimeRange(
 
 private fun buildCourseTimeRanges(
     courses: List<Course>,
-    sectionTimes: Map<Int, String>
+    sectionTimes: Map<Int, String>,
+    sortByStart: Boolean = true
 ): List<CourseTimeRange> {
-    return courses.mapNotNull { course ->
+    val ranges = courses.mapNotNull { course ->
         val startStr = course.getEffectiveStartTime(sectionTimes) ?: return@mapNotNull null
         val endStr = course.getEffectiveEndTime(sectionTimes) ?: return@mapNotNull null
         val start = parseTime(startStr) ?: return@mapNotNull null
         val end = parseTime(endStr) ?: return@mapNotNull null
         CourseTimeRange(course, start, end)
-    }.sortedBy { it.start }
+    }
+    return if (sortByStart) ranges.sortedBy { it.start } else ranges
 }
 
 private fun getGreeting(): String {
