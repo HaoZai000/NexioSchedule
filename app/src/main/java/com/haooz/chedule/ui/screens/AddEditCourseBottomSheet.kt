@@ -30,8 +30,6 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
-import androidx.compose.ui.draw.clip
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
@@ -49,6 +47,7 @@ import com.haooz.chedule.ui.basic.LiquidTopBarButton
 import com.haooz.chedule.ui.components.WeekRangeSelectGrid
 import com.haooz.chedule.ui.utils.isAppDarkTheme
 import com.haooz.chedule.ui.utils.overScrollVertical
+import com.kyant.backdrop.Backdrop
 import kotlinx.coroutines.delay
 import top.yukonga.miuix.kmp.basic.ButtonDefaults
 import top.yukonga.miuix.kmp.basic.Card
@@ -61,10 +60,9 @@ import top.yukonga.miuix.kmp.blur.LayerBackdrop
 import top.yukonga.miuix.kmp.icon.MiuixIcons
 import top.yukonga.miuix.kmp.icon.extended.Close
 import top.yukonga.miuix.kmp.icon.extended.Ok
+import top.yukonga.miuix.kmp.overlay.BackdropHolder
 import top.yukonga.miuix.kmp.overlay.BlurBottomSheet
 import top.yukonga.miuix.kmp.overlay.BlurBottomSheetTablet
-import com.kyant.backdrop.Backdrop
-import top.yukonga.miuix.kmp.overlay.BackdropHolder
 import top.yukonga.miuix.kmp.overlay.LocalSheetContentBackdrop
 import top.yukonga.miuix.kmp.overlay.LocalSheetTopBarMaterial
 import top.yukonga.miuix.kmp.overlay.OverlayDialog
@@ -546,19 +544,9 @@ fun AddEditCourseBottomSheet(
                             horizontalArrangement = Arrangement.spacedBy(8.dp),
                             verticalAlignment = Alignment.CenterVertically
                         ) {
-                            // 全部：点一次全选，再点一次取消全选
+                            // 全部：点一次全选，再点一次取消全选（只挂在 Checkbox 上，避免外层再套 clickable 双触发）
                             Row(
-                                verticalAlignment = Alignment.CenterVertically,
-                                modifier = Modifier
-                                    .clip(RoundedCornerShape(8.dp))
-                                    .clickable(enabled = !noDaySelected) {
-                                        if (allSelectableSelected) {
-                                            selectedWeeks.clear()
-                                        } else {
-                                            selectedWeeks.clear()
-                                            selectedWeeks.addAll(selectableWeeks)
-                                        }
-                                    }
+                                verticalAlignment = Alignment.CenterVertically
                             ) {
                                 Checkbox(
                                     state = if (allSelectableSelected) ToggleableState.On else ToggleableState.Off,

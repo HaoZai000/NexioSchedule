@@ -449,9 +449,12 @@ fun CollapsibleTopAppBar(
                     .drawBehind {
                         drawRect(
                             brush = Brush.verticalGradient(
-                                0f to gradientColor.copy(alpha = 0.8f),
-                                0.7f to gradientColor.copy(alpha = 0.4f),
-                                0.9f to gradientColor.copy(alpha = 0.15f),
+                                // 末端多档缓收：原先 0.9→0.15、1.0→0 最后一截太陡，会像一条硬边
+                                0f to gradientColor.copy(alpha = 0.85f),
+                                0.45f to gradientColor.copy(alpha = 0.55f),
+                                0.7f to gradientColor.copy(alpha = 0.32f),
+                                0.85f to gradientColor.copy(alpha = 0.14f),
+                                0.93f to gradientColor.copy(alpha = 0.05f),
                                 1f to Color.Transparent
                             )
                         )

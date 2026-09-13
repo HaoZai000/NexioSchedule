@@ -160,6 +160,8 @@ fun WeekRangeSelectGrid(
                             val week = weekAt(change.position) ?: currentWeek
                             if (week != currentWeek) {
                                 currentWeek = week
+                                // 手指划过每一个周次格震动一次
+                                haptics.performHapticFeedback(HapticFeedbackType.TextHandleMove)
                                 onReplaceWeeksState.value(dragBase + rangeSelection(downWeek, week))
                             }
                         }

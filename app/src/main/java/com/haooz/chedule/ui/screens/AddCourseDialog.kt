@@ -42,8 +42,6 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
-import androidx.compose.ui.draw.clip
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
@@ -1204,19 +1202,9 @@ private fun WeekSettingCard(
                     horizontalArrangement = Arrangement.spacedBy(8.dp),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    // 全部：点一次全选，再点一次取消全选
+                    // 全部：点一次全选，再点一次取消全选（只挂在 Checkbox 上，避免外层再套 clickable 双触发）
                     Row(
                         verticalAlignment = Alignment.CenterVertically,
-                        modifier = Modifier
-                            .clip(RoundedCornerShape(8.dp))
-                            .clickable(enabled = !noDaySelected) {
-                                if (allSelectableSelected) {
-                                    form.selectedWeeks.clear()
-                                } else {
-                                    form.selectedWeeks.clear()
-                                    form.selectedWeeks.addAll(selectableWeeks)
-                                }
-                            }
                     ) {
                         Checkbox(
                             state = if (allSelectableSelected) ToggleableState.On else ToggleableState.Off,
@@ -1252,14 +1240,17 @@ private fun WeekSettingCard(
                             },
                             onClick = if (noDaySelected) null else {
                                 {
-                                    form.selectedWeeks.clear()
-                                    if (!allSelectableOddSelected) {
+                                    // 必须在 clear 之前判断：先 clear 会让 allSelectableOddSelected
+                                    // 立刻变 false，随后又把单周加回去，导致无法取消勾选
+                                    if (hasMixedSelection || !allSelectableOddSelected) {
+                                        form.selectedWeeks.clear()
                                         form.selectedWeeks.addAll(selectableOddWeeks)
+                                    } else {
+                                        form.selectedWeeks.clear()
                                     }
                                 }
                             },
-
-                            )
+                        )
                         Spacer(modifier = Modifier.width(4.dp))
                         Text(
                             text = "单周",
