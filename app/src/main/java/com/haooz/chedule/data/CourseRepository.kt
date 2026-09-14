@@ -1498,14 +1498,21 @@ class CourseRepository private constructor(context: Context) {
                             is String -> {
                                 // 如果是课程数据，更新其中的 scheduleId 字段
                                 if (suffix == KEY_COURSES) {
-                                    val type = object : TypeToken<List<Course>>() {}.type
-                                    try {
-                                        // 先 sanitize：旧 JSON 字段可能为 null，直接 copy() 会 NPE
-                                        val courses = sanitizeCourses(gson.fromJson(value, type) ?: emptyList())
-                                        val updated = courses.map { it.copy(scheduleId = newName) }
-                                        putString(newKey, gson.toJson(updated))
-                                    } catch (_: Exception) {
+                                    // 与读路径一致：R8 混淆坏 JSON 不能 sanitize 后写回，
+                                    // 否则会变成真名空壳课并永久盖掉原数据（备份恢复入口也就没了）
+                                    if (!coursesJsonLooksValid(value)) {
                                         putString(newKey, value)
+                                    } else {
+                                        val type = object : TypeToken<List<Course>>() {}.type
+                                        try {
+                                            // 先 sanitize：旧 JSON 字段可能为 null，直接 copy() 会 NPE
+                                            val courses =
+                                                sanitizeCourses(gson.fromJson(value, type) ?: emptyList())
+                                            val updated = courses.map { it.copy(scheduleId = newName) }
+                                            putString(newKey, gson.toJson(updated))
+                                        } catch (_: Exception) {
+                                            putString(newKey, value)
+                                        }
                                     }
                                 } else {
                                     putString(newKey, value)
@@ -1693,10 +1700,45 @@ class CourseRepository private constructor(context: Context) {
             readLegacyCombinationStyle(id).also { saveCombinationStyle(id, it) }
         } else {
             CombinationStyle.parseSnapshotOrNull(gson, json)
-                ?: CombinationStyle().also { saveCombinationStyle(id, it) }
+                ?: restoreStyleAfterBadSnapshot(id)
         }
         combinationStyleCache[id] = style
         return style
+    }
+
+    /**
+     * 丢弃无法识别的外观快照后恢复默认，并尽量从现有壁纸重测光。
+     *
+     * v1.5.0 的 R8 混淆 JSON 无法按真名读出字段，只能重置；但壁纸文件本身还在。
+     * 若不同步恢复 [CombinationStyle.wallpaperIsLight]，主题开关会因测光结果为 null 而整条失效
+     * （必须删壁纸重设才能用）。这里用现有壁纸重算一次并落盘。
+     */
+    private fun restoreStyleAfterBadSnapshot(id: Long): CombinationStyle {
+        val isLight = computeWallpaperIsLight(loadCombinationWallpaper(id))
+        val style = CombinationStyle(wallpaperIsLight = isLight)
+        saveCombinationStyle(id, style)
+        return style
+    }
+
+    /** 壁纸均匀测光：缩放到 16×16 网格后按感知加权平均亮度判断亮/暗；无壁纸返回 null。 */
+    private fun computeWallpaperIsLight(bitmap: android.graphics.Bitmap?): Boolean? {
+        if (bitmap == null || bitmap.width <= 0 || bitmap.height <= 0) return null
+        val gridW = 16
+        val gridH = 16
+        val small = bitmap.scale(gridW, gridH)
+        var sum = 0L
+        for (x in 0 until gridW) {
+            for (y in 0 until gridH) {
+                val c = small.getPixel(x, y)
+                val r = (c shr 16) and 0xFF
+                val g = (c shr 8) and 0xFF
+                val b = c and 0xFF
+                sum += (299 * r + 587 * g + 114 * b) / 1000
+            }
+        }
+        val avg = sum / (gridW * gridH)
+        small.recycle()
+        return avg >= 128
     }
 
     private fun saveCombinationStyle(id: Long, style: CombinationStyle) {
@@ -1862,7 +1904,13 @@ class CourseRepository private constructor(context: Context) {
     fun saveCombinationWallpaperIsLight(id: Long, isLight: Boolean?) =
         updateCombinationStyle(id) { it.copy(wallpaperIsLight = isLight) }
 
-    fun getCombinationWallpaperIsLight(id: Long): Boolean? = getCombinationStyle(id).wallpaperIsLight
+    fun getCombinationWallpaperIsLight(id: Long): Boolean? {
+        getCombinationStyle(id).wallpaperIsLight?.let { return it }
+        // 有壁纸但测光结果丢失时兜底重算（升级/坏快照重置后主题开关依赖此值）
+        val isLight = computeWallpaperIsLight(loadCombinationWallpaper(id)) ?: return null
+        updateCombinationStyle(id) { it.copy(wallpaperIsLight = isLight) }
+        return isLight
+    }
 
     fun saveCombinationShowBreakDividers(id: Long, show: Boolean) =
         updateCombinationStyle(id) { it.copy(showBreakDividers = show) }

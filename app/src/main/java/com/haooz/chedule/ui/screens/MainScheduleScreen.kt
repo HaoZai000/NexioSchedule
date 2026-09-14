@@ -328,29 +328,43 @@ fun MainScheduleScreen(
     }
 
     // 计算当前节次：根据当前时间和节次时间配置，判断当前处于第几节课
-    // 仅当 sectionTimes/totalSections 变化时才重新计算（顶层一次 remember，结果所有 page 共享读取）
-    val currentSection = remember(sectionTimes, totalSections) {
-        // 用 LocalTime.now() 替代 Calendar.getInstance()：LocalTime 是 immutable value class，
-        // 避免 Calendar 每次构造 MutableDateTime + TimeZone 解析的开销
-        val now = java.time.LocalTime.now()
-        val currentMinutes = now.hour * 60 + now.minute
-        var result = -1
-        for (section in 1..totalSections) {
-            val timeStr = sectionTimes[section] ?: ""
-            if (timeStr.isEmpty()) continue
-            val parts = timeStr.split("-")
-            if (parts.size != 2) continue
-            val startParts = parts[0].split(":")
-            val endParts = parts[1].split(":")
-            if (startParts.size != 2 || endParts.size != 2) continue
-            val startMinutes = (startParts[0].toIntOrNull() ?: 0) * 60 + (startParts[1].toIntOrNull() ?: 0)
-            val endMinutes = (endParts[0].toIntOrNull() ?: 0) * 60 + (endParts[1].toIntOrNull() ?: 0)
-            if (currentMinutes in startMinutes until endMinutes) {
-                result = section
-                break
+    // 定时睡到下一次节次边界再重算，避免长时间停留页面后高亮过期
+    var currentSection by remember { mutableIntStateOf(-1) }
+    LaunchedEffect(sectionTimes, totalSections) {
+        while (true) {
+            val now = java.time.LocalTime.now()
+            val currentMinutes = now.hour * 60 + now.minute
+            var result = -1
+            var nextTransition = Int.MAX_VALUE
+            for (section in 1..totalSections) {
+                val timeStr = sectionTimes[section] ?: ""
+                if (timeStr.isEmpty()) continue
+                val parts = timeStr.split("-")
+                if (parts.size != 2) continue
+                val startParts = parts[0].split(":")
+                val endParts = parts[1].split(":")
+                if (startParts.size != 2 || endParts.size != 2) continue
+                val startMinutes = (startParts[0].toIntOrNull() ?: 0) * 60 + (startParts[1].toIntOrNull() ?: 0)
+                val endMinutes = (endParts[0].toIntOrNull() ?: 0) * 60 + (endParts[1].toIntOrNull() ?: 0)
+                if (currentMinutes in startMinutes until endMinutes) {
+                    result = section
+                }
+                if (endMinutes > currentMinutes && endMinutes < nextTransition) {
+                    nextTransition = endMinutes
+                }
+                if (startMinutes > currentMinutes && startMinutes < nextTransition) {
+                    nextTransition = startMinutes
+                }
             }
+            if (currentSection != result) currentSection = result
+            // 睡到下一次边界；当天无更多边界时按 1 分钟兜底
+            val sleepMinutes = if (nextTransition == Int.MAX_VALUE) {
+                1
+            } else {
+                (nextTransition - currentMinutes).coerceIn(1, 60)
+            }
+            delay(sleepMinutes * 60_000L)
         }
-        result
     }
 
     // 用 snapshotFlow 观察翻页，避免 LaunchedEffect(pagerState.currentPage) 导致整个页面重组
