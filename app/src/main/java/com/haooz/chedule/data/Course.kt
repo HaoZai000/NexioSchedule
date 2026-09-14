@@ -27,6 +27,10 @@ data class Course(
         const val WEEK_TYPE_ODD = 1
         const val WEEK_TYPE_EVEN = 2
 
+        const val PERIOD_MORNING = 0
+        const val PERIOD_AFTERNOON = 1
+        const val PERIOD_EVENING = 2
+
         val courseColors = listOf(
             0xFF4CAF50L,
             0xFF2196F3L,
@@ -170,6 +174,52 @@ data class Course(
             return "$customStartTime - $customEndTime"
         }
         return getSectionText()
+    }
+
+    /**
+     * 课程所属时段：0=上午, 1=下午, 2=晚上。
+     * 自定义时间按实际开始时刻归类（周末异构课常见：墙钟是上午但节次号落在下午段）；
+     * 普通课仍按绝对节次号归类。
+     */
+    fun periodIndex(
+        sectionTimes: Map<Int, String>,
+        morningSections: Int,
+        afternoonSections: Int
+    ): Int {
+        if (hasValidCustomTime()) {
+            val startMin = parseHmToMinutes(customStartTime!!)
+                ?: return sectionPeriodIndex(morningSections, afternoonSections)
+            val afternoonStart = sectionTimes[morningSections + 1]
+                ?.substringBefore("-")
+                ?.trim()
+                ?.let { parseHmToMinutes(it) }
+                ?: 12 * 60
+            val eveningStart = sectionTimes[morningSections + afternoonSections + 1]
+                ?.substringBefore("-")
+                ?.trim()
+                ?.let { parseHmToMinutes(it) }
+                ?: 18 * 60 + 30
+            return when {
+                startMin < afternoonStart -> PERIOD_MORNING
+                startMin < eveningStart -> PERIOD_AFTERNOON
+                else -> PERIOD_EVENING
+            }
+        }
+        return sectionPeriodIndex(morningSections, afternoonSections)
+    }
+
+    private fun sectionPeriodIndex(morningSections: Int, afternoonSections: Int): Int = when {
+        startSection <= morningSections -> PERIOD_MORNING
+        startSection <= morningSections + afternoonSections -> PERIOD_AFTERNOON
+        else -> PERIOD_EVENING
+    }
+
+    private fun parseHmToMinutes(hm: String): Int? {
+        val parts = hm.split(":")
+        if (parts.size != 2) return null
+        val h = parts[0].trim().toIntOrNull() ?: return null
+        val m = parts[1].trim().toIntOrNull() ?: return null
+        return h * 60 + m
     }
 
     fun getWeekText(): String {

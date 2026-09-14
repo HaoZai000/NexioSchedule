@@ -18,7 +18,6 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.platform.LocalConfiguration
-import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.ui.unit.dp
@@ -73,7 +72,6 @@ fun CommunicationScreen(
                 "https://pd.qq.com/s/g4n2qm2sx?b=9"
             val tableUrl =
                 "https://docs.qq.com/sheet/DSUV2dWxLa09XQXRZ?tab=BB08J2&scode="
-            val density = LocalDensity.current
             LazyColumn(
                 state = listState,
                 modifier = Modifier

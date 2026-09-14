@@ -44,10 +44,10 @@ import androidx.compose.ui.unit.sp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.haooz.chedule.data.SyncManager
 import com.haooz.chedule.data.WebDavManager
-import top.yukonga.miuix.kmp.basic.NativeTextField
 import com.haooz.chedule.ui.basic.CollapsibleTopAppBarDefaults
 import com.haooz.chedule.ui.basic.SharedScrollBehavior
 import com.haooz.chedule.ui.basic.collapsibleTopInset
+import com.haooz.chedule.ui.utils.overScrollVertical
 import com.haooz.chedule.viewmodel.CourseViewModel
 import com.haooz.chedule.viewmodel.ScheduleViewModel
 import com.haooz.chedule.viewmodel.SettingsViewModel
@@ -55,13 +55,13 @@ import kotlinx.coroutines.launch
 import top.yukonga.miuix.kmp.basic.ButtonDefaults
 import top.yukonga.miuix.kmp.basic.Card
 import top.yukonga.miuix.kmp.basic.CardDefaults
+import top.yukonga.miuix.kmp.basic.NativeTextField
 import top.yukonga.miuix.kmp.basic.Scaffold
 import top.yukonga.miuix.kmp.basic.SmallTitle
 import top.yukonga.miuix.kmp.basic.TextButton
 import top.yukonga.miuix.kmp.blur.layerBackdrop
 import top.yukonga.miuix.kmp.blur.rememberLayerBackdrop
 import top.yukonga.miuix.kmp.theme.MiuixTheme
-import com.haooz.chedule.ui.utils.overScrollVertical
 import top.yukonga.miuix.kmp.utils.scrollEndHaptic
 import androidx.compose.ui.graphics.Color as ComposeColor
 
@@ -202,7 +202,6 @@ fun WebDavSettingsScreen(
                         listScrollY = offset
                     }
             }
-            val density = androidx.compose.ui.platform.LocalDensity.current
             LazyColumn(
                 state = listState,
                 modifier = Modifier.fillMaxSize()

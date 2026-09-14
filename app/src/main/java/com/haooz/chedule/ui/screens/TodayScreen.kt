@@ -529,13 +529,12 @@ fun TodayScreen(
                         emptyList()
                     }
                 }
-                val morningCourses = pageCourses.filter { it.startSection <= morningSections }
-                val afternoonCourses = pageCourses.filter {
-                    it.startSection > morningSections && it.startSection <= morningSections + afternoonSections
+                val coursePeriods = pageCourses.associateWith {
+                    it.periodIndex(sectionTimes, morningSections, afternoonSections)
                 }
-                val eveningCourses = pageCourses.filter {
-                    it.startSection > morningSections + afternoonSections
-                }
+                val morningCourses = pageCourses.filter { coursePeriods[it] == Course.PERIOD_MORNING }
+                val afternoonCourses = pageCourses.filter { coursePeriods[it] == Course.PERIOD_AFTERNOON }
+                val eveningCourses = pageCourses.filter { coursePeriods[it] == Course.PERIOD_EVENING }
 
                 val isPageToday = pageDate == LocalDate.now()
 

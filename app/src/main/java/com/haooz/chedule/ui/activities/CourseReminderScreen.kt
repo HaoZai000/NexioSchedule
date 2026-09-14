@@ -45,7 +45,6 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.platform.LocalConfiguration
-import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -57,8 +56,8 @@ import com.haooz.chedule.reminder.ClassDndHelper
 import com.haooz.chedule.reminder.CourseReminderHelper
 import com.haooz.chedule.reminder.IslandNotificationHelper
 import com.haooz.chedule.shizuku.ShizukuManager
-import com.haooz.chedule.ui.basic.OverlayDropdownMenu
 import com.haooz.chedule.ui.basic.CollapsibleTopAppBarDefaults
+import com.haooz.chedule.ui.basic.OverlayDropdownMenu
 import com.haooz.chedule.ui.basic.SharedScrollBehavior
 import com.haooz.chedule.ui.basic.collapsibleTopInset
 import com.haooz.chedule.ui.utils.overScrollVertical
@@ -98,7 +97,6 @@ fun CourseReminderScreen(
     val context = androidx.compose.ui.platform.LocalContext.current
     val reminderPrefs = remember { context.getSharedPreferences("course_reminder_prefs", android.content.Context.MODE_PRIVATE) }
     var isIgnoringBattery by remember { mutableStateOf(true) }
-    var autoStartDismissed by remember { mutableStateOf(reminderPrefs.getBoolean("auto_start_dismissed", false)) }
     val hapticFeedback = LocalHapticFeedback.current
 
     var showMinutesDialog by remember { mutableStateOf(false) }
@@ -250,7 +248,6 @@ fun CourseReminderScreen(
                     .layerBackdrop(backdrop)
             ) {
                 val listState = rememberLazyListState()
-                val density = LocalDensity.current
                 LazyColumn(
                     state = listState,
                     modifier = Modifier.fillMaxSize()

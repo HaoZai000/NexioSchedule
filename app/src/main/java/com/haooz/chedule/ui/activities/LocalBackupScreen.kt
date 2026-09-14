@@ -54,8 +54,8 @@ import androidx.compose.ui.unit.sp
 import com.google.gson.Gson
 import com.google.gson.reflect.TypeToken
 import com.haooz.chedule.data.CourseRepository
-import top.yukonga.miuix.kmp.overlay.OverlayDialog
 import com.haooz.chedule.ui.basic.CollapsibleTopAppBarDefaults
+import com.haooz.chedule.ui.basic.OverlayDropdownMenu
 import com.haooz.chedule.ui.basic.SharedScrollBehavior
 import com.haooz.chedule.ui.basic.collapsibleTopInset
 import com.haooz.chedule.ui.utils.isAppDarkTheme
@@ -67,18 +67,16 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
-import top.yukonga.miuix.kmp.basic.Button
 import top.yukonga.miuix.kmp.basic.ButtonDefaults
 import top.yukonga.miuix.kmp.basic.Card
-import top.yukonga.miuix.kmp.basic.DropdownEntry
-import top.yukonga.miuix.kmp.basic.DropdownColors
 import top.yukonga.miuix.kmp.basic.DropdownDefaults
+import top.yukonga.miuix.kmp.basic.DropdownEntry
 import top.yukonga.miuix.kmp.basic.DropdownItem
 import top.yukonga.miuix.kmp.basic.Scaffold
 import top.yukonga.miuix.kmp.basic.SmallTitle
 import top.yukonga.miuix.kmp.basic.TextButton
+import top.yukonga.miuix.kmp.overlay.OverlayDialog
 import top.yukonga.miuix.kmp.preference.ArrowPreference
-import com.haooz.chedule.ui.basic.OverlayDropdownMenu
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 import top.yukonga.miuix.kmp.utils.scrollEndHaptic
 import java.io.File
@@ -282,8 +280,8 @@ fun LocalBackupScreen(
     var listScrollY by remember { mutableIntStateOf(0) }
     // 液态玻璃效果的透明下拉颜色
     val liquidGlassDropdownColors = DropdownDefaults.dropdownColors(
-        containerColor = androidx.compose.ui.graphics.Color.Transparent,
-        selectedContainerColor = androidx.compose.ui.graphics.Color.Transparent,
+        containerColor = Color.Transparent,
+        selectedContainerColor = Color.Transparent,
     )
 
     var backupMode by remember { mutableStateOf("all") }
@@ -423,7 +421,6 @@ fun LocalBackupScreen(
             snapshotFlow { listState.firstVisibleItemScrollOffset }
                 .collect { offset -> listScrollY = offset }
         }
-        val density = androidx.compose.ui.platform.LocalDensity.current
         LazyColumn(
             state = listState,
             modifier = Modifier.fillMaxSize()

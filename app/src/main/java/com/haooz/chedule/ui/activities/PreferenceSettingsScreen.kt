@@ -48,8 +48,8 @@ import androidx.compose.ui.unit.sp
 import androidx.core.content.ContextCompat
 import androidx.core.content.edit
 import com.haooz.chedule.R
-import com.haooz.chedule.ui.basic.OverlayDropdownMenu
 import com.haooz.chedule.ui.basic.CollapsibleTopAppBarDefaults
+import com.haooz.chedule.ui.basic.OverlayDropdownMenu
 import com.haooz.chedule.ui.basic.SharedScrollBehavior
 import com.haooz.chedule.ui.basic.collapsibleTopInset
 import com.haooz.chedule.ui.screens.invalidateWeatherCache
@@ -157,7 +157,6 @@ fun PreferenceSettingsScreen(
                         listScrollY = offset
                     }
             }
-            val density = androidx.compose.ui.platform.LocalDensity.current
             LazyColumn(
                 state = listState,
                 modifier = Modifier

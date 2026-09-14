@@ -587,8 +587,12 @@ private fun generateSmartTip(
     val next = ranges.find { now.isBefore(it.start) }
     val prev = ranges.lastOrNull { now.isAfter(it.end) }
 
-    val eveningCount = courses.count { it.startSection > morningSections + afternoonSections }
-    val afternoonCount = courses.count { it.startSection in (morningSections + 1)..(morningSections + afternoonSections) }
+    val eveningCount = courses.count {
+        it.periodIndex(sectionTimes, morningSections, afternoonSections) == Course.PERIOD_EVENING
+    }
+    val afternoonCount = courses.count {
+        it.periodIndex(sectionTimes, morningSections, afternoonSections) == Course.PERIOD_AFTERNOON
+    }
     val totalCount = courses.size
     val completedCount = ranges.count { now.isAfter(it.end) }
 

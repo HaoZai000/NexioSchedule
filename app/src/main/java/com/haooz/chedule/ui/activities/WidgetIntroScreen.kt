@@ -36,7 +36,6 @@ import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
@@ -44,8 +43,8 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.haooz.chedule.R
 import com.haooz.chedule.data.CourseRepository
-import com.haooz.chedule.ui.basic.OverlayDropdownMenu
 import com.haooz.chedule.ui.basic.CollapsibleTopAppBarDefaults
+import com.haooz.chedule.ui.basic.OverlayDropdownMenu
 import com.haooz.chedule.ui.basic.SharedScrollBehavior
 import com.haooz.chedule.ui.basic.collapsibleTopInset
 import com.haooz.chedule.ui.utils.isAppDarkTheme
@@ -91,7 +90,6 @@ fun WidgetIntroScreen(
                 .fillMaxSize()
                 .layerBackdrop(backdrop)
         ) {
-            val density = LocalDensity.current
 
             Column(
                 modifier = Modifier

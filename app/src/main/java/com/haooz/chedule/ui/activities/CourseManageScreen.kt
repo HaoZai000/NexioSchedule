@@ -183,7 +183,6 @@ fun CourseManageScreen(
                             listScrollY = offset
                         }
                 }
-                val density = androidx.compose.ui.platform.LocalDensity.current
 
                 val groupedCourses = courses
                     .groupBy { it.name }
