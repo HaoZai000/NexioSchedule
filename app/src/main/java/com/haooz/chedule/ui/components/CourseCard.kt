@@ -185,16 +185,17 @@ fun CourseCard(
             val lensStrengthPx = with(localDensity) { remember(cardRefraction) { cardRefraction.lensStrengthDp.dp.toPx() } }
             val overlayColor = remember(isDark) { if (isDark) Color.Black.copy(alpha = 0.15f) else Color.White.copy(alpha = 0.17f) }
             val isSharedBlur = wallpaperBackdrop is SharedBlurBackdrop
-            val backdropEffects: com.kyant.backdrop.BackdropEffectScope.() -> Unit = remember(isSharedBlur, blurPx, lensRadiusPx, lensStrengthPx, cardRefraction) {
-                {
-                    if (!isSharedBlur) {
-                        blur(blurPx)
-                    }
-                    if (cardRefraction != com.haooz.chedule.data.CardRefractionLevel.OFF) {
-                        lens(lensRadiusPx, lensStrengthPx)
+            val backdropEffects: com.kyant.backdrop.BackdropEffectScope.() -> Unit =
+                remember(isSharedBlur, blurPx, lensRadiusPx, lensStrengthPx, cardRefraction) {
+                    {
+                        if (!isSharedBlur) {
+                            blur(blurPx)
+                        }
+                        if (cardRefraction != com.haooz.chedule.data.CardRefractionLevel.OFF) {
+                            lens(lensRadiusPx, lensStrengthPx)
+                        }
                     }
                 }
-            }
             // onDrawSurface 每次重组新建会令 drawBackdrop 判不等，每次重录壁纸层并重跑 GPU 模糊
             val onCardSurface: androidx.compose.ui.graphics.drawscope.DrawScope.() -> Unit =
                 remember(cardColor, overlayColor) {

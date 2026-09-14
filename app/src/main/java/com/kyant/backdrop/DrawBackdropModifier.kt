@@ -406,6 +406,32 @@ private class DrawBackdropNode(
 
                 val sharedLayerNonNull = sharedLayer!!
                 val sourceVersion = backdrop.contentVersion
+                // 无 RenderEffect 时直采共享层，跳过每卡 recordLayer + 离屏缓冲放大
+                val canDirectBlit = padding == 0f && graphicsLayer?.renderEffect == null
+
+                if (canDirectBlit) {
+                    lastSampleSource = null
+                    lastSampleVersion = -1
+                    lastSampleOffsetX = Float.NaN
+                    lastSampleOffsetY = Float.NaN
+                    lastSampleW = -1
+                    lastSampleH = -1
+                    lastSampleLayer = null
+
+                    drawContext.canvas.save()
+                    // 先按卡片边界裁剪，避免每卡都把整张共享层扫一遍
+                    drawContext.canvas.clipRect(0f, 0f, size.width, size.height)
+                    // 共享层是 n 倍降采样：放大 1/n，并把 (offset*n) 对齐到卡片原点
+                    drawContext.canvas.scale(1f / downsampleScale, 1f / downsampleScale)
+                    drawContext.canvas.translate(
+                        -offset.x * downsampleScale,
+                        -offset.y * downsampleScale
+                    )
+                    drawLayer(sharedLayerNonNull)
+                    drawContext.canvas.restore()
+                    return@drawBackdropLayer
+                }
+
                 val needsRecordSample = lastSampleLayer !== sharedLayerNonNull ||
                     lastSampleVersion != sourceVersion ||
                     !offsetSame(lastSampleOffsetX, offset.x) ||

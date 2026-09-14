@@ -773,16 +773,17 @@ fun SpecialBandOverlay(
                 else Color.White.copy(alpha = (0.17f * alphaFactor).coerceIn(0f, 1f))
             }
             val isSharedBlur = wallpaperBackdrop is SharedBlurBackdrop
-            val bandEffects: com.kyant.backdrop.BackdropEffectScope.() -> Unit = remember(isSharedBlur, blurPx, lensRadiusPx, lensStrengthPx, cardRefraction) {
-                {
-                    if (!isSharedBlur) {
-                        blur(blurPx)
-                    }
-                    if (cardRefraction != com.haooz.chedule.data.CardRefractionLevel.OFF) {
-                        lens(lensRadiusPx, lensStrengthPx)
+            val bandEffects: com.kyant.backdrop.BackdropEffectScope.() -> Unit =
+                remember(isSharedBlur, blurPx, lensRadiusPx, lensStrengthPx, cardRefraction) {
+                    {
+                        if (!isSharedBlur) {
+                            blur(blurPx)
+                        }
+                        if (cardRefraction != com.haooz.chedule.data.CardRefractionLevel.OFF) {
+                            lens(lensRadiusPx, lensStrengthPx)
+                        }
                     }
                 }
-            }
             // onDrawSurface 必须固定，否则每次重组都重新录制壁纸层并重跑 GPU 模糊
             val onBandSurface: DrawScope.() -> Unit = remember(bgColor, overlayColor) {
                 {

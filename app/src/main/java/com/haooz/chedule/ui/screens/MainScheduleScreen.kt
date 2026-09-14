@@ -233,12 +233,18 @@ fun MainScheduleScreen(
     val screenWidthPx = with(density) { configuration.screenWidthDp.dp.toPx() }
     val screenHeightPx = with(density) { configuration.screenHeightDp.dp.toPx() }
     val scrollState = externalScrollState
-    // 滑动中跳过网格几何逐帧上报
-    val isGridScrolling = pagerState.isScrollInProgress || scrollState.isScrollInProgress
     // 非 state 版本：卡片 onGloballyPositioned 读取不触发重组
     val gridScrollFlag = remember { GridScrollFlag() }
-    LaunchedEffect(Unit) {
-        snapshotFlow { isGridScrolling }.collect { gridScrollFlag.scrolling = it }
+    // 供停滑后冲刷 dayBounds 版本号；仅滑动起停各写一次
+    val scheduleScrollInProgress = remember { mutableStateOf(false) }
+    LaunchedEffect(pagerState, scrollState) {
+        // 必须直接读 ScrollState：捕获 composition 期 Boolean 后 snapshotFlow 不会再观测变化
+        snapshotFlow {
+            pagerState.isScrollInProgress || scrollState.isScrollInProgress
+        }.collect {
+            gridScrollFlag.scrolling = it
+            scheduleScrollInProgress.value = it
+        }
     }
     // 由顶栏自身几何纯计算（切页不变），避免 paddingValues 随 tab 变化导致位移
     val statusBarHeight = WindowInsets.statusBars.asPaddingValues().calculateTopPadding()
@@ -458,7 +464,8 @@ fun MainScheduleScreen(
     val sharedBlurManager = if (wallpaperBitmap != null) {
         remember(courseCardBackdrop) { SharedBlurBackdrop(courseCardBackdrop) }
     } else null
-    val hasSharedBlur = sharedBlurManager != null && isRenderEffectSupported() && cardBlurRadius > 0f
+    // blur=0 也走共享层：省掉每卡独立重录；滚动 LOD 时可直接 blit 共享采样
+    val hasSharedBlur = sharedBlurManager != null && isRenderEffectSupported()
     val activeCardBackdrop: com.kyant.backdrop.Backdrop? = when {
         wallpaperBitmap == null -> null
         hasSharedBlur -> sharedBlurManager
@@ -628,9 +635,10 @@ fun MainScheduleScreen(
                 Box(modifier = Modifier.fillMaxWidth()) {
                     val dayBoundsArray = remember { arrayOfNulls<FloatArray>(8) }
                     var lastDayBoundsVersion by remember { mutableIntStateOf(0) }
-                    val scrollingState = rememberUpdatedState(isGridScrolling)
-                    LaunchedEffect(isGridScrolling) {
-                        if (!isGridScrolling) lastDayBoundsVersion++
+                    val isScheduleScrolling by scheduleScrollInProgress
+                    LaunchedEffect(isScheduleScrolling) {
+                        // 停滑后冲刷：滑动中 onGloballyPositioned 只写数组不递增版本号
+                        if (!isScheduleScrolling) lastDayBoundsVersion++
                     }
                     // 提升到 Row 之外：特殊横带按同一套列宽切分内部星期子块
                     val pageDayRange = remember(weekendDaysByWeek, week) {
@@ -800,12 +808,12 @@ fun MainScheduleScreen(
                                         // 滑动中只写数组不递增版本号，避免逐帧重组；停后由 LaunchedEffect 冲刷
                                         if (arr == null) {
                                             dayBoundsArray[dayOfWeek] = floatArrayOf(pos.x, pos.x + w, pos.y)
-                                            if (!scrollingState.value) lastDayBoundsVersion++
+                                            if (!gridScrollFlag.scrolling) lastDayBoundsVersion++
                                         } else if (arr[0] != pos.x || arr[1] != pos.x + w || arr[2] != pos.y) {
                                             arr[0] = pos.x
                                             arr[1] = pos.x + w
                                             arr[2] = pos.y
-                                            if (!scrollingState.value) lastDayBoundsVersion++
+                                            if (!gridScrollFlag.scrolling) lastDayBoundsVersion++
                                         }
                                     }
                             )
@@ -927,14 +935,15 @@ fun MainScheduleScreen(
                                 .then(
                                     if (hasWallpaperDivider) {
                                         val dividerBackdrop = activeCardBackdrop ?: courseCardBackdrop
-                                        val dividerEffects: com.kyant.backdrop.BackdropEffectScope.() -> Unit = remember(dividerBackdrop, dividerBlurPx, dividerLensRadiusPx, dividerLensStrengthPx) {
-                                            {
-                                                if (dividerBackdrop !is SharedBlurBackdrop) {
-                                                    blur(dividerBlurPx)
+                                        val dividerEffects: com.kyant.backdrop.BackdropEffectScope.() -> Unit =
+                                            remember(dividerBackdrop, dividerBlurPx, dividerLensRadiusPx, dividerLensStrengthPx) {
+                                                {
+                                                    if (dividerBackdrop !is SharedBlurBackdrop) {
+                                                        blur(dividerBlurPx)
+                                                    }
+                                                    lens(dividerLensRadiusPx, dividerLensStrengthPx)
                                                 }
-                                                lens(dividerLensRadiusPx, dividerLensStrengthPx)
                                             }
-                                        }
                                         Modifier.drawBackdrop(
                                             backdrop = dividerBackdrop,
                                             shape = { dividerBlurShape },
