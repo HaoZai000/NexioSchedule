@@ -1051,25 +1051,36 @@ fun CourseScheduleApp() {
     // 搭配未加载（首帧）才退回 initial，避免无壁纸搭配误用初始测光
     val combIsLight = if (currentComb == null) initialCombWallpaperIsLight else currentCombIsLight
     val todayShowWallpaper = settingsViewModel.todayShowWallpaper.collectAsState().value
-    val todayPageShowsWallpaper = selectedTab == 0 && todayShowWallpaper
     // 独立偏好 key，与全局主题开关隔离
     val persistedScheduleThemeMode = rememberScheduleThemeMode()
     // 编辑中的临时档位：「应用」才落盘
     var pendingScheduleThemeMode by remember { mutableStateOf<ThemeMode?>(null) }
     val scheduleThemeMode = pendingScheduleThemeMode ?: persistedScheduleThemeMode
-    val forcedDark = if (isShiftMode) null
-    else if (selectedTab == 2 && !showCustomizePage) null
+    // 壁纸强制主题：不依赖 selectedTab，三页各自预先算好，切页不再改主题
     // 无壁纸时「默认主题」不生效
-    else if (combIsLight == null) null
-    // 搭配页打开时始终按默认主题预览
-    else if (selectedTab == 1 || todayPageShowsWallpaper || showCustomizePage) {
+    val wallpaperForcedDark: Boolean? = if (isShiftMode || combIsLight == null) {
+        null
+    } else {
         when (scheduleThemeMode) {
             ThemeMode.FOLLOW_WALLPAPER -> !combIsLight
             ThemeMode.FOLLOW_APP -> null
             ThemeMode.LIGHT -> false
             ThemeMode.DARK -> true
         }
-    } else null
+    }
+    // 各页预先固定的主题（与 selectedTab 无关）
+    val todayPageForcedDark = if (todayShowWallpaper) wallpaperForcedDark else null
+    val schedulePageForcedDark = wallpaperForcedDark
+    val settingsPageForcedDark: Boolean? = null
+    // 顶栏/底栏等 chrome 跟当前页有效主题
+    val forcedDark = when {
+        isShiftMode -> null
+        showCustomizePage -> wallpaperForcedDark
+        selectedTab == 2 -> null
+        selectedTab == 1 -> wallpaperForcedDark
+        selectedTab == 0 -> todayPageForcedDark
+        else -> null
+    }
     val effectiveIsDark = forcedDark ?: isDark
     val appSettingDark = rememberAppSettingDark()
     // 状态栏跟页面实际深浅；导航栏图标始终跟应用设置
@@ -2314,6 +2325,17 @@ fun CourseScheduleApp() {
                                             // 未选中 tab 保留组合/测量但跳过绘制，否则每帧 3 倍绘制
                                             .drawWithContent { if (selectedTab == 0) drawContent() }
                                     ) {
+                                        // 今日页主题预先固定，切 tab 不跟着 chrome 闪一帧
+                                        val todayForced = if (captureThemeActive) captureThemeIsDark else todayPageForcedDark
+                                        val todayDark = todayForced ?: appSettingDark
+                                        val todayThemeController = remember {
+                                            ThemeController(if (todayDark) ColorSchemeMode.Dark else ColorSchemeMode.Light)
+                                        }
+                                        // 组合期同步 mode：SideEffect 会晚一帧
+                                        todayThemeController.colorSchemeMode =
+                                            if (todayDark) ColorSchemeMode.Dark else ColorSchemeMode.Light
+                                        MiuixTheme(controller = todayThemeController) {
+                                            CompositionLocalProvider(LocalForcedDarkTheme provides todayForced) {
                                         TodayScreen(
                                             viewModel = viewModel,
                                             settingsViewModel = settingsViewModel,
@@ -2352,6 +2374,8 @@ fun CourseScheduleApp() {
                                             showTeacher = displayAppearance.showTeacher,
                                             externalListState = todayListState,
                                         )
+                                            }
+                                        }
                                     }
 
                                     Box(
@@ -2361,6 +2385,17 @@ fun CourseScheduleApp() {
                                             .graphicsLayer { alpha = if (selectedTab == 1) 1f else 0f }
                                             .drawWithContent { if (selectedTab == 1) drawContent() }
                                     ) {
+                                        // 课程表页主题预先固定，切 tab 不跟着 chrome 闪一帧
+                                        val scheduleForced = if (captureThemeActive) captureThemeIsDark else schedulePageForcedDark
+                                        val scheduleDark = scheduleForced ?: appSettingDark
+                                        val scheduleThemeController = remember {
+                                            ThemeController(if (scheduleDark) ColorSchemeMode.Dark else ColorSchemeMode.Light)
+                                        }
+                                        // 组合期同步 mode：SideEffect 会晚一帧
+                                        scheduleThemeController.colorSchemeMode =
+                                            if (scheduleDark) ColorSchemeMode.Dark else ColorSchemeMode.Light
+                                        MiuixTheme(controller = scheduleThemeController) {
+                                            CompositionLocalProvider(LocalForcedDarkTheme provides scheduleForced) {
                                         CompositionLocalProvider(
                                             LocalLandRipple provides LandRippleSpec(
                                                 center = landRippleCenter,
@@ -2676,6 +2711,8 @@ fun CourseScheduleApp() {
                                             externalSelectedCourses = scheduleSelectedCourses
                                         )
                                         }
+                                            }
+                                        }
                                     }
 
                                     Box(
@@ -2685,6 +2722,16 @@ fun CourseScheduleApp() {
                                             .graphicsLayer { alpha = if (selectedTab == 2) 1f else 0f }
                                             .drawWithContent { if (selectedTab == 2) drawContent() }
                                     ) {
+                                        // 设置页始终跟应用主题，不被壁纸锁深色
+                                        val settingsDark = appSettingDark
+                                        val settingsThemeController = remember {
+                                            ThemeController(if (settingsDark) ColorSchemeMode.Dark else ColorSchemeMode.Light)
+                                        }
+                                        // 组合期同步 mode：SideEffect 会晚一帧
+                                        settingsThemeController.colorSchemeMode =
+                                            if (settingsDark) ColorSchemeMode.Dark else ColorSchemeMode.Light
+                                        MiuixTheme(controller = settingsThemeController) {
+                                            CompositionLocalProvider(LocalForcedDarkTheme provides settingsPageForcedDark) {
                                         SettingsScreen(
                                             viewModel = viewModel,
                                             scheduleViewModel = scheduleViewModel,
@@ -2700,6 +2747,8 @@ fun CourseScheduleApp() {
                                             activeSecondaryActivity = activeSecondaryActivity,
                                             liquidGlassBackdrop = liquidGlassBackdrop,
                                         )
+                                            }
+                                        }
                                     }
                                 }
                             } else {
@@ -3055,10 +3104,9 @@ fun CourseScheduleApp() {
             val pageController = remember {
                 ThemeController(if (effectiveDark) ColorSchemeMode.Dark else ColorSchemeMode.Light)
             }
-            androidx.compose.runtime.SideEffect {
-                pageController.colorSchemeMode =
-                    if (effectiveDark) ColorSchemeMode.Dark else ColorSchemeMode.Light
-            }
+            // 组合期同步 mode：SideEffect 在本帧绘制后才执行，切 tab 会闪一帧旧主题
+            pageController.colorSchemeMode =
+                if (effectiveDark) ColorSchemeMode.Dark else ColorSchemeMode.Light
             MiuixTheme(controller = pageController) {
                 CompositionLocalProvider(LocalForcedDarkTheme provides effectiveForcedDark) {
                     scaffoldContent()
@@ -3080,10 +3128,9 @@ fun CourseScheduleApp() {
         val overlayPageController = remember {
             ThemeController(if (overlayEffectiveDark) ColorSchemeMode.Dark else ColorSchemeMode.Light)
         }
-        androidx.compose.runtime.SideEffect {
-            overlayPageController.colorSchemeMode =
-                if (overlayEffectiveDark) ColorSchemeMode.Dark else ColorSchemeMode.Light
-        }
+        // 组合期同步 mode：SideEffect 会晚一帧
+        overlayPageController.colorSchemeMode =
+            if (overlayEffectiveDark) ColorSchemeMode.Dark else ColorSchemeMode.Light
         MiuixTheme(controller = overlayPageController) {
             CompositionLocalProvider(LocalForcedDarkTheme provides overlayEffectiveForcedDark) {
                 if (floatingCardVisible) {
@@ -3327,9 +3374,12 @@ fun CourseScheduleApp() {
         }
         val menuForcedDark = forcedDark
         val menuDark = menuForcedDark ?: appSettingDark
-        val menuController = remember(menuDark) {
+        val menuController = remember {
             ThemeController(if (menuDark) ColorSchemeMode.Dark else ColorSchemeMode.Light)
         }
+        // 组合期同步 mode：SideEffect 会晚一帧
+        menuController.colorSchemeMode =
+            if (menuDark) ColorSchemeMode.Dark else ColorSchemeMode.Light
         MiuixTheme(controller = menuController) {
             CompositionLocalProvider(LocalForcedDarkTheme provides menuForcedDark) {
                 MorePopupMenus(
