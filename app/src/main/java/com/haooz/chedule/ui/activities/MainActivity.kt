@@ -17,6 +17,7 @@ import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.CubicBezierEasing
 import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.Spring
+import androidx.compose.animation.core.animate
 import androidx.compose.animation.core.animateDpAsState
 import androidx.compose.animation.core.spring
 import androidx.compose.animation.core.tween
@@ -52,7 +53,6 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableIntStateOf
-import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
@@ -89,6 +89,7 @@ import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.zIndex
+import androidx.core.content.edit
 import androidx.core.graphics.get
 import androidx.core.graphics.scale
 import androidx.lifecycle.viewmodel.compose.viewModel
@@ -174,6 +175,32 @@ import kotlin.time.Duration.Companion.milliseconds
 import androidx.compose.ui.graphics.Color as ComposeColor
 import com.kyant.backdrop.backdrops.layerBackdrop as liquidGlassLayerBackdrop
 
+/** 拖拽速度/采样时间；只在松手 spring 时读，避开 composition */
+private class DragMotionHolder {
+    @Volatile
+    var velocityX = 0f
+
+    @Volatile
+    var velocityY = 0f
+
+    @Volatile
+    var lastTimeMs = 0L
+
+    @Volatile
+    var lastOffsetX = 0f
+
+    @Volatile
+    var lastOffsetY = 0f
+
+    fun reset() {
+        velocityX = 0f
+        velocityY = 0f
+        lastTimeMs = 0L
+        lastOffsetX = 0f
+        lastOffsetY = 0f
+    }
+}
+
 // 按 0.25px 量化缓存 RenderEffect，避免 graphicsLayer 每帧 new 造成 GC 抖动
 private class BlurEffectCache {
     private var cachedPx = Float.NaN
@@ -258,6 +285,12 @@ class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
+        backCallback = object : androidx.activity.OnBackPressedCallback(true) {
+            override fun handleOnBackPressed() {
+                handleBackNavigation()
+            }
+        }.also { onBackPressedDispatcher.addCallback(this, it) }
+
         applyHideFromRecents(
             getSharedPreferences("app_preferences", MODE_PRIVATE)
                 .getBoolean("hide_background", false)
@@ -339,7 +372,7 @@ class MainActivity : ComponentActivity() {
     }
 
     override fun onMultiWindowModeChanged(isInMultiWindowMode: Boolean, newConfig: Configuration) {
-        super.onMultiWindowModeChanged(isInMultiWindowMode)
+        super.onMultiWindowModeChanged(isInMultiWindowMode, newConfig)
         isInFreeformWindow = isInMultiWindowMode
     }
 
@@ -356,8 +389,7 @@ class MainActivity : ComponentActivity() {
         shareIntentVersion++
     }
 
-    @SuppressLint("GestureBackNavigation")
-    override fun onBackPressed() {
+    private fun handleBackNavigation() {
         val hideBackground = getSharedPreferences("app_preferences", MODE_PRIVATE)
             .getBoolean("hide_background", false)
         if (hideBackground) {
@@ -365,7 +397,17 @@ class MainActivity : ComponentActivity() {
             moveTaskToBack(true)
             return
         }
-        super.onBackPressed()
+        // 关闭 callback 再派发一次，走系统默认返回栈
+        finishAfterTransitionOrBack()
+    }
+
+    private var backCallback: androidx.activity.OnBackPressedCallback? = null
+
+    private fun finishAfterTransitionOrBack() {
+        val cb = backCallback ?: return
+        cb.isEnabled = false
+        onBackPressedDispatcher.onBackPressed()
+        cb.isEnabled = true
     }
 
     private fun handleReminderSettingsIntent(intent: Intent?) {
@@ -517,8 +559,6 @@ private fun DeleteWeekCourseDialog(
 private fun PasteRangeDialog(
     show: Boolean,
     courseName: String,
-    viewModel: CourseViewModel,
-    currentWeek: Int,
     liquidGlassBackdrop: com.kyant.backdrop.Backdrop?,
     hapticFeedback: androidx.compose.ui.hapticfeedback.HapticFeedback,
     onPaste: (allWeeks: Boolean) -> Unit,
@@ -838,7 +878,7 @@ private fun MorePopupMenus(
     }
 }
 
-@SuppressLint("ConfigurationScreenWidthHeight", "UseOfNonLambdaOffsetOverload")
+@SuppressLint("ConfigurationScreenWidthHeight", "UseOfNonLambdaOffsetOverload", "UseKtx")
 @Composable
 fun CourseScheduleApp() {
     val context = LocalContext.current
@@ -853,9 +893,7 @@ fun CourseScheduleApp() {
     var showShiftLoading by remember { mutableStateOf(false) }
     var isExitingShift by remember { mutableStateOf(false) }
     var shiftModeInitialized by remember { mutableStateOf(false) }
-    var settingsScrollY by remember { mutableIntStateOf(0) }
     val settingsScrollBehavior = rememberSharedScrollBehavior()
-    var todayScrollY by remember { mutableIntStateOf(0) }
     val todayScrollBehavior = rememberSharedScrollBehavior()
     val scheduleScrollBehavior = rememberSharedScrollBehavior()
 
@@ -961,11 +999,8 @@ fun CourseScheduleApp() {
     var draggedCardCourse by remember { mutableStateOf<Course?>(null) }
     var draggedCardPosition by remember { mutableStateOf(Offset.Zero) }
     var draggedCardSize by remember { mutableStateOf(Offset.Zero) }
-    var draggedCardOffset by remember { mutableStateOf(Offset.Zero) }
-    // 松手吸附时作为 spring 初速度
-    var dragVelocity by remember { mutableStateOf(Offset.Zero) }
-    var lastDragTimeMs by remember { mutableLongStateOf(0L) }
-    var lastDragOffset by remember { mutableStateOf(Offset.Zero) }
+    // 速度/采样时间只在 spring 起始读；offset 走 floatingOffset* 的 graphicsLayer，不进组合
+    val dragMotion = remember { DragMotionHolder() }
     var draggedCardBackdrop by remember { mutableStateOf<com.kyant.backdrop.Backdrop?>(null) }
     var draggedWeek by remember { mutableIntStateOf(1) }
     // 拖拽落点检测用网格几何
@@ -985,8 +1020,24 @@ fun CourseScheduleApp() {
     val floatingScale = remember { Animatable(0.94f) }
     // 吸附期间用 floatingOffsetAnim 替代 draggedCardOffset
     var isSnapping by remember { mutableStateOf(false) }
-    val floatingOffsetX = remember { Animatable(0f) }
-    val floatingOffsetY = remember { Animatable(0f) }
+    // 浮层平移：拖拽回调非挂起，用 mutableFloatStateOf；只在 graphicsLayer 读，不触发组合
+    val floatingOffsetX = remember { mutableFloatStateOf(0f) }
+    val floatingOffsetY = remember { mutableFloatStateOf(0f) }
+
+    suspend fun animateFloatState(
+        state: androidx.compose.runtime.MutableFloatState,
+        target: Float,
+        spec: androidx.compose.animation.core.AnimationSpec<Float>,
+        initialVelocity: Float = 0f
+    ) {
+        animate(
+            initialValue = state.floatValue,
+            targetValue = target,
+            animationSpec = spec,
+            initialVelocity = initialVelocity
+        ) { value, _ -> state.floatValue = value }
+    }
+
     // 粘贴飞行：复用长按浮层，直线飞向目标格
     var isPasteFlight by remember { mutableStateOf(false) }
     // 落地冲击波：周围课程卡按距离延迟涟漪
@@ -1070,7 +1121,6 @@ fun CourseScheduleApp() {
     }
     // 各页预先固定的主题（与 selectedTab 无关）
     val todayPageForcedDark = if (todayShowWallpaper) wallpaperForcedDark else null
-    val schedulePageForcedDark = wallpaperForcedDark
     val settingsPageForcedDark: Boolean? = null
     // 顶栏/底栏等 chrome 跟当前页有效主题
     val forcedDark = when {
@@ -1436,14 +1486,13 @@ fun CourseScheduleApp() {
             floatingCardVisible = false
             draggingCourseIds = emptySet()
             draggedCardCourse = null
-            draggedCardOffset = Offset.Zero
-            dragVelocity = Offset.Zero
-            lastDragTimeMs = 0L
-            lastDragOffset = Offset.Zero
+            dragMotion.reset()
             pendingDropTarget = null
             isSnapping = false
             // 重置入场初值，避免下次首帧残留 1.0 造成抖动
             floatingScale.snapTo(0.94f)
+            floatingOffsetX.floatValue = 0f
+            floatingOffsetY.floatValue = 0f
         }
     }
 
@@ -1504,8 +1553,7 @@ fun CourseScheduleApp() {
                 val targetOffsetY = targetCenter.y - draggedCardPosition.y
                 coroutineScope.launch {
                     isSnapping = true
-                    floatingOffsetX.snapTo(draggedCardOffset.x)
-                    floatingOffsetY.snapTo(draggedCardOffset.y)
+                    // 拖拽期已在 floatingOffset* 上 snapTo，无需再从 draggedCardOffset 拷贝
                     launch {
                         delay(120.milliseconds)
                         triggerLandRipple(targetCenter)
@@ -1519,10 +1567,10 @@ fun CourseScheduleApp() {
                         stiffness = Spring.StiffnessMedium
                     )
                     val jobX = launch {
-                        floatingOffsetX.animateTo(targetOffsetX, snapSpec, dragVelocity.x)
+                        animateFloatState(floatingOffsetX, targetOffsetX, snapSpec, dragMotion.velocityX)
                     }
                     val jobY = launch {
-                        floatingOffsetY.animateTo(targetOffsetY, snapSpec, dragVelocity.y)
+                        animateFloatState(floatingOffsetY, targetOffsetY, snapSpec, dragMotion.velocityY)
                     }
                     val jobScale = launch {
                         floatingScale.animateTo(1f, scaleSpec)
@@ -1532,13 +1580,12 @@ fun CourseScheduleApp() {
                     floatingCardVisible = false
                     draggingCourseIds = emptySet()
                     draggedCardCourse = null
-                    draggedCardOffset = Offset.Zero
-                    dragVelocity = Offset.Zero
-                    lastDragTimeMs = 0L
-                    lastDragOffset = Offset.Zero
+                    dragMotion.reset()
                     pendingDropTarget = null
                     isSnapping = false
                     floatingScale.snapTo(0.94f)
+                    floatingOffsetX.floatValue = 0f
+                    floatingOffsetY.floatValue = 0f
                 }
             } else {
                 dismissFloatingCard()
@@ -1564,7 +1611,7 @@ fun CourseScheduleApp() {
                 draggedCardCourse = source
                 draggedWeek = currentViewingWeek
                 draggedCardPosition = sourceCenter
-                draggedCardOffset = Offset.Zero
+                dragMotion.reset()
                 // 与 CourseCard 默认 2dp padding 对齐
                 val cardPadPx = with(density) { 2.dp.toPx() }
                 draggedCardSize = Offset(
@@ -1574,8 +1621,8 @@ fun CourseScheduleApp() {
                 isPasteFlight = true
                 isSnapping = true
                 floatingCardVisible = true
-                floatingOffsetX.snapTo(0f)
-                floatingOffsetY.snapTo(0f)
+                floatingOffsetX.floatValue = 0f
+                floatingOffsetY.floatValue = 0f
                 floatingScale.snapTo(1f)
 
                 val dx = targetCenter.x - sourceCenter.x
@@ -1589,8 +1636,8 @@ fun CourseScheduleApp() {
                     val now = withFrameNanos { it }
                     val raw = ((now - startNanos).toFloat() / durationNanos).coerceIn(0f, 1f)
                     val t = moveEase.transform(raw)
-                    floatingOffsetX.snapTo(dx * t)
-                    floatingOffsetY.snapTo(dy * t)
+                    floatingOffsetX.floatValue = dx * t
+                    floatingOffsetY.floatValue = dy * t
                     floatingScale.snapTo(pasteFlightScaleAt(raw, peakScale))
                     // 快落地时先开涟漪
                     if (!rippleFired && raw >= 0.8f) {
@@ -1605,9 +1652,8 @@ fun CourseScheduleApp() {
                 isSnapping = false
                 isPasteFlight = false
                 draggedCardCourse = null
-                draggedCardOffset = Offset.Zero
-                floatingOffsetX.snapTo(0f)
-                floatingOffsetY.snapTo(0f)
+                floatingOffsetX.floatValue = 0f
+                floatingOffsetY.floatValue = 0f
                 floatingScale.snapTo(0.94f)
                 onFinished()
             }
@@ -1620,8 +1666,6 @@ fun CourseScheduleApp() {
     val snapFloatingCardToOrigin: () -> Unit = {
         coroutineScope.launch {
             isSnapping = true
-            floatingOffsetX.snapTo(draggedCardOffset.x)
-            floatingOffsetY.snapTo(draggedCardOffset.y)
             val snapSpec = spring<Float>(
                 dampingRatio = 0.58f,
                 stiffness = Spring.StiffnessMediumLow
@@ -1631,10 +1675,10 @@ fun CourseScheduleApp() {
                 stiffness = Spring.StiffnessMedium
             )
             val jobX = launch {
-                floatingOffsetX.animateTo(0f, snapSpec, dragVelocity.x)
+                animateFloatState(floatingOffsetX, 0f, snapSpec, dragMotion.velocityX)
             }
             val jobY = launch {
-                floatingOffsetY.animateTo(0f, snapSpec, dragVelocity.y)
+                animateFloatState(floatingOffsetY, 0f, snapSpec, dragMotion.velocityY)
             }
             val jobScale = launch { floatingScale.animateTo(1f, scaleSpec) }
             jobX.join(); jobY.join(); jobScale.join()
@@ -1642,13 +1686,12 @@ fun CourseScheduleApp() {
             floatingCardVisible = false
             draggingCourseIds = emptySet()
             draggedCardCourse = null
-            draggedCardOffset = Offset.Zero
-            dragVelocity = Offset.Zero
-            lastDragTimeMs = 0L
-            lastDragOffset = Offset.Zero
+            dragMotion.reset()
             pendingDropTarget = null
             isSnapping = false
             floatingScale.snapTo(0.94f)
+            floatingOffsetX.floatValue = 0f
+            floatingOffsetY.floatValue = 0f
         }
     }
 
@@ -1658,8 +1701,8 @@ fun CourseScheduleApp() {
         coroutineScope.launch {
             isSnapping = true
             isPasteFlight = true
-            val startX = floatingOffsetX.value
-            val startY = floatingOffsetY.value
+            val startX = floatingOffsetX.floatValue
+            val startY = floatingOffsetY.floatValue
             val peakScale = 1.4f
             val durationNanos = 480_000_000L
             val moveEase = CubicBezierEasing(0.55f, 0f, 0.45f, 1f)
@@ -1670,8 +1713,8 @@ fun CourseScheduleApp() {
                 val now = withFrameNanos { it }
                 val raw = ((now - startNanos).toFloat() / durationNanos).coerceIn(0f, 1f)
                 val t = moveEase.transform(raw)
-                floatingOffsetX.snapTo(startX + (destOffsetX - startX) * t)
-                floatingOffsetY.snapTo(startY + (destOffsetY - startY) * t)
+                floatingOffsetX.floatValue = startX + (destOffsetX - startX) * t
+                floatingOffsetY.floatValue = startY + (destOffsetY - startY) * t
                 floatingScale.snapTo(pasteFlightScaleAt(raw, peakScale))
                 if (!rippleFired && raw >= 0.8f) {
                     rippleFired = true
@@ -1688,12 +1731,11 @@ fun CourseScheduleApp() {
             floatingCardVisible = false
             draggingCourseIds = emptySet()
             draggedCardCourse = null
-            draggedCardOffset = Offset.Zero
             pendingDropTarget = null
             isSnapping = false
             isPasteFlight = false
-            floatingOffsetX.snapTo(0f)
-            floatingOffsetY.snapTo(0f)
+            floatingOffsetX.floatValue = 0f
+            floatingOffsetY.floatValue = 0f
             floatingScale.snapTo(0.94f)
             clearSwapFlight()
         }
@@ -1746,7 +1788,6 @@ fun CourseScheduleApp() {
                 dismissFloatingCard()
             } else {
                 coroutineScope.launch {
-                    val sectionH = gridGeometry?.sectionHeightPx ?: 0f
                     val bounds = gridGeometry?.dayBounds?.get(conflictCourse.dayOfWeek)
                     val cardPadPx = with(density) { 2.dp.toPx() }
                     swapFlightCourse = conflictCourse
@@ -1764,8 +1805,8 @@ fun CourseScheduleApp() {
                     isSnapping = true
                     isPasteFlight = true
                     floatingScale.snapTo(1f)
-                    val srcStartX = floatingOffsetX.value
-                    val srcStartY = floatingOffsetY.value
+                    val srcStartX = floatingOffsetX.floatValue
+                    val srcStartY = floatingOffsetY.floatValue
                     val srcEndX = targetCenter.x - draggedCardPosition.x
                     val srcEndY = targetCenter.y - draggedCardPosition.y
                     val tgtEndX = draggedCardPosition.x - occupiedCenter.x
@@ -1780,8 +1821,8 @@ fun CourseScheduleApp() {
                         val now = withFrameNanos { it }
                         val raw = ((now - startNanos).toFloat() / durationNanos).coerceIn(0f, 1f)
                         val t = moveEase.transform(raw)
-                        floatingOffsetX.snapTo(srcStartX + (srcEndX - srcStartX) * t)
-                        floatingOffsetY.snapTo(srcStartY + (srcEndY - srcStartY) * t)
+                        floatingOffsetX.floatValue = srcStartX + (srcEndX - srcStartX) * t
+                        floatingOffsetY.floatValue = srcStartY + (srcEndY - srcStartY) * t
                         swapFlightOffsetX.snapTo(tgtEndX * t)
                         swapFlightOffsetY.snapTo(tgtEndY * t)
                         val scale = pasteFlightScaleAt(raw, peakScale)
@@ -1799,12 +1840,11 @@ fun CourseScheduleApp() {
                     floatingCardVisible = false
                     draggingCourseIds = emptySet()
                     draggedCardCourse = null
-                    draggedCardOffset = Offset.Zero
                     pendingDropTarget = null
                     isSnapping = false
                     isPasteFlight = false
-                    floatingOffsetX.snapTo(0f)
-                    floatingOffsetY.snapTo(0f)
+                    floatingOffsetX.floatValue = 0f
+                    floatingOffsetY.floatValue = 0f
                     floatingScale.snapTo(0.94f)
                     swapFlightOffsetX.snapTo(0f)
                     swapFlightOffsetY.snapTo(0f)
@@ -1967,8 +2007,8 @@ fun CourseScheduleApp() {
             val isLight = computeWallpaperIsLight(bitmap)
             val idx = currentCombinationIndex
             if (idx in combinations.indices) {
-                combinations = combinations.toMutableList().also {
-                    it[idx] = it[idx].copy(
+                combinations = combinations.toMutableList().also { list ->
+                    list[idx] = list[idx].copy(
                         bitmap = bitmap,
                         offset = Offset.Zero,
                         scale = autoScale,
@@ -2048,6 +2088,8 @@ fun CourseScheduleApp() {
             } else {
                 currentAppearance()
             }
+        // 顶栏/底栏必须采主内容 liquidGlass，否则玻璃退化成纯色
+        val chromeBackdrop: com.kyant.backdrop.Backdrop = liquidGlassBackdrop
         val isEntryAnimating = showSwitchSchedule && switchAnimForward && switchAnimRunning
         val mainContentAlpha = when {
             showSwitchSchedule && switchOverlayActive -> 0f
@@ -2092,28 +2134,17 @@ fun CourseScheduleApp() {
         val latestShowSwitch by rememberUpdatedState(showSwitchSchedule)
         val latestDraggingCard by rememberUpdatedState(isDraggingCard)
         val latestRailPad by rememberUpdatedState(railPaddingStart)
-        val latestSettingsScrollY by rememberUpdatedState(settingsScrollY)
-        val latestTodayScrollY by rememberUpdatedState(todayScrollY)
+        // 课表/今日/设置滚动时主内容像素在变，必须重录，否则顶栏/底栏玻璃冻结
         val liquidGlassMustRecord = remember(scheduleScrollState, todayListState, pagerState, todayPagerState) {
             var lastRailPad = Float.NaN
-            var lastSettingsScroll = Int.MIN_VALUE
-            var lastTodayScroll = Int.MIN_VALUE
             {
                 val railPad = latestRailPad.value
-                val settingsScroll = latestSettingsScrollY
-                val todayScroll = latestTodayScrollY
                 val railMoving = railPad != lastRailPad
-                val settingsMoving = settingsScroll != lastSettingsScroll
-                val todayMoving = todayScroll != lastTodayScroll
                 lastRailPad = railPad
-                lastSettingsScroll = settingsScroll
-                lastTodayScroll = todayScroll
                 scheduleScrollState.isScrollInProgress ||
                     todayListState.isScrollInProgress ||
                     pagerState.isScrollInProgress ||
                     todayPagerState.isScrollInProgress ||
-                    todayMoving ||
-                    settingsMoving ||
                     railMoving ||
                     // 开洞编辑时主内容持续缩放，绝不能停录
                     latestIsWindowCutout ||
@@ -2220,12 +2251,12 @@ fun CourseScheduleApp() {
                             isShiftMode = isShiftMode,
                             selectedTab = selectedTab,
                             onTabSelected = { selectedTab = it },
-                            liquidGlassBackdrop = liquidGlassBackdrop,
+                            liquidGlassBackdrop = chromeBackdrop,
                             addButton = {
                                 if (!isShiftMode) {
                                     LiquidAddButton(
                                         onClick = { viewModel.showAddDialog() },
-                                        backdrop = liquidGlassBackdrop
+                                        backdrop = chromeBackdrop
                                     )
                                 }
                             }
@@ -2267,21 +2298,21 @@ fun CourseScheduleApp() {
                             onMoreClick = { showMorePopup = true },
                             isTablet = isTablet,
                             isShiftMode = isShiftMode,
-                            liquidGlassBackdrop = liquidGlassBackdrop,
+                            liquidGlassBackdrop = chromeBackdrop,
                             scrollBehavior = scheduleScrollBehavior,
                             showMorePopup = showMorePopup,
                         )
                         // 设置页顶栏在 Activity 层级渲染，避免 drawPlainBackdrop native crash
                         if (selectedTab == 2 || (isShiftMode && selectedTab == 1)) {
                             SettingsTopBar(
-                                liquidGlassBackdrop = liquidGlassBackdrop,
+                                liquidGlassBackdrop = chromeBackdrop,
                                 navBarStyle = navBarStyle,
                                 scrollBehavior = settingsScrollBehavior,
                             )
                         }
                         // 始终渲染但 alpha=0，保证 currentHeightPx 启动即就位，切页不慢一帧
                         TodayTopBar(
-                            liquidGlassBackdrop = liquidGlassBackdrop,
+                            liquidGlassBackdrop = chromeBackdrop,
                             navBarStyle = navBarStyle,
                             currentDayOfWeek = todaySelectedDayOfWeek,
                             isToday = todayIsToday,
@@ -2315,23 +2346,15 @@ fun CourseScheduleApp() {
                                 )
                         ) {
                             if (!isShiftMode) {
-                                // 始终组合所有 tab，alpha 控显隐，zIndex 保证当前 tab 收事件
-                                Box(modifier = Modifier.fillMaxSize()) {
-                                    Box(
-                                        modifier = Modifier
-                                            .fillMaxSize()
-                                            .zIndex(if (selectedTab == 0) 2f else 0f)
-                                            .graphicsLayer { alpha = if (selectedTab == 0) 1f else 0f }
-                                            // 未选中 tab 保留组合/测量但跳过绘制，否则每帧 3 倍绘制
-                                            .drawWithContent { if (selectedTab == 0) drawContent() }
-                                    ) {
+                                // 仅组合当前 tab：未选中页不再参与 composition/layout，避免父级重组时三屏一起 skip
+                                when (selectedTab) {
+                                    0 -> {
                                         // 今日页主题预先固定，切 tab 不跟着 chrome 闪一帧
                                         val todayForced = if (captureThemeActive) captureThemeIsDark else todayPageForcedDark
                                         val todayDark = todayForced ?: appSettingDark
                                         val todayThemeController = remember {
                                             ThemeController(if (todayDark) ColorSchemeMode.Dark else ColorSchemeMode.Light)
                                         }
-                                        // 组合期同步 mode：SideEffect 会晚一帧
                                         todayThemeController.colorSchemeMode =
                                             if (todayDark) ColorSchemeMode.Dark else ColorSchemeMode.Light
                                         MiuixTheme(controller = todayThemeController) {
@@ -2354,7 +2377,7 @@ fun CourseScheduleApp() {
                                             },
                                             pagerState = todayPagerState,
                                             navBarStyle = navBarStyle,
-                                            onScrollYChanged = { todayScrollY = it },
+                                            onScrollYChanged = { _ -> },
                                             settingsScrollBehavior = todayScrollBehavior,
                                             onSelectedDayChanged = { todaySelectedDayOfWeek = it },
                                             onSelectedDateChanged = { todayIsToday = it },
@@ -2377,21 +2400,12 @@ fun CourseScheduleApp() {
                                             }
                                         }
                                     }
-
-                                    Box(
-                                        modifier = Modifier
-                                            .fillMaxSize()
-                                            .zIndex(if (selectedTab == 1) 2f else 0f)
-                                            .graphicsLayer { alpha = if (selectedTab == 1) 1f else 0f }
-                                            .drawWithContent { if (selectedTab == 1) drawContent() }
-                                    ) {
-                                        // 课程表页主题预先固定，切 tab 不跟着 chrome 闪一帧
-                                        val scheduleForced = if (captureThemeActive) captureThemeIsDark else schedulePageForcedDark
+                                    1 -> {
+                                        val scheduleForced = if (captureThemeActive) captureThemeIsDark else wallpaperForcedDark
                                         val scheduleDark = scheduleForced ?: appSettingDark
                                         val scheduleThemeController = remember {
                                             ThemeController(if (scheduleDark) ColorSchemeMode.Dark else ColorSchemeMode.Light)
                                         }
-                                        // 组合期同步 mode：SideEffect 会晚一帧
                                         scheduleThemeController.colorSchemeMode =
                                             if (scheduleDark) ColorSchemeMode.Dark else ColorSchemeMode.Light
                                         MiuixTheme(controller = scheduleThemeController) {
@@ -2421,7 +2435,7 @@ fun CourseScheduleApp() {
                                                 )
                                             },
                                             onPopupStateChange = { showCourseDetailPopup = it },
-                                            onEmptyLongPress = { day, section, centerX, cellTopY, width, height ->
+                                            onEmptyLongPress = { day, section, centerX, cellTopY, width, _ ->
                                                 shortcutMenuCourse = null
                                                 emptyCellMenuTarget = day to section
                                                 shortcutMenuVisible = true
@@ -2439,10 +2453,9 @@ fun CourseScheduleApp() {
                                                 draggedWeek = currentWeek
                                                 // left/top 为卡片中心绝对坐标
                                                 draggedCardPosition = Offset(left, top)
-                                                draggedCardOffset = Offset.Zero
-                                                dragVelocity = Offset.Zero
-                                                lastDragTimeMs = 0L
-                                                lastDragOffset = Offset.Zero
+                                                dragMotion.reset()
+                                                floatingOffsetX.floatValue = 0f
+                                                floatingOffsetY.floatValue = 0f
                                                 draggedCardSize = Offset(width, height)
                                                 draggedCardBackdrop = backdrop
                                                 shortcutMenuCourse = course
@@ -2465,20 +2478,21 @@ fun CourseScheduleApp() {
                                                 }
                                             },
                                             onCourseDrag = { _, offsetX, offsetY ->
-                                                // 跟手 1:1，同时估算末速度供松手 spring
+                                                // 跟手 1:1；offset 只进 graphicsLayer，速度进 holder
                                                 val now = android.os.SystemClock.uptimeMillis()
-                                                val newOffset = Offset(offsetX, offsetY)
-                                                if (lastDragTimeMs != 0L) {
-                                                    val dt = (now - lastDragTimeMs).coerceAtLeast(1L)
-                                                    dragVelocity = Offset(
-                                                        (newOffset.x - lastDragOffset.x) / dt * 1000f,
-                                                        (newOffset.y - lastDragOffset.y) / dt * 1000f
-                                                    )
+                                                if (dragMotion.lastTimeMs != 0L) {
+                                                    val dt = (now - dragMotion.lastTimeMs).coerceAtLeast(1L)
+                                                    dragMotion.velocityX =
+                                                        (offsetX - dragMotion.lastOffsetX) / dt * 1000f
+                                                    dragMotion.velocityY =
+                                                        (offsetY - dragMotion.lastOffsetY) / dt * 1000f
                                                 }
-                                                lastDragTimeMs = now
-                                                lastDragOffset = newOffset
-                                                draggedCardOffset = newOffset
-                                                // 实时算落点；高度按 course 计算，避免 size 缓存旧值
+                                                dragMotion.lastTimeMs = now
+                                                dragMotion.lastOffsetX = offsetX
+                                                dragMotion.lastOffsetY = offsetY
+                                                floatingOffsetX.floatValue = offsetX
+                                                floatingOffsetY.floatValue = offsetY
+                                                // 落点仅跨格时写 state，避免逐帧重组课表
                                                 val course = draggedCardCourse
                                                 if (course != null) {
                                                     val sectionH =
@@ -2491,11 +2505,13 @@ fun CourseScheduleApp() {
                                                         draggedCardPosition.y + offsetY - cardHeightPx / 2f
                                                     val firstSectionCenterY =
                                                         cardTopY + sectionH / 2f
-                                                    pendingDropTarget =
-                                                        computeDropTarget(
-                                                            centerX,
-                                                            firstSectionCenterY
-                                                        )
+                                                    val newTarget = computeDropTarget(
+                                                        centerX,
+                                                        firstSectionCenterY
+                                                    )
+                                                    if (newTarget != pendingDropTarget) {
+                                                        pendingDropTarget = newTarget
+                                                    }
                                                 }
                                             },
                                             onCourseDragEnd = { _ ->
@@ -2587,12 +2603,7 @@ fun CourseScheduleApp() {
                                                                     stopConflictHover()
                                                                     isConflictHover = true
                                                                     isSnapping = true
-                                                                    floatingOffsetX.snapTo(
-                                                                        draggedCardOffset.x
-                                                                    )
-                                                                    floatingOffsetY.snapTo(
-                                                                        draggedCardOffset.y
-                                                                    )
+                                                                    // 拖拽位移已在 floatingOffset*
                                                                     val sectionHPx =
                                                                         gridGeometry?.sectionHeightPx
                                                                             ?: 0f
@@ -2613,7 +2624,8 @@ fun CourseScheduleApp() {
                                                                             0.32f, 0.72f, 0.28f, 1f
                                                                         )
                                                                     val jobX = launch {
-                                                                        floatingOffsetX.animateTo(
+                                                                        animateFloatState(
+                                                                            floatingOffsetX,
                                                                             hoverOffsetX,
                                                                             tween(
                                                                                 durationMillis = 420,
@@ -2622,7 +2634,8 @@ fun CourseScheduleApp() {
                                                                         )
                                                                     }
                                                                     val jobY = launch {
-                                                                        floatingOffsetY.animateTo(
+                                                                        animateFloatState(
+                                                                            floatingOffsetY,
                                                                             hoverOffsetY,
                                                                             tween(
                                                                                 durationMillis = 420,
@@ -2642,14 +2655,16 @@ fun CourseScheduleApp() {
                                                                     }
                                                                     conflictHoverBobJob = launch {
                                                                         while (true) {
-                                                                            floatingOffsetY.animateTo(
+                                                                            animateFloatState(
+                                                                                floatingOffsetY,
                                                                                 hoverOffsetY + bobAmp,
                                                                                 tween(
                                                                                     durationMillis = 1400,
                                                                                     easing = FastOutSlowInEasing
                                                                                 )
                                                                             )
-                                                                            floatingOffsetY.animateTo(
+                                                                            animateFloatState(
+                                                                                floatingOffsetY,
                                                                                 hoverOffsetY - bobAmp,
                                                                                 tween(
                                                                                     durationMillis = 1400,
@@ -2669,7 +2684,8 @@ fun CourseScheduleApp() {
                                                                     isDraggingCard = false
                                                                     floatingCardVisible = false
                                                                     draggingCourseIds = emptySet()
-                                                                    draggedCardOffset = Offset.Zero
+                                                                    floatingOffsetX.floatValue = 0f
+                                                                    floatingOffsetY.floatValue = 0f
                                                                 }
                                                             }
                                                         }
@@ -2714,20 +2730,12 @@ fun CourseScheduleApp() {
                                             }
                                         }
                                     }
-
-                                    Box(
-                                        modifier = Modifier
-                                            .fillMaxSize()
-                                            .zIndex(if (selectedTab == 2) 2f else 0f)
-                                            .graphicsLayer { alpha = if (selectedTab == 2) 1f else 0f }
-                                            .drawWithContent { if (selectedTab == 2) drawContent() }
-                                    ) {
+                                    2 -> {
                                         // 设置页始终跟应用主题，不被壁纸锁深色
                                         val settingsDark = appSettingDark
                                         val settingsThemeController = remember {
                                             ThemeController(if (settingsDark) ColorSchemeMode.Dark else ColorSchemeMode.Light)
                                         }
-                                        // 组合期同步 mode：SideEffect 会晚一帧
                                         settingsThemeController.colorSchemeMode =
                                             if (settingsDark) ColorSchemeMode.Dark else ColorSchemeMode.Light
                                         MiuixTheme(controller = settingsThemeController) {
@@ -2742,7 +2750,7 @@ fun CourseScheduleApp() {
                                                 isExitingShift = false
                                             },
                                             navBarStyle = navBarStyle,
-                                            onScrollYChanged = { settingsScrollY = it },
+                                            onScrollYChanged = { _ -> },
                                             settingsScrollBehavior = settingsScrollBehavior,
                                             activeSecondaryActivity = activeSecondaryActivity,
                                             liquidGlassBackdrop = liquidGlassBackdrop,
@@ -2777,7 +2785,7 @@ fun CourseScheduleApp() {
                                             isExitingShift = false
                                         },
                                         navBarStyle = navBarStyle,
-                                        onScrollYChanged = { settingsScrollY = it },
+                                        onScrollYChanged = { _ -> },
                                         settingsScrollBehavior = settingsScrollBehavior,
                                         activeSecondaryActivity = activeSecondaryActivity,
                                         liquidGlassBackdrop = liquidGlassBackdrop,
@@ -2918,8 +2926,6 @@ fun CourseScheduleApp() {
                     PasteRangeDialog(
                         show = showPasteRangeDialog,
                         courseName = copiedCourseForPaste?.name ?: "",
-                        viewModel = viewModel,
-                        currentWeek = currentViewingWeek,
                         liquidGlassBackdrop = liquidGlassBackdrop,
                         hapticFeedback = hapticFeedback,
                         onPaste = { allWeeks ->
@@ -3136,25 +3142,18 @@ fun CourseScheduleApp() {
                 if (floatingCardVisible) {
                     val course = draggedCardCourse
                     if (course != null) {
-                        android.util.Log.d(
-                            "FloatRender",
-                            "render course=${course.name}, sec=${course.startSection}-${course.endSection}, draggedCardSize=${draggedCardSize}"
-                        )
-                        // 按中心对齐：吸附用 floatingOffset，拖拽用 draggedCardOffset
-                        val currentOffsetX =
-                            if (isSnapping) floatingOffsetX.value else draggedCardOffset.x
-                        val currentOffsetY =
-                            if (isSnapping) floatingOffsetY.value else draggedCardOffset.y
-                        val centerX = draggedCardPosition.x + currentOffsetX
-                        val centerY = draggedCardPosition.y + currentOffsetY
-                        // 高度按当前 course 节数实时算，避免 size 缓存旧节数
+                        // 锚点只用长按瞬间的中心；拖拽/吸附位移走 graphicsLayer，不进组合
                         val widthPx = draggedCardSize.x
                         val sectionCount = course.endSection - course.startSection + 1
                         val sectionH = gridGeometry?.sectionHeightPx
                             ?: with(density) { displayAppearance.cardHeight.dp.toPx() }
                         val heightPx = sectionCount * sectionH
-                        val offsetX = with(density) { (centerX - widthPx / 2f).toDp() }
-                        val offsetY = with(density) { (centerY - heightPx / 2f).toDp() }
+                        val baseOffsetX = with(density) {
+                            (draggedCardPosition.x - widthPx / 2f).toDp()
+                        }
+                        val baseOffsetY = with(density) {
+                            (draggedCardPosition.y - heightPx / 2f).toDp()
+                        }
                         val width = with(density) { widthPx.toDp() }
                         val height = with(density) { heightPx.toDp() }
                         LaunchedEffect(floatingCardVisible, isPasteFlight) {
@@ -3167,10 +3166,12 @@ fun CourseScheduleApp() {
 
                         Box(
                             modifier = Modifier
-                                .offset(x = offsetX, y = offsetY)
+                                .offset(x = baseOffsetX, y = baseOffsetY)
                                 .size(width = width, height = height)
                                 .padding(vertical = 2.dp)
                                 .graphicsLayer {
+                                    translationX = floatingOffsetX.floatValue
+                                    translationY = floatingOffsetY.floatValue
                                     scaleX = floatingScale.value
                                     scaleY = floatingScale.value
                                 }
@@ -3372,8 +3373,7 @@ fun CourseScheduleApp() {
                 }
             )
         }
-        val menuForcedDark = forcedDark
-        val menuDark = menuForcedDark ?: appSettingDark
+        val menuDark = forcedDark ?: appSettingDark
         val menuController = remember {
             ThemeController(if (menuDark) ColorSchemeMode.Dark else ColorSchemeMode.Light)
         }
@@ -3381,7 +3381,7 @@ fun CourseScheduleApp() {
         menuController.colorSchemeMode =
             if (menuDark) ColorSchemeMode.Dark else ColorSchemeMode.Light
         MiuixTheme(controller = menuController) {
-            CompositionLocalProvider(LocalForcedDarkTheme provides menuForcedDark) {
+            CompositionLocalProvider(LocalForcedDarkTheme provides forcedDark) {
                 MorePopupMenus(
                     showMorePopup = showMorePopup,
                     onMorePopupDismiss = { showMorePopup = false },
@@ -3533,10 +3533,10 @@ fun CourseScheduleApp() {
                         }
                         // 「应用」才写入偏好
                         pendingScheduleThemeMode?.let { mode ->
-                            context.getSharedPreferences("app_theme_prefs", android.content.Context.MODE_PRIVATE)
-                                .edit()
-                                .putString(ThemeMode.SCHEDULE_THEME_MODE_KEY, mode.prefsValue)
-                                .apply()
+                            context.getSharedPreferences("app_theme_prefs", Context.MODE_PRIVATE)
+                                .edit {
+                                    putString(ThemeMode.SCHEDULE_THEME_MODE_KEY, mode.prefsValue)
+                                }
                             pendingScheduleThemeMode = null
                         }
                     }
@@ -3917,7 +3917,7 @@ fun CourseScheduleApp() {
                     onCardClick = { bounds ->
                         switchCardBounds = bounds
                     },
-                    onCardSnapshot = { screenBitmap, cardBitmap, bounds ->
+                    onCardSnapshot = { _, cardBitmap, bounds ->
                         if (switchAnimJob?.isActive == true) return@SwitchScheduleScreen
                         switchAnimForward = false
                         switchAnimRunning = true

@@ -1368,8 +1368,6 @@ private fun CourseSectionTitle(
 
     if (wallpaperBackdrop != null) {
         val shape = ContinuousCapsule()
-        val defaultEdgeLight = rememberDefaultEdgeLight()
-        val showEdgeLight = blurRadius > 0f
         Box(
             modifier = modifier
                 .padding(vertical = 6.dp)
@@ -1388,13 +1386,8 @@ private fun CourseSectionTitle(
                         drawRect(if (isDark) Color.Black.copy(alpha = surfaceOpacity) else Color.White.copy(alpha = surfaceOpacity))
                     }
                 )
-                .then(
-                    if (showEdgeLight) {
-                        Modifier.edgeLight(shape = shape, edgeLight = defaultEdgeLight)
-                    } else {
-                        Modifier.edgeLight(shape = shape, edgeLight = rememberCardEdgeLight())
-                    }
-                )
+                // 标题与课程卡一致用淡描边；亮版只留给今日助手/格言
+                .edgeLight(shape = shape, edgeLight = rememberCardEdgeLight())
         ) {
             Text(
                 text = text,
