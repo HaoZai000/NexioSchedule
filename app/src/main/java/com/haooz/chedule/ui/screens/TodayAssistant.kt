@@ -27,7 +27,6 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
@@ -472,30 +471,17 @@ private fun rememberCourseStatus(
     LaunchedEffect(ranges) {
         while (true) {
             val now = LocalTime.now()
-            val current = ranges.find { !now.isBefore(it.start) && !now.isAfter(it.end) }
+            // 与 generateSmartTip 同一判定：开始含、结束不含，避免整点卡在「正在上课」
+            val current = ranges.find { !now.isBefore(it.start) && now.isBefore(it.end) }
             val next = ranges.find { now.isBefore(it.start) }
             val message = when {
                 current != null -> {
-                    val minutes = java.time.Duration.between(now, current.end).toMinutes()
-                    if (minutes >= 60) {
-                        val hours = minutes / 60
-                        val mins = minutes % 60 + 1
-                        if (mins >= 60) "还剩 ${hours + 1}小时"
-                        else "还剩 ${hours}小时${mins}分钟"
-                    } else {
-                        "还剩 ${minutes + 1} 分钟"
-                    }
+                    val minutes = ceilMinutesUntil(now, current.end)
+                    "还剩 ${formatCountdownMinutes(minutes)}"
                 }
                 next != null -> {
-                    val minutes = java.time.Duration.between(now, next.start).toMinutes()
-                    if (minutes >= 60) {
-                        val hours = minutes / 60
-                        val mins = minutes % 60 + 1
-                        if (mins >= 60) "${hours + 1}小时后"
-                        else "${hours}小时${mins}分钟后"
-                    } else {
-                        "${minutes + 1} 分钟后"
-                    }
+                    val minutes = ceilMinutesUntil(now, next.start)
+                    formatCountdownMinutes(minutes, trailing = "后")
                 }
                 courses.isEmpty() -> ""
                 else -> ""
@@ -530,18 +516,29 @@ private fun buildCourseTimeRanges(
     return if (sortByStart) ranges.sortedBy { it.start } else ranges
 }
 
-private fun getGreeting(): String {
-    val hour = LocalTime.now().hour
-    return when (hour) {
-        in 5..6 -> "早安"
-        in 7..8 -> "早上好"
-        in 9..11 -> "上午好"
-        in 12..13 -> "中午好"
-        in 14..17 -> "下午好"
-        in 18..19 -> "傍晚好"
-        in 20..22 -> "晚上好"
-        else -> "夜深了"
+// 向上取整，与顶部倒计时、系统岛倒计时共用同一套「剩余分钟」口径
+private fun ceilMinutesUntil(from: LocalTime, to: LocalTime): Int {
+    val remain = java.time.Duration.between(from, to).toMillis()
+    if (remain <= 0L) return 0
+    return ((remain + 59_999L) / 60_000L).toInt()
+}
+
+private fun formatCountdownMinutes(minutes: Int, trailing: String = ""): String {
+    val hours = minutes / 60
+    val mins = minutes % 60
+    val body = when {
+        hours > 0 && mins > 0 -> "${hours}小时${mins}分钟"
+        hours > 0 -> "${hours}小时"
+        else -> "${minutes} 分钟"
     }
+    return body + trailing
+}
+
+// 稳定轮换：同一钟点+时间桶内固定一条，避免每秒乱跳
+private fun pickTip(variants: List<String>, seed: Int): String {
+    if (variants.isEmpty()) return ""
+    val idx = ((seed % variants.size) + variants.size) % variants.size
+    return variants[idx]
 }
 
 private fun generateSmartTip(
@@ -554,33 +551,68 @@ private fun generateSmartTip(
     val now = LocalTime.now()
     val ranges = buildCourseTimeRanges(courses, sectionTimes)
     val tomorrowRanges = buildCourseTimeRanges(tomorrowCourses, sectionTimes)
+
+    fun roomOf(course: Course): String =
+        course.classroom.ifBlank { "教室待定" }
+
+    fun tomorrowNote(): String {
+        val hour = now.hour
+        if (hour < 20) return ""
+        val n = tomorrowCourses.size
+        if (n == 0) return " · 明天没课，可以睡到自然醒"
+        val first = tomorrowRanges.firstOrNull()?.course
+        val firstLine = if (first != null) "${first.name} 开头" else "第一节待定"
+        return " · 明天 $n 节，$firstLine"
+    }
+
     if (ranges.isEmpty()) {
         // 时间残缺时避免误报「今天没课」
         if (courses.isNotEmpty()) {
-            return "今天有 ${courses.size} 节课，但课程时间残缺得跟你的人生规划似的，去课表补一下！"
+            return pickTip(
+                listOf(
+                    "今天有 ${courses.size} 节课，但节次时间没填全，先去课表补齐再排日程",
+                    "课表里有 ${courses.size} 节，时间字段是空的，补完才好倒计时",
+                    "有课，没点——节次时间残缺，去课表修一下"
+                ),
+                seed = now.hour
+            )
         }
-        val greeting = getGreeting()
         val hour = now.hour
-        val tomorrowCount = tomorrowCourses.size
-        val tomorrowInfo = if (tomorrowCount > 0) {
-            val firstCourse = tomorrowRanges.firstOrNull()?.course
-            when {
-                firstCourse != null && hour in 20..23 -> "，明天${tomorrowCount}节，${firstCourse.name}带头，躲不掉"
-                hour in 20..23 -> "，明天${tomorrowCount}节，别想逃"
-                else -> ""
-            }
-        } else if (hour in 20..23) {
-            "，明天没课，乐一下"
-        } else ""
-        return when (hour) {
-            in 6..8 -> "$greeting，今天没课，放心睡，反正也没人指望你$tomorrowInfo"
-            in 9..11 -> "$greeting，今天没课，自由安排——别自由到把一天废了就行$tomorrowInfo"
-            in 12..14 -> "$greeting，今天下午也没课，好好享（摆）受（烂）吧$tomorrowInfo"
-            in 14..17 -> "$greeting，今天没课，做点想做的事，别又想了一下午啥也没干$tomorrowInfo"
-            in 18..19 -> "$greeting，今天没课，放松一下，别放松到最后还是又刷手机又焦虑$tomorrowInfo"
-            in 20..22 -> "$greeting，今天没课，早点休息——你确定忍得住不摸手机？$tomorrowInfo"
-            else -> "$greeting，今天没有课$tomorrowInfo"
+        val note = tomorrowNote()
+        val pool = when (hour) {
+            in 5..8 -> listOf(
+                "今天没课，闹钟可以往后挪一格",
+                "没课的早晨，床比计划表靠谱",
+                "今天空着，多睡可以，睡到中午就是另一回事了"
+            )
+            in 9..11 -> listOf(
+                "今天没课，上午自己排，别一睁眼就交给了床",
+                "上午空档，图书馆有座，你有借口",
+                "没课的上午很贵，刷完就没了"
+            )
+            in 12..13 -> listOf(
+                "下午也没课，吃饭按点，别用零食糊弄",
+                "中午自由，胃要照顾好，下午才站得住",
+                "没课的饭点，是你今天最实在的自由"
+            )
+            in 14..17 -> listOf(
+                "今天没课，做点正事，也别把自己排崩",
+                "下午阳光很好，适合出门，也适合焦虑——你选",
+                "空着的下午，进度条容易一直是 0%"
+            )
+            in 18..21 -> listOf(
+                "今天没课，适当放空，别熬到明天一起还债",
+                "晚上自由，手机会替你安排——你要不要抢回来",
+                "没课的夜更容易晚睡，自己收着点"
+            )
+            in 22..23 -> listOf(
+                "今天没课，早点收，夜里的时间不增值",
+                "该睡了，自由日的尽头通常是熬夜",
+                "收工吧，明天有没有课都得起床面对自己"
+            )
+            else -> listOf("今天没有课")
         }
+        return pickTip(pool, seed = hour) + note
     }
 
     val ongoing = ranges.find { now >= it.start && now < it.end }
@@ -597,95 +629,186 @@ private fun generateSmartTip(
     val completedCount = ranges.count { now.isAfter(it.end) }
 
     return when {
+        // 正在上课：剩余 + 连堂，多套冷静说法
         ongoing != null -> {
-            val remaining = java.time.Duration.between(now, ongoing.end).toMinutes()
+            val remaining = ceilMinutesUntil(now, ongoing.end)
             val nextAfter = ranges.find { it.start > ongoing.end }
-            val gap = nextAfter?.let { java.time.Duration.between(ongoing.end, it.start).toMinutes() }
-            when {
-                gap != null && gap <= 3 && remaining <= 15 -> "下课只有 $gap 分钟！赶场冲刺，慢了半节课都白听了"
-                gap != null && gap <= 10 && remaining <= 15 -> "下课后只剩 $gap 分钟，赶紧补口血，别把魂放出去忘了回收"
-                gap != null && gap <= 15 && remaining <= 15 -> "下课后有 $gap 分钟，喝口水，但别顺带把精神也放了"
-                remaining <= 1 -> "1分钟下课！坐直点，别让老师看你如释重负的样子"
-                remaining <= 3 -> "冲刺！还有 $remaining 分钟，别瘫桌上装尸体"
-                remaining <= 5 -> "还有 $remaining 分钟下课，眼皮抬起来，撑住这最后一程"
-                remaining <= 10 -> "还有 $remaining 分钟下课，坚持就是胜利——坚持不住也得装到底"
-                remaining <= 15 -> "距下课 $remaining 分钟，笔记补完没？没补等死吧（开个玩笑……但真会死）"
-                remaining <= 20 -> "还有 $remaining 分钟，喝口水缓一缓，别第十分钟就开始坐不住"
-                remaining <= 30 -> "还剩 $remaining 分钟，专注点，你走神的对象又不给你发工资"
-                remaining <= 45 -> "过半了，还有 $remaining 分钟，半场刚打完，别提前庆祝"
-                remaining <= 60 -> "还有 $remaining 分钟，稳住我们能赢——至少口号不能输"
-                remaining <= 75 -> "还有 $remaining 分钟，按自己的节奏来，但别把节奏定成睡着"
-                remaining <= 90 -> "长课还有 $remaining 分钟，耐心点，老师讲得比你听得还累"
-                remaining <= 105 -> "时间充裕，还有 $remaining 分钟，慢慢听，别把重点漏了"
-                remaining <= 120 -> "刚开课，还有 $remaining 分钟，进入状态吧——别第一分钟就开始数秒表"
-                gap != null && gap <= 3 -> "下课后只有 $gap 分钟，提前收拾好东西，别聊着聊着就迟到了"
-                gap != null && gap <= 10 -> "下课后休息 $gap 分钟，够你喝口水，别指望补个觉"
-                gap != null && gap <= 15 -> "下课后有 $gap 分钟休息，抓紧眯会儿也行"
-                else -> "认真听课，离下课还有 $remaining 分钟——认真不认真都是坐着听，不如装得像点"
+            val gap = nextAfter?.let { ceilMinutesUntil(ongoing.end, it.start) }
+            val gapPart = when {
+                gap != null && gap <= 3 -> " · 连堂只歇 $gap 分钟，东西别收太彻底"
+                gap != null && gap <= 10 -> " · 下课后仅 $gap 分钟，补给要快"
+                gap != null && gap <= 15 -> " · 下课后还有 $gap 分钟，够喘口气"
+                gap != null && gap <= 30 -> " · 下课后有 $gap 分钟，可离开教室"
+                else -> ""
             }
+            val pool = when {
+                remaining <= 1 -> listOf(
+                    "马上收尾",
+                    "到点边缘，准备收势",
+                    "最后几十秒，别提前弹射"
+                )
+                remaining <= 5 -> listOf(
+                    "还剩 $remaining 分钟，准备收势",
+                    "还剩 $remaining 分钟，书包可以先热身",
+                    "还剩 $remaining 分钟，再撑一下就到"
+                )
+                remaining <= 15 -> listOf(
+                    "还剩 $remaining 分钟，保持节奏",
+                    "还剩 $remaining 分钟，后半段别掉线",
+                    "还剩 $remaining 分钟，重点一般在这截"
+                )
+                remaining <= 45 -> listOf(
+                    "还剩 $remaining 分钟",
+                    "还剩 $remaining 分钟，按自己的步子走",
+                    "还剩 $remaining 分钟，别提前进入下课模式"
+                )
+                else -> listOf(
+                    "还剩 $remaining 分钟",
+                    "还剩 $remaining 分钟，刚上不久，稳住",
+                    "还剩 $remaining 分钟，后面还长，别透支注意力"
+                )
+            }
+            pickTip(pool, seed = now.hour * 31 + remaining / 5) + gapPart
         }
 
+        // 课间：剩余 + 去向，多套说法
         prev != null && next != null -> {
-            val breakMinutes = java.time.Duration.between(prev.end, next.start).toMinutes()
-            val nextClassroom = next.course.classroom
-            when {
-                breakMinutes <= 1 -> "下节课马上开始，快滚回座位！别卡着点挑战老师底线"
-                breakMinutes <= 3 -> "还有 $breakMinutes 分钟，歇够没？够了就回座位，别磨"
-                breakMinutes <= 5 -> "还有 $breakMinutes 分钟，把桌面收拾利索，别一摊烂桌面迎接下节课"
-                breakMinutes <= 10 -> "课间 $breakMinutes 分钟，抓紧，别刷着刷着忘了上课"
-                breakMinutes <= 15 -> "还有 $breakMinutes 分钟，回来吧，人到了魂也先归个位"
-                breakMinutes <= 20 -> "还有 $breakMinutes 分钟，该出发去${nextClassroom}了，别磨"
-                breakMinutes <= 30 -> "休息还剩 $breakMinutes 分钟，伸个懒腰，别把腰也一起睡没"
-                breakMinutes <= 45 -> "课间 $breakMinutes 分钟，看看远方，别盯手机把眼盯瞎"
-                breakMinutes <= 60 -> "休息 $breakMinutes 分钟，养精蓄锐，待会才好继续被虐"
-                breakMinutes in 61..120 -> "大课间 $breakMinutes 分钟，够你睡个回笼，但别真睡，醒了自己都怕"
-                else -> "距下节课还有 $breakMinutes 分钟，时间充裕到你能把手机充个电再接着玩"
+            val remainToNext = ceilMinutesUntil(now, next.start)
+            val room = roomOf(next.course)
+            val name = next.course.name
+            val pool = when {
+                remainToNext <= 1 -> listOf(
+                    "马上上课，座位先落定",
+                    "铃要响了，回座",
+                    "零缓冲，直接进教室"
+                )
+                remainToNext <= 5 -> listOf(
+                    "还剩 $remainToNext 分钟，该回座位了 · $room",
+                    "还剩 $remainToNext 分钟 · $room，别压点",
+                    "课间进入收尾 · $room，起身吧"
+                )
+                remainToNext <= 10 -> listOf(
+                    "课间还剩 $remainToNext 分钟，别压点 · $room",
+                    "还剩 $remainToNext 分钟 · $room，$name 在等",
+                    "课间还剩 $remainToNext 分钟，路线先想好 · $room"
+                )
+                remainToNext <= 20 -> listOf(
+                    "课间还剩 $remainToNext 分钟，下节去 $room",
+                    "休息还剩 $remainToNext 分钟 · $name · $room",
+                    "还剩 $remainToNext 分钟，够缓一下，别开新局"
+                )
+                remainToNext <= 45 -> listOf(
+                    "休息还剩 $remainToNext 分钟，下节 $room，别走远",
+                    "长课间还剩 $remainToNext 分钟 · $name",
+                    "还剩 $remainToNext 分钟，可以回血，别掉段"
+                )
+                else -> listOf(
+                    "距下节还有 $remainToNext 分钟 · $room，按自己节奏来",
+                    "大空档还剩 $remainToNext 分钟 · $name · $room",
+                    "还有 $remainToNext 分钟才上课，时间归你安排 · $room"
+                )
             }
+            pickTip(pool, seed = now.hour * 31 + remainToNext / 5)
         }
 
+        // 今天课已上完
         prev != null && next == null -> {
-            val greeting = getGreeting()
-            val hour = now.hour
-            val tomorrowCount = tomorrowCourses.size
-            val tomorrowInfo = if (tomorrowCount > 0 && hour >= 21) {
-                val firstCourse = tomorrowRanges.firstOrNull()?.course
-                if (firstCourse != null) "，明天${tomorrowCount}节，${firstCourse.name}带头，跑不掉"
-                else "，明天${tomorrowCount}节，别想躲"
-            } else if (tomorrowCount == 0 && hour >= 21) {
-                "，明天没课，随便熬"
-            } else ""
-            when {
-                completedCount == totalCount && hour >= 22 -> "$greeting，今天 $totalCount 节课终于上完了，奖励自己躺平，但别躺到天亮$tomorrowInfo"
-                completedCount == totalCount && hour in 18..21 -> "$greeting，今天 $totalCount 节课都熬完了，辛苦的不止今天，还有昨晚你那顿夜$tomorrowInfo"
-                completedCount == totalCount -> "$greeting，今天 $totalCount 节课总算上完了，债还清了$tomorrowInfo"
-                completedCount > 0 && hour >= 22 -> "$greeting，已经上了 $completedCount/$totalCount 节，累了就睡，别拿'再刷一会'自欺欺人$tomorrowInfo"
-                completedCount > 0 -> "$greeting，已上完 $completedCount/$totalCount 节，剩下那几节可得撑住，别逃$tomorrowInfo"
-                afternoonCount > 0 && hour in 12..14 -> "$greeting，下午还有 $afternoonCount 节课，别被午饭骗得忘了"
-                eveningCount > 0 && hour in 14..17 -> "$greeting，晚上还有 $eveningCount 节课，别天真地以为下午就解放了"
-                else -> "$greeting，今天还有 $totalCount 节课，认命吧，跑不掉的"
+            val pool = when {
+                completedCount >= totalCount -> listOf(
+                    "今天 $totalCount 节已收官，知识点自己认领，没认领的算漏网",
+                    "今日 $totalCount 节通关，作业群才是下一关",
+                    "今天 $totalCount 节结束，人可以放，进度自己盯"
+                )
+                else -> listOf(
+                    "已上完 $completedCount/$totalCount 节，后面的按原计划走",
+                    "进度 $completedCount/$totalCount，别在收尾段掉链子",
+                    "还剩 ${totalCount - completedCount} 节，稳着走完"
+                )
             }
+            pickTip(pool, seed = now.hour) + tomorrowNote()
         }
 
+        // 第一节课还没开始
         next != null -> {
-            val minutes = java.time.Duration.between(now, next.start).toMinutes()
-            val nextClassroom = next.course.classroom
-            val greeting = getGreeting()
-            when {
-                minutes > 180 -> "$greeting，今天共 $totalCount 节课，安排得明明白白——明白你也得照样躺"
-                minutes in 121..180 -> "$greeting，还有 $minutes 分钟才上课，够你从容准备，也够你从容拖延"
-                minutes in 91..120 -> "$greeting，还有 $minutes 分钟上课，时间够用？是够你用手机用完"
-                minutes in 61..90 -> "$greeting，还有 $minutes 分钟，翻翻书预习一下——别看了，就翻翻"
-                minutes in 45..60 -> "$greeting，还有 $minutes 分钟，准备出发吧，别走到半路又折回来拿手机"
-                minutes in 30..44 -> "$greeting，还有 $minutes 分钟，该收拾东西了，等下别怪课不等人"
-                minutes in 15..29 -> "还有 $minutes 分钟上课，该出发啦，别到时候演一出'马上到'"
-                minutes in 10..14 -> "还有 $minutes 分钟，动身去${nextClassroom}，别迟到了被老师眼神处刑"
-                minutes in 5..9 -> "还有 $minutes 分钟上课，跑起来，你现在的速度决定你的体面"
-                minutes in 2..4 -> "$minutes 分钟倒计时！冲！没到教室就等着全校看你表演迟到"
-                else -> "上课铃都快响了，还坐这？？起来，滚去教室"
+            val minutes = ceilMinutesUntil(now, next.start)
+            val room = roomOf(next.course)
+            val name = next.course.name
+            val hour = now.hour
+            val dayPlanPool = when {
+                totalCount >= 5 -> listOf(
+                    "今天共 $totalCount 节，强度不低",
+                    "满课向：$totalCount 节，分配好体力",
+                    "今日 $totalCount 节，别在上午就把电用完"
+                )
+                totalCount >= 3 -> listOf(
+                    "今天 $totalCount 节，正常强度",
+                    "今日 $totalCount 节，节奏正常",
+                    "共 $totalCount 节，按课表走就行"
+                )
+                else -> listOf(
+                    "今天就 $totalCount 节，别太飘",
+                    "课不多，$totalCount 节，省着点浪费",
+                    "轻量日：$totalCount 节，自由也别全刷掉"
+                )
             }
+            val dayPlan = pickTip(dayPlanPool, seed = hour)
+            val pool = when {
+                minutes > 180 -> listOf(
+                    "$dayPlan · 第一节还有 ${minutes / 60} 小时以上",
+                    "$dayPlan · 离上课还早，先按自己的节奏来",
+                    "$dayPlan · 还有大把时间，别一开局就瘫"
+                )
+                minutes > 90 -> listOf(
+                    "$dayPlan · 还有 $minutes 分钟，$room",
+                    "$dayPlan · 距 $name 还有 $minutes 分钟",
+                    "$dayPlan · 还有 $minutes 分钟，不用急，也别完全躺"
+                )
+                minutes > 30 -> listOf(
+                    "$dayPlan · 还有 $minutes 分钟，可以准备了 · $room",
+                    "还有 $minutes 分钟 · $name · $room，东西可以理了",
+                    "$dayPlan · 还有 $minutes 分钟，预热一下状态"
+                )
+                minutes > 15 -> listOf(
+                    "还有 $minutes 分钟，该动身了 · $room",
+                    "还有 $minutes 分钟 · $name，路线可以定了",
+                    "还剩 $minutes 分钟 · $room，别把缓冲用光"
+                )
+                minutes > 5 -> listOf(
+                    "还有 $minutes 分钟 · $room，路上别磨",
+                    "还剩 $minutes 分钟 · $name，匀速过去就行",
+                    "还有 $minutes 分钟 · $room，现在走刚好"
+                )
+                minutes >= 1 -> listOf(
+                    "还有 $minutes 分钟 · $room，保持匀速",
+                    "还剩 $minutes 分钟 · $room，别冲刺也别散步",
+                    "还有 $minutes 分钟，$name，到了先落座"
+                )
+                else -> {
+                    val periodHint = when {
+                        afternoonCount > 0 && hour in 12..13 ->
+                            " · 下午还有 $afternoonCount 节"
+                        eveningCount > 0 && hour in 14..17 ->
+                            " · 晚上还有 $eveningCount 节"
+                        else -> ""
+                    }
+                    listOf(
+                        "快进教室 · $room$periodHint",
+                        "铃在响了 · $room$periodHint",
+                        "直接进教室 · $name$periodHint"
+                    )
+                }
+            }
+            pickTip(pool, seed = hour * 31 + minutes / 15)
         }
 
-        else -> "美好的一天开始了——信不信，随你"
+        else -> pickTip(
+            listOf(
+                "今天有 $totalCount 节课，按课表走就行",
+                "今日共 $totalCount 节，日程已排好",
+                "课表就绪：$totalCount 节"
+            ),
+            seed = now.hour
+        )
     }
 }
 
@@ -704,15 +827,16 @@ fun TodayAssistantCard(
 ) {
     val (weather, hasLocationPermission, requestLocation) = rememberWeather()
     val courseStatus = rememberCourseStatus(courses, sectionTimes)
-    var tick by remember { mutableLongStateOf(System.currentTimeMillis()) }
-    LaunchedEffect(Unit) {
+    var smartTip by remember { mutableStateOf("") }
+    LaunchedEffect(courses, tomorrowCourses, sectionTimes, morningSections, afternoonSections) {
         while (true) {
-            delay(60_000L.milliseconds)
-            tick = System.currentTimeMillis()
+            val newTip = generateSmartTip(
+                courses, tomorrowCourses, sectionTimes, morningSections, afternoonSections
+            ).orEmpty()
+            // 与顶部倒计时同频轮询；文案未变化时不写状态，避免每秒重组
+            if (newTip != smartTip) smartTip = newTip
+            delay(1_000L.milliseconds)
         }
-    }
-    val smartTip = remember(courses, tomorrowCourses, weather, sectionTimes, morningSections, afternoonSections, tick) {
-        generateSmartTip(courses, tomorrowCourses, sectionTimes, morningSections, afternoonSections) ?: ""
     }
 
     BlurCard(
