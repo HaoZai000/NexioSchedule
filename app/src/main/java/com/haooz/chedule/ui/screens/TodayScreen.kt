@@ -1,7 +1,6 @@
 package com.haooz.chedule.ui.screens
 
 import android.annotation.SuppressLint
-import android.content.Context
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -44,7 +43,6 @@ import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.platform.LocalConfiguration
-import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.text.font.FontWeight
@@ -52,7 +50,6 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import androidx.core.content.edit
 import com.haooz.chedule.data.CardRefractionLevel
 import com.haooz.chedule.data.Course
 import com.haooz.chedule.ui.basic.CollapsibleTopAppBarDefaults
@@ -69,6 +66,7 @@ import com.kyant.backdrop.Backdrop
 import com.kyant.backdrop.drawBackdrop
 import com.kyant.backdrop.effects.blur
 import com.kyant.backdrop.effects.lens
+import com.kyant.capsule.ContinuousCapsule
 import com.kyant.capsule.ContinuousRoundedRectangle
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
@@ -76,7 +74,6 @@ import top.yukonga.miuix.kmp.basic.ButtonDefaults
 import top.yukonga.miuix.kmp.basic.Card
 import top.yukonga.miuix.kmp.basic.NumberPicker
 import top.yukonga.miuix.kmp.basic.Scaffold
-import top.yukonga.miuix.kmp.basic.SmallTitle
 import top.yukonga.miuix.kmp.basic.TextButton
 import top.yukonga.miuix.kmp.blur.layerBackdrop
 import top.yukonga.miuix.kmp.blur.rememberLayerBackdrop
@@ -1351,6 +1348,81 @@ private fun QuoteCard(
 }
 
 
+// 今日页分组标题：始终套椭圆（胶囊）底；有壁纸时走与卡片相同的 blur/lens/透明度
+@Composable
+private fun CourseSectionTitle(
+    text: String,
+    wallpaperBackdrop: Backdrop? = null,
+    blurRadius: Float = 0f,
+    surfaceOpacity: Float,
+    modifier: Modifier = Modifier
+) {
+    val style = MiuixTheme.textStyles.subtitle.copy(fontWeight = FontWeight.Medium)
+    val isDark = isAppDarkTheme()
+    val refraction = LocalCardRefraction.current
+    // 有壁纸时用纯黑/纯白，压在毛玻璃上更干净
+    val textColor = when {
+        wallpaperBackdrop != null -> if (isDark) Color.White.copy(alpha = 0.6f) else Color.Black.copy(alpha = 0.5f)
+        else -> Color(0xFF8F9CAE)
+    }
+
+    if (wallpaperBackdrop != null) {
+        val shape = ContinuousCapsule()
+        val defaultEdgeLight = rememberDefaultEdgeLight()
+        val showEdgeLight = blurRadius > 0f
+        Box(
+            modifier = modifier
+                .padding(vertical = 6.dp)
+                .clip(shape)
+                .drawBackdrop(
+                    backdrop = wallpaperBackdrop,
+                    shape = { shape },
+                    effects = {
+                        blur(blurRadius.dp.toPx())
+                        if (refraction != CardRefractionLevel.OFF) {
+                            lens(refraction.lensRadiusDp.dp.toPx(), refraction.lensStrengthDp.dp.toPx())
+                        }
+                    },
+                    highlight = null,
+                    onDrawSurface = {
+                        drawRect(if (isDark) Color.Black.copy(alpha = surfaceOpacity) else Color.White.copy(alpha = surfaceOpacity))
+                    }
+                )
+                .then(
+                    if (showEdgeLight) {
+                        Modifier.edgeLight(shape = shape, edgeLight = defaultEdgeLight)
+                    } else {
+                        Modifier.edgeLight(shape = shape, edgeLight = rememberCardEdgeLight())
+                    }
+                )
+        ) {
+            Text(
+                text = text,
+                style = style,
+                color = textColor,
+                modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp)
+            )
+        }
+        return
+    }
+
+    val pillBg = if (isDark) {
+        Color.White.copy(alpha = 0.1f)
+    } else {
+        Color.White.copy(alpha = 0.8f)
+    }
+    Text(
+        text = text,
+        style = style,
+        color = textColor,
+        modifier = modifier
+            .padding(vertical = 6.dp)
+            .clip(ContinuousCapsule())
+            .background(pillBg)
+            .padding(horizontal = 10.dp, vertical = 4.dp)
+    )
+}
+
 private fun androidx.compose.foundation.lazy.LazyListScope.addCourseSections(
     morningCourses: List<Course>,
     afternoonCourses: List<Course>,
@@ -1372,10 +1444,11 @@ private fun androidx.compose.foundation.lazy.LazyListScope.addCourseSections(
     if (morningCourses.isNotEmpty()) {
         item {
             Column {
-                SmallTitle(
+                CourseSectionTitle(
                     text = "上午课程",
-                    modifier = Modifier.offset(x = (-15).dp),
-                    hasWallpaper = wallpaperBackdrop != null
+                    wallpaperBackdrop = wallpaperBackdrop,
+                    blurRadius = blurRadius,
+                    surfaceOpacity = surfaceOpacity
                 )
                 BlurCard(cornerRadius = 20.dp, wallpaperBackdrop = wallpaperBackdrop, blurRadius = blurRadius, surfaceOpacity = surfaceOpacity, modifier = Modifier.fillMaxWidth()) {
                     Column {
@@ -1390,10 +1463,11 @@ private fun androidx.compose.foundation.lazy.LazyListScope.addCourseSections(
     if (afternoonCourses.isNotEmpty()) {
         item {
             Column {
-                SmallTitle(
+                CourseSectionTitle(
                     text = "下午课程",
-                    modifier = Modifier.offset(x = (-15).dp),
-                    hasWallpaper = wallpaperBackdrop != null
+                    wallpaperBackdrop = wallpaperBackdrop,
+                    blurRadius = blurRadius,
+                    surfaceOpacity = surfaceOpacity
                 )
                 BlurCard(cornerRadius = 20.dp, wallpaperBackdrop = wallpaperBackdrop, blurRadius = blurRadius, surfaceOpacity = surfaceOpacity, modifier = Modifier.fillMaxWidth()) {
                     Column {
@@ -1408,10 +1482,11 @@ private fun androidx.compose.foundation.lazy.LazyListScope.addCourseSections(
     if (eveningCourses.isNotEmpty()) {
         item {
             Column {
-                SmallTitle(
+                CourseSectionTitle(
                     text = "晚上课程",
-                    modifier = Modifier.offset(x = (-15).dp),
-                    hasWallpaper = wallpaperBackdrop != null
+                    wallpaperBackdrop = wallpaperBackdrop,
+                    blurRadius = blurRadius,
+                    surfaceOpacity = surfaceOpacity
                 )
                 BlurCard(cornerRadius = 20.dp, wallpaperBackdrop = wallpaperBackdrop, blurRadius = blurRadius, surfaceOpacity = surfaceOpacity, modifier = Modifier.fillMaxWidth()) {
                     Column {
