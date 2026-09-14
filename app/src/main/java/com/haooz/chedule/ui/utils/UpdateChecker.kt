@@ -3,11 +3,6 @@ package com.haooz.chedule.ui.utils
 import android.content.Context
 import android.util.Log
 
-/**
- * 应用更新检查工具
- *
- * 负责从 Gitee releases 接口检查最新版本。
- */
 internal object UpdateChecker {
 
     private const val TAG = "UpdateChecker"
@@ -21,12 +16,7 @@ internal object UpdateChecker {
         val createdAt: String
     )
 
-    /**
-     * 检查是否有新版本。需在 IO 线程调用。
-     * @param source 下载源，"gitee" 或 "github"
-     * @param channel 更新通道，"stable" 或 "beta"；beta 通道取最新 prerelease
-     * @return Pair(hasUpdate, release)，检查失败时返回 Pair(false, null)
-     */
+    // 需在 IO 线程调用；channel=stable 跳过 prerelease
     fun checkForUpdate(context: Context, source: String = "gitee", channel: String = "stable"): Pair<Boolean, GiteeRelease?> {
         return try {
             val client = okhttp3.OkHttpClient.Builder()
@@ -106,9 +96,6 @@ internal object UpdateChecker {
         }
     }
 
-    /**
-     * 清理旧版本的APK文件，只保留指定版本的文件。
-     */
     fun cleanOldApks(context: Context, keepTag: String) {
         try {
             val filesDir = context.filesDir
@@ -130,10 +117,7 @@ internal object UpdateChecker {
         }
     }
 
-    /**
-         * 比较版本号字符串，返回 [remote] 是否比 [local] 更新。
-         * 支持 "betaX" 后缀，如 "1.4.8beta1" < "1.4.8beta2" < "1.4.9"。
-         */
+    // 支持 "betaX" 后缀：1.4.8beta1 < 1.4.8beta2 < 1.4.9
         fun isNewerVersion(remote: String, local: String): Boolean {
             fun parseSegments(v: String): List<Int> {
                 return v.split(".").flatMap { part ->

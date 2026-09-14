@@ -137,19 +137,7 @@ import kotlin.math.roundToInt
 import kotlin.time.Duration.Companion.milliseconds
 import com.kyant.backdrop.backdrops.layerBackdrop as liquidGlassLayerBackdrop
 
-/**
- * 挖洞遮罩的路径缓存。
- *
- * 遮罩 = 整屏矩形 even-odd 挖掉一个 squircle 洞。squircle 由几百段贝塞尔构成，
- * 原先每帧新建两个 Path 并重新生成整条曲线；而弹窗开合那 400ms 内，洞的
- * 尺寸与圆角完全不变，只有整体位置在竖直方向平移。
- *
- * 这里把洞固定在原点缓存，每帧只做一次 translate —— 形状参数不变时整条路径
- * 一次都不重建，绘制结果与逐帧重建逐像素一致。
- *
- * 外框刻意放大到屏幕的 5 倍：洞被 translate 到任意位置时外框仍完整覆盖可视区。
- * 超出可视区的部分会被 canvas 裁掉，不增加实际填充像素。
- */
+/** 挖洞遮罩路径缓存：尺寸/圆角不变时只 translate，避免每帧重建 squircle */
 private class CutoutPathCache {
     private val path = Path()
     private var screenW = -1f
@@ -218,15 +206,10 @@ fun CustomizeScheduleScreen(
     onAppearanceChange: (AppearanceConfig) -> Unit = {},
     hasWallpaper: Boolean = false,
 ) {
-    // ================================================================
-    // 一、基础环境与尺寸计算
-    // ================================================================
     val densityObj = LocalDensity.current
     val density = densityObj.density
     val screenRadiusDp = (screenCornerRadius / density).dp
-    // 开洞时卡片上移的目标像素值
     val cutoutOffsetTargetPx = with(densityObj) { 10.dp.toPx() }
-    // 弹窗打开时开洞区域上移的目标像素值
     val sheetOffsetTargetPx = with(densityObj) { 90.dp.toPx() }
     val statusBarPadding = WindowInsets.statusBars.asPaddingValues().calculateTopPadding()
     val configuration = LocalConfiguration.current
@@ -234,7 +217,7 @@ fun CustomizeScheduleScreen(
     val screenHPx = with(densityObj) { configuration.screenHeightDp.dp.toPx() }
     val screenWPx = with(densityObj) { configuration.screenWidthDp.dp.toPx() }
 
-    // 计算壁纸最小缩放比例（填满短边，确保不露出底部背景）
+    // 壁纸最小缩放：填满短边，避免缩放过小时露出底部背景
     val minWallpaperScale = remember(wallpaperBitmap, screenWPx, screenHPx) {
         if (wallpaperBitmap != null && wallpaperBitmap.width > 0 && wallpaperBitmap.height > 0) {
             val fitScale =
@@ -249,14 +232,12 @@ fun CustomizeScheduleScreen(
     val liquidGlassBackdrop = com.kyant.backdrop.backdrops.rememberLayerBackdrop {
         drawRect(Color.Transparent)
     }
-    // 液态玻璃效果的透明下拉颜色
     val liquidGlassDropdownColors = DropdownDefaults.dropdownColors(
         containerColor = Color.Transparent,
         selectedContainerColor = Color.Transparent,
     )
 
-    // 页面背景下方表面本身已不透明，无需真实模糊；
-    // 采样含自身图层的渲染内容，导致渲染树无限递归（SIGSEGV）。
+    // 不采样自身图层：含自身的 backdrop 会导致渲染树无限递归（SIGSEGV）
     val sheetBackdropColor = MiuixTheme.colorScheme.surface
     val sheetBackdrop = rememberLayerBackdrop {
         drawRect(sheetBackdropColor)
@@ -266,11 +247,6 @@ fun CustomizeScheduleScreen(
     val exitContainerColor = Color.White.copy(0.08f)
     val exitIconColor = Color.White
 
-    // ================================================================
-    // 二、UI 状态：加载指示 / 底部弹窗 / 删除流程
-    // ================================================================
-
-    // --- 应用加载指示器：点击"应用"后显示，进入退出动画开始时隐藏 ---
     var showApplyLoading by remember { mutableStateOf(false) }
     LaunchedEffect(isApplyingCustomize) {
         if (isApplyingCustomize) {
@@ -278,16 +254,11 @@ fun CustomizeScheduleScreen(
         }
     }
 
-    // 编辑模式底部弹窗：效果 / 自定义
     var showEffectSheet by remember { mutableStateOf(false) }
     var showCustomizeSheet by remember { mutableStateOf(false) }
-    // 注意：弹窗内部 backdrop 一律通过 LocalSheetContentBackdrop 在弹窗作用域内读取，
-    // 绝不再提升成本页面的 State —— 弹窗挂载后回写它会让整页（含壁纸模糊层与挖洞遮罩）
-    // 在进入动画的头一两帧重跑一次组合，是打开弹窗掉帧的主因。
-    // 重置标志：取消编辑时自增，触发弹窗内部状态回到 initial 值
+    // 弹窗 backdrop 用 LocalSheetContentBackdrop 读取，不提升成本页 State，否则进入动画头几帧整页重跑组合
     var sheetResetKey by remember { mutableIntStateOf(0) }
 
-    // 效果参数：卡片模糊 / 卡片透明度（随当前搭配切换、随重置键复位）
     var effectValue by remember(currentCombinationIndex, sheetResetKey) {
         mutableFloatStateOf(
             appearance.cardBlurRadius
@@ -304,7 +275,6 @@ fun CustomizeScheduleScreen(
     ) { mutableFloatStateOf(appearance.wallpaperBrightness) }
     LaunchedEffect(appearance.cardBlurRadius) { effectValue = appearance.cardBlurRadius }
 
-    // 自定义参数：卡片高度 / 卡片圆角（随当前搭配切换、随重置键复位）
     var cardHeightValue by remember(currentCombinationIndex, sheetResetKey) {
         mutableFloatStateOf(
             appearance.cardHeight
@@ -348,15 +318,14 @@ fun CustomizeScheduleScreen(
         sheetResetKey
     ) { mutableStateOf(appearance.wallpaperBlur) }
 
-    // 默认主题：从 SharedPreferences 读取，写回时同步更新 ThemeController
     val context = LocalContext.current
     val themePrefs = remember { context.getSharedPreferences("app_theme_prefs", android.content.Context.MODE_PRIVATE) }
     var themeModeValue by remember(currentCombinationIndex, sheetResetKey) {
-        // 默认跟随壁纸；独立偏好 key，仅影响今日页/课程表页，不污染全局主题（theme_mode）
+        // 独立偏好 key，仅影响今日/课表页，不污染全局 theme_mode
         mutableStateOf(ThemeMode.fromPrefsValue(themePrefs.getString(ThemeMode.SCHEDULE_THEME_MODE_KEY, "follow_wallpaper")))
     }
 
-    // 清除壁纸后：已储存的默认主题档位重置为"跟随壁纸"（默认），无壁纸时该选项本身不影响主题
+    // 无壁纸时档位无意义，清壁纸即复位为跟随壁纸
     LaunchedEffect(hasWallpaper) {
         if (!hasWallpaper && themeModeValue != ThemeMode.FOLLOW_WALLPAPER) {
             themeModeValue = ThemeMode.FOLLOW_WALLPAPER
@@ -364,7 +333,6 @@ fun CustomizeScheduleScreen(
         }
     }
 
-    // 由本地显示值组装完整外观配置，作为唯一上报入口
     fun buildAppearance() = AppearanceConfig(
         cardBlurRadius = effectValue,
         cardAlpha = cardAlphaValue,
@@ -399,35 +367,20 @@ fun CustomizeScheduleScreen(
     LaunchedEffect(cardRefractionValue) { onAppearanceChange(buildAppearance()) }
     LaunchedEffect(wallpaperBlurValue) { onAppearanceChange(buildAppearance()) }
 
-    // --- 删除流程状态 ---
-    // "自定义"按钮淡入淡出动画（进入编辑模式时淡出，退出时淡入）
     val customizeButtonAlpha = remember { Animatable(1f) }
 
-    // ================================================================
-    // 三、Pager 状态（单页：仅渲染一个搭配卡）
-    // ================================================================
     val pageCount = combinations.size.coerceAtLeast(1)
     val initialPage = 0
     val pagerState = rememberPagerState(initialPage = initialPage, pageCount = { pageCount })
 
-    // ================================================================
-    // 四、动画状态声明
-    // ================================================================
-
-    // --- 进入动画相关 ---
     val animProgress = remember { Animatable(0f) }
     var animDone by remember { mutableStateOf(false) }
     var isPageAnimating by remember { mutableStateOf(true) }
-    // 标题淡入淡出动画：进入延迟淡入，退出快速淡出
     val titleFadeAnim = remember { Animatable(0f) }
-    // 按钮缩放动画：进入时 1.5→1.0，退出/应用时 1.0→1.5
     val buttonScaleAnim = remember { Animatable(1.5f) }
-    // 卡片间距动画：进入时 -140 → -10
     val pagerSpacing = remember { Animatable(-140f) }
-    // 退出进度：卡片反向放大（无延迟）使用
     val exitProgress = remember { Animatable(0f) }
 
-    // --- 开洞（编辑模式）动画相关 ---
     var isCutoutActive by remember { mutableStateOf(false) }
     var isCutoutAnimating by remember { mutableStateOf(false) }
     var cardHidden by remember { mutableStateOf(false) }
@@ -436,23 +389,14 @@ fun CustomizeScheduleScreen(
     val buttonAlphaAnim = remember { Animatable(1f) }
     val titleAlphaAnim = remember { Animatable(1f) }
     val cutoutOffsetY = remember { Animatable(0f) }
-    // 弹窗打开时，开洞区域与 MainActivity 同步上移的额外偏移（共享到 MainActivity，同帧同步）
+    // 与 MainActivity 共享同一 Animatable，弹窗开合时两边同帧同步位移
     val sheetOffsetY = sheetOffsetShared
-    // 编辑模式进入/退出进度：驱动相邻卡片放大缩小
     val cutoutEnterProgress = remember { Animatable(0f) }
-    // 挖洞遮罩的路径缓存（见下方 CutoutPathCache）：squircle 只在洞的尺寸/圆角变化时重建
     val cutoutPathCache = remember { CutoutPathCache() }
-    // 底部工具栏动画（三个按钮 + 竖杠）：进入时轻微上移 + 淡入 + 模糊 8f→0f；退出反向
-    // 初始为进入前状态：透明、下移、模糊8f；进入后淡入上移并去模糊
-    // 上移高度：40dp（转 px）
     val toolOffsetTargetPx = with(densityObj) { 80.dp.toPx() }
     val toolAlphaAnim = remember { Animatable(0f) }
     val toolOffsetYAnim = remember { Animatable(toolOffsetTargetPx) }
     val toolBlurAnim = remember { Animatable(8f) }
-
-    // ================================================================
-    // 五、动画执行（LaunchedEffect 集中区）
-    // ================================================================
 
     // 新建搭配后自动进入编辑模式
     LaunchedEffect(pendingEnterCutout) {
@@ -463,7 +407,6 @@ fun CustomizeScheduleScreen(
         }
     }
 
-    // 进入动画：animProgress 0→1，按钮 1.5→1.0，间距 -140→-10，标题延迟淡入
     LaunchedEffect(Unit) {
         coroutineScope {
             launch {
@@ -474,14 +417,12 @@ fun CustomizeScheduleScreen(
                 animDone = true
                 isPageAnimating = false
             }
-            // 卡片间距：-140 → -10
             launch {
                 pagerSpacing.animateTo(
                     -10f,
                     tween(500, easing = CubicBezierEasing(0.3f, 0.72f, 0.2f, 1.0f))
                 )
             }
-            // 按钮缩小（1.5→1.0）：延迟 200ms 开始，与快照过渡动画并行
             launch {
                 delay(200.milliseconds)
                 buttonScaleAnim.animateTo(
@@ -489,8 +430,6 @@ fun CustomizeScheduleScreen(
                     tween(450, easing = CubicBezierEasing(0.3f, 0.72f, 0.2f, 1.0f))
                 )
             }
-            // 底部工具栏（三个按钮 + 竖杠）：进入时轻微上移 + 淡入 + 模糊8f→0f。
-            // 与按钮缩小同一 200ms 延迟同步开始，同节奏并行运行
             launch {
                 delay(200.milliseconds)
                 coroutineScope {
@@ -514,7 +453,6 @@ fun CustomizeScheduleScreen(
                     }
                 }
             }
-            // 延迟 100ms 后淡入标题，与进入动画并行
             launch {
                 delay(100.milliseconds)
                 titleFadeAnim.animateTo(
@@ -525,7 +463,6 @@ fun CustomizeScheduleScreen(
         }
     }
 
-    // 退出/应用时：按钮放大 1.0→1.5，标题快速淡出，exitProgress 0→1
     LaunchedEffect(isExiting) {
         if (isExiting) {
             exitProgress.snapTo(0f)
@@ -543,7 +480,6 @@ fun CustomizeScheduleScreen(
                     )
                 }
                 launch { titleFadeAnim.animateTo(0f, tween(150)) }
-                // 底部工具栏反向动画：退出时下移 + 淡出 + 模糊0f→8f
                 launch {
                     coroutineScope {
                         launch {
@@ -566,8 +502,7 @@ fun CustomizeScheduleScreen(
                         }
                     }
                 }
-                // 取消退出时开洞一并放大到全屏，与应用时行为一致
-                // （应用时由 LaunchedEffect(isApplying) 负责 cardScaleAnim → 1，此处仅处理取消路径）
+                // 取消路径：开洞一并放大到全屏（应用路径由 isApplying 单独处理）
                 if (!isApplying) {
                     launch {
                         cardScaleAnim.animateTo(
@@ -580,7 +515,6 @@ fun CustomizeScheduleScreen(
         }
     }
 
-    // 开洞动画：进入编辑模式 / 退出编辑模式
     LaunchedEffect(isCutoutActive) {
         if (isCutoutActive) {
             isCutoutAnimating = true
@@ -592,7 +526,6 @@ fun CustomizeScheduleScreen(
                     )
                 }
                 launch { cutoutProgress.snapTo(1f) }
-                // 编辑模式下顶部按钮保持可见（显示"取消"和"应用"），"自定义"按钮淡出
                 launch { customizeButtonAlpha.animateTo(0f, tween(250)) }
                 launch { titleAlphaAnim.animateTo(0f, tween(120)) }
                 launch {
@@ -612,7 +545,6 @@ fun CustomizeScheduleScreen(
             isCutoutAnimating = false
         } else if (animDone) {
             cardHidden = false
-            // 退出开洞，恢复原始状态
             coroutineScope {
                 launch {
                     cardScaleAnim.animateTo(
@@ -641,7 +573,7 @@ fun CustomizeScheduleScreen(
         }
     }
 
-    // 应用动画：裁剪区域完全跟随卡片放大进程（位置由 cardScaleAnim 推导）
+    // 应用动画：裁剪区域跟随 cardScaleAnim 放大进程
     LaunchedEffect(isApplying) {
         if (isApplying) {
             coroutineScope {
@@ -657,20 +589,15 @@ fun CustomizeScheduleScreen(
         }
     }
 
-    // 计算正确的 transformOrigin Y，传给 MainActivity 使缩放后的内容中心与裁剪区域中心对齐
-    // 当 cutoutMainScale == cardScaleAnim 时（编辑模式和apply动画均满足），
-    // transformOrigin Y = 0.58 + offset / (screenH * 0.35)，与 scaleProg 无关
-    // 用 snapshotFlow 订阅，而不是把 Animatable 的 .value 写进 LaunchedEffect 的 key
+    // snapshotFlow 订阅，避免把 Animatable.value 当 LaunchedEffect key 导致重启
     val latestScreenHPx by rememberUpdatedState(screenHPx)
     val latestOnCutoutCenterChange by rememberUpdatedState(onCutoutCenterChange)
     LaunchedEffect(Unit) {
         snapshotFlow { cutoutOffsetY.value }.collect { offsetY ->
-            // sheetOffsetY 由 onSheetOffsetChange 单独同步，不通过 ratio 传递，避免帧延迟
             latestOnCutoutCenterChange(0.58f + offsetY / (latestScreenHPx * 0.35f))
         }
     }
 
-    // 弹窗打开/关闭：取消/应用按钮消失，开洞区域与 MainActivity 同步上移/恢复
     val anySheetOpen = showEffectSheet || showCustomizeSheet
     LaunchedEffect(anySheetOpen) {
         if (anySheetOpen) {
@@ -696,9 +623,6 @@ fun CustomizeScheduleScreen(
         }
     }
 
-    // ================================================================
-    // 六、返回键处理
-    // ================================================================
     BackHandler {
         when {
             isPageAnimating -> { /* 页面进入动画中，不响应 */
@@ -711,19 +635,10 @@ fun CustomizeScheduleScreen(
         }
     }
 
-    // ================================================================
-    // 七、派生动画值（每帧读取）
-    // ================================================================
-    // 当前进入动画值（动画完成后恒为 1f，避免无谓重组）
+    // 动画完成后恒为 1f，避免无谓重组
     val enterValue = if (animDone) 1f else animProgress.value
-    // 按钮缩放：由 buttonScaleAnim 控制（进入 1.5→1.0，退出/应用 1.0→1.5）
     val buttonScale = buttonScaleAnim.value
-    // 标题透明度：由 titleFadeAnim 控制（进入延迟淡入，退出快速淡出）
     val titleAlpha = titleFadeAnim.value
-
-    // ================================================================
-    // 八、UI 渲染
-    // ================================================================
 
     Scaffold(
         modifier = Modifier.fillMaxSize(),
@@ -733,13 +648,11 @@ fun CustomizeScheduleScreen(
             modifier = Modifier
                 .fillMaxSize()
                 .layerBackdrop(sheetBackdrop)
-                // -------- 8.1 背景裁剪遮罩：在背景上挖出卡片形状的洞，露出底层 MainActivity 内容 --------
                 .drawBehind {
                     val snapshotW = snapshot?.width?.toFloat() ?: size.width
                     val snapshotH = snapshot?.height?.toFloat() ?: size.height
                     val aspect = snapshotH / snapshotW
                     val cardCenterX = size.width / 2f
-                    // 裁剪区域中心 Y 完全跟随卡片放大进程：
                     val scaleProg = ((cardScaleAnim.value - 0.65f) / (1f - 0.65f)).coerceIn(0f, 1f)
                     val baseOffsetY =
                         size.height * 0.028f + cutoutOffsetY.value + sheetOffsetY.value
@@ -753,12 +666,9 @@ fun CustomizeScheduleScreen(
                     val top = cardCenterY + ((cardCenterY - animH / 2f) - cardCenterY) * p
 
                     if (p <= 0f) {
-                        // 未开洞：整屏纯色，不需要走路径
                         drawRect(color = Color(0xFF1A1A1A))
                     } else {
-                        // 洞的形状只由 (animW, animH, 圆角) 决定，与位置无关。
-                        // 弹窗开合的 400ms 内这三个值都不变，只有整体位置在动 —— 走缓存，
-                        // 每帧只做一次 translate，squircle 一次都不重建。
+                        // 形状不变、仅位置变时走缓存 translate，squircle 不重建
                         val cached = cutoutPathCache.obtain(
                             screenW = size.width,
                             screenH = size.height,
@@ -772,11 +682,9 @@ fun CustomizeScheduleScreen(
                     }
                 }
         ) {
-            // -------- 8.2 尺寸计算 --------
             val screenW = constraints.maxWidth.toFloat()
             val screenH = constraints.maxHeight.toFloat()
 
-            // 卡片尺寸：宽度基于屏幕，高度跟随快照比例
             val cardWidthPx = screenW * cardScaleAnim.value
             val snapshotWidth = snapshot?.width?.toFloat() ?: screenW
             val snapshotHeight = snapshot?.height?.toFloat() ?: screenH
@@ -785,31 +693,23 @@ fun CustomizeScheduleScreen(
             val cardWidthDp = with(densityObj) { cardWidthPx.toDp() }
             val cardHeightDp = with(densityObj) { cardHeightPx.toDp() }
 
-            // 缩放比例：从全屏缩放到卡片大小
             val targetScaleX = cardWidthPx / screenW
             val targetScaleY = cardHeightPx / screenH
             val targetScale = minOf(targetScaleX, targetScaleY)
 
-            // 进入动画
             val currentScale = 1f + (targetScale - 1f) * enterValue
             val currentTranslationY = 0f
 
-            // -------- 8.3 内容区域：卡片 Pager + 自定义按钮 --------
-            // 内容区域：卡片居中于屏幕 60% 高度处
             Box(
                 modifier = Modifier
                     .fillMaxSize()
                     .then(
-                        // 弹窗打开后，其内部玻璃组件已改用弹窗自己的 backdrop（LocalSheetContentBackdrop），
-                        // 此时不再把整屏（含弹窗本身与其模糊层）录进 liquidGlassBackdrop。
-                        // 这里只依赖 anySheetOpen 这个布尔，不依赖 backdrop 实例，
-                        // 否则 backdrop 在弹窗挂载后才就绪会让本层多一次结构变更式重组。
+                        // 弹窗打开时不录 liquidGlassBackdrop，只依赖 anySheetOpen 布尔，避免 backdrop 就绪引发结构变更重组
                         if (anySheetOpen) Modifier
                         else Modifier.liquidGlassLayerBackdrop(liquidGlassBackdrop),
                     ),
                 contentAlignment = Alignment.Center
             ) {
-                // 水平翻页（卡片）
                 HorizontalPager(
                     state = pagerState,
                     modifier = Modifier
@@ -824,14 +724,10 @@ fun CustomizeScheduleScreen(
                     val targetCardScale = 1f - pageOffset * 0.35f
                     val baseCardAlpha = 1f
                     val isExitingNow = isExiting && exitProgress.value < 1f
-                    // 进入动画进度（带延迟，越远的卡片延迟越久）
                     val enterDelayed = if (pageOffset > 0.001f && !animDone) {
                         val delayThreshold = (pageOffset * 0.01f).coerceIn(0f, 0.01f)
                         ((enterValue - delayThreshold) / (1f - delayThreshold)).coerceIn(0f, 1f)
                     } else 1f
-                    // 进入动画：相邻卡片从更大尺寸（2.0f）缩小到目标尺寸，带延迟
-                    // 退出动画：反向放大到 2.0f，无延迟
-                    // 编辑模式进入/退出：相邻卡片放大缩小（以屏幕中心为轴），幅度较小
                     val cutoutScaleBoost = if (pageOffset > 0.001f) {
                         (1.2f - targetCardScale) * cutoutEnterProgress.value
                     } else 0f
@@ -846,8 +742,7 @@ fun CustomizeScheduleScreen(
 
                         else -> targetCardScale + cutoutScaleBoost
                     }
-                    // z-order：离当前页越近越在上（当前卡在最上方，相邻卡在其下，第三个更下）
-                    // 距离越远 zIndex 越小
+                    // 离当前页越近 zIndex 越大，当前卡在最上方
                     val zOrdinal = (pageCount - pageOffset).coerceAtLeast(0f)
 
                     Box(
@@ -856,7 +751,6 @@ fun CustomizeScheduleScreen(
                             .zIndex(zOrdinal),
                         contentAlignment = Alignment.Center
                     ) {
-                        // 卡片 Y 偏移跟随 cardScaleAnim 进程（与裁剪区域保持同步）
                         val cardScaleProg =
                             ((cardScaleAnim.value - 0.65f) / (1f - 0.65f)).coerceIn(0f, 1f)
                         val cardBaseOffsetY =
@@ -864,8 +758,7 @@ fun CustomizeScheduleScreen(
                         val cardOffsetY = cardBaseOffsetY * (1f - cardScaleProg)
                         val comb = combinations.getOrNull(page)
                         val isCurrentComb = page == currentCombinationIndex
-                        // 缩放中心始终为屏幕中心（0.5, 0.58），卡片从外侧缩向屏幕中心
-                        // 稳态也用同一中心，动画结束与最终位置完全一致，无跳变
+                        // 缩放中心固定为屏幕中心，稳态与动画终点一致，无跳变
                         val signedRelativePosition =
                             (page - pagerState.currentPage) - pagerState.currentPageOffsetFraction
                         val pageSpacingPx = with(densityObj) { pagerSpacing.value.dp.toPx() }
@@ -885,7 +778,6 @@ fun CustomizeScheduleScreen(
                                 }
                                 .clip(ContinuousRoundedRectangle(screenRadiusDp * cardScaleAnim.value))
                         ) {
-                            // 搭配卡：单卡（page 0 恒为当前搭配）
                             val combIdx = page
                             Box(
                                 modifier = Modifier
@@ -896,7 +788,6 @@ fun CustomizeScheduleScreen(
                                     )
                             ) {
                                 if (isCurrentComb && snapshot != null && animDone && !cardHidden) {
-                                    // 当前搭配：实时快照（包含当前课表+壁纸的完整预览）
                                     Image(
                                         bitmap = snapshot.asImageBitmap(),
                                         contentDescription = null,
@@ -904,7 +795,6 @@ fun CustomizeScheduleScreen(
                                         contentScale = ContentScale.Crop
                                     )
                                 } else if (comb?.snapshot != null) {
-                                    // 使用已保存的完整背景快照（课表+壁纸）
                                     val combSnapshot = comb.snapshot!!
                                     Image(
                                         bitmap = combSnapshot.asImageBitmap(),
@@ -922,7 +812,6 @@ fun CustomizeScheduleScreen(
                                         contentScale = ContentScale.Crop
                                     )
                                 } else {
-                                    // 无背景且无快照的搭配：显示纯色占位
                                     Box(
                                         modifier = Modifier
                                             .fillMaxSize()
@@ -940,8 +829,7 @@ fun CustomizeScheduleScreen(
                         }
                     }
                 }
-                // 开洞模式下拦截拖拽/缩放手势，直接更新壁纸状态
-                // 放在标题/按钮之前，确保顶部和底部按钮的点击不被拦截
+                // 手势层放在标题/按钮之前，确保顶部和底部按钮点击不被拦截
                 if (isCutoutActive && cardHidden && wallpaperBitmap != null) {
                     val latestScale by rememberUpdatedState(wallpaperScale)
                     val latestOffset by rememberUpdatedState(wallpaperOffset)
@@ -952,7 +840,6 @@ fun CustomizeScheduleScreen(
                     val latestScreenWPx by rememberUpdatedState(screenWPx)
                     val latestScreenHPx by rememberUpdatedState(screenHPx)
 
-                    // 手势结束后触发缩放回弹动画
                     var bounceBackTrigger by remember { mutableIntStateOf(0) }
                     var gestureEndScale by remember { mutableStateOf(1f) }
                     LaunchedEffect(bounceBackTrigger) {
@@ -984,7 +871,7 @@ fun CustomizeScheduleScreen(
                                         val zoom = event.calculateZoom()
                                         val pan = event.calculatePan()
                                         gestureScale *= zoom
-                                        // 低于最小缩放时逐渐增大阻力，越缩越难
+                                        // 低于最小缩放时逐渐增大阻力
                                         val newScale = if (gestureScale < latestMinWallpaperScale) {
                                             val diff = gestureScale - latestMinWallpaperScale
                                             latestMinWallpaperScale + diff * 0.3f
@@ -992,7 +879,6 @@ fun CustomizeScheduleScreen(
                                             gestureScale
                                         }
                                         lastDisplayScale = newScale
-                                        // 计算合法偏移范围
                                         val bmp = latestWallpaperBitmap
                                         if (bmp.width > 0 && bmp.height > 0) {
                                             val fitScale = minOf(
@@ -1019,7 +905,6 @@ fun CustomizeScheduleScreen(
                                         }
                                         event.changes.forEach { it.consume() }
                                     } while (event.changes.any { it.pressed })
-                                    // 手势结束，记录最终显示缩放并标记需要回弹
                                     gestureEndScale = lastDisplayScale
                                     bounceBackTrigger++
                                 }
@@ -1027,7 +912,6 @@ fun CustomizeScheduleScreen(
                     )
                 }
 
-                // -------- 8.5 标题：进入/退出时以屏幕中心缩放 + 淡入淡出 --------
                 Box(
                     modifier = Modifier
                         .fillMaxSize()
@@ -1049,9 +933,7 @@ fun CustomizeScheduleScreen(
                     )
                 }
 
-                // -------- 8.6 顶部按钮栏（退出/应用） --------
                 // 必须在内容区域之后，确保 Z 轴在最上层
-                // 进入/退出时以屏幕中心缩放，缩放中心设在 (0.5, 0.5)
                 Box(
                     modifier = Modifier
                         .fillMaxSize()
@@ -1191,7 +1073,6 @@ fun CustomizeScheduleScreen(
                     }
                 }
 
-                // -------- 8.7 应用加载指示器：屏幕中央显示 --------
                 if (showApplyLoading) {
                     Box(
                         modifier = Modifier
@@ -1218,7 +1099,6 @@ fun CustomizeScheduleScreen(
                     }
                 }
 
-                // -------- 8.8 编辑模式工具栏（底部圆形按钮）：进入编辑模式时从底部滑入 --------
                 AnimatedVisibility(
                     visible = isCutoutActive && !isApplyingCustomize,
                     modifier = Modifier
@@ -1251,15 +1131,11 @@ fun CustomizeScheduleScreen(
                         horizontalArrangement = Arrangement.Center,
                         verticalAlignment = Alignment.CenterVertically
                     ) {
-                        // 半径为 0 时不挂 blur：Modifier.blur 会额外建一个 RenderEffect 图层，
-                        // 稳态（radius=0）也会让这 4 个按钮白白走一遍离屏合成。
+                        // radius=0 时不挂 blur，避免 Modifier.blur 额外建 RenderEffect 离屏层
                         val toolBlurModifier =
                             if (toolBlurAnim.value > 0.01f) Modifier.blur(toolBlurAnim.value.dp)
                             else Modifier
-                        // 壁纸按钮：外层 Box 留 padding 承载模糊向外扩散空间，
-                        // Modifier.blur 让模糊自然溢出圆形边界（边缘渐变正确），
-                        // 内层 Box 保持圆形裁剪并可点击，避免 RenderEffect + clip 在边界裁切出尖角。
-                        // 有壁纸时图标变为“叉”，点击清除壁纸；无壁纸时正常选择壁纸。
+                        // 外层 padding 承载模糊溢出，内层圆裁剪可点击，避免 RenderEffect+clip 在边界裁出尖角
                         Box(
                             modifier = Modifier
                                 .padding(7.dp)
@@ -1284,7 +1160,6 @@ fun CustomizeScheduleScreen(
                             }
                         }
                         Spacer(modifier = Modifier.width(4.dp))
-                        // 竖杠：同按钮方案——外层 padding 承载模糊扩散，blur 在外层自然溢出两端圆角
                         Box(
                             modifier = Modifier
                                 .padding(7.dp)
@@ -1344,8 +1219,6 @@ fun CustomizeScheduleScreen(
                     }
                 }
 
-                // -------- 8.9 进入快照动画层：全屏 snapshot 缩放到卡片大小 --------
-                // 容器填满整个屏幕，不在内部 padding，让 snapshot 从全屏位置开始
                 if (snapshot != null && !animDone) {
                     Box(
                         modifier = Modifier.fillMaxSize(),
@@ -1361,8 +1234,6 @@ fun CustomizeScheduleScreen(
                                     scaleY = currentScale
                                     transformOrigin = TransformOrigin(0.5f, 0.58f)
                                     translationY = currentTranslationY
-                                    // clip 和 scale 在同一个 graphicsLayer 内，每帧重新裁剪
-                                    // 视觉圆角 = screenRadius * currentScale（随缩放变化）
                                     clip = true
                                     shape = ContinuousRoundedRectangle(screenRadiusDp)
                                 },
@@ -1371,18 +1242,12 @@ fun CustomizeScheduleScreen(
                     }
                 }
 
-                // -------- 8.10 退出快照放大层：从卡片大小放大回全屏 --------
-                // 快照放大由 MainActivity 的覆盖层统一处理，外观页面仅执行「放大淡出」（isExiting/customizeExitAlpha），
-                // 自身不再渲染快照，避免在页面内重复放出一张快照。
-
-                // -------- 8.11 弹窗共享内容（tablet / phone 复用，消除重复） --------
-                // 通用关闭按钮（topBar startAction）
+                // 退出快照由 MainActivity 覆盖层统一放大淡出，本页不重复渲染
                 val sheetCloseButton: @Composable ((() -> Unit), Dp) -> Unit = { onClose, startPad ->
                     val material = LocalSheetTopBarMaterial.current
                     LiquidTopBarButton(
                         onClick = onClose,
-                        // 读 Local 而不是页面级 State：backdrop 在弹窗挂载后才就绪，
-                        // 若提升成 State 会让整页在进入动画期间重跑一次组合
+                        // 读 Local 而非页面级 State，避免 backdrop 就绪时整页重跑组合
                         backdrop = LocalSheetContentBackdrop.current
                             ?: liquidGlassBackdrop,
                         icon = MiuixIcons.Normal.Close,
@@ -1395,11 +1260,9 @@ fun CustomizeScheduleScreen(
                         shadowAlpha = material.shadowAlpha,
                     )
                 }
-                // 效果弹窗内容：默认主题 + 壁纸亮度 + 壁纸模糊合并同一卡片；课程卡片模糊 + 卡片不透明度放入同一卡片
                 val effectSheetContent: @Composable () -> Unit = {
-                    // 默认主题选择
                     SheetCard {
-                        // 默认主题选择：无壁纸时整个选项禁用，文案固定显示"跟随应用"（此时该选项不生效，两页跟随应用）
+                        // 无壁纸时选项禁用，固定显示"跟随应用"
                         val themeModeEntry = if (hasWallpaper) {
                             DropdownEntry(
                                 items = ThemeMode.entries.map { mode ->
@@ -1407,7 +1270,7 @@ fun CustomizeScheduleScreen(
                                         text = mode.label,
                                         selected = themeModeValue == mode,
                                         onClick = {
-                                            // 仅本地预览；与卡片模糊等外观项一致，点「应用」才持久化
+                                            // 仅本地预览，点「应用」才持久化
                                             themeModeValue = mode
                                             onThemeModePreview(mode)
                                         }
@@ -1429,7 +1292,6 @@ fun CustomizeScheduleScreen(
                             dropdownColors = liquidGlassDropdownColors,
                         )
                     }
-                    // 壁纸亮度 + 壁纸模糊：同一卡片内
                     SheetCard {
                         Column {
                             SliderItem(
@@ -1464,7 +1326,6 @@ fun CustomizeScheduleScreen(
                             }
                         }
                     }
-                    // 课程卡片模糊 + 卡片不透明度：同一卡片内
                     SheetCard {
                         Column {
                             SliderItem(
@@ -1473,14 +1334,12 @@ fun CustomizeScheduleScreen(
                                 valueRange = 0f..20f,
                                 keyPoints = listOf(4f),
                                 enabled = hasWallpaper,
-                                // 整数吸附：模糊范围是 0~20 的整 dp，显示也用 roundToInt。
-                                // 否则放手会留下 0~1 间的随机小数（如 0.2dp），显示"0"却仍有一丝模糊。
+                                // 整数吸附，避免留下显示为 0 却仍有一丝模糊的小数
                                 onValueChange = { if (hasWallpaper) effectValue = it.roundToInt().coerceIn(0, 20).toFloat() },
                                 suffix = "dp",
                                 displayValue = { it.roundToInt().toString() },
                                 parseInput = { it.toFloatOrNull()?.coerceIn(0f, 20f) }
                             )
-                            // 卡片折射：4 个固定档位（关闭/较弱/默认/较强），需壁纸才生效
                             RefractionItem(
                                 value = cardRefractionValue,
                                 enabled = hasWallpaper,
@@ -1500,9 +1359,7 @@ fun CustomizeScheduleScreen(
                         }
                     }
                 }
-                // 自定义弹窗内容：高度 + 圆角合并；对齐方式 + 文字颜色合并；分界线移至最底
                 val customizeSheetContent: @Composable () -> Unit = {
-                    // 课程卡片高度 + 课程卡片圆角：同一卡片内
                     SheetCard {
                         Column {
                             SliderItem(
@@ -1529,7 +1386,6 @@ fun CustomizeScheduleScreen(
                             )
                         }
                     }
-                    // 卡片内容对齐方式 + 卡片文字颜色：同一卡片内
                     SheetCard {
                         Column {
                             val contentAlignmentEntry = DropdownEntry(
@@ -1579,7 +1435,6 @@ fun CustomizeScheduleScreen(
                             )
                         }
                     }
-                    // 卡片内容显示：地点、教师
                     SheetCard {
                         Column {
                             Row(
@@ -1620,7 +1475,6 @@ fun CustomizeScheduleScreen(
                             }
                         }
                     }
-                    // 午休晚休分界线：移至最底部
                     SheetCard {
                         Row(
                             modifier = Modifier
@@ -1643,7 +1497,6 @@ fun CustomizeScheduleScreen(
                     }
                 }
 
-                // -------- 8.11 效果弹窗 --------
                 if (isTablet) {
                     BlurBottomSheetTablet(
                         show = showEffectSheet,
@@ -1694,9 +1547,8 @@ fun CustomizeScheduleScreen(
                             Spacer(Modifier.height(240.dp))
                         }
                     }
-                } // end if (isTablet) else
+                }
 
-                // -------- 8.12 自定义弹窗 --------
                 if (isTablet) {
                     BlurBottomSheetTablet(
                         show = showCustomizeSheet,
@@ -1747,14 +1599,12 @@ fun CustomizeScheduleScreen(
                             Spacer(Modifier.height(240.dp))
                         }
                     }
-                } // end if (isTablet) else for 自定义弹窗
+                }
             }
-        } // Scaffold
+        }
     }
 }
 
-// -------- 8.11 弹窗共享组件（tablet / phone 复用） --------
-// 通用卡片骨架：统一圆角、明暗背景色
 @Composable
 private fun SheetCard(
     content: @Composable () -> Unit
@@ -1771,7 +1621,6 @@ private fun SheetCard(
     ) { content() }
 }
 
-// 通用滑块设置项：单行（标题 + 可原地编辑的数值 + Slider），供单独或分组卡片复用
 @Composable
 private fun SliderItem(
     label: String,
@@ -1784,7 +1633,7 @@ private fun SliderItem(
     displayValue: (Float) -> String = { it.roundToInt().toString() },
     parseInput: (String) -> Float? = { it.toFloatOrNull() },
 ) {
-    // 数值输入框本地文本：跟随外部 value 更新（聚焦编辑期间不回写，避免打断输入）
+    // 聚焦编辑期间不回写外部 value，避免打断输入
     var textInput by remember { mutableStateOf(displayValue(value)) }
     var isInputFocused by remember { mutableStateOf(false) }
     LaunchedEffect(value) {
@@ -1858,7 +1707,6 @@ private fun SliderItem(
     }
 }
 
-// 固定 4 档位滑块项：标题 + 档位标签 + 步进 Slider（供卡片折射等离散档位复用）
 @Composable
 private fun RefractionItem(
     value: CardRefractionLevel,
@@ -1901,7 +1749,6 @@ private fun RefractionItem(
                 )
             }
         }
-        // 4 个固定档位：把枚举序映射为 0..3 的整数级，拖动时吸附到整级并触发步进触感
         Slider(
             value = value.ordinal.toFloat(),
             onValueChange = { v ->
@@ -1918,7 +1765,6 @@ private fun RefractionItem(
     }
 }
 
-// 通用滑块设置卡片：单个标题 + Slider
 @Composable
 private fun SliderCard(
     label: String,

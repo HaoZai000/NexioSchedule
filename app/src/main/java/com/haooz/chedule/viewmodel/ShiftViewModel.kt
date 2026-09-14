@@ -11,27 +11,19 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 
-/**
- * 排班模式 ViewModel
- * 负责排班模式的启用/禁用、多课表选择、排班数据加载
- */
 class ShiftViewModel(application: Application) : AndroidViewModel(application) {
 
     private val repository = CourseRepository(application)
 
-    // 排班模式状态
     private val _isShiftMode = MutableStateFlow(repository.isShiftModeEnabled())
     val isShiftMode: StateFlow<Boolean> = _isShiftMode.asStateFlow()
 
-    // 排班模式选中的课表
     private val _shiftSelectedSchedules = MutableStateFlow(repository.getShiftSelectedSchedules())
     val shiftSelectedSchedules: StateFlow<List<String>> = _shiftSelectedSchedules.asStateFlow()
 
-    // 排班模式各课表课程缓存
     private val _shiftScheduleCourses = MutableStateFlow<Map<String, List<Course>>>(emptyMap())
     val shiftScheduleCourses: StateFlow<Map<String, List<Course>>> = _shiftScheduleCourses.asStateFlow()
 
-    // 排班模式各课表节数缓存
     private val _shiftScheduleSections = MutableStateFlow<Map<String, Triple<Int, Int, Int>>>(emptyMap())
     val shiftScheduleSections: StateFlow<Map<String, Triple<Int, Int, Int>>> = _shiftScheduleSections.asStateFlow()
 
@@ -41,9 +33,6 @@ class ShiftViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
-    /**
-     * 进入排班模式
-     */
     fun enterShiftMode() {
         _isShiftMode.value = true
         repository.setShiftModeEnabled(true)
@@ -54,26 +43,17 @@ class ShiftViewModel(application: Application) : AndroidViewModel(application) {
         reloadShiftData()
     }
 
-    /**
-     * 退出排班模式
-     */
     fun exitShiftMode() {
         _isShiftMode.value = false
         repository.setShiftModeEnabled(false)
     }
 
-    /**
-     * 设置排班模式选中的课表
-     */
     fun setShiftSelectedSchedules(names: List<String>) {
         _shiftSelectedSchedules.value = names
         repository.setShiftSelectedSchedules(names)
         reloadShiftData()
     }
 
-    /**
-     * 重新加载排班数据
-     */
     private fun reloadShiftData() {
         val coursesMap = mutableMapOf<String, List<Course>>()
         val sectionsMap = mutableMapOf<String, Triple<Int, Int, Int>>()

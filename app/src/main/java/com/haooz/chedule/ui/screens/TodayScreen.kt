@@ -1,4 +1,3 @@
-/** 今日课程页面 - 显示当天课程和当前/下一节课信息 */
 package com.haooz.chedule.ui.screens
 
 import android.annotation.SuppressLint
@@ -92,22 +91,11 @@ import kotlin.time.Duration.Companion.milliseconds
 import com.kyant.backdrop.backdrops.layerBackdrop as kyantLayerBackdrop
 import com.kyant.backdrop.backdrops.rememberLayerBackdrop as rememberKyantLayerBackdrop
 
-/**
- * 今日页卡片：有壁纸时使用 drawBackdrop 绘制半透明毛玻璃（与课程卡片风格一致），
- * 无壁纸时回退为普通 miuix Card（不透明）。
- *
- * 关键：是否走毛玻璃半透明路径只由「有没有壁纸 backdrop」决定，**与模糊半径无关**。
- * 与课程卡片 CourseCard 一致 —— 模糊为 0 时依旧采样壁纸、依旧是透的，
- * 而不是退化成一张不透明实心卡片。
- *
- * @param surfaceOpacity 表面底色的不透明度（亮/暗色统一），即跟随外观里「卡片不透明度」开关
- * @param showEdgeLight 是否显示高光描边
- */
-/** 时间解析格式化器（避免每次解析/格式化都新建对象） */
+// 有壁纸 backdrop 才走毛玻璃半透明路径，与模糊半径无关（blur=0 仍采样壁纸）
 private val TIME_FORMATTER = DateTimeFormatter.ofPattern("HH:mm")
 private val DATE_FORMATTER = DateTimeFormatter.ofPattern("yyyy年M月d日")
 
-/** 今日页卡片折射档位（来自课表外观设置），由 BlurCard 统一应用到所有卡片 */
+// 由 BlurCard 统一应用折射档位
 val LocalCardRefraction = staticCompositionLocalOf { CardRefractionLevel.DEFAULT }
 
 @Composable
@@ -247,7 +235,7 @@ private fun CourseItemContent(course: Course, sectionTimes: Map<Int, String>, pa
             when {
                 startTime == null || endTime == null -> {
                     if (courseStatus != "未知") courseStatus = "未知"
-                    // 时间来源（节次表/课程设置）在本组合内固定，未知状态不会自行变化，终止循环
+                    // 本组合内时间来源固定，未知状态不会自行变化
                     return@LaunchedEffect
                 }
                 now.isBefore(startTime) -> {
@@ -255,7 +243,7 @@ private fun CourseItemContent(course: Course, sectionTimes: Map<Int, String>, pa
                 }
                 now.isAfter(endTime) -> {
                     if (courseStatus != "已结束") courseStatus = "已结束"
-                    // 本节已结束，当天内状态不会再变，终止循环
+                    // 当天内状态不会再变
                     return@LaunchedEffect
                 }
                 else -> {
@@ -264,9 +252,9 @@ private fun CourseItemContent(course: Course, sectionTimes: Map<Int, String>, pa
                     val newMinutes = (totalSeconds / 60).toInt()
                     val newSeconds = (totalSeconds % 60).toInt()
                     if (courseStatus != "进行中") courseStatus = "进行中"
-                    // 门控：仅在值变化时写入状态，避免未变化时每秒触发重组
+                    // 仅值变化时写入，避免每秒触发重组
                     if (newMinutes != remainingMinutes) remainingMinutes = newMinutes
-                    // 秒数仅“还剩X秒”文案（最后一分钟）使用；超过1分钟时跳过秒数写入
+                    // 秒数只在最后一分钟文案使用
                     if (newMinutes <= 0 && newSeconds != remainingSeconds) remainingSeconds = newSeconds
                 }
             }
@@ -334,9 +322,6 @@ private fun CourseItemContent(course: Course, sectionTimes: Map<Int, String>, pa
     }
 }
 
-/**
- * 根据开学日期和目标日期计算对应周次
- */
 private fun calculateWeekFromDate(startDate: String, date: LocalDate): Int {
     return try {
         val start = LocalDate.parse(startDate.replace("/", "-"))
@@ -373,7 +358,6 @@ fun TodayScreen(
     liquidGlassBackdrop: Backdrop? = null,
     showClassroom: Boolean = true,
     showTeacher: Boolean = true,
-    // Activity 层提升的状态，return@Scaffold 不会销毁
     externalListState: androidx.compose.foundation.lazy.LazyListState = rememberLazyListState(),
 ) {
     val courses by viewModel.courses.collectAsState()
@@ -438,8 +422,7 @@ fun TodayScreen(
         onSelectedDayChanged(newDayOfWeek)
     }
 
-    // 轮询今日列表滚动：提升到页面根部单例收集。
-    // 原先写在每个 pager 页内，多页同时组合会产生多份收集器重复回调，平板模式更是纯空转。
+    // 在页面根收集一次；原先每 pager 页各收一份会重复回调
     LaunchedEffect(externalListState) {
         snapshotFlow { externalListState.firstVisibleItemScrollOffset }
             .collect { offset ->
@@ -455,16 +438,13 @@ fun TodayScreen(
         drawRect(backgroundColor)
         drawContent()
     }
-    // Kyant Backdrop：供今日页卡片 drawBackdrop 模糊壁纸使用
+    // 供今日页卡片 drawBackdrop 采样壁纸
     val cardBackdrop = rememberKyantLayerBackdrop {
         drawRect(backgroundColor)
         drawContent()
     }
     val hasWallpaper = todayShowWallpaper && wallpaperBitmap != null
-    // 今日页卡片表面不透明度：跟随外观里的「卡片不透明度」开关（cardAlpha, 0..1 = 0%~100%），
-    // 在开关值基础上各自放大固定倍数，不改变课程表等其它页的默认：
-    //  下方课程卡片 = cardAlpha × 3    （默认 0.15×3 = 45%）
-    //  上方格言/今日助手 = cardAlpha × 4（默认 0.15×4 = 60%）
+    // 表面不透明度跟随「卡片不透明度」开关：课程卡 ×3，格言/助手 ×4
     val courseCardOpacity = (cardAlpha * 3f).coerceIn(0f, 1f)
     val highlightCardOpacity = (cardAlpha * 4f).coerceIn(0f, 1f)
 
@@ -485,7 +465,6 @@ fun TodayScreen(
                 .fillMaxSize()
                 .layerBackdrop(backdrop)
         ) {
-            // 壁纸背景
             if (todayShowWallpaper && wallpaperBitmap != null) {
                 Box(modifier = Modifier.fillMaxSize().kyantLayerBackdrop(cardBackdrop)) {
                     val brightnessFilter = if (wallpaperBrightness != 0f) {
@@ -560,7 +539,6 @@ fun TodayScreen(
 
                 val isPageToday = pageDate == LocalDate.now()
 
-                // 计算明天的课程（用于今日助手提示）
                 val tomorrowCourses = remember(courses, pageWeek, pageDayOfWeek, isPageToday) {
                     if (isPageToday) {
                         val tomorrowDay = if (pageDayOfWeek == 7) 1 else pageDayOfWeek + 1
@@ -585,7 +563,6 @@ fun TodayScreen(
                             ),
                         horizontalArrangement = Arrangement.spacedBy(24.dp)
                     ) {
-                        // 左侧 - 日期 + 每日一言 + 今日助手（固定）
                         Column(
                             modifier = Modifier
                                 .weight(1f)
@@ -594,7 +571,7 @@ fun TodayScreen(
                                         CollapsibleTopAppBarDefaults.CollapsedHeight,
                                     bottom = 60.dp
                                 )
-                                // 展开态多出的高度在布局阶段补，避免组合期读 currentHeightPx
+                                // 布局期补展开高度，避免组合期读 currentHeightPx
                                 .collapsibleTopInset(settingsScrollBehavior)
                         ) {
                             Text(
@@ -622,7 +599,6 @@ fun TodayScreen(
                                 )
                             }
                         }
-                        // 右侧 - 课程列表（独立滚动）
                         LazyColumn(
                             modifier = Modifier
                                 .weight(1f)
@@ -646,7 +622,6 @@ fun TodayScreen(
                         }
                     }
                 } else {
-                    // 手机：上下排列，整体滚动
                     LazyColumn(
                         state = externalListState,
                         modifier = Modifier
@@ -705,7 +680,6 @@ fun TodayScreen(
         }
     }
 
-    // 日期选择弹窗
         OverlayDialog(
             title = "跳转日期",
             show = showDatePicker,
@@ -796,8 +770,7 @@ fun TodayScreen(
     }
 }
 
-// 各时段格言列表：文件级常量，避免滚动/重组每帧重新创建
-// 注意事项：这里在 QuoteCard 之外，仅供 QuoteCard 引用
+// 格言列表放文件级常量，避免滚动/重组每帧重建
 private val h6 = listOf(
     "太阳都打卡上班了，你还在被窝里装死？",
     "这个点能醒的，不是被穷醒就是被尿憋醒",

@@ -13,7 +13,6 @@ import com.haooz.chedule.data.CourseRepository
 import com.haooz.chedule.reminder.CourseReminderHelper
 import java.util.Calendar
 
-/** Read-only API for today's, tomorrow's and display-resolved courses plus the widget state. */
 class TodayCoursesProvider : ContentProvider() {
 
     override fun onCreate(): Boolean = context != null
@@ -33,7 +32,7 @@ class TodayCoursesProvider : ContentProvider() {
 
         val appContext = requireNotNull(context)
         val repository = CourseRepository(appContext)
-        // 通过 uri query 参数标识 widget 规格（2x2），区分详情文案；缺省视为 4x2
+        // uri query 参数 size=2x2 区分详情文案；缺省 4x2
         val widgetSize = uri.getQueryParameter("size")
 
         return when (match) {
@@ -95,11 +94,7 @@ class TodayCoursesProvider : ContentProvider() {
     private fun <T> unsupportedWrite(uri: Uri): T =
         throw UnsupportedOperationException("$uri is read-only")
 
-    /**
-     * 解析小组件要展示的状态与课程列表，与标准安卓小组件（TodayCourseWidgetProviderStandard）保持一致的
-     * “今日已上完 → 切到明日” 逻辑：
-     * 当开启了明日提醒、当前时间已过提醒时间、且今日课程已全部结束时，自动展示明日的课程。
-     */
+    // 与标准小组件一致：开了明日提醒且已过提醒时间、今日课全上完时自动切到明日
     private fun resolveState(context: android.content.Context, repository: CourseRepository): DisplayState {
         val all = repository.getAllCourses()
         val currentWeek = repository.getCurrentWeek()
@@ -128,8 +123,7 @@ class TodayCoursesProvider : ContentProvider() {
             .filter { it.dayOfWeek == targetDay && it.isActiveInWeek(targetWeek) }
             .sortedBy { CourseReminderHelper.getCourseStartTime(it, repository).toMinutes() }
 
-        // 与标准安卓小组件一致：显示"今天"时只保留 在课/未开始 的课程（隐藏已下课的）；
-        // 显示"明天"时展示明日全部课程。
+        // 今天只保留在课/未开始；明天展示全部
         val displayCourses = if (showTomorrow) {
             targetCourses
         } else {
@@ -176,21 +170,17 @@ class TodayCoursesProvider : ContentProvider() {
         val remaining = if (isNow == 1) endMinutes - currentMinutes else 0
         val sectionText = course.getSectionText()
         val startText = start.orEmpty()
-        // 详情文案按 widget 规格与课程类型区分（分隔符 "｜"，空段自动省略）：
-//   2x2：开始时间｜地点
-//   4x2 普通课：节次｜地点｜教师；自定义时间课/特殊课（无节次）：地点｜教师
-//   自定义时间课程不显示"第几节"
+        // 详情按规格区分：2x2=开始时间｜地点；4x2=节次｜地点｜教师；自定义时间课不显示节次
 val showSection = sectionText.isNotEmpty() && !course.hasValidCustomTime()
 val subText = when {
     size == "2x2" -> listOf(startText, course.classroom).filter { it.isNotEmpty() }.joinToString("｜")
     showSection -> listOf(sectionText, course.classroom, course.teacher).filter { it.isNotEmpty() }.joinToString("｜")
     else -> listOf(course.classroom, course.teacher).filter { it.isNotEmpty() }.joinToString("｜")
 }
-        // 2x2 三行详情：第2行"开始时间 - 结束时间"，第3行"地点｜教师"
+        // 2x2：行2时间范围，行3地点｜教师
         val timeRange = listOf(startText, end.orEmpty()).filter { it.isNotEmpty() }.joinToString(" - ")
         val locationTeacher = listOf(course.classroom, course.teacher).filter { it.isNotEmpty() }.joinToString("｜")
-        // 根据 widget 规格对课程名/详情按容器宽度在 App 端做测量截断；
-        // 4x2 末上课宽度更大、上课时为右侧倒计时让位；2x2 对第1行(课程名)和第3行(地点｜教师)截断，第2行(时间范围)不截断
+        // App 端按容器宽度测量截断；4x2 上课时为右侧倒计时让位，2x2 截第1/3行
         val isTwoByTwo = size == "2x2"
         val detailWidthPx = if (isNow == 1) 170f else 255f
         val displayName = if (isTwoByTwo) {
@@ -232,11 +222,7 @@ val subText = when {
         columns.forEach { column -> row.add(values[column]) }
     }
 
-    /**
-     * 按像素宽度对文本做测量截断（与 4x2 小部件字体/容器基准一致）：
-     * 采用与 widget 同款字体测量真实渲染宽度，超出部分裁剪并追加省略号"…"。
-     * 宽度、字号均为设计基准（sx=1）下的值，widget 渲染时整体等比缩放，效果一致。
-     */
+    // 用与 widget 同款字体/字号测量；宽度为 sx=1 设计基准，渲染时等比缩放
     private fun truncateByPx(text: String, maxWidthPx: Float, textSizePx: Float): String {
         if (text.isEmpty() || maxWidthPx <= 0f) return text
         val paint = Paint().apply {
@@ -265,7 +251,7 @@ val subText = when {
         return (calendar.get(Calendar.DAY_OF_WEEK) + 5) % 7 + 1
     }
 
-    /** "HH:mm" -> 分钟数，用于排序/比较；null/非法返回 Int.MAX_VALUE */
+    // null/非法返回 Int.MAX_VALUE 排到末尾
     private fun String?.toMinutes(): Int {
         if (this.isNullOrBlank()) return Int.MAX_VALUE
         val parts = this.split(":")
@@ -285,10 +271,10 @@ val subText = when {
 
     private companion object {
         const val AUTHORITY = "com.haooz.chedule.courses"
-        // 4x2 小部件课程名/详情设计基准字号（sx=1），用于 App 端测量截断
+        // sx=1 设计基准字号，用于 App 端测量截断
         const val NAME_TEXT_SIZE = 14f
         const val SUB_TEXT_SIZE = 12f
-        // 2x2 小部件容器宽与各行基准字号（绝对坐标 440×440），用于 App 端测量截断
+        // 2x2 绝对坐标 440×440 下的容器宽与字号
         const val TWO_X_TWO_WIDTH = 320f
         const val TWO_X_TWO_NAME_TEXT_SIZE = 38f
         const val TWO_X_TWO_SUB_TEXT_SIZE = 32f

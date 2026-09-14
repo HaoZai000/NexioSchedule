@@ -1,28 +1,16 @@
 package com.haooz.chedule.data
 
-/**
- * 特殊课程内部按星期划分的子块（如周一~周二"画黑板报"、周三"检查卫生"）。
- *
- * 一个特殊课程时间段（[SpecialBlock]）内部可容纳多个子块，各子块的星期区间互不重叠。
- */
+/** 特殊课程内部按星期划分的子块；同一 SpecialBlock 内各子块星期区间互不重叠 */
 data class SpecialItem(
     val id: Long = 0L,
-    val name: String = "",       // 如"画黑板报""检查卫生"
-    val startDay: Int = 1,       // 起始星期 1..7
-    val endDay: Int = 1          // 结束星期 1..7，取值 >= startDay
+    val name: String = "",
+    val startDay: Int = 1,       // 1..7
+    val endDay: Int = 1          // >= startDay
 ) {
     companion object {
         /**
-         * 把 Gson 可能留下的"原始形态"还原成 [SpecialItem]。
-         *
-         * 背景：R8 在未 keep 这些类时会剥掉字段的泛型签名，Gson 于是把
-         * `List<SpecialItem>` 的元素按 Object 解析成 LinkedTreeMap，之后任何
-         * `as SpecialItem` 强转都会抛 ClassCastException —— v1.5.0 正式版的线上崩溃
-         * 正是这条：SpecialBandBody 里 `item.startDay` 抛 `nq1 cannot be cast to n63`。
-         * 这里遇到 Map 就按字段名手工还原，既不崩、也不丢用户已录入的子块。
-         *
-         * 已是 [SpecialItem] 实例时同样重建：Gson 用 UnsafeAllocator 绕过构造器，
-         * 旧 JSON 缺失 `name` 会得到 null 字段，UI 侧 Text/非空参数会崩。
+         * 兜底还原：Gson 泛型丢失会把元素解析成 Map；UnsafeAllocator 使默认值不生效，
+         * 即使是 SpecialItem 实例也可能字段为 null，故统一重建。
          */
         // USELESS_ELVIS：以下 ?: 编译期看似走左值，但 Gson 反序列化后字段可能是 null
         @Suppress("SENSELESS_COMPARISON", "USELESS_ELVIS", "ELVIS_ALWAYS_NULL")
@@ -46,41 +34,25 @@ data class SpecialItem(
     }
 }
 
-/**
- * 特殊时段块（无编号，如早读/大课间/眼保健操）。
- * 按自定义起止时间沿时间轴定位，挤出让出纵向空间，不计入课程提醒。
- */
+/** 无编号特殊时段（早读/大课间等），按起止时间定位并挤出让出空间，不计入课程提醒 */
 data class SpecialBlock(
     val id: Long = 0L,
-    val name: String = "",          // 如"早读""眼保健操"
+    val name: String = "",
     val startTime: String = "08:00",
     val endTime: String = "08:40",
-    // 内部按星期划分的子块。
-    // 注意：Gson 反序列化旧版本数据时该字段缺失会被置为 null（Kotlin 默认值不生效），
-    // 所以声明为可空，统一通过 [safeItems] 访问，避免升级后崩溃。
+    // 旧 JSON 缺失该字段时 Gson 置 null（默认值不生效），故可空并走 safeItems
     val items: List<SpecialItem>? = null
 ) {
     /**
-     * 子块列表。同时兜住两种情况：
-     *  1. 旧数据缺失 items 字段（Gson 会置为 null）；
-     *  2. R8 剥掉泛型签名，导致元素被解析成 Map。
-     *
-     * 这里刻意先把 items 转成 `List<*>`（擦除类型）再逐元素判断。
-     * **不要**直接写 `items?.filterIsInstance<SpecialItem>()`：那个接收者的静态类型
-     * 已经是 `List<SpecialItem>`，编译器/R8 有可能把这次过滤当成恒等变换而消除，
-     * 坏元素于是照样漏进 UI（v1.5.0 的崩溃就是这么穿过去的）。
+     * 先擦成 List<*> 再逐元素还原。**不要**写 filterIsInstance<SpecialItem>：
+     * 接收者已是 List<SpecialItem>，R8 可能把过滤当恒等变换消除，坏元素会漏进 UI。
      */
     val safeItems: List<SpecialItem>
         get() = (items as List<*>?).orEmpty().mapNotNull { SpecialItem.fromRaw(it) }
 
     companion object {
         /**
-         * 把 Gson 可能留下的"原始形态"还原成 [SpecialBlock]。
-         *
-         * 已是 [SpecialBlock] 实例时也必须重建：keep 规则生效后 Gson 会生成真正的
-         * SpecialBlock，但 UnsafeAllocator 绕过 Kotlin 默认值，旧 JSON 缺
-         * name/startTime/endTime 时字段为 null。若原样返回，`SpecialGridBand.<init>`
-         * 的非空 String 参数会抛 NPE（R8 优化后表现为 `Object.getClass()` on null）。
+         * 兜底还原：UnsafeAllocator 使缺失字段为 null，原样返回会在非空 String 参数处 NPE。
          */
         // USELESS_ELVIS：以下 ?: 编译期看似走左值，但 Gson 反序列化后字段可能是 null
         @Suppress("SENSELESS_COMPARISON", "USELESS_ELVIS", "ELVIS_ALWAYS_NULL")
@@ -106,24 +78,18 @@ data class SpecialBlock(
     }
 }
 
-/**
- * 时间配置数据类 - 存储多套时间设置
- */
 data class TimeConfig(
     val id: Long = 0L,
     val name: String = "默认配置",
 
-    // 节数配置
     val morningSections: Int = 4,
     val afternoonSections: Int = 4,
     val eveningSections: Int = 4,
 
-    // 快速时间配置
     val quickTimeEnabled: Boolean = false,
     val classDuration: Int = 45,
     val shortBreak: Int = 10,
 
-    // 长课间休息配置
     val longBreakEnabled: Boolean = false,
     val longBreakMorning: Int = 20,
     val longBreakAfternoon: Int = 20,
@@ -132,7 +98,6 @@ data class TimeConfig(
     val longBreakAfternoonSection: Int = 2,
     val longBreakEveningSection: Int = 2,
 
-    // 各时段起始时间
     val morningStartHour: Int = 8,
     val morningStartMinute: Int = 0,
     val afternoonStartHour: Int = 14,
@@ -140,37 +105,27 @@ data class TimeConfig(
     val eveningStartHour: Int = 18,
     val eveningStartMinute: Int = 30,
 
-    // 各节次时间（全局绝对节次号 -> "HH:mm-HH:mm"）
-    // 注意：Gson 会将 Int key 转换为 String，所以存储为 Map<String, String>
-    val sectionTimes: Map<String, String> = emptyMap(),
+    // key 必须是 String：Gson 会把 Int key 序列化成 String，Map<Int,_> 反序列化会丢
+    val sectionTimes: Map<String, String> = emptyMap(), // "morning_1" -> "HH:mm-HH:mm"
 
-    // 自定义节次名称（key 同 sectionTimes，如 "morning_1" -> "早自习"）
-    val sectionNames: Map<String, String> = emptyMap(),
+    val sectionNames: Map<String, String> = emptyMap(), // key 同 sectionTimes
 
-    // 特殊时段块（无编号，如早读/大课间/眼保健操），不计入课程提醒
     val specialBlocks: List<SpecialBlock> = emptyList()
 ) {
 
-    /**
-     * 特殊时段块列表。同 [SpecialBlock.safeItems]：先擦除类型再逐元素还原，
-     * 兜住"R8 剥掉泛型签名 → Gson 把元素解析成 Map"的情况。
-     * 需要遍历 specialBlocks 的地方都应通过这个 getter 访问。
-     */
+    /** 同 SpecialBlock.safeItems：先擦除类型再逐元素还原，兜住泛型丢失成 Map 的情况 */
     val safeSpecialBlocks: List<SpecialBlock>
         get() = (specialBlocks as List<*>?).orEmpty().mapNotNull { SpecialBlock.fromRaw(it) }
 
     /**
-     * 获取指定时段的节次时间映射
      * period: "morning" / "afternoon" / "evening"
-     * 返回：时段内相对节次号 (1-6) -> "HH:mm-HH:mm"
+     * 返回时段内相对节次号 (1-6) -> "HH:mm-HH:mm"
      */
     fun getPeriodTimes(period: String): Map<Int, String> {
-        // 如果有预设的快速时间，使用快速时间计算
         if (quickTimeEnabled) {
             return calculatePeriodTimes(period)
         }
 
-        // 否则从 sectionTimes 中提取
         val result = mutableMapOf<Int, String>()
         for ((k, v) in sectionTimes) {
             val strKey = k.toString()
@@ -182,25 +137,18 @@ data class TimeConfig(
         return result.ifEmpty { getDefaultTimesForPeriod(period) }
     }
 
-    /**
-     * 根据快速时间配置计算指定时段的节次时间
-     */
     fun calculateSectionTimes(): Map<Int, String> {
         val morningTimes = calculatePeriodTimes("morning")
         val afternoonTimes = calculatePeriodTimes("afternoon")
         val eveningTimes = calculatePeriodTimes("evening")
 
         val result = mutableMapOf<Int, String>()
-        // 转换为全局绝对节次号
         morningTimes.forEach { (k, v) -> result[k] = v }
         afternoonTimes.forEach { (k, v) -> result[morningSections + k] = v }
         eveningTimes.forEach { (k, v) -> result[morningSections + afternoonSections + k] = v }
         return result
     }
 
-    /**
-     * 内部方法：计算指定时段的节次时间
-     */
     private fun calculatePeriodTimes(period: String): Map<Int, String> {
         val sectionCount = when (period) {
             "morning" -> morningSections
@@ -242,22 +190,14 @@ data class TimeConfig(
     }
 
     companion object {
-        /**
-         * JSON 中应当出现的字段名（用于识别 R8 混淆后的坏快照，不参与取值）。
-         *
-         * v1.5.0 正式版若漏 keep，R8 会把字段名改成 a/b/c，写出的 JSON
-         * `{"a":4,"b":4,...}` 在 1.5.1（已 keep 真名）下读不回来：
-         * Gson UnsafeAllocator 把 Int 留在 0 → 上午/下午/晚上全是 0 节，课表塌空。
-         */
+        /** 仅用于识别坏快照（键名全对不上时判损坏），不参与取值 */
         private val FIELD_NAMES = setOf(
             "id", "name", "morningSections", "afternoonSections", "eveningSections",
             "quickTimeEnabled", "classDuration", "shortBreak",
             "sectionTimes", "sectionNames", "specialBlocks"
         )
 
-        /**
-         * 严格解析时间配置：JSON 键名一个已知字段都不像时判为 R8 混淆坏数据，返回 null。
-         */
+        /** JSON 键名一个已知字段都不像时判为损坏，返回 null */
         fun parseSnapshotOrNull(gson: com.google.gson.Gson, json: String): TimeConfig? {
             val obj = runCatching {
                 gson.fromJson(json, com.google.gson.JsonObject::class.java)
@@ -267,10 +207,8 @@ data class TimeConfig(
         }
 
         /**
-         * 清洗 Gson 反序列化结果：
-         * - 非空字段可能为 null（UnsafeAllocator 绕过构造器）
-         * - 三段节数全为 0 视为坏数据（升级/混淆事故），恢复默认 4/4/4
-         * - 单段节数越界时夹到 0..6（0 表示该时段无课，合法）
+         * 长期数据兜底：UnsafeAllocator 使非空字段可能为 null；三段节数全 0 视为损坏恢复 4/4/4；
+         * 单段节数夹到 0..6（0 表示该时段无课）。
          */
         // USELESS_ELVIS：Gson 反序列化后非空字段仍可能是 null
         @Suppress("SENSELESS_COMPARISON", "ELVIS_ALWAYS_NULL", "USELESS_ELVIS")
@@ -303,9 +241,6 @@ data class TimeConfig(
         const val DEFAULT_AFTERNOON_SECTIONS = 4
         const val DEFAULT_EVENING_SECTIONS = 4
 
-        /**
-         * 默认时间段的节次时间
-         */
         private fun getDefaultTimesForPeriod(period: String): Map<Int, String> = when (period) {
             "morning" -> Course.defaultMorningTimes
             "afternoon" -> Course.defaultAfternoonTimes
@@ -313,9 +248,6 @@ data class TimeConfig(
             else -> emptyMap()
         }
 
-        /**
-         * 从 CourseRepository 创建默认 TimeConfig
-         */
         fun fromRepository(repository: CourseRepository): TimeConfig {
             val sectionTimes = mutableMapOf<String, String>()
             for (period in listOf("morning", "afternoon", "evening")) {

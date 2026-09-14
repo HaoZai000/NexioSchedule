@@ -65,7 +65,7 @@ import kotlin.math.hypot
 import kotlin.time.Duration.Companion.milliseconds
 import android.graphics.Color as AndroidColor
 
-/** 浮层落地冲击波：中心坐标 + 自增 token，触发周围课程卡涟漪 */
+/** 落地冲击波：中心坐标 + token，触发周围课程卡涟漪 */
 data class LandRippleSpec(
     val center: Offset = Offset.Zero,
     val token: Int = 0,
@@ -84,7 +84,7 @@ fun CourseCard(
     cardBlurRadius: Float = 0f,
     cardAlpha: Float = 0.15f,
     cardHeightPerSection: Float = 54f,
-    // 自定义时间课程显式指定卡片高度（dp），null 时按节次数量计算
+    // 自定义时间课显式指定高度；null 时按节次数算
     customCardHeightDp: Float? = null,
     cardCornerRadius: Float = 10f,
     isTablet: Boolean = false,
@@ -96,10 +96,8 @@ fun CourseCard(
     cardRefraction: com.haooz.chedule.data.CardRefractionLevel = com.haooz.chedule.data.CardRefractionLevel.DEFAULT,
     isDragging: Boolean = false,
     disablePadding: Boolean = false,
-    // 由页面层统一读取，避免每张卡再挂 prefs 监听
     isDark: Boolean = isAppDarkTheme(),
-    // 滑动中标记（非 state 对象，读取不触发重组）：滑动期间卡片坐标逐帧变化，
-    // 而这份坐标只在长按拖拽时用得上，滑动中直接跳过每次回调里的 localToRoot 计算
+    // 非 state：滑动中坐标每帧变，跳过 localToRoot；读取不触发重组
     gridScrollFlag: com.haooz.chedule.ui.screens.GridScrollFlag? = null,
     onClick: () -> Unit,
     onLongPressStart: (cardLeft: Float, cardTop: Float, width: Float, height: Float) -> Unit = { _, _, _, _ -> },
@@ -116,8 +114,7 @@ fun CourseCard(
     val scope = rememberCoroutineScope()
     val localDensity = LocalDensity.current
 
-    // 落地涟漪：全表覆盖，近处几乎立刻、远处按距离铺开先后
-    // 初始记为当前 token，避免卡片新进组合树（如退出详情页）时误触发旧涟漪
+    // 近处几乎立刻、远处按距离铺开；初始记当前 token，避免新进组合树误触发旧涟漪
     val landRipple = LocalLandRipple.current
     val rippleScale = remember { Animatable(1f) }
     val cardBoundsPx = remember { FloatArray(4) }
@@ -130,7 +127,6 @@ fun CourseCard(
         val cy = cardBoundsPx[1]
         if (cx == 0f && cy == 0f) return@LaunchedEffect
         val dist = hypot(cx - landRipple.center.x, cy - landRipple.center.y)
-        // 冲击点附近不延迟，往外再按距离拉开先后
         val delayMs = if (dist < 90f) {
             0L
         } else {
@@ -142,7 +138,6 @@ fun CourseCard(
     }
 
     val effectiveAlpha = if (hasBlur) cardAlpha * 1.6f else cardAlpha
-    // 假期课程与调休课程沿用非本周课程的灰色，不再使用课程自身颜色
     val cardColor = remember(course.colorRes, isCurrentWeek, isHoliday, effectiveAlpha) {
         if (isCurrentWeek && !isHoliday) {
             Color(course.colorRes).copy(alpha = effectiveAlpha)
@@ -151,7 +146,7 @@ fun CourseCard(
         }
     }
     val textColor = remember(course.colorRes, isCurrentWeek, isHoliday, hasBlur, isDark, cardTextColor) {
-        // 纯色模式仅作用于本周课程：文字统一为黑/白 0.74f；非本周/假期沿用原有灰色
+        // 纯色模式仅本周课：黑白 0.74f；非本周/假期沿用灰色
         if (isCurrentWeek && !isHoliday &&
             cardTextColor == com.haooz.chedule.data.CardTextColor.SOLID
         ) {
@@ -200,18 +195,14 @@ fun CourseCard(
                     }
                 }
             }
-            // onDrawSurface 也是每次重组新建的 lambda。drawBackdrop 的 element 会因此判不等，
-            // 卡片每次重组都会重新录制壁纸层 + 重跑一次 GPU 模糊。把它固定下来。
+            // onDrawSurface 每次重组新建会令 drawBackdrop 判不等，每次重录壁纸层并重跑 GPU 模糊
             val onCardSurface: androidx.compose.ui.graphics.drawscope.DrawScope.() -> Unit =
                 remember(cardColor, overlayColor) {
                     {
-                        // 底色 + 反光覆盖层一并在此绘制，省去独立的 drawBehind 绘制节点
                         drawRect(cardColor)
                         drawRect(overlayColor)
                     }
                 }
-            // 描边用的 outline / Stroke / 颜色原本每帧重建（每张卡片每帧一次路径构建 + 分配）。
-            // 它们只依赖 (size, 圆角, layoutDirection, density)，缓存后逐帧直接复用。
             val outlineColor = remember(cardColor) { cardColor.copy(alpha = 0.05f) }
             val outlineStroke = remember(localDensity) {
                 androidx.compose.ui.graphics.drawscope.Stroke(with(localDensity) { 2.dp.toPx() })
@@ -262,7 +253,6 @@ fun CourseCard(
                     )
                     .drawWithContent {
                         drawContent()
-                        // 同色描边替代 edgeLight，使用和课程卡片一样的 ContinuousRoundedRectangle
                         val radiusDp = effectiveCornerRadius.dp
                         if (outlineCache.width != size.width ||
                             outlineCache.height != size.height ||
@@ -305,10 +295,8 @@ fun CourseCard(
                             }
                             try {
                                 while (true) {
-                                    // 菜单/拖拽状态：Main pass 拦截事件防止穿透；
-                                    // 否则：Final pass 让 HorizontalPager/verticalScroll 先在 Main pass 处理滑动。
-                                    // 关键：Main pass 顺序是「子→父」，若卡片在 Main pass 消费移动事件，
-                                    // 父级滚动容器的 touch slop 追踪会跳过已消费事件 → 滑动被吞、不跟手
+                                    // 菜单/拖拽用 Main pass 拦截穿透；否则 Final pass 让父级滚动先处理
+                                    // （Main 子→父，卡片消费移动会吞掉父级滑动）
                                     val pass = if (menuShown || isDraggingCard)
                                         PointerEventPass.Main else PointerEventPass.Final
                                     val event = awaitPointerEvent(pass)
@@ -339,7 +327,7 @@ fun CourseCard(
                                     val dy = currentPos.y - downPosition.y
                                     val dragDist = currentPos.minus(downPosition).getDistance()
 
-                                    // 水平滑动 → 释放手势给 HorizontalPager
+                                    // 水平滑动 → 释放给 HorizontalPager
                                     if (!isLongPress && !isDraggingCard && !menuShown
                                         && kotlin.math.abs(dx) > 5f * density
                                         && kotlin.math.abs(dx) > kotlin.math.abs(dy) * 1.2f
@@ -393,7 +381,7 @@ fun CourseCard(
                     alpha = if (isDragging) 0f else 1f
                 }
                 .onGloballyPositioned { coordinates ->
-                    // 上报卡片正中心的绝对坐标，与 hasBlur 分支保持一致
+                    // 与 hasBlur 分支一致：上报中心绝对坐标
                     val center = coordinates.localToRoot(Offset(coordinates.size.width / 2f, coordinates.size.height / 2f))
                     cardBoundsPx[0] = center.x
                     cardBoundsPx[1] = center.y
@@ -421,8 +409,7 @@ fun CourseCard(
                             }
                         try {
                             while (true) {
-                                // 菜单/拖拽状态：Main pass 拦截事件防止穿透
-                                // 否则：Final pass 让 HorizontalPager 先处理水平滑动
+                                // 菜单/拖拽用 Main pass 拦截穿透；否则 Final pass 让父级先处理滑动
                                 val pass = if (menuShown || isDraggingCard)
                                     PointerEventPass.Main else PointerEventPass.Final
                                 val event = awaitPointerEvent(pass)
@@ -452,7 +439,7 @@ fun CourseCard(
                                 val dy = currentPos.y - downPosition.y
                                 val dragDist = currentPos.minus(downPosition).getDistance()
 
-                                // 水平滑动 → 释放手势给 HorizontalPager
+                                // 水平滑动 → 释放给 HorizontalPager
                                 if (!isLongPress && !isDraggingCard && !menuShown
                                     && kotlin.math.abs(dx) > 5f * density
                                     && kotlin.math.abs(dx) > kotlin.math.abs(dy) * 1.2f
@@ -521,7 +508,7 @@ private fun CardContent(course: Course, sectionCount: Int, textColor: Color, has
     val effectiveShowClassroom = showClassroom && course.classroom.isNotEmpty()
     val effectiveShowTeacher = showTeacher && course.teacher.isNotEmpty()
 
-    // 课程名称最多行数：卡片高度能放下几行就几行
+    // 卡片高度能放下几行就几行
     val density = LocalDensity.current
     val availableHeightDp = cardHeightDp - 16f
     val courseNameLineH = with(density) { courseNameLineHeight.toDp().value }
@@ -555,7 +542,6 @@ private fun CardContent(course: Course, sectionCount: Int, textColor: Color, has
             horizontalAlignment = horizontalAlignment,
             verticalArrangement = verticalArrangement
         ) {
-            // 课程名称：优先分配
             Text(
                 text = course.name,
                 fontWeight = FontWeight.Bold,
@@ -566,7 +552,6 @@ private fun CardContent(course: Course, sectionCount: Int, textColor: Color, has
                 maxLines = nameMaxLines,
                 overflow = TextOverflow.Ellipsis,
             )
-            // 教室：按剩余空间分配
             if (effectiveShowClassroom) {
                 Spacer(modifier = Modifier.height(2.dp))
                 Text(
@@ -578,7 +563,6 @@ private fun CardContent(course: Course, sectionCount: Int, textColor: Color, has
                     overflow = TextOverflow.Ellipsis,
                 )
             }
-            // 教师：按剩余空间分配
             if (effectiveShowTeacher) {
                 Spacer(modifier = Modifier.height(2.dp))
                 Text(
@@ -602,14 +586,12 @@ private fun CardContent(course: Course, sectionCount: Int, textColor: Color, has
             )
         }
 
-        // 假期“假”/调休“调”角标：固定在卡片右上角；“调”角标背景跟随课程颜色
         val badgeText = when {
             isHoliday -> "假"
             isWorkSwap -> "调"
             else -> null
         }
         if (badgeText != null) {
-            // 角标背景：本周被调课程→课程颜色；假期/非本周被调课程→灰色；alpha 统一降低避免过于抢眼
             val badgeBackground = if (isWorkSwap && isCurrentWeek) {
                 Color(course.colorRes).copy(alpha = 0.32f)
             } else {
@@ -634,7 +616,6 @@ private fun CardContent(course: Course, sectionCount: Int, textColor: Color, has
         }
 
         if (course.hasValidCustomTime() && cardHeightDp >= 2 * cardHeightPerSection) {
-            // 顶部显示开始时间
             Text(
                 text = course.customStartTime ?: "",
                 fontSize = 8.sp,
@@ -647,7 +628,6 @@ private fun CardContent(course: Course, sectionCount: Int, textColor: Color, has
                     .padding(horizontal = 4.dp, vertical = 1.dp),
                 maxLines = 1
             )
-            // 底部显示结束时间
             Text(
                 text = course.customEndTime ?: "",
                 fontSize = 8.sp,
@@ -664,12 +644,7 @@ private fun CardContent(course: Course, sectionCount: Int, textColor: Color, has
     }
 }
 
-/**
- * 描边 outline 缓存：构建一次 ContinuousRoundedRectangle 的 outline 要走完整条超椭圆路径，
- * 原来每张卡片每帧都重建一次（滑动时约 40~80 张 × 2 页）。
- * 只在 (尺寸, 圆角, layoutDirection) 变化时重建，其余帧直接复用。
- */
-// 描边 outline 缓存：课程卡片与特殊课程长条共用（跨文件复用，故非 private）
+// 超椭圆 outline 构建昂贵，滑动时约 40~80 张×2 页；仅尺寸/圆角/layoutDirection 变时重建
 internal class OutlineCache {
     var width: Float = Float.NaN
     var height: Float = Float.NaN

@@ -112,20 +112,19 @@ fun AiImportScreen(
 
     var inputText by remember { mutableStateOf("") }
     var showConfirmDialog by remember { mutableStateOf(false) }
-    // 导入方式：false=覆盖当前课表，true=增量添加（保留现有课程）
     var appendMode by remember { mutableStateOf(false) }
     var editingCourseIndex by remember { mutableIntStateOf(-1) }
-    // 编辑中的课程快照：退出动画期间弹窗仍在屏上，不能依赖列表里的实时对象
+    // 编辑中课程快照：退出动画期间弹窗仍在屏上，不能依赖列表实时对象
     var editingCourseSnapshot by remember { mutableStateOf<Course?>(null) }
-    // 弹窗显隐：关闭时先置 false 让底部弹窗播完退出动画，再卸载组件
+    // 关闭时先置 false 让底部弹窗播完退出动画，再卸载组件
     var showEditDialog by remember { mutableStateOf(false) }
-    // 标记删除操作：真正的删除延迟到退出动画结束后执行，避免列表缩短导致组件被提前移除
+    // 真正删除延迟到退出动画结束后，避免列表缩短导致组件被提前移除
     var pendingDelete by remember { mutableStateOf(false) }
 
-    // 可编辑的解析结果：当 inputText 变化时重新解析覆盖；用户在预览中修改时直接改此列表
+    // inputText 变化时重新解析覆盖；用户在预览中修改时直接改此列表
     val parsedCourses = remember { mutableStateListOf<Course>() }
     val parsedWarnings = remember { mutableStateListOf<String>() }
-    // 节次配置（可编辑）：AI 输出节次配置时解析得到，用户可在预览中修改
+    // AI 输出节次配置时解析得到，用户可在预览中修改
     var parsedSectionConfig by remember { mutableStateOf<SectionConfig?>(null) }
 
     LaunchedEffect(inputText, maxSection) {
@@ -136,7 +135,7 @@ fun AiImportScreen(
         } else {
             val config = parseSectionConfig(inputText)
             parsedSectionConfig = config
-            // 如果解析到了节次配置，使用配置的总节数作为上限；否则用当前设置的上限
+            // 有节次配置时用其总节数作为上限，否则用当前设置
             val effectiveMax = config?.let {
                 (it.morningCount + it.afternoonCount + it.eveningCount).coerceAtLeast(12)
             } ?: maxSection
@@ -148,7 +147,7 @@ fun AiImportScreen(
         }
     }
 
-    // 编辑弹窗关闭：等底部弹窗退出动画（320ms）播完后，再执行删除并卸载弹窗
+    // 等底部弹窗退出动画（320ms）播完后再执行删除并卸载弹窗
     LaunchedEffect(showEditDialog) {
         if (!showEditDialog && editingCourseSnapshot != null) {
             delay(340)
@@ -161,7 +160,7 @@ fun AiImportScreen(
         }
     }
 
-    // 编辑课程时使用的节次上限：优先使用解析到的节次配置
+    // 编辑课程时优先使用解析到的节次配置上限
     val effectiveMaxSection = parsedSectionConfig?.let {
         (it.morningCount + it.afternoonCount + it.eveningCount).coerceAtLeast(12)
     } ?: maxSection
@@ -249,7 +248,7 @@ fun AiImportScreen(
                 )
             }
 
-            // 解析预览：标题 + 预览卡片 + 警告详情，整体动画
+            // 解析预览：标题 + 预览卡片 + 警告详情
             item {
                 val previewVisible = parsedCourses.isNotEmpty() || parsedWarnings.isNotEmpty() || parsedSectionConfig != null
                 val previewScale = remember { Animatable(0.8f) }
@@ -341,7 +340,6 @@ fun AiImportScreen(
                                 }
                             }
                         }
-                        // 警告详情卡片
                         AnimatedVisibility(
                             visible = parsedWarnings.isNotEmpty(),
                             enter = expandVertically(animationSpec = tween(250)) + fadeIn(animationSpec = tween(200)),
@@ -437,8 +435,7 @@ fun AiImportScreen(
         }
     }
 
-    // 课程编辑弹窗：使用 AddCourseDialog 统一组件
-    // 组件常驻到退出动画结束（show=false 后仍保留在树中），否则会瞬间消失、没有退出动画
+    // 组件常驻到退出动画结束（show=false 后仍保留在树中），否则会瞬间消失
     editingCourseSnapshot?.let { snapshot ->
         AddCourseDialog(
             show = showEditDialog,
@@ -464,7 +461,6 @@ fun AiImportScreen(
         )
     }
 
-    // 导入确认弹窗
     OverlayDialog(
         title = if (appendMode) "增量添加到当前课表？" else "导入并覆盖当前课表？",
         summary = buildString {
@@ -491,7 +487,7 @@ fun AiImportScreen(
         onDismissRequest = { showConfirmDialog = false }
     ) {
         Column(modifier = Modifier.fillMaxWidth()) {
-            // 导入方式选择：仅在已有课程时提供增量添加
+            // 仅在已有课程时提供增量添加
             if (existingCourses.isNotEmpty()) {
                 Row(
                     modifier = Modifier
@@ -575,9 +571,7 @@ fun AiImportScreen(
     }
 }
 
-/**
- * 课程预览行：显示课程概要，点击进入编辑弹窗
- */
+/** 课程预览行：显示课程概要，点击进入编辑弹窗 */
 @Composable
 private fun CoursePreviewRow(
     course: Course,
@@ -590,8 +584,7 @@ private fun CoursePreviewRow(
             5 -> "周五"; 6 -> "周六"; 7 -> "周日"; else -> "?"
         }
     }
-    // 连续周次会被 AddCourseDialog 存为空列表（用 startWeek/endWeek 表示），
-    // 因此使用 getWeekText() 综合判断，避免 selectedWeeks 为空时不显示
+    // 连续周次存为空列表（用 startWeek/endWeek 表示），getWeekText() 综合判断
     val weekText = remember(course.selectedWeeks, course.startWeek, course.endWeek, course.weekType) {
         course.getWeekText()
     }
@@ -622,7 +615,6 @@ private fun CoursePreviewRow(
                     fontWeight = FontWeight.Medium,
                     color = MiuixTheme.colorScheme.onSurface
                 )
-                // 第一行：周几｜节次｜地点
                 val summaryLine1 = buildString {
                     append(dayText)
                     append("｜第${course.startSection}-${course.endSection}节")
@@ -635,7 +627,6 @@ private fun CoursePreviewRow(
                     style = MiuixTheme.textStyles.body2,
                     color = MiuixTheme.colorScheme.onSurfaceVariantActions
                 )
-                // 第二行：周次
                 Text(
                     text = weekText,
                     style = MiuixTheme.textStyles.body2,
@@ -654,7 +645,7 @@ private fun CoursePreviewRow(
 
 /**
  * 节次配置数据：上午/下午/晚上的节数与每节起止时间
- * 时间格式: Map<节次编号, "HH:mm-HH:mm">，节次编号为各时段内的相对编号(1,2,3...)
+ * 时间格式: Map<节次编号, "HH:mm-HH:mm">，节次编号为各时段内的相对编号
  */
 data class SectionConfig(
     val morningCount: Int,
@@ -665,32 +656,20 @@ data class SectionConfig(
     val eveningTimes: Map<Int, String>
 )
 
-/**
- * 节次配置行的前缀，用于从文本中识别并跳过这些行
- */
+/** 节次配置行前缀，用于从文本中识别并跳过 */
 private val SECTION_CONFIG_PREFIXES = listOf(
     "上午节数", "下午节数", "晚上节数", "上午时间", "下午时间", "晚上时间"
 )
 
-/**
- * 判断某行是否为节次配置行（以已知前缀开头且包含=）
- */
+/** 判断某行是否为节次配置行 */
 private fun isSectionConfigLine(line: String): Boolean {
     val trimmed = line.trim()
     return SECTION_CONFIG_PREFIXES.any { trimmed.startsWith(it) } && trimmed.contains("=")
 }
 
 /**
- * 从AI返回的文本中解析节次配置
- * 支持格式：
- *   上午节数=4
- *   下午节数=4
- *   晚上节数=2
- *   上午时间=1:08:00-08:45,2:08:55-09:40
- *   下午时间=1:14:00-14:45,...
- *   晚上时间=1:19:00-19:45,...
- *
- * @return SectionConfig? 未识别到任何配置行时返回 null
+ * 从AI返回的文本中解析节次配置。
+ * 支持 "上午节数=4"、"上午时间=1:08:00-08:45,2:08:55-09:40" 等格式；未识别到任何配置行时返回 null
  */
 internal fun parseSectionConfig(text: String): SectionConfig? {
     var morningCount: Int? = null
@@ -731,9 +710,9 @@ internal fun parseSectionConfig(text: String): SectionConfig? {
 }
 
 /**
- * 解析时间映射字符串
- * 格式: "1:08:00-08:45,2:08:55-09:40" → {1: "08:00-08:45", 2: "08:55-09:40"}
- * 注意: 时间字符串本身包含冒号，因此按第一个冒号分割节次编号与时间
+ * 解析时间映射字符串。
+ * 格式: "1:08:00-08:45,2:08:55-09:40" → {1: "08:00-08:45", 2: "08:55-09:40"}；
+ * 时间本身含冒号，因此按第一个冒号分割节次编号与时间
  */
 internal fun parseTimeMap(timeStr: String): Map<Int, String> {
     val map = mutableMapOf<Int, String>()
@@ -751,22 +730,16 @@ internal fun parseTimeMap(timeStr: String): Map<Int, String> {
 }
 
 /**
- * 解析导入的课程文本数据
- * 格式: 课程名称|教室|教师|星期几|开始节次|结束节次|周次
- * 周次格式: 1-6,10-12 或 1,3,5 或 1-16
- * 部分字段可留空，使用默认值
- * 同名同教室同节次的课程自动合并周次
- * 节次配置行（上午节数=、下午时间=等）会被自动跳过
- *
- * @param maxSection 节次上限，超出则视为无效（由调用方根据用户设置传入）
+ * 解析导入的课程文本数据。
+ * 格式: 课程名称|教室|教师|星期几|开始节次|结束节次|周次；
+ * 同名同教室同节次的课程自动合并周次；节次配置行会被自动跳过
  */
 internal fun parseImportedCourses(text: String, maxSection: Int = 12): Pair<List<Course>, List<String>> {
     val warnings = mutableListOf<String>()
     val lines = text.trim().lines().filter { it.isNotBlank() && !isSectionConfigLine(it) }
 
-    // 临时数据：key = 课程名|教室|教师|星期|开始节|结束节, value = 所有周次
+    // key = 课程名|教室|教师|星期|开始节|结束节, value = 所有周次
     val mergedData = linkedMapOf<String, MutableSet<Int>>()
-    // 保留每组的元数据
     val metaData = mutableMapOf<String, CourseMetaData>()
 
     for ((index, line) in lines.withIndex()) {
@@ -779,7 +752,7 @@ internal fun parseImportedCourses(text: String, maxSection: Int = 12): Pair<List
 
             val name = parts[0].ifBlank { "未命名课程" }
             val classroom = parts[1].trim()
-            // 教师：识别不到时留空，不写入占位文字
+            // 识别不到时留空，不写入占位文字
             val teacher = parts[2].trim()
             val dayOfWeek = parts[3].toIntOrNull()
             val startSection = parts[4].toIntOrNull()
@@ -805,11 +778,9 @@ internal fun parseImportedCourses(text: String, maxSection: Int = 12): Pair<List
                 continue
             }
 
-            // 合并键：课程名+教室+教师+星期+节次
             val key = "$name|$classroom|$teacher|$dayOfWeek|$startSection|$endSection"
             mergedData.getOrPut(key) { mutableSetOf() }.addAll(selectedWeeks)
 
-            // 保存元数据（后续会覆盖，取最后一条即可）
             metaData[key] = CourseMetaData(name, classroom, teacher, dayOfWeek, startSection, endSection)
 
         } catch (_: Exception) {
@@ -866,14 +837,11 @@ private data class CourseMetaData(
 )
 
 /**
- * 解析周次字符串，支持格式:
- * "1,2,3,4,5,6,10,11,12" → [1,2,3,4,5,6,10,11,12]
- * "1-6,10-12" → [1,2,3,4,5,6,10,11,12] (兼容范围格式)
+ * 解析周次字符串，支持 "1,2,3,4,5,6,10,11,12" 和 "1-6,10-12"（兼容范围格式），
  * 兼容全角逗号"，"和顿号"、"
  */
 internal fun parseWeekString(weekStr: String): List<Int> {
     val weeks = mutableListOf<Int>()
-    // 兼容全角逗号和顿号
     val normalized = weekStr.replace("，", ",").replace("、", ",")
     val parts = normalized.split(",").map { it.trim() }
 

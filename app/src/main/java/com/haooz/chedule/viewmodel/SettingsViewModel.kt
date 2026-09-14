@@ -11,22 +11,13 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.launch
 
-/**
- * 设置管理 ViewModel
- * 负责课程时间、节数、提醒、主题等设置
- */
 class SettingsViewModel(application: Application) : AndroidViewModel(application) {
 
     private val repository = CourseRepository(application)
 
-    // 智能显示周末设置
     private val _smartWeekend = MutableStateFlow(repository.getSmartWeekend())
     val smartWeekend: StateFlow<Boolean> = _smartWeekend.asStateFlow()
 
-    /**
-     * 获取指定周次要显示的周末天数
-     * 智能模式下：该周有课的周末才显示；非智能模式下：始终显示周六周日
-     */
     fun getWeekendDaysForWeek(week: Int): Set<Int> {
         return if (_smartWeekend.value) {
             buildSet {
@@ -38,27 +29,21 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
         }
     }
 
-    // 显示非本周课程
     private val _showNonCurrentWeek = MutableStateFlow(repository.getShowNonCurrentWeek())
     val showNonCurrentWeek: StateFlow<Boolean> = _showNonCurrentWeek.asStateFlow()
 
-    // 今日页显示壁纸
     private val _todayShowWallpaper = MutableStateFlow(repository.getTodayShowWallpaper())
     val todayShowWallpaper: StateFlow<Boolean> = _todayShowWallpaper.asStateFlow()
 
-    // 上午节数
     private val _morningSections = MutableStateFlow(repository.getMorningSections())
     val morningSections: StateFlow<Int> = _morningSections.asStateFlow()
 
-    // 下午节数
     private val _afternoonSections = MutableStateFlow(repository.getAfternoonSections())
     val afternoonSections: StateFlow<Int> = _afternoonSections.asStateFlow()
 
-    // 晚上节数
     private val _eveningSections = MutableStateFlow(repository.getEveningSections())
     val eveningSections: StateFlow<Int> = _eveningSections.asStateFlow()
 
-    // 各时段节次时间映射
     private val _morningTimes = MutableStateFlow(repository.getPeriodTimes("morning"))
     val morningTimes: StateFlow<Map<Int, String>> = _morningTimes.asStateFlow()
 
@@ -71,42 +56,35 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
     private val _sectionNames = MutableStateFlow(repository.getSectionNames())
     val sectionNames: StateFlow<Map<Int, String>> = _sectionNames.asStateFlow()
 
-    // 特殊课程块（无编号，如早读/大课间/眼保健操），来源于当前时间配置
+    // 无编号特殊块（早读/大课间等），来自当前时间配置
     private val _specialBlocks = MutableStateFlow(repository.getCurrentTimeConfig().specialBlocks)
     val specialBlocks: StateFlow<List<com.haooz.chedule.data.SpecialBlock>> = _specialBlocks.asStateFlow()
 
-    // 课前提醒开关
     private val _preClassReminder = MutableStateFlow(repository.getPreClassReminder())
     val preClassReminder: StateFlow<Boolean> = _preClassReminder.asStateFlow()
 
-    // 课前提醒提前分钟数
     private val _preClassReminderMinutes = MutableStateFlow(repository.getPreClassReminderMinutes())
     val preClassReminderMinutes: StateFlow<Int> = _preClassReminderMinutes.asStateFlow()
 
-    // 次日课程提醒开关
     private val _nextDayReminder = MutableStateFlow(repository.getNextDayReminder())
     val nextDayReminder: StateFlow<Boolean> = _nextDayReminder.asStateFlow()
 
-    // 次日课程提醒时间
     private val _nextDayReminderHour = MutableStateFlow(repository.getNextDayReminderHour())
     val nextDayReminderHour: StateFlow<Int> = _nextDayReminderHour.asStateFlow()
 
     private val _nextDayReminderMinute = MutableStateFlow(repository.getNextDayReminderMinute())
     val nextDayReminderMinute: StateFlow<Int> = _nextDayReminderMinute.asStateFlow()
 
-    // 超级岛通知开关
     private val _islandNotification = MutableStateFlow(repository.getIslandNotification())
     val islandNotification: StateFlow<Boolean> = _islandNotification.asStateFlow()
 
-    // 上课自动开启勿扰开关
     private val _classDndEnabled = MutableStateFlow(repository.getClassDndEnabled())
     val classDndEnabled: StateFlow<Boolean> = _classDndEnabled.asStateFlow()
 
-    // 上课勿扰档位（0=勿扰模式 DND，1=静音模式 SILENT）
+    // 0=勿扰，1=静音
     private val _classDndMode = MutableStateFlow(repository.getClassDndMode())
     val classDndMode: StateFlow<Int> = _classDndMode.asStateFlow()
 
-    // 默认首页
     private val _defaultHomepage = MutableStateFlow(repository.getDefaultHomepage())
     val defaultHomepage: StateFlow<String> = _defaultHomepage.asStateFlow()
 
@@ -120,8 +98,7 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
         }
     }
 
-    // 兼容：将各时段的相对节次时间合并为全局绝对编号的扁平映射
-    // 上午节次保持原编号，下午节次偏移上午节数，晚上节次偏移上午+下午节数
+    // 兼容：合并各时段相对节次为全局绝对编号（下午偏移上午节数，晚上偏移上午+下午）
     val sectionTimes: StateFlow<Map<Int, String>> = run {
         val combined = combine(_morningTimes, _afternoonTimes, _eveningTimes, _morningSections, _afternoonSections) { m, a, e, ms, as_ ->
             buildMap {
@@ -135,12 +112,7 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
         }
     }
 
-    // --- 显示设置 ---
-
-    /**
-     * 从 SharedPreferences 重新加载所有设置（云同步导入后调用）
-     * 仅在值实际变化时更新 Flow，避免不必要的重组风暴
-     */
+    // 仅在值变化时写 Flow，避免无谓重组
     fun refreshSettings() {
         val newSmartWeekend = repository.getSmartWeekend()
         if (_smartWeekend.value != newSmartWeekend) _smartWeekend.value = newSmartWeekend
@@ -223,8 +195,6 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
         repository.setDefaultHomepage(homepage)
     }
 
-    // --- 节数设置 ---
-
     fun setMorningSections(count: Int) {
         _morningSections.value = count
         repository.setMorningSections(count)
@@ -240,16 +210,10 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
         repository.setEveningSections(count)
     }
 
-    // --- 时间设置 ---
-
     fun getMorningTimes(): Map<Int, String> = _morningTimes.value
     fun getAfternoonTimes(): Map<Int, String> = _afternoonTimes.value
     fun getEveningTimes(): Map<Int, String> = _eveningTimes.value
 
-    /**
-     * 更新特殊课程列表（含每个特殊课程内部的星期子块）并持久化到当前时间配置。
-     * 写回后同步刷新 StateFlow，使课表横带即时重绘。
-     */
     fun updateSpecialBlocks(blocks: List<com.haooz.chedule.data.SpecialBlock>) {
         val config = repository.getCurrentTimeConfig()
         repository.saveTimeConfig(config.copy(specialBlocks = blocks))
@@ -271,7 +235,7 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
         repository.savePeriodTimes("evening", times)
     }
 
-    /** 教务/AI 软导入：同步更新当前课表绑定的时间配置对象，避免之后被旧配置盖回 */
+    // 教务/AI 软导入：同步更新当前课表绑定的时间配置，避免之后被旧配置盖回
     fun applyTimeImportToCurrentSchedule(
         morningSections: Int, afternoonSections: Int, eveningSections: Int,
         morningTimes: Map<Int, String>, afternoonTimes: Map<Int, String>, eveningTimes: Map<Int, String>
@@ -291,8 +255,6 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
         repository.savePeriodTimes("afternoon", defaults.defaultAfternoonTimes)
         repository.savePeriodTimes("evening", defaults.defaultEveningTimes)
     }
-
-    // --- 提醒设置 ---
 
     fun setPreClassReminder(enabled: Boolean) {
         _preClassReminder.value = enabled

@@ -154,12 +154,12 @@ data class CourseGroupKey(
     val startWeek: Int,
     val endWeek: Int,
     val selectedWeeks: List<Int> = emptyList(),
-    // 自定义时间的课程按实际起止时间区分分组，避免同名师不同时段的课程被误合并
+    // 自定义时间的课程按实际起止时间分组，避免同名师不同时段被误合并
     val isCustomTime: Boolean = false,
     val customStartTime: String? = null,
     val customEndTime: String? = null
 ) {
-    // 唯一标识：包含全部区分字段，避免同名不同时段的课程分组在 LazyStaggeredGrid 中 key 冲突
+    // 包含全部区分字段，避免 LazyStaggeredGrid key 冲突
     fun uniqueKey(): String = buildString {
         append(dayOfWeek).append('_')
         append(startSection).append('_')
@@ -206,7 +206,7 @@ fun CourseEditScreen(
     sectionTimes: Map<Int, String> = emptyMap(),
 ) {
     val courseName = courses.firstOrNull()?.name ?: ""
-    // 课程颜色状态（所有同名课程共享，仅保存时生效）
+    // 所有同名课程共享颜色，仅保存时生效
     var selectedColor by remember {
         mutableLongStateOf(
             courses.firstOrNull()?.colorRes ?: Course.courseColors.first()
@@ -229,14 +229,12 @@ fun CourseEditScreen(
     val startCornerRadiusPx = 16f * density.density
     val morphOpenEase = OobeQuartOutEasing
     val morphExitEase = OobeCubicOutEasing
-    // translationY 独立曲线，时长根据起始卡片位置决定
     val isUpperHalf = cardTop < screenHeight / 2f
     val transOpenEase = OobeFifthpowerOutEasing
     val transExitEase = OobeQuadraticOutEasing
     val transOpenMillis = if (isUpperHalf) 500 else 500
     val transExitMillis = if (isUpperHalf) 320 else 320
 
-    // ---- Back navigation with exit animation ----
     BackHandler {
         onBackStart()
         scope.launch {
@@ -264,9 +262,7 @@ fun CourseEditScreen(
         }
     }
 
-    // ---- Enter animation ----
     LaunchedEffect(Unit) {
-        // 等待首帧渲染完成后再开始动画
         delay(12.milliseconds)
         launch {
             animProgress.animateTo(
@@ -288,9 +284,7 @@ fun CourseEditScreen(
         }
     }
 
-    // ---- Derived animation state ----
-    // graphicsLayer.scale 同时缩放宽高，clipBottom 需要反向补偿
-    // 使得 scale * clipBottom 在 p=0 时等于 cardHeight
+    // graphicsLayer.scale 同时缩放宽高，clipBottom 需反向补偿使 p=0 时 scale*clipBottom == cardHeight
     val animState = remember {
         derivedStateOf {
             val p = animProgress.value
@@ -299,16 +293,13 @@ fun CourseEditScreen(
             val snapAlpha = (1f - p * 3f).coerceIn(0f, 1f)
             val contAlpha = ((p - 0.1f) / 0.5f).coerceIn(0f, 1f)
             val scale = cardWidth / screenWidth + (1f - cardWidth / screenWidth) * p
-            // 起点 = cardCenter, 终点 = screenCenter
+            // 起点 = cardCenter, 终点 = screenCenter；ty 作为曲线参数，前快后慢
             val cardCenter = cardTop + cardHeight / 2f
             val screenCenter = screenHeight / 2f
-            // 抛物线插值因子：ty 落后于 p → 前快后慢的曲线
             val curveT = ty  // 直接用 ty 作为曲线参数
             val targetCenter = cardCenter + (screenCenter - cardCenter) * curveT
-            // 从 targetCenter 反推 translationY
             val translationY =
                 targetCenter - screenHeight / 2f * (1f - scale) - (cardHeight + (screenHeight - cardHeight) * p) / 2f
-            // translationX 保持不变
             val translationX = cardLeft * (1f - p) - screenWidth / 2f * (1f - scale)
             val rawClipBottom = cardHeight + (screenHeight - cardHeight) * p
             val clipBottom = rawClipBottom / scale
@@ -335,15 +326,12 @@ fun CourseEditScreen(
     var listScrollY by remember { mutableIntStateOf(0) }
     val scrollBehavior = rememberSharedScrollBehavior()
 
-    // 删除动画状态
     var deletingGroupId by remember { mutableStateOf<String?>(null) }
     var showDeleteDialog by remember { mutableStateOf(false) }
     var pendingDeleteGroup by remember { mutableStateOf<CourseGroup?>(null) }
     var pendingDeleteCourseIds by remember { mutableStateOf<List<String>>(emptyList()) }
 
-    // 添加课程弹窗状态
     var showAddCourseSheet by remember { mutableStateOf(false) }
-    // 编辑课程弹窗状态
     var showEditCourseSheet by remember { mutableStateOf(false) }
     var editingGroup by remember { mutableStateOf<CourseGroup?>(null) }
     // 待添加课程（弹窗关闭后再添加，触发淡入动画）
@@ -353,14 +341,13 @@ fun CourseEditScreen(
     LaunchedEffect(deletingGroupId) {
         val courseIds = pendingDeleteCourseIds
         if (deletingGroupId != null && courseIds.isNotEmpty()) {
-            delay(300.milliseconds) // 等 shrinkVertically + fadeOut 动画完成
+            delay(300.milliseconds)
             courseIds.forEach { onDeleteCourse(it) }
             pendingDeleteCourseIds = emptyList()
             deletingGroupId = null
         }
     }
 
-    // 全部课程删除后自动退出编辑页
     var hasTriggeredAutoBack by remember { mutableStateOf(false) }
     LaunchedEffect(courses.size) {
         if (courses.isEmpty() && !hasTriggeredAutoBack && animProgress.value > 0.5f) {
@@ -410,7 +397,6 @@ fun CourseEditScreen(
         }
     }
 
-    // ---- Morphing container (identical to CourseDetailScreen) ----
     Box(
         modifier = Modifier
             .fillMaxSize()
@@ -446,7 +432,6 @@ fun CourseEditScreen(
                 .background(MiuixTheme.colorScheme.surface)
                 .background(cardColor.copy(alpha = cardAlpha))
         ) {
-            // Card snapshot during morph (identical to CourseDetailScreen)
             if (cardSnapshot != null && s.snapshotAlpha > 0f) {
                 val imageBitmap = remember(cardSnapshot) { cardSnapshot.asImageBitmap() }
                 Image(
@@ -461,7 +446,6 @@ fun CourseEditScreen(
                 )
             }
 
-            // Content that fades in (identical to CourseDetailScreen)
             Box(
                 modifier = Modifier
                     .fillMaxSize()
@@ -552,8 +536,7 @@ fun CourseEditScreen(
                                 contentColor = MiuixTheme.colorScheme.onSurface
                             )
                         ) {
-                            // Group courses by day/section/week configuration
-                            val courseGroups = remember(courses) {
+                        val courseGroups = remember(courses) {
                                 courses.groupBy { course ->
                                     CourseGroupKey(
                                         dayOfWeek = course.dayOfWeek,
@@ -603,7 +586,6 @@ fun CourseEditScreen(
                                 verticalItemSpacing = 12.dp,
                                 horizontalArrangement = Arrangement.spacedBy(24.dp)
                             ) {
-                                // 课程颜色选择器（与添加课程弹窗样式一致）
                                 item(key = "color_picker", span = StaggeredGridItemSpan.FullLine) {
                                     val allColors = remember { Course.courseColors }
                                     val colorColumns = if (isTablet) allColors.size + 1 else 6
@@ -663,7 +645,7 @@ fun CourseEditScreen(
                                                                     },
                                                                 contentAlignment = Alignment.Center
                                                             ) {
-                                                                // 选中态：沿外圈绘制主题色描边，描边内侧留空，内部填课程色（保留原 alpha）
+                                                                // 选中态：外圈主题色描边，内部填课程色
                                                                 Box(
                                                                     modifier = Modifier
                                                                         .fillMaxSize()
@@ -684,7 +666,6 @@ fun CourseEditScreen(
                                                                 )
                                                             }
                                                         } else if (colorIndex == allColors.size) {
-                                                            // 自定义颜色按钮
                                                             val isCustomColor =
                                                                 selectedColor !in allColors
                                                             val hintColor =
@@ -710,7 +691,7 @@ fun CourseEditScreen(
                                                                     },
                                                                 contentAlignment = Alignment.Center
                                                             ) {
-                                                                // 选中态：沿外圈绘制主题色描边，描边内侧留空
+                                                                // 选中态：外圈主题色描边
                                                                 Box(
                                                                     modifier = Modifier
                                                                         .fillMaxSize()
@@ -798,7 +779,6 @@ fun CourseEditScreen(
                                                     showEditCourseSheet = true
                                                 }
                                             )
-                                            // 删除按钮
                                             Button(
                                                 modifier = Modifier
                                                     .fillMaxWidth()
@@ -837,7 +817,6 @@ fun CourseEditScreen(
                         }
                     }
 
-                    // 自定义颜色选择弹窗
                     OverlayDialog(
                         title = "选择颜色",
                         show = showColorDialog,
@@ -888,7 +867,6 @@ fun CourseEditScreen(
                         }
                     }
 
-                    // 删除确认弹窗
                     OverlayDialog(
                         title = "删除课程",
                         summary = "确定要删除课程「${pendingDeleteGroup?.courses?.firstOrNull()?.name ?: ""}」吗？\n此操作不可撤销。",
@@ -926,7 +904,6 @@ fun CourseEditScreen(
                         }
                     }
 
-                    // 添加课程底部弹窗
                     AddEditCourseBottomSheet(
                         show = showAddCourseSheet,
                         courses = courses,
@@ -942,7 +919,6 @@ fun CourseEditScreen(
                         sectionTimes = sectionTimes
                     )
 
-                    // 编辑课程底部弹窗
                     AddEditCourseBottomSheet(
                         show = showEditCourseSheet,
                         courses = editingGroup?.courses ?: emptyList(),

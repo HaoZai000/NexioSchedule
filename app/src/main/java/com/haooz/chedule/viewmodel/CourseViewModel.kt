@@ -18,70 +18,55 @@ import java.time.LocalDate
 import java.time.format.DateTimeFormatter
 import java.time.temporal.ChronoUnit
 
-/**
- * 课程表 ViewModel
- */
 class CourseViewModel(application: Application) : AndroidViewModel(application) {
 
     private val repository = CourseRepository(application)
 
-    // 所有课程
     private val _courses = MutableStateFlow<List<Course>>(emptyList())
     val courses: StateFlow<List<Course>> = _courses.asStateFlow()
 
-    // 数据版本号，每次重新加载数据时递增，用于强制 UI 重组
+    // 每次重新加载数据时递增，用于强制 UI 重组
     private val _dataVersion = MutableStateFlow(0)
     val dataVersion: StateFlow<Int> = _dataVersion.asStateFlow()
 
-    // 当前周次
     private val _currentWeek = MutableStateFlow(1)
     val currentWeek: StateFlow<Int> = _currentWeek.asStateFlow()
 
-    // 学期是否已开始（开学日期的周一 <= 今天）
     private val _isSemesterStarted = MutableStateFlow(true)
     val isSemesterStarted: StateFlow<Boolean> = _isSemesterStarted.asStateFlow()
 
-    // 总周数
     private val _totalWeeks = MutableStateFlow(20)
     val totalWeeks: StateFlow<Int> = _totalWeeks.asStateFlow()
 
-    // 开始上课日期
     private val _classStartTime = MutableStateFlow("2025-09-01")
     val classStartTime: StateFlow<String> = _classStartTime.asStateFlow()
 
-    // 当前选中的星期 (1-7)
+    // 1-7 对应周一~周日
     private val _selectedDay = MutableStateFlow(1)
     val selectedDay: StateFlow<Int> = _selectedDay.asStateFlow()
 
-    // 当前选中的开始节次
     private val _selectedStartSection = MutableStateFlow(1)
     val selectedStartSection: StateFlow<Int> = _selectedStartSection.asStateFlow()
 
-    // 当前选中的结束节次
     private val _selectedEndSection = MutableStateFlow(2)
     val selectedEndSection: StateFlow<Int> = _selectedEndSection.asStateFlow()
 
-    // 是否显示添加/编辑对话框
     private val _showAddDialog = MutableStateFlow(false)
     val showAddDialog: StateFlow<Boolean> = _showAddDialog.asStateFlow()
 
-    // 是否显示跳转周数弹窗
     private val _showJumpWeekDialog = MutableStateFlow(false)
     val showJumpWeekDialog: StateFlow<Boolean> = _showJumpWeekDialog.asStateFlow()
 
-    // 正在编辑的课程
     private val _editingCourse = MutableStateFlow<Course?>(null)
     val editingCourse: StateFlow<Course?> = _editingCourse.asStateFlow()
 
-    // 当前是否处于假期（无课程的周）
     private val _isHoliday = MutableStateFlow(false)
 
     init {
         repository.onCourseChanged = { _, _ ->
             viewModelScope.launch(Dispatchers.IO) {
                 loadCourses()
-                // 课程增删改后重新调度提醒闹钟：新增/修改的课程也能及时注册精确闹钟，
-                // 并让 widget 刷新链按最新课程重新计算（否则新课程在提醒窗口内无任何驱动源）
+                // 课程变更后重排闹钟并驱动 widget 刷新链，否则新课程在提醒窗口内无驱动源
                 rescheduleReminders()
             }
         }
@@ -89,9 +74,6 @@ class CourseViewModel(application: Application) : AndroidViewModel(application) 
         viewModelScope.launch(Dispatchers.IO) {
             loadCourses()
         }
-        // 注意：此处原先在主线程同步调用 rescheduleReminders()，会走一遍全量课程反序列化
-        // 并逐个注册闹钟，是冷启动主线程的主要阻塞点；且与 MainActivity 的启动调度完全重复。
-        // repository.onCourseChanged 回调负责重排，这里不再重复执行。
     }
 
     private fun rescheduleReminders() {
@@ -115,7 +97,6 @@ class CourseViewModel(application: Application) : AndroidViewModel(application) 
         updateWidgets()
     }
 
-    /** 同步更新 _courses 并异步刷新小组件（供课程变更操作使用，保证 UI 即时响应） */
     private fun applyCoursesAndRefreshWidgets(courses: List<Course>) {
         _courses.value = courses
         _isHoliday.value = isWeekHoliday(_currentWeek.value)
@@ -134,33 +115,24 @@ class CourseViewModel(application: Application) : AndroidViewModel(application) 
         loadCourses()
     }
 
-    /**
-     * 重新加载所有数据（切换课表后调用）
-     * 返回 Job 供调用方等待加载完成后再截取新课表快照
-     */
+    // 返回 Job：调用方需等待加载完成后再截取新课表快照
     fun reloadCourses(): Job {
         return viewModelScope.launch(Dispatchers.IO) {
             loadData()
         }
     }
 
-    /**
-     * 刷新周次和日期等基本数据（云同步导入后调用）
-     */
+    // 云同步导入后刷新周次等基本数据
     fun refreshEssentialData() {
         _totalWeeks.value = repository.getTotalWeeks()
         _classStartTime.value = repository.getClassStartTime()
         val calculatedWeek = calculateCurrentWeekFromDate(_classStartTime.value)
         _currentWeek.value = calculatedWeek
         _isHoliday.value = isWeekHoliday(calculatedWeek)
-        // 日期/周次可能变化，立即重调度提醒（含开学前取消残留闹钟）
         rescheduleReminders()
     }
 
-    /**
-     * 设置当前周次（今天是第几周）
-     * 保留原日期的星期几，通过周次差值调整：新日期 = 原日期 + (旧周次 - 新周次) * 7
-     */
+    // 同步调整开学日期：新开学日 = 原开学日 + (旧周次-新周次)*7，保留星期几对齐
     fun setCurrentWeek(week: Int) {
         val oldWeek = _currentWeek.value
         _currentWeek.value = week
@@ -174,13 +146,9 @@ class CourseViewModel(application: Application) : AndroidViewModel(application) 
             _classStartTime.value = newStartDateStr
             repository.setClassStartTime(newStartDateStr)
         }
-        // 周次/开学日期已变化，立即重调度提醒
         rescheduleReminders()
     }
 
-    /**
-     * 设置开始上课日期（同时更新当前周次）
-     */
     fun setClassStartTime(time: String) {
         _classStartTime.value = time
         repository.setClassStartTime(time)
@@ -189,35 +157,25 @@ class CourseViewModel(application: Application) : AndroidViewModel(application) 
         _currentWeek.value = newWeek
         repository.setCurrentWeek(newWeek)
         _isHoliday.value = isWeekHoliday(newWeek)
-        // 开学日期已变化，立即重调度提醒（开学前取消已注册的课前/次日闹钟）
         rescheduleReminders()
     }
 
-    /**
-     * 设置总周数
-     */
     fun setTotalWeeks(weeks: Int) {
         _totalWeeks.value = weeks
         repository.setTotalWeeks(weeks)
         _isHoliday.value = isWeekHoliday(_currentWeek.value)
     }
 
-    /**
-     * 根据上课日期计算当前周次
-     * 公式：当前周次 = (今天 - 开学周一) / 7 + 1
-     * 开学周一 = 开始上课日期所在周的周一
-     */
+    // 周次 = (今天 - 开学周一) / 7 + 1；开学周一为开始上课日期所在周的周一
     private fun calculateCurrentWeekFromDate(startDate: String): Int {
         return try {
             val today = LocalDate.now()
             val start = LocalDate.parse(startDate.replace("/", "-"))
-            // 找到开始日期所在周的周一
             val startMonday = start.minusDays((start.dayOfWeek.value - 1).toLong())
-            // 判断学期是否已开始
             _isSemesterStarted.value = !today.isBefore(startMonday)
             val daysBetween = ChronoUnit.DAYS.between(startMonday, today)
             val week = daysBetween.floorDiv(7).toInt() + 1
-            // 不做任何 clamp，允许返回 0 或负数（学期未开始）或超过 totalWeeks（学期已结束）
+            // 刻意不 clamp：允许 0/负数（未开学）或 >totalWeeks（已结束）
             week
         } catch (_: Exception) {
             _isSemesterStarted.value = true
@@ -225,10 +183,7 @@ class CourseViewModel(application: Application) : AndroidViewModel(application) 
         }
     }
 
-    /**
-     * 判断指定周次是否处于假期（该周及之后均无课程）
-     * 假期条件：week > totalWeeks，或当前周无课程且之后所有周也无课程
-     */
+    // 假期 = 超出总周数，或已过最后一个有课周
     fun isWeekHoliday(week: Int): Boolean {
         val total = _totalWeeks.value
         if (week > total) return true
@@ -237,44 +192,26 @@ class CourseViewModel(application: Application) : AndroidViewModel(application) 
         return week > lastWeekWithCourses
     }
 
-    /**
-     * 添加课程
-     */
     fun addCourse(course: Course) {
         applyCoursesAndRefreshWidgets(repository.addCourse(course))
     }
 
-    /**
-     * 更新课程
-     */
     fun updateCourse(course: Course) {
         applyCoursesAndRefreshWidgets(repository.updateCourse(course))
     }
 
-    /**
-     * 按旧名称更新所有同名课程
-     */
     fun updateCoursesByName(oldName: String, updated: Course) {
         applyCoursesAndRefreshWidgets(repository.updateCoursesByName(oldName, updated))
     }
 
-    /**
-     * 删除课程
-     */
     fun deleteCourse(courseId: String) {
         applyCoursesAndRefreshWidgets(repository.deleteCourse(courseId))
     }
 
-    /**
-     * 仅删除指定周次的课程实例
-     */
     fun deleteCourseForWeek(courseId: String, week: Int) {
         applyCoursesAndRefreshWidgets(repository.deleteCourseForWeek(courseId, week))
     }
 
-    /**
-     * 调课-移动：将指定周次的课程实例移动到新位置（仅影响该周）
-     */
     fun moveCourseForWeek(
         sourceCourseId: String,
         week: Int,
@@ -287,9 +224,7 @@ class CourseViewModel(application: Application) : AndroidViewModel(application) 
         ))
     }
 
-    /**
-     * 调课-覆盖：将指定周次的源课程移动到目标位置，并删除该周在目标位置上的所有冲突课程
-     */
+    // 调课-覆盖：移动到目标位置并删除该周冲突课程
     fun overwriteCourseForWeek(
         sourceCourseId: String,
         week: Int,
@@ -302,19 +237,12 @@ class CourseViewModel(application: Application) : AndroidViewModel(application) 
         ))
     }
 
-    /**
-     * 调课-交换：将指定周次的源课程与目标课程互换位置（仅影响该周）
-     */
     fun swapCoursesForWeek(sourceCourseId: String, targetCourseId: String, week: Int) {
         applyCoursesAndRefreshWidgets(repository.swapCoursesForWeek(sourceCourseId, targetCourseId, week))
     }
 
-    /**
-     * 替换所有课程（导入时使用）
-     */
     fun replaceCourses(courses: List<Course>) {
         val currentScheduleId = repository.getCurrentScheduleId()
-        // 为导入的课程设置 scheduleId
         val coursesWithSchedule = courses.map { course ->
             if (course.scheduleId.isEmpty()) {
                 course.copy(scheduleId = currentScheduleId)
@@ -327,12 +255,9 @@ class CourseViewModel(application: Application) : AndroidViewModel(application) 
         _dataVersion.value++
     }
 
-    /**
-     * 追加课程（导入时「增量添加」使用）：保留现有课程，在其后追加
-     */
     fun appendCourses(courses: List<Course>) {
         val currentScheduleId = repository.getCurrentScheduleId()
-        // 为导入的课程设置 scheduleId，并避免与现有课程 id 冲突
+        // 补 scheduleId，id 冲突时重新生成
         val existingIds = _courses.value.map { it.id }.toSet()
         val coursesWithSchedule = courses.map { course ->
             val withSchedule = if (course.scheduleId.isEmpty()) {
@@ -352,9 +277,6 @@ class CourseViewModel(application: Application) : AndroidViewModel(application) 
         _dataVersion.value++
     }
 
-    /**
-     * 显示添加对话框
-     */
     fun showAddDialog(dayOfWeek: Int? = null, startSection: Int? = null, endSection: Int? = null) {
         _editingCourse.value = null
         _selectedDay.value = dayOfWeek ?: 0
@@ -365,41 +287,24 @@ class CourseViewModel(application: Application) : AndroidViewModel(application) 
         _showAddDialog.value = true
     }
 
-    /**
-     * 显示编辑对话框
-     */
     fun showEditDialog(course: Course) {
         _editingCourse.value = course
         _showAddDialog.value = true
     }
 
-    /**
-     * 隐藏对话框
-     */
     fun hideDialog() {
         _showAddDialog.value = false
         _editingCourse.value = null
     }
 
-    /**
-     * 显示跳转周数弹窗
-     */
     fun showJumpWeekDialog() {
         _showJumpWeekDialog.value = true
     }
 
-    /**
-     * 隐藏跳转周数弹窗
-     */
     fun hideJumpWeekDialog() {
         _showJumpWeekDialog.value = false
     }
 
-    /**
-     * 获取指定星期和节次范围已占用的周次列表
-     * @param startTime 自定义开始时间（"HH:mm"，仅自定义时间课程传入）
-     * @param endTime 自定义结束时间（"HH:mm"，仅自定义时间课程传入）
-     */
     fun getOccupiedWeeks(
         dayOfWeek: Int,
         startSection: Int,
@@ -418,9 +323,6 @@ class CourseViewModel(application: Application) : AndroidViewModel(application) 
         )
     }
 
-    /**
-     * 获取指定时间段的所有课程
-     */
     fun getCoursesAtSlot(
         week: Int,
         dayOfWeek: Int,

@@ -16,8 +16,8 @@ android {
         applicationId = "com.haooz.chedule"
         minSdk = 31
         targetSdk = 37
-        versionCode = 151
-        versionName = "1.5.1-0913"
+        versionCode = 152
+        versionName = "1.5.2-0914"
 
         ndk {
             abiFilters += listOf("arm64-v8a")

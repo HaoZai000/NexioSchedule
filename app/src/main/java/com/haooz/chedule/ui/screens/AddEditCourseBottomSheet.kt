@@ -73,16 +73,6 @@ import top.yukonga.miuix.kmp.utils.scrollEndHaptic
 import java.util.UUID
 import kotlin.time.Duration.Companion.milliseconds
 
-/**
- * 添加课程底部弹窗
- *
- * @param show 是否显示
- * @param courses 当前课表的所有课程，用于获取默认地点和教师（取最晚周次的课程）
- * @param backdrop 模糊背景
- * @param onDismissRequest 关闭回调
- * @param onConfirm 确认回调，返回新创建的课程
- * @param getOccupiedWeeks 获取已占用周次的回调（后两个参数为自定义开始/结束时间，仅自定义时间课程传入）
- */
 @SuppressLint("ConfigurationScreenWidthHeight")
 @Composable
 fun AddEditCourseBottomSheet(
@@ -99,19 +89,16 @@ fun AddEditCourseBottomSheet(
     val hapticFeedback = LocalHapticFeedback.current
     val totalWeeks = 20
     val totalSections = 12
-    // 二级弹窗（节次/时间选择）在弹窗作用域之外，读不到 LocalSheetContentBackdrop，
-    // 用非快照 holder 接收 —— 写入零重组，不会让宿主页面在弹窗进入动画期间重跑组合。
+    // 二级弹窗在弹窗作用域外读不到 LocalSheetContentBackdrop，用非快照 holder 接收
     val sheetContentBackdropHolder = remember { BackdropHolder() }
     val isEditMode = editCourse != null
 
-    // 取最晚周次的课程作为默认地点和教师
     val latestCourse = remember(courses) {
         courses.maxByOrNull { it.endWeek }
     }
     val defaultClassroom = latestCourse?.classroom ?: ""
     val defaultTeacher = latestCourse?.teacher ?: ""
 
-    // 编辑状态（每次弹窗打开时根据 editCourse 初始化）
     var classroom by remember(show) { mutableStateOf(editCourse?.classroom ?: defaultClassroom) }
     var teacher by remember(show) { mutableStateOf(editCourse?.teacher ?: defaultTeacher) }
     var dayOfWeek by remember(show) { mutableIntStateOf(editCourse?.dayOfWeek ?: 0) }
@@ -126,12 +113,10 @@ fun AddEditCourseBottomSheet(
         )
     }
 
-    // 节次选择弹窗状态
     var showSectionDialog by remember(show) { mutableStateOf(false) }
     var tempStartSection by remember(show) { mutableIntStateOf(if (startSection > 0) startSection else 1) }
     var tempEndSection by remember(show) { mutableIntStateOf(if (endSection > 0) endSection else 1) }
 
-    // 自定义时间状态
     var isCustomTime by remember(show) { mutableStateOf(editCourse?.isCustomTime ?: false) }
     var customStartTime by remember(show) { mutableStateOf(editCourse?.customStartTime ?: "") }
     var customEndTime by remember(show) { mutableStateOf(editCourse?.customEndTime ?: "") }
@@ -142,7 +127,7 @@ fun AddEditCourseBottomSheet(
     var tempEndHour by remember(show) { mutableIntStateOf(parseTimeHour(editCourse?.customEndTime)) }
     var tempEndMinute by remember(show) { mutableIntStateOf(parseTimeMinute(editCourse?.customEndTime)) }
 
-    // 勾选自定义时间时，自动从节次时间预填
+    // 勾选自定义时间时自动从节次时间预填
     LaunchedEffect(isCustomTime) {
         if (isCustomTime) {
             val sectionStart = sectionTimes[startSection]?.split("-")?.firstOrNull()?.trim()
@@ -158,7 +143,6 @@ fun AddEditCourseBottomSheet(
         }
     }
 
-    // 根据当前选择的星期、节次和自定义时间动态计算已占用的周次（排除自身）
     var currentOccupiedWeeks by remember { mutableStateOf<Set<Int>>(emptySet()) }
     LaunchedEffect(dayOfWeek, startSection, endSection, isCustomTime, customStartTime, customEndTime) {
         currentOccupiedWeeks = getOccupiedWeeks(
@@ -171,7 +155,6 @@ fun AddEditCourseBottomSheet(
         )
     }
 
-    // 周次选择状态（编辑模式预填已选周次，每次弹窗打开时重置）
     val selectedWeeks = remember(show) {
         mutableStateSetOf<Int>().apply {
             if (editCourse != null) {
@@ -304,7 +287,7 @@ fun AddEditCourseBottomSheet(
             verticalArrangement = Arrangement.spacedBy(12.dp),
         ) {
             Spacer(modifier = Modifier.height(if (isTablet) 56.dp else 58.dp))
-            // 卡片入场动画：先占位定型高度，再逐卡 reveal，避免 AnimatedVisibility 移除节点导致外高变化闪烁
+            // 占位定型高度后逐卡 reveal，避免外高变化闪烁
             var revealCount by remember { mutableIntStateOf(0) }
             LaunchedEffect(Unit) {
                 revealCount = 0
@@ -314,7 +297,6 @@ fun AddEditCourseBottomSheet(
                     delay(56.milliseconds)
                 }
             }
-            // 地点教师卡片
             RevealItem(visible = revealCount >= 1) {
             Card(
                 cornerRadius = 20.dp,
@@ -379,7 +361,6 @@ fun AddEditCourseBottomSheet(
             }
             }
 
-            // 上课星期卡片
             RevealItem(visible = revealCount >= 2) {
             Card(
                 cornerRadius = 20.dp,
@@ -458,7 +439,6 @@ fun AddEditCourseBottomSheet(
             }
             }
 
-            // 上课节次卡片 / 上课时间卡片（勾选自定义时间后切换为时间选择）
             RevealItem(visible = revealCount >= 3) {
             Card(
                 cornerRadius = 20.dp,
@@ -509,7 +489,6 @@ fun AddEditCourseBottomSheet(
             }
             }
 
-            // 上课周次卡片
             val noDaySelected = dayOfWeek == 0
             RevealItem(visible = revealCount >= 4) {
             Card(
@@ -544,7 +523,6 @@ fun AddEditCourseBottomSheet(
                             horizontalArrangement = Arrangement.spacedBy(8.dp),
                             verticalAlignment = Alignment.CenterVertically
                         ) {
-                            // 全部：点一次全选，再点一次取消全选（只挂在 Checkbox 上，避免外层再套 clickable 双触发）
                             Row(
                                 verticalAlignment = Alignment.CenterVertically
                             ) {
@@ -569,7 +547,6 @@ fun AddEditCourseBottomSheet(
                                 )
                             }
 
-                            // 单周
                             Row(
                                 verticalAlignment = Alignment.CenterVertically
                             ) {
@@ -602,7 +579,6 @@ fun AddEditCourseBottomSheet(
                                 )
                             }
 
-                            // 双周
                             Row(
                                 verticalAlignment = Alignment.CenterVertically
                             ) {
@@ -639,7 +615,7 @@ fun AddEditCourseBottomSheet(
 
                     Spacer(modifier = Modifier.height(10.dp))
 
-                    // 周次网格：支持按住滑动选择连续区间（1→8 选中 1~8）
+                    // 支持按住滑动选择连续区间
                     WeekRangeSelectGrid(
                         totalWeeks = totalWeeks,
                         selectedWeeks = selectedWeeks.toSet(),
@@ -692,7 +668,6 @@ fun AddEditCourseBottomSheet(
         }
     }
 
-    // 节次选择弹窗
     OverlayDialog(
         title = "选择上课节次",
         show = showSectionDialog,
@@ -782,7 +757,6 @@ fun AddEditCourseBottomSheet(
         }
     }
 
-    // 自定义上课时间选择弹窗（时:分 双滚轮）
     OverlayDialog(
         title = "选择上课时间",
         show = showTimeDialog,
@@ -850,10 +824,7 @@ fun AddEditCourseBottomSheet(
     }
 }
 
-/**
- * 底部弹窗内容项的入场 reveal：内容始终占位参与布局，仅通过 graphicsLayer 做透明/位移/缩放，
- * 保证弹窗外高稳定不闪。该动画结束后（appear==1）即撤层，避免长期保留离屏层。
- */
+/** 入场 reveal：始终占位参与布局，仅 graphicsLayer 做透明/位移/缩放；结束即撤层 */
 @Composable
 private fun RevealItem(
     visible: Boolean,
@@ -881,9 +852,7 @@ private fun RevealItem(
     }
 }
 
-/**
- * 时间段 时:分 双滚轮选择器（与时间配置编辑页一致的左右布局）
- */
+/** 时间段 时:分 双滚轮选择器 */
 @SuppressLint("DefaultLocale")
 @Composable
 private fun TimeRangePickerGroup(
@@ -974,33 +943,24 @@ private fun Color.luminance(): Float {
     return 0.299f * red + 0.587f * green + 0.114f * blue
 }
 
-/**
- * 解析 "HH:mm" 格式字符串中的小时，无效时返回 8
- */
+/** 解析 "HH:mm" 中的小时，无效时返回 8 */
 private fun parseTimeHour(time: String?): Int {
     if (time.isNullOrBlank()) return 8
     val parts = time.split(":")
     return parts.firstOrNull()?.toIntOrNull()?.coerceIn(0, 23) ?: 8
 }
 
-/**
- * 解析 "HH:mm" 格式字符串中的分钟，无效时返回 0
- */
+/** 解析 "HH:mm" 中的分钟，无效时返回 0 */
 private fun parseTimeMinute(time: String?): Int {
     if (time.isNullOrBlank()) return 0
     val parts = time.split(":")
     return parts.getOrNull(1)?.toIntOrNull()?.coerceIn(0, 59) ?: 0
 }
 
-/**
- * 将时/分格式化为 "HH:mm"
- */
 @SuppressLint("DefaultLocale")
 private fun formatTime(hour: Int, minute: Int): String {
     return String.format("%02d:%02d", hour, minute)
 }
 
-/**
- * 自定义时间选择弹窗中可用的分钟值（每 5 分钟一档）
- */
+/** 自定义时间弹窗可用分钟值（每 5 分钟一档） */
 private val minuteValues = (0..59 step 5).toList()

@@ -1,7 +1,4 @@
-/** 今日助手 - 智能课程状态、天气提醒、时段提示 */
 package com.haooz.chedule.ui.screens
-
-// ===================== 天气工具 =====================
 
 import android.Manifest
 import android.content.Context
@@ -64,7 +61,7 @@ import java.util.concurrent.TimeUnit
 import kotlin.math.roundToInt
 import kotlin.time.Duration.Companion.milliseconds
 
-// 中国天气网 type 字段（中文）→ 图标资源
+// 中国天气网 type（中文）→ 图标
 private fun getWeatherIconRes(type: String, isNight: Boolean = false): Int = when {
     type.contains("冰雹") || type.contains("雷") -> R.drawable.icon_t_storm
     type.contains("雾") || type.contains("霾") || type.contains("浮尘") ||
@@ -83,11 +80,7 @@ private fun getWeatherIconRes(type: String, isNight: Boolean = false): Int = whe
     else -> if (isNight) R.drawable.icon_sunny_night else R.drawable.icon_sunny
 }
 
-/**
- * 天气图标（贴合轮廓的模糊投影）。
- * 通过把图标位图的 alpha 蒙版用 BlurMaskFilter 模糊成阴影，
- * 使阴影严格跟随图标轮廓，避免半透明图标透出圆形底边界。
- */
+// 阴影用图标 alpha 蒙版模糊，贴合轮廓（半透明图标不透出圆底边界）
 @Composable
 private fun WeatherIcon(
     resourceId: Int,
@@ -99,7 +92,7 @@ private fun WeatherIcon(
     val density = LocalDensity.current
     val iconPx = with(density) { size.roundToPx() }.coerceAtLeast(1)
     val radiusPx = with(density) { shadowRadius.toPx() }.coerceAtLeast(1f)
-    // 为模糊投影预留外溢边距，避免阴影被画布裁切
+    // 外溢边距，避免阴影被画布裁切
     val marginPx = (radiusPx * 1.1f).roundToInt().coerceAtLeast(2)
     val totalPx = iconPx + marginPx * 2
     val shadowArgb = shadowColor.toArgb()
@@ -120,7 +113,7 @@ private fun WeatherIcon(
     }
 }
 
-/** 将图标资源居中渲染到带边距的 ARGB 位图中，边距供模糊投影外溢 */
+// 图标居中渲染到带边距的 ARGB 位图，边距供阴影外溢
 private fun renderWeatherIconBitmap(context: Context, resourceId: Int, totalPx: Int, insetPx: Int): Bitmap {
     val drawable = ContextCompat.getDrawable(context, resourceId)
     val bitmap = createBitmap(totalPx, totalPx)
@@ -132,12 +125,10 @@ private fun renderWeatherIconBitmap(context: Context, resourceId: Int, totalPx: 
     return bitmap
 }
 
-/** 由图标位图生成贴合其轮廓的模糊阴影位图 */
+// 由图标位图生成贴合轮廓的模糊阴影
 private fun createWeatherShadowBitmap(source: Bitmap, radiusPx: Float, shadowArgb: Int): Bitmap {
-    // 1. 提取图标不透明区域的 alpha 蒙版
     val alphaMask = createBitmap(source.width, source.height, Bitmap.Config.ALPHA_8)
     Canvas(alphaMask).drawBitmap(source, 0f, 0f, null)
-    // 2. 用蒙版画出纯色阴影，并做模糊，使阴影贴合轮廓
     val shadow = createBitmap(source.width, source.height)
     Canvas(shadow).drawBitmap(
         alphaMask,
@@ -151,13 +142,12 @@ private fun createWeatherShadowBitmap(source: Bitmap, radiusPx: Float, shadowArg
     return shadow
 }
 
-// 让外部（如设置页）能作废缓存，使下一次进入今日页时按新设置重新拉取
+// 供设置页作废缓存，下次进入今日页按新设置重拉
 fun invalidateWeatherCache() {
     lastWeatherFetchTime = 0L
     cachedWeather = null
 }
 
-// 时间解析格式化器（避免每秒循环里重复创建）
 private val TIME_FORMATTER = DateTimeFormatter.ofPattern("HH:mm")
 
 private fun parseTime(timeStr: String): LocalTime? {
@@ -168,20 +158,16 @@ private fun parseTime(timeStr: String): LocalTime? {
     }
 }
 
-// ===================== OkHttpClient 单例 =====================
-
 private val httpClient = OkHttpClient.Builder()
     .connectTimeout(5, TimeUnit.SECONDS)
     .readTimeout(5, TimeUnit.SECONDS)
     .build()
 
-// ===================== 天气数据 =====================
-
 private var lastWeatherFetchTime = 0L
 private var cachedWeather: WeatherData? = null
-private const val WEATHER_REFRESH_INTERVAL = 2 * 60 * 1000L // 2分钟
+private const val WEATHER_REFRESH_INTERVAL = 2 * 60 * 1000L
 
-// 城市名 → 中国天气网 citykey 映射（从 assets/city_code.json 懒加载，进程内缓存）
+// assets/city_code.json 懒加载后进程内缓存
 private var cityCodeMap: Map<String, String>? = null
 private val cityCodeMapLock = Any()
 
@@ -230,7 +216,7 @@ private data class WeatherData(
     }
 }
 
-// 共用：取最近一次已知位置。优先 GPS（需精确权限，精度高），回退 NETWORK（粗略即可）。无权限/未开定位/无记录都返回 null。
+// GPS 优先，回退 NETWORK；无权限/未开定位/无记录返回 null
 @Suppress("MissingPermission")
 private fun getLastKnownLocation(context: Context, useLocation: Boolean): android.location.Location? {
     if (!useLocation) return null
@@ -254,7 +240,7 @@ private fun getLastKnownLocation(context: Context, useLocation: Boolean): androi
     }
 }
 
-// 记录「上次定位」：城市名 + citykey/经纬度，供关闭定位权限后回退使用
+// 记录上次定位，供关闭定位权限后回退
 private fun saveLastLocation(
     context: Context,
     name: String,
@@ -268,7 +254,7 @@ private fun saveLastLocation(
     }
 }
 
-// 读取上次定位的经纬度（无权限时彩云源回退用）。无记录返回 null。
+// 上次定位经纬度（无权限时彩云回退用）
 private fun readLastLngLat(context: Context): Pair<Double, Double>? {
     val s = context.getSharedPreferences("weather_prefs", Context.MODE_PRIVATE)
         .getString("last_lnglat", null) ?: return null
@@ -279,12 +265,11 @@ private fun readLastLngLat(context: Context): Pair<Double, Double>? {
     return Pair(lng, lat)
 }
 
-// 中国天气网源：城市名 → citykey。成功后记录「上次定位」。无权限/无实时定位时回退到上次定位的 citykey；仍无则返回 null。
+// 定位 → Geocoder → citykey；无定位时回退上次 citykey
 private fun resolveCityCode(context: Context, useLocation: Boolean): String? {
     val map = getCityCodeMap(context)
     val loc = getLastKnownLocation(context, useLocation)
     if (loc == null) {
-        // 无定位权限/无实时定位时，使用上次定位
         return context.getSharedPreferences("weather_prefs", Context.MODE_PRIVATE)
             .getString("last_city_code", null)
     }
@@ -293,14 +278,14 @@ private fun resolveCityCode(context: Context, useLocation: Boolean): String? {
         @Suppress("DEPRECATION")
         val addresses = geocoder.getFromLocation(loc.latitude, loc.longitude, 1)
         val addr = addresses?.firstOrNull()
-        // 候选城市名：locality(地级市) > subAdminArea > adminArea(直辖市兜底)
+        // locality > subAdminArea > adminArea（直辖市兜底）
         val candidates = listOfNotNull(
             addr?.locality, addr?.subAdminArea, addr?.adminArea
         ).filter { it.isNotBlank() }
         for (raw in candidates) {
             val cleaned = raw.removeSuffix("市")
                 .removeSuffix("地区").removeSuffix("自治州").removeSuffix("盟")
-            // 直辖市的 locality 可能是"海淀区"这类区名，剥掉"区"也能匹配到对应区码
+            // 直辖市 locality 可能是区名，剥「区」后也能匹配区码
             val cleanedDistrict = if (cleaned.endsWith("区") && cleaned.length > 2)
                 cleaned.removeSuffix("区") else cleaned
             val code = map[cleanedDistrict] ?: map[cleaned] ?: map[raw]
@@ -315,10 +300,9 @@ private fun resolveCityCode(context: Context, useLocation: Boolean): String? {
     }
 }
 
-// 彩云天气源：取经纬度（lng, lat）。成功后记录「上次定位」。无权限/无实时定位时回退到上次定位的经纬度；仍无则返回 null。
+// 彩云源取经纬度；无定位时回退上次经纬度
 private fun resolveCoordinates(context: Context, useLocation: Boolean): Pair<Double, Double>? {
     val loc = getLastKnownLocation(context, useLocation)
-    // 无定位权限/无实时定位时，使用上次定位
     if (loc == null) return readLastLngLat(context)
     val lng = loc.longitude
     val lat = loc.latitude
@@ -333,7 +317,7 @@ private fun resolveCoordinates(context: Context, useLocation: Boolean): Pair<Dou
         null
     }
     saveLastLocation(context, name ?: "%.2f,%.2f".format(lat, lng), lngLat = "$lng,$lat")
-    return Pair(lng, lat) // 彩云 URL 路径中经度在前
+    return Pair(lng, lat) // 彩云 URL 经度在前
 }
 
 @Composable
@@ -357,7 +341,7 @@ private fun rememberWeather(): Triple<WeatherData, Boolean, () -> Unit> {
         ActivityResultContracts.RequestMultiplePermissions()
     ) { grants ->
         hasLocationPermission = grants.values.any { it }
-        if (hasLocationPermission) lastWeatherFetchTime = 0L // 授权后强制刷新一次
+        if (hasLocationPermission) lastWeatherFetchTime = 0L // 授权后强制刷新
     }
 
     var refreshTrigger by remember { mutableStateOf(0) }
@@ -372,7 +356,6 @@ private fun rememberWeather(): Triple<WeatherData, Boolean, () -> Unit> {
         withContext(Dispatchers.IO) {
             when (weatherSource) {
                 "caiyun" -> {
-                    // 彩云天气（apizero 免 Token 聚合源）：经纬度查询
                     val coords = resolveCoordinates(context, hasLocationPermission)
                     if (coords == null) {
                         weather = WeatherData(needsLocation = true, loaded = true)
@@ -398,7 +381,7 @@ private fun rememberWeather(): Triple<WeatherData, Boolean, () -> Unit> {
                             @Suppress("UNCHECKED_CAST")
                             val summary = data["summary"] as? Map<String, Any> ?: return@use
                             val temp = (summary["temperature"] as? Number)?.toFloat() ?: Float.NaN
-                            val type = (summary["skycon"] as? String).orEmpty() // 已是中文
+                            val type = (summary["skycon"] as? String).orEmpty()
                             val notice = (data["forecast_keypoint"] as? String).orEmpty()
                             @Suppress("UNCHECKED_CAST")
                             val daily = data["daily"] as? Map<String, Any> ?: return@use
@@ -422,7 +405,7 @@ private fun rememberWeather(): Triple<WeatherData, Boolean, () -> Unit> {
                     }
                 }
                 else -> {
-                    // 中国天气网源：定位 → citykey → 拉取
+                    // 中国天气网：定位 → citykey → 拉取
                     val cityCode = resolveCityCode(context, hasLocationPermission)
                     if (cityCode == null) {
                         weather = WeatherData(needsLocation = true, loaded = true)
@@ -470,8 +453,6 @@ private fun rememberWeather(): Triple<WeatherData, Boolean, () -> Unit> {
     }
 }
 
-// ===================== 课程状态（每秒更新） =====================
-
 private data class CourseStatus(
     val currentCourse: Course? = null,
     val nextCourse: Course? = null,
@@ -484,8 +465,7 @@ private fun rememberCourseStatus(
     sectionTimes: Map<Int, String>
 ): CourseStatus {
     var status by remember { mutableStateOf(CourseStatus()) }
-    // 课程时间区间只随 courses/sectionTimes 变化重算一次，循环内直接复用，避免每秒做字符串解析。
-    // 保持原始 courses 顺序（不按开始时间排序），与旧逻辑的 first-match 语义一致。
+    // 时间区间只随 courses/sectionTimes 重算，循环内复用；保持原顺序以兼容 first-match
     val ranges = remember(courses, sectionTimes) {
         buildCourseTimeRanges(courses, sectionTimes, sortByStart = false)
     }
@@ -521,15 +501,13 @@ private fun rememberCourseStatus(
                 else -> ""
             }
             val newStatus = CourseStatus(current?.course, next?.course, message)
-            // 门控：文案未变化时（绝大多数秒）不写状态，避免每秒重组
+            // 文案未变化时不写状态，避免每秒重组
             if (newStatus != status) status = newStatus
             delay(1000L.milliseconds)
         }
     }
     return status
 }
-
-// ===================== 智能提示生成 =====================
 
 private data class CourseTimeRange(
     val course: Course,
@@ -577,7 +555,7 @@ private fun generateSmartTip(
     val ranges = buildCourseTimeRanges(courses, sectionTimes)
     val tomorrowRanges = buildCourseTimeRanges(tomorrowCourses, sectionTimes)
     if (ranges.isEmpty()) {
-        // 今天有课程但时间信息不完整/无法解析，避免误报“今天没课”
+        // 时间残缺时避免误报「今天没课」
         if (courses.isNotEmpty()) {
             return "今天有 ${courses.size} 节课，但课程时间残缺得跟你的人生规划似的，去课表补一下！"
         }
@@ -620,7 +598,6 @@ private fun generateSmartTip(
             val nextAfter = ranges.find { it.start > ongoing.end }
             val gap = nextAfter?.let { java.time.Duration.between(ongoing.end, it.start).toMinutes() }
             when {
-                // 临近下课且课间紧张时，优先提示赶场
                 gap != null && gap <= 3 && remaining <= 15 -> "下课只有 $gap 分钟！赶场冲刺，慢了半节课都白听了"
                 gap != null && gap <= 10 && remaining <= 15 -> "下课后只剩 $gap 分钟，赶紧补口血，别把魂放出去忘了回收"
                 gap != null && gap <= 15 && remaining <= 15 -> "下课后有 $gap 分钟，喝口水，但别顺带把精神也放了"
@@ -637,7 +614,6 @@ private fun generateSmartTip(
                 remaining <= 90 -> "长课还有 $remaining 分钟，耐心点，老师讲得比你听得还累"
                 remaining <= 105 -> "时间充裕，还有 $remaining 分钟，慢慢听，别把重点漏了"
                 remaining <= 120 -> "刚开课，还有 $remaining 分钟，进入状态吧——别第一分钟就开始数秒表"
-                // 超长课（>120 分钟）时，提前预告课间安排
                 gap != null && gap <= 3 -> "下课后只有 $gap 分钟，提前收拾好东西，别聊着聊着就迟到了"
                 gap != null && gap <= 10 -> "下课后休息 $gap 分钟，够你喝口水，别指望补个觉"
                 gap != null && gap <= 15 -> "下课后有 $gap 分钟休息，抓紧眯会儿也行"
@@ -709,8 +685,6 @@ private fun generateSmartTip(
     }
 }
 
-// ===================== 主组件（紧凑排版） =====================
-
 @Composable
 fun TodayAssistantCard(
     courses: List<Course>,
@@ -754,7 +728,6 @@ fun TodayAssistantCard(
             val currentCourse = courseStatus.currentCourse
             val nextCourse = courseStatus.nextCourse
 
-            // 标签 + 课程名 + 时间（同一行）
             val label = when {
                 currentCourse != null -> "正在上课"
                 nextCourse != null -> "下节课"
@@ -773,7 +746,7 @@ fun TodayAssistantCard(
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                // 左侧：标签 + 课程名（weight 限制宽度，课程名过长时换行显示，右侧剩余时间保持完整）
+                // weight 限制左侧宽度，过长课程名换行，右侧剩余时间保持完整
                 Row(
                     modifier = Modifier.weight(1f),
                     verticalAlignment = Alignment.CenterVertically
@@ -803,7 +776,6 @@ fun TodayAssistantCard(
                 }
             }
 
-            // 地点/教师
             val location = when {
                 currentCourse != null -> currentCourse.classroom
                 nextCourse != null -> nextCourse.classroom
@@ -836,7 +808,6 @@ fun TodayAssistantCard(
                     .background(MiuixTheme.colorScheme.onSurfaceVariantActions.copy(alpha = 0.07f))
             )
             Spacer(modifier = Modifier.height(2.dp))
-            // 智能提示 + 天气
             Column(
                 modifier = Modifier.fillMaxWidth(),
                 verticalArrangement = Arrangement.spacedBy(4.dp)

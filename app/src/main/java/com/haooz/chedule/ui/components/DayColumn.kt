@@ -59,9 +59,7 @@ import top.yukonga.miuix.kmp.icon.extended.Add
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 import top.yukonga.miuix.kmp.utils.PressFeedbackType
 
-/**
- * 课程卡片预计算数据，包裹在 remember 中避免每次重组重复执行 groupBy/filter/分段
- */
+// 包在 remember 里，避免每次重组重跑 groupBy/分段
 private data class CourseRenderData(
     val course: Course,
     val isCurrentWeekCourse: Boolean,
@@ -69,9 +67,6 @@ private data class CourseRenderData(
     val segments: List<Pair<Int, Int>>
 )
 
-/**
- * 单列星期（显示该天的所有课程）
- */
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
 fun DayColumn(
@@ -79,14 +74,14 @@ fun DayColumn(
     courses: List<Course>,
     onCourseClick: (Course) -> Unit,
     onEmptyClick: (Int) -> Unit,
-    // 空白格长按：section + 格子中心/顶部在 Root 中的绝对坐标与尺寸（px），供上层定位快捷菜单
+    // 返回 Root 绝对坐标，供上层定位快捷菜单
     onEmptyLongPress: (section: Int, centerX: Float, cellTopY: Float, width: Float, height: Float) -> Unit = { _, _, _, _, _ -> },
     morningSections: Int = 4,
     afternoonSections: Int = 4,
     eveningSections: Int = 3,
     sectionTimes: Map<Int, String> = Course.defaultSectionTimes,
     specialBlocks: List<com.haooz.chedule.data.SpecialBlock> = emptyList(),
-    // 由页面层统一计算一次，避免 7 列各自重算同一套网格
+    // 页面层算好共享，避免 7 列各自重算
     grid: SpecialGridLayout,
     currentWeek: Int = 1,
     isHoliday: Boolean = false,
@@ -113,11 +108,11 @@ fun DayColumn(
     onCourseDrag: (courseId: String, offsetX: Float, offsetY: Float) -> Unit = { _, _, _ -> },
     onCourseDragEnd: (courseId: String) -> Unit = { _ -> },
     onCourseMenuDismiss: () -> Unit = {},
-    // 拖拽落点高亮：当前列中需高亮的节次范围（含起止），null 表示无高亮
+    // 当前列需高亮的节次范围（含起止）
     dropHighlightSections: IntRange? = null,
-    // 滑动中标记（非 state）：透传给课程卡片，滑动期间跳过逐帧坐标计算
+    // 非 state：滑动中跳过逐帧坐标计算
     gridScrollFlag: com.haooz.chedule.ui.screens.GridScrollFlag? = null,
-    // 由页面层统一读取，避免每列再挂 prefs 监听
+    // 页面层统一读取，避免每列挂 prefs 监听
     isDark: Boolean = false,
     @SuppressLint("ModifierParameter") modifier: Modifier = Modifier
 ) {
@@ -127,7 +122,7 @@ fun DayColumn(
     val isPendingDay = pendingDay == dayOfWeek
     val hapticFeedback = LocalHapticFeedback.current
 
-    // 已占用的节次：普通课程按节次范围，自定义时间课程按其时间区间覆盖到的节次
+    // 普通课按节次范围，自定义时间课按时间区间反查覆盖的节次
     val occupiedSections = remember(courses, sectionTimes, totalSectionsGrid) {
         buildSet {
             courses.forEach { course ->
@@ -154,7 +149,7 @@ fun DayColumn(
             }
         }
     }
-    // 落点高亮背景色：对齐 PendingSectionBox（加号卡片）的灰色风格
+    // 与 PendingSectionBox 灰色风格对齐
     val dropHighlightColor = Color(0xFF9E9E9E).copy(alpha = if (isDark) 0.13f else 0.15f)
 
     Box(
@@ -170,12 +165,9 @@ fun DayColumn(
             val density = LocalDensity.current
             val perSectionPx = with(density) { cardHeightPerSection.dp.toPx() }
 
-            // 节次顶部偏移（dp）换算，与 CourseCardsLayer 的 segOffset 逻辑保持一致（含特殊课程块挤占偏移）
             fun sectionTopDp(section: Int): Float = grid.sectionTop[section] ?: 0f
 
-            // 1. 空节次交互层 —— 单节点承载所有空节次的点击/长按，依据 Y 坐标换算节次，
-            //    并将拖拽落点高亮一并绘制于此，减少每页布局节点数（原每个节次一个 Box）
-            // 空节次交互层在 Root 中的边界：长按时据此计算格子绝对坐标供上层定位快捷菜单
+            // 单节点承载所有空节次点击/长按 + 落点高亮，避免每节一个 Box
             val emptyLayerBounds = remember { FloatArray(4) }
             Box(
                 modifier = Modifier
@@ -217,7 +209,7 @@ fun DayColumn(
                         detectTapGestures(
                             onTap = { offset ->
                                 val y = offset.y
-                                // 依据实际节次顶部偏移（含特殊课程块挤占）反查落点节次，分界带/特殊块区域无匹配则忽略
+                                // 用实际节次 top 反查（含特殊块挤占），分界带/特殊块无匹配则忽略
                                 var section = -1
                                 for (s in 1..totalSectionsGrid) {
                                     val topDp = grid.sectionTop[s] ?: continue
@@ -258,7 +250,6 @@ fun DayColumn(
                     }
             )
 
-            // 2. Pending 添加卡片（用户点击空节次后渲染，仅渲染当前日非占用的 pending 节次）
             if (isPendingDay && pendingSection in 1..totalSectionsGrid && pendingSection !in occupiedSections) {
                 Box(
                     modifier = Modifier
@@ -279,8 +270,7 @@ fun DayColumn(
                 }
             }
 
-            // 壁纸模式下的落点高亮：对齐 PendingSectionBox 加号卡片的 backdrop 样式
-            // 非壁纸模式由上方 drawBehind 绘制纯色高亮
+            // 壁纸模式高亮需走 backdrop；非壁纸由上方 drawBehind 纯色绘制
             if (hasBlur && wallpaperBackdrop != null && dropHighlightSections != null) {
                 val hlRange = dropHighlightSections!!
                 val hlTop = sectionTopDp(hlRange.first)
@@ -293,7 +283,6 @@ fun DayColumn(
                         if (!isSharedBlur) blur(hlBlurPx)
                     }
                 }
-                // 对齐 PendingSectionBox 的 surface 颜色
                 val hlSurfaceColor = remember(isDark) {
                     if (isDark) Color(0xFF242424).copy(alpha = 0.64f) else Color(0xFFF0F0F0).copy(alpha = 0.5f)
                 }
@@ -318,10 +307,7 @@ fun DayColumn(
                 )
             }
 
-            // 特殊课程横带统一在整表层（MainScheduleScreen）按时间插值横贯所有星期列渲染，
-            // 此处不再逐列绘制，避免“每天一个卡片”。grid.specialBands 仅用于其它几何计算。
-
-            // 课程卡片层 —— 独立组合函数，周切换时仅此层重组，静态网格骨架可被 Compose 跳过
+            // 特殊横带在整表层渲染；独立成层使周切换只重组本层，静态骨架可跳过
             CourseCardsLayer(
                 courses = courses,
                 currentWeek = currentWeek,
@@ -361,11 +347,6 @@ fun DayColumn(
     }
 }
 
-/**
- * 课程卡片层。将分组/筛选/分段计算与卡片组合包裹在独立组合函数中，
- * 使周切换（courses/currentWeek 变化）时重组范围收缩到本层，
- * 静态网格骨架（空占位 + 分界线）不随周数据重建。
- */
 @Composable
 private fun CourseCardsLayer(
     courses: List<Course>,
@@ -409,7 +390,6 @@ private fun CourseCardsLayer(
         val hiddenCoursesMap = mutableMapOf<String, List<Course>>()
 
         coursesBySection.forEach { (slotKey, sectionCourses) ->
-            // partition 只对每门课调一次 isActiveInWeek（原 filter + filter{!...} 调两次）
             val (currentWeekCourses, otherCourses) = sectionCourses.partition { it.isActiveInWeek(currentWeek) }
 
             if (currentWeekCourses.isNotEmpty()) {
@@ -464,7 +444,7 @@ private fun CourseCardsLayer(
         val isCurrentWeekCourse = renderData.isCurrentWeekCourse
         val isDragging = course.id in draggingCourseIds && isCurrentWeekCourse
 
-        // 自定义时间课程：按时间轴插值定位/定高，不按节次分段，忽略午休/晚休分界
+        // 自定义时间课按时间轴插值定位/定高，不按节次分段
         if (course.hasValidCustomTime()) {
             val layout = computeCustomTimeLayout(
                 customStart = course.customStartTime,
@@ -508,7 +488,6 @@ private fun CourseCardsLayer(
                             onPendingChange(-1, -1)
                             onCourseClick(course)
                         },
-                        // 自定义时间课程不允许长按调课，不传入长按/拖拽回调
                     )
                 }
             }
@@ -572,10 +551,6 @@ private fun CourseCardsLayer(
     }
 }
 
-/**
- * Pending 状态的空节次卡片（含模糊+边光+图标），仅在用户点击空白格时渲染。
- * 提取为独立 Composable 避免在普通空单元格中创建子树。
- */
 @Composable
 private fun PendingSectionBox(
     section: Int,
@@ -683,11 +658,7 @@ private fun PendingSectionBox(
     }
 }
 
-/**
- * 课程所在“格子槽位”的标识。
- * 普通课程按节次号；自定义时间课程按实际起止时间，
- * 避免同名师同日但不同时段（如上午/下午）的自定义时间课程被误判为同一槽位而折叠合并。
- */
+// 自定义时间课用起止时间区分槽位，避免同时段不同节被折叠合并
 private fun courseSlotKey(course: Course): String {
     if (course.hasValidCustomTime()) {
         return "custom|${course.customStartTime}|${course.customEndTime}"
@@ -695,9 +666,6 @@ private fun courseSlotKey(course: Course): String {
     return "section|${course.startSection}"
 }
 
-/**
- * 解析 "HH:mm" 为当天分钟数，解析失败返回 -1
- */
 private fun parseMinutes(time: String?): Int {
     if (time.isNullOrBlank()) return -1
     val parts = time.split(":")
@@ -707,21 +675,12 @@ private fun parseMinutes(time: String?): Int {
     return h * 60 + m
 }
 
-/**
- * 自定义时间课程在网格中的布局：顶部偏移（dp）+ 高度（dp）
- */
 private data class CustomTimeLayout(
     val topDp: Float,
     val heightDp: Float
 )
 
-/**
- * 按时间轴插值计算自定义时间课程的位置与高度。
- *
- * 保留节次网格骨架，早/午/晚三个连续时间段各自按时间比例插值到对应高度区间；
- * 跨时间段（含午休/晚休分隔带）时用统一的"分钟 → Y"映射，使课程能自然跨过分隔带。
- * 自定义时间在网格时间范围之外时做钳制（早于第一节→列顶，晚于最后一节→列底）。
- */
+// 节内按时间比例插值；跨午/晚休用统一分钟→Y；超范围钳到列顶/底
 private fun computeCustomTimeLayout(
     customStart: String?,
     customEnd: String?,
@@ -739,7 +698,6 @@ private fun computeCustomTimeLayout(
     val totalSections = morningSections + afternoonSections + eveningSections
     val columnBottom = grid.totalHeight
 
-    // 收集所有节次的起止时间
     data class SectionInfo(val start: Int, val end: Int, val index: Int)
     val sections = mutableListOf<SectionInfo>()
     for (section in 1..totalSections) {
@@ -753,24 +711,19 @@ private fun computeCustomTimeLayout(
     }
     if (sections.isEmpty()) return null
 
-    // 将时间映射到 Y 坐标：在节次内按比例插值，跳过课间
     fun timeToY(minutes: Int): Float {
-        // 找到该时间所在的节次
         for (info in sections) {
             if (minutes <= info.end) {
                 val sectionTop = grid.sectionTop[info.index] ?: 0f
-                // 在该节次内按时间比例插值
                 val fraction = if (info.end > info.start) {
                     ((minutes - info.start).toFloat() / (info.end - info.start)).coerceIn(0f, 1f)
                 } else 0f
                 return sectionTop + cardHeightPerSection * fraction
             }
         }
-        // 超出最后一节：返回列底
         return columnBottom
     }
 
-    // 早于第一节时：Y=0
     fun timeToYClamped(minutes: Int): Float {
         if (minutes <= sections.first().start) return 0f
         return timeToY(minutes).coerceIn(0f, columnBottom)
@@ -781,10 +734,6 @@ private fun computeCustomTimeLayout(
     return CustomTimeLayout(top, (bottom - top).coerceAtLeast(0f))
 }
 
-/**
- * 特殊课程长条（无编号，如早读/大课间/眼保健操）的渲染：显示名称居中。
- * 时间为时间轴浮层，起止时间显示在左侧时间列，此处仅显示名称。
- */
 @Composable
 fun SpecialBandOverlay(
     name: String,
@@ -796,15 +745,14 @@ fun SpecialBandOverlay(
     cardRefraction: com.haooz.chedule.data.CardRefractionLevel = com.haooz.chedule.data.CardRefractionLevel.DEFAULT,
     isTablet: Boolean = false,
     wallpaperBackdrop: Backdrop?,
-    // 内部按星期划分的子块（如周一~周二"画黑板报"）；为空时退化为整条显示名称
+    // 子块为空时退化为整条显示名称
     items: List<com.haooz.chedule.data.SpecialItem> = emptyList(),
-    // 当前实际显示的星期列表（智能周末模式下可能只有 1..5），决定列宽与子块定位
+    // 智能周末下可能只有 1..5，决定列宽与子块定位
     dayRange: List<Int> = emptyList()
 ) {
     val shownName = name.ifBlank { "特殊课程" }
-    // 因子基于原始 cardAlpha，确保默认时因子恒为 1；仅对最终 alpha 做 0~1 保护
+    // 默认 cardAlpha=0.15 时因子为 1；仅保护最终 alpha
     val alphaFactor = cardAlpha / 0.15f
-    // 与课程卡片一致：平板上圆角放大 1.3 倍
     val effectiveCornerRadius = if (isTablet) cardCornerRadius * 1.3f else cardCornerRadius
     val bgColor = if (isDark) {
         Color.White.copy(alpha = (0.06f * alphaFactor).coerceIn(0f, 1f))
@@ -835,16 +783,13 @@ fun SpecialBandOverlay(
                     }
                 }
             }
-            // 关键：onDrawSurface 必须固定下来。否则每次重组都是新的 lambda，
-            // drawBackdrop 的 element 判不等 → 每次重组都重新录制壁纸层 + 重跑一次 GPU 模糊。
-            // 滑动课表/拖动外观滑块时模糊层被反复重建，视觉上就表现为"特殊课程没有模糊"。
+            // onDrawSurface 必须固定，否则每次重组都重新录制壁纸层并重跑 GPU 模糊
             val onBandSurface: DrawScope.() -> Unit = remember(bgColor, overlayColor) {
                 {
                     drawRect(bgColor)
                     drawRect(overlayColor)
                 }
             }
-            // 与课程卡片一致的同色描边（缓存 outline，避免每帧重建路径）
             val outlineColor = remember(bgColor) { bgColor.copy(alpha = 0.05f) }
             val outlineStroke = remember(density) { Stroke(with(density) { 2.dp.toPx() }) }
             val outlineCache = remember { OutlineCache() }
@@ -936,15 +881,6 @@ private fun SpecialBandContent(name: String, isDark: Boolean) {
     }
 }
 
-/**
- * 特殊课程横带的内部内容。
- *
- * 当该横带内已划分星期子块时：按 [dayRange] 均分列宽，把每个子块渲染成跨列连续矩形
- * （如周一~周二一个矩形，周三单独一个），未被任何子块覆盖的星期渲染成透明可点击区域，
- * 点击后由外部弹出添加弹窗；点击已有矩形则进入编辑。
- *
- * 当没有子块时退化为原来的整条居中显示名称。
- */
 @Composable
 private fun SpecialBandBody(
     name: String,
@@ -970,19 +906,16 @@ private fun SpecialBandBody(
         }
         val itemTextColor = if (isDark) Color.White.copy(alpha = 0.78f) else Color.Black.copy(alpha = 0.74f)
 
-        // 已划分的子块矩形：跨 startDay..endDay 连续
         items.forEach { item ->
             val fromIdx = dayRange.indexOf(item.startDay)
             val toIdx = dayRange.indexOf(item.endDay)
-            // 该子块与当前显示的星期没有交集（如只在周末而周末未显示）时跳过
             if (fromIdx < 0 || toIdx < 0 || toIdx < fromIdx) return@forEach
             Box(
                 modifier = Modifier
                     .offset(x = dayWidth * fromIdx)
                     .width(dayWidth * (toIdx - fromIdx + 1))
                     .fillMaxHeight()
-                    // 相邻子卡间距 = 2+2=4dp；为了让外侧（首/尾卡到横带边缘）与内侧间距均衡：
-                    // 所有卡上下间距 +2，最左卡左侧 +2、最右卡右侧 +2，内卡相互间距保持不变
+                    // 首/尾卡外侧 +2，与内侧相邻间距 4dp 均衡
                     .padding(
                         start = if (fromIdx == 0) 4.dp else 2.dp,
                         end = if (toIdx == dayRange.size - 1) 4.dp else 2.dp,
@@ -1005,15 +938,7 @@ private fun SpecialBandBody(
     }
 }
 
-/**
- * 特殊课程横带的**点击交互层**（完全透明，只处理点击）。
- *
- * 必须放在课表 Row **之上**单独渲染：DayColumn 的「空节次交互层」是 fillMaxHeight 且带
- * pointerInput + detectTapGestures，会消费整个列高上的点击事件。横带若只在下层绘制，
- * 点击永远轮不到它 —— 视觉留在下层（避免遮挡自定义时间课程），点击由本层在上层接管。
- *
- * 子块矩形区域 → 编辑该子块；未被任何子块覆盖的星期 → 新增子块。
- */
+// 必须叠在课表 Row 之上：空节次层会消费整列点击，下层横带收不到
 @Composable
 fun SpecialBandClickLayer(
     items: List<com.haooz.chedule.data.SpecialItem>,
@@ -1042,8 +967,7 @@ fun SpecialBandClickLayer(
             )
         }
 
-        // 未被覆盖的星期：完全透明但可点击，点击后添加子块。
-        // 填满时不存在空白格，因此天然满足"填满后不允许再添加"。
+        // 未被覆盖的星期可点击新增；填满后无空白格即天然禁止再加
         dayRange.forEachIndexed { idx, day ->
             val occupied = items.any { item -> day in item.startDay..item.endDay }
             if (!occupied) {

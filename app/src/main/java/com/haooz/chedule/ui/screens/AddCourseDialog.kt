@@ -96,23 +96,13 @@ import top.yukonga.miuix.kmp.utils.scrollEndHaptic
 import java.util.UUID
 import kotlin.time.Duration.Companion.milliseconds
 
-/**
- * 内容区分组数（基本信息 / 星期 / 节次 / 周次网格 / 颜色 / 删除），用于逐组错落揭示。
- */
+/** 揭示分组数（基本信息/星期/节次/周次/颜色/删除） */
 private const val REVEAL_GROUP_COUNT = 6
 
-/** 每组之间的揭示间隔（毫秒），总时长 ≈ 该值 × (REVEAL_GROUP_COUNT-1)。 */
+/** 每组揭示间隔 */
 private const val REVEAL_STEP_MS = 60L
 
-/**
- * 添加/编辑课程表单的状态持有者。
- *
- * 关键约定：**每个字段只允许在真正消费它的那张卡片内部被读取**，父级 `AddCourseDialog`
- * 在组合期一律不解引用（只在 `onConfirmClick` 这类事件回调里读——事件里读取不会建立重组依赖）。
- *
- * 已在 app/compose-stability.conf 中声明为 stable，否则内部 `var` 字段会让整个类
- * 被判定为 unstable，子卡片就无法靠参数比对跳过重组。
- */
+// 字段只在消费它的那张卡片内读取；已在 compose-stability.conf 声明 stable
 private class AddCourseFormState(
     course: Course?,
     selectedDay: Int,
@@ -146,7 +136,7 @@ private class AddCourseFormState(
         }
     }
 
-    /** 切换星期：周次占用情况随星期变化，已选周次一并清空。 */
+    /** 切换星期：周次占用随星期变化，已选周次一并清空 */
     fun selectDay(day: Int) {
         dayOfWeek = day
         selectedWeeks.clear()
@@ -175,23 +165,18 @@ fun AddCourseDialog(
     val hapticFeedback = LocalHapticFeedback.current
     val context = LocalContext.current
     val isDark = isAppDarkTheme()
-    // 嵌套弹窗（节次/自定义时间等）渲染在 root popup host，继承宿主的壁纸主题；
-    // 此处强制跟随应用主题。
+    // 嵌套弹窗在 root popup host，强制跟随应用主题而非壁纸主题
     val appDialogDark = rememberAppSettingDark()
     val appDialogController = remember(appDialogDark) {
         ThemeController(if (appDialogDark) ColorSchemeMode.Dark else ColorSchemeMode.Light)
     }
-    // 二级弹窗（删除确认/节次/时间选择）在弹窗作用域之外，读不到 LocalSheetContentBackdrop，
-    // 用非快照 holder 接收 —— 写入零重组，不会让宿主页面在弹窗进入动画期间重跑组合。
+    // 二级弹窗在弹窗作用域外读不到 LocalSheetContentBackdrop，用非快照 holder 接收
     val sheetContentBackdropHolder = remember { BackdropHolder() }
 
-    // 逐组揭示：revealStep 从 -1 递增，各卡片 target 逐组变为可见。
-    // 卡片始终占位参与布局（不 AnimatedVisibility 移除节点），仅通过 graphicsLayer 做透明/位移/缩放，
-    // 因此弹窗高度首帧定型、全程稳定不闪。整体先延迟 120ms 再开始。
+    // 卡片始终占位参与布局，仅 graphicsLayer 做透明/位移/缩放，避免外高闪烁
     var revealStep by remember(show) { mutableIntStateOf(-1) }
     LaunchedEffect(show) {
         if (!show) return@LaunchedEffect
-        // 整体延迟一档（120ms）再开始
         delay(120.milliseconds)
         for (step in 0 until REVEAL_GROUP_COUNT) {
             revealStep = step
@@ -199,13 +184,12 @@ fun AddCourseDialog(
         }
     }
 
-    // 表单状态集中在持有者里：父级组合期不解引用其字段，读取全部下沉到各卡片内部，
-    // 敲字 / 点周次 / 选颜色只重组对应的那一张卡，不再波及整个弹窗。
+    // 父级组合期不解引用 form 字段，读取下沉到各卡片内部
     val form = remember(show) {
         AddCourseFormState(course, selectedDay, defaultStartSection, defaultEndSection)
     }
 
-    // 自定义上课时间的弹窗暂存值（只在时间弹窗内被读取，放在父级没有重组代价）
+    // 自定义上课时间弹窗暂存值（只在时间弹窗内被读取）
     var showTimeDialog by remember(show) { mutableStateOf(false) }
     var timeError by remember(show) { mutableStateOf(false) }
     var tempStartHour by remember(show) { mutableIntStateOf(parseTimeHour(course?.customStartTime)) }
@@ -213,7 +197,7 @@ fun AddCourseDialog(
     var tempEndHour by remember(show) { mutableIntStateOf(parseTimeHour(course?.customEndTime)) }
     var tempEndMinute by remember(show) { mutableIntStateOf(parseTimeMinute(course?.customEndTime)) }
 
-    // 勾选自定义时间时，自动从节次时间预填
+    // 勾选自定义时间时自动从节次时间预填
     LaunchedEffect(form.isCustomTime) {
         if (form.isCustomTime) {
             val sectionStart = sectionTimes[form.startSection]?.split("-")?.firstOrNull()?.trim()
@@ -230,8 +214,7 @@ fun AddCourseDialog(
     }
 
     var currentOccupiedWeeks by remember { mutableStateOf<Set<Int>>(emptySet()) }
-    // 占用周次的计算与"剔除已占周次"合并进同一个协程：原先拆成两个 LaunchedEffect，
-    // 星期/节次变化要多等一帧才画出来。内容相等时不写状态，避免空 Set 反复重启协程。
+    // 占用计算与剔除合并进同一协程；内容相等时不写状态，避免空 Set 反复重启协程
     LaunchedEffect(
         form.dayOfWeek,
         form.startSection,
@@ -262,8 +245,7 @@ fun AddCourseDialog(
         remember(allWeeks, currentOccupiedWeeks) { allWeeks.filter { it !in currentOccupiedWeeks } }
     val selectableOddWeeks = remember(selectableWeeks) { selectableWeeks.filter { it % 2 == 1 } }
     val selectableEvenWeeks = remember(selectableWeeks) { selectableWeeks.filter { it % 2 == 0 } }
-    // 注意：下面这 5 个布尔不能再在这里算 —— 它们要读 form.selectedWeeks，
-    // 一旦在父级作用域读取，点一个周次格子就会让整个弹窗重组。已下沉到 WeekSettingCard。
+    // 注意：不要再在父级作用域读 form.selectedWeeks，否则点周次格子会整弹窗重组
     val hasOccupiedOddWeeks =
         remember(selectableOddWeeks, oddWeeks) { selectableOddWeeks.size != oddWeeks.size }
     val hasOccupiedEvenWeeks =
@@ -277,7 +259,6 @@ fun AddCourseDialog(
     // 初值无关紧要：每次打开调色板前都会用当前课程色重新赋值
     var customColor by remember { mutableStateOf(Color.Transparent) }
 
-    // 事件回调里读取 form 字段不会建立重组依赖，所以这里可以放心读
     val onConfirmClick: () -> Unit = {
         hapticFeedback.performHapticFeedback(HapticFeedbackType.Confirm)
         if (form.name.isBlank()) {
@@ -386,8 +367,6 @@ fun AddCourseDialog(
                 selectableEvenWeeks = selectableEvenWeeks,
                 hasOccupiedOddWeeks = hasOccupiedOddWeeks,
                 hasOccupiedEvenWeeks = hasOccupiedEvenWeeks,
-                // 这些回调体内解引用 form 的当前字段（调用时才读），
-                // 因此不存在"捕获旧值"的问题，改完节次/颜色再打开也是最新的
                 onShowSectionDialog = {
                     tempStartSection = form.startSection
                     tempEndSection = form.endSection
@@ -459,8 +438,6 @@ fun AddCourseDialog(
                 selectableEvenWeeks = selectableEvenWeeks,
                 hasOccupiedOddWeeks = hasOccupiedOddWeeks,
                 hasOccupiedEvenWeeks = hasOccupiedEvenWeeks,
-                // 这些回调体内解引用 form 的当前字段（调用时才读），
-                // 因此不存在"捕获旧值"的问题，改完节次/颜色再打开也是最新的
                 onShowSectionDialog = {
                     tempStartSection = form.startSection
                     tempEndSection = form.endSection
@@ -481,9 +458,8 @@ fun AddCourseDialog(
                 onDeleteClick = { showDeleteDialog = true },
             )
         }
-    } // end of if (isTablet) else
+    }
 
-    // 删除确认弹窗（强制跟随应用主题）
     OverlayDialog(
         title = "删除课程",
         summary = "确定要删除课程「${course?.name}」吗？\n此操作不可撤销。",
@@ -523,7 +499,6 @@ fun AddCourseDialog(
         }
     }
 
-    // 节次选择弹窗（强制跟随应用主题）
     OverlayDialog(
         title = "选择上课节次",
         show = showSectionDialog,
@@ -550,8 +525,7 @@ fun AddCourseDialog(
                                 color = MiuixTheme.colorScheme.onSurfaceVariantActions,
                                 modifier = Modifier.padding(top = 4.dp, bottom = 12.dp)
                             )
-                            // 把"结束 >= 开始"的夹取放在同一个快照里同步完成，
-                            // 既省掉 LaunchedEffect 带来的一帧延迟，也避免结束滚轮的 range 一直变
+                            // 结束 >= 开始 的夹取在同一快照里同步完成，省掉一帧延迟
                             NumberPicker(
                                 value = tempStartSection,
                                 onValueChange = {
@@ -574,7 +548,7 @@ fun AddCourseDialog(
                                 color = MiuixTheme.colorScheme.onSurfaceVariantActions,
                                 modifier = Modifier.padding(top = 4.dp, bottom = 12.dp)
                             )
-                            // 范围固定为 1..totalSections：拖动"开始"时不再反复重建本滚轮
+                            // 范围固定，拖动"开始"时不再反复重建本滚轮
                             NumberPicker(
                                 value = tempEndSection,
                                 onValueChange = { tempEndSection = it },
@@ -618,7 +592,6 @@ fun AddCourseDialog(
         }
     }
 
-    // 自定义上课时间选择弹窗（时:分 双滚轮，强制跟随应用主题）
     OverlayDialog(
         title = "选择上课时间",
         show = showTimeDialog,
@@ -690,7 +663,6 @@ fun AddCourseDialog(
         }
     }
 
-    // 自定义颜色选择弹窗（强制跟随应用主题，与节次/时间/删除弹窗一致）
     OverlayDialog(
         title = "选择颜色",
         show = showColorDialog,
@@ -767,10 +739,7 @@ private fun AddCourseDialogContent(
     val statusBarsPadding = WindowInsets.statusBars.asPaddingValues().calculateTopPadding()
     val isTablet = LocalConfiguration.current.screenWidthDp >= 600
 
-    // 用 rememberUpdatedState 而不是 remember{}：后者会冻结首次组合时创建的 lambda，
-    // 而"打开子弹窗"这类回调里读的是当时的字段值，冻结后二次打开会回填旧值。
-    // rememberUpdatedState 既给到稳定引用（revealStep 递进时各卡片仍可跳过重组），
-    // 又保证调用时拿到的是最新的那个 lambda。
+    // rememberUpdatedState 保证稳定引用 + 调用时拿到最新 lambda（remember{} 会冻结旧值）
     val stableOnShowSectionDialog by rememberUpdatedState(onShowSectionDialog)
     val stableOnShowTimeDialog by rememberUpdatedState(onShowTimeDialog)
     val stableOnShowColorDialog by rememberUpdatedState(onShowColorDialog)
@@ -789,7 +758,6 @@ private fun AddCourseDialogContent(
     ) {
         Spacer(modifier = Modifier.height(if (isTablet) 56.dp else 58.dp))
 
-        // 基本信息卡片
         CardReveal(visible = revealStep >= 0, index = 0) {
             BasicInfoCard(
                 isDark = isDark,
@@ -797,7 +765,6 @@ private fun AddCourseDialogContent(
             )
         }
 
-        // 上课星期卡片
         CardReveal(visible = revealStep >= 1, index = 1) {
             WeekdayCard(
                 isDark = isDark,
@@ -805,7 +772,6 @@ private fun AddCourseDialogContent(
             )
         }
 
-        // 节次范围 / 上课时间（勾选自定义时间后切换为时间选择）
         CardReveal(visible = revealStep >= 2, index = 2) {
             SectionTimeCard(
                 isDark = isDark,
@@ -815,7 +781,6 @@ private fun AddCourseDialogContent(
             )
         }
 
-        // 周次设置
         CardReveal(visible = revealStep >= 3, index = 3) {
             WeekSettingCard(
                 isDark = isDark,
@@ -830,7 +795,6 @@ private fun AddCourseDialogContent(
             )
         }
 
-        // 课程颜色选择
         CardReveal(visible = revealStep >= 4, index = 4) {
             ColorCard(
                 isDark = isDark,
@@ -839,7 +803,6 @@ private fun AddCourseDialogContent(
             )
         }
 
-        // 删除按钮（仅编辑模式）
         CardReveal(visible = revealStep >= 5, index = 5) {
             if (isEdit) {
                 Button(
@@ -872,11 +835,7 @@ private fun AddCourseDialogContent(
     }
 }
 
-/**
- * 弹窗内容卡的入场 reveal：卡片始终占位参与布局，仅通过 graphicsLayer 做透明/位移/缩放，
- * 保证弹窗外高首帧定型、全程稳定不闪（替代原 AnimatedVisibility 的移除式展开）。
- * 该卡动画结束（appear==1）即撤层，避免长期保留离屏层。
- */
+/** 入场 reveal：始终占位参与布局，仅 graphicsLayer 做透明/位移/缩放；结束即撤层 */
 @Composable
 private fun CardReveal(
     visible: Boolean,
@@ -905,7 +864,7 @@ private fun CardReveal(
     }
 }
 
-/** 基本信息卡片：课程名称 / 地点 / 教师 文本框。独立组件使敲键仅重组本卡。 */
+/** 基本信息卡片：课程名称 / 地点 / 教师 文本框 */
 @Composable
 private fun BasicInfoCard(
     isDark: Boolean,
@@ -920,7 +879,6 @@ private fun BasicInfoCard(
         )
     ) {
         Column(modifier = Modifier.fillMaxWidth()) {
-            // 课程名称
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -948,7 +906,6 @@ private fun BasicInfoCard(
                 )
             }
 
-            // 教室
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -976,7 +933,6 @@ private fun BasicInfoCard(
                 )
             }
 
-            // 教师
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -1007,7 +963,7 @@ private fun BasicInfoCard(
     }
 }
 
-/** 上课星期卡片：自定义时间勾选 + 星期按钮行。 */
+/** 上课星期卡片：自定义时间勾选 + 星期按钮行 */
 @Composable
 private fun WeekdayCard(
     isDark: Boolean,
@@ -1032,7 +988,7 @@ private fun WeekdayCard(
                     .padding(bottom = 10.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                // 在这里（Row 的 lambda 作用域内）读取，切换自定义时间只重组这一行
+                // 在 Row lambda 内读取，切换自定义时间只重组这一行
                 val isCustomTime = form.isCustomTime
                 Text(
                     text = "上课星期",
@@ -1057,7 +1013,6 @@ private fun WeekdayCard(
                 horizontalArrangement = Arrangement.spacedBy(6.dp)
             ) {
                 val dayLabels = remember { listOf("一", "二", "三", "四", "五", "六", "日") }
-                // 同样把 dayOfWeek 的读取点留在这个 Row 作用域内
                 val currentDay = form.dayOfWeek
                 for (day in 1..7) {
                     val isSelected = day == currentDay
@@ -1091,7 +1046,7 @@ private fun WeekdayCard(
     }
 }
 
-/** 节次范围 / 上课时间卡片（勾选自定义时间后切换为时间选择）。 */
+/** 节次范围 / 上课时间卡片（勾选自定义时间后切换为时间选择） */
 @Composable
 private fun SectionTimeCard(
     isDark: Boolean,
@@ -1107,7 +1062,7 @@ private fun SectionTimeCard(
             contentColor = MiuixTheme.colorScheme.onSurface
         )
     ) {
-        // isCustomTime 只在 Card 的 content lambda 里读：切换时不必重组 SectionTimeCard 本体
+        // isCustomTime 只在 content lambda 内读：切换时不必重组 SectionTimeCard 本体
         if (form.isCustomTime) {
             ArrowPreference(
                 title = "上课时间",
@@ -1136,7 +1091,7 @@ private fun SectionTimeCard(
     }
 }
 
-/** 周次设置卡片：全部/单周/双周勾选 + 周次网格。 */
+/** 周次设置卡片：全部/单周/双周勾选 + 周次网格 */
 @Composable
 private fun WeekSettingCard(
     isDark: Boolean,
@@ -1165,9 +1120,7 @@ private fun WeekSettingCard(
                 .fillMaxWidth()
                 .padding(16.dp)
         ) {
-            // 勾选态派生值：derivedStateOf 只在"结果真的变了"时才通知读取方。
-            // 点单个周次格子时这 5 个布尔绝大多数情况不变，于是下面整行复选框
-            // 连带着本 Column 都不会重组，只有真正翻变的那一两个格子会重画。
+            // derivedStateOf：结果不变时不通知读取方，点周次格子多数情况不触发整行复选框重组
             val allSelectableSelected by remember(selectableWeeks) {
                 derivedStateOf { selectableWeeks.isNotEmpty() && selectableWeeks.all { it in form.selectedWeeks } }
             }
@@ -1188,8 +1141,7 @@ private fun WeekSettingCard(
                 modifier = Modifier.fillMaxWidth(),
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                // hasMixedSelection 必须在这个 Row 的 lambda 里算：放在外层 Column 里
-                // 会把上面几个派生态的读取点抬到整卡作用域，点格子就整卡重组了
+                // 必须在 Row lambda 内算：放外层会把派生态读取抬到整卡作用域
                 val hasMixedSelection = someSelectableOddSelected && someSelectableEvenSelected
                 Text(
                     text = "上课周次",
@@ -1202,7 +1154,6 @@ private fun WeekSettingCard(
                     horizontalArrangement = Arrangement.spacedBy(8.dp),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    // 全部：点一次全选，再点一次取消全选（只挂在 Checkbox 上，避免外层再套 clickable 双触发）
                     Row(
                         verticalAlignment = Alignment.CenterVertically,
                     ) {
@@ -1227,7 +1178,6 @@ private fun WeekSettingCard(
                         )
                     }
 
-                    // 单周
                     Row(
                         verticalAlignment = Alignment.CenterVertically,
                     ) {
@@ -1240,8 +1190,7 @@ private fun WeekSettingCard(
                             },
                             onClick = if (noDaySelected) null else {
                                 {
-                                    // 必须在 clear 之前判断：先 clear 会让 allSelectableOddSelected
-                                    // 立刻变 false，随后又把单周加回去，导致无法取消勾选
+                                    // 必须在 clear 之前判断：先 clear 会让 allSelectableOddSelected 变 false
                                     if (hasMixedSelection || !allSelectableOddSelected) {
                                         form.selectedWeeks.clear()
                                         form.selectedWeeks.addAll(selectableOddWeeks)
@@ -1259,7 +1208,6 @@ private fun WeekSettingCard(
                         )
                     }
 
-                    // 双周
                     Row(
                         verticalAlignment = Alignment.CenterVertically,
                     ) {
@@ -1294,7 +1242,7 @@ private fun WeekSettingCard(
 
             Spacer(modifier = Modifier.height(10.dp))
 
-            // 周次网格：支持按住滑动选择连续区间（1→8 选中 1~8）
+            // 支持按住滑动选择连续区间
             WeekRangeSelectGrid(
                 totalWeeks = totalWeeks,
                 selectedWeeks = form.selectedWeeks.toSet(),
@@ -1315,7 +1263,7 @@ private fun WeekSettingCard(
     }
 }
 
-/** 课程颜色选择卡片。 */
+/** 课程颜色选择卡片 */
 @Composable
 private fun ColorCard(
     isDark: Boolean,
@@ -1388,10 +1336,7 @@ private fun ColorCard(
     }
 }
 
-/**
- * 预设颜色格子：内部读 form.selectedColor 判断选中，点击直接写 form.selectedColor。
- * 这样切换颜色只重组这一个 ColorSwatch，外层网格整行不再重画。
- */
+/** 预设颜色格子：内部读写 form.selectedColor，切换颜色只重组本格 */
 @Composable
 private fun RowScope.ColorSwatch(
     color: Long,
@@ -1429,9 +1374,7 @@ private fun RowScope.ColorSwatch(
     }
 }
 
-/**
- * 自定义颜色格子（最后一个 "+"）：点击打开调色板，选中态展示当前 custom 颜色。
- */
+/** 自定义颜色格子（最后一个 "+"）：点击打开调色板 */
 @Composable
 private fun RowScope.CustomColorSwatch(
     form: AddCourseFormState,
@@ -1484,9 +1427,7 @@ private fun RowScope.CustomColorSwatch(
     }
 }
 
-/**
- * 时间段 时:分 双滚轮选择器（与时间配置编辑页一致的左右布局）
- */
+/** 时间段 时:分 双滚轮选择器 */
 @SuppressLint("DefaultLocale")
 @Composable
 private fun TimeRangePickerGroup(
@@ -1577,33 +1518,24 @@ private fun TimeRangePickerGroup(
     }
 }
 
-/**
- * 解析 "HH:mm" 格式字符串中的小时，无效时返回 8
- */
+/** 解析 "HH:mm" 中的小时，无效时返回 8 */
 private fun parseTimeHour(time: String?): Int {
     if (time.isNullOrBlank()) return 8
     val parts = time.split(":")
     return parts.firstOrNull()?.toIntOrNull()?.coerceIn(0, 23) ?: 8
 }
 
-/**
- * 解析 "HH:mm" 格式字符串中的分钟，无效时返回 0
- */
+/** 解析 "HH:mm" 中的分钟，无效时返回 0 */
 private fun parseTimeMinute(time: String?): Int {
     if (time.isNullOrBlank()) return 0
     val parts = time.split(":")
     return parts.getOrNull(1)?.toIntOrNull()?.coerceIn(0, 59) ?: 0
 }
 
-/**
- * 将时/分格式化为 "HH:mm"
- */
 @SuppressLint("DefaultLocale")
 private fun formatTime(hour: Int, minute: Int): String {
     return String.format("%02d:%02d", hour, minute)
 }
 
-/**
- * 自定义时间选择弹窗中可用的分钟值（每 5 分钟一档）
- */
+/** 自定义时间弹窗可用分钟值（每 5 分钟一档） */
 private val minuteValues = (0..59 step 5).toList()

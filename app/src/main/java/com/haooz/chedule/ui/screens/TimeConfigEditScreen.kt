@@ -178,10 +178,7 @@ private fun parseTimeHm(time: String): Pair<Int, Int> {
 private fun specialBlockSummary(block: SpecialBlock): String
 = "${block.startTime}-${block.endTime}"
 
-/**
- * 解析 "HH:mm" 为分钟数；解析失败时返回 Int.MAX_VALUE，
- * 使无法解析的条目在排序时落在末尾，避免破坏整体顺序。
- */
+// 解析失败返回 Int.MAX_VALUE，使无法解析的条目排序时落在末尾
 private fun parseTimeToMinutesForSort(time: String): Int {
     return try {
         val parts = time.split(":")
@@ -191,11 +188,7 @@ private fun parseTimeToMinutesForSort(time: String): Int {
     }
 }
 
-/**
- * 按开始时间（其次结束时间、再次名称）对特殊时段块列表排序。
- * 修复：特殊课程列表此前按用户插入顺序展示（如先加"午休"再加"午餐"会出现错乱），
- * 改为按时间先后正确排列。
- */
+// 按开始时间（其次结束时间、再次名称）排序，避免插入顺序导致"午休排在午餐之前"等错乱
 private fun sortSpecialBlocksByTime(blocks: List<SpecialBlock>): List<SpecialBlock> {
     return blocks.sortedWith(
         compareBy<SpecialBlock> { parseTimeToMinutesForSort(it.startTime) }
@@ -231,16 +224,13 @@ fun TimeConfigEditScreen(
     val scrollBehavior = rememberSharedScrollBehavior()
     var listScrollY by remember { mutableIntStateOf(0) }
 
-    // 配置名称
     val screenTitle = if (isFabCreation) "添加时间配置" else "编辑时间配置"
     var configName by remember { mutableStateOf(timeConfig.name) }
 
-    // 节数配置
     var morningSections by remember { mutableIntStateOf(timeConfig.morningSections) }
     var afternoonSections by remember { mutableIntStateOf(timeConfig.afternoonSections) }
     var eveningSections by remember { mutableIntStateOf(timeConfig.eveningSections) }
 
-    // 快捷设置
     var quickTimeEnabled by remember { mutableStateOf(timeConfig.quickTimeEnabled) }
     var classDuration by remember { mutableIntStateOf(timeConfig.classDuration) }
     var shortBreak by remember { mutableIntStateOf(timeConfig.shortBreak) }
@@ -260,7 +250,6 @@ fun TimeConfigEditScreen(
 
     // 节次时间
 
-    // 快捷设置弹窗状态
     var showQuickItemDialog by remember { mutableStateOf(false) }
     var quickEditType by remember { mutableStateOf("") }
     var quickTempValue by remember { mutableIntStateOf(0) }
@@ -268,7 +257,6 @@ fun TimeConfigEditScreen(
     var quickTempHour by remember { mutableIntStateOf(0) }
     var quickTempMinute by remember { mutableIntStateOf(0) }
 
-    // 节次时间编辑弹窗状态
     var showTimeDialog by remember { mutableStateOf(false) }
     var editingSection by remember { mutableIntStateOf(1) }
     var editingPeriod by remember { mutableStateOf("morning") }
@@ -277,23 +265,19 @@ fun TimeConfigEditScreen(
     var tempEndHour by remember { mutableIntStateOf(8) }
     var tempEndMinute by remember { mutableIntStateOf(45) }
 
-    // 节数设置弹窗状态
     var showSectionCountDialog by remember { mutableStateOf(false) }
 
-    // 特殊时段块弹窗状态
     var specialBlocks by remember { mutableStateOf(sortSpecialBlocksByTime(timeConfig.specialBlocks)) }
     var showSpecialDialog by remember { mutableStateOf(false) }
-    var editingSpecialIndex by remember { mutableIntStateOf(-1) } // -1 表示新增
+    var editingSpecialIndex by remember { mutableIntStateOf(-1) }
     var tempSpecialName by remember { mutableStateOf("") }
     var tempSpecialStartHour by remember { mutableIntStateOf(8) }
     var tempSpecialStartMinute by remember { mutableIntStateOf(0) }
     var tempSpecialEndHour by remember { mutableIntStateOf(8) }
     var tempSpecialEndMinute by remember { mutableIntStateOf(40) }
 
-    // 删除特殊时段确认弹窗状态
     var showSpecialDeleteConfirm by remember { mutableStateOf(false) }
 
-    // 时间重叠检查弹窗状态
     var showOverlapDialog by remember { mutableStateOf(false) }
     var overlapMessage by remember { mutableStateOf("") }
 
@@ -312,7 +296,6 @@ fun TimeConfigEditScreen(
     val transExitMillis = if (isUpperHalf) 320 else 320
     val hasCardBounds = cardWidth > 0f && cardHeight > 0f && screenWidth > 0f
 
-    // 动画过程中阻止返回
     var animating by remember { mutableStateOf(false) }
 
     BackHandler {
@@ -431,16 +414,15 @@ fun TimeConfigEditScreen(
 
     val minuteValues = listOf(0, 5, 10, 15, 20, 25, 30, 35, 40, 45, 50, 55)
 
-    // 节次时间（从已保存的配置读取，只有点击"应用"按钮时才重新计算）
+    // 节次时间（从已保存配置读取，只有点"应用"时才重新计算）
     var morningTimes by remember { mutableStateOf(timeConfig.getPeriodTimes("morning")) }
     var afternoonTimes by remember { mutableStateOf(timeConfig.getPeriodTimes("afternoon")) }
     var eveningTimes by remember { mutableStateOf(timeConfig.getPeriodTimes("evening")) }
 
-    // 自定义节次名称（key 同 sectionTimes，如 "morning_1" -> "早自习"）
+    // key 同 sectionTimes，如 "morning_1" -> "早自习"
     var sectionNames by remember { mutableStateOf(timeConfig.sectionNames) }
     var tempSectionName by remember { mutableStateOf("") }
 
-    // 获取节次显示名称：有自定义名称时显示"第N节 名称"，否则显示"第N节"
     fun getSectionTitle(period: String, relSection: Int): String {
         val key = "${period}_$relSection"
         val abs = when (period) {
@@ -453,7 +435,7 @@ fun TimeConfigEditScreen(
         return if (name != null) "第${abs}节 $name" else "第${abs}节"
     }
 
-    // 检查时间重叠（仅检查当前节数范围内的节次）
+    // 仅检查当前节数范围内的节次
     fun checkTimeOverlap(): String? {
         data class TimeRange(val start: Int, val end: Int, val label: String)
 
@@ -531,7 +513,6 @@ fun TimeConfigEditScreen(
         ((screenWidthDp - 600).coerceIn(0, 600) / 600f * 112 + 16).dp
     } else 16.dp
 
-    // Morph动画背景遮罩 + 裁剪容器
     val s = animState.value
     val clipShape = remember {
         ConfigAnimClipShape(
@@ -568,7 +549,6 @@ fun TimeConfigEditScreen(
                     else MiuixTheme.colorScheme.background
                 )
         ) {
-            // 卡片快照 (morph动画期间显示)
             if (cardSnapshot != null && s.snapshotAlpha > 0f) {
                 val imageBitmap = remember(cardSnapshot) { cardSnapshot.asImageBitmap() }
                 Image(
@@ -748,7 +728,6 @@ fun TimeConfigEditScreen(
                                 ),
                                 verticalArrangement = Arrangement.spacedBy(12.dp)
                             ) {
-                                // 配置名称
                                 item(key = "config_name") {
                                     SmallTitle(
                                         text = "配置名称",
@@ -763,7 +742,6 @@ fun TimeConfigEditScreen(
                                     )
                                 }
 
-                                // 课表节数设置
                                 item(key = "section_count") {
                                     SmallTitle(
                                         text = "节次与时间",
@@ -791,7 +769,6 @@ fun TimeConfigEditScreen(
                                     }
                                 }
 
-                                // 快捷设置
                                 item(key = "quick_settings") {
                                     val bottomEndRadius by animateDpAsState(
                                         if (quickTimeEnabled) 32.dp else 20.dp,
@@ -839,7 +816,6 @@ fun TimeConfigEditScreen(
                                                 exit = shrinkVertically()
                                             ) {
                                                 Column(modifier = Modifier.fillMaxWidth()) {
-                                                    // 每节课时长
                                                     ArrowPreference(
                                                         title = "每节课时长",
                                                         endActions = {
@@ -857,7 +833,6 @@ fun TimeConfigEditScreen(
                                                         },
                                                         holdDownState = showQuickItemDialog && quickEditType == "duration"
                                                     )
-                                                    // 课间休息
                                                     ArrowPreference(
                                                         title = "课间休息",
                                                         endActions = {
@@ -874,7 +849,6 @@ fun TimeConfigEditScreen(
                                                         },
                                                         holdDownState = showQuickItemDialog && quickEditType == "short_break"
                                                     )
-                                                    // 大课间休息开关
                                                     Row(
                                                         modifier = Modifier.fillMaxWidth()
                                                             .clickable {
@@ -960,7 +934,6 @@ fun TimeConfigEditScreen(
                                                             )
                                                         }
                                                     }
-                                                    // 开始时间
                                                     ArrowPreference(
                                                         title = "上午开始时间",
                                                         endActions = {
@@ -1027,7 +1000,6 @@ fun TimeConfigEditScreen(
                                                         },
                                                         holdDownState = showQuickItemDialog && quickEditType == "start_evening"
                                                     )
-                                                    // 应用按钮
                                                     TextButton(
                                                         text = "应用",
                                                         onClick = {
@@ -1118,7 +1090,7 @@ fun TimeConfigEditScreen(
                                                     }
                                                 )
                                             } else {
-                                                // 始终按开始时间排序展示，避免特殊课程出现"午休排在午餐之前"等错乱
+                                                // 始终按开始时间排序展示
                                                 sortSpecialBlocksByTime(specialBlocks).forEachIndexed { index, block ->
                                                     ArrowPreference(
                                                         title = if (block.name.isNotBlank()) block.name else "特殊课程",
@@ -1145,7 +1117,6 @@ fun TimeConfigEditScreen(
                                         }
                                     }
                                 }
-                                // 上午
                                 item(key = "morning") {
                                     SmallTitle(
                                         text = "上午",
@@ -1187,7 +1158,6 @@ fun TimeConfigEditScreen(
                                     }
                                 }
 
-                                // 下午
                                 item(key = "afternoon") {
                                     SmallTitle(
                                         text = "下午",
@@ -1229,7 +1199,6 @@ fun TimeConfigEditScreen(
                                     }
                                 }
 
-                                // 晚上
                                 item(key = "evening") {
                                     SmallTitle(
                                         text = "晚上",
@@ -1273,7 +1242,6 @@ fun TimeConfigEditScreen(
                             }
                         }
 
-                        // 快捷设置单项弹窗
                         OverlayDialog(
                             title = when (quickEditType) {
                                 "duration" -> "每节课时长"
@@ -1462,7 +1430,6 @@ fun TimeConfigEditScreen(
                             }
                         }
 
-                        // 节数设置弹窗 - 三个选择器并排显示
                         OverlayDialog(
                             title = "课表节数设置",
                             show = showSectionCountDialog,
@@ -1477,7 +1444,6 @@ fun TimeConfigEditScreen(
                                     modifier = Modifier.fillMaxWidth(),
                                     horizontalArrangement = Arrangement.SpaceEvenly
                                 ) {
-                                    // 上午节数
                                     Column(
                                         horizontalAlignment = Alignment.CenterHorizontally,
                                         modifier = Modifier.weight(1f)
@@ -1497,7 +1463,6 @@ fun TimeConfigEditScreen(
                                         )
                                     }
 
-                                    // 下午节数
                                     Column(
                                         horizontalAlignment = Alignment.CenterHorizontally,
                                         modifier = Modifier.weight(1f)
@@ -1517,7 +1482,6 @@ fun TimeConfigEditScreen(
                                         )
                                     }
 
-                                    // 晚上节数
                                     Column(
                                         horizontalAlignment = Alignment.CenterHorizontally,
                                         modifier = Modifier.weight(1f)
@@ -1563,7 +1527,6 @@ fun TimeConfigEditScreen(
                             }
                         }
 
-                        // 特殊课程编辑弹窗
                         OverlayDialog(
                             title = if (editingSpecialIndex == -1) "添加特殊课程" else "编辑特殊课程",
                             summary = null,
@@ -1586,7 +1549,6 @@ fun TimeConfigEditScreen(
                                     singleLine = true,
                                     modifier = Modifier.fillMaxWidth()
                                 )
-                                // 起止时间（与"第×节时间设置"弹窗一致的循环滚动样式）
                                 Row(
                                     modifier = Modifier.fillMaxWidth().padding(top = 4.dp),
                                     verticalAlignment = Alignment.CenterVertically,
@@ -1688,7 +1650,6 @@ fun TimeConfigEditScreen(
                                                 name = tempSpecialName,
                                                 startTime = startStr,
                                                 endTime = endStr,
-                                                // 编辑时保留内部按星期划分的子块，避免编辑名称/时间后丢失
                                                 items = if (editingSpecialIndex == -1) null else specialBlocks[editingSpecialIndex].items
                                             )
                                             val updated = specialBlocks.toMutableList()
@@ -1697,7 +1658,7 @@ fun TimeConfigEditScreen(
                                             } else {
                                                 updated[editingSpecialIndex] = block
                                             }
-                                            // 保持列表按时间排序，避免"午休排在午餐之前"等错乱
+                                            // 保持列表按时间排序
                                             specialBlocks = sortSpecialBlocksByTime(updated)
                                             showSpecialDialog = false
                                         },
@@ -1706,7 +1667,7 @@ fun TimeConfigEditScreen(
                                     )
                                 }
                             }
-                            // 右上角删除按钮（与调休页面弹窗一致）
+                            // 右上角删除按钮
                             if (editingSpecialIndex != -1) {
                                 Box(
                                     modifier = Modifier
@@ -1734,7 +1695,6 @@ fun TimeConfigEditScreen(
                             }
                         }
 
-                        // 删除特殊课程确认弹窗
                         OverlayDialog(
                             title = "删除特殊课程",
                             summary = "确定要删除这条特殊课程吗？\n此操作不可撤销。",
@@ -1772,7 +1732,6 @@ fun TimeConfigEditScreen(
                             }
                         }
 
-                        // 节次时间编辑弹窗
                         OverlayDialog(
                             title = when (editingPeriod) {
                                 "morning" -> "第${editingSection}节时间设置"
@@ -1922,7 +1881,6 @@ fun TimeConfigEditScreen(
                                                     tempEndMinute
                                                 )
                                             }"
-                                            // 直接更新对应的时段时间
                                             when (editingPeriod) {
                                                 "morning" -> {
                                                     morningTimes = morningTimes.toMutableMap()
@@ -1939,7 +1897,7 @@ fun TimeConfigEditScreen(
                                                         .apply { put(editingSection, newTimeStr) }
                                                 }
                                             }
-                                            // 保存自定义节次名称（为空则恢复默认"第N节"）
+                                            // 空名称则恢复默认"第N节"
                                             val nameKey = "${editingPeriod}_${editingSection}"
                                             val trimmedName = tempSectionName.trim()
                                             sectionNames = sectionNames.toMutableMap().apply {
@@ -1954,7 +1912,6 @@ fun TimeConfigEditScreen(
                                 }
                             }
                         }
-                        // 时间重叠提示弹窗
                         OverlayDialog(
                             title = "时间重叠",
                             show = showOverlapDialog,

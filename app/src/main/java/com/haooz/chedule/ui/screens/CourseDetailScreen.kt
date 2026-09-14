@@ -136,11 +136,9 @@ fun CourseDetailScreen(
     onBack: () -> Unit,
 ) {
     val courseName = courses.firstOrNull()?.name ?: ""
-    // 按周数正序排序，小周在最上
     val sortedCourses = remember(courses) { courses.sortedBy { it.startWeek } }
 
-    // 预计算周分组数据，避免在 LazyColumn 内重复计算
-    // 返回有序列表（周次升序），便于按索引定位并自动滚动
+    // 预计算周分组，有序列表便于按索引定位自动滚动
     val weekGroups = remember(sortedCourses) {
         val weekEntries = sortedCourses.flatMap { course ->
             val weeks = course.selectedWeeks.ifEmpty {
@@ -154,7 +152,7 @@ fun CourseDetailScreen(
             }
             weeks.map { week -> week to course }
         }
-        // 先按周次升序分组，组内再按星期几、起始节次排序，保证同一周内课程顺序正确
+        // 先按周次升序分组，组内再按星期几、起始节次排序
         weekEntries.groupBy { it.first }.toSortedMap().toList()
             .map { (week, entries) ->
                 week to entries.sortedWith(compareBy({ it.second.dayOfWeek }, { it.second.startSection }))
@@ -168,7 +166,7 @@ fun CourseDetailScreen(
         ((screenWidthDp - 600).coerceIn(0, 600) / 600f * 112 + 16).dp
     } else 16.dp
 
-    // 计算开学日期的周一
+    // 计算开学日期所在周的周一
     val startMonday = remember(classStartTime) {
         try {
             val startDate = java.time.LocalDate.parse(classStartTime.replace("/", "-"))
@@ -219,7 +217,6 @@ fun CourseDetailScreen(
     }
 
     LaunchedEffect(Unit) {
-        // 等待首帧渲染完成后再开始动画
         delay(12.milliseconds)
         launch {
             animProgress.animateTo(
@@ -249,15 +246,12 @@ fun CourseDetailScreen(
             val snapAlpha = (1f - p * 3f).coerceIn(0f, 1f)
             val contAlpha = ((p - 0.1f) / 0.5f).coerceIn(0f, 1f)
             val scale = cardWidth / screenWidth + (1f - cardWidth / screenWidth) * p
-            // 起点 = cardCenter, 终点 = screenCenter
+            // 起点 = cardCenter, 终点 = screenCenter；ty 作为曲线参数，前快后慢
             val cardCenter = cardTop + cardHeight / 2f
             val screenCenter = screenHeight / 2f
-            // 抛物线插值因子：ty 落后于 p → 前快后慢的曲线
             val curveT = ty  // 直接用 ty 作为曲线参数
             val targetCenter = cardCenter + (screenCenter - cardCenter) * curveT
-            // 从 targetCenter 反推 translationY
             val translationY = targetCenter - screenHeight / 2f * (1f - scale) - (cardHeight + (screenHeight - cardHeight) * p) / 2f
-            // translationX 保持不变
             val translationX = cardLeft * (1f - p) - screenWidth / 2f * (1f - scale)
             val rawClipBottom = cardHeight + (screenHeight - cardHeight) * p
             val clipBottom = rawClipBottom / scale
@@ -377,8 +371,7 @@ fun CourseDetailScreen(
                                 )
                         ) {
                             val listState = rememberLazyListState()
-                            // 程序化滚动（进入时定位到来源周）不经过 nestedScroll，
-                            // 与 SchoolSelectionScreen 同款处理：监听 listState 同步 contentOffset 与标题栏收起/展开
+                            // 程序化滚动不走 nestedScroll：监听 listState 同步 contentOffset 与标题栏
                             var isProgrammaticScroll by remember { mutableStateOf(false) }
                             var lastCollapsed by remember { mutableStateOf(false) }
                             val scrollThresholdPx = with(density) { 10.dp.toPx() }
@@ -388,13 +381,12 @@ fun CourseDetailScreen(
                                 }.collect { (index, offset) ->
                                     val state = scrollBehavior.state
                                     val shouldCollapse = index > 0 || offset > scrollThresholdPx
-                                    // 同步 contentOffset 用于顶栏按钮材质/阴影
                                     if (shouldCollapse && state.contentOffset >= -scrollThresholdPx) {
                                         state.contentOffset = -scrollThresholdPx - 1f
                                     } else if (!shouldCollapse && state.contentOffset < 0f) {
                                         state.contentOffset = 0f
                                     }
-                                    // 仅程序化滚动时收起/展开标题栏，手动 fling 由 nestedScroll 处理避免冲突
+                                    // 仅程序化滚动时收起/展开标题栏，手动 fling 由 nestedScroll 处理
                                     if (isProgrammaticScroll && shouldCollapse != lastCollapsed) {
                                         lastCollapsed = shouldCollapse
                                         if (shouldCollapse) scrollBehavior.collapse() else scrollBehavior.expand()
@@ -415,9 +407,8 @@ fun CourseDetailScreen(
                                 }
                                 // 列表顶部留白（与下方 contentPadding 一致）
                                 val topContentPadding = paddingValues.calculateTopPadding() + topBarHeightDp - 82.dp
-                                // 顶栏高度随折叠变化，滚动过程中要读到最新值
                                 val latestTopPadding by rememberUpdatedState(topContentPadding)
-                                // 进入后连贯滚动到来源周所在分组；找不到该周时回退到最接近的一周
+                                // 进入后连贯滚动到来源周；找不到该周时回退到最接近的一周
                                 LaunchedEffect(weekGroups, targetWeek) {
                                     if (targetWeek <= 0 || weekGroups.isEmpty()) return@LaunchedEffect
                                     val exact = weekGroups.indexOfFirst { it.first == targetWeek }
@@ -434,10 +425,9 @@ fun CourseDetailScreen(
                                         best
                                     }
                                     if (index > 0) {
-                                        // 等入场形变/淡入基本完成再滚，避免用户在内容还没看清时就已经"瞬移"到位
+                                        // 等入场形变基本完成再滚，避免内容还没看清就已"瞬移"到位
                                         delay(400.milliseconds)
-                                        // 先立即收起标题栏，让 contentPadding 在整段滚动中保持稳定。
-                                        // 若边滚边弹簧收起，滚到位后高度才落定，会再二次校正位移，观感是两次跳动。
+                                        // 先立即收起标题栏，让 contentPadding 在整段滚动中保持稳定
                                         val barState = scrollBehavior.state
                                         val wasExpanded =
                                             barState.heightOffsetLimit < -1f &&
@@ -453,11 +443,9 @@ fun CourseDetailScreen(
                                             withFrameNanos { }
                                             withFrameNanos { }
                                         }
-                                        // 负偏移：让目标周标题停在顶栏下方，而不是被顶栏盖住
+                                        // 负偏移：让目标周标题停在顶栏下方
                                         val offsetPx = with(density) { -latestTopPadding.roundToPx() }
-                                        // 顶栏的收起/展开由上面的 listState 监听负责（程序化滚动不走 nestedScroll）
                                         isProgrammaticScroll = true
-                                        // 单次连贯滚动：远距离限速 + 近目标缓动，避免默认 spring 一闪而过
                                         listState.smoothScrollToItem(index, offsetPx)
                                         isProgrammaticScroll = false
                                     }
@@ -569,9 +557,8 @@ fun CourseDetailScreen(
 }
 
 /**
- * 进入详情页时的程序化定位滚动。
- * 默认 [LazyListState.animateScrollToItem] 对长距离会用 spring 一冲到底，观感像瞬移。
- * 这里改为：目标不可见时按视口比例快速推进，可见后按剩余距离比例缓动收敛。
+ * 程序化定位滚动：目标不可见时按视口比例快速推进，可见后按剩余距离比例缓动收敛。
+ * 默认 animateScrollToItem 对长距离用 spring 一冲到底，观感像瞬移。
  */
 private suspend fun LazyListState.smoothScrollToItem(
     index: Int,

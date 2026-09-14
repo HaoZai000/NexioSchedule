@@ -1,4 +1,3 @@
-/** 设置页面 - 应用全局设置 */
 package com.haooz.chedule.ui.screens
 
 import android.annotation.SuppressLint
@@ -87,9 +86,7 @@ import java.util.UUID
 import kotlin.time.Duration.Companion.milliseconds
 import androidx.compose.ui.graphics.Color as ComposeColor
 
-/**
- * 解析日期字符串 "YYYY/MM/DD" 为年、月、日
- */
+// 解析失败时回退到今天，避免弹窗初值出现非法日期
 private fun parseDate(dateStr: String): Triple<Int, Int, Int> {
     return try {
         val parts = dateStr.split("/")
@@ -100,9 +97,6 @@ private fun parseDate(dateStr: String): Triple<Int, Int, Int> {
     }
 }
 
-/**
- * 获取指定年月的天数
- */
 private fun getDaysInMonth(year: Int, month: Int): Int {
     return try {
         LocalDate.of(year, month, 1).lengthOfMonth()
@@ -111,28 +105,20 @@ private fun getDaysInMonth(year: Int, month: Int): Int {
     }
 }
 
-/**
- * 「备份与迁移」入口需要高亮的二级页面。
- *
- * 提到顶层，避免每次重组都在组合期新建 Set（该页面在顶栏折叠期间会逐帧重组，
- * 原写法等于每帧分配两个 Set）。
- */
+// 顶栏折叠期间会逐帧重组，提到顶层避免组合期每帧新建 Set
 private val BackupMigrationActivities = setOf(
     "BackupAndMigrationActivity",
     "LocalBackupActivity",
     "WebDavSettingsActivity",
 )
 
-/** 「关于应用」入口需要高亮的二级页面。理由同上。 */
+// 同 BackupMigrationActivities
 private val AboutActivities = setOf(
     "AboutActivity",
     "AppreciateAuthorActivity",
     "ChangelogActivity",
 )
 
-/**
- * 设置页面
- */
 @SuppressLint("ConfigurationScreenWidthHeight")
 @Composable
 fun SettingsScreen(
@@ -156,9 +142,7 @@ fun SettingsScreen(
     val smartWeekend by settingsViewModel.smartWeekend.collectAsState()
     val showNonCurrentWeek by settingsViewModel.showNonCurrentWeek.collectAsState()
     val scheduleNames by scheduleViewModel.scheduleNames.collectAsState()
-    // 只在这里收一次。原先在 scheduleNames.forEach 内部逐个调 collectAsState()：
-    // 每个课表都会新建一个 State 和一条协程收集器；而 collectAsState 内部用 remember，
-    // 在循环里调 remember 会让槽位随列表增删错位（勾选/新建/删除课表时 summary 会串行）。
+    // 不可在 forEach 内 collectAsState：remember 槽位会随课表增删错位
     val scheduleSummaries by scheduleViewModel.scheduleSummaries.collectAsState()
     val shiftSelectedSchedules by shiftViewModel.shiftSelectedSchedules.collectAsState()
     val context = androidx.compose.ui.platform.LocalContext.current
@@ -180,20 +164,16 @@ fun SettingsScreen(
         viewModel.reloadCourses()
     }
 
-    // 解析开始日期（仅用于下面三个临时状态的初值，classStartTime 不变时不重复解析）
     val (tempYearInit, tempMonthInit, tempDayInit) = remember(classStartTime) {
         parseDate(classStartTime)
     }
 
-    // 弹窗状态
     var showCurrentWeekDialog by remember { mutableStateOf(false) }
     var showTotalWeeksDialog by remember { mutableStateOf(false) }
     var showStartDateDialog by remember { mutableStateOf(false) }
 
-    // 教务导入仓库源设置
     val coroutineScope = rememberCoroutineScope()
 
-    // 临时选择状态
     var tempCurrentWeek by remember { mutableIntStateOf(currentWeek) }
     var tempTotalWeeks by remember { mutableIntStateOf(totalWeeks) }
     var tempYear by remember { mutableIntStateOf(tempYearInit) }
@@ -221,8 +201,7 @@ fun SettingsScreen(
                 .layerBackdrop(backdrop)
         ) {
             val listState = rememberLazyListState()
-            // 用 rememberUpdatedState 取最新回调：LaunchedEffect 的 key 只有 listState，
-            // 直接捕获 onScrollYChanged 会一直持着首次组合时的旧闭包。
+            // rememberUpdatedState：LaunchedEffect 只依赖 listState，避免持旧闭包
             val currentOnScrollYChanged by rememberUpdatedState(onScrollYChanged)
             LaunchedEffect(listState) {
                 snapshotFlow { listState.firstVisibleItemScrollOffset }
@@ -230,8 +209,7 @@ fun SettingsScreen(
                         currentOnScrollYChanged(offset)
                     }
             }
-            // 顶栏折叠高度改在布局阶段补齐（collapsibleTopInset），contentPadding 只用固定值。
-            // 原写法在组合期读 currentHeightPx，折叠动画期间每帧都会让整页重组一遍。
+            // 折叠高度在布局阶段补齐，避免组合期读 currentHeightPx 导致动画每帧重组
             val scrollBehaviorModifier = remember(settingsScrollBehavior) {
                 settingsScrollBehavior?.let {
                     Modifier
@@ -262,7 +240,6 @@ fun SettingsScreen(
                         text = "基本设置",
                         modifier = Modifier.offset(x = (-16).dp)
                     )
-                    // 基本设置卡片
                     Card(
                         cornerRadius = 20.dp,
                         modifier = Modifier.fillMaxWidth(),
@@ -290,7 +267,6 @@ fun SettingsScreen(
                                 holdDownState = showStartDateDialog
                             )
 
-                            // 当前周数
                             ArrowPreference(
                                 title = "当前周数",
                                 endActions = {
@@ -311,7 +287,6 @@ fun SettingsScreen(
                                 holdDownState = showCurrentWeekDialog
                             )
 
-                            // 本学期总周数
                             ArrowPreference(
                                 title = "本学期总周数",
                                 endActions = {
@@ -328,7 +303,6 @@ fun SettingsScreen(
                                 holdDownState = showTotalWeeksDialog
                             )
 
-                            // 智能显示周末开关
                             SwitchPreference(
                                 title = "智能显示周末",
                                 summary = "开启后隐藏无课的周六日",
@@ -336,7 +310,6 @@ fun SettingsScreen(
                                 onCheckedChange = { settingsViewModel.setSmartWeekend(it) }
                             )
 
-                            // 显示非本周课程开关
                             if (!isShiftMode) {
                                 SwitchPreference(
                                     title = "显示非本周课程",
@@ -345,7 +318,6 @@ fun SettingsScreen(
                                 )
                             }
 
-                            // 课表时间设置（包含节数设置）
                             ArrowPreference(
                                 title = "课表节数与时间",
                                 summary = "管理不同课表的节数与课程时间",
@@ -360,7 +332,6 @@ fun SettingsScreen(
                     }
                 }
 
-                // 特色功能分类
                 if (!isShiftMode) {
                     item(key = "features") {
                         SmallTitle(
@@ -404,7 +375,6 @@ fun SettingsScreen(
                     }
                 }
 
-                // 排班模式设置（仅在排班模式下显示）
                 if (isShiftMode) {
                     item(key = "shift_schedules") {
                         SmallTitle(
@@ -461,7 +431,6 @@ fun SettingsScreen(
                     }
                 }
 
-                // 导入导出分类
                 if (!isShiftMode) {
                     item(key = "data_manage") {
                         SmallTitle(
@@ -517,7 +486,6 @@ fun SettingsScreen(
                     }
                 }
 
-                // 其他分类
                 if (!isShiftMode) {
                     item(key = "others_title") {
                         SmallTitle(
@@ -583,7 +551,6 @@ fun SettingsScreen(
             }
         }
 
-        // 排班模式确认弹窗
         OverlayDialog(
             title = "进入排班模式",
             summary = "将切换到排班课表模式，可同时对比多个课表的排班情况。确定进入？",
@@ -627,7 +594,6 @@ fun SettingsScreen(
             }
         }
 
-        // 开启新学期弹窗
         OverlayDialog(
             title = "开启新学期",
             summary = "将复用当前课表的所有设置数据，创建一个清空课程的新课表",
@@ -687,7 +653,6 @@ fun SettingsScreen(
             }
         }
 
-        // 开始上课日期弹窗
         OverlayDialog(
             title = "开始上课日期",
             show = showStartDateDialog,
@@ -698,11 +663,9 @@ fun SettingsScreen(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalAlignment = Alignment.CenterHorizontally
             ) {
-                // 计算当前月份的天数
                 val maxDaysInMonth = remember(tempYear, tempMonth) {
                     getDaysInMonth(tempYear, tempMonth)
                 }
-                // 如果当前日期超过该月最大天数，自动调整
                 LaunchedEffect(maxDaysInMonth) {
                     if (tempDay > maxDaysInMonth) {
                         tempDay = maxDaysInMonth
@@ -774,7 +737,6 @@ fun SettingsScreen(
             }
         }
 
-        // 当前周次弹窗
         OverlayDialog(
             title = "选择当前周次",
             show = showCurrentWeekDialog,
@@ -821,7 +783,6 @@ fun SettingsScreen(
             }
         }
 
-        // 总周数弹窗
         OverlayDialog(
             title = "选择学期总周数",
             show = showTotalWeeksDialog,
@@ -867,17 +828,12 @@ fun SettingsScreen(
                 }
             }
         }
-
-        // AI 文本导入已迁移至独立页面 AiImportActivity
     }
 
     }
 }
 
-/**
- * 解析课表数据（JSON格式）
- * 返回 Triple: (是否成功, 消息, 解析出的数据用于后续处理)
- */
+// 解析成功时返回 data，供后续 applyScheduleData 写入
 internal fun parseFullScheduleJson(text: String): Triple<Boolean, String, Map<String, Any>?> {
     try {
         val gson = com.google.gson.Gson()
@@ -885,7 +841,7 @@ internal fun parseFullScheduleJson(text: String): Triple<Boolean, String, Map<St
         val data: Map<String, Any> = gson.fromJson(text, type)
 
         if (data.containsKey("settings") || data.containsKey("courses")) {
-            // 检测拾光课程表格式：有 "courses" + "config" (而非 "settings")
+            // 拾光格式：有 courses + config（无 settings）
             if (data.containsKey("config") && data.containsKey("courses") && !data.containsKey("settings")) {
                 return parseShiguangScheduleJson(data)
             }
@@ -898,10 +854,7 @@ internal fun parseFullScheduleJson(text: String): Triple<Boolean, String, Map<St
     }
 }
 
-/**
- * 解析拾光课程表 JSON 格式
- * 结构: { courses: [...], timeSlots: [...], config: {...} }
- */
+// 拾光格式 { courses, timeSlots, config } → 内部通用课表 map
 private fun parseShiguangScheduleJson(data: Map<String, Any>): Triple<Boolean, String, Map<String, Any>?> {
     try {
         @Suppress("UNCHECKED_CAST")
@@ -910,7 +863,6 @@ private fun parseShiguangScheduleJson(data: Map<String, Any>): Triple<Boolean, S
             return Triple(false, "未找到课程数据", null)
         }
 
-        // 转换课程格式
         val courses = mutableListOf<Map<String, Any>>()
         for (sg in shiguangCourses) {
             val name = sg["name"] as? String ?: continue
@@ -937,7 +889,6 @@ private fun parseShiguangScheduleJson(data: Map<String, Any>): Triple<Boolean, S
             ))
         }
 
-        // 转换配置格式
         @Suppress("UNCHECKED_CAST")
         val config = data["config"] as? Map<String, Any>
         val settings = mutableMapOf<String, Any>()
@@ -947,7 +898,6 @@ private fun parseShiguangScheduleJson(data: Map<String, Any>): Triple<Boolean, S
             (config["firstDayOfWeek"] as? Number)?.toInt()?.let { settings["first_day_of_week"] = it }
         }
 
-        // 转换 timeSlots 格式
         @Suppress("UNCHECKED_CAST")
         val timeSlots = data["timeSlots"] as? List<Map<String, Any>>
         val times = mutableMapOf<String, Any>()
@@ -962,7 +912,6 @@ private fun parseShiguangScheduleJson(data: Map<String, Any>): Triple<Boolean, S
                 val endTime = slot["endTime"] as? String ?: continue
                 val timeStr = "$startTime-$endTime"
 
-                // 按节次分组：1-6上午，7-12下午，13+晚上
                 when {
                     number <= 6 -> morningTimes[number.toString()] = timeStr
                     number <= 12 -> afternoonTimes[(number - 6).toString()] = timeStr
@@ -988,12 +937,9 @@ private fun parseShiguangScheduleJson(data: Map<String, Any>): Triple<Boolean, S
     }
 }
 
-/**
- * 将解析出的数据应用到新课表
- */
 internal fun parseIcsFile(text: String): Triple<Boolean, String, Map<String, Any>?> {
     return try {
-        // 按课程名称+星期+节次 分组，合并同一课程的不同周次
+        // 同名课在同星期同时段时合并周次
         val courseGroups = mutableMapOf<String, MutableList<Map<String, Any>>>()
         val lines = text.lines()
 
@@ -1012,7 +958,7 @@ internal fun parseIcsFile(text: String): Triple<Boolean, String, Map<String, Any
                     if (currentEvent.isNotEmpty()) {
                         val parsed = parseIcsEvent(currentEvent)
                         if (parsed != null) {
-                            // 合并键：课程名+星期+开始时间+教室+教师，确保不同地点的同名课程不被合并
+                            // 键含教室/教师，避免不同地点的同名课被误合并
                             val mergeKey = "${parsed["name"]}_${parsed["dayOfWeek"]}_${parsed["startTotalMinutes"]}_${parsed["classroom"]}_${parsed["teacher"]}"
                             courseGroups.getOrPut(mergeKey) { mutableListOf() }.add(parsed)
                         }
@@ -1023,7 +969,6 @@ internal fun parseIcsFile(text: String): Triple<Boolean, String, Map<String, Any
                     if (colonIndex > 0) {
                         var key = trimmed.substring(0, colonIndex)
                         val value = trimmed.substring(colonIndex + 1)
-                        // 移除 ;TZID=xxx 等后缀
                         key = key.substringBefore(';')
                         currentEvent[key] = value
                     }
@@ -1035,12 +980,10 @@ internal fun parseIcsFile(text: String): Triple<Boolean, String, Map<String, Any
             return Triple(false, "未找到课程事件", null)
         }
 
-        // 合并同一课程的不同周次（使用 List<List<String>> 替代 Pair 以避免序列化问题）
+        // List<List<String>> 承载日期对，避免 Pair 序列化问题
         val mergedCourses = mutableListOf<Map<String, Any>>()
         for ((_, courseEvents) in courseGroups) {
             val firstEvent = courseEvents.first()
-            // 收集所有事件的日期对，用于后续计算周次
-            // 使用 List<List<String>> 格式：[[startDate, untilDate], ...]
             val datePairs = mutableListOf<List<String>>()
             for (event in courseEvents) {
                 val sd = event["startDate"] as? String
@@ -1070,44 +1013,37 @@ private fun parseIcsEvent(event: Map<String, String>): Map<String, Any>? {
     val dtstart = event["DTSTART"] ?: return null
     val dtend = event["DTEND"] ?: return null
 
-    // 提取日期和时间部分
-    // 支持格式: YYYYMMDDTHHMMSS, YYYYMMDDTHHMMSSZ, YYYYMMDD (全天事件)
+    // ICS: YYYYMMDDTHHMMSS[.Z]，全天事件仅 YYYYMMDD
     val startRaw = dtstart.substringAfter(":")
     val endRaw = dtend.substringAfter(":")
 
-    // 检查是否为全天事件 (VALUE=DATE 格式，只有日期没有时间)
     val isAllDay = startRaw.length == 8 && !startRaw.contains('T')
 
     val startDateStr = startRaw.take(8)
     val startTimeStr = if (isAllDay) "080000" else startRaw.drop(9).take(6)
     val endTimeStr = if (isAllDay) "090000" else endRaw.drop(9).take(6)
 
-    // 解析日期
     val startYear = startDateStr.substring(0, 4).toIntOrNull() ?: return null
     val startMonth = startDateStr.substring(4, 6).toIntOrNull() ?: return null
     val startDay = startDateStr.substring(6, 8).toIntOrNull() ?: return null
 
-    // 解析时间
     val startHour = startTimeStr.substring(0, 2).toIntOrNull() ?: 8
     val startMinute = startTimeStr.substring(2, 4).toIntOrNull() ?: 0
     val endHour = endTimeStr.substring(0, 2).toIntOrNull() ?: (startHour + 1)
     val endMinute = endTimeStr.substring(2, 4).toIntOrNull() ?: 0
 
-    // 返回原始时间(分钟)，节次映射由 applyScheduleData 使用用户配置完成
+    // 只返回分钟数，节次映射由 applyScheduleData 用用户配置完成
     val startTotalMinutes = startHour * 60 + startMinute
     val endTotalMinutes = endHour * 60 + endMinute
 
-    // 计算星期几 (1=周一, 7=周日)
     val startDate = LocalDate.of(startYear, startMonth, startDay)
     val dayOfWeek = startDate.dayOfWeek.value
 
-    // 解析 RRULE 获取周次信息
     val rrule = event["RRULE"] ?: ""
     var untilStr = ""
     var countStr = ""
     var byDayStr = ""
 
-    // 解析 RRULE 的各个部分
     for (part in rrule.split(";")) {
         when {
             part.startsWith("UNTIL=") -> untilStr = part.substringAfter("UNTIL=").take(8)
@@ -1116,7 +1052,6 @@ private fun parseIcsEvent(event: Map<String, String>): Map<String, Any>? {
         }
     }
 
-    // 如果有 BYDAY 但与当前事件的星期不匹配，跳过该事件
     if (byDayStr.isNotEmpty()) {
         val dayMap = mapOf("MO" to 1, "TU" to 2, "WE" to 3, "TH" to 4, "FR" to 5, "SA" to 6, "SU" to 7)
         val byDays = byDayStr.split(",").mapNotNull { dayMap[it.trim()] }
@@ -1125,22 +1060,19 @@ private fun parseIcsEvent(event: Map<String, String>): Map<String, Any>? {
         }
     }
 
-    // 解析教室和老师 (格式: "教室 老师" 或 "教室" 或 " 老师")
+    // LOCATION 约定：前导空格=仅教师；尾随/无空格=仅教室；中间空格分隔两者
     val classroom: String
     val teacher: String
     when {
         location.startsWith(" ") -> {
-            // 开头有空格：只有老师，没有地点 例如 " 测试老师"
             classroom = ""
             teacher = location.trim()
         }
         location.trimEnd().endsWith(" ") || !location.contains(" ") -> {
-            // 结尾有空格或无空格：只有地点 例如 "测试地点 " 或 "测试地点"
             classroom = location.trim()
             teacher = ""
         }
         else -> {
-            // 有空格分隔：地点 老师 例如 "安201 花爱阳"
             val spaceIndex = location.indexOf(' ')
             classroom = location.substring(0, spaceIndex).trim()
             teacher = location.substring(spaceIndex + 1).trim()
@@ -1171,21 +1103,17 @@ internal fun applyScheduleData(
     data: Map<String, Any>
 ): Pair<Boolean, String> {
     try {
-        // 重名校验
         if (scheduleName in scheduleViewModel.scheduleNames.value) {
             return Pair(false, "课表「$scheduleName」已存在")
         }
-        // 创建新课表
         scheduleViewModel.addSchedule(scheduleName)
 
-        // 保存课程数据到新课表
         @Suppress("UNCHECKED_CAST")
         val coursesData = data["courses"] as? List<Map<String, Any>>
         val courses = mutableListOf<Course>()
         val courseNameColorMap = mutableMapOf<String, Long>()
         var colorIndex = 0
 
-        // 获取开学日期用于ICS周次计算
         val classStartTime = viewModel.classStartTime.value
         val defaultClassStartDate = try {
             LocalDate.parse(classStartTime.replace("/", "-"))
@@ -1194,7 +1122,7 @@ internal fun applyScheduleData(
             today.minusDays((today.dayOfWeek.value - 1).toLong()).minusWeeks(16)
         }
 
-        // 从ICS数据推算开学日期：找到最早课程的 startDate，取其所在周的周一
+        // ICS 无开学日设置时，用最早课程所在周的周一反推
         var icsClassStartDate: LocalDate? = null
         coursesData?.forEach { courseMap ->
             val startDateStr = courseMap["startDate"] as? String
@@ -1207,7 +1135,6 @@ internal fun applyScheduleData(
                     )
                 } catch (_: Exception) { null }
                 if (date != null) {
-                    // 取该日期所在周的周一
                     val monday = date.minusDays((date.dayOfWeek.value - 1).toLong())
                     if (icsClassStartDate == null || monday.isBefore(icsClassStartDate)) {
                         icsClassStartDate = monday
@@ -1217,12 +1144,9 @@ internal fun applyScheduleData(
         }
         val classStartDate = icsClassStartDate ?: defaultClassStartDate
 
-        // 找到开学日期所在周的周一，作为周次计算的基准日
         val classStartMonday = classStartDate.minusDays((classStartDate.dayOfWeek.value - 1).toLong())
 
-        // 获取用户的时间配置，用于将时间映射到节次
         val userSectionTimes = settingsViewModel.sectionTimes.value
-        // 构建时间 -> 节次的映射：遍历每个节次的时间范围，检查课程开始时间是否落在该范围内
         fun findSectionByTime(startMinutes: Int, endMinutes: Int): Pair<Int, Int>? {
             var foundStart: Int? = null
             var foundEnd: Int? = null
@@ -1234,11 +1158,10 @@ internal fun applyScheduleData(
                 if (rangeStartParts.size != 2 || rangeEndParts.size != 2) continue
                 val rangeStart = (rangeStartParts[0].toIntOrNull() ?: continue) * 60 + (rangeStartParts[1].toIntOrNull() ?: continue)
                 val rangeEnd = (rangeEndParts[0].toIntOrNull() ?: continue) * 60 + (rangeEndParts[1].toIntOrNull() ?: continue)
-                // 课程开始时间落在该节次的时间范围内
                 if (startMinutes in rangeStart until rangeEnd) {
                     foundStart = section
                 }
-                // 课程结束时间落在该节次的时间范围内（或刚好在结束时间）
+                // 结束时间允许落在节次末尾
                 if (endMinutes in (rangeStart + 1)..rangeEnd) {
                     foundEnd = section
                 }
@@ -1246,7 +1169,7 @@ internal fun applyScheduleData(
             if (foundStart != null && foundEnd != null) {
                 return Pair(foundStart, foundEnd)
             }
-            // 回退：如果找不到精确匹配，使用开始时间找最近的节次
+            // 无精确匹配时退回起始节次
             if (foundStart != null) {
                 return Pair(foundStart, foundStart)
             }
@@ -1261,7 +1184,7 @@ internal fun applyScheduleData(
             @Suppress("UNCHECKED_CAST")
             var selectedWeeks = (courseMap["selectedWeeks"] as? List<Number>)?.map { it.toInt() } ?: emptyList()
 
-            // 映射节次：优先用 startSection/endSection（JSON导出格式），其次用时间映射（ICS格式）
+            // JSON 导出有 startSection；ICS 需按时间映射节次
             val directStartSection = (courseMap["startSection"] as? Number)?.toInt()
             val directEndSection = (courseMap["endSection"] as? Number)?.toInt()
             val sectionPair = if (directStartSection != null && directEndSection != null) {
@@ -1274,11 +1197,9 @@ internal fun applyScheduleData(
                 } else null
             }
 
-            // 如果无法映射节次，跳过该课程
             if (sectionPair == null) return@forEach
             val (startSection, endSection) = sectionPair
 
-            // ICS格式：根据datePairs计算所有事件的周次
             if (selectedWeeks.isEmpty()) {
                 @Suppress("UNCHECKED_CAST")
                 val datePairs = courseMap["datePairs"] as? List<List<String>>
@@ -1298,7 +1219,6 @@ internal fun applyScheduleData(
                             } catch (_: Exception) { null }
 
                             if (courseStartDate != null) {
-                                // 从开学周的周一开始计算周次
                                 val courseMonday = courseStartDate.minusDays((courseStartDate.dayOfWeek.value - 1).toLong())
                                 val startWeek = ChronoUnit.WEEKS.between(classStartMonday, courseMonday).toInt() + 1
 
@@ -1330,7 +1250,6 @@ internal fun applyScheduleData(
                 }
             }
 
-            // 处理 COUNT 格式的 RRULE：根据 COUNT 和 startDate 计算结束周
             if (selectedWeeks.isEmpty()) {
                 val countStr = courseMap["count"] as? String
                 val startDateStr = courseMap["startDate"] as? String
@@ -1381,17 +1300,14 @@ internal fun applyScheduleData(
             }
         }
 
-        // 保存课程到新课表
         scheduleViewModel.saveCoursesToSchedule(scheduleName, courses)
 
-        // 刷新摘要，确保切换课表页面显示正确的课程数
+        // 先刷摘要再继续，否则切换页课程数会短暂错
         scheduleViewModel.refreshScheduleList()
 
-        // 保存设置到新课表
         @Suppress("UNCHECKED_CAST")
         val settings = data["settings"] as? Map<String, Any>
 
-        // 导入时间配置：创建新的 TimeConfig 并绑定给新课表
         @Suppress("UNCHECKED_CAST")
         val times = data["times"] as? Map<String, Any>
         val importedMorningSections = (settings?.get("morning_sections") as? Number)?.toInt()
@@ -1399,7 +1315,6 @@ internal fun applyScheduleData(
         val importedEveningSections = (settings?.get("evening_sections") as? Number)?.toInt()
 
         if (importedMorningSections != null || importedAfternoonSections != null || importedEveningSections != null || times != null) {
-            // 构建 sectionTimes
             val sectionTimesMap = mutableMapOf<String, String>()
             if (times != null) {
                 @Suppress("UNCHECKED_CAST")
@@ -1423,7 +1338,6 @@ internal fun applyScheduleData(
             val newConfigId = scheduleViewModel.addTimeConfig(newConfig)
             scheduleViewModel.setScheduleTimeConfigId(scheduleName, newConfigId)
         } else {
-            // 没有导入时间配置，使用当前课表的时间配置
             val currentScheduleTimeConfigId = scheduleViewModel.getCurrentScheduleTimeConfigId()
             if (currentScheduleTimeConfigId != 0L) {
                 scheduleViewModel.setScheduleTimeConfigId(scheduleName, currentScheduleTimeConfigId)
@@ -1431,7 +1345,6 @@ internal fun applyScheduleData(
         }
 
         if (settings != null) {
-            // 切换到新课表来保存设置
             scheduleViewModel.switchToSchedule(scheduleName)
 
             (settings["class_start_time"] as? String)?.let { viewModel.setClassStartTime(it) }
@@ -1439,7 +1352,6 @@ internal fun applyScheduleData(
             (settings["smart_weekend"] as? Boolean)?.let {
                 settingsViewModel.setSmartWeekend(it)
             }
-            // 兼容旧格式
             @Suppress("UNCHECKED_CAST")
             (settings["show_weekend_days"] as? List<Number>)?.let {
                 if (it.isNotEmpty()) settingsViewModel.setSmartWeekend(true)
@@ -1451,7 +1363,6 @@ internal fun applyScheduleData(
             (settings["afternoon_sections"] as? Number)?.toInt()?.let { settingsViewModel.setAfternoonSections(it) }
             (settings["evening_sections"] as? Number)?.toInt()?.let { settingsViewModel.setEveningSections(it) }
 
-            // 保存课程时间
             @Suppress("UNCHECKED_CAST")
             val times = data["times"] as? Map<String, Any>
             if (times != null) {
@@ -1478,7 +1389,6 @@ internal fun applyScheduleData(
             }
         }
 
-        // 重新加载课程和刷新设置，确保 UI 立即更新
         viewModel.reloadCourses()
         settingsViewModel.refreshSettings()
         scheduleViewModel.refreshScheduleList()
@@ -1489,7 +1399,6 @@ internal fun applyScheduleData(
     }
 }
 
-/** 从 Context 链中查找 Activity */
 private fun Context.findActivity(): Activity? {
     var ctx: Context? = this
     while (ctx is ContextWrapper) {

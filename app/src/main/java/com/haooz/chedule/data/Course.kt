@@ -1,46 +1,44 @@
 package com.haooz.chedule.data
 
-/**
- * 课程数据模型
- */
 data class Course(
     val id: String,
-    val name: String,           // 课程名称
-    val classroom: String,      // 教室
-    val teacher: String,        // 教师
-    val dayOfWeek: Int,         // 星期几 (1=周一, 7=周日)
-    val startSection: Int,      // 开始节次 (1-12)
-    val endSection: Int,        // 结束节次 (1-12)
-    val startWeek: Int,         // 开始周次
-    val endWeek: Int,           // 结束周次
-    val weekType: Int,          // 周类型: 0=全周, 1=单周, 2=双周
-    val colorRes: Long,         // 课程颜色
-    val selectedWeeks: List<Int> = emptyList(), // 选中的具体周次列表（为空时使用startWeek/endWeek/weekType）
-    val scheduleId: String = "", // 所属课表ID（空字符串表示未指定，用于云同步区分课表）
-    val lastModified: Long = System.currentTimeMillis(), // 最后修改时间戳
-    // 自定义上课时间：开启后使用 customStartTime/customEndTime，否则回退到节次时间表
+    val name: String,
+    val classroom: String,
+    val teacher: String,
+    val dayOfWeek: Int,         // 1=周一, 7=周日
+    val startSection: Int,      // 1-12
+    val endSection: Int,        // 1-12
+    val startWeek: Int,
+    val endWeek: Int,
+    val weekType: Int,          // 0=全周, 1=单周, 2=双周
+    val colorRes: Long,
+    // 为空时用 startWeek/endWeek/weekType 推导有效周次
+    val selectedWeeks: List<Int> = emptyList(),
+    // 空串表示未指定，云同步靠它区分课表
+    val scheduleId: String = "",
+    val lastModified: Long = System.currentTimeMillis(),
+    // 开启后用 customStartTime/EndTime，否则回退节次时间表
     val isCustomTime: Boolean = false,
     val customStartTime: String? = null, // "HH:mm"
     val customEndTime: String? = null    // "HH:mm"
 ) {
     companion object {
-        const val WEEK_TYPE_ALL = 0   // 全部周
-        const val WEEK_TYPE_ODD = 1   // 单周
-        const val WEEK_TYPE_EVEN = 2  // 双周
+        const val WEEK_TYPE_ALL = 0
+        const val WEEK_TYPE_ODD = 1
+        const val WEEK_TYPE_EVEN = 2
 
-        // 预设课程颜色
         val courseColors = listOf(
-            0xFF4CAF50L,  // 绿色
-            0xFF2196F3L,  // 蓝色
-            0xFFFF9800L,  // 橙色
-            0xFFF44336L,  // 红色
-            0xFFE6B422L,  // 黄色
-            0xFFE91E63L,  // 粉色
-            0xFF00BCD4L,  // 青色
-            0xFF3F51B5L,  // 靛蓝色
-            0xFFAB47BCL,  // 紫罗兰
-            0xFF009688L,  // 蓝绿色
-            0xFF673AB7L   // 深紫色
+            0xFF4CAF50L,
+            0xFF2196F3L,
+            0xFFFF9800L,
+            0xFFF44336L,
+            0xFFE6B422L,
+            0xFFE91E63L,
+            0xFF00BCD4L,
+            0xFF3F51B5L,
+            0xFFAB47BCL,
+            0xFF009688L,
+            0xFF673AB7L
         )
 
         val defaultMorningTimes = mapOf(
@@ -80,8 +78,7 @@ data class Course(
             }
 
         /**
-         * 根据参数自动计算每个节次的时间区间
-         * 算法：从起始时间开始，依次累加课时长度和休息时间，在指定节次处插入长休息
+         * 从起始时间累加课时与休息，生成各节次时间；在 [longBreakSection] 后插入长休息。
          */
         fun calculatePeriodTimes(
             sectionCount: Int,
@@ -112,26 +109,19 @@ data class Course(
 
     }
 
-    /**
-     * 判断该课程在指定周次是否有效
-     */
     fun isActiveInWeek(week: Int): Boolean {
-        // 如果有具体的周次列表，直接检查是否包含
         if (selectedWeeks.isNotEmpty()) {
             return week in selectedWeeks
         }
-        // 否则使用范围判断
         if (week < startWeek || week > endWeek) return false
         return when (weekType) {
-            WEEK_TYPE_ODD -> week % 2 == 1   // 单周
-            WEEK_TYPE_EVEN -> week % 2 == 0  // 双周
-            else -> true                      // 全部周
+            WEEK_TYPE_ODD -> week % 2 == 1
+            WEEK_TYPE_EVEN -> week % 2 == 0
+            else -> true
         }
     }
 
-    /**
-     * 是否启用了自定义上课时间（自定义开关开启且起止时间均有效）
-     */
+    /** 自定义开关开启且起止时间均非空才生效 */
     fun hasValidCustomTime(): Boolean {
         return isCustomTime &&
             !customStartTime.isNullOrBlank() &&
@@ -139,7 +129,6 @@ data class Course(
     }
 
     /**
-     * 获取有效开始时间（"HH:mm"）。优先使用自定义时间，否则回退到节次时间表
      * @param sectionTimes 全局绝对节次号 -> "HH:mm-HH:mm"
      */
     fun getEffectiveStartTime(sectionTimes: Map<Int, String>): String? {
@@ -148,7 +137,6 @@ data class Course(
     }
 
     /**
-     * 获取有效结束时间（"HH:mm"）。优先使用自定义时间，否则回退到节次时间表
      * @param sectionTimes 全局绝对节次号 -> "HH:mm-HH:mm"
      */
     fun getEffectiveEndTime(sectionTimes: Map<Int, String>): String? {
@@ -156,9 +144,6 @@ data class Course(
         return sectionTimes[endSection]?.split("-")?.lastOrNull()?.trim()
     }
 
-    /**
-     * 获取周类型描述
-     */
     fun getWeekTypeText(): String {
         if (selectedWeeks.isNotEmpty()) {
             return "自定义"
@@ -170,9 +155,6 @@ data class Course(
         }
     }
 
-    /**
-     * 获取节次描述
-     */
     fun getSectionText(): String {
         if (startSection <= 0 && endSection <= 0) return ""
         return if (startSection == endSection) {
@@ -182,10 +164,7 @@ data class Course(
         }
     }
 
-    /**
-     * 获取课程时间展示文本。自定义时间课程显示 "HH:mm - HH:mm"，
-     * 否则回退到节次文本（如 "第1-2节"）
-     */
+    /** 自定义时间显示 "HH:mm - HH:mm"，否则回退节次文本 */
     fun getTimeDisplayText(): String {
         if (hasValidCustomTime()) {
             return "$customStartTime - $customEndTime"
@@ -193,9 +172,6 @@ data class Course(
         return getSectionText()
     }
 
-    /**
-     * 获取周次描述
-     */
     fun getWeekText(): String {
         if (selectedWeeks.isNotEmpty()) {
             return formatWeeks(selectedWeeks.sorted())
@@ -211,17 +187,13 @@ data class Course(
     }
 
     /**
-     * 将周次列表格式化为紧凑显示字符串
-     * 算法：优先检测单双周序列（步长2），其次检测连续序列（步长1），
-     * 只有同类型序列长度≥3时才合并，否则单独显示。
+     * 周次紧凑显示：先按步长2（单双周）再按步长1 合并，同类型序列≥3 才合并。
      * 例：[1,3,5,7,9,11,13,15,16,17] → "1-15 (单周)、16周、17周"
-     *     [1,3,5] → "1-5 (单周)"，[1,3] → "1周、3周"
      */
     private fun formatWeeks(sorted: List<Int>): String {
         val groups = mutableListOf<String>()
         var i = 0
         while (i < sorted.size) {
-            // 优先检测单双周序列（步长2）
             val step2Run = extractRun(sorted, i, step = 2)
             if (step2Run.size >= 3) {
                 val parity = if (step2Run.first() % 2 == 1) "单周" else "双周"
@@ -229,23 +201,19 @@ data class Course(
                 i += step2Run.size
                 continue
             }
-            // 检测连续序列（步长1）
             val step1Run = extractRun(sorted, i, step = 1)
             if (step1Run.size >= 3) {
                 groups.add("${step1Run.first()}-${step1Run.last()}周")
                 i += step1Run.size
                 continue
             }
-            // 不满足合并条件，单独显示
             groups.add("${sorted[i]}周")
             i++
         }
         return groups.joinToString("、")
     }
 
-    /**
-     * 从指定位置开始提取步长为 step 的最长连续等差子序列
-     */
+    /** 从 start 起提取步长为 step 的最长连续等差子序列 */
     private fun extractRun(sorted: List<Int>, start: Int, step: Int): List<Int> {
         val run = mutableListOf(sorted[start])
         var j = start + 1

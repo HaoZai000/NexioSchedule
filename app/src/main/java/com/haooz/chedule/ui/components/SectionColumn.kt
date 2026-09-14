@@ -25,9 +25,6 @@ import com.haooz.chedule.ui.utils.isAppDarkTheme
 import com.kyant.capsule.ContinuousRoundedRectangle
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 
-/**
- * 节次列（左侧显示节次号和时间）
- */
 @Composable
 fun SectionColumn(
     totalSections: Int = 11,
@@ -37,18 +34,17 @@ fun SectionColumn(
     sectionTimes: Map<Int, String> = Course.defaultSectionTimes,
     sectionNames: Map<Int, String> = emptyMap(),
     specialBlocks: List<com.haooz.chedule.data.SpecialBlock> = emptyList(),
-    // 由页面层统一计算一次，与 DayColumn 共享；为空时列内自算（兼容旧调用方）
+    // 页面层共享；为空时列内自算
     grid: SpecialGridLayout? = null,
     cardHeightPerSection: Float = 54f,
     showBreakDividers: Boolean = true,
     currentSection: Int = -1,
     isTablet: Boolean = false,
     hasWallpaper: Boolean = false,
-    // 由页面层统一读取；未传时列内自算（兼容旧调用方）
+    // 页面层统一读取；未传时列内自算
     isDark: Boolean = isAppDarkTheme(),
     @SuppressLint("ModifierParameter") modifier: Modifier = Modifier
 ) {
-    // 缓存时间字符串拆分结果，避免每次重组重复 split
     val timePairs = remember(sectionTimes, totalSections) {
         (1..totalSections).map { section ->
             val timeStr = sectionTimes[section] ?: Course.defaultSectionTimes[section] ?: ""
@@ -57,7 +53,6 @@ fun SectionColumn(
         }
     }
 
-    // 特殊课程为时间轴浮层：节次保持固定位置，时间列在对应高度显示特殊课程起止时间
     val effectiveGrid = grid ?: remember(
         totalSections, morningSections, afternoonSections, eveningSections,
         specialBlocks, sectionTimes, cardHeightPerSection, showBreakDividers
@@ -81,13 +76,11 @@ fun SectionColumn(
             .width(sectionWidth)
             .height(totalHeight.dp)
     ) {
-        // 上午节次
         (1..morningSections).forEach { section ->
             val (startTime, endTime) = timePairs[section - 1]
             SectionItem(section, startTime, endTime, effectiveGrid.sectionTop[section]?.toInt() ?: 0, cardHeightPerSection, section == currentSection, hasWallpaper, sectionNames, isDark)
         }
 
-        // 下午节次
         val afternoonStart = morningSections + 1
         val afternoonEnd = morningSections + afternoonSections
         (afternoonStart..afternoonEnd).forEach { section ->
@@ -95,7 +88,6 @@ fun SectionColumn(
             SectionItem(section, startTime, endTime, effectiveGrid.sectionTop[section]?.toInt() ?: 0, cardHeightPerSection, section == currentSection, hasWallpaper, sectionNames, isDark)
         }
 
-        // 晚上节次
         val eveningStart = morningSections + afternoonSections + 1
         val eveningEnd = morningSections + afternoonSections + eveningSections
         (eveningStart..eveningEnd).forEach { section ->
@@ -103,7 +95,6 @@ fun SectionColumn(
             SectionItem(section, startTime, endTime, effectiveGrid.sectionTop[section]?.toInt() ?: 0, cardHeightPerSection, section == currentSection, hasWallpaper, sectionNames, isDark)
         }
 
-        // 特殊课程：无编号，左侧时间列在对应高度显示其起止时间
         effectiveGrid.specialBands.forEach { band ->
             SpecialTimeLabel(
                 startTime = band.startTime,
@@ -122,12 +113,10 @@ fun SectionColumn(
 private fun SectionItem(section: Int, startTime: String, endTime: String, yOffset: Int, cardHeightPerSection: Float = 54f, isCurrentSection: Boolean = false, hasWallpaper: Boolean = false, sectionNames: Map<Int, String> = emptyMap(), isDark: Boolean) {
     val onSurfaceColor = MiuixTheme.colorScheme.onSurface
     val onSurfaceVariantColor = MiuixTheme.colorScheme.onSurfaceVariantActions
-    // 课程表界面高亮蓝色固定 #3482FF，不随深色模式变暗
     val highlightColor = Color(0xFF3482FF)
     val baseBody2 = MiuixTheme.textStyles.body2
     val baseFootnote2 = MiuixTheme.textStyles.footnote2
 
-    // 自定义节次名称优先显示名称，否则显示节次号
     val customName = sectionNames[section]
     val displayText = customName ?: section.toString()
 
@@ -136,7 +125,7 @@ private fun SectionItem(section: Int, startTime: String, endTime: String, yOffse
             fontWeight = if (isCurrentSection) FontWeight.Medium else FontWeight.Normal
         )
     }
-    // 自定义节次名称使用小号 Medium 字重，避免超出列宽
+    // 自定义名称用小号 Medium，避免超出列宽
     val nameStyle = if (customName != null) {
         sectionStyle.copy(fontSize = 11.sp, fontWeight = FontWeight.Medium)
     } else sectionStyle
@@ -161,9 +150,6 @@ private fun SectionItem(section: Int, startTime: String, endTime: String, yOffse
     }
 }
 
-/**
- * 特殊课程左侧时间标签：在时间轴对应高度（top..top+height）显示起止时间，无节次号。
- */
 @Composable
 private fun SpecialTimeLabel(
     startTime: String,
@@ -193,9 +179,6 @@ private fun SpecialTimeLabel(
     }
 }
 
-/**
- * 节次文字：设置壁纸时叠加柔和阴影以保证可读性。
- */
 @Composable
 private fun OutlinedText(
     text: String,
