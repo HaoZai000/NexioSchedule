@@ -5,7 +5,6 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.material3.Text
@@ -115,7 +114,6 @@ internal fun ScheduleBottomBar(
                     modifier = Modifier
                         .fillMaxWidth(0.63f)
                         .height(56.dp)
-                        .offset(y = 22.dp)
                 ) {
                     LiquidBottomTab(index = 0, onClick = { onSelect(0) }) {
                         Image(
