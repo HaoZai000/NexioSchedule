@@ -115,6 +115,8 @@ fun CourseReminderScreen(
     var islandLeftMode by remember { mutableIntStateOf(reminderPrefs.getInt("island_left_mode", 0)) }
     // 超级岛右侧显示：0=课程名称，1=上课地点，2=倒计时
     var islandRightMode by remember { mutableIntStateOf(reminderPrefs.getInt("island_right_mode", 1)) }
+    // 超级岛息屏显示：0=课程名称，1=上课地点
+    var islandAodMode by remember { mutableIntStateOf(reminderPrefs.getInt("island_aod_mode", 0)) }
 
     val masterEnabled = preClassReminder || nextDayReminder
     var permissionRefreshKey by remember { mutableIntStateOf(0) }
@@ -631,6 +633,25 @@ fun CourseReminderScreen(
                             ),
                         )
 
+                        val islandAodOptions = listOf(
+                            DropdownItem(
+                                text = "课程名称",
+                                selected = islandAodMode == 0,
+                                onClick = {
+                                    islandAodMode = 0
+                                    reminderPrefs.edit { putInt("island_aod_mode", 0) }
+                                }
+                            ),
+                            DropdownItem(
+                                text = "上课地点",
+                                selected = islandAodMode == 1,
+                                onClick = {
+                                    islandAodMode = 1
+                                    reminderPrefs.edit { putInt("island_aod_mode", 1) }
+                                }
+                            ),
+                        )
+
                         if (!islandNotification || !isIslandSupported) {
                             // 关闭超级岛：只显示"实况通知右侧"
                             Card(
@@ -647,7 +668,7 @@ fun CourseReminderScreen(
                                 )
                             }
                         } else {
-                            // 开启超级岛：显示"超级岛左侧"和"超级岛右侧"
+                            // 开启超级岛：显示"超级岛左侧"、"超级岛右侧"和"息屏显示"
                             Card(
                                 cornerRadius = 20.dp,
                                 modifier = Modifier.fillMaxWidth(),
@@ -663,6 +684,14 @@ fun CourseReminderScreen(
                                 OverlayDropdownMenu(
                                     title = "超级岛右侧",
                                     entry = DropdownEntry(items = islandRightOptions),
+                                    collapseOnSelection = true,
+                                    liquidGlassBackdrop = liquidGlassBackdrop,
+                                    dropdownColors = liquidGlassDropdownColors,
+                                )
+                                OverlayDropdownMenu(
+                                    title = "息屏显示",
+                                    summary = "全天候显示时无效",
+                                    entry = DropdownEntry(items = islandAodOptions),
                                     collapseOnSelection = true,
                                     liquidGlassBackdrop = liquidGlassBackdrop,
                                     dropdownColors = liquidGlassDropdownColors,

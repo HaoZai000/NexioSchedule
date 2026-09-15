@@ -263,6 +263,7 @@ object IslandNotificationHelper {
         val expandGlowEnabled = prefs.getBoolean(KEY_ISLAND_EXPAND_GLOW_ENABLED, true)
         val leftMode = prefs.getInt("island_left_mode", 0)
         val rightMode = prefs.getInt("island_right_mode", 1)
+        val aodMode = prefs.getInt("island_aod_mode", 0)
 
         val now = System.currentTimeMillis()
         // 仅开始时间在未来才算倒计时中；null 或已到点按"已上课"静态态
@@ -284,6 +285,12 @@ object IslandNotificationHelper {
             else -> classroom ?: ""
         }
 
+        // 息屏官方仅支持 aodTitle 文案（可选 aodPic）；无倒计时/Chronometer 组件
+        val aodTitle = when (aodMode) {
+            1 -> classroom ?: courseName ?: title
+            else -> courseName ?: title
+        }
+
         val paramV2 = JSONObject().apply {
             put("business", BUSINESS_TAG)
             put("protocol", 1)
@@ -293,6 +300,8 @@ object IslandNotificationHelper {
             // 同 id 通知重发时需允许再次显示（课前→已上课切换）
             put("reopen", "reopen")
             put("sequence", sequenceCounter.incrementAndGet())
+            // 息屏显示：官方必填 aodTitle；不传 aodPic 时默认应用图标
+            put("aodTitle", aodTitle)
 
             // 模板9：文本2 + 识别1 + 按钮2
             val baseInfo = JSONObject().apply {
