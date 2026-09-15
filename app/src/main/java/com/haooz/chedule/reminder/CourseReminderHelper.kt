@@ -47,6 +47,9 @@ object CourseReminderHelper {
     // 开课后仍允许补发"已上课"的宽限期，超出则不再打扰
     private const val ISLAND_START_GRACE_MS = 2 * 60_000L
 
+    // 普通实况通知的「已上课」态与倒计时态错开一个 ID，否则同 ID 更新不会重新弹出
+    private const val STARTED_LIVE_ID_OFFSET = 1
+
     const val CHANNEL_REMINDER_ID = "course_reminder_alert"
     const val CHANNEL_REMINDER_NAME = "课程提醒通知"
     const val CHANNEL_LIVE_ID = "course_reminder_live"
@@ -483,7 +486,17 @@ object CourseReminderHelper {
         // 倒计时/岛激活时需每分钟刷新，便于更新文案与对账补切
         val countdownPrefs = context.getSharedPreferences("countdown_state", Context.MODE_PRIVATE)
         val hasActiveCountdown = countdownPrefs.getBoolean("active", false) ||
-            IslandNotificationHelper.IslandState.isActive(context)
+            IslandNotificationHelper.IslandState.isActiveAny(context)
+
+        // 课中提醒：剩余分钟与进度都按整分钟量化，只有跨分钟才会变，真实课与测试课同理。
+        // 所以取活跃的那份快照对齐分钟边界即可——再密的轮询也只是在重复算同一个值、白白多唤醒。
+        val inClassEndMillis = if (IslandNotificationHelper.isInClassReminderEnabled(context)) {
+            // 真实岛与测试岛互斥，命中任一处于课中态的快照
+            IslandNotificationHelper.IslandState.snapshot(context, testMode = false)
+                ?.takeIf { it.switched && it.endMillis > now }?.endMillis
+                ?: IslandNotificationHelper.IslandState.snapshot(context, testMode = true)
+                    ?.takeIf { it.switched && it.endMillis > now }?.endMillis
+        } else null
 
         // 课前提醒窗口内也保持每分钟刷新，保证补发与倒计时都被驱动
         val minutesBefore = repository.getPreClassReminderMinutes()
@@ -533,7 +546,10 @@ object CourseReminderHelper {
             }
         }
 
-        val result = if (hasActiveCourse) {
+        val result = if (inClassEndMillis != null) {
+            // 真实课与测试课统一对齐分钟边界；跨分钟时自然会重算剩余时间与进度
+            now + IslandNotificationHelper.msUntilNextMinuteBoundary(inClassEndMillis - now)
+        } else if (hasActiveCourse) {
             val nextMinute = Calendar.getInstance().apply {
                 add(Calendar.MINUTE, 1)
                 set(Calendar.SECOND, 0)
@@ -858,6 +874,7 @@ object CourseReminderHelper {
                 if (liveNotificationId != 0) {
                     val manager = context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
                     manager.cancel(liveNotificationId)
+                    manager.cancel(liveNotificationId + STARTED_LIVE_ID_OFFSET)
                 }
                 prefs.edit { putBoolean("active", false) }
             }
@@ -878,7 +895,7 @@ object CourseReminderHelper {
         if (endMillis in 1..now) {
             val manager = context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
             manager.cancel(notificationId)
-            manager.cancel(ISLAND_NOTIFICATION_ID)
+            IslandNotificationHelper.cancelIslandState(context, ISLAND_NOTIFICATION_ID)
             prefs.edit { putBoolean("active", false) }
             return
         }
@@ -887,7 +904,7 @@ object CourseReminderHelper {
         if (now >= startMillis) {
             val manager = context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
             manager.cancel(notificationId)
-            manager.cancel(ISLAND_NOTIFICATION_ID)
+            IslandNotificationHelper.cancelIslandState(context, ISLAND_NOTIFICATION_ID)
             prefs.edit { putBoolean("active", false) }
 
             val startedIntent = PendingIntent.getActivity(
@@ -935,7 +952,11 @@ object CourseReminderHelper {
                 .apply {
                     flags = flags or Notification.FLAG_ONLY_ALERT_ONCE
                 }
-            manager.notify(notificationId, startedNotification)
+            // 用独立 ID 重发：同 ID 更新只是静默替换，不会重新弹出/展开，
+            // 用户看到的仍是一张已归零的倒计时卡片
+            val startedNotificationId = notificationId + STARTED_LIVE_ID_OFFSET
+            prefs.edit { putInt("started_notification_id", startedNotificationId) }
+            manager.notify(startedNotificationId, startedNotification)
             return
         }
 
@@ -1130,31 +1151,43 @@ object CourseReminderHelper {
     }
 
     // 每分钟对账：兜底切换闹钟丢失/Doze 延迟、岛残留、开关关闭后的清理
+    // 同时扫真实岛与测试岛，否则「测试小米超级岛」课中进度永远不更新
     fun reconcileIslandCountdown(context: Context) {
         val repository = CourseRepository(context)
         val islandEnabled = repository.getIslandNotification() &&
             IslandNotificationHelper.isIslandSupported(context)
 
         if (!islandEnabled) {
-            if (IslandNotificationHelper.IslandState.isActive(context)) {
+            if (IslandNotificationHelper.IslandState.isActiveAny(context)) {
                 IslandNotificationHelper.cancelIslandNotifications(context)
                 IslandNotificationHelper.IslandState.clear(context)
+                IslandNotificationHelper.IslandState.clear(context, testMode = true)
                 android.util.Log.d(TAG, "reconcileIsland: island disabled, dismissed")
             }
             return
         }
 
-        val state = IslandNotificationHelper.IslandState.snapshot(context) ?: return
+        reconcileIslandState(context, testMode = false)
+        reconcileIslandState(context, testMode = true)
+    }
+
+    private fun reconcileIslandState(context: Context, testMode: Boolean) {
+        val state = IslandNotificationHelper.IslandState.snapshot(context, testMode) ?: return
         val now = System.currentTimeMillis()
 
+        val inClassActive = IslandNotificationHelper.isInClassReminderEnabled(context) &&
+            state.switched &&
+            state.endMillis > now
+
         val expiredByEnd = state.endMillis > 0 && now >= state.endMillis
-        val expiredByShow = state.switched &&
+        // 课中提醒：不因 15 秒展示窗收起，挂到下课；非课中维持原 15 秒策略
+        val expiredByShow = !inClassActive && state.switched &&
             now - state.switchedAt >= IslandNotificationHelper.ISLAND_STARTED_VISIBLE_MS
         if (expiredByEnd || expiredByShow) {
-            val manager = context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
-            manager.cancel(state.notificationId)
-            IslandNotificationHelper.IslandState.clear(context)
-            android.util.Log.d(TAG, "reconcileIsland: dismissed end=$expiredByEnd show=$expiredByShow")
+            // 连带收起另一半（倒计时/已上课），避免残留岛一直停在 00:00
+            IslandNotificationHelper.cancelIslandState(context, state.notificationId)
+            IslandNotificationHelper.IslandState.clear(context, testMode)
+            android.util.Log.d(TAG, "reconcileIsland: dismissed test=$testMode end=$expiredByEnd show=$expiredByShow")
             return
         }
 
@@ -1162,22 +1195,28 @@ object CourseReminderHelper {
         if (!state.switched && now >= state.startMillis) {
             if (now - state.startMillis > ISLAND_LATE_TOLERANCE_MS) {
                 // 隔夜或重启后残留的状态：不要再补一个过期的"已上课"，直接收起
-                val manager = context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
-                manager.cancel(state.notificationId)
-                IslandNotificationHelper.IslandState.clear(context)
+                IslandNotificationHelper.cancelIslandState(context, state.notificationId)
+                IslandNotificationHelper.IslandState.clear(context, testMode)
                 android.util.Log.d(TAG, "reconcileIsland: stale state dismissed for ${state.courseName}")
                 return
             }
             android.util.Log.d(TAG, "reconcileIsland: late switch for ${state.courseName}")
-            IslandNotificationHelper.sendClassStartedNotification(
+            IslandNotificationHelper.onClassStart(
                 context = context,
                 courseName = state.courseName,
                 classroom = state.classroom,
                 section = state.section,
                 startTime = state.startTime,
                 endTime = state.endTime.ifEmpty { null },
-                notificationId = state.notificationId
+                notificationId = state.notificationId,
+                testMode = testMode
             )
+            return
+        }
+
+        // 课中提醒：跨分钟刷新剩余时间/进度
+        if (inClassActive) {
+            IslandNotificationHelper.updateInClassIslandIfNeeded(context, state, testMode)
         }
     }
 
@@ -1186,7 +1225,10 @@ object CourseReminderHelper {
         val manager = context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
         val countdownPrefs = context.getSharedPreferences("countdown_state", Context.MODE_PRIVATE)
         val liveId = countdownPrefs.getInt("notificationId", 0)
-        if (liveId != 0) manager.cancel(liveId)
+        if (liveId != 0) {
+            manager.cancel(liveId)
+            manager.cancel(liveId + STARTED_LIVE_ID_OFFSET)
+        }
         countdownPrefs.edit { putBoolean("active", false) }
         IslandNotificationHelper.cancelIslandNotifications(context)
         IslandNotificationHelper.IslandState.clear(context)

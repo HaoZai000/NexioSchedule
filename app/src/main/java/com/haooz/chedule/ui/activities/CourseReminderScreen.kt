@@ -117,6 +117,10 @@ fun CourseReminderScreen(
     var islandRightMode by remember { mutableIntStateOf(reminderPrefs.getInt("island_right_mode", 1)) }
     // 超级岛息屏显示：0=课程名称，1=上课地点
     var islandAodMode by remember { mutableIntStateOf(reminderPrefs.getInt("island_aod_mode", 0)) }
+    // 课中提醒：到点后「已上课」替换为模板19进度卡片
+    var islandInClassEnabled by remember {
+        mutableStateOf(reminderPrefs.getBoolean(IslandNotificationHelper.KEY_IN_CLASS_REMINDER, false))
+    }
 
     val masterEnabled = preClassReminder || nextDayReminder
     var permissionRefreshKey by remember { mutableIntStateOf(0) }
@@ -476,6 +480,17 @@ fun CourseReminderScreen(
                                         settingsViewModel.setIslandNotification(it)
                                     }
                                 )
+                                if (islandNotification) {
+                                    SwitchPreference(
+                                        title = "课中提醒",
+                                        summary = "上课中以进度卡片显示剩余时间",
+                                        checked = islandInClassEnabled,
+                                        onCheckedChange = {
+                                            islandInClassEnabled = it
+                                            reminderPrefs.edit { putBoolean(IslandNotificationHelper.KEY_IN_CLASS_REMINDER, it) }
+                                        }
+                                    )
+                                }
                                 AnimatedVisibility(
                                     visible = islandNotification,
                                     enter = expandVertically(animationSpec = tween(250)) + fadeIn(animationSpec = tween(200)),

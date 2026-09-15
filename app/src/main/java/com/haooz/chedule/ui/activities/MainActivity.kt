@@ -109,7 +109,6 @@ import com.haooz.chedule.ui.basic.ShortcutMenuItem
 import com.haooz.chedule.ui.basic.rememberSharedScrollBehavior
 import com.haooz.chedule.ui.components.CourseCard
 import com.haooz.chedule.ui.components.LandRippleSpec
-import com.haooz.chedule.ui.components.LiquidAddButton
 import com.haooz.chedule.ui.components.LocalLandRipple
 import com.haooz.chedule.ui.components.ScheduleBottomBar
 import com.haooz.chedule.ui.components.ScheduleTopBar
@@ -1186,6 +1185,38 @@ fun CourseScheduleApp() {
         }
     }
 
+    /**
+     * 搭配读取唯一入口：冷启动 IO 路径与伴生缓存路径都走这里。
+     *
+     * 两份逐字段复制的构造曾是 bug 温床——cardRefraction 只加进了 IO 路径，
+     * 导致伴生缓存命中时折射强度被静默重置为 DEFAULT。新增外观字段只需改此处。
+     */
+    fun buildCombination(id: Long, bitmap: android.graphics.Bitmap?) =
+        com.haooz.chedule.data.Combination(
+            id = id,
+            bitmap = bitmap,
+            offset = Offset(
+                wallpaperRepository.getCombinationOffsetX(id),
+                wallpaperRepository.getCombinationOffsetY(id)
+            ),
+            scale = wallpaperRepository.getCombinationScale(id),
+            snapshot = null,
+            cardBlurRadius = wallpaperRepository.getCombinationCardBlur(id),
+            cardAlpha = wallpaperRepository.getCombinationCardAlpha(id),
+            cardHeight = wallpaperRepository.getCombinationCardHeight(id),
+            cardCornerRadius = wallpaperRepository.getCombinationCardCornerRadius(id),
+            wallpaperBrightness = wallpaperRepository.getCombinationWallpaperBrightness(id),
+            showBreakDividers = wallpaperRepository.getCombinationShowBreakDividers(id),
+            cardContentAlignment = wallpaperRepository.getCombinationCardContentAlignment(id),
+            cardTextColor = wallpaperRepository.getCombinationCardTextColor(id),
+            cardTextScale = wallpaperRepository.getCombinationCardTextScale(id),
+            showClassroom = wallpaperRepository.getCombinationShowClassroom(id),
+            showTeacher = wallpaperRepository.getCombinationShowTeacher(id),
+            cardRefraction = wallpaperRepository.getCombinationCardRefraction(id),
+            wallpaperIsLight = wallpaperRepository.getCombinationWallpaperIsLight(id),
+            wallpaperBlur = wallpaperRepository.getCombinationWallpaperBlur(id)
+        )
+
     // 迁移旧数据并加载搭配；有伴生缓存则跳过 IO
     LaunchedEffect(Unit) {
         val cached = MainActivity.cachedWallpaperBitmap
@@ -1197,29 +1228,7 @@ fun CourseScheduleApp() {
         if (cached != null && cachedIds.isNotEmpty()) {
             currentIndex = cachedIdx
             val list = cachedIds.mapIndexed { index, id ->
-                com.haooz.chedule.data.Combination(
-                    id = id,
-                    bitmap = if (index == currentIndex) cached else null,
-                    offset = Offset(
-                        wallpaperRepository.getCombinationOffsetX(id),
-                        wallpaperRepository.getCombinationOffsetY(id)
-                    ),
-                    scale = wallpaperRepository.getCombinationScale(id),
-                    snapshot = null,
-                    cardBlurRadius = wallpaperRepository.getCombinationCardBlur(id),
-                    cardAlpha = wallpaperRepository.getCombinationCardAlpha(id),
-                    cardHeight = wallpaperRepository.getCombinationCardHeight(id),
-                    cardCornerRadius = wallpaperRepository.getCombinationCardCornerRadius(id),
-                    wallpaperBrightness = wallpaperRepository.getCombinationWallpaperBrightness(id),
-                    showBreakDividers = wallpaperRepository.getCombinationShowBreakDividers(id),
-                    cardContentAlignment = wallpaperRepository.getCombinationCardContentAlignment(id),
-                    cardTextColor = wallpaperRepository.getCombinationCardTextColor(id),
-                    cardTextScale = wallpaperRepository.getCombinationCardTextScale(id),
-                    showClassroom = wallpaperRepository.getCombinationShowClassroom(id),
-                    showTeacher = wallpaperRepository.getCombinationShowTeacher(id),
-                    wallpaperIsLight = wallpaperRepository.getCombinationWallpaperIsLight(id),
-                    wallpaperBlur = wallpaperRepository.getCombinationWallpaperBlur(id)
-                )
+                buildCombination(id, if (index == currentIndex) cached else null)
             }
             // 单搭配：裁剪须在赋值前完成，先赋全量再裁会多触发一轮全量重组
             val cachedCombOnly = list.getOrNull(currentIndex)
@@ -1232,35 +1241,9 @@ fun CourseScheduleApp() {
                 val currentId = wallpaperRepository.getCurrentCombinationId()
                 val loadedIndex = loadedIds.indexOf(currentId).coerceAtLeast(0)
                 val list = loadedIds.mapIndexed { index, id ->
-                    com.haooz.chedule.data.Combination(
-                        id = id,
-                        bitmap = if (index == loadedIndex) wallpaperRepository.loadCombinationWallpaper(
-                            id
-                        ) else null,
-                        offset = Offset(
-                            wallpaperRepository.getCombinationOffsetX(id),
-                            wallpaperRepository.getCombinationOffsetY(id)
-                        ),
-                        scale = wallpaperRepository.getCombinationScale(id),
-                        snapshot = null,
-                        cardBlurRadius = wallpaperRepository.getCombinationCardBlur(id),
-                        cardAlpha = wallpaperRepository.getCombinationCardAlpha(id),
-                        cardHeight = wallpaperRepository.getCombinationCardHeight(id),
-                        cardCornerRadius = wallpaperRepository.getCombinationCardCornerRadius(id),
-                        wallpaperBrightness = wallpaperRepository.getCombinationWallpaperBrightness(
-                            id
-                        ),
-                        showBreakDividers = wallpaperRepository.getCombinationShowBreakDividers(id),
-                        cardContentAlignment = wallpaperRepository.getCombinationCardContentAlignment(
-                            id
-                        ),
-                        cardTextColor = wallpaperRepository.getCombinationCardTextColor(id),
-                        cardTextScale = wallpaperRepository.getCombinationCardTextScale(id),
-                        showClassroom = wallpaperRepository.getCombinationShowClassroom(id),
-                        showTeacher = wallpaperRepository.getCombinationShowTeacher(id),
-                        cardRefraction = wallpaperRepository.getCombinationCardRefraction(id),
-                        wallpaperIsLight = wallpaperRepository.getCombinationWallpaperIsLight(id),
-                        wallpaperBlur = wallpaperRepository.getCombinationWallpaperBlur(id)
+                    buildCombination(
+                        id,
+                        if (index == loadedIndex) wallpaperRepository.loadCombinationWallpaper(id) else null
                     )
                 }
                 Pair(list, loadedIndex)
@@ -2251,15 +2234,7 @@ fun CourseScheduleApp() {
                             isShiftMode = isShiftMode,
                             selectedTab = selectedTab,
                             onTabSelected = { selectedTab = it },
-                            liquidGlassBackdrop = chromeBackdrop,
-                            addButton = {
-                                if (!isShiftMode) {
-                                    LiquidAddButton(
-                                        onClick = { viewModel.showAddDialog() },
-                                        backdrop = chromeBackdrop
-                                    )
-                                }
-                            }
+                            liquidGlassBackdrop = chromeBackdrop
                         )
                     },
                     topBar = {

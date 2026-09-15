@@ -1301,6 +1301,7 @@ fun CustomizeScheduleScreen(
                                 keyPoints = listOf(0f),
                                 enabled = hasWallpaper,
                                 onValueChange = { if (hasWallpaper) wallpaperBrightnessValue = it },
+                                quantize = { it.roundToInt().toFloat() },
                                 displayValue = { it.roundToInt().let { n -> if (n > 0) "+$n" else n.toString() } },
                                 parseInput = { it.toFloatOrNull()?.coerceIn(-50f, 50f) }
                             )
@@ -1335,7 +1336,8 @@ fun CustomizeScheduleScreen(
                                 keyPoints = listOf(4f),
                                 enabled = hasWallpaper,
                                 // 整数吸附，避免留下显示为 0 却仍有一丝模糊的小数
-                                onValueChange = { if (hasWallpaper) effectValue = it.roundToInt().coerceIn(0, 20).toFloat() },
+                                onValueChange = { if (hasWallpaper) effectValue = it },
+                                quantize = { it.roundToInt().coerceIn(0, 20).toFloat() },
                                 suffix = "dp",
                                 displayValue = { it.roundToInt().toString() },
                                 parseInput = { it.toFloatOrNull()?.coerceIn(0f, 20f) }
@@ -1352,6 +1354,8 @@ fun CustomizeScheduleScreen(
                                 keyPoints = listOf(0.15f),
                                 enabled = true,
                                 onValueChange = { cardAlphaValue = it },
+                                // 百分比显示只到整数，这里同步按 1% 步进，避免显示与实际值不一致
+                                quantize = { (it * 100f).roundToInt() / 100f },
                                 suffix = "%",
                                 displayValue = { (it * 100).roundToInt().toString() },
                                 parseInput = { it.toFloatOrNull()?.let { v -> (v / 100f).coerceIn(0f, 1f) } }
@@ -1368,7 +1372,8 @@ fun CustomizeScheduleScreen(
                                 valueRange = 34f..92f,
                                 keyPoints = listOf(54f),
                                 enabled = true,
-                                onValueChange = { cardHeightValue = (it.roundToInt() / 2 * 2).toFloat() },
+                                onValueChange = { cardHeightValue = it },
+                                quantize = { (it.roundToInt() / 2 * 2).toFloat() },
                                 suffix = "dp",
                                 displayValue = { it.roundToInt().toString() },
                                 parseInput = { it.toFloatOrNull()?.coerceIn(34f, 92f) }
@@ -1379,7 +1384,8 @@ fun CustomizeScheduleScreen(
                                 valueRange = 0f..48f,
                                 keyPoints = listOf(10f),
                                 enabled = true,
-                                onValueChange = { cardCornerRadiusValue = it.roundToInt().toFloat() },
+                                onValueChange = { cardCornerRadiusValue = it },
+                                quantize = { it.roundToInt().toFloat() },
                                 suffix = "dp",
                                 displayValue = { it.roundToInt().toString() },
                                 parseInput = { it.toFloatOrNull()?.coerceIn(0f, 48f) }
@@ -1428,7 +1434,8 @@ fun CustomizeScheduleScreen(
                                 valueRange = 0.5f..2.0f,
                                 keyPoints = listOf(1.0f),
                                 enabled = true,
-                                onValueChange = { cardTextScaleValue = (it * 10f).roundToInt() / 10f },
+                                onValueChange = { cardTextScaleValue = it },
+                                quantize = { (it * 10f).roundToInt() / 10f },
                                 suffix = "x",
                                 displayValue = { "%.1f".format(it) },
                                 parseInput = { it.replace(',', '.').toFloatOrNull()?.coerceIn(0.5f, 2.0f) }
@@ -1629,6 +1636,14 @@ private fun SliderItem(
     keyPoints: List<Float>,
     enabled: Boolean,
     onValueChange: (Float) -> Unit,
+    /**
+     * 档位量化（取整）。只作用于对外提交的值，不参与滑块位置计算。
+     *
+     * 位置由 rawValue 连续驱动：若在回写路径上也取整，Slider 的 animateFloatAsState 目标值
+     * 就只能在整档之间跳，拖动会一格一格地卡顿。取整挪到这里后，thumb 连续跟手、
+     * 提交值仍是整数。
+     */
+    quantize: (Float) -> Float = { it },
     suffix: String = "",
     displayValue: (Float) -> String = { it.roundToInt().toString() },
     parseInput: (String) -> Float? = { it.toFloatOrNull() },
@@ -1636,8 +1651,13 @@ private fun SliderItem(
     // 聚焦编辑期间不回写外部 value，避免打断输入
     var textInput by remember { mutableStateOf(displayValue(value)) }
     var isInputFocused by remember { mutableStateOf(false) }
+    // 拖动位置用原始浮点值，保证跟手连续；松手后吸附回整档，与外部 value 对齐
+    var rawValue by remember { mutableFloatStateOf(value) }
+    var isDragging by remember { mutableStateOf(false) }
     LaunchedEffect(value) {
         if (!isInputFocused) textInput = displayValue(value)
+        // 拖动中禁止回写，否则 thumb 会被拉回整数档位、丢掉连贯性
+        if (!isDragging) rawValue = value
     }
     val textColor = if (enabled) MiuixTheme.colorScheme.onSurface
     else MiuixTheme.colorScheme.onSurface.copy(alpha = 0.4f)
@@ -1664,7 +1684,7 @@ private fun SliderItem(
                     value = textInput,
                     onValueChange = { input ->
                         textInput = input
-                        parseInput(input)?.let(onValueChange)
+                        parseInput(input)?.let { onValueChange(quantize(it)) }
                     },
                     modifier = Modifier
                         .width(56.dp)
@@ -1694,8 +1714,17 @@ private fun SliderItem(
             }
         }
         Slider(
-            value = value,
-            onValueChange = onValueChange,
+            value = rawValue,
+            onValueChange = { raw ->
+                isDragging = true
+                rawValue = raw
+                onValueChange(quantize(raw))
+            },
+            onValueChangeFinished = {
+                isDragging = false
+                // 松手后落到整档，thumb 与外部 value 重新对齐
+                rawValue = quantize(rawValue)
+            },
             valueRange = valueRange,
             showKeyPoints = true,
             keyPoints = keyPoints,
@@ -1714,8 +1743,15 @@ private fun RefractionItem(
     onValueChange: (CardRefractionLevel) -> Unit,
 ) {
     val levels = CardRefractionLevel.entries
+    val lastIndex = levels.lastIndex
     val textColor = if (enabled) MiuixTheme.colorScheme.onSurface
     else MiuixTheme.colorScheme.onSurface.copy(alpha = 0.4f)
+    // 与 SliderItem 同理：位置连续跟手，档位取整只作用于对外提交
+    var rawValue by remember { mutableFloatStateOf(value.ordinal.toFloat()) }
+    var isDragging by remember { mutableStateOf(false) }
+    LaunchedEffect(value) {
+        if (!isDragging) rawValue = value.ordinal.toFloat()
+    }
     Column(
         modifier = Modifier
             .fillMaxWidth()
@@ -1750,11 +1786,18 @@ private fun RefractionItem(
             }
         }
         Slider(
-            value = value.ordinal.toFloat(),
+            value = rawValue,
             onValueChange = { v ->
-                onValueChange(levels[v.roundToInt().coerceIn(0, levels.lastIndex)])
+                isDragging = true
+                rawValue = v
+                onValueChange(levels[v.roundToInt().coerceIn(0, lastIndex)])
             },
-            valueRange = 0f..levels.lastIndex.toFloat(),
+            onValueChangeFinished = {
+                isDragging = false
+                // 落到最近档，与外部 value 重新对齐
+                rawValue = rawValue.roundToInt().coerceIn(0, lastIndex).toFloat()
+            },
+            valueRange = 0f..lastIndex.toFloat(),
             showKeyPoints = true,
             keyPoints = levels.indices.map { it.toFloat() },
             magnetThreshold = 0.01f,

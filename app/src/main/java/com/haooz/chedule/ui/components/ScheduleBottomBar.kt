@@ -1,8 +1,5 @@
 package com.haooz.chedule.ui.components
 
-import androidx.compose.animation.core.FastOutSlowInEasing
-import androidx.compose.animation.core.animateFloatAsState
-import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
@@ -15,21 +12,14 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.blur
 import androidx.compose.ui.graphics.ColorFilter
-import androidx.compose.ui.graphics.TransformOrigin
-import androidx.compose.ui.graphics.graphicsLayer
-import androidx.compose.ui.layout.onGloballyPositioned
-import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import androidx.compose.ui.zIndex
 import com.kyant.backdrop.Backdrop
 import top.yukonga.miuix.kmp.icon.MiuixIcons
 import top.yukonga.miuix.kmp.icon.extended.Album
@@ -54,8 +44,7 @@ internal fun ScheduleBottomBar(
     isShiftMode: Boolean,
     selectedTab: Int,
     onTabSelected: (Int) -> Unit,
-    liquidGlassBackdrop: Backdrop? = null,
-    addButton: @Composable () -> Unit = {}
+    liquidGlassBackdrop: Backdrop? = null
 ) {
     val onSelect: (Int) -> Unit = { idx ->
         onTabSelected(idx)
@@ -112,52 +101,12 @@ internal fun ScheduleBottomBar(
                 }
             }
         } else {
-            val density = LocalDensity.current
-            var navBarWidthPx by remember { mutableFloatStateOf(0f) }
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
                     .padding(bottom = 28.dp),
                 contentAlignment = Alignment.Center
             ) {
-                val isOnMineTab = liquidSelectedTab == 2
-                val buttonAlpha by animateFloatAsState(
-                    targetValue = if (isOnMineTab) 0f else 1f,
-                    animationSpec = if (isOnMineTab) {
-                        tween(durationMillis = 240, easing = FastOutSlowInEasing)
-                    } else {
-                        tween(durationMillis = 300, easing = FastOutSlowInEasing)
-                    },
-                    label = "addButtonAlpha"
-                )
-                val buttonScale by animateFloatAsState(
-                    targetValue = if (isOnMineTab) 0.5f else 1f,
-                    animationSpec = if (isOnMineTab) {
-                        tween(durationMillis = 240, easing = FastOutSlowInEasing)
-                    } else {
-                        tween(durationMillis = 300, easing = FastOutSlowInEasing)
-                    },
-                    label = "addButtonScale"
-                )
-                val buttonBlur by animateFloatAsState(
-                    targetValue = if (isOnMineTab) 12f else 0f,
-                    animationSpec = if (isOnMineTab) {
-                        tween(durationMillis = 240, easing = FastOutSlowInEasing)
-                    } else {
-                        tween(durationMillis = 300, easing = FastOutSlowInEasing)
-                    },
-                    label = "addButtonBlur"
-                )
-                val gapPx = with(density) { 8.dp.toPx() }
-                val buttonWidthPx = with(density) { 56.dp.toPx() }
-                val navBarOffsetTarget = -(buttonWidthPx + gapPx) / 2f
-                val navBarOffsetXPx by animateFloatAsState(
-                    targetValue = if (isOnMineTab) 0f else navBarOffsetTarget,
-                    animationSpec = tween(durationMillis = 300, easing = FastOutSlowInEasing),
-                    label = "navBarOffsetX"
-                )
-                val navBarOffsetXDp = with(density) { navBarOffsetXPx.toDp() }
-                val buttonOffsetXDp = with(density) { (navBarWidthPx / 2f + gapPx).toDp() }
                 LiquidBottomTabs(
                     selectedTabIndex = { liquidSelectedTab },
                     onTabSelected = { onSelect(it) },
@@ -166,9 +115,7 @@ internal fun ScheduleBottomBar(
                     modifier = Modifier
                         .fillMaxWidth(0.63f)
                         .height(56.dp)
-                        .offset(x = navBarOffsetXDp, y = 22.dp)
-                        .zIndex(1f)
-                        .onGloballyPositioned { navBarWidthPx = it.size.width.toFloat() }
+                        .offset(y = 22.dp)
                 ) {
                     LiquidBottomTab(index = 0, onClick = { onSelect(0) }) {
                         Image(
@@ -197,22 +144,6 @@ internal fun ScheduleBottomBar(
                         )
                         Text("我的", fontSize = 11.sp, color = iconTint)
                     }
-                }
-                Box(
-                    modifier = Modifier
-                        .offset(x = buttonOffsetXDp, y = 22.dp)
-                        .size(100.dp)
-                        .blur(if (buttonBlur > 0f) buttonBlur.dp else 0.dp)
-                        .graphicsLayer {
-                            transformOrigin = TransformOrigin(0f, 0.5f)
-                            scaleX = buttonScale
-                            scaleY = buttonScale
-                            alpha = buttonAlpha
-                            clip = false
-                        },
-                    contentAlignment = Alignment.Center
-                ) {
-                    addButton()
                 }
             }
         }

@@ -1590,7 +1590,8 @@ class CourseRepository private constructor(context: Context) {
     fun saveCombinationCardTextScale(id: Long, scale: Float) =
         updateCombinationStyle(id) { it.copy(cardTextScale = scale) }
 
-    fun getCombinationCardTextScale(id: Long): Float = getCombinationStyle(id).cardTextScale
+    // 必须走 safeCardTextScale：旧快照缺该字段时 Gson 会留 0，文字会整体消失
+    fun getCombinationCardTextScale(id: Long): Float = getCombinationStyle(id).safeCardTextScale
 
     fun saveCombinationShowClassroom(id: Long, show: Boolean) =
         updateCombinationStyle(id) { it.copy(showClassroom = show) }

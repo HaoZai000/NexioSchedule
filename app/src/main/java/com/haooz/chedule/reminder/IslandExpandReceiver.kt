@@ -39,7 +39,7 @@ class IslandExpandReceiver : BroadcastReceiver() {
         }
         if (IslandNotificationHelper.IslandState.isSwitched(
                 context,
-                testMode = notificationId2 == IslandNotificationHelper.ISLAND_TEST_NOTIFICATION_ID
+                testMode = IslandNotificationHelper.isIslandTestId(notificationId2)
             )
         ) {
             Log.d(TAG, "Already switched, ignored")
@@ -51,14 +51,13 @@ class IslandExpandReceiver : BroadcastReceiver() {
         val section = intent.getStringExtra(EXTRA_SECTION) ?: ""
         val startTime = intent.getStringExtra(EXTRA_START_TIME) ?: ""
         val endTime = intent.getStringExtra(EXTRA_END_TIME) ?: ""
-        // 必须与课前倒计时共用同一个通知 ID，否则"已上课"会另起一个岛，与倒计时岛重叠出现
+        // 传倒计时岛的 ID；onClassStart 内部按开关分流到「已上课」或「课中」独立 ID
         val notificationId = intent.getIntExtra(
             EXTRA_NOTIFICATION_ID,
             IslandNotificationHelper.ISLAND_NOTIFICATION_ID
         )
 
-        // 发送更新后的通知，触发展开态弹出
-        IslandNotificationHelper.sendClassStartedNotification(
+        IslandNotificationHelper.onClassStart(
             context = context,
             courseName = courseName,
             classroom = classroom,

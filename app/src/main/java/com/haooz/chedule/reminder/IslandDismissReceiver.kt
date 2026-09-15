@@ -1,6 +1,5 @@
 package com.haooz.chedule.reminder
 
-import android.app.NotificationManager
 import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
@@ -46,12 +45,12 @@ class IslandDismissReceiver : BroadcastReceiver() {
             }
         }
 
-        val manager = context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
-        manager.cancel(notificationId)
+        // 连带收起另一半（倒计时/已上课），避免切换后仍有残留停在 00:00
+        IslandNotificationHelper.cancelIslandState(context, notificationId)
         // 走到这里说明 state 必然是 null 或与 expectedStart 一致，清掉不会有副作用
         IslandNotificationHelper.IslandState.clear(
             context,
-            testMode = notificationId == IslandNotificationHelper.ISLAND_TEST_NOTIFICATION_ID
+            testMode = IslandNotificationHelper.isIslandTestId(notificationId)
         )
         Log.d(TAG, "Island dismissed id=$notificationId")
     }
