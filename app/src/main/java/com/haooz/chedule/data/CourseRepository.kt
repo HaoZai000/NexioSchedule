@@ -585,7 +585,11 @@ class CourseRepository private constructor(context: Context) {
     }
 
     fun getCurrentWeek(): Int {
-        val key = "${getScheduleKeyPrefix()}$KEY_CURRENT_WEEK"
+        return getCurrentWeek(getCurrentScheduleId())
+    }
+
+    fun getCurrentWeek(scheduleId: String): Int {
+        val key = "${getScheduleKeyPrefix(scheduleId)}$KEY_CURRENT_WEEK"
         return safeGetInt(key, 1)
     }
 
@@ -596,7 +600,11 @@ class CourseRepository private constructor(context: Context) {
     }
 
     fun getTotalWeeks(): Int {
-        val key = "${getScheduleKeyPrefix()}$KEY_TOTAL_WEEKS"
+        return getTotalWeeks(getCurrentScheduleId())
+    }
+
+    fun getTotalWeeks(scheduleId: String): Int {
+        val key = "${getScheduleKeyPrefix(scheduleId)}$KEY_TOTAL_WEEKS"
         return safeGetInt(key, 20)
     }
 
@@ -608,7 +616,11 @@ class CourseRepository private constructor(context: Context) {
 
     /** 旧值不是 YYYY/MM/DD 时自动回退当天并写回 */
     fun getClassStartTime(): String {
-        val key = "${getScheduleKeyPrefix()}$KEY_CLASS_START_TIME"
+        return getClassStartTime(getCurrentScheduleId())
+    }
+
+    fun getClassStartTime(scheduleId: String): String {
+        val key = "${getScheduleKeyPrefix(scheduleId)}$KEY_CLASS_START_TIME"
         val cal = java.util.Calendar.getInstance()
         val default = String.format(java.util.Locale.ROOT, "%04d/%02d/%02d",
             cal.get(java.util.Calendar.YEAR),
@@ -630,10 +642,14 @@ class CourseRepository private constructor(context: Context) {
     }
 
     fun getSmartWeekend(): Boolean {
-        val key = "${getScheduleKeyPrefix()}$KEY_SMART_WEEKEND"
+        return getSmartWeekend(getCurrentScheduleId())
+    }
+
+    fun getSmartWeekend(scheduleId: String): Boolean {
+        val key = "${getScheduleKeyPrefix(scheduleId)}$KEY_SMART_WEEKEND"
         // 兼容旧 key：首次读取时迁移
         if (!prefs.contains(key)) {
-            val oldKey = "${getScheduleKeyPrefix()}$KEY_SHOW_WEEKEND"
+            val oldKey = "${getScheduleKeyPrefix(scheduleId)}$KEY_SHOW_WEEKEND"
             val oldVal = prefs.getString(oldKey, "")
             val smart = !oldVal.isNullOrBlank()
             prefs.edit { putBoolean(key, smart); remove(oldKey) }
@@ -677,7 +693,11 @@ class CourseRepository private constructor(context: Context) {
     }
 
     fun getShowNonCurrentWeek(): Boolean {
-        val key = "${getScheduleKeyPrefix()}$KEY_SHOW_NON_CURRENT_WEEK"
+        return getShowNonCurrentWeek(getCurrentScheduleId())
+    }
+
+    fun getShowNonCurrentWeek(scheduleId: String): Boolean {
+        val key = "${getScheduleKeyPrefix(scheduleId)}$KEY_SHOW_NON_CURRENT_WEEK"
         return prefs.getBoolean(key, true)
     }
 

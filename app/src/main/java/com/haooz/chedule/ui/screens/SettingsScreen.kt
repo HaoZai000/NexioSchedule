@@ -107,18 +107,22 @@ private fun getDaysInMonth(year: Int, month: Int): Int {
 
 // 顶栏折叠期间会逐帧重组，提到顶层避免组合期每帧新建 Set
 private val ScheduleImportActivities = setOf(
-    "BackupAndMigrationActivity",
+    "ScheduleImportActivity",
     "AiImportActivity",
     "EducationalImportActivity",
 )
 
+private val ScheduleExportActivities = setOf(
+    "ScheduleExportActivity",
+)
+
 private val ScheduleBackupActivities = setOf(
-    "BackupAndMigrationActivity",
+    "ScheduleBackupActivity",
     "LocalBackupActivity",
     "WebDavSettingsActivity",
 )
 
-// 同 BackupMigrationActivities
+// 同 About 系页面
 private val AboutActivities = setOf(
     "AboutActivity",
     "AppreciateAuthorActivity",
@@ -454,8 +458,7 @@ fun SettingsScreen(
                                 ArrowPreference(
                                     title = "课表导入",
                                     summary = "AI文本 / 教务 / 文件 / 口令导入",
-                                    holdDownState = activeSecondaryActivity == "AiImportActivity" ||
-                                        activeSecondaryActivity == "EducationalImportActivity",
+                                    holdDownState = activeSecondaryActivity in ScheduleImportActivities,
                                     onClick = {
                                         context.startActivity(
                                             com.haooz.chedule.ui.activities.BackupAndMigrationActivity.importIntent(context)
@@ -464,6 +467,8 @@ fun SettingsScreen(
                                 )
                                 ArrowPreference(
                                     title = "课表导出",
+                                    summary = "JSON / ICS / 口令分享导出",
+                                    holdDownState = activeSecondaryActivity in ScheduleExportActivities,
                                     onClick = {
                                         context.startActivity(
                                             com.haooz.chedule.ui.activities.BackupAndMigrationActivity.exportIntent(context)
@@ -472,8 +477,8 @@ fun SettingsScreen(
                                 )
                                 ArrowPreference(
                                     title = "课表备份",
-                                    holdDownState = activeSecondaryActivity == "LocalBackupActivity" ||
-                                        activeSecondaryActivity == "WebDavSettingsActivity",
+                                    summary = "本地备份 / Web 云备份",
+                                    holdDownState = activeSecondaryActivity in ScheduleBackupActivities,
                                     onClick = {
                                         context.startActivity(
                                             com.haooz.chedule.ui.activities.BackupAndMigrationActivity.backupIntent(context)

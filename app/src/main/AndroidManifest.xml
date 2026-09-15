@@ -184,7 +184,25 @@
         <activity
             android:name=".ui.activities.BackupAndMigrationActivity"
             android:exported="false"
-            android:label="备份与迁移"
+            android:label="课表导入"
+            android:theme="@style/Theme.课程表"
+            android:windowSoftInputMode="adjustResize" />
+        <activity
+            android:name=".ui.activities.ScheduleImportActivity"
+            android:exported="false"
+            android:label="课表导入"
+            android:theme="@style/Theme.课程表"
+            android:windowSoftInputMode="adjustResize" />
+        <activity
+            android:name=".ui.activities.ScheduleExportActivity"
+            android:exported="false"
+            android:label="课表导出"
+            android:theme="@style/Theme.课程表"
+            android:windowSoftInputMode="adjustResize" />
+        <activity
+            android:name=".ui.activities.ScheduleBackupActivity"
+            android:exported="false"
+            android:label="课表备份"
             android:theme="@style/Theme.课程表"
             android:windowSoftInputMode="adjustResize" />
         <activity

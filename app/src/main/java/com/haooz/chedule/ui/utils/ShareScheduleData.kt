@@ -1,5 +1,7 @@
 package com.haooz.chedule.ui.utils
 
+import android.content.ClipData
+import android.content.ClipboardManager
 import android.content.Context
 import android.widget.Toast
 import com.google.gson.GsonBuilder
@@ -10,7 +12,7 @@ import kotlinx.coroutines.launch
 
 /**
  * 由 [CourseRepository] 组装分享/导出用的完整课表 JSON 对象。
- * 与 BackupAndMigration 的 buildExportJson 字段对齐，供口令分享与导入复用。
+ * 全部字段按 [scheduleName] 对应的课表/时间配置读取，避免与当前课表错配。
  */
 fun buildShareScheduleMap(
     repository: CourseRepository,
@@ -19,7 +21,10 @@ fun buildShareScheduleMap(
     val courses = repository.getCoursesForSchedule(scheduleName)
     if (courses.isEmpty()) return null
 
-    val timeConfig = repository.getCurrentTimeConfig()
+    // 必须绑定被分享课表的 TimeConfig：getCurrentTimeConfig 可能指向另一张表
+    val timeConfig = repository.getTimeConfig(
+        repository.getScheduleTimeConfigId(scheduleName)
+    )
     val morning = repository.getPeriodTimes("morning", scheduleName)
         .mapKeys { it.key.toString() }
     val afternoon = repository.getPeriodTimes("afternoon", scheduleName)
@@ -30,11 +35,11 @@ fun buildShareScheduleMap(
     return mapOf(
         "schedule_name" to scheduleName,
         "settings" to mapOf(
-            "class_start_time" to repository.getClassStartTime(),
-            "current_week" to repository.getCurrentWeek(),
-            "total_weeks" to repository.getTotalWeeks(),
-            "smart_weekend" to repository.getSmartWeekend(),
-            "show_non_current_week" to repository.getShowNonCurrentWeek(),
+            "class_start_time" to repository.getClassStartTime(scheduleName),
+            "current_week" to repository.getCurrentWeek(scheduleName),
+            "total_weeks" to repository.getTotalWeeks(scheduleName),
+            "smart_weekend" to repository.getSmartWeekend(scheduleName),
+            "show_non_current_week" to repository.getShowNonCurrentWeek(scheduleName),
             "morning_sections" to timeConfig.morningSections,
             "afternoon_sections" to timeConfig.afternoonSections,
             "evening_sections" to timeConfig.eveningSections,
@@ -64,7 +69,17 @@ fun buildShareScheduleMap(
     )
 }
 
-/** 上传课表生成趣味口令并唤起系统分享（确认后调用） */
+/** 将分享口令写入系统剪贴板 */
+private fun copyShareCodeToClipboard(context: Context, code: String) {
+    try {
+        val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as? ClipboardManager
+        clipboard?.setPrimaryClip(ClipData.newPlainText("Nexio课表口令", code))
+    } catch (_: Exception) {
+        // 剪贴板失败不影响分享流程
+    }
+}
+
+/** 上传课表生成趣味口令并唤起系统分享（确认后调用）；成功后自动复制口令到剪贴板 */
 fun performScheduleShare(
     context: Context,
     scope: CoroutineScope,
@@ -84,6 +99,7 @@ fun performScheduleShare(
             val json = GsonBuilder().create().toJson(scheduleMap)
             ShareCodeApi.createShare(scheduleName, json).fold(
                 onSuccess = { created ->
+                    copyShareCodeToClipboard(context, created.code)
                     val ok = ShareImageGenerator.shareCard(
                         context,
                         created.code,
@@ -92,11 +108,15 @@ fun performScheduleShare(
                     if (ok) {
                         Toast.makeText(
                             context,
-                            "口令「${created.code}」30 分钟内有效",
+                            "口令已复制：「${created.code}」30 分钟内有效",
                             Toast.LENGTH_LONG
                         ).show()
                     } else {
-                        Toast.makeText(context, "生成分享图片失败", Toast.LENGTH_SHORT).show()
+                        Toast.makeText(
+                            context,
+                            "口令已复制「${created.code}」，但生成图片失败",
+                            Toast.LENGTH_LONG
+                        ).show()
                     }
                 },
                 onFailure = { e ->

@@ -31,7 +31,7 @@ import top.yukonga.miuix.kmp.icon.extended.ChevronBackward
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 import com.kyant.backdrop.backdrops.layerBackdrop as liquidGlassLayerBackdrop
 
-class BackupAndMigrationActivity : ComponentActivity() {
+open class BackupAndMigrationActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge(
@@ -120,18 +120,27 @@ class BackupAndMigrationActivity : ComponentActivity() {
     }
 
     companion object {
-        private const val EXTRA_MODE = "mode"
+        internal const val EXTRA_MODE = "mode"
 
         fun importIntent(context: Context): Intent =
-            Intent(context, BackupAndMigrationActivity::class.java)
+            Intent(context, ScheduleImportActivity::class.java)
                 .putExtra(EXTRA_MODE, ScheduleDataManageMode.Import.name)
 
         fun exportIntent(context: Context): Intent =
-            Intent(context, BackupAndMigrationActivity::class.java)
+            Intent(context, ScheduleExportActivity::class.java)
                 .putExtra(EXTRA_MODE, ScheduleDataManageMode.Export.name)
 
         fun backupIntent(context: Context): Intent =
-            Intent(context, BackupAndMigrationActivity::class.java)
+            Intent(context, ScheduleBackupActivity::class.java)
                 .putExtra(EXTRA_MODE, ScheduleDataManageMode.Backup.name)
     }
 }
+
+/** 课表导入壳页（独立类名，便于设置页按压态） */
+class ScheduleImportActivity : BackupAndMigrationActivity()
+
+/** 课表导出壳页 */
+class ScheduleExportActivity : BackupAndMigrationActivity()
+
+/** 课表备份壳页 */
+class ScheduleBackupActivity : BackupAndMigrationActivity()
