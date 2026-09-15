@@ -1,6 +1,8 @@
-/** 备份与迁移页面 */
+/** 数据管理壳页面：课表导入 / 导出 / 备份（按 mode 分区） */
 package com.haooz.chedule.ui.activities
 
+import android.content.Context
+import android.content.Intent
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.SystemBarStyle
@@ -40,6 +42,16 @@ class BackupAndMigrationActivity : ComponentActivity() {
             navigationBarStyle = SystemBarStyle.dark(android.graphics.Color.TRANSPARENT)
         )
         applyThemeAwareSystemBars()
+
+        val mode = intent.getStringExtra(EXTRA_MODE)?.let { raw ->
+            ScheduleDataManageMode.entries.firstOrNull { it.name == raw }
+        } ?: ScheduleDataManageMode.Import
+        val title = when (mode) {
+            ScheduleDataManageMode.Import -> "课表导入"
+            ScheduleDataManageMode.Export -> "课表导出"
+            ScheduleDataManageMode.Backup -> "课表备份"
+        }
+
         setContent {
             CourseScheduleTheme {
                 val backgroundColor = MiuixTheme.colorScheme.surface
@@ -60,8 +72,8 @@ class BackupAndMigrationActivity : ComponentActivity() {
                             backdrop = liquidGlassBackdrop,
                         ) {
                             CollapsibleTopAppBar(
-                                title = "备份与迁移",
-                                largeTitle = "备份与迁移",
+                                title = title,
+                                largeTitle = title,
                                 modifier = Modifier,
                                 scrollBehavior = scrollBehavior,
                                 contentPadding = {},
@@ -98,11 +110,28 @@ class BackupAndMigrationActivity : ComponentActivity() {
                                 scheduleViewModel = scheduleViewModel,
                                 settingsViewModel = settingsViewModel,
                                 liquidGlassBackdrop = liquidGlassBackdrop,
+                                mode = mode,
                             )
                         }
                     }
                 }
             }
         }
+    }
+
+    companion object {
+        private const val EXTRA_MODE = "mode"
+
+        fun importIntent(context: Context): Intent =
+            Intent(context, BackupAndMigrationActivity::class.java)
+                .putExtra(EXTRA_MODE, ScheduleDataManageMode.Import.name)
+
+        fun exportIntent(context: Context): Intent =
+            Intent(context, BackupAndMigrationActivity::class.java)
+                .putExtra(EXTRA_MODE, ScheduleDataManageMode.Export.name)
+
+        fun backupIntent(context: Context): Intent =
+            Intent(context, BackupAndMigrationActivity::class.java)
+                .putExtra(EXTRA_MODE, ScheduleDataManageMode.Backup.name)
     }
 }

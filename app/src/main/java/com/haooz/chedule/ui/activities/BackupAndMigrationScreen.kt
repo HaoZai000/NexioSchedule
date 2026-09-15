@@ -23,6 +23,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
@@ -35,6 +36,7 @@ import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.unit.dp
 import com.google.gson.GsonBuilder
 import com.haooz.chedule.data.CourseRepository
+import com.haooz.chedule.data.ShareCodeApi
 import com.haooz.chedule.data.WebDavManager
 import top.yukonga.miuix.kmp.basic.NativeMiuixTextField
 import com.haooz.chedule.ui.basic.CollapsibleTopAppBarDefaults
@@ -54,17 +56,32 @@ import top.yukonga.miuix.kmp.basic.DropdownDefaults
 import top.yukonga.miuix.kmp.basic.DropdownItem
 import top.yukonga.miuix.kmp.basic.Scaffold
 import top.yukonga.miuix.kmp.basic.SmallTitle
+import top.yukonga.miuix.kmp.basic.Text
 import top.yukonga.miuix.kmp.basic.TextButton
 import top.yukonga.miuix.kmp.overlay.OverlayDialog
 import top.yukonga.miuix.kmp.preference.ArrowPreference
+import top.yukonga.miuix.kmp.theme.MiuixTheme
 import com.haooz.chedule.ui.basic.OverlayDropdownMenu
 import com.haooz.chedule.ui.utils.overScrollVertical
+import com.haooz.chedule.ui.utils.performScheduleShare
 import top.yukonga.miuix.kmp.utils.scrollEndHaptic
+import kotlinx.coroutines.launch
 import java.text.SimpleDateFormat
 import java.util.Calendar
 import java.util.Date
 import java.util.Locale
 
+/** 数据管理：课表导入 / 导出 / 备份 三种页面模式 */
+enum class ScheduleDataManageMode {
+    Import,
+    Export,
+    Backup,
+}
+
+/**
+ * 课表导入 / 导出 / 备份页面 - Screen
+ * 由 mode 决定展示内容，入口页共用同一实现。
+ */
 @SuppressLint("ConfigurationScreenWidthHeight")
 @Composable
 fun BackupAndMigrationScreen(
@@ -72,10 +89,12 @@ fun BackupAndMigrationScreen(
     courseViewModel: CourseViewModel,
     scheduleViewModel: ScheduleViewModel,
     settingsViewModel: SettingsViewModel,
-    liquidGlassBackdrop: com.kyant.backdrop.Backdrop? = null
+    liquidGlassBackdrop: com.kyant.backdrop.Backdrop? = null,
+    mode: ScheduleDataManageMode = ScheduleDataManageMode.Import,
 ) {
     val context = LocalContext.current
     val hapticFeedback = LocalHapticFeedback.current
+    val scope = rememberCoroutineScope()
     // 液态玻璃效果的透明下拉颜色
     val liquidGlassDropdownColors = DropdownDefaults.dropdownColors(
         containerColor = androidx.compose.ui.graphics.Color.Transparent,
@@ -100,6 +119,9 @@ fun BackupAndMigrationScreen(
     var showImportConfirmDialog by remember { mutableStateOf(false) }
     var pendingImportData by remember { mutableStateOf<Map<String, Any>?>(null) }
     var pendingImportScheduleName by remember { mutableStateOf("") }
+    var showShareCodeDialog by remember { mutableStateOf(false) }
+    var shareCodeInput by remember { mutableStateOf("") }
+    var isImportingShareCode by remember { mutableStateOf(false) }
 
     val scheduleNames by scheduleViewModel.scheduleNames.collectAsState()
     val currentScheduleName by scheduleViewModel.currentScheduleName.collectAsState()
@@ -107,6 +129,8 @@ fun BackupAndMigrationScreen(
 
     var pendingExportJson by remember { mutableStateOf<String?>(null) }
     var pendingExportIcs by remember { mutableStateOf<String?>(null) }
+    var showShareExportConfirmDialog by remember { mutableStateOf(false) }
+    var isSharingExport by remember { mutableStateOf(false) }
 
     val jsonExportLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.CreateDocument("application/json")
@@ -229,135 +253,207 @@ fun BackupAndMigrationScreen(
             ),
             verticalArrangement = Arrangement.spacedBy(12.dp)
         ) {
-            item {
-                SmallTitle(
-                    text = "导入",
-                    modifier = Modifier.offset(x = (-15).dp)
-                )
-                Card(
-                    cornerRadius = 20.dp,
-                    modifier = Modifier.fillMaxWidth(),
-                    insideMargin = PaddingValues(0.dp)
-                ) {
-                    Column(modifier = Modifier.fillMaxWidth()) {
-                        ArrowPreference(
-                            title = "JSON 文件导入",
-                            summary = "支持拾光课程表/Neixo课程表",
-                            onClick = {
-                                jsonFilePickerLauncher.launch(
-                                    arrayOf("application/json", "*/*")
-                                )
-                            }
-                        )
-                        ArrowPreference(
-                            title = "ICS 文件导入",
-                            summary = "从日程文件导入课程",
-                            onClick = {
-                                icsFilePickerLauncher.launch(
-                                    arrayOf("text/calendar", "*/*")
-                                )
-                            }
-                        )
-                    }
-                }
-            }
-
-            item {
-                SmallTitle(
-                    text = "导出",
-                    modifier = Modifier.offset(x = (-15).dp)
-                )
-                Card(
-                    cornerRadius = 20.dp,
-                    modifier = Modifier.fillMaxWidth(),
-                    insideMargin = PaddingValues(0.dp)
-                ) {
-                    Column(modifier = Modifier.fillMaxWidth()) {
-                        if (scheduleNames.isNotEmpty()) {
-                            OverlayDropdownMenu(
-                                title = "导出课表",
-                                entries = listOf(
-                                    DropdownEntry(
-                                        items = scheduleNames.map { name ->
-                                            DropdownItem(
-                                                text = name,
-                                                selected = selectedExportSchedule == name,
-                                                onClick = { selectedExportSchedule = name }
-                                            )
-                                        }
+            if (mode == ScheduleDataManageMode.Import) {
+                item {
+                    SmallTitle(
+                        text = "导入方式",
+                        modifier = Modifier.offset(x = (-15).dp)
+                    )
+                    Card(
+                        cornerRadius = 20.dp,
+                        modifier = Modifier.fillMaxWidth(),
+                        insideMargin = PaddingValues(0.dp)
+                    ) {
+                        Column(modifier = Modifier.fillMaxWidth()) {
+                            ArrowPreference(
+                                title = "AI 文本导入",
+                                summary = "粘贴由AI解析后的课程进行导入",
+                                onClick = {
+                                    context.startActivity(
+                                        Intent(context, AiImportActivity::class.java)
                                     )
-                                ),
-                                collapseOnSelection = true,
-                                liquidGlassBackdrop = liquidGlassBackdrop,
-                                dropdownColors = liquidGlassDropdownColors,
+                                }
+                            )
+                            ArrowPreference(
+                                title = "教务系统导入",
+                                summary = "从学校教务系统一键拉取课表",
+                                onClick = {
+                                    context.startActivity(
+                                        Intent(context, EducationalImportActivity::class.java)
+                                    )
+                                }
                             )
                         }
                     }
                 }
             }
 
-            item {
-                Card(
-                    cornerRadius = 20.dp,
-                    modifier = Modifier.fillMaxWidth(),
-                    insideMargin = PaddingValues(0.dp)
-                ) {
-                    Column(modifier = Modifier.fillMaxWidth()) {
-                        ArrowPreference(
-                            title = "JSON 格式导出",
-                            summary = "导出课表为JSON格式",
-                            onClick = {
-                                val json = buildExportJson(courseViewModel,
-                                    settingsViewModel, selectedExportSchedule)
-                                if (json != null) {
-                                    pendingExportJson = json
-                                    jsonExportLauncher.launch("${selectedExportSchedule}.json")
+            if (mode == ScheduleDataManageMode.Import) {
+                item {
+                    SmallTitle(
+                        text = "文件与口令",
+                        modifier = Modifier.offset(x = (-15).dp)
+                    )
+                    Card(
+                        cornerRadius = 20.dp,
+                        modifier = Modifier.fillMaxWidth(),
+                        insideMargin = PaddingValues(0.dp)
+                    ) {
+                        Column(modifier = Modifier.fillMaxWidth()) {
+                            ArrowPreference(
+                                title = "JSON 文件导入",
+                                summary = "支持拾光课程表/Neixo课程表",
+                                onClick = {
+                                    jsonFilePickerLauncher.launch(
+                                        arrayOf("application/json", "*/*")
+                                    )
                                 }
-                            }
-                        )
-                        ArrowPreference(
-                            title = "ICS 格式导出",
-                            summary = "导出课表为日程格式",
-                            onClick = {
-                                val ics = buildExportIcs(courseViewModel,
-                                    settingsViewModel, selectedExportSchedule)
-                                if (ics != null) {
-                                    pendingExportIcs = ics
-                                    icsExportLauncher.launch("${selectedExportSchedule}.ics")
+                            )
+                            ArrowPreference(
+                                title = "ICS 文件导入",
+                                summary = "从日程文件导入课程",
+                                onClick = {
+                                    icsFilePickerLauncher.launch(
+                                        arrayOf("text/calendar", "*/*")
+                                    )
                                 }
-                            }
-                        )
+                            )
+                            ArrowPreference(
+                                title = "分享口令导入",
+                                summary = "输入好友分享的口令导入课表",
+                                onClick = {
+                                    shareCodeInput = ""
+                                    showShareCodeDialog = true
+                                }
+                            )
+                        }
                     }
                 }
             }
 
-            item {
-                SmallTitle(
-                    text = "备份",
-                    modifier = Modifier.offset(x = (-15).dp)
-                )
-                Card(
-                    cornerRadius = 20.dp,
-                    modifier = Modifier.fillMaxWidth(),
-                    insideMargin = PaddingValues(0.dp)
-                ) {
-                    Column(modifier = Modifier.fillMaxWidth()) {
-                        ArrowPreference(
-                            title = "本地备份",
-                            summary = "备份课表数据到设备存储",
-                            onClick = {
-                                val intent = Intent(context, LocalBackupActivity::class.java)
-                                context.startActivity(intent)
+            if (mode == ScheduleDataManageMode.Export) {
+                item {
+                    SmallTitle(
+                        text = "导出课表",
+                        modifier = Modifier.offset(x = (-15).dp)
+                    )
+                    Card(
+                        cornerRadius = 20.dp,
+                        modifier = Modifier.fillMaxWidth(),
+                        insideMargin = PaddingValues(0.dp)
+                    ) {
+                        Column(modifier = Modifier.fillMaxWidth()) {
+                            if (scheduleNames.isNotEmpty()) {
+                                OverlayDropdownMenu(
+                                    title = "选择课表",
+                                    entries = listOf(
+                                        DropdownEntry(
+                                            items = scheduleNames.map { name ->
+                                                DropdownItem(
+                                                    text = name,
+                                                    selected = selectedExportSchedule == name,
+                                                    onClick = { selectedExportSchedule = name }
+                                                )
+                                            }
+                                        )
+                                    ),
+                                    collapseOnSelection = true,
+                                    liquidGlassBackdrop = liquidGlassBackdrop,
+                                    dropdownColors = liquidGlassDropdownColors,
+                                )
+                            } else {
+                                Text(
+                                    text = "暂无课表，请先创建或导入后再导出",
+                                    modifier = Modifier.padding(16.dp),
+                                    color = MiuixTheme.colorScheme.onSurfaceVariantSummary
+                                )
                             }
-                        )
-                        ArrowPreference(
-                            title = "WebDAV 云备份",
-                            summary = if (webDavManager.isConfigured()) lastSyncSummary else "配置服务器后可云备份/恢复",
-                            onClick = {
-                                val intent = Intent(context, WebDavSettingsActivity::class.java)
-                                context.startActivity(intent)
-                            }
-                        )
+                        }
+                    }
+                }
+            }
+
+            if (mode == ScheduleDataManageMode.Export) {
+                item {
+                    SmallTitle(
+                        text = "导出格式",
+                        modifier = Modifier.offset(x = (-15).dp)
+                    )
+                    Card(
+                        cornerRadius = 20.dp,
+                        modifier = Modifier.fillMaxWidth(),
+                        insideMargin = PaddingValues(0.dp)
+                    ) {
+                        Column(modifier = Modifier.fillMaxWidth()) {
+                            ArrowPreference(
+                                title = "JSON 格式导出",
+                                summary = "导出课表为JSON格式",
+                                onClick = {
+                                    val json = buildExportJson(courseViewModel,
+                                        settingsViewModel, selectedExportSchedule)
+                                    if (json != null) {
+                                        pendingExportJson = json
+                                        jsonExportLauncher.launch("${selectedExportSchedule}.json")
+                                    }
+                                }
+                            )
+                            ArrowPreference(
+                                title = "ICS 格式导出",
+                                summary = "导出课表为日程格式",
+                                onClick = {
+                                    val ics = buildExportIcs(courseViewModel,
+                                        settingsViewModel, selectedExportSchedule)
+                                    if (ics != null) {
+                                        pendingExportIcs = ics
+                                        icsExportLauncher.launch("${selectedExportSchedule}.ics")
+                                    }
+                                }
+                            )
+                            ArrowPreference(
+                                title = "口令分享导出",
+                                summary = "生成趣味口令与分享图片，30分钟内可导入",
+                                onClick = {
+                                    if (selectedExportSchedule.isBlank()) {
+                                        Toast.makeText(context, "请先选择要分享的课表", Toast.LENGTH_SHORT).show()
+                                    } else if (!isSharingExport) {
+                                        showShareExportConfirmDialog = true
+                                    }
+                                }
+                            )
+                        }
+                    }
+                }
+            }
+
+            if (mode == ScheduleDataManageMode.Backup) {
+                item {
+                    SmallTitle(
+                        text = "备份",
+                        modifier = Modifier.offset(x = (-15).dp)
+                    )
+                    Card(
+                        cornerRadius = 20.dp,
+                        modifier = Modifier.fillMaxWidth(),
+                        insideMargin = PaddingValues(0.dp)
+                    ) {
+                        Column(modifier = Modifier.fillMaxWidth()) {
+                            ArrowPreference(
+                                title = "本地备份",
+                                summary = "备份课表数据到设备存储",
+                                onClick = {
+                                    val intent = Intent(context, LocalBackupActivity::class.java)
+                                    context.startActivity(intent)
+                                }
+                            )
+                            ArrowPreference(
+                                title = "Web 云备份",
+                                summary = if (webDavManager.isConfigured()) lastSyncSummary else "配置 WebDAV 后可云备份/恢复",
+                                onClick = {
+                                    val intent = Intent(context, WebDavSettingsActivity::class.java)
+                                    context.startActivity(intent)
+                                }
+                            )
+                        }
                     }
                 }
             }
@@ -421,6 +517,137 @@ fun BackupAndMigrationScreen(
                             showImportConfirmDialog = false
                             pendingImportData = null
                             pendingImportScheduleName = ""
+                        },
+                        colors = ButtonDefaults.textButtonColorsPrimary(),
+                        modifier = Modifier.weight(1f)
+                    )
+                }
+            }
+        }
+    }
+
+    if (showShareExportConfirmDialog) {
+        OverlayDialog(
+            title = "口令分享导出",
+            summary = "将课表「$selectedExportSchedule」上传生成分享口令？\n好友可在「课表导入 → 分享口令导入」中导入，口令 30 分钟内有效",
+            show = true,
+            liquidGlassBackdrop = liquidGlassBackdrop,
+            onDismissRequest = {
+                if (!isSharingExport) {
+                    showShareExportConfirmDialog = false
+                }
+            }
+        ) {
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(top = 12.dp),
+                horizontalArrangement = Arrangement.spacedBy(12.dp)
+            ) {
+                TextButton(
+                    text = "取消",
+                    onClick = {
+                        hapticFeedback.performHapticFeedback(HapticFeedbackType.Confirm)
+                        showShareExportConfirmDialog = false
+                    },
+                    modifier = Modifier.weight(1f)
+                )
+                TextButton(
+                    text = if (isSharingExport) "分享中…" else "确认分享",
+                    onClick = {
+                        if (isSharingExport) return@TextButton
+                        hapticFeedback.performHapticFeedback(HapticFeedbackType.Confirm)
+                        val name = selectedExportSchedule
+                        showShareExportConfirmDialog = false
+                        performScheduleShare(
+                            context = context,
+                            scope = scope,
+                            scheduleName = name,
+                            onSharingChanged = { isSharingExport = it }
+                        )
+                    },
+                    colors = ButtonDefaults.textButtonColorsPrimary(),
+                    modifier = Modifier.weight(1f)
+                )
+            }
+        }
+    }
+
+    if (showShareCodeDialog) {
+        OverlayDialog(
+            title = "口令导入",
+            summary = "输入好友分享的口令，30 分钟内有效",
+            show = true,
+            liquidGlassBackdrop = liquidGlassBackdrop,
+            onDismissRequest = {
+                if (!isImportingShareCode) {
+                    showShareCodeDialog = false
+                    shareCodeInput = ""
+                }
+            }
+        ) {
+            Column(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalAlignment = Alignment.CenterHorizontally
+            ) {
+                NativeMiuixTextField(
+                    value = shareCodeInput,
+                    onValueChange = { shareCodeInput = it },
+                    label = "分享口令",
+                    modifier = Modifier.fillMaxWidth(),
+                    requestFocus = showShareCodeDialog
+                )
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(top = 16.dp),
+                    horizontalArrangement = Arrangement.spacedBy(12.dp)
+                ) {
+                    TextButton(
+                        text = "取消",
+                        onClick = {
+                            if (!isImportingShareCode) {
+                                hapticFeedback.performHapticFeedback(HapticFeedbackType.Confirm)
+                                showShareCodeDialog = false
+                                shareCodeInput = ""
+                            }
+                        },
+                        modifier = Modifier.weight(1f)
+                    )
+                    TextButton(
+                        text = if (isImportingShareCode) "导入中…" else "获取课表",
+                        onClick = {
+                            if (isImportingShareCode) return@TextButton
+                            val code = shareCodeInput.trim()
+                            if (code.isBlank()) {
+                                Toast.makeText(context, "请输入口令", Toast.LENGTH_SHORT).show()
+                                return@TextButton
+                            }
+                            hapticFeedback.performHapticFeedback(HapticFeedbackType.Confirm)
+                            isImportingShareCode = true
+                            scope.launch {
+                                try {
+                                    val result = ShareCodeApi.fetchShare(code)
+                                    result.fold(
+                                        onSuccess = { fetched ->
+                                            showShareCodeDialog = false
+                                            shareCodeInput = ""
+                                            pendingImportData = fetched.scheduleData
+                                            pendingImportScheduleName = fetched.scheduleName
+                                            showImportConfirmDialog = true
+                                        },
+                                        onFailure = { e ->
+                                            Toast.makeText(
+                                                context,
+                                                e.message ?: "口令不存在或已过期",
+                                                Toast.LENGTH_SHORT
+                                            ).show()
+                                        }
+                                    )
+                                } finally {
+                                    isImportingShareCode = false
+                                }
+                            }
                         },
                         colors = ButtonDefaults.textButtonColorsPrimary(),
                         modifier = Modifier.weight(1f)

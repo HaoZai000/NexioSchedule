@@ -106,7 +106,13 @@ private fun getDaysInMonth(year: Int, month: Int): Int {
 }
 
 // 顶栏折叠期间会逐帧重组，提到顶层避免组合期每帧新建 Set
-private val BackupMigrationActivities = setOf(
+private val ScheduleImportActivities = setOf(
+    "BackupAndMigrationActivity",
+    "AiImportActivity",
+    "EducationalImportActivity",
+)
+
+private val ScheduleBackupActivities = setOf(
     "BackupAndMigrationActivity",
     "LocalBackupActivity",
     "WebDavSettingsActivity",
@@ -446,39 +452,32 @@ fun SettingsScreen(
                                 modifier = Modifier.fillMaxWidth()
                             ) {
                                 ArrowPreference(
-                                    title = "AI文本导入",
-                                    holdDownState = activeSecondaryActivity == "AiImportActivity",
+                                    title = "课表导入",
+                                    summary = "AI文本 / 教务 / 文件 / 口令导入",
+                                    holdDownState = activeSecondaryActivity == "AiImportActivity" ||
+                                        activeSecondaryActivity == "EducationalImportActivity",
                                     onClick = {
-                                        val intent = Intent(context, com.haooz.chedule.ui.activities.AiImportActivity::class.java)
-                                        context.startActivity(intent)
+                                        context.startActivity(
+                                            com.haooz.chedule.ui.activities.BackupAndMigrationActivity.importIntent(context)
+                                        )
                                     }
                                 )
                                 ArrowPreference(
-                                    title = "教务系统导入",
-                                    holdDownState = activeSecondaryActivity == "EducationalImportActivity",
+                                    title = "课表导出",
                                     onClick = {
-                                        val intent = Intent(context, com.haooz.chedule.ui.activities.EducationalImportActivity::class.java)
-                                        context.startActivity(intent)
+                                        context.startActivity(
+                                            com.haooz.chedule.ui.activities.BackupAndMigrationActivity.exportIntent(context)
+                                        )
                                     }
                                 )
-                            }
-                        }
-                        Spacer(modifier = Modifier.height(12.dp))
-                        Card(
-                            cornerRadius = 20.dp,
-                            modifier = Modifier.fillMaxWidth(),
-                            insideMargin = PaddingValues(0.dp)
-                        ) {
-                            Column(
-                                modifier = Modifier.fillMaxWidth()
-                            ) {
                                 ArrowPreference(
-                                    title = "备份与迁移",
-                                    summary = "课表导入导出与备份",
-                                    holdDownState = activeSecondaryActivity in BackupMigrationActivities,
+                                    title = "课表备份",
+                                    holdDownState = activeSecondaryActivity == "LocalBackupActivity" ||
+                                        activeSecondaryActivity == "WebDavSettingsActivity",
                                     onClick = {
-                                        val intent = Intent(context, com.haooz.chedule.ui.activities.BackupAndMigrationActivity::class.java)
-                                        context.startActivity(intent)
+                                        context.startActivity(
+                                            com.haooz.chedule.ui.activities.BackupAndMigrationActivity.backupIntent(context)
+                                        )
                                     }
                                 )
                             }

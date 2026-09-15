@@ -81,8 +81,10 @@ import com.haooz.chedule.ui.effects.edgelight.edgeLight
 import com.haooz.chedule.ui.effects.edgelight.rememberDefaultEdgeLight
 import com.haooz.chedule.ui.theme.CourseScheduleTheme
 import com.haooz.chedule.ui.utils.applyThemeAwareSystemBars
+import com.haooz.chedule.ui.utils.buildShareScheduleMap
 import com.haooz.chedule.ui.utils.isAppDarkTheme
 import com.haooz.chedule.ui.utils.overScrollVertical
+import com.haooz.chedule.ui.utils.performScheduleShare
 import com.kyant.backdrop.drawBackdrop
 import com.kyant.backdrop.effects.blur
 import com.kyant.backdrop.effects.lens
@@ -224,6 +226,19 @@ fun SwitchScheduleScreen(
     var showDeleteDialog by remember { mutableStateOf(false) }
     var deletingScheduleName by remember { mutableStateOf<String?>(null) }
     var firstCardBounds by remember { mutableStateOf<androidx.compose.ui.geometry.Rect?>(null) }
+    var isSharingSchedule by remember { mutableStateOf(false) }
+    var showShareConfirmDialog by remember { mutableStateOf(false) }
+    var shareConfirmScheduleName by remember { mutableStateOf<String?>(null) }
+
+    fun performShareSchedule(scheduleName: String) {
+        if (isSharingSchedule) return
+        performScheduleShare(
+            context = context,
+            scope = scope,
+            scheduleName = scheduleName,
+            onSharingChanged = { isSharingSchedule = it }
+        )
+    }
 
     val switchToCurrentSchedule = {
         val firstSchedule = scheduleNames.firstOrNull() ?: ""
@@ -449,9 +464,22 @@ fun SwitchScheduleScreen(
                                 BottomBarItem(
                                     icon = MiuixIcons.Forward,
                                     label = "分享",
-                                    enabled = checkedCount == 1,
+                                    enabled = checkedCount == 1 && !isSharingSchedule,
                                     onClick = {
                                         hapticFeedback.performHapticFeedback(HapticFeedbackType.KeyboardTap)
+                                        val selected = checkboxStates.entries.find { it.value }?.key
+                                        if (selected != null && !isSharingSchedule) {
+                                            if (buildShareScheduleMap(repository, selected) == null) {
+                                                Toast.makeText(
+                                                    context,
+                                                    "「$selected」课表为空，无法分享",
+                                                    Toast.LENGTH_SHORT
+                                                ).show()
+                                            } else {
+                                                shareConfirmScheduleName = selected
+                                                showShareConfirmDialog = true
+                                            }
+                                        }
                                     }
                                 )
                                 BottomBarItem(
@@ -782,6 +810,48 @@ fun SwitchScheduleScreen(
                             }
                         }
                     }
+                }
+            }
+
+            OverlayDialog(
+                title = "分享课表",
+                summary = "将课表「${shareConfirmScheduleName.orEmpty()}」上传生成分享口令？\n好友可在「课表导入 → 分享口令导入」中导入，口令 30 分钟内有效",
+                show = showShareConfirmDialog,
+                liquidGlassBackdrop = liquidGlassBackdrop,
+                onDismissRequest = {
+                    showShareConfirmDialog = false
+                    shareConfirmScheduleName = null
+                }
+            ) {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(top = 12.dp),
+                    horizontalArrangement = Arrangement.spacedBy(12.dp)
+                ) {
+                    TextButton(
+                        text = "取消",
+                        onClick = {
+                            hapticFeedback.performHapticFeedback(HapticFeedbackType.Confirm)
+                            showShareConfirmDialog = false
+                            shareConfirmScheduleName = null
+                        },
+                        modifier = Modifier.weight(1f)
+                    )
+                    TextButton(
+                        text = "确认分享",
+                        onClick = {
+                            hapticFeedback.performHapticFeedback(HapticFeedbackType.Confirm)
+                            val name = shareConfirmScheduleName
+                            showShareConfirmDialog = false
+                            shareConfirmScheduleName = null
+                            if (name != null) {
+                                performShareSchedule(name)
+                            }
+                        },
+                        colors = ButtonDefaults.textButtonColorsPrimary(),
+                        modifier = Modifier.weight(1f)
+                    )
                 }
             }
 
