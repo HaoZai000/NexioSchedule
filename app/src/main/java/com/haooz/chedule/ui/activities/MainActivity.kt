@@ -3808,18 +3808,15 @@ fun CourseScheduleApp() {
             val screenWidth = windowInfo.containerSize.width.toFloat()
             val screenHeight = windowInfo.containerSize.height.toFloat()
             val p = switchAnimProgress.value
-            val switchPageScale = remember { Animatable(1f) }
             // 初值 0：首帧不挂 RenderEffect
             val switchPageBlur = remember { Animatable(0f) }
             val blurEffectCache = remember { BlurEffectCache() }
             Box(
                 modifier = Modifier
                     .fillMaxSize()
-                    // blur/scale/alpha 合一层，少一次离屏合成
+                    // blur/alpha 合一层，少一次离屏合成
                     .graphicsLayer {
                         alpha = if (switchCapturingSnapshot) 0f else 1f
-                        scaleX = switchPageScale.value
-                        scaleY = switchPageScale.value
                         val r = switchPageBlur.value
                         renderEffect = if (r > 0.01f) {
                             blurEffectCache.get(r * density.density)
@@ -3870,15 +3867,6 @@ fun CourseScheduleApp() {
                                 val currentProgress = switchAnimProgress.value
                                 val remainingDuration =
                                     ((1f - currentProgress) * 560).toInt().coerceAtLeast(1)
-                                launch {
-                                    switchPageScale.animateTo(
-                                        1.08f,
-                                        animationSpec = tween(
-                                            remainingDuration,
-                                            easing = OobeQuartOutEasing
-                                        )
-                                    )
-                                }
                                 launch {
                                     switchPageBlur.animateTo(
                                         5f,
@@ -3943,15 +3931,6 @@ fun CourseScheduleApp() {
                             val remainingDuration =
                                 ((1f - currentProgress) * 560).toInt().coerceAtLeast(1)
                             launch {
-                                switchPageScale.animateTo(
-                                    1.08f,
-                                    animationSpec = tween(
-                                        remainingDuration,
-                                        easing = OobeQuartOutEasing
-                                    )
-                                )
-                            }
-                            launch {
                                 switchPageBlur.animateTo(
                                     5f,
                                     animationSpec = tween(
@@ -4008,7 +3987,6 @@ fun CourseScheduleApp() {
                             } else null
                             switchAnimJob = coroutineScope.launch {
                                 switchAnimProgress.snapTo(1f)
-                                switchPageScale.snapTo(1.08f)
                                 switchPageBlur.snapTo(5f)
                                 switchReturnBgScrim.snapTo(0.4f)
                                 switchCapturingSnapshot = false
@@ -4017,15 +3995,6 @@ fun CourseScheduleApp() {
                                 switchCardSnapshot = cardSnap
                                 val remainingDuration = 350
                                 val morphExitEase = CubicBezierEasing(0.3f, 0.65f, 0.35f, 1.0f)
-                                launch {
-                                    switchPageScale.animateTo(
-                                        1f,
-                                        animationSpec = tween(
-                                            remainingDuration,
-                                            easing = OobeCubicOutEasing
-                                        )
-                                    )
-                                }
                                 launch {
                                     switchPageBlur.animateTo(
                                         0f,
