@@ -48,6 +48,7 @@ import com.haooz.chedule.ui.basic.CollapsibleTopAppBarDefaults
 import com.haooz.chedule.ui.basic.OverlayDropdownMenu
 import com.haooz.chedule.ui.basic.SharedScrollBehavior
 import com.haooz.chedule.ui.basic.collapsibleTopInset
+import com.haooz.chedule.ui.utils.UpdateChecker
 import com.haooz.chedule.ui.utils.isAppDarkTheme
 import com.haooz.chedule.ui.utils.overScrollVertical
 import kotlinx.coroutines.Dispatchers
@@ -85,115 +86,18 @@ private data class GiteeRelease(
     val createdAt: String
 )
 
-private fun isNewerVersion(remote: String, local: String): Boolean {
-    fun parseSegments(v: String): List<Int> {
-        return v.split(".").flatMap { part ->
-            val betaIdx = part.indexOf("beta")
-            if (betaIdx >= 0) {
-                val num = part.substring(0, betaIdx).toIntOrNull() ?: 0
-                val betaNum = part.substring(betaIdx + 4).toIntOrNull() ?: 0
-                listOf(num, betaNum)
-            } else {
-                listOf(part.toIntOrNull() ?: 0)
-            }
-        }
-    }
-    val remoteParts = parseSegments(remote)
-    val localParts = parseSegments(local)
-    val maxSize = maxOf(remoteParts.size, localParts.size)
-    for (i in 0 until maxSize) {
-        val r = remoteParts.getOrElse(i) { 0 }
-        val l = localParts.getOrElse(i) { 0 }
-        if (r > l) return true
-        if (r < l) return false
-    }
-    return false
-}
-
 private fun checkForUpdate(
     context: Context,
     source: String = "gitee",
     channel: String = "stable"
 ): Pair<Boolean, GiteeRelease?> {
-    return try {
-        val client = okhttp3.OkHttpClient.Builder()
-            .connectTimeout(10, java.util.concurrent.TimeUnit.SECONDS)
-            .readTimeout(10, java.util.concurrent.TimeUnit.SECONDS)
-            .build()
-
-        val baseUrl = if (source == "github") {
-            "https://api.github.com/repos/HaoZai000/NexioSchedule/releases"
-        } else {
-            "https://gitee.com/api/v5/repos/com_haooz_account/hyper_schedule/releases"
+    val (hasUpdate, release) = UpdateChecker.checkForUpdate(context, source, channel)
+    return Pair(
+        hasUpdate,
+        release?.let {
+            GiteeRelease(it.tagName, it.name, it.body, it.htmlUrl, it.apkUrl, it.createdAt)
         }
-        val url = "$baseUrl?page=1&per_page=10&direction=desc&t=${System.currentTimeMillis()}"
-        val request = okhttp3.Request.Builder().url(url).apply {
-            if (source == "github") {
-                header("Accept", "application/vnd.github.v3+json")
-            }
-        }.build()
-        val response = client.newCall(request).execute()
-
-        if (!response.isSuccessful) {
-            android.util.Log.e("UpdateCheck", "HTTP ${response.code}")
-            return Pair(false, null)
-        }
-
-        val responseBody = response.body?.string() ?: return Pair(false, null)
-        android.util.Log.d("UpdateCheck", "响应长度: ${responseBody.length}")
-
-        val arr = com.google.gson.JsonParser.parseString(responseBody).asJsonArray
-        var best: com.google.gson.JsonObject? = null
-        var bestVer = ""
-        for (i in 0 until arr.size()) {
-            val release = arr[i].asJsonObject
-            if (channel == "stable") {
-                val isPre = release.get("prerelease")?.asBoolean ?: false
-                if (isPre) continue
-            }
-            val tag = release.get("tag_name")?.asString ?: continue
-            val ver = tag.removePrefix("v")
-            if (best == null || isNewerVersion(ver, bestVer)) {
-                best = release
-                bestVer = ver
-            }
-        }
-        val json = best
-        if (json == null) return Pair(false, null)
-
-        val tagName = json.get("tag_name")?.asString ?: ""
-        val name = json.get("name")?.asString ?: ""
-        val body = json.get("body")?.asString ?: ""
-        val htmlUrl = json.get("html_url")?.asString ?: ""
-        val createdAt = json.get("created_at")?.asString ?: ""
-
-        val assets = json.getAsJsonArray("assets")
-        var apkUrl = ""
-        if (assets != null) {
-            for (i in 0 until assets.size()) {
-                val a = assets[i].asJsonObject
-                val assetName = a.get("name")?.asString ?: ""
-                if (assetName.endsWith(".apk")) {
-                    apkUrl = a.get("browser_download_url")?.asString ?: ""
-                    break
-                }
-            }
-        }
-
-        val currentVersion = try {
-            context.packageManager.getPackageInfo(context.packageName, 0).versionName ?: ""
-        } catch (_: Exception) {
-            ""
-        }
-
-        val tagVersion = tagName.removePrefix("v")
-        val appVersion = currentVersion.removePrefix("v")
-        val hasUpdate = isNewerVersion(tagVersion, appVersion)
-        Pair(hasUpdate, GiteeRelease(tagName, name, body, htmlUrl, apkUrl, createdAt))
-    } catch (e: Exception) {
-        android.util.Log.e("UpdateCheck", "检查更新失败", e)
-        Pair(false, null)
-    }
+    )
 }
 
 @SuppressLint("ConfigurationScreenWidthHeight")

@@ -16,7 +16,39 @@ internal object UpdateChecker {
         val createdAt: String
     )
 
-    // 需在 IO 线程调用；channel=stable 跳过 prerelease
+    /**
+     * 解析版本号为数字序列。
+     * 格式: [v]MAJOR.MINOR.PATCH[-DATE] 或 [v]MAJOR.MINOR.PATCH.BETA[-DATE]
+     * 例: 1.5.0-0905 → [1,5,0]；1.5.0.2-0905 → [1,5,0,2]
+     * 日期后缀不参与比较。
+     */
+    fun parseVersion(raw: String): List<Int> {
+        val cleaned = raw.trim().removePrefix("v").removePrefix("V")
+            .substringBefore('-')
+            .substringBefore('+')
+        return cleaned.split('.').map { it.toIntOrNull() ?: 0 }
+    }
+
+    /** 是否 beta 版（第 4 段版本号存在） */
+    fun isBetaVersion(raw: String): Boolean = parseVersion(raw).size >= 4
+
+    /** 比较版本：remote 是否比 local 更新。忽略日期后缀。 */
+    fun isNewerVersion(remote: String, local: String): Boolean {
+        val r = parseVersion(remote)
+        val l = parseVersion(local)
+        val max = maxOf(r.size, l.size)
+        for (i in 0 until max) {
+            val rv = r.getOrElse(i) { 0 }
+            val lv = l.getOrElse(i) { 0 }
+            if (rv > lv) return true
+            if (rv < lv) return false
+        }
+        return false
+    }
+
+    // 需在 IO 线程调用。
+    // stable: 正式通道，跳过 prerelease 与 beta 版本（含第4段版本号）
+    // beta: 可检测正式版 + beta 版
     fun checkForUpdate(context: Context, source: String = "gitee", channel: String = "stable"): Pair<Boolean, GiteeRelease?> {
         return try {
             val client = okhttp3.OkHttpClient.Builder()
@@ -48,12 +80,16 @@ internal object UpdateChecker {
             var bestVer = ""
             for (i in 0 until arr.size()) {
                 val release = arr[i].asJsonObject
-                if (channel == "stable") {
-                    val isPre = release.get("prerelease")?.asBoolean ?: false
-                    if (isPre) continue
-                }
                 val tag = release.get("tag_name")?.asString ?: continue
                 val ver = tag.removePrefix("v")
+
+                if (channel == "stable") {
+                    val isPre = release.get("prerelease")?.asBoolean ?: false
+                    // 正式通道：不检测 beta（含第4段版本号的预发布）
+                    if (isPre || isBetaVersion(ver)) continue
+                }
+                // beta 通道：正式 + beta 均可；stable 通道已在上方过滤
+
                 if (best == null || isNewerVersion(ver, bestVer)) {
                     best = release
                     bestVer = ver
@@ -88,7 +124,7 @@ internal object UpdateChecker {
             val appVersion = currentVersion.removePrefix("v")
             val hasUpdate = isNewerVersion(tagVersion, appVersion)
 
-            Log.d(TAG, "检查完成: hasUpdate=$hasUpdate, remote=$tagVersion, local=$appVersion")
+            Log.d(TAG, "检查完成: channel=$channel, hasUpdate=$hasUpdate, remote=$tagVersion, local=$appVersion")
             Pair(hasUpdate, GiteeRelease(tagName, name, body, htmlUrl, apkUrl, createdAt))
         } catch (e: Exception) {
             Log.e(TAG, "检查更新失败", e)
@@ -117,29 +153,4 @@ internal object UpdateChecker {
         }
     }
 
-    // 支持 "betaX" 后缀：1.4.8beta1 < 1.4.8beta2 < 1.4.9
-        fun isNewerVersion(remote: String, local: String): Boolean {
-            fun parseSegments(v: String): List<Int> {
-                return v.split(".").flatMap { part ->
-                    val betaIdx = part.indexOf("beta")
-                    if (betaIdx >= 0) {
-                        val num = part.substring(0, betaIdx).toIntOrNull() ?: 0
-                        val betaNum = part.substring(betaIdx + 4).toIntOrNull() ?: 0
-                        listOf(num, betaNum)
-                    } else {
-                        listOf(part.toIntOrNull() ?: 0)
-                    }
-                }
-            }
-            val remoteParts = parseSegments(remote)
-            val localParts = parseSegments(local)
-            val maxSize = maxOf(remoteParts.size, localParts.size)
-            for (i in 0 until maxSize) {
-                val r = remoteParts.getOrElse(i) { 0 }
-                val l = localParts.getOrElse(i) { 0 }
-                if (r > l) return true
-                if (r < l) return false
-            }
-            return false
-        }
 }
