@@ -3,7 +3,6 @@ package com.haooz.chedule.ui.screens
 
 import android.annotation.SuppressLint
 import android.graphics.Bitmap
-import androidx.activity.compose.BackHandler
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.animateFloatAsState
@@ -63,6 +62,10 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.DpOffset
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.navigationevent.NavigationEventInfo
+import androidx.navigationevent.NavigationEventTransitionState
+import androidx.navigationevent.compose.NavigationBackHandler
+import androidx.navigationevent.compose.rememberNavigationEventState
 import com.haooz.chedule.data.Course
 import com.haooz.chedule.ui.basic.CollapsibleTopAppBar
 import com.haooz.chedule.ui.basic.LiquidTopBarButton
@@ -113,7 +116,8 @@ private data class EditAnimState(
     val translationY: Float,
     val scale: Float,
     val clipBottom: Float,
-    val progress: Float
+    val progress: Float,
+    val gesture: Float
 )
 
 private class EditAnimClipShape(
@@ -128,14 +132,18 @@ private class EditAnimClipShape(
         density: androidx.compose.ui.unit.Density
     ): androidx.compose.ui.graphics.Outline {
         val s = animState.value
-        // 动画过程中：从卡片圆角插值到屏幕圆角
-        // 动画结束瞬间：圆角归零
+        // 预测性返回：裁切圆角固定为屏幕圆角（不除以 scale，随页面缩放一起缩放）；
+        // 其余按 morph 进度插值
         val radiusPx = when {
+            s.gesture > 0f -> screenCornerRadiusPx
             s.progress >= 1f -> 0f
             s.progress <= 0.7f -> startCornerRadiusPx + (screenCornerRadiusPx - startCornerRadiusPx) * (s.progress / 0.7f)
             else -> screenCornerRadiusPx
         }
-        val radiusDp = (radiusPx / s.scale / density.density).dp
+        // 补偿在"预测返回不补偿（×1）"与"正常 morph 除以 scale"之间按 gesture 平滑插值，
+        // 避免松手瞬间圆角跳变大
+        val compensate = (1f - s.gesture) / s.scale + s.gesture
+        val radiusDp = (radiusPx * compensate / density.density).dp
         return ContinuousRoundedRectangle(radiusDp).createOutline(
             androidx.compose.ui.geometry.Size(screenWidth, s.clipBottom),
             layoutDirection,
@@ -235,35 +243,99 @@ fun CourseEditScreen(
     val transOpenMillis = if (isUpperHalf) 500 else 500
     val transExitMillis = if (isUpperHalf) 320 else 320
 
-    BackHandler {
-        onBackStart()
-        scope.launch {
-            coroutineScope {
-                launch {
-                    animProgress.animateTo(
-                        targetValue = 0f,
-                        animationSpec = tween(
-                            durationMillis = 350,
-                            easing = morphExitEase
-                        )
-                    )
-                }
-                launch {
-                    animTransY.animateTo(
-                        targetValue = 0f,
-                        animationSpec = tween(
-                            durationMillis = transExitMillis,
-                            easing = transExitEase
-                        )
-                    )
+    // 预测性返回：手势只驱动缩放位置 scaleProgress（1=全屏，0=卡片，可退到 -1 即 200% 行程），
+    // 预测返回期间围绕屏幕中心缩放（translation=0），位移/裁切保持全屏不动；
+    // 取消回弹全屏、完成随关闭动画一起缩回卡片；
+    // 低版本 NavigationBackHandler 自动退化为立即播放完整退出动画
+    val navigationEventState = rememberNavigationEventState(currentInfo = NavigationEventInfo.None)
+    // 手势进度（0..1）：>0 表示预测性返回进行中，用于切换"中心缩放"
+    val gestureBackProgress = remember { Animatable(0f) }
+    val scaleProgress = remember { Animatable(0f) }
+    // 手势是否正在推进：进行中裁切完全跟随页面缩放，松手/取消后进入平滑过渡
+    var isGestureActive by remember { mutableStateOf(false) }
+
+    NavigationBackHandler(
+        state = navigationEventState,
+        isBackEnabled = true,
+        onBackCancelled = {
+            isGestureActive = false
+            scope.launch {
+                if (gestureBackProgress.value > 0f) {
+                    // 手势取消：缩放回弹恢复全屏
+                    gestureBackProgress.animateTo(0f, animationSpec = tween(180))
+                    scaleProgress.animateTo(1f, animationSpec = tween(180))
                 }
             }
-            onBack()
-        }
+        },
+        onBackCompleted = {
+            isGestureActive = false
+            onBackStart()
+            scope.launch {
+                coroutineScope {
+                    // 缩放中心从屏幕中心平滑过渡回左上角锚点（150ms），morph 位移随之接管
+                    launch { gestureBackProgress.animateTo(0f, animationSpec = tween(150)) }
+                    launch {
+                        scaleProgress.animateTo(
+                            targetValue = 0f,
+                            animationSpec = tween(
+                                durationMillis = 350,
+                                easing = morphExitEase
+                            )
+                        )
+                    }
+                    launch {
+                        animProgress.animateTo(
+                            targetValue = 0f,
+                            animationSpec = tween(
+                                durationMillis = 350,
+                                easing = morphExitEase
+                            )
+                        )
+                    }
+                    launch {
+                        animTransY.animateTo(
+                            targetValue = 0f,
+                            animationSpec = tween(
+                                durationMillis = transExitMillis,
+                                easing = transExitEase
+                            )
+                        )
+                    }
+                }
+                onBack()
+            }
+        },
+    )
+
+    // 逐帧收集返回手势进度（单独协程，避免手势期间每帧取消/重启 LaunchedEffect）；
+    // 缩放跟随行程为"卡片→全屏"全程的 200%（滑到底 scaleProgress=-1），
+    // 松手后由 onBackCompleted 按正常关闭动画回到卡片（1 倍）
+    LaunchedEffect(Unit) {
+        snapshotFlow { navigationEventState.transitionState }
+            .collect { transitionState ->
+                if (
+                    transitionState is NavigationEventTransitionState.InProgress &&
+                    transitionState.direction == NavigationEventTransitionState.TRANSITIONING_BACK
+                ) {
+                    isGestureActive = true
+                    val progress = transitionState.latestEvent.progress
+                    gestureBackProgress.snapTo(progress)
+                    scaleProgress.snapTo(1f - progress * 0.3f)
+                }
+            }
     }
 
     LaunchedEffect(Unit) {
         delay(12.milliseconds)
+        launch {
+            scaleProgress.animateTo(
+                targetValue = 1f,
+                animationSpec = tween(
+                    durationMillis = 560,
+                    easing = morphOpenEase
+                )
+            )
+        }
         launch {
             animProgress.animateTo(
                 targetValue = 1f,
@@ -292,16 +364,27 @@ fun CourseEditScreen(
             val bgAlpha = (p * 0.5f).coerceIn(0f, 0.5f)
             val snapAlpha = (1f - p * 3f).coerceIn(0f, 1f)
             val contAlpha = ((p - 0.1f) / 0.5f).coerceIn(0f, 1f)
-            val scale = cardWidth / screenWidth + (1f - cardWidth / screenWidth) * p
+            // 预测性返回手势只驱动缩放位置 scaleProgress（1=全屏，0=卡片，手势可退到 -1 即 200% 行程），
+            // 位移与裁切保持全屏（p 不变）不随手势变化；coerceAtLeast 防止窄卡片时 scale 变负翻转
+            val scale = (cardWidth / screenWidth + (1f - cardWidth / screenWidth) * scaleProgress.value).coerceAtLeast(0.05f)
             // 起点 = cardCenter, 终点 = screenCenter；ty 作为曲线参数，前快后慢
             val cardCenter = cardTop + cardHeight / 2f
             val screenCenter = screenHeight / 2f
             val curveT = ty  // 直接用 ty 作为曲线参数
             val targetCenter = cardCenter + (screenCenter - cardCenter) * curveT
-            val translationY =
+            // 正常 morph 缩放锚点为屏幕顶部居中：y 围绕顶部（原有补偿），x 围绕屏幕中轴
+            // （去掉左缘补偿，位移基于卡片原始左缘）；预测返回期间围绕屏幕中心缩放
+            val gesture = gestureBackProgress.value
+            val normalY =
                 targetCenter - screenHeight / 2f * (1f - scale) - (cardHeight + (screenHeight - cardHeight) * p) / 2f
-            val translationX = cardLeft * (1f - p) - screenWidth / 2f * (1f - scale)
-            val rawClipBottom = cardHeight + (screenHeight - cardHeight) * p
+            val normalX = (cardLeft - screenWidth / 2f * (1f - cardWidth / screenWidth)) * (1f - p)
+            val translationY = normalY * (1f - gesture)
+            val translationX = normalX * (1f - gesture)
+            // 手势推进期间裁切完全跟随页面缩放（视觉 Hs，圆角始终完整贴合）；
+            // 松手/取消过渡期按 gesture 平滑插值衔接 morph 的底部收缩动画
+            val predictiveClip = screenHeight * scale
+            val morphClip = cardHeight + (screenHeight - cardHeight) * p
+            val rawClipBottom = if (isGestureActive) predictiveClip else predictiveClip * gesture + morphClip * (1f - gesture)
             val clipBottom = rawClipBottom / scale
             EditAnimState(
                 bgAlpha,
@@ -311,7 +394,8 @@ fun CourseEditScreen(
                 translationY,
                 scale,
                 clipBottom,
-                p
+                p,
+                gesture
             )
         }
     }

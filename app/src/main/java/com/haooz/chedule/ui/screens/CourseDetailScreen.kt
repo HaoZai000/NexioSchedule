@@ -112,8 +112,10 @@ private class AnimClipShape(
             s.progress <= 0.7f -> startCornerRadiusPx + (screenCornerRadiusPx - startCornerRadiusPx) * (s.progress / 0.7f)
             else -> screenCornerRadiusPx
         }
-        // 不除以 scale 补偿：裁切圆角随页面缩放一起缩放
-        val radiusDp = (radiusPx / density.density).dp
+        // 补偿在"预测返回不补偿（×1）"与"正常 morph 除以 scale"之间按 gesture 平滑插值，
+        // 避免松手瞬间圆角跳变大
+        val compensate = (1f - s.gesture) / s.scale + s.gesture
+        val radiusDp = (radiusPx * compensate / density.density).dp
         return ContinuousRoundedRectangle(radiusDp).createOutline(
             androidx.compose.ui.geometry.Size(screenWidth, s.clipBottom),
             layoutDirection,
