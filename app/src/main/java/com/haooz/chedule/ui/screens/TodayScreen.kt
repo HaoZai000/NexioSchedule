@@ -16,6 +16,7 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.pager.HorizontalPager
 import androidx.compose.material3.Text
@@ -338,6 +339,7 @@ fun TodayScreen(
     pagerState: androidx.compose.foundation.pager.PagerState,
     navBarStyle: String = "standard",
     onScrollYChanged: (Int) -> Unit = {},
+    onListScrollInProgress: (Boolean) -> Unit = {},
     settingsScrollBehavior: SharedScrollBehavior? = null,
     onSelectedDayChanged: (Int) -> Unit = {},
     onSelectedDateChanged: (Boolean) -> Unit = {},
@@ -425,15 +427,9 @@ fun TodayScreen(
         onSelectedDayChanged(newDayOfWeek)
     }
 
-    // 在页面根收集一次；原先每 pager 页各收一份会重复回调
-    LaunchedEffect(externalListState) {
-        snapshotFlow { externalListState.firstVisibleItemScrollOffset }
-            .collect { offset ->
-                onScrollYChanged(offset)
-            }
-    }
-
-
+    // 横向 pager 各日期页必须各自持有 LazyListState：共用 externalListState 时，
+    // 今日页有助手卡、其他日没有，内容高度不同会把共享 scroll 顶乱，回滑后底部留空错乱
+    // externalListState 仅作兼容参数保留，不再驱动列表
     val hapticFeedback = LocalHapticFeedback.current
 
     val backgroundColor = MiuixTheme.colorScheme.surface
@@ -541,6 +537,24 @@ fun TodayScreen(
                 state = pagerState,
                 modifier = Modifier.fillMaxSize()
             ) { page ->
+                val pageListState = remember(page) { LazyListState() }
+                // 只把当前页的滚动状态报给 Activity（顶栏折叠 / 液态玻璃重录）
+                LaunchedEffect(pageListState, page) {
+                    snapshotFlow {
+                        Triple(
+                            page,
+                            pageListState.isScrollInProgress,
+                            pageListState.firstVisibleItemScrollOffset
+                        )
+                    }.collect { (p, scrolling, offset) ->
+                        if (p == pagerState.settledPage || p == pagerState.currentPage) {
+                            onListScrollInProgress(scrolling)
+                            if (scrolling || p == pagerState.settledPage) {
+                                onScrollYChanged(offset)
+                            }
+                        }
+                    }
+                }
                 val pageDate = LocalDate.now().plusDays((page - MAX_DATE_OFFSET).toLong())
                 val pageDayOfWeek = pageDate.dayOfWeek.value.let { if (it == 7) 7 else it }
                 val pageWeek = remember(pageDate, classStartTime) {
@@ -657,7 +671,7 @@ fun TodayScreen(
                     }
                 } else {
                     LazyColumn(
-                        state = externalListState,
+                        state = pageListState,
                         modifier = Modifier
                             .collapsibleTopInset(settingsScrollBehavior)
                             .fillMaxSize()
@@ -673,7 +687,7 @@ fun TodayScreen(
                             top = paddingValues.calculateTopPadding() +
                                 CollapsibleTopAppBarDefaults.CollapsedHeight,
                             end = tabletHorizontalPadding,
-                            bottom = 120.dp
+                            bottom = 175.dp
                         ),
                         verticalArrangement = Arrangement.spacedBy(12.dp)
                     ) {

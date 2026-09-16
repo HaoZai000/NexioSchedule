@@ -118,7 +118,7 @@ internal fun ScheduleTopBar(
                 modifier = Modifier.zIndex(1f),
                 gradientMaskHeight = CollapsedHeight + 110.dp,
                 scrollBehavior = scrollBehavior,
-                startAction = { backdropAlpha, shadowAlpha ->
+                startAction = { _, _ ->
                     if (navBarStyle == "rail") {
                         Text(
                             text = titleText,
@@ -127,24 +127,8 @@ internal fun ScheduleTopBar(
                             color = MiuixTheme.colorScheme.onSurface,
                             modifier = Modifier.padding(start = 12.dp)
                         )
-                    } else {
-                        AnimatedVisibility(
-                            visible = !isViewingCurrentWeek,
-                            enter = fadeIn(animationSpec = tween(180)),
-                            exit = fadeOut(animationSpec = tween(120))
-                        ) {
-                            LiquidTopBarButton(
-                                onClick = onBackToCurrentWeek,
-                                backdrop = liquidGlassBackdrop,
-                                icon = MiuixIcons.Medium.Reset,
-                                contentDescription = "返回本周",
-                                iconSize = 24.dp,
-                                iconOffset = DpOffset(x = 0.dp, y = (-1).dp),
-                                backdropAlpha = backdropAlpha,
-                                shadowAlpha = shadowAlpha
-                            )
-                        }
                     }
+                    // 手机端左上角不再放「返回本周」，改为底栏上方悬浮液态玻璃按钮
                 },
                 endAction = { backdropAlpha, shadowAlpha ->
                     Row(

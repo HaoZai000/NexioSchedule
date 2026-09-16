@@ -14,13 +14,11 @@ import android.view.Choreographer
 import android.view.PixelCopy
 import android.view.ViewGroup
 import android.webkit.ConsoleMessage
-import android.webkit.CookieManager
 import android.webkit.SslErrorHandler
 import android.webkit.WebChromeClient
 import android.webkit.WebResourceError
 import android.webkit.WebResourceRequest
 import android.webkit.WebSettings
-import android.webkit.WebStorage
 import android.webkit.WebView
 import android.webkit.WebViewClient
 import android.widget.Toast
@@ -705,15 +703,11 @@ fun WebViewScreen(
         onDispose {
             webView.stopLoading()
             webView.clearCache(true)
-            webView.clearFormData()
             webView.clearHistory()
-            CookieManager.getInstance().apply {
-                removeAllCookies(null)
-                flush()
-            }
-            WebStorage.getInstance().deleteAllData()
             webView.removeAllViews()
             webView.destroy()
+            // 不清除 Cookie 与 localStorage：教务系统登录态跨页面保存，下次进入免登录。
+            // 两者都按域名隔离，不同学校互不影响；如需换账号，请在教务页面内退出登录。
         }
     }
 

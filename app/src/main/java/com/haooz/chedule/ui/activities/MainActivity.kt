@@ -13,12 +13,16 @@ import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.EnterExitState
+import androidx.compose.animation.EnterTransition
+import androidx.compose.animation.ExitTransition
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.CubicBezierEasing
 import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.Spring
 import androidx.compose.animation.core.animate
 import androidx.compose.animation.core.animateDpAsState
+import androidx.compose.animation.core.animateFloat
 import androidx.compose.animation.core.spring
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
@@ -113,6 +117,7 @@ import com.haooz.chedule.ui.basic.SharedScrollBehavior
 import com.haooz.chedule.ui.basic.ShortcutMenu
 import com.haooz.chedule.ui.basic.ShortcutMenuItem
 import com.haooz.chedule.ui.basic.rememberSharedScrollBehavior
+import com.haooz.chedule.ui.components.BackToNowFloatingButton
 import com.haooz.chedule.ui.components.CourseCard
 import com.haooz.chedule.ui.components.LandRippleSpec
 import com.haooz.chedule.ui.components.LocalLandRipple
@@ -1355,6 +1360,8 @@ fun CourseScheduleApp() {
     val scheduleShowCourseDetail = remember { mutableStateOf(false) }
 
     val todayListState = rememberLazyListState()
+    // 今日页各日期页独立 LazyListState，这里只收「是否在滚」供液态玻璃重录
+    val todayListScrollInProgress = remember { mutableStateOf(false) }
     var switchContentRootY by remember { mutableFloatStateOf(0f) }
     var switchAnimJob by remember { mutableStateOf<kotlinx.coroutines.Job?>(null) }
     var switchAnimForward by remember { mutableStateOf(false) }
@@ -2191,14 +2198,14 @@ fun CourseScheduleApp() {
         val latestDraggingCard by rememberUpdatedState(isDraggingCard)
         val latestRailPad by rememberUpdatedState(railPaddingStart)
         // 课表/今日/设置滚动时主内容像素在变，必须重录，否则顶栏/底栏玻璃冻结
-        val liquidGlassMustRecord = remember(scheduleScrollState, todayListState, pagerState, todayPagerState, mainPagerState) {
+        val liquidGlassMustRecord = remember(scheduleScrollState, todayListScrollInProgress, pagerState, todayPagerState, mainPagerState) {
             var lastRailPad = Float.NaN
             {
                 val railPad = latestRailPad.value
                 val railMoving = railPad != lastRailPad
                 lastRailPad = railPad
                 scheduleScrollState.isScrollInProgress ||
-                    todayListState.isScrollInProgress ||
+                    todayListScrollInProgress.value ||
                     pagerState.isScrollInProgress ||
                     todayPagerState.isScrollInProgress ||
                     mainPagerState.isScrollInProgress ||
@@ -2621,6 +2628,7 @@ fun CourseScheduleApp() {
                                             showClassroom = displayAppearance.showClassroom,
                                             showTeacher = displayAppearance.showTeacher,
                                             externalListState = todayListState,
+                                            onListScrollInProgress = { todayListScrollInProgress.value = it },
                                         )
                                             }
                                         }
@@ -3020,6 +3028,74 @@ fun CourseScheduleApp() {
                                 }
                             }
                             }
+                        }
+                    }
+
+                    // 手机端：只要不在当前周/天就常驻显示
+                    // Pad（rail）顶栏仍保留原返回按钮，此处不叠加
+                    val isPhoneChrome = navBarStyle != "rail"
+                    val shouldShowBackToNowFab = isPhoneChrome &&
+                        !isShiftMode &&
+                        !showDetail &&
+                        !showCustomizePage &&
+                        !showSwitchSchedule &&
+                        !isWindowCutoutActive &&
+                        !shortcutMenuVisible &&
+                        !floatingCardVisible &&
+                        when (selectedTab) {
+                            0 -> !todayIsToday
+                            1 -> !isViewingCurrentWeek
+                            else -> false
+                        }
+                    val backToNowLabel = "今"
+                    Box(modifier = Modifier.fillMaxSize()) {
+                        // 对齐切换课表底栏：None 转场 + 手动 appear + graphicsLayer clip=false，
+                        // 避免 AnimatedVisibility 收拢尺寸时把阴影裁掉
+                        AnimatedVisibility(
+                            visible = shouldShowBackToNowFab,
+                            enter = EnterTransition.None,
+                            exit = ExitTransition.None,
+                            modifier = Modifier
+                                .align(Alignment.BottomCenter)
+                                .padding(bottom = 92.dp)
+                                .zIndex(20f)
+                        ) {
+                            val appear by transition.animateFloat(
+                                transitionSpec = {
+                                    if (targetState == EnterExitState.Visible) {
+                                        tween(durationMillis = 320, easing = FastOutSlowInEasing)
+                                    } else {
+                                        tween(durationMillis = 200, easing = FastOutSlowInEasing)
+                                    }
+                                },
+                                label = "BackToNowAppear"
+                            ) { if (it == EnterExitState.Visible) 1f else 0f }
+
+                            BackToNowFloatingButton(
+                                backdrop = chromeBackdrop,
+                                label = backToNowLabel,
+                                modifier = Modifier.graphicsLayer {
+                                    transformOrigin = TransformOrigin(0.5f, 1f)
+                                    scaleX = 0.6f + 0.4f * appear
+                                    scaleY = 0.6f + 0.4f * appear
+                                    alpha = appear
+                                    clip = false
+                                },
+                                onClick = {
+                                    if (selectedTab == 0) {
+                                        scrollToTodayTrigger++
+                                    } else {
+                                        coroutineScope.launch {
+                                            val targetPage =
+                                                (currentWeek - 1).coerceIn(
+                                                    0,
+                                                    (totalWeeks - 1).coerceAtLeast(0)
+                                                )
+                                            pagerState.animateScrollToPage(targetPage)
+                                        }
+                                    }
+                                },
+                            )
                         }
                     }
 
@@ -4433,9 +4509,7 @@ private fun TodayTopBar(
             largeTitle = titleText,
             modifier = Modifier.zIndex(1f),
             scrollBehavior = scrollBehavior,
-            startAction = if (!visible) {
-                null
-            } else if (isTabletLiquidGlass) {
+            startAction = if (visible && isTabletLiquidGlass) {
                 { _, _ ->
                     Text(
                         text = titleText,
@@ -4446,24 +4520,8 @@ private fun TodayTopBar(
                     )
                 }
             } else {
-                { backdropAlpha, shadowAlpha ->
-                    AnimatedVisibility(
-                        visible = !isToday,
-                        enter = fadeIn(animationSpec = tween(180)),
-                        exit = fadeOut(animationSpec = tween(120))
-                    ) {
-                        LiquidTopBarButton(
-                            onClick = onBackToToday,
-                            backdrop = liquidGlassBackdrop,
-                            icon = MiuixIcons.Medium.Reset,
-                            contentDescription = "返回今天",
-                            iconOffset = DpOffset(x = 0.dp, y = (-1).dp),
-                            iconSize = 24.dp,
-                            backdropAlpha = backdropAlpha,
-                            shadowAlpha = shadowAlpha,
-                        )
-                    }
-                }
+                // 手机端左上角不再放「返回今天」，改为底栏上方悬浮液态玻璃按钮
+                null
             },
             endAction = { backdropAlpha, shadowAlpha ->
                 if (visible) {

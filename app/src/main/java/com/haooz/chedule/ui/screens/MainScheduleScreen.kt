@@ -640,9 +640,9 @@ fun MainScheduleScreen(
                     // 布局期读顶栏高度，避免组合期读导致整页逐帧重组；内容高度无限，折叠期间子树不重测
                     .layout { measurable, constraints ->
                         val topPad = contentTopPaddingDp.roundToPx().coerceAtLeast(0)
-                        val bottomPad = 140.dp.roundToPx()
+
                         val placeable = measurable.measure(constraints)
-                        layout(placeable.width, placeable.height + topPad + bottomPad) {
+                        layout(placeable.width, placeable.height + topPad) {
                             placeable.place(0, topPad)
                         }
                     }
