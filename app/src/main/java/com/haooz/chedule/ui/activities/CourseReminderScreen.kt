@@ -15,7 +15,6 @@ import androidx.compose.animation.expandVertically
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.shrinkVertically
-import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -27,6 +26,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.material3.Text
@@ -40,13 +40,14 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.core.content.edit
@@ -117,10 +118,20 @@ fun CourseReminderScreen(
     var islandRightMode by remember { mutableIntStateOf(reminderPrefs.getInt("island_right_mode", 1)) }
     // 超级岛息屏显示：0=课程名称，1=上课地点
     var islandAodMode by remember { mutableIntStateOf(reminderPrefs.getInt("island_aod_mode", 0)) }
-    // 课中提醒：到点后「已上课」替换为模板19进度卡片
-    var islandInClassEnabled by remember {
-        mutableStateOf(reminderPrefs.getBoolean(IslandNotificationHelper.KEY_IN_CLASS_REMINDER, false))
+    // 课中提醒：超级岛 / 原生实况共用同一开关
+    var inClassEnabled by remember {
+        mutableStateOf(CourseReminderHelper.isInClassEnabled(context))
     }
+    // 提醒时机：0=全程，1=距下课
+    var inClassTimingMode by remember {
+        mutableIntStateOf(CourseReminderHelper.getInClassTimingMode(context))
+    }
+    var inClassLeadMinutes by remember {
+        mutableIntStateOf(CourseReminderHelper.getInClassLeadMinutes(context))
+    }
+    var showInClassTimingDialog by remember { mutableStateOf(false) }
+    var tempInClassTimingMode by remember { mutableIntStateOf(inClassTimingMode) }
+    var tempInClassLeadMinutes by remember { mutableIntStateOf(inClassLeadMinutes) }
 
     val masterEnabled = preClassReminder || nextDayReminder
     var permissionRefreshKey by remember { mutableIntStateOf(0) }
@@ -394,6 +405,41 @@ fun CourseReminderScreen(
                                 )
                             }
                             SwitchPreference(
+                                title = "课中提醒",
+                                summary = "上课中以进度卡片显示剩余时间",
+                                checked = inClassEnabled,
+                                enabled = masterEnabled,
+                                onCheckedChange = {
+                                    inClassEnabled = it
+                                    reminderPrefs.edit { putBoolean(CourseReminderHelper.KEY_IN_CLASS, it) }
+                                }
+                            )
+                            AnimatedVisibility(
+                                visible = inClassEnabled,
+                                enter = expandVertically(animationSpec = tween(250)) + fadeIn(animationSpec = tween(200)),
+                                exit = shrinkVertically(animationSpec = tween(200)) + fadeOut(animationSpec = tween(150))
+                            ) {
+                                ArrowPreference(
+                                    title = "提醒时机",
+                                    endActions = {
+                                        Text(
+                                            text = if (inClassTimingMode == CourseReminderHelper.IN_CLASS_TIMING_FULL) {
+                                                "全程"
+                                            } else {
+                                                "距下课 ${inClassLeadMinutes} 分钟"
+                                            },
+                                            fontSize = 14.5.sp,
+                                            color = MiuixTheme.colorScheme.onSurfaceVariantActions
+                                        )
+                                    },
+                                    onClick = {
+                                        tempInClassTimingMode = inClassTimingMode
+                                        tempInClassLeadMinutes = inClassLeadMinutes
+                                        showInClassTimingDialog = true
+                                    }
+                                )
+                            }
+                            SwitchPreference(
                                 title = "自动开启勿扰",
                                 summary = if (!dndPermissionGranted) {
                                     "需要先授予勿扰权限才能自动开启勿扰"
@@ -480,17 +526,6 @@ fun CourseReminderScreen(
                                         settingsViewModel.setIslandNotification(it)
                                     }
                                 )
-                                if (islandNotification) {
-                                    SwitchPreference(
-                                        title = "课中提醒",
-                                        summary = "上课中以进度卡片显示剩余时间",
-                                        checked = islandInClassEnabled,
-                                        onCheckedChange = {
-                                            islandInClassEnabled = it
-                                            reminderPrefs.edit { putBoolean(IslandNotificationHelper.KEY_IN_CLASS_REMINDER, it) }
-                                        }
-                                    )
-                                }
                                 AnimatedVisibility(
                                     visible = islandNotification,
                                     enter = expandVertically(animationSpec = tween(250)) + fadeIn(animationSpec = tween(200)),
@@ -668,7 +703,7 @@ fun CourseReminderScreen(
                         )
 
                         if (!islandNotification || !isIslandSupported) {
-                            // 关闭超级岛：只显示"实况通知右侧"
+                            // 原生实况：只保留右侧缩略内容；课中开关已在上方勿扰卡片
                             Card(
                                 cornerRadius = 20.dp,
                                 modifier = Modifier.fillMaxWidth(),
@@ -878,58 +913,100 @@ fun CourseReminderScreen(
 
                 }
 
-                // 底部渐变遮罩
-                Box(
-                    modifier = Modifier
-                        .align(Alignment.BottomCenter)
-                        .fillMaxWidth()
-                        .height(120.dp)
-                        .background(
-                            brush = Brush.verticalGradient(
-                                colorStops = arrayOf(
-                                    0.0f to ComposeColor.Transparent,
-                                    0.15f to backgroundColor.copy(alpha = 0.5f),
-                                    0.5f to backgroundColor.copy(alpha = 0.85f),
-                                    1.0f to backgroundColor
-                                )
-                            )
-                        )
-                )
+                // 列表底部留白仍保留，给 Activity 层悬浮的测试按钮让位
+            }
 
-                // 发送测试通知
-                TextButton(
-                    text = if (islandNotification && isIslandSupported) "测试小米超级岛" else "测试实时活动",
-                    onClick = {
-                        val repo = com.haooz.chedule.data.CourseRepository(context)
-                        val nextCourse = CourseReminderHelper.findNextCourseToday(context)
-                        val courseName = nextCourse?.name ?: "暂无课程"
-                        val classroom = nextCourse?.classroom ?: ""
-                        val startTime = nextCourse?.let { CourseReminderHelper.getCourseStartTime(it, repo) } ?: ""
-                        val section = nextCourse?.getTimeDisplayText() ?: ""
-                        if (islandNotification && isIslandSupported) {
-                            IslandNotificationHelper.sendTestIslandNotification(context)
-                            Toast.makeText(context, "已发送超级岛测试通知", Toast.LENGTH_SHORT).show()
+            // 课中提醒时机弹窗：左侧全程/距下课，右侧分钟数（全程时禁用）
+            OverlayDialog(
+                title = "提醒时机",
+                show = showInClassTimingDialog,
+                liquidGlassBackdrop = liquidGlassBackdrop,
+                onDismissRequest = { showInClassTimingDialog = false }
+            ) {
+                Column(modifier = Modifier.fillMaxWidth()) {
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(160.dp)
+                            .padding(bottom = 16.dp)
+                    ) {
+                        // 左侧滚轮：全程 / 距下课
+                        NumberPicker(
+                            value = tempInClassTimingMode,
+                            onValueChange = {
+                                tempInClassTimingMode = it
+                                hapticFeedback.performHapticFeedback(HapticFeedbackType.Confirm)
+                            },
+                            range = CourseReminderHelper.IN_CLASS_TIMING_FULL..CourseReminderHelper.IN_CLASS_TIMING_BEFORE_END,
+                            visibleItemCount = 3,
+                            itemHeight = 48.dp,
+                            label = { mode ->
+                                if (mode == CourseReminderHelper.IN_CLASS_TIMING_FULL) "全程" else "距下课"
+                            },
+                            textStyle = MiuixTheme.textStyles.title2,
+                            modifier = Modifier.weight(1f)
+                        )
+                        Spacer(modifier = Modifier.width(8.dp))
+                        // 右侧滚轮：距下课分钟数，全程时禁用
+                        val minutesEnabled =
+                            tempInClassTimingMode == CourseReminderHelper.IN_CLASS_TIMING_BEFORE_END
+                        NumberPicker(
+                            value = tempInClassLeadMinutes,
+                            onValueChange = { if (minutesEnabled) tempInClassLeadMinutes = it },
+                            range = 0..60,
+                            visibleItemCount = 3,
+                            itemHeight = 48.dp,
+                            label = { "${it}分钟" },
+                            textStyle = MiuixTheme.textStyles.title2,
+                            wrapAround = true,
+                            enabled = minutesEnabled,
+                            modifier = Modifier
+                                .weight(1f)
+                                .alpha(if (minutesEnabled) 1f else 0.35f)
+                        )
+                    }
+                    Text(
+                        text = if (tempInClassTimingMode == CourseReminderHelper.IN_CLASS_TIMING_FULL) {
+                            "全程显示课中进度"
                         } else {
-                            val startMillis = System.currentTimeMillis() + 120_000L
-                            val endMillis = startMillis + 45 * 60_000L
-                            CourseReminderHelper.showPreClassCountdownNotification(
-                                context = context,
-                                courseName = courseName,
-                                classroom = classroom,
-                                section = section,
-                                startTime = startTime,
-                                startMillis = startMillis,
-                                endMillis = endMillis
-                            )
-                            Toast.makeText(context, "已发送: $courseName (模拟2分钟后上课)", Toast.LENGTH_SHORT).show()
-                        }
-                    },
-                    colors = ButtonDefaults.textButtonColorsPrimary(),
-                    modifier = Modifier
-                        .align(Alignment.BottomCenter)
-                        .fillMaxWidth()
-                        .padding(start = tabletHorizontalPadding + 16.dp, end = tabletHorizontalPadding + 16.dp, bottom = 48.dp)
-                )
+                            "距下课 ${tempInClassLeadMinutes} 分钟开始显示"
+                        },
+                        style = MiuixTheme.textStyles.body2,
+                        color = MiuixTheme.colorScheme.onSurfaceVariantSummary,
+                        textAlign = TextAlign.Center,
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(bottom = 12.dp)
+                    )
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(12.dp)
+                    ) {
+                        TextButton(
+                            text = "取消",
+                            onClick = {
+                                hapticFeedback.performHapticFeedback(HapticFeedbackType.Confirm)
+                                showInClassTimingDialog = false
+                            },
+                            modifier = Modifier.weight(1f)
+                        )
+                        TextButton(
+                            text = "确定",
+                            onClick = {
+                                hapticFeedback.performHapticFeedback(HapticFeedbackType.Confirm)
+                                inClassTimingMode = tempInClassTimingMode
+                                inClassLeadMinutes = tempInClassLeadMinutes
+                                reminderPrefs.edit {
+                                    putInt(CourseReminderHelper.KEY_IN_CLASS_TIMING_MODE, tempInClassTimingMode)
+                                    putInt(CourseReminderHelper.KEY_IN_CLASS_LEAD_MINUTES, tempInClassLeadMinutes)
+                                }
+                                showInClassTimingDialog = false
+                            },
+                            colors = ButtonDefaults.textButtonColorsPrimary(),
+                            modifier = Modifier.weight(1f)
+                        )
+                    }
+                }
             }
 
             // 提前提醒分钟数弹窗

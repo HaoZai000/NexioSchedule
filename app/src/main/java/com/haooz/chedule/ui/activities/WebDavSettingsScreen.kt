@@ -26,6 +26,7 @@ import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
@@ -70,7 +71,9 @@ import androidx.compose.ui.graphics.Color as ComposeColor
 fun WebDavSettingsScreen(
     scrollBehavior: SharedScrollBehavior? = null,
     onConnectedChange: (Boolean) -> Unit = {},
-    onTestConnectionReady: (() -> Unit) -> Unit = {}
+    onTestConnectionReady: (() -> Unit) -> Unit = {},
+    onBackupRestoreReady: (onBackup: () -> Unit, onRestore: () -> Unit) -> Unit = { _, _ -> },
+    onBusyStateChange: (backingUp: Boolean, restoring: Boolean) -> Unit = { _, _ -> }
 ) {
     val context = LocalContext.current
     val hapticFeedback = LocalHapticFeedback.current
@@ -106,6 +109,9 @@ fun WebDavSettingsScreen(
     LaunchedEffect(connected) {
         onConnectedChange(connected)
     }
+    LaunchedEffect(backingUp, restoring) {
+        onBusyStateChange(backingUp, restoring)
+    }
 
     var lastSyncTimeMs by remember { mutableLongStateOf(webDavManager.lastSyncTime) }
     val lastSyncText = remember(lastSyncTimeMs) {
@@ -117,6 +123,39 @@ fun WebDavSettingsScreen(
 
     val syncManager = remember { SyncManager.getInstance(context) }
     val syncState by syncManager.syncState.collectAsState()
+
+    val doBackup = {
+        if (!backingUp && !restoring) {
+            backingUp = true
+            statusText = "正在备份..."
+            statusIsError = false
+            coroutineScope.launch {
+                webDavManager.serverUrl = serverUrl
+                webDavManager.username = username
+                webDavManager.password = password
+                syncManager.backupNow()
+            }
+        }
+    }
+    val doRestore = {
+        if (!backingUp && !restoring) {
+            restoring = true
+            statusText = "正在恢复..."
+            statusIsError = false
+            coroutineScope.launch {
+                webDavManager.serverUrl = serverUrl
+                webDavManager.username = username
+                webDavManager.password = password
+                syncManager.restoreNow()
+            }
+        }
+    }
+    val latestDoBackup by rememberUpdatedState(doBackup)
+    val latestDoRestore by rememberUpdatedState(doRestore)
+    LaunchedEffect(Unit) {
+        onBackupRestoreReady({ latestDoBackup() }, { latestDoRestore() })
+    }
+
     LaunchedEffect(syncState) {
         when (val state = syncState) {
             is SyncManager.SyncOperationState.BackupSuccess -> {
@@ -395,74 +434,7 @@ fun WebDavSettingsScreen(
                 }
             }
 
-            // 底部渐变遮罩
-            Box(
-                modifier = Modifier
-                    .align(Alignment.BottomCenter)
-                    .fillMaxWidth()
-                    .height(120.dp)
-                    .background(
-                        brush = Brush.verticalGradient(
-                            colorStops = arrayOf(
-                                0.0f to ComposeColor.Transparent,
-                                0.15f to backdropColor.copy(alpha = 0.5f),
-                                0.5f to backdropColor.copy(alpha = 0.85f),
-                                1.0f to backdropColor
-                            )
-                        )
-                    )
-            )
-
-            // 底部两个按钮：备份 + 恢复
-            Row(
-                modifier = Modifier
-                    .align(Alignment.BottomCenter)
-                    .fillMaxWidth()
-                    .padding(start = tabletHorizontalPadding + 8.dp, end = tabletHorizontalPadding + 8.dp, bottom = 48.dp),
-                horizontalArrangement = Arrangement.spacedBy(12.dp)
-            ) {
-                // 备份按钮
-                TextButton(
-                    text = if (backingUp) "备份中..." else "备份到云端",
-                    onClick = {
-                        hapticFeedback.performHapticFeedback(HapticFeedbackType.Confirm)
-                        if (!backingUp && !restoring) {
-                            backingUp = true
-                            statusText = "正在备份..."
-                            statusIsError = false
-                            coroutineScope.launch {
-                                webDavManager.serverUrl = serverUrl
-                                webDavManager.username = username
-                                webDavManager.password = password
-                                syncManager.backupNow()
-                            }
-                        }
-                    },
-                    colors = ButtonDefaults.textButtonColorsPrimary(),
-                    modifier = Modifier.weight(1f)
-                )
-
-                // 恢复按钮
-                TextButton(
-                    text = if (restoring) "恢复中..." else "从云端恢复",
-                    onClick = {
-                        hapticFeedback.performHapticFeedback(HapticFeedbackType.Confirm)
-                        if (!backingUp && !restoring) {
-                            restoring = true
-                            statusText = "正在恢复..."
-                            statusIsError = false
-                            coroutineScope.launch {
-                                webDavManager.serverUrl = serverUrl
-                                webDavManager.username = username
-                                webDavManager.password = password
-                                syncManager.restoreNow()
-                            }
-                        }
-                    },
-                    colors = ButtonDefaults.textButtonColorsPrimary(),
-                    modifier = Modifier.weight(1f)
-                )
-            }
+            // 底部备份/恢复按钮已上提到 WebDavSettingsActivity
         }
     }
 }

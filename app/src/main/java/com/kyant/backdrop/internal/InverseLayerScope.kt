@@ -58,10 +58,15 @@ internal class InverseLayerScope : GraphicsLayerScope {
 
         layerBlock()
 
-        inverseTransformAtTopLeft(
+        // graphicsLayer 默认 TransformOrigin.Center：反变换必须绕同一 pivot，
+        // 否则正向中心放大 + 反向左上缩小会让采样内容向左上「缩水」。
+        inverseTransformAtPivot(
             rotationZ = rotationZ,
             scaleX = scaleX,
-            scaleY = scaleY
+            scaleY = scaleY,
+            transformOrigin = transformOrigin,
+            width = size.width,
+            height = size.height
         )
     }
 
@@ -93,14 +98,22 @@ internal class InverseLayerScope : GraphicsLayerScope {
         matrix = null
     }
 
-    private fun DrawTransform.inverseTransformAtTopLeft(
+    private fun DrawTransform.inverseTransformAtPivot(
         rotationZ: Float = 0f,
         scaleX: Float = 1f,
-        scaleY: Float = 1f
+        scaleY: Float = 1f,
+        transformOrigin: TransformOrigin = TransformOrigin.Center,
+        width: Float,
+        height: Float
     ) {
+        val pivot = Offset(
+            transformOrigin.pivotFractionX * width,
+            transformOrigin.pivotFractionY * height
+        )
+
         if (rotationZ == 0f) {
             if (scaleX != 0f && scaleY != 0f) {
-                scale(1f / scaleX, 1f / scaleY, Offset.Zero)
+                scale(1f / scaleX, 1f / scaleY, pivot)
             }
             return
         }
@@ -108,6 +121,7 @@ internal class InverseLayerScope : GraphicsLayerScope {
         val matrix = matrix ?: Matrix().also { matrix = it }
         if (matrix.values.size < 16) return
 
+        // 先平移到 pivot，再做旋转+缩放的逆，再平移回去
         val rz = rotationZ * (PI / 180.0)
         val rsz = sin(rz).toFloat()
         val rcz = cos(rz).toFloat()
@@ -120,10 +134,26 @@ internal class InverseLayerScope : GraphicsLayerScope {
         val det = a00 * a11 - a01 * a10
         if (det == 0f) return
         val invDet = 1f / det
-        matrix[0, 0] = a11 * invDet
-        matrix[0, 1] = -a01 * invDet
-        matrix[1, 0] = -a10 * invDet
-        matrix[1, 1] = a00 * invDet
+        // M = T(pivot) * Inv(R*S) * T(-pivot)
+        val m00 = a11 * invDet
+        val m01 = -a01 * invDet
+        val m10 = -a10 * invDet
+        val m11 = a00 * invDet
+        val m02 = pivot.x - (m00 * pivot.x + m01 * pivot.y)
+        val m12 = pivot.y - (m10 * pivot.x + m11 * pivot.y)
+
+        // Compose Matrix：平移在 [row, 3]，先置单位阵再写线性部分与平移
+        for (i in 0..3) {
+            for (j in 0..3) {
+                matrix[i, j] = if (i == j) 1f else 0f
+            }
+        }
+        matrix[0, 0] = m00
+        matrix[0, 1] = m01
+        matrix[1, 0] = m10
+        matrix[1, 1] = m11
+        matrix[0, 3] = m02
+        matrix[1, 3] = m12
 
         transform(matrix)
     }

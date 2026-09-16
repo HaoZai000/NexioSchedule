@@ -271,9 +271,13 @@ object IslandNotificationHelper {
     }
 
     fun isInClassReminderEnabled(context: Context): Boolean {
-        return context.getSharedPreferences("course_reminder_prefs", Context.MODE_PRIVATE)
-            .getBoolean(KEY_IN_CLASS_REMINDER, false)
+        // 与原生实况共用 CourseReminderHelper 的统一课中开关
+        return CourseReminderHelper.isInClassEnabled(context)
     }
+
+    fun isInClassNotificationId(notificationId: Int): Boolean =
+        notificationId == ISLAND_IN_CLASS_NOTIFICATION_ID ||
+            notificationId == ISLAND_IN_CLASS_TEST_NOTIFICATION_ID
 
     fun requestShizukuPermission(callback: (Boolean) -> Unit) {
         ShizukuManager.requestPermission(callback)
@@ -789,7 +793,7 @@ object IslandNotificationHelper {
         ensureChannel(context)
 
         val courseName = "大学英语Ⅱ"
-        val classroom = "A201"
+        val classroom = "博A201"
         val section = "第3~4节"
         val testNotificationId = ISLAND_TEST_NOTIFICATION_ID
 
@@ -830,7 +834,7 @@ object IslandNotificationHelper {
         )
 
         val title = "$courseName $startTime"
-        val content = "第3~4节｜A201"
+        val content = "第3~4节｜博A201"
 
         val builder = Notification.Builder(context, CHANNEL_ID)
             .setSmallIcon(R.mipmap.ic_launcher)
@@ -891,7 +895,8 @@ object IslandNotificationHelper {
         )
     }
 
-    // 到点分流：未开课中提醒 → 静态「已上课」；开了 → 模板6课中卡片。两条路径独立，不共用发送逻辑
+    // 到点分流：未开课中提醒 → 静态「已上课」；开了且进窗 → 模板课中卡片。
+    // 「距下课」未进窗时仍走「已上课」，由对账在进窗后再切课中。
     fun onClassStart(
         context: Context,
         courseName: String,
@@ -902,7 +907,12 @@ object IslandNotificationHelper {
         notificationId: Int = ISLAND_NOTIFICATION_ID,
         testMode: Boolean = false
     ) {
-        if (isInClassReminderEnabled(context)) {
+        val state = IslandState.snapshot(context, testMode)
+        val startMillis = state?.startMillis ?: System.currentTimeMillis()
+        val endMillis = state?.endMillis ?: 0L
+        val showInClass = endMillis > startMillis &&
+            CourseReminderHelper.shouldShowInClassNow(context, startMillis, endMillis)
+        if (showInClass) {
             sendInClassIslandNotification(
                 context = context,
                 courseName = courseName,

@@ -47,8 +47,74 @@ object CourseReminderHelper {
     // 开课后仍允许补发"已上课"的宽限期，超出则不再打扰
     private const val ISLAND_START_GRACE_MS = 2 * 60_000L
 
-    // 普通实况通知的「已上课」态与倒计时态错开一个 ID，否则同 ID 更新不会重新弹出
-    private const val STARTED_LIVE_ID_OFFSET = 1
+    // 原生实况三态固定 ID，与超级岛 1003/1004/1005 同思路，不随课程名变化
+    const val LIVE_COUNTDOWN_ID = 2003
+    const val LIVE_STARTED_ID = 2004
+    const val LIVE_IN_CLASS_ID = 2005
+    // 测试实时活动独立 ID，对齐超级岛 5000/5001/5002，不覆盖真实课提醒
+    const val LIVE_TEST_COUNTDOWN_ID = 5100
+    const val LIVE_TEST_STARTED_ID = 5101
+    const val LIVE_TEST_IN_CLASS_ID = 5102
+
+    private fun liveCountdownId(testMode: Boolean): Int =
+        if (testMode) LIVE_TEST_COUNTDOWN_ID else LIVE_COUNTDOWN_ID
+
+    private fun liveStartedId(testMode: Boolean): Int =
+        if (testMode) LIVE_TEST_STARTED_ID else LIVE_STARTED_ID
+
+    private fun liveInClassId(testMode: Boolean): Int =
+        if (testMode) LIVE_TEST_IN_CLASS_ID else LIVE_IN_CLASS_ID
+
+    // 课中提醒统一开关（超级岛 / 原生实况共用；迁移旧 island_in_class_enabled / live_in_class_enabled）
+    const val KEY_IN_CLASS = "in_class_reminder_enabled"
+    // 提醒时机：0=全程，1=距下课 N 分钟（N>=课程总时长时按全程，避免溢出）
+    const val KEY_IN_CLASS_TIMING_MODE = "in_class_timing_mode"
+    const val KEY_IN_CLASS_LEAD_MINUTES = "in_class_lead_minutes"
+    const val IN_CLASS_TIMING_FULL = 0
+    const val IN_CLASS_TIMING_BEFORE_END = 1
+
+    fun isInClassEnabled(context: Context): Boolean {
+        val prefs = context.getSharedPreferences("course_reminder_prefs", Context.MODE_PRIVATE)
+        if (prefs.contains(KEY_IN_CLASS)) {
+            return prefs.getBoolean(KEY_IN_CLASS, false)
+        }
+        // 旧键任一打开过则视为开启，避免升级后开关被静默关掉
+        return prefs.getBoolean(IslandNotificationHelper.KEY_IN_CLASS_REMINDER, false) ||
+            prefs.getBoolean("live_in_class_enabled", false)
+    }
+
+    fun isInClassLiveEnabled(context: Context): Boolean = isInClassEnabled(context)
+
+    fun getInClassTimingMode(context: Context): Int {
+        return context.getSharedPreferences("course_reminder_prefs", Context.MODE_PRIVATE)
+            .getInt(KEY_IN_CLASS_TIMING_MODE, IN_CLASS_TIMING_FULL)
+    }
+
+    fun getInClassLeadMinutes(context: Context): Int {
+        return context.getSharedPreferences("course_reminder_prefs", Context.MODE_PRIVATE)
+            .getInt(KEY_IN_CLASS_LEAD_MINUTES, 10).coerceIn(0, 60)
+    }
+
+    /**
+     * 当前是否应展示课中进度。
+     * 距下课模式：剩余时长 <= N 分钟才展示；N 不小于本节课总时长时按全程，避免「设 60 分钟却比课还长」的溢出。
+     */
+    fun shouldShowInClassNow(
+        context: Context,
+        startMillis: Long,
+        endMillis: Long,
+        nowMillis: Long = System.currentTimeMillis()
+    ): Boolean {
+        if (!isInClassEnabled(context)) return false
+        if (endMillis <= startMillis) return false
+        if (nowMillis < startMillis || nowMillis >= endMillis) return false
+        if (getInClassTimingMode(context) == IN_CLASS_TIMING_FULL) return true
+        val leadMs = getInClassLeadMinutes(context) * 60_000L
+        val totalMs = endMillis - startMillis
+        // 课总时长不足 lead → 等价全程
+        if (leadMs >= totalMs) return true
+        return (endMillis - nowMillis) <= leadMs
+    }
 
     const val CHANNEL_REMINDER_ID = "course_reminder_alert"
     const val CHANNEL_REMINDER_NAME = "课程提醒通知"
@@ -290,9 +356,20 @@ object CourseReminderHelper {
     }
 
     private fun cancelCourseStartAlarms(context: Context, alarmManager: AlarmManager) {
+        val intent = Intent(context, CourseStartReceiver::class.java)
+        // 新固定 ID 的到点闹钟（真实 + 测试）
+        for (rc in intArrayOf(LIVE_COUNTDOWN_ID, LIVE_TEST_COUNTDOWN_ID)) {
+            val pending = PendingIntent.getBroadcast(
+                context,
+                rc,
+                intent,
+                PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+            )
+            alarmManager.cancel(pending)
+        }
+        // 旧版按课程名 hash 派生 RC 的残留
         val allCourses = CourseRepository(context).getAllCourses()
         for (course in allCourses) {
-            val intent = Intent(context, CourseStartReceiver::class.java)
             val pendingIntent = PendingIntent.getBroadcast(
                 context,
                 10000 + course.name.hashCode(),
@@ -687,6 +764,210 @@ object CourseReminderHelper {
         return manager.canPostPromotedNotifications()
     }
 
+    // 与超级岛同口径：剩余分钟向上取整；进度按已上课比例（0→100）
+    private fun inClassRemainMinutes(endMillis: Long, now: Long): Int {
+        val remainMs = endMillis - now
+        if (remainMs <= 0L) return 0
+        return ((remainMs + 59_999L) / 60_000L).toInt().coerceAtLeast(0)
+    }
+
+    private fun inClassProgressPercent(startMillis: Long, endMillis: Long, remainMinutes: Int): Int {
+        val totalMs = endMillis - startMillis
+        if (totalMs <= 0L) return 0
+        val remainMs = remainMinutes * 60_000L
+        val elapsedMs = (totalMs - remainMs).coerceIn(0L, totalMs)
+        return ((elapsedMs * 100L) / totalMs).toInt().coerceIn(0, 100)
+    }
+
+    /**
+     * 原生实况课中进度：API 36+ 用 ProgressStyle + 提升 ongoing，与 SleepDown 同思路。
+     * 每分钟只在剩余分钟/进度变化时重推，挂到下课自动结束。
+     */
+    fun showOrUpdateInClassLiveNotification(
+        context: Context,
+        courseName: String,
+        classroom: String,
+        endTime: String,
+        startMillis: Long,
+        endMillis: Long,
+        countdownNotificationId: Int,
+        testMode: Boolean = false
+    ) {
+        ensureNotificationChannels(context)
+        val now = System.currentTimeMillis()
+        if (endMillis <= now) return
+
+        val manager = context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
+        val inClassId = liveInClassId(testMode)
+        val startedId = liveStartedId(testMode)
+        val countdownId = liveCountdownId(testMode)
+
+        val prefs = context.getSharedPreferences("countdown_state", Context.MODE_PRIVATE)
+        val wasInClass = prefs.getBoolean("in_class_active", false)
+        val remainMin = inClassRemainMinutes(endMillis, now)
+        val progress = inClassProgressPercent(startMillis, endMillis, remainMin)
+        val lastMin = prefs.getInt("last_in_class_minutes", -1)
+        val lastProgress = prefs.getInt("last_in_class_progress", -1)
+
+        // 首次切入课中：收起倒计时/已上课，避免三态并存
+        if (!wasInClass) {
+            manager.cancel(countdownId)
+            manager.cancel(startedId)
+            // 清掉另一套（真实/测试）残留，避免双通道并存
+            if (testMode) {
+                manager.cancel(LIVE_COUNTDOWN_ID)
+                manager.cancel(LIVE_STARTED_ID)
+            } else {
+                manager.cancel(LIVE_TEST_COUNTDOWN_ID)
+                manager.cancel(LIVE_TEST_STARTED_ID)
+            }
+        } else if (remainMin == lastMin && progress == lastProgress) {
+            // 同分钟无变化，不重推，避免岛/胶囊闪烁
+            return
+        }
+
+        val contentIntent = PendingIntent.getActivity(
+            context, courseName.hashCode(),
+            Intent(context, MainActivity::class.java).apply {
+                flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP
+            },
+            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+        )
+
+        val endTimeLabel = if (endTime.isNotEmpty()) "${endTime}下课" else "下课"
+        val infoLine = "$endTimeLabel · 还剩${remainMin}分钟"
+        val expandedText = if (classroom.isBlank()) infoLine else "$infoLine\n$classroom"
+        val shortCriticalText = "${remainMin}分钟"
+
+        // 课中只保留进度卡片，不挂动作按钮（点整卡打开课表即可）
+        val notification = if (Build.VERSION.SDK_INT >= 36) {
+            val builder = Notification.Builder(context, CHANNEL_LIVE_ID)
+                .setSmallIcon(R.mipmap.ic_launcher)
+                .setContentTitle("$courseName | 上课中")
+                .setContentText(infoLine)
+                .setStyle(Notification.BigTextStyle().bigText(expandedText))
+                .setContentIntent(contentIntent)
+                .setOngoing(true)
+                .setOnlyAlertOnce(true)
+                .setShowWhen(false)
+                .setCategory(Notification.CATEGORY_PROGRESS)
+                .setTimeoutAfter(endMillis - now)
+            builder.setStyle(
+                Notification.ProgressStyle()
+                    .setProgressTrackerIcon(
+                        android.graphics.drawable.Icon.createWithResource(context, R.drawable.ic_live_dot)
+                    )
+                    .setProgressSegments(listOf(Notification.ProgressStyle.Segment(100)))
+                    .setProgress(progress)
+            )
+            runCatching { builder.setRequestPromotedOngoing(true) }
+            runCatching { builder.setShortCriticalText(shortCriticalText) }
+            builder.build().apply {
+                flags = flags or Notification.FLAG_ONLY_ALERT_ONCE
+            }
+        } else {
+            // 低版本无 ProgressStyle：用普通进度条 + 提升请求降级
+            NotificationCompat.Builder(context, CHANNEL_LIVE_ID)
+                .setSmallIcon(R.mipmap.ic_launcher)
+                .setContentTitle("$courseName | 上课中")
+                .setContentText(expandedText)
+                .setStyle(NotificationCompat.BigTextStyle().bigText(expandedText))
+                .setProgress(100, progress, false)
+                .setOngoing(true)
+                .setOnlyAlertOnce(true)
+                .setShowWhen(false)
+                .setContentIntent(contentIntent)
+                .setCategory(Notification.CATEGORY_PROGRESS)
+                .setTimeoutAfter(endMillis - now)
+                .setShortCriticalText(shortCriticalText)
+                .setRequestPromotedOngoing(true)
+                .build()
+                .apply {
+                    flags = flags or Notification.FLAG_ONLY_ALERT_ONCE
+                }
+        }
+
+        manager.notify(inClassId, notification)
+        prefs.edit {
+            putBoolean("in_class_active", true)
+                .putInt("in_class_notification_id", inClassId)
+                .putInt("last_in_class_minutes", remainMin)
+                .putInt("last_in_class_progress", progress)
+        }
+    }
+
+    private fun cancelInClassLiveNotification(
+        context: Context,
+        testMode: Boolean = false
+    ) {
+        val manager = context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
+        manager.cancel(liveInClassId(testMode))
+        val prefs = context.getSharedPreferences("countdown_state", Context.MODE_PRIVATE)
+        prefs.edit {
+            putBoolean("in_class_active", false)
+                .remove("last_in_class_minutes")
+                .remove("last_in_class_progress")
+        }
+    }
+
+    /** 15 秒「已上课」实况；独立 ID，与倒计时/课中错开。 */
+    private fun showStartedLiveNotification(
+        context: Context,
+        courseName: String,
+        classroom: String,
+        startTime: String,
+        testMode: Boolean = false
+    ) {
+        ensureNotificationChannels(context)
+        val startedIntent = PendingIntent.getActivity(
+            context, courseName.hashCode(),
+            Intent(context, MainActivity::class.java).apply {
+                flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP
+            },
+            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+        )
+        val dndIntent = Intent(context, ClassDndReceiver::class.java).apply {
+            action = ClassDndReceiver.ACTION_TOGGLE
+        }
+        val dndPendingIntent = PendingIntent.getBroadcast(
+            context,
+            courseName.hashCode() + 100,
+            dndIntent,
+            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+        )
+        val bigText = buildString {
+            if (startTime.isNotEmpty()) append(startTime)
+            if (classroom.isNotEmpty()) {
+                if (isNotEmpty()) append(" · ")
+                append(classroom)
+            }
+        }
+        val startedNotification = NotificationCompat.Builder(context, CHANNEL_LIVE_ID)
+            .setSmallIcon(R.mipmap.ic_launcher)
+            .setContentTitle("$courseName | 已上课")
+            .setShortCriticalText("已上课")
+            .setStyle(
+                NotificationCompat.BigTextStyle()
+                    .bigText(bigText)
+            )
+            .setOngoing(true)
+            .setContentIntent(startedIntent)
+            .setCategory(Notification.CATEGORY_REMINDER)
+            .setRequestPromotedOngoing(true)
+            .addAction(R.drawable.ic_notification_calendar, "查看课表", startedIntent)
+            .addAction(R.drawable.ic_notification_mute, "上课勿扰", dndPendingIntent)
+            .setTimeoutAfter(15_000L)
+            .build()
+            .apply {
+                flags = flags or Notification.FLAG_ONLY_ALERT_ONCE
+            }
+        val manager = context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
+        val startedNotificationId = liveStartedId(testMode)
+        context.getSharedPreferences("countdown_state", Context.MODE_PRIVATE)
+            .edit { putInt("started_notification_id", startedNotificationId) }
+        manager.notify(startedNotificationId, startedNotification)
+    }
+
     private fun ensureNotificationChannels(context: Context) {
         val manager = context.getSystemService(NotificationManager::class.java)
         val alertChannel = NotificationChannel(
@@ -747,7 +1028,8 @@ object CourseReminderHelper {
         section: String,
         startTime: String,
         startMillis: Long,
-        endMillis: Long
+        endMillis: Long,
+        testMode: Boolean = false
     ) {
         ensureNotificationChannels(context)
 
@@ -769,7 +1051,7 @@ object CourseReminderHelper {
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
         )
 
-        val notificationId = 10000 + courseName.hashCode()
+        val notificationId = liveCountdownId(testMode)
         // 向上取整，与系统倒计时剩余秒数一致
         val minutesUntilStart = ceilMinutesUntil(startMillis)
 
@@ -819,12 +1101,23 @@ object CourseReminderHelper {
             }
 
         val manager = context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
+        // 互斥：发真实课时清测试，发测试时清真实，避免双通道并存
+        if (testMode) {
+            manager.cancel(LIVE_COUNTDOWN_ID)
+            manager.cancel(LIVE_STARTED_ID)
+            manager.cancel(LIVE_IN_CLASS_ID)
+        } else {
+            manager.cancel(LIVE_TEST_COUNTDOWN_ID)
+            manager.cancel(LIVE_TEST_STARTED_ID)
+            manager.cancel(LIVE_TEST_IN_CLASS_ID)
+        }
         manager.notify(notificationId, notification)
 
         // 倒计时状态供 WidgetRefreshReceiver 每分钟更新
         val prefs = context.getSharedPreferences("countdown_state", Context.MODE_PRIVATE)
         prefs.edit {
             putBoolean("active", true)
+                .putBoolean("test_mode", testMode)
                 .putString("courseName", courseName)
                 .putString("classroom", classroom)
                 .putString("section", section)
@@ -832,7 +1125,11 @@ object CourseReminderHelper {
                 .putLong("startMillis", startMillis)
                 .putLong("endMillis", endMillis)
                 .putInt("notificationId", notificationId)
+                .putBoolean("in_class_active", false)
                 .remove("last_displayed_minutes")
+                .remove("last_in_class_minutes")
+                .remove("last_in_class_progress")
+                .remove("started_shown")
         }
 
         // 精确闹钟保证到点可靠更新
@@ -861,6 +1158,30 @@ object CourseReminderHelper {
         scheduleNextWidgetRefresh(context, alarmManager)
     }
 
+    /**
+     * 测试实时活动：与超级岛测试同一套固定课程，不依赖真实课表。
+     * 课前 70 秒倒计时 + 课中 120 秒，便于验证倒计时 / 已上课 / 课中进度全链路。
+     */
+    fun sendTestLiveNotification(context: Context) {
+        val courseName = "大学英语Ⅱ"
+        val classroom = "博A201"
+        val section = "第3~4节"
+        val startMillis = System.currentTimeMillis() + 70_000L
+        val endMillis = startMillis + 120_000L
+        val startTime = java.text.SimpleDateFormat("HH:mm", java.util.Locale.getDefault())
+            .format(java.util.Date(startMillis))
+        showPreClassCountdownNotification(
+            context = context,
+            courseName = courseName,
+            classroom = classroom,
+            section = section,
+            startTime = startTime,
+            startMillis = startMillis,
+            endMillis = endMillis,
+            testMode = true
+        )
+    }
+
     // 每分钟由 WidgetRefreshReceiver 驱动；同 notifyId 重复 notify 无痕更新
     fun updateActiveCountdown(context: Context) {
         val prefs = context.getSharedPreferences("countdown_state", Context.MODE_PRIVATE)
@@ -870,21 +1191,26 @@ object CourseReminderHelper {
         val repository = CourseRepository(context)
         if (repository.getIslandNotification() && IslandNotificationHelper.isIslandSupported(context)) {
             if (prefs.getBoolean("active", false)) {
-                val liveNotificationId = prefs.getInt("notificationId", 0)
-                if (liveNotificationId != 0) {
-                    val manager = context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
-                    manager.cancel(liveNotificationId)
-                    manager.cancel(liveNotificationId + STARTED_LIVE_ID_OFFSET)
+                val manager = context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
+                manager.cancel(LIVE_COUNTDOWN_ID)
+                manager.cancel(LIVE_STARTED_ID)
+                manager.cancel(LIVE_IN_CLASS_ID)
+                manager.cancel(LIVE_TEST_COUNTDOWN_ID)
+                manager.cancel(LIVE_TEST_STARTED_ID)
+                manager.cancel(LIVE_TEST_IN_CLASS_ID)
+                prefs.edit {
+                    putBoolean("active", false)
+                        .putBoolean("in_class_active", false)
                 }
-                prefs.edit { putBoolean("active", false) }
             }
             reconcileIslandCountdown(context)
             return
         }
 
+        val testMode = prefs.getBoolean("test_mode", false)
         val startMillis = prefs.getLong("startMillis", 0L)
         val endMillis = prefs.getLong("endMillis", 0L)
-        val notificationId = prefs.getInt("notificationId", 0)
+        val notificationId = liveCountdownId(testMode)
         val courseName = prefs.getString("courseName", "") ?: ""
         val classroom = prefs.getString("classroom", "") ?: ""
         val startTime = prefs.getString("startTime", "") ?: ""
@@ -894,69 +1220,73 @@ object CourseReminderHelper {
         // 课程结束：取消通知并清状态
         if (endMillis in 1..now) {
             val manager = context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
-            manager.cancel(notificationId)
+            manager.cancel(liveCountdownId(testMode))
+            manager.cancel(liveStartedId(testMode))
+            cancelInClassLiveNotification(context, testMode)
             IslandNotificationHelper.cancelIslandState(context, ISLAND_NOTIFICATION_ID)
             prefs.edit { putBoolean("active", false) }
             return
         }
 
-        // 到点：取消倒计时，另发"已上课"实况
+        // 到点：优先课中进度，否则发 15 秒「已上课」
         if (now >= startMillis) {
             val manager = context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
-            manager.cancel(notificationId)
-            IslandNotificationHelper.cancelIslandState(context, ISLAND_NOTIFICATION_ID)
-            prefs.edit { putBoolean("active", false) }
+            val inClassOn = isInClassLiveEnabled(context) && endMillis > now
+            val inClassNow = inClassOn && shouldShowInClassNow(context, startMillis, endMillis, now)
 
-            val startedIntent = PendingIntent.getActivity(
-                context, courseName.hashCode(),
-                Intent(context, MainActivity::class.java).apply {
-                    flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP
-                },
-                PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
-            )
-
-            val dndIntent = Intent(context, ClassDndReceiver::class.java).apply {
-                action = ClassDndReceiver.ACTION_TOGGLE
-            }
-            val dndPendingIntent = PendingIntent.getBroadcast(
-                context,
-                courseName.hashCode() + 100,
-                dndIntent,
-                PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
-            )
-
-            val bigText = buildString {
-                if (startTime.isNotEmpty()) append(startTime)
-                if (classroom.isNotEmpty()) {
-                    if (isNotEmpty()) append(" · ")
-                    append(classroom)
+            if (inClassNow) {
+                // 课中：保持 countdown_state active，挂到下课由每分钟刷新驱动
+                if (!prefs.getBoolean("in_class_active", false)) {
+                    manager.cancel(liveCountdownId(testMode))
+                    IslandNotificationHelper.cancelIslandState(context, ISLAND_NOTIFICATION_ID)
                 }
-            }
-
-            val startedNotification = NotificationCompat.Builder(context, CHANNEL_LIVE_ID)
-                .setSmallIcon(R.mipmap.ic_launcher)
-                .setContentTitle("$courseName | 已上课")
-                .setShortCriticalText("已上课")
-                .setStyle(
-                    NotificationCompat.BigTextStyle()
-                        .bigText(bigText)
+                val endTimeText = if (endMillis > 0L) {
+                    java.text.SimpleDateFormat("HH:mm", java.util.Locale.getDefault())
+                        .format(java.util.Date(endMillis))
+                } else {
+                    ""
+                }
+                showOrUpdateInClassLiveNotification(
+                    context = context,
+                    courseName = courseName,
+                    classroom = classroom,
+                    endTime = endTimeText,
+                    startMillis = startMillis,
+                    endMillis = endMillis,
+                    countdownNotificationId = liveCountdownId(testMode),
+                    testMode = testMode
                 )
-                .setOngoing(true)
-                .setContentIntent(startedIntent)
-                .setCategory(Notification.CATEGORY_REMINDER)
-                .setRequestPromotedOngoing(true)
-                .addAction(R.drawable.ic_notification_calendar, "查看课表", startedIntent)
-                .addAction(R.drawable.ic_notification_mute, "上课勿扰", dndPendingIntent)
-                .setTimeoutAfter(15_000L)
-                .build()
-                .apply {
-                    flags = flags or Notification.FLAG_ONLY_ALERT_ONCE
+                return
+            }
+
+            if (inClassOn && !inClassNow) {
+                // 课中已开但「距下课」窗口未到：保持 active，到点只闪一次「已上课」，进窗后再切课中
+                if (!prefs.getBoolean("started_shown", false)) {
+                    manager.cancel(liveCountdownId(testMode))
+                    IslandNotificationHelper.cancelIslandState(context, ISLAND_NOTIFICATION_ID)
+                    showStartedLiveNotification(
+                        context = context,
+                        courseName = courseName,
+                        classroom = classroom,
+                        startTime = startTime,
+                        testMode = testMode
+                    )
+                    prefs.edit { putBoolean("started_shown", true) }
                 }
-            // 用独立 ID 重发：同 ID 更新只是静默替换，不会重新弹出/展开，
-            // 用户看到的仍是一张已归零的倒计时卡片
-            val startedNotificationId = notificationId + STARTED_LIVE_ID_OFFSET
-            prefs.edit { putInt("started_notification_id", startedNotificationId) }
-            manager.notify(startedNotificationId, startedNotification)
+                return
+            }
+
+            manager.cancel(liveCountdownId(testMode))
+            IslandNotificationHelper.cancelIslandState(context, ISLAND_NOTIFICATION_ID)
+            cancelInClassLiveNotification(context, testMode)
+            prefs.edit { putBoolean("active", false) }
+            showStartedLiveNotification(
+                context = context,
+                courseName = courseName,
+                classroom = classroom,
+                startTime = startTime,
+                testMode = testMode
+            )
             return
         }
 
@@ -1175,13 +1505,15 @@ object CourseReminderHelper {
         val state = IslandNotificationHelper.IslandState.snapshot(context, testMode) ?: return
         val now = System.currentTimeMillis()
 
-        val inClassActive = IslandNotificationHelper.isInClassReminderEnabled(context) &&
-            state.switched &&
-            state.endMillis > now
+        val inClassEnabled = IslandNotificationHelper.isInClassReminderEnabled(context)
+        // 已上课且课中开着（含「距下课」未进窗）：不按 15 秒收起
+        val keepForInClass = inClassEnabled && state.switched && state.endMillis > now
+        val shouldShowInClass = keepForInClass &&
+            shouldShowInClassNow(context, state.startMillis, state.endMillis, now)
 
         val expiredByEnd = state.endMillis > 0 && now >= state.endMillis
         // 课中提醒：不因 15 秒展示窗收起，挂到下课；非课中维持原 15 秒策略
-        val expiredByShow = !inClassActive && state.switched &&
+        val expiredByShow = !keepForInClass && state.switched &&
             now - state.switchedAt >= IslandNotificationHelper.ISLAND_STARTED_VISIBLE_MS
         if (expiredByEnd || expiredByShow) {
             // 连带收起另一半（倒计时/已上课），避免残留岛一直停在 00:00
@@ -1214,9 +1546,22 @@ object CourseReminderHelper {
             return
         }
 
-        // 课中提醒：跨分钟刷新剩余时间/进度
-        if (inClassActive) {
-            IslandNotificationHelper.updateInClassIslandIfNeeded(context, state, testMode)
+        // 课中提醒：进窗后切课中卡；已在课中则跨分钟刷新剩余时间/进度
+        if (shouldShowInClass) {
+            val alreadyInClass = IslandNotificationHelper.isInClassNotificationId(state.notificationId)
+            if (alreadyInClass) {
+                IslandNotificationHelper.updateInClassIslandIfNeeded(context, state, testMode)
+            } else {
+                IslandNotificationHelper.sendInClassIslandNotification(
+                    context = context,
+                    courseName = state.courseName,
+                    classroom = state.classroom,
+                    startTime = state.startTime,
+                    endTime = state.endTime,
+                    notificationId = state.notificationId,
+                    testMode = testMode
+                )
+            }
         }
     }
 
@@ -1224,12 +1569,26 @@ object CourseReminderHelper {
     fun cancelAllReminderNotifications(context: Context) {
         val manager = context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
         val countdownPrefs = context.getSharedPreferences("countdown_state", Context.MODE_PRIVATE)
-        val liveId = countdownPrefs.getInt("notificationId", 0)
-        if (liveId != 0) {
-            manager.cancel(liveId)
-            manager.cancel(liveId + STARTED_LIVE_ID_OFFSET)
+        manager.cancel(LIVE_COUNTDOWN_ID)
+        manager.cancel(LIVE_STARTED_ID)
+        manager.cancel(LIVE_IN_CLASS_ID)
+        manager.cancel(LIVE_TEST_COUNTDOWN_ID)
+        manager.cancel(LIVE_TEST_STARTED_ID)
+        manager.cancel(LIVE_TEST_IN_CLASS_ID)
+        // 旧版按课程名 hash 的残留 ID
+        val legacyId = countdownPrefs.getInt("notificationId", 0)
+        if (legacyId != 0 && legacyId != LIVE_COUNTDOWN_ID && legacyId != LIVE_TEST_COUNTDOWN_ID) {
+            manager.cancel(legacyId)
+            manager.cancel(legacyId + 1)
+            manager.cancel(legacyId + 2)
         }
-        countdownPrefs.edit { putBoolean("active", false) }
+        countdownPrefs.edit {
+            putBoolean("active", false)
+                .putBoolean("in_class_active", false)
+                .remove("test_mode")
+                .remove("last_in_class_minutes")
+                .remove("last_in_class_progress")
+        }
         IslandNotificationHelper.cancelIslandNotifications(context)
         IslandNotificationHelper.IslandState.clear(context)
     }

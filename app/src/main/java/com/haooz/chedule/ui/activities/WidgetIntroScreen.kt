@@ -70,7 +70,6 @@ fun WidgetIntroScreen(
     liquidGlassBackdrop: com.kyant.backdrop.Backdrop? = null,
 ) {
     val hapticFeedback = LocalHapticFeedback.current
-    var showGuideDialog by remember { mutableStateOf(false) }
     val isTablet = LocalConfiguration.current.screenWidthDp >= 600
     val tabletHorizontalPadding = if (isTablet) {
         val screenWidthDp = LocalConfiguration.current.screenWidthDp
@@ -174,65 +173,7 @@ fun WidgetIntroScreen(
                 Spacer(modifier = Modifier.height(120.dp))
             }
 
-            // 底部渐变遮罩
-            Box(
-                modifier = Modifier
-                    .align(Alignment.BottomCenter)
-                    .fillMaxWidth()
-                    .height(120.dp)
-                    .background(
-                        brush = androidx.compose.ui.graphics.Brush.verticalGradient(
-                            colorStops = arrayOf(
-                                0.0f to ComposeColor.Transparent,
-                                0.15f to MiuixTheme.colorScheme.surface.copy(alpha = 0.5f),
-                                0.5f to MiuixTheme.colorScheme.surface.copy(alpha = 0.85f),
-                                1.0f to MiuixTheme.colorScheme.surface
-                            )
-                        )
-                    )
-            )
-
-            // 添加到桌面按钮 - 固定在底部
-            TextButton(
-                text = "添加到桌面",
-                onClick = {
-                    hapticFeedback.performHapticFeedback(HapticFeedbackType.VirtualKey)
-                    showGuideDialog = true
-                },
-                colors = top.yukonga.miuix.kmp.basic.ButtonDefaults.textButtonColorsPrimary(),
-                modifier = Modifier
-                    .align(Alignment.BottomCenter)
-                    .fillMaxWidth()
-                    .padding(start = tabletHorizontalPadding + 16.dp, end = tabletHorizontalPadding + 16.dp, bottom = 48.dp)
-            )
-
-            OverlayDialog(
-                title = "添加桌面小部件",
-                show = showGuideDialog,
-                liquidGlassBackdrop = liquidGlassBackdrop,
-                onDismissRequest = { showGuideDialog = false }
-            ) {
-                Column(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalAlignment = Alignment.CenterHorizontally
-                ) {
-                    Text(
-                        text = "1. 长按桌面空白处\n2. 选择「全部应用」内的「安卓小部件」\n3. 找到「Nexio课程表」并添加",
-                        fontSize = 14.sp,
-                        lineHeight = 24.sp,
-                        color = MiuixTheme.colorScheme.onSurfaceVariantActions
-                    )
-                    Spacer(modifier = Modifier.height(20.dp))
-                    TextButton(
-                        text = "我知道了",
-                        onClick = {
-                            hapticFeedback.performHapticFeedback(HapticFeedbackType.Confirm)
-                            showGuideDialog = false
-                        },
-                        modifier = Modifier.fillMaxWidth()
-                    )
-                }
-            }
+            // 底部「添加到桌面」已上提到 WidgetIntroActivity
         }
     }
 }
