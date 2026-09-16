@@ -44,6 +44,7 @@ import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.platform.LocalConfiguration
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.text.font.FontWeight
@@ -53,6 +54,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.haooz.chedule.data.CardRefractionLevel
 import com.haooz.chedule.data.Course
+import com.haooz.chedule.data.HolidayManager
 import com.haooz.chedule.ui.basic.CollapsibleTopAppBarDefaults
 import com.haooz.chedule.ui.basic.SharedScrollBehavior
 import com.haooz.chedule.ui.basic.collapsibleTopInset
@@ -375,6 +377,7 @@ fun TodayScreen(
 
     val density = LocalDensity.current
     val configuration = LocalConfiguration.current
+    val appContext = LocalContext.current.applicationContext
     val screenWidthPx = with(density) { configuration.screenWidthDp.dp.toPx() }
     val screenHeightPx = with(density) { configuration.screenHeightDp.dp.toPx() }
     val minWallpaperScale = remember(wallpaperBitmap, screenWidthPx, screenHeightPx) {
@@ -560,12 +563,20 @@ fun TodayScreen(
                 val pageWeek = remember(pageDate, classStartTime) {
                     calculateWeekFromDate(classStartTime, pageDate)
                 }
-                val pageCourses = remember(courses, pageWeek, pageDayOfWeek, smartWeekend) {
+                // 调休补班日：按配置映射到「第 X 周星期 Y」的课，与课表页 / 小组件同一套逻辑
+                val pageSwap = remember(pageDate) {
+                    HolidayManager.workSwap(appContext, pageDate)
+                }
+                val displayDay = pageSwap?.followWeekday?.takeIf { it in 1..7 } ?: pageDayOfWeek
+                val displayWeek = pageSwap?.followWeek?.takeIf { it > 0 } ?: pageWeek
+                val isWorkSwapDay = pageSwap?.followWeekday?.let { it in 1..7 } == true
+                val pageCourses = remember(courses, displayWeek, displayDay, smartWeekend, isWorkSwapDay) {
                     val dayRange =
-                        (1..5).toList() + settingsViewModel.getWeekendDaysForWeek(pageWeek)
+                        (1..5).toList() + settingsViewModel.getWeekendDaysForWeek(displayWeek)
                             .filter { it in 6..7 }
-                    if (pageDayOfWeek in dayRange) {
-                        courses.filter { it.dayOfWeek == pageDayOfWeek && it.isActiveInWeek(pageWeek) }
+                    // 调休补班即使落在智能周末隐藏的周六日也要显示
+                    if (isWorkSwapDay || displayDay in dayRange) {
+                        courses.filter { it.dayOfWeek == displayDay && it.isActiveInWeek(displayWeek) }
                             .sortedBy { it.startSection }
                     } else {
                         emptyList()
@@ -580,10 +591,14 @@ fun TodayScreen(
 
                 val isPageToday = pageDate == LocalDate.now()
 
-                val tomorrowCourses = remember(courses, pageWeek, pageDayOfWeek, isPageToday) {
+                val tomorrowCourses = remember(courses, pageWeek, pageDayOfWeek, isPageToday, pageDate) {
                     if (isPageToday) {
-                        val tomorrowDay = if (pageDayOfWeek == 7) 1 else pageDayOfWeek + 1
-                        val tomorrowWeek = if (pageDayOfWeek == 7) pageWeek + 1 else pageWeek
+                        val tomorrowDate = pageDate.plusDays(1)
+                        val tomorrowSwap = HolidayManager.workSwap(appContext, tomorrowDate)
+                        val tomorrowDay = tomorrowSwap?.followWeekday?.takeIf { it in 1..7 }
+                            ?: if (pageDayOfWeek == 7) 1 else pageDayOfWeek + 1
+                        val tomorrowWeek = tomorrowSwap?.followWeek?.takeIf { it > 0 }
+                            ?: if (pageDayOfWeek == 7) pageWeek + 1 else pageWeek
                         courses.filter { it.dayOfWeek == tomorrowDay && it.isActiveInWeek(tomorrowWeek) }
                             .sortedBy { it.startSection }
                     } else {
