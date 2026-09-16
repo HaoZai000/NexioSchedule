@@ -815,7 +815,7 @@ fun SwitchScheduleScreen(
 
             OverlayDialog(
                 title = "分享课表",
-                summary = "将课表「${shareConfirmScheduleName.orEmpty()}」上传生成分享口令？\n好友可在「课表导入 → 分享口令导入」中导入，口令 30 分钟内有效",
+                summary = "将课表「${shareConfirmScheduleName.orEmpty()}」上传生成分享口令？\n口令 30 分钟内有效",
                 show = showShareConfirmDialog,
                 liquidGlassBackdrop = liquidGlassBackdrop,
                 onDismissRequest = {

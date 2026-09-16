@@ -2,7 +2,6 @@
 package top.yukonga.miuix.kmp.overlay
 
 import android.os.Build
-import androidx.activity.compose.BackHandler
 import androidx.compose.animation.EnterTransition
 import androidx.compose.animation.ExitTransition
 import androidx.compose.animation.core.Animatable
@@ -29,7 +28,9 @@ import androidx.compose.runtime.setValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.rememberUpdatedState
+import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -79,6 +80,10 @@ import top.yukonga.miuix.kmp.theme.MiuixTheme
 import top.yukonga.miuix.kmp.theme.ThemeController
 import top.yukonga.miuix.kmp.utils.MiuixPopupUtils.Companion.DialogLayout
 import androidx.compose.foundation.layout.fillMaxHeight as fillMaxHeightModifier
+import androidx.navigationevent.NavigationEventInfo
+import androidx.navigationevent.NavigationEventTransitionState
+import androidx.navigationevent.compose.NavigationBackHandler
+import androidx.navigationevent.compose.rememberNavigationEventState
 
 /**
  * 平板版模糊底部弹窗组件：居中悬浮矩形，从底部滑入动画。
@@ -125,11 +130,6 @@ fun BlurBottomSheetTablet(
     }
     // 回调不再经 State 中转（state 的 value 在组合期被 LaunchedEffect key 读取 →
     // 弹窗挂载后的写入会让弹窗内容在打开动画头几帧重组一次），改由内容层直接回调。
-
-    // 返回手势放在 DialogLayout 外面，确保组合时立即生效
-    BackHandler(enabled = show) {
-        onDismissRequest()
-    }
 
     DialogLayout(
         visible = visibleState,
@@ -194,6 +194,10 @@ private fun BlurBottomSheetTabletContent(
     val windowInfo = LocalWindowInfo.current
     // 滑入动画用的窗口高度：在组合期读取一次，避免进入动画期间逐帧做密度换算
     val windowHeightPx = with(density) { windowInfo.containerDpSize.height.toPx() }
+    // 预测性返回：返回手势进度实时驱动 sheet 下滑（API 33+），取消回弹、完成关闭；
+    // 低版本 NavigationBackHandler 自动退化为立即关闭
+    val navigationEventState = rememberNavigationEventState(currentInfo = NavigationEventInfo.None)
+    val backProgress = remember { Animatable(0f) }
 
     val isDark = MiuixTheme.colorScheme.background.luminance() < 0.5f
     val sheetBgColor = sheetBackgroundColor ?: if (isDark) Color(0xFF1E1E1E) else Color(0xFFF2F2F2)
@@ -201,6 +205,7 @@ private fun BlurBottomSheetTabletContent(
     // 显示/隐藏动画（同时驱动弹窗位移与遮罩透明度，确保二者完全同步）
     LaunchedEffect(show) {
         if (show) {
+            backProgress.snapTo(0f)
             if (skipEnterAnimation) {
                 animationProgress.snapTo(1f)
             } else {
@@ -225,11 +230,41 @@ private fun BlurBottomSheetTabletContent(
     // 遮罩透明度在「绘制期」读取（drawBehind），不在组合期读（Modifier.background）。
     // 组合期读会让进入动画的 500ms 内整个弹窗作用域逐帧重组，牵连 backdrop 录制与模糊节点。
     val dimModifier = if (dimBackground) {
-        Modifier.drawBehind { drawRect(Color.Black.copy(alpha = 0.2f * animationProgress.value)) }
+        Modifier.drawBehind {
+            drawRect(Color.Black.copy(alpha = 0.2f * animationProgress.value * (1f - backProgress.value)))
+        }
     } else Modifier
 
     // 外层 lambda 身份不稳定时不要拿它当 pointerInput key
     val currentOnDismissRequest by rememberUpdatedState(onDismissRequest)
+    val coroutineScope = rememberCoroutineScope()
+
+    // 返回手势处理：手势进行中 progress 驱动 sheet 下滑，取消回弹，完成直接关闭
+    NavigationBackHandler(
+        state = navigationEventState,
+        isBackEnabled = show,
+        onBackCancelled = {
+            coroutineScope.launch {
+                backProgress.animateTo(0f, animationSpec = tween(150))
+            }
+        },
+        onBackCompleted = {
+            currentOnDismissRequest()
+        },
+    )
+
+    // 逐帧收集返回手势进度（单独协程，避免手势期间每帧取消/重启 LaunchedEffect）
+    LaunchedEffect(Unit) {
+        snapshotFlow { navigationEventState.transitionState }
+            .collect { transitionState ->
+                if (
+                    transitionState is NavigationEventTransitionState.InProgress &&
+                    transitionState.direction == NavigationEventTransitionState.TRANSITIONING_BACK
+                ) {
+                    backProgress.snapTo(transitionState.latestEvent.progress)
+                }
+            }
+    }
 
     // 弹窗形状与 drawBackdrop 的 shape lambda 必须固定引用：
     // drawBackdrop 的 ModifierNodeElement 用「引用」比较 shape 与 effects，ShapeProvider 没有实现 equals，
@@ -250,8 +285,8 @@ private fun BlurBottomSheetTabletContent(
         val sheetModifier = Modifier
             .graphicsLayer {
                 val progress = animationProgress.value
-                // 从屏幕底部滑入
-                translationY = windowHeightPx * (1f - progress)
+                // 从屏幕底部滑入；backProgress 为返回手势把 sheet 向下推出屏幕
+                translationY = windowHeightPx * (1f - progress) + backProgress.value * windowHeightPx
             }
 
         Box(

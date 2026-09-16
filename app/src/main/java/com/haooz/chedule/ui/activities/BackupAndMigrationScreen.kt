@@ -528,7 +528,7 @@ fun BackupAndMigrationScreen(
     // 始终挂载、靠 show 驱动：避免 if 卸载导致关闭无退出动画
     OverlayDialog(
         title = "口令分享导出",
-        summary = "将课表「$selectedExportSchedule」上传生成分享口令？\n好友可在「课表导入 → 分享口令导入」中导入，口令 30 分钟内有效",
+        summary = "将课表「$selectedExportSchedule」上传生成分享口令？\n口令 30 分钟内有效",
         show = showShareExportConfirmDialog,
         liquidGlassBackdrop = liquidGlassBackdrop,
         onDismissRequest = {

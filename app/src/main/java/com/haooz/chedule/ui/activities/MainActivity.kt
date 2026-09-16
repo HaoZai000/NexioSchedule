@@ -319,7 +319,9 @@ class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
-        backCallback = object : androidx.activity.OnBackPressedCallback(true) {
+        // 默认不启用：只有"退出即隐藏后台"开启时才启用（见 syncBackCallback），
+        // 其余情况交回系统默认返回，保证预测性返回动画可用
+        backCallback = object : androidx.activity.OnBackPressedCallback(false) {
             override fun handleOnBackPressed() {
                 handleBackNavigation()
             }
@@ -414,6 +416,17 @@ class MainActivity : ComponentActivity() {
     override fun onResume() {
         super.onResume()
         resumeCount++
+        // 同步返回回调：仅"退出即隐藏后台"开启时需要自定义回调（moveTaskToBack），
+        // 其余情况交回系统默认返回（finish），保留 Android 14+ 的预测性返回动画
+        syncBackCallback()
+    }
+
+    // 仅"退出即隐藏后台"开启时才启用自定义返回回调，
+    // 让系统把手势识别为默认返回并播放"返回桌面"动画
+    private fun syncBackCallback() {
+        val hideBackground = getSharedPreferences("app_preferences", MODE_PRIVATE)
+            .getBoolean("hide_background", false)
+        backCallback?.isEnabled = hideBackground
     }
 
     override fun onNewIntent(intent: Intent) {
@@ -425,25 +438,12 @@ class MainActivity : ComponentActivity() {
     }
 
     private fun handleBackNavigation() {
-        val hideBackground = getSharedPreferences("app_preferences", MODE_PRIVATE)
-            .getBoolean("hide_background", false)
-        if (hideBackground) {
-            applyHideFromRecents(true)
-            moveTaskToBack(true)
-            return
-        }
-        // 关闭 callback 再派发一次，走系统默认返回栈
-        finishAfterTransitionOrBack()
+        // 仅在"退出即隐藏后台"开启时回调才被启用，这里直接走隐藏后台逻辑
+        applyHideFromRecents(true)
+        moveTaskToBack(true)
     }
 
     private var backCallback: androidx.activity.OnBackPressedCallback? = null
-
-    private fun finishAfterTransitionOrBack() {
-        val cb = backCallback ?: return
-        cb.isEnabled = false
-        onBackPressedDispatcher.onBackPressed()
-        cb.isEnabled = true
-    }
 
     private fun handleReminderSettingsIntent(intent: Intent?) {
         if (intent?.getBooleanExtra(
@@ -788,6 +788,10 @@ private fun MorePopupMenus(
     onCourseManage: () -> Unit,
     onEnterCustomize: () -> Unit,
     onJumpToDate: () -> Unit,
+    onMoreBackProgress: (Float) -> Unit = {},
+    onMoreBackCancelled: () -> Unit = {},
+    onTodayMoreBackProgress: (Float) -> Unit = {},
+    onTodayMoreBackCancelled: () -> Unit = {},
 ) {
     if (showMorePopup) {
         Box(
@@ -825,6 +829,8 @@ private fun MorePopupMenus(
             backdrop = liquidGlassBackdrop,
             fraction = morePopupFraction,
             onDismiss = onMorePopupDismiss,
+            onBackProgress = onMoreBackProgress,
+            onBackCancelled = onMoreBackCancelled,
         ) {
             LiquidGlassDropdownMenuItem(
                 text = "跳转周数",
@@ -878,6 +884,8 @@ private fun MorePopupMenus(
             show = showTodayMorePopup,
             backdrop = liquidGlassBackdrop,
             onDismiss = onTodayMorePopupDismiss,
+            onBackProgress = onTodayMoreBackProgress,
+            onBackCancelled = onTodayMoreBackCancelled,
         ) {
             LiquidGlassDropdownMenuItem(
                 text = "跳转日期",
@@ -2090,6 +2098,9 @@ fun CourseScheduleApp() {
     var showMorePopup by remember { mutableStateOf(false) }
     var showTodayMorePopup by remember { mutableStateOf(false) }
     val morePopupFraction = remember { Animatable(0f) }
+    // 顶栏"更多"按钮的移开/归位进度，由更多菜单的预测性返回手势驱动（shared 给顶栏与菜单）
+    val scheduleMoreButtonFraction = remember { Animatable(0f) }
+    val todayMoreButtonFraction = remember { Animatable(0f) }
     var todayJumpToDateTrigger by remember { mutableIntStateOf(0) }
 
     val isViewingCurrentWeek = currentViewingWeek == currentWeek
@@ -2400,6 +2411,7 @@ fun CourseScheduleApp() {
                                         liquidGlassBackdrop = chromeBackdrop,
                                         scrollBehavior = scheduleScrollBehavior,
                                         showMorePopup = showMorePopup,
+                                        buttonFractionParam = scheduleMoreButtonFraction,
                                     )
                                 }
                             }
@@ -2440,6 +2452,7 @@ fun CourseScheduleApp() {
                                     scrollBehavior = todayScrollBehavior,
                                     showMorePopup = showTodayMorePopup,
                                     visible = showTodayTitle,
+                                    buttonFractionParam = todayMoreButtonFraction,
                                 )
                             }
                         }
@@ -3692,6 +3705,19 @@ fun CourseScheduleApp() {
                     morePopupFraction = morePopupFraction,
                     liquidGlassBackdrop = liquidGlassBackdrop,
                     isShiftMode = isShiftMode,
+                    // 预测性返回手势联动顶栏"更多"按钮：手势推进时按钮归位，取消时恢复移开
+                    onMoreBackProgress = { progress ->
+                        coroutineScope.launch { scheduleMoreButtonFraction.snapTo(1f - progress) }
+                    },
+                    onMoreBackCancelled = {
+                        coroutineScope.launch { scheduleMoreButtonFraction.animateTo(1f, tween(150)) }
+                    },
+                    onTodayMoreBackProgress = { progress ->
+                        coroutineScope.launch { todayMoreButtonFraction.snapTo(1f - progress) }
+                    },
+                    onTodayMoreBackCancelled = {
+                        coroutineScope.launch { todayMoreButtonFraction.animateTo(1f, tween(150)) }
+                    },
                     onJumpWeek = { viewModel.showJumpWeekDialog() },
                     onCourseManage = {
                         val intent = Intent(context, CourseManageActivity::class.java)
@@ -4473,6 +4499,7 @@ private fun TodayTopBar(
     scrollBehavior: SharedScrollBehavior? = null,
     showMorePopup: Boolean = false,
     visible: Boolean = true,
+    buttonFractionParam: Animatable<Float, *>? = null,
 ) {
     if (liquidGlassBackdrop == null) return
     val isTabletLiquidGlass = navBarStyle == "rail"
@@ -4480,7 +4507,7 @@ private fun TodayTopBar(
     val dayOfWeekName = if (currentDayOfWeek in 1..7) dayOfWeekNames[currentDayOfWeek - 1] else ""
     val titleText = if (isToday) "今天是$dayOfWeekName" else dayOfWeekName
 
-    val buttonFraction = remember { Animatable(0f) }
+    val buttonFraction = buttonFractionParam ?: remember { Animatable(0f) }
     LaunchedEffect(showMorePopup) {
         if (showMorePopup) {
             buttonFraction.animateTo(

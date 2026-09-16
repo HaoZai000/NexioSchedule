@@ -2,7 +2,6 @@ package com.haooz.chedule.ui.basic
 
 import android.graphics.BlurMaskFilter
 import android.graphics.Paint
-import androidx.activity.compose.BackHandler
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.CubicBezierEasing
 import androidx.compose.animation.core.spring
@@ -24,6 +23,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Modifier
@@ -57,6 +57,10 @@ import com.kyant.backdrop.effects.vibrancy
 import com.kyant.capsule.ContinuousRoundedRectangle
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.launch
+import androidx.navigationevent.NavigationEventInfo
+import androidx.navigationevent.NavigationEventTransitionState
+import androidx.navigationevent.compose.NavigationBackHandler
+import androidx.navigationevent.compose.rememberNavigationEventState
 import top.yukonga.miuix.kmp.basic.rememberDynamicCornerRadiusShape
 
 private val ShadowPadding = 24.dp
@@ -80,17 +84,65 @@ fun LiquidGlassDropdownMenu(
     modifier: Modifier = Modifier,
     fraction: Animatable<Float,*> = remember { Animatable(0f) },
     onDismiss: (() -> Unit)? = null,
+    onBackProgress: ((Float) -> Unit)? = null,
+    onBackCancelled: (() -> Unit)? = null,
     content: @Composable ColumnScope.() -> Unit
 ) {
+    // 缩放锚点/菜单透明度动画值（预测性返回也驱动它们，故定义在返回处理之前）
+    val transformOriginProgress = remember { Animatable(0f) }
+    val menuAlpha = remember { Animatable(0f) }
     if (show && onDismiss != null) {
-        BackHandler { onDismiss() }
+        // 预测性返回：返回手势进度把菜单缩回锚点（复用 fraction 单一驱动），
+        // 取消回弹恢复、完成关闭；低版本 NavigationBackHandler 自动退化为立即关闭
+        val navigationEventState = rememberNavigationEventState(currentInfo = NavigationEventInfo.None)
+        val backProgress = remember { Animatable(0f) }
+        val coroutineScope = rememberCoroutineScope()
+
+        NavigationBackHandler(
+            state = navigationEventState,
+            isBackEnabled = show,
+            onBackCancelled = {
+                onBackCancelled?.invoke()
+                coroutineScope.launch {
+                    // 手势取消：菜单恢复打开状态
+                    if (backProgress.value > 0f) {
+                        fraction.animateTo(1f, animationSpec = tween(150))
+                        transformOriginProgress.animateTo(1f, animationSpec = tween(150))
+                        menuAlpha.animateTo(1f, animationSpec = tween(150))
+                        backProgress.snapTo(0f)
+                    }
+                }
+            },
+            onBackCompleted = {
+                onDismiss()
+            },
+        )
+
+        // 逐帧收集返回手势进度（单独协程，避免手势期间每帧取消/重启 LaunchedEffect）
+        LaunchedEffect(Unit) {
+            snapshotFlow { navigationEventState.transitionState }
+                .collect { transitionState ->
+                    if (
+                        transitionState is NavigationEventTransitionState.InProgress &&
+                        transitionState.direction == NavigationEventTransitionState.TRANSITIONING_BACK
+                    ) {
+                        val progress = transitionState.latestEvent.progress
+                        backProgress.snapTo(progress)
+                        onBackProgress?.invoke(progress)
+                        // 菜单跟随返回手势从打开状态缩回锚点：
+                        // fraction 驱动缩放/裁剪，transformOriginProgress 驱动缩放锚点移回右上角，
+                        // menuAlpha 跟随淡出，露出锚点处的原按钮
+                        fraction.snapTo(1f - progress)
+                        transformOriginProgress.snapTo(1f - progress)
+                        menuAlpha.snapTo(1f - progress)
+                    }
+                }
+        }
     }
 
     val isLightTheme = !isAppDarkTheme()
     val containerColor = if (isLightTheme) Color(0xFFFFFFFF).copy(0.72f)
         else Color(0xFF242424).copy(0.8f)
-
-    val menuAlpha = remember { Animatable(0f) }
 
     // 内容透明度：进入时从 0.4f 渐显到 1.0f，退出时从 fraction=0.5f 开始消失
     var contentAlpha by remember { mutableFloatStateOf(0f) }
@@ -137,10 +189,7 @@ fun LiquidGlassDropdownMenu(
             }
     }
 
-    val transformOriginProgress = remember { Animatable(0f) }
-
     val cornerRadius = 25.dp
-
     // 裁剪 Shape：fraction=0 时裁为小正方形（对齐右上角），fraction=1 时完整尺寸。
     // 正方形 + 反向放大的圆角（24dp / 0.24f = 100dp > 半边长）→ 视觉圆形。
     val clipShape = remember {

@@ -82,10 +82,11 @@ internal fun ScheduleTopBar(
     liquidGlassBackdrop: com.kyant.backdrop.Backdrop?,
     scrollBehavior: SharedScrollBehavior? = null,
     showMorePopup: Boolean = false,
+    buttonFractionParam: Animatable<Float, *>? = null,
 ) {
     if (!visible || liquidGlassBackdrop == null) return
 
-    val buttonFraction = remember { Animatable(0f) }
+    val buttonFraction = buttonFractionParam ?: remember { Animatable(0f) }
     LaunchedEffect(showMorePopup) {
         if (showMorePopup) {
             buttonFraction.animateTo(

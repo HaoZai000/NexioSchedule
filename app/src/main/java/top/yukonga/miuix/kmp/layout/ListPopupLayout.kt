@@ -3,7 +3,6 @@
 
 package top.yukonga.miuix.kmp.layout
 
-import androidx.activity.compose.BackHandler
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.spring
 import androidx.compose.animation.core.tween
@@ -17,6 +16,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.snapshotFlow
@@ -46,6 +46,10 @@ import top.yukonga.miuix.kmp.basic.rememberListPopupLayoutInfo
 import top.yukonga.miuix.kmp.basic.resolvePopupAnchors
 import top.yukonga.miuix.kmp.theme.LocalDismissState
 import top.yukonga.miuix.kmp.anim.SinOutEasing
+import androidx.navigationevent.NavigationEventInfo
+import androidx.navigationevent.NavigationEventTransitionState
+import androidx.navigationevent.compose.NavigationBackHandler
+import androidx.navigationevent.compose.rememberNavigationEventState
 
 // 本地动画参数（库版本没有这些属性）
 private val FractionEnterAnimSpec = spring<Float>(dampingRatio = 0.78f, stiffness = 232f, visibilityThreshold = 0.0001f)
@@ -234,8 +238,44 @@ fun ListPopupLayout(
     }
 
     popupHost(internalVisible.value) {
-        BackHandler(enabled = show) {
-            requestDismiss()
+        val coroutineScope = rememberCoroutineScope()
+        val backState = rememberNavigationEventState(currentInfo = NavigationEventInfo.None)
+
+        // 预测性返回：手势进度驱动 fraction/alpha/dim 全部收敛到 0（弹窗缩回消失），
+        // 取消恢复、完成关闭；低版本 NavigationBackHandler 自动退化为立即关闭
+        NavigationBackHandler(
+            state = backState,
+            isBackEnabled = show,
+            onBackCancelled = {
+                coroutineScope.launch {
+                    fractionProgress.animateTo(1f, FractionEnterAnimSpec)
+                    alphaProgress.animateTo(1f, AlphaEnterAnimSpec)
+                    if (enableWindowDim) {
+                        dimProgress.animateTo(1f, DimEnterAnimSpec)
+                    }
+                }
+            },
+            onBackCompleted = {
+                requestDismiss()
+            },
+        )
+
+        // 逐帧收集返回手势进度（单独协程，避免手势期间每帧取消/重启 LaunchedEffect）
+        LaunchedEffect(Unit) {
+            snapshotFlow { backState.transitionState }
+                .collect { transitionState ->
+                    if (
+                        transitionState is NavigationEventTransitionState.InProgress &&
+                        transitionState.direction == NavigationEventTransitionState.TRANSITIONING_BACK
+                    ) {
+                        val inv = 1f - transitionState.latestEvent.progress
+                        fractionProgress.snapTo(inv)
+                        alphaProgress.snapTo(inv)
+                        if (enableWindowDim) {
+                            dimProgress.snapTo(inv)
+                        }
+                    }
+                }
         }
 
         Box(
