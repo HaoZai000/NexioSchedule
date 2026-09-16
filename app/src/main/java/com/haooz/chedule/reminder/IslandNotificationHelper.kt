@@ -379,7 +379,7 @@ object IslandNotificationHelper {
         val now = System.currentTimeMillis()
         val remainMs = courseStartMillis?.let { it - now }
         val counting = remainMs != null && remainMs > 0
-        val minutesUntil = if (counting) ((remainMs!! + 59_999L) / 60_000L).toInt() else 0
+        val minutesUntil = if (counting) ((remainMs + 59_999L) / 60_000L).toInt() else 0
 
         val islandLeftText = when (leftMode) {
             0 -> courseName ?: ""
@@ -446,7 +446,7 @@ object IslandNotificationHelper {
                 val timerInfo = JSONObject().apply {
                     if (counting) {
                         put("timerType", -1)
-                        put("timerWhen", courseStartMillis!!)
+                        put("timerWhen", courseStartMillis)
                         put("timerTotal", 0L)
                         put("timerSystemCurrent", now)
                     } else {
@@ -509,7 +509,7 @@ object IslandNotificationHelper {
                             put("showHighlightColor", false)
                             put("timerInfo", JSONObject().apply {
                                 put("timerType", -1)
-                                put("timerWhen", courseStartMillis!!)
+                                put("timerWhen", courseStartMillis)
                                 put("timerTotal", 0L)
                                 put("timerSystemCurrent", now)
                             })
@@ -1114,7 +1114,7 @@ object IslandNotificationHelper {
 
     private fun updateInClassNotification(
         context: Context,
-        state: IslandNotificationHelper.IslandState.Snapshot,
+        state: IslandState.Snapshot,
         testMode: Boolean
     ) {
         val now = System.currentTimeMillis()
@@ -1161,7 +1161,7 @@ object IslandNotificationHelper {
     // 课中刷新：剩余分钟向上取整；进度按整分钟折算，只在跨分钟时变化
     fun updateInClassIslandIfNeeded(
         context: Context,
-        state: IslandNotificationHelper.IslandState.Snapshot,
+        state: IslandState.Snapshot,
         testMode: Boolean = false
     ) {
         if (!isInClassReminderEnabled(context)) return

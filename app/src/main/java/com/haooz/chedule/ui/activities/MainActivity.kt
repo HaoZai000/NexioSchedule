@@ -150,7 +150,6 @@ import com.kyant.backdrop.drawBackdrop
 import com.kyant.backdrop.effects.blur
 import com.kyant.backdrop.effects.vibrancy
 import com.kyant.capsule.ContinuousRoundedRectangle
-import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
@@ -2482,7 +2481,7 @@ fun CourseScheduleApp() {
                             val showSharedWallpaperLayer = !isShiftMode && sharedWallpaperBitmap != null &&
                                 !(mainPagerState.currentPage == 0 && mainPageOffsetAbs < 0.01f && !todayShowWallpaper) &&
                                 (mainPagerState.currentPage != 2 || mainPageOffsetAbs > 0.01f)
-                            if (showSharedWallpaperLayer && sharedWallpaperBitmap != null) {
+                            if (showSharedWallpaperLayer) {
                                 val sharedMinScale = remember(sharedWallpaperBitmap, screenWPx, screenHPx) {
                                     if (sharedWallpaperBitmap.width > 0 && sharedWallpaperBitmap.height > 0) {
                                         val fit = minOf(
@@ -2621,13 +2620,11 @@ fun CourseScheduleApp() {
                                             wallpaperBrightness = displayAppearance.wallpaperBrightness,
                                             cardBlurRadius = displayAppearance.cardBlurRadius,
                                             cardRefraction = displayAppearance.cardRefraction,
-                                            cardAlpha = displayAppearance.cardAlpha,
                                             cardSurfaceAlpha = displayAppearance.cardSurfaceAlpha,
                                             wallpaperBlur = displayAppearance.wallpaperBlur,
                                             liquidGlassBackdrop = liquidGlassBackdrop,
                                             showClassroom = displayAppearance.showClassroom,
                                             showTeacher = displayAppearance.showTeacher,
-                                            externalListState = todayListState,
                                             onListScrollInProgress = { todayListScrollInProgress.value = it },
                                         )
                                             }
@@ -2955,8 +2952,7 @@ fun CourseScheduleApp() {
                                                 }
                                             },
                                             scheduleScrollBehavior = scheduleScrollBehavior,
-                                            paddingValues = paddingValues,
-                                            externalScrollState = scheduleScrollState,
+                                                externalScrollState = scheduleScrollState,
                                             externalShowCourseDetail = scheduleShowCourseDetail,
                                             externalSelectedCourse = scheduleSelectedCourse,
                                             externalSelectedCourses = scheduleSelectedCourses

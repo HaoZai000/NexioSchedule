@@ -20,9 +20,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.platform.LocalConfiguration
-import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.unit.DpOffset
 import androidx.compose.ui.unit.dp
 import com.haooz.chedule.ui.basic.CollapsibleTopAppBar
@@ -55,7 +53,6 @@ class WebDavSettingsActivity : ComponentActivity() {
         applyThemeAwareSystemBars()
         setContent {
             CourseScheduleTheme {
-                val hapticFeedback = LocalHapticFeedback.current
                 val backgroundColor = MiuixTheme.colorScheme.surface
                 val backdrop = rememberLayerBackdrop {
                     drawRect(backgroundColor)

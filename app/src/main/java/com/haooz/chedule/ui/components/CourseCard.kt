@@ -134,7 +134,7 @@ fun CourseCard(
         } else {
             ((dist - 90f) * 0.3f).toLong().coerceAtMost(400L)
         }
-        if (delayMs > 0) delay(delayMs)
+        if (delayMs > 0) delay(delayMs.milliseconds)
         rippleScale.animateTo(1.08f, tween(80, easing = FastOutSlowInEasing))
         rippleScale.animateTo(1f, tween(320, easing = FastOutSlowInEasing))
     }

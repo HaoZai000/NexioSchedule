@@ -188,12 +188,11 @@ fun MainScheduleScreen(
     dropHighlight: Pair<Int, IntRange>? = null,
     onGridGeometryChange: (ScheduleGridGeometry) -> Unit = {},
     scheduleScrollBehavior: SharedScrollBehavior? = null,
-    paddingValues: PaddingValues = androidx.compose.foundation.layout.PaddingValues(),
     // Activity 层提升，return@Scaffold 不会销毁
     externalScrollState: androidx.compose.foundation.ScrollState = rememberScrollState(),
-    externalShowCourseDetail: androidx.compose.runtime.MutableState<Boolean> = mutableStateOf(false),
-    externalSelectedCourse: androidx.compose.runtime.MutableState<Course?> = mutableStateOf(null),
-    externalSelectedCourses: androidx.compose.runtime.MutableState<List<Course>> = mutableStateOf(emptyList()),
+    externalShowCourseDetail: MutableState<Boolean> = mutableStateOf(false),
+    externalSelectedCourse: MutableState<Course?> = mutableStateOf(null),
+    externalSelectedCourses: MutableState<List<Course>> = mutableStateOf(emptyList()),
 ) {
     // 解构外观配置
     val cardBlurRadius = appearance.cardBlurRadius
@@ -282,7 +281,7 @@ fun MainScheduleScreen(
 
     LaunchedEffect(showAddDialog) {
         if (showAddDialog && pendingDay != -1) {
-            kotlinx.coroutines.delay(300.milliseconds)
+            delay(300.milliseconds)
             pendingDay = -1
             pendingSection = -1
         }
@@ -339,7 +338,7 @@ fun MainScheduleScreen(
             } else {
                 (nextTransition - currentMinutes).coerceIn(1, 60)
             }
-            delay(sleepMinutes * 60_000L)
+            delay((sleepMinutes * 60_000L).milliseconds)
         }
     }
 
@@ -1063,7 +1062,7 @@ fun MainScheduleScreen(
                     showCourseDetail = false
                     // 等关闭动画后再开添加弹窗
                     scope.launch {
-                        delay(100)
+                        delay(100.milliseconds)
                         if (course != null) {
                             viewModel.showAddDialog(
                                 course.dayOfWeek,
@@ -1108,10 +1107,10 @@ fun MainScheduleScreen(
                     return@LaunchedEffect
                 }
                 revealCount = 0
-                delay(120)
+                delay(120.milliseconds)
                 for (i in 1..coursesToShow.size) {
                     revealCount = i
-                    delay(56)
+                    delay(56.milliseconds)
                 }
             }
             Column(
@@ -1172,7 +1171,7 @@ fun MainScheduleScreen(
                                 val position =
                                     coordinates.localToRoot(androidx.compose.ui.geometry.Offset.Zero)
                                 val size = coordinates.size
-                                cardBoundsHolder.rect = androidx.compose.ui.geometry.Rect(
+                                cardBoundsHolder.rect = Rect(
                                     left = position.x,
                                     top = position.y,
                                     right = position.x + size.width,
@@ -1235,7 +1234,7 @@ fun MainScheduleScreen(
                                         onPopupStateChange(false)
                                         // 等关闭动画后再开编辑弹窗
                                         scope.launch {
-                                            delay(100)
+                                            delay(100.milliseconds)
                                             viewModel.showEditDialog(course)
                                         }
                                     }

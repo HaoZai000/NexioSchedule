@@ -1,5 +1,6 @@
 package com.haooz.chedule.reminder
 
+import android.annotation.SuppressLint
 import android.app.AlarmManager
 import android.app.Notification
 import android.app.NotificationChannel
@@ -783,6 +784,7 @@ object CourseReminderHelper {
      * 原生实况课中进度：API 36+ 用 ProgressStyle + 提升 ongoing，与 SleepDown 同思路。
      * 每分钟只在剩余分钟/进度变化时重推，挂到下课自动结束。
      */
+    @SuppressLint("NewApi")
     fun showOrUpdateInClassLiveNotification(
         context: Context,
         courseName: String,

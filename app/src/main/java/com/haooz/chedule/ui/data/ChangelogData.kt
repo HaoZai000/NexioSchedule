@@ -10,8 +10,7 @@ val changelogData = listOf(
         version = "v1.5.2-0914",
         date = "2026-09-14",
         changes = listOf(
-            "优化应用部分体验",
-            "修复部分已知问题",
+            ""
         )
     ),
     ChangelogEntry(

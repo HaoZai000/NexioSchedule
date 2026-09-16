@@ -17,7 +17,6 @@ import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyListState
-import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.pager.HorizontalPager
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -354,18 +353,16 @@ fun TodayScreen(
     wallpaperBrightness: Float = 0f,
     cardBlurRadius: Float = 0f,
     cardRefraction: CardRefractionLevel = CardRefractionLevel.DEFAULT,
-    cardAlpha: Float = 0.15f,
     /** 有壁纸时白/黑底不透明度（卡片不透明度） */
     cardSurfaceAlpha: Float = 0.15f,
     wallpaperBlur: Boolean = false,
     // true：壁纸由主 pager 后共享层绘制，本页透明叠上，切 tab 时不随页平移
     useSharedWallpaper: Boolean = false,
     // 共享壁纸层的 backdrop，供卡片玻璃采样（useSharedWallpaper 时必传）
-    sharedWallpaperBackdrop: com.kyant.backdrop.Backdrop? = null,
+    sharedWallpaperBackdrop: Backdrop? = null,
     liquidGlassBackdrop: Backdrop? = null,
     showClassroom: Boolean = true,
     showTeacher: Boolean = true,
-    externalListState: androidx.compose.foundation.lazy.LazyListState = rememberLazyListState(),
 ) {
     val courses by viewModel.courses.collectAsState()
     val classStartTime by viewModel.classStartTime.collectAsState()
@@ -445,7 +442,7 @@ fun TodayScreen(
         drawRect(backgroundColor)
         drawContent()
     }
-    val cardBackdrop: com.kyant.backdrop.Backdrop =
+    val cardBackdrop: Backdrop =
         if (useSharedWallpaper && sharedWallpaperBackdrop != null) sharedWallpaperBackdrop
         else localCardBackdrop
     val hasWallpaper = todayShowWallpaper && wallpaperBitmap != null
@@ -472,7 +469,7 @@ fun TodayScreen(
         topBar = {},
         // 共享壁纸时本页必须透明，否则会盖住主 pager 后面的壁纸层
         containerColor = if (useSharedWallpaper && todayShowWallpaper && wallpaperBitmap != null) {
-            androidx.compose.ui.graphics.Color.Transparent
+            Color.Transparent
         } else {
             MiuixTheme.colorScheme.surface
         }
