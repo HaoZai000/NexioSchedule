@@ -92,6 +92,7 @@ fun DayColumn(
     wallpaperBackdrop: Backdrop? = null,
     cardBlurRadius: Float = 0f,
     cardAlpha: Float = 0.15f,
+    cardSurfaceAlpha: Float = 0.15f,
     cardHeightPerSection: Float = 54f,
     cardCornerRadius: Float = 10f,
     showBreakDividers: Boolean = true,
@@ -322,6 +323,7 @@ fun DayColumn(
                 cardHeightPerSection = cardHeightPerSection,
                 cardCornerRadius = cardCornerRadius,
                 cardAlpha = cardAlpha,
+                cardSurfaceAlpha = cardSurfaceAlpha,
                 isTablet = isTablet,
                 cardContentAlignment = cardContentAlignment,
                 cardTextColor = cardTextColor,
@@ -362,6 +364,7 @@ private fun CourseCardsLayer(
     cardHeightPerSection: Float,
     cardCornerRadius: Float,
     cardAlpha: Float,
+    cardSurfaceAlpha: Float = 0.15f,
     isTablet: Boolean,
     cardContentAlignment: com.haooz.chedule.data.CardContentAlignment,
     cardTextColor: com.haooz.chedule.data.CardTextColor,
@@ -473,6 +476,7 @@ private fun CourseCardsLayer(
                         wallpaperBackdrop = wallpaperBackdrop,
                         cardBlurRadius = cardBlurRadius,
                         cardAlpha = cardAlpha,
+                        cardSurfaceAlpha = cardSurfaceAlpha,
                         cardHeightPerSection = cardHeightPerSection,
                         customCardHeightDp = layout.heightDp,
                         cardCornerRadius = cardCornerRadius,
@@ -514,6 +518,7 @@ private fun CourseCardsLayer(
                         wallpaperBackdrop = wallpaperBackdrop,
                         cardBlurRadius = cardBlurRadius,
                         cardAlpha = cardAlpha,
+                        cardSurfaceAlpha = cardSurfaceAlpha,
                         cardHeightPerSection = cardHeightPerSection,
                         cardCornerRadius = cardCornerRadius,
                         isTablet = isTablet,
@@ -742,6 +747,7 @@ fun SpecialBandOverlay(
     cardCornerRadius: Float,
     cardBlurRadius: Float,
     cardAlpha: Float,
+    cardSurfaceAlpha: Float = 0.15f,
     cardRefraction: com.haooz.chedule.data.CardRefractionLevel = com.haooz.chedule.data.CardRefractionLevel.DEFAULT,
     isTablet: Boolean = false,
     wallpaperBackdrop: Backdrop?,
@@ -768,9 +774,9 @@ fun SpecialBandOverlay(
             val blurPx = with(density) { remember(cardBlurRadius) { cardBlurRadius.dp.toPx() } }
             val lensRadiusPx = with(density) { remember(cardRefraction) { cardRefraction.lensRadiusDp.dp.toPx() } }
             val lensStrengthPx = with(density) { remember(cardRefraction) { cardRefraction.lensStrengthDp.dp.toPx() } }
-            val overlayColor = remember(isDark, alphaFactor) {
-                if (isDark) Color.Black.copy(alpha = (0.15f * alphaFactor).coerceIn(0f, 1f))
-                else Color.White.copy(alpha = (0.17f * alphaFactor).coerceIn(0f, 1f))
+            val overlayColor = remember(isDark, cardSurfaceAlpha) {
+                if (isDark) Color.Black.copy(alpha = cardSurfaceAlpha.coerceIn(0f, 1f))
+                else Color.White.copy(alpha = cardSurfaceAlpha.coerceIn(0f, 1f))
             }
             val isSharedBlur = wallpaperBackdrop is SharedBlurBackdrop
             val bandEffects: com.kyant.backdrop.BackdropEffectScope.() -> Unit =

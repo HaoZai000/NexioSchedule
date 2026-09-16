@@ -30,6 +30,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.snapshotFlow
 import androidx.compose.runtime.staticCompositionLocalOf
@@ -165,9 +166,8 @@ fun LiquidBottomTabs(
         val isLtr = LocalLayoutDirection.current == LayoutDirection.Ltr
         val ltrSign = if (isLtr) 1f else -1f
         val animationScope = rememberCoroutineScope()
-        var currentIndex by remember(selectedTabIndex) {
-            mutableIntStateOf(selectedTabIndex())
-        }
+        // 不能用 selectedTabIndex lambda 做 remember key：每次重组都是新实例，currentIndex 会被冲掉导致点 tab 无效
+        var currentIndex by remember { mutableIntStateOf(selectedTabIndex()) }
         val dampedDragAnimation = remember(animationScope) {
             DampedDragAnimation(
                 animationScope = animationScope,
@@ -181,10 +181,13 @@ fun LiquidBottomTabs(
                 onDrag = { _, _ -> }
             )
         }
-        LaunchedEffect(selectedTabIndex) {
-            snapshotFlow { selectedTabIndex() }
+        val latestSelectedTabIndex by rememberUpdatedState(selectedTabIndex)
+        LaunchedEffect(dampedDragAnimation) {
+            snapshotFlow { latestSelectedTabIndex() }
                 .collectLatest { index ->
-                    currentIndex = index
+                    if (index != currentIndex) {
+                        currentIndex = index
+                    }
                 }
         }
         LaunchedEffect(dampedDragAnimation) {

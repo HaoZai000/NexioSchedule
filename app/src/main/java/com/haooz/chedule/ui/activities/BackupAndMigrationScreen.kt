@@ -410,7 +410,7 @@ fun BackupAndMigrationScreen(
                             )
                             ArrowPreference(
                                 title = "口令分享导出",
-                                summary = "生成趣味口令与分享图片，30分钟内有效",
+                                summary = "生成趣味口令与分享图片",
                                 onClick = {
                                     if (selectedExportSchedule.isBlank()) {
                                         Toast.makeText(context, "请先选择要分享的课表", Toast.LENGTH_SHORT).show()
@@ -445,8 +445,8 @@ fun BackupAndMigrationScreen(
                                 }
                             )
                             ArrowPreference(
-                                title = "Web 云备份",
-                                summary = if (webDavManager.isConfigured()) lastSyncSummary else "配置 WebDAV 后可云备份/恢复",
+                                title = "WebDAV 云备份",
+                                summary = if (webDavManager.isConfigured()) lastSyncSummary else "配置WebDAV后可云备份/恢复",
                                 onClick = {
                                     val intent = Intent(context, WebDavSettingsActivity::class.java)
                                     context.startActivity(intent)
@@ -525,66 +525,64 @@ fun BackupAndMigrationScreen(
         }
     }
 
-    if (showShareExportConfirmDialog) {
-        OverlayDialog(
-            title = "口令分享导出",
-            summary = "将课表「$selectedExportSchedule」上传生成分享口令？\n好友可在「课表导入 → 分享口令导入」中导入，口令 30 分钟内有效",
-            show = true,
-            liquidGlassBackdrop = liquidGlassBackdrop,
-            onDismissRequest = {
-                if (!isSharingExport) {
-                    showShareExportConfirmDialog = false
-                }
+    // 始终挂载、靠 show 驱动：避免 if 卸载导致关闭无退出动画
+    OverlayDialog(
+        title = "口令分享导出",
+        summary = "将课表「$selectedExportSchedule」上传生成分享口令？\n好友可在「课表导入 → 分享口令导入」中导入，口令 30 分钟内有效",
+        show = showShareExportConfirmDialog,
+        liquidGlassBackdrop = liquidGlassBackdrop,
+        onDismissRequest = {
+            if (!isSharingExport) {
+                showShareExportConfirmDialog = false
             }
+        }
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(top = 12.dp),
+            horizontalArrangement = Arrangement.spacedBy(12.dp)
         ) {
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(top = 12.dp),
-                horizontalArrangement = Arrangement.spacedBy(12.dp)
-            ) {
-                TextButton(
-                    text = "取消",
-                    onClick = {
-                        hapticFeedback.performHapticFeedback(HapticFeedbackType.Confirm)
-                        showShareExportConfirmDialog = false
-                    },
-                    modifier = Modifier.weight(1f)
-                )
-                TextButton(
-                    text = if (isSharingExport) "分享中…" else "确认分享",
-                    onClick = {
-                        if (isSharingExport) return@TextButton
-                        hapticFeedback.performHapticFeedback(HapticFeedbackType.Confirm)
-                        val name = selectedExportSchedule
-                        showShareExportConfirmDialog = false
-                        performScheduleShare(
-                            context = context,
-                            scope = scope,
-                            scheduleName = name,
-                            onSharingChanged = { isSharingExport = it }
-                        )
-                    },
-                    colors = ButtonDefaults.textButtonColorsPrimary(),
-                    modifier = Modifier.weight(1f)
-                )
-            }
+            TextButton(
+                text = "取消",
+                onClick = {
+                    hapticFeedback.performHapticFeedback(HapticFeedbackType.Confirm)
+                    showShareExportConfirmDialog = false
+                },
+                modifier = Modifier.weight(1f)
+            )
+            TextButton(
+                text = if (isSharingExport) "分享中…" else "确认分享",
+                onClick = {
+                    if (isSharingExport) return@TextButton
+                    hapticFeedback.performHapticFeedback(HapticFeedbackType.Confirm)
+                    val name = selectedExportSchedule
+                    showShareExportConfirmDialog = false
+                    performScheduleShare(
+                        context = context,
+                        scope = scope,
+                        scheduleName = name,
+                        onSharingChanged = { isSharingExport = it }
+                    )
+                },
+                colors = ButtonDefaults.textButtonColorsPrimary(),
+                modifier = Modifier.weight(1f)
+            )
         }
     }
 
-    if (showShareCodeDialog) {
-        OverlayDialog(
-            title = "口令导入",
-            summary = "输入好友分享的口令，30 分钟内有效",
-            show = true,
-            liquidGlassBackdrop = liquidGlassBackdrop,
-            onDismissRequest = {
-                if (!isImportingShareCode) {
-                    showShareCodeDialog = false
-                    shareCodeInput = ""
-                }
+    OverlayDialog(
+        title = "口令导入",
+        summary = "输入好友分享的口令，30 分钟内有效",
+        show = showShareCodeDialog,
+        liquidGlassBackdrop = liquidGlassBackdrop,
+        onDismissRequest = {
+            if (!isImportingShareCode) {
+                showShareCodeDialog = false
+                shareCodeInput = ""
             }
-        ) {
+        }
+    ) {
             Column(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalAlignment = Alignment.CenterHorizontally
@@ -654,7 +652,6 @@ fun BackupAndMigrationScreen(
                 }
             }
         }
-    }
 }
 
 private fun buildExportJson(

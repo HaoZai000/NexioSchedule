@@ -269,6 +269,9 @@ fun CustomizeScheduleScreen(
             appearance.cardAlpha
         )
     }
+    var cardSurfaceAlphaValue by remember(currentCombinationIndex, sheetResetKey) {
+        mutableFloatStateOf(appearance.cardSurfaceAlpha)
+    }
     var wallpaperBrightnessValue by remember(
         currentCombinationIndex,
         sheetResetKey
@@ -336,6 +339,7 @@ fun CustomizeScheduleScreen(
     fun buildAppearance() = AppearanceConfig(
         cardBlurRadius = effectValue,
         cardAlpha = cardAlphaValue,
+        cardSurfaceAlpha = cardSurfaceAlphaValue,
         cardHeight = cardHeightValue,
         cardCornerRadius = cardCornerRadiusValue,
         wallpaperBrightness = wallpaperBrightnessValue,
@@ -348,7 +352,7 @@ fun CustomizeScheduleScreen(
         cardRefraction = cardRefractionValue,
         wallpaperBlur = wallpaperBlurValue
     )
-    LaunchedEffect(effectValue, cardAlphaValue) { onAppearanceChange(buildAppearance()) }
+    LaunchedEffect(effectValue, cardAlphaValue, cardSurfaceAlphaValue) { onAppearanceChange(buildAppearance()) }
     LaunchedEffect(wallpaperBrightnessValue) { onAppearanceChange(buildAppearance()) }
     LaunchedEffect(cardHeightValue, cardCornerRadiusValue) {
         delay(16.milliseconds)
@@ -1330,6 +1334,30 @@ fun CustomizeScheduleScreen(
                     SheetCard {
                         Column {
                             SliderItem(
+                                label = "卡片着色程度",
+                                value = cardAlphaValue,
+                                valueRange = 0f..1f,
+                                keyPoints = listOf(0.15f),
+                                enabled = true,
+                                onValueChange = { cardAlphaValue = it },
+                                quantize = { (it * 100f).roundToInt() / 100f },
+                                suffix = "%",
+                                displayValue = { (it * 100).roundToInt().toString() },
+                                parseInput = { it.toFloatOrNull()?.let { v -> (v / 100f).coerceIn(0f, 1f) } }
+                            )
+                            SliderItem(
+                                label = "卡片不透明度",
+                                value = cardSurfaceAlphaValue,
+                                valueRange = 0f..1f,
+                                keyPoints = listOf(0.15f),
+                                enabled = hasWallpaper,
+                                onValueChange = { if (hasWallpaper) cardSurfaceAlphaValue = it },
+                                quantize = { (it * 100f).roundToInt() / 100f },
+                                suffix = "%",
+                                displayValue = { (it * 100).roundToInt().toString() },
+                                parseInput = { it.toFloatOrNull()?.let { v -> (v / 100f).coerceIn(0f, 1f) } }
+                            )
+                            SliderItem(
                                 label = "卡片模糊",
                                 value = effectValue,
                                 valueRange = 0f..20f,
@@ -1346,19 +1374,6 @@ fun CustomizeScheduleScreen(
                                 value = cardRefractionValue,
                                 enabled = hasWallpaper,
                                 onValueChange = { if (hasWallpaper) cardRefractionValue = it }
-                            )
-                            SliderItem(
-                                label = "卡片不透明度",
-                                value = cardAlphaValue,
-                                valueRange = 0f..1f,
-                                keyPoints = listOf(0.15f),
-                                enabled = true,
-                                onValueChange = { cardAlphaValue = it },
-                                // 百分比显示只到整数，这里同步按 1% 步进，避免显示与实际值不一致
-                                quantize = { (it * 100f).roundToInt() / 100f },
-                                suffix = "%",
-                                displayValue = { (it * 100).roundToInt().toString() },
-                                parseInput = { it.toFloatOrNull()?.let { v -> (v / 100f).coerceIn(0f, 1f) } }
                             )
                         }
                     }

@@ -83,6 +83,8 @@ fun CourseCard(
     wallpaperBackdrop: Backdrop? = null,
     cardBlurRadius: Float = 0f,
     cardAlpha: Float = 0.15f,
+    /** 有壁纸时白/黑底不透明度（卡片不透明度） */
+    cardSurfaceAlpha: Float = 0.15f,
     cardHeightPerSection: Float = 54f,
     // 自定义时间课显式指定高度；null 时按节次数算
     customCardHeightDp: Float? = null,
@@ -183,7 +185,11 @@ fun CourseCard(
             val blurPx = with(localDensity) { remember(cardBlurRadius) { cardBlurRadius.dp.toPx() } }
             val lensRadiusPx = with(localDensity) { remember(cardRefraction) { cardRefraction.lensRadiusDp.dp.toPx() } }
             val lensStrengthPx = with(localDensity) { remember(cardRefraction) { cardRefraction.lensStrengthDp.dp.toPx() } }
-            val overlayColor = remember(isDark) { if (isDark) Color.Black.copy(alpha = 0.15f) else Color.White.copy(alpha = 0.17f) }
+            // 白/黑底由「卡片不透明度」控制；课程色由「卡片着色程度」控制
+            val overlayColor = remember(isDark, cardSurfaceAlpha) {
+                if (isDark) Color.Black.copy(alpha = cardSurfaceAlpha.coerceIn(0f, 1f))
+                else Color.White.copy(alpha = cardSurfaceAlpha.coerceIn(0f, 1f))
+            }
             val isSharedBlur = wallpaperBackdrop is SharedBlurBackdrop
             val backdropEffects: com.kyant.backdrop.BackdropEffectScope.() -> Unit =
                 remember(isSharedBlur, blurPx, lensRadiusPx, lensStrengthPx, cardRefraction) {
@@ -200,8 +206,9 @@ fun CourseCard(
             val onCardSurface: androidx.compose.ui.graphics.drawscope.DrawScope.() -> Unit =
                 remember(cardColor, overlayColor) {
                     {
-                        drawRect(cardColor)
+                        // 白/黑底在下，课程色在上
                         drawRect(overlayColor)
+                        drawRect(cardColor)
                     }
                 }
             val outlineColor = remember(cardColor) { cardColor.copy(alpha = 0.05f) }

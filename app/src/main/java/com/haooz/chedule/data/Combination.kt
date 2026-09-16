@@ -14,6 +14,8 @@ data class Combination(
     var snapshot: Bitmap? = null,
     var cardBlurRadius: Float = 4f,
     var cardAlpha: Float = 0.15f,
+    /** 有壁纸时卡片白/黑底不透明度；null=未设置，读默认 0.15 */
+    var cardSurfaceAlpha: Float? = null,
     var cardHeight: Float = 54f,
     var cardCornerRadius: Float = 10f,
     var wallpaperBrightness: Float = 0f,
@@ -41,6 +43,8 @@ data class CombinationStyle(
     val scale: Float = 1f,
     val cardBlur: Float = 0f,
     val cardAlpha: Float = 0.15f,
+    /** 有壁纸时白/黑底不透明度；null=旧快照未写入，用默认 */
+    val cardSurfaceAlpha: Float? = null,
     val cardHeight: Float = 54f,
     val cardCornerRadius: Float = 8f,
     val wallpaperBrightness: Float = 0f,
@@ -60,6 +64,9 @@ data class CombinationStyle(
 
     val safeCardTextScale: Float get() = if (cardTextScale > 0f) cardTextScale else 1f
 
+    val safeCardSurfaceAlpha: Float
+        get() = cardSurfaceAlpha?.takeIf { it in 0f..1f } ?: CARD_SURFACE_ALPHA_DEFAULT
+
     /**
      * 为 0 时网格高度会整页静默空白（不崩、无日志）；滑杆合法区间 34~92，0 一律视为损坏恢复默认。
      */
@@ -68,10 +75,12 @@ data class CombinationStyle(
     companion object {
         /** 与自定义页滑杆默认值一致 */
         const val CARD_HEIGHT_DEFAULT = 54f
+        const val CARD_SURFACE_ALPHA_DEFAULT = 0.15f
 
         /** 仅用于校验快照键名，不参与取值 */
         private val FIELD_NAMES = setOf(
-            "offsetX", "offsetY", "scale", "cardBlur", "cardAlpha", "cardHeight",
+            "offsetX", "offsetY", "scale", "cardBlur", "cardAlpha", "cardSurfaceAlpha",
+            "cardHeight",
             "cardCornerRadius", "wallpaperBrightness", "wallpaperIsLight",
             "showBreakDividers", "cardContentAlignment", "cardTextColor",
             "cardTextScale", "showClassroom", "showTeacher", "cardRefraction",

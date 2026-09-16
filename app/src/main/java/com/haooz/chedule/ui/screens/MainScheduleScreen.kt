@@ -175,6 +175,10 @@ fun MainScheduleScreen(
     wallpaperBitmap: android.graphics.Bitmap? = null,
     wallpaperOffset: androidx.compose.ui.geometry.Offset = androidx.compose.ui.geometry.Offset.Zero,
     wallpaperScale: Float = 1f,
+    // true：壁纸由主 pager 后共享层绘制，本页透明叠上，切 tab 时不随页平移
+    useSharedWallpaper: Boolean = false,
+    // 共享壁纸层 backdrop，供卡片玻璃采样（useSharedWallpaper 时必传 LayerBackdrop）
+    sharedWallpaperBackdrop: com.kyant.backdrop.backdrops.LayerBackdrop? = null,
     isWallpaperEditing: Boolean = false,
     onWallpaperOffsetChange: (androidx.compose.ui.geometry.Offset) -> Unit = {},
     onWallpaperScaleChange: (Float) -> Unit = {},
@@ -194,6 +198,7 @@ fun MainScheduleScreen(
     // 解构外观配置
     val cardBlurRadius = appearance.cardBlurRadius
     val cardAlpha = appearance.cardAlpha
+    val cardSurfaceAlpha = appearance.cardSurfaceAlpha
     val cardHeightPerSection = appearance.cardHeight
     val cardCornerRadius = appearance.cardCornerRadius
     val wallpaperBrightness = appearance.wallpaperBrightness
@@ -456,9 +461,13 @@ fun MainScheduleScreen(
         }
 
     // key 含 wallpaperBitmap：壁纸变化时强制重建并重录
-    val courseCardBackdrop = key(wallpaperBitmap) {
+    // 共享壁纸时直接用主层 backdrop，卡片才能采到真实壁纸像素
+    val localCourseCardBackdrop = key(wallpaperBitmap) {
         rememberKyantLayerBackdrop(onDraw = wallpaperOnDraw)
     }
+    val courseCardBackdrop: com.kyant.backdrop.backdrops.LayerBackdrop =
+        if (useSharedWallpaper && sharedWallpaperBackdrop != null) sharedWallpaperBackdrop
+        else localCourseCardBackdrop
 
     // 仅壁纸路径需要共享模糊层
     val sharedBlurManager = if (wallpaperBitmap != null) {
@@ -498,7 +507,11 @@ fun MainScheduleScreen(
             Box(
                 modifier = Modifier
                     .fillMaxSize()
-                    .kyantLayerBackdrop(courseCardBackdrop, wallpaperRecordKey)
+                    .then(
+                        // 共享层已录制；本页不再录，避免用透明内容覆盖共享 backdrop
+                        if (useSharedWallpaper) Modifier
+                        else Modifier.kyantLayerBackdrop(courseCardBackdrop, wallpaperRecordKey)
+                    )
             ) {
                 val brightnessFilter = remember(wallpaperBrightness) {
                     if (wallpaperBrightness != 0f) {
@@ -535,6 +548,8 @@ fun MainScheduleScreen(
                             val effectiveScale = maxOf(wallpaperScale, minWallpaperScale)
                             scaleX = effectiveScale
                             scaleY = effectiveScale
+                            // 共享层负责显示；这里只录 backdrop，保持不可见
+                            alpha = if (useSharedWallpaper) 0f else 1f
                             translationX = wallpaperOffset.x
                             translationY = wallpaperOffset.y
                             renderEffect = wallpaperBlurEffect
@@ -668,6 +683,7 @@ fun MainScheduleScreen(
                                 cardCornerRadius = cardCornerRadius,
                                 cardBlurRadius = cardBlurRadius,
                                 cardAlpha = cardAlpha,
+                                cardSurfaceAlpha = cardSurfaceAlpha,
                                 cardRefraction = cardRefraction,
                                 isTablet = isTablet,
                                 wallpaperBackdrop = activeCardBackdrop,
@@ -781,6 +797,7 @@ fun MainScheduleScreen(
                                 wallpaperBackdrop = activeCardBackdrop,
                                 cardBlurRadius = cardBlurRadius,
                                 cardAlpha = cardAlpha,
+                                cardSurfaceAlpha = cardSurfaceAlpha,
                                 cardHeightPerSection = cardHeightPerSection,
                                 cardCornerRadius = cardCornerRadius,
                                 showBreakDividers = showBreakDividers,
@@ -914,18 +931,28 @@ fun MainScheduleScreen(
                     val dividerLensStrengthPx = with(dividerDensity) { remember(cardRefraction) { (cardRefraction.lensStrengthDp * 1f).dp.toPx() } }
                     val hasWallpaperDivider = wallpaperBitmap != null
                     val dividerBaseColor = if (hasWallpaperDivider) Color.Transparent else if (dividerIsDark) Color(0xFF121212) else Color(0xFFF0F0F0)
-                    val dividerGlassColor = if (dividerIsDark) Color(0xFF323232).copy(alpha = 0.64f) else Color.White.copy(alpha = 0.5f)
-                    val dividerOverlayColor = if (dividerIsDark) Color(0xFF323232).copy(alpha = 0.12f) else Color.White.copy(alpha = 0.1f)
+                    // 15% 锚定当前视觉；百分比映射到 0..1（仅作用于有壁纸玻璃表面）
+                    val dividerSurfaceAlphaAt15 = if (dividerIsDark) 0.64f else 0.50f
                     val dividerBlurShape = remember { ContinuousRoundedRectangle(12.dp) }
                     val dividerEdgeLightShape = remember { ContinuousRoundedRectangle(12.dp) }
 
                     @Composable
                     fun BreakDivider(offsetY: Int, text: String) {
-                        // 以默认 0.15 为基准等比缩放；基于原始 cardAlpha 使默认因子恒为 1
-                        val dividerAlphaFactor = cardAlpha / 0.15f
-                        val dividerFgBase = dividerBaseColor.copy(alpha = (dividerBaseColor.alpha * dividerAlphaFactor).coerceIn(0f, 1f))
-                        val dividerFgGlass = dividerGlassColor.copy(alpha = (dividerGlassColor.alpha * dividerAlphaFactor).coerceIn(0f, 1f))
-                        val dividerFgOverlay = dividerOverlayColor.copy(alpha = (dividerOverlayColor.alpha * dividerAlphaFactor).coerceIn(0f, 1f))
+                        // 0%→0，15%→当前，100%→1；两段线性映射（仅作用于有壁纸玻璃表面）
+                        val p = cardSurfaceAlpha.coerceIn(0f, 1f)
+                        val surfaceAlpha = if (p <= 0.15f) {
+                            (p / 0.15f) * dividerSurfaceAlphaAt15
+                        } else {
+                            dividerSurfaceAlphaAt15 +
+                                ((p - 0.15f) / 0.85f) * (1f - dividerSurfaceAlphaAt15)
+                        }
+                        // 无壁纸底色保持实色，不随「卡片不透明度」变化
+                        val dividerFgBase = dividerBaseColor
+                        val dividerFgSurface = if (dividerIsDark) {
+                            Color(0xFF323232).copy(alpha = surfaceAlpha)
+                        } else {
+                            Color.White.copy(alpha = surfaceAlpha)
+                        }
                         Box(
                             modifier = Modifier.fillMaxWidth().offset(y = offsetY.dp)
                                 .height(24.dp)
@@ -952,10 +979,9 @@ fun MainScheduleScreen(
                                             shadow = null,
                                             downsampleScale = 0.48f,
                                             viewport = com.kyant.backdrop.LocalBackdropViewport.current,
-                                            onDrawSurface = remember(dividerFgGlass, dividerFgOverlay) {
+                                            onDrawSurface = remember(dividerFgSurface) {
                                                 {
-                                                    drawRect(dividerFgGlass)
-                                                    drawRect(dividerFgOverlay)
+                                                    drawRect(dividerFgSurface)
                                                 }
                                             }
                                         ).edgeLight(shape = dividerEdgeLightShape, edgeLight = rememberCourseCardEdgeLight())

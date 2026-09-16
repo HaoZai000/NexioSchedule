@@ -351,7 +351,13 @@ fun TodayScreen(
     cardBlurRadius: Float = 0f,
     cardRefraction: CardRefractionLevel = CardRefractionLevel.DEFAULT,
     cardAlpha: Float = 0.15f,
+    /** 有壁纸时白/黑底不透明度（卡片不透明度） */
+    cardSurfaceAlpha: Float = 0.15f,
     wallpaperBlur: Boolean = false,
+    // true：壁纸由主 pager 后共享层绘制，本页透明叠上，切 tab 时不随页平移
+    useSharedWallpaper: Boolean = false,
+    // 共享壁纸层的 backdrop，供卡片玻璃采样（useSharedWallpaper 时必传）
+    sharedWallpaperBackdrop: com.kyant.backdrop.Backdrop? = null,
     liquidGlassBackdrop: Backdrop? = null,
     showClassroom: Boolean = true,
     showTeacher: Boolean = true,
@@ -435,15 +441,24 @@ fun TodayScreen(
         drawRect(backgroundColor)
         drawContent()
     }
-    // 供今日页卡片 drawBackdrop 采样壁纸
-    val cardBackdrop = rememberKyantLayerBackdrop {
+    // 供今日页卡片 drawBackdrop 采样壁纸：共享层时直接用主层 backdrop，否则录本页壁纸
+    val localCardBackdrop = rememberKyantLayerBackdrop {
         drawRect(backgroundColor)
         drawContent()
     }
+    val cardBackdrop: com.kyant.backdrop.Backdrop =
+        if (useSharedWallpaper && sharedWallpaperBackdrop != null) sharedWallpaperBackdrop
+        else localCardBackdrop
     val hasWallpaper = todayShowWallpaper && wallpaperBitmap != null
-    // 表面不透明度跟随「卡片不透明度」开关：课程卡 ×3，格言/助手 ×4
-    val courseCardOpacity = (cardAlpha * 3f).coerceIn(0f, 1f)
-    val highlightCardOpacity = (cardAlpha * 4f).coerceIn(0f, 1f)
+    // 默认 15% 锚定当前观感（课程卡 0.45 / 格言卡 0.6），其余按百分比线性映射到 1
+    val p = cardSurfaceAlpha.coerceIn(0f, 1f)
+    fun anchorOpacity(anchor: Float): Float = if (p <= 0.15f) {
+        (p / 0.15f) * anchor
+    } else {
+        anchor + ((p - 0.15f) / 0.85f) * (1f - anchor)
+    }
+    val courseCardOpacity = anchorOpacity(0.45f)
+    val highlightCardOpacity = anchorOpacity(0.6f)
 
 
     val isTablet = navBarStyle == "rail"
@@ -455,7 +470,13 @@ fun TodayScreen(
     val todayRefraction = cardRefraction
     CompositionLocalProvider(LocalCardRefraction provides todayRefraction) {
     Scaffold(
-        topBar = {}
+        topBar = {},
+        // 共享壁纸时本页必须透明，否则会盖住主 pager 后面的壁纸层
+        containerColor = if (useSharedWallpaper && todayShowWallpaper && wallpaperBitmap != null) {
+            androidx.compose.ui.graphics.Color.Transparent
+        } else {
+            MiuixTheme.colorScheme.surface
+        }
     ) { paddingValues ->
         Box(
             modifier = Modifier
@@ -463,7 +484,15 @@ fun TodayScreen(
                 .layerBackdrop(backdrop)
         ) {
             if (todayShowWallpaper && wallpaperBitmap != null) {
-                Box(modifier = Modifier.fillMaxSize().kyantLayerBackdrop(cardBackdrop)) {
+                Box(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .then(
+                            // 共享层已负责显示并录制；本页不再录透明占位
+                            if (useSharedWallpaper) Modifier
+                            else Modifier.kyantLayerBackdrop(localCardBackdrop)
+                        )
+                ) {
                     val brightnessFilter = if (wallpaperBrightness != 0f) {
                         val b = (1f + wallpaperBrightness / 50f).coerceIn(0f, 2f)
                         androidx.compose.ui.graphics.ColorFilter.colorMatrix(
@@ -496,6 +525,8 @@ fun TodayScreen(
                                 val effectiveScale = maxOf(wallpaperScale, minWallpaperScale)
                                 scaleX = effectiveScale
                                 scaleY = effectiveScale
+                                // 共享层负责显示；这里只录 backdrop，保持不可见
+                                alpha = if (useSharedWallpaper) 0f else 1f
                                 translationX = wallpaperOffset.x
                                 translationY = wallpaperOffset.y
                                 renderEffect = todayWallpaperBlurEffect

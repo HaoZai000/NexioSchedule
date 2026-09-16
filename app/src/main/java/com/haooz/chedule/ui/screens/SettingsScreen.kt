@@ -13,7 +13,6 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -457,7 +456,7 @@ fun SettingsScreen(
                             ) {
                                 ArrowPreference(
                                     title = "课表导入",
-                                    summary = "AI文本 / 教务 / 文件 / 口令导入",
+                                    summary = "AI文本、教务、文件、分享口令",
                                     holdDownState = activeSecondaryActivity in ScheduleImportActivities,
                                     onClick = {
                                         context.startActivity(
@@ -467,7 +466,7 @@ fun SettingsScreen(
                                 )
                                 ArrowPreference(
                                     title = "课表导出",
-                                    summary = "JSON / ICS / 口令分享导出",
+                                    summary = "文件、口令分享",
                                     holdDownState = activeSecondaryActivity in ScheduleExportActivities,
                                     onClick = {
                                         context.startActivity(
@@ -477,7 +476,7 @@ fun SettingsScreen(
                                 )
                                 ArrowPreference(
                                     title = "课表备份",
-                                    summary = "本地备份 / Web 云备份",
+                                    summary = "本地备份、WebDAV云备份",
                                     holdDownState = activeSecondaryActivity in ScheduleBackupActivities,
                                     onClick = {
                                         context.startActivity(

@@ -11,7 +11,10 @@ package com.haooz.chedule.data
  */
 data class AppearanceConfig(
     val cardBlurRadius: Float = 4f,
+    /** 课程色着色程度（有无壁纸都可调） */
     val cardAlpha: Float = 0.15f,
+    /** 有壁纸时卡片白/黑底不透明度 */
+    val cardSurfaceAlpha: Float = 0.15f,
     val cardHeight: Float = 54f,
     val cardCornerRadius: Float = 10f,
     val wallpaperBrightness: Float = 0f,
@@ -30,7 +33,9 @@ data class AppearanceConfig(
         /** 从 Combination 提取外观配置 */
         fun fromCombination(c: Combination): AppearanceConfig = AppearanceConfig(
             cardBlurRadius = c.cardBlurRadius,
-            cardAlpha = c.cardAlpha,
+            cardAlpha = c.cardAlpha.coerceIn(0f, 1f),
+            cardSurfaceAlpha = (c.cardSurfaceAlpha
+                ?: CombinationStyle.CARD_SURFACE_ALPHA_DEFAULT).coerceIn(0f, 1f),
             cardHeight = c.cardHeight,
             cardCornerRadius = c.cardCornerRadius,
             wallpaperBrightness = c.wallpaperBrightness,

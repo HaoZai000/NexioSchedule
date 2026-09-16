@@ -24,6 +24,7 @@ import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.foundation.Image
+import androidx.compose.foundation.MutatePriority
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
@@ -42,6 +43,8 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBars
 import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.foundation.pager.HorizontalPager
+import androidx.compose.foundation.pager.PagerState
 import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.material3.Icon
@@ -76,6 +79,9 @@ import androidx.compose.ui.graphics.drawscope.clipPath
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.rememberGraphicsLayer
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
+import androidx.compose.ui.input.nestedscroll.NestedScrollConnection
+import androidx.compose.ui.input.nestedscroll.NestedScrollSource
+import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
@@ -139,6 +145,7 @@ import com.kyant.backdrop.drawBackdrop
 import com.kyant.backdrop.effects.blur
 import com.kyant.backdrop.effects.vibrancy
 import com.kyant.capsule.ContinuousRoundedRectangle
+import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
@@ -169,10 +176,34 @@ import top.yukonga.miuix.kmp.theme.ThemeController
 import java.time.LocalDate
 import java.util.Calendar
 import kotlin.math.PI
+import kotlin.math.abs
 import kotlin.math.sin
 import kotlin.time.Duration.Companion.milliseconds
 import androidx.compose.ui.graphics.Color as ComposeColor
 import com.kyant.backdrop.backdrops.layerBackdrop as liquidGlassLayerBackdrop
+
+/** 取消进行中的 pager 滚动/惯性 */
+private suspend fun PagerState.cancelScroll() {
+    scroll(MutatePriority.PreventUserInput) { }
+}
+
+/** 主 tab 翻页动画（点底栏 tab 时平移切换） */
+private val MainTabPagerAnimSpec = spring<Float>(
+    dampingRatio = Spring.DampingRatioNoBouncy,
+    stiffness = 320f,
+)
+
+/** 动画切到目标主 tab；正常结束后若未精确落页则强制吸附 */
+private suspend fun PagerState.animateMainTabTo(target: Int) {
+    try {
+        animateScrollToPage(target, animationSpec = MainTabPagerAnimSpec)
+    } catch (e: kotlinx.coroutines.CancellationException) {
+        throw e
+    }
+    if (currentPage != target || abs(currentPageOffsetFraction) > 0.001f) {
+        scrollToPage(target)
+    }
+}
 
 /** 拖拽速度/采样时间；只在松手 spring 时读，避开 composition */
 private class DragMotionHolder {
@@ -341,6 +372,7 @@ class MainActivity : ComponentActivity() {
                         cachedAppearance = com.haooz.chedule.data.AppearanceConfig(
                             cardBlurRadius = repo.getCombinationCardBlur(currentIdValue),
                             cardAlpha = repo.getCombinationCardAlpha(currentIdValue),
+                            cardSurfaceAlpha = repo.getCombinationCardSurfaceAlpha(currentIdValue),
                             cardHeight = repo.getCombinationCardHeight(currentIdValue),
                             cardCornerRadius = repo.getCombinationCardCornerRadius(currentIdValue),
                             wallpaperBrightness = repo.getCombinationWallpaperBrightness(
@@ -911,6 +943,8 @@ fun CourseScheduleApp() {
 
     val isDark = isAppDarkTheme()
     val liquidGlassBackdrop = com.kyant.backdrop.backdrops.rememberLayerBackdrop()
+    // 供今日/课程表卡片玻璃采样：录的是共享壁纸层，不是页内透明占位
+    val sharedWallpaperBackdrop = com.kyant.backdrop.backdrops.rememberLayerBackdrop()
 
     val totalWeeks by viewModel.totalWeeks.collectAsState()
     val currentWeek by viewModel.currentWeek.collectAsState()
@@ -1168,7 +1202,8 @@ fun CourseScheduleApp() {
             combinations = combinations.toMutableList().also { list ->
                 list[idx] = list[idx].copy(
                     cardBlurRadius = value.cardBlurRadius,
-                    cardAlpha = value.cardAlpha,
+                    cardAlpha = value.cardAlpha.coerceIn(0f, 1f),
+                    cardSurfaceAlpha = value.cardSurfaceAlpha.coerceIn(0f, 1f),
                     cardHeight = value.cardHeight,
                     cardCornerRadius = value.cardCornerRadius,
                     wallpaperBrightness = value.wallpaperBrightness,
@@ -1203,6 +1238,7 @@ fun CourseScheduleApp() {
             snapshot = null,
             cardBlurRadius = wallpaperRepository.getCombinationCardBlur(id),
             cardAlpha = wallpaperRepository.getCombinationCardAlpha(id),
+            cardSurfaceAlpha = wallpaperRepository.getCombinationCardSurfaceAlpha(id),
             cardHeight = wallpaperRepository.getCombinationCardHeight(id),
             cardCornerRadius = wallpaperRepository.getCombinationCardCornerRadius(id),
             wallpaperBrightness = wallpaperRepository.getCombinationWallpaperBrightness(id),
@@ -1381,9 +1417,18 @@ fun CourseScheduleApp() {
         pageCount = { todayMaxDateOffset * 2 }
     )
 
+    // 主 tab 平移容器：今日/课程表/设置（排班模式为排班/设置），仅点底栏 tab 驱动
+    val mainPagerState = rememberPagerState(
+        initialPage = selectedTab.coerceIn(0, 2),
+        pageCount = { if (isShiftMode) 2 else 3 }
+    )
+    // 程序化切 tab 期间为 true，避免 currentPage 在动画中途把 selectedTab 拉回去
+    var mainTabProgrammatic by remember { mutableStateOf(false) }
+
     LaunchedEffect(isShiftMode) {
         if (shiftModeInitialized) {
             selectedTab = if (isShiftMode) 0 else if (defaultHomepage == "今日") 0 else 1
+            mainPagerState.scrollToPage(selectedTab)
         }
         shiftModeInitialized = true
     }
@@ -1446,6 +1491,34 @@ fun CourseScheduleApp() {
     }
 
     val coroutineScope = rememberCoroutineScope()
+    // 内容区（切天/周）一有横向手势：立刻取消未完成的主 tab 平移，吸回当前页，避免露出隔壁页
+    val cancelUnfinishedMainTabAnim by rememberUpdatedState {
+        if (mainPagerState.isScrollInProgress ||
+            abs(mainPagerState.currentPageOffsetFraction) > 0.001f
+        ) {
+            val target = mainPagerState.currentPage.coerceIn(
+                0,
+                (mainPagerState.pageCount - 1).coerceAtLeast(0)
+            )
+            coroutineScope.launch {
+                mainPagerState.cancelScroll()
+                mainPagerState.scrollToPage(target)
+                // 底栏与当前页对齐，避免 tab 还停在未完成的目标页
+                if (selectedTab != target) selectedTab = target
+            }
+        }
+    }
+    // 固定实例：lambda 每次重组都新建，不能拿它当 remember key
+    val mainContentNestedScroll = remember(mainPagerState) {
+        object : NestedScrollConnection {
+            override fun onPreScroll(available: Offset, source: NestedScrollSource): Offset {
+                if (source == NestedScrollSource.UserInput && abs(available.x) > 1f) {
+                    cancelUnfinishedMainTabAnim()
+                }
+                return Offset.Zero
+            }
+        }
+    }
     val triggerLandRipple: (Offset) -> Unit = { center ->
         landRippleCenter = center
         landRippleToken++
@@ -2118,7 +2191,7 @@ fun CourseScheduleApp() {
         val latestDraggingCard by rememberUpdatedState(isDraggingCard)
         val latestRailPad by rememberUpdatedState(railPaddingStart)
         // 课表/今日/设置滚动时主内容像素在变，必须重录，否则顶栏/底栏玻璃冻结
-        val liquidGlassMustRecord = remember(scheduleScrollState, todayListState, pagerState, todayPagerState) {
+        val liquidGlassMustRecord = remember(scheduleScrollState, todayListState, pagerState, todayPagerState, mainPagerState) {
             var lastRailPad = Float.NaN
             {
                 val railPad = latestRailPad.value
@@ -2128,6 +2201,7 @@ fun CourseScheduleApp() {
                     todayListState.isScrollInProgress ||
                     pagerState.isScrollInProgress ||
                     todayPagerState.isScrollInProgress ||
+                    mainPagerState.isScrollInProgress ||
                     railMoving ||
                     // 开洞编辑时主内容持续缩放，绝不能停录
                     latestIsWindowCutout ||
@@ -2225,7 +2299,6 @@ fun CourseScheduleApp() {
                     }
                 )
         ) {
-            // 有壁纸时强制主题，同时改 colorScheme 与 isAppDarkTheme 两条通道
             val scaffoldContent = @Composable {
                 Scaffold(
                     bottomBar = {
@@ -2233,70 +2306,137 @@ fun CourseScheduleApp() {
                             navBarStyle = navBarStyle,
                             isShiftMode = isShiftMode,
                             selectedTab = selectedTab,
-                            onTabSelected = { selectedTab = it },
+                            onTabSelected = { idx ->
+                                if (idx != selectedTab) {
+                                    // 先锁 programmatic，再改 selectedTab，避免动画中途被拉回
+                                    mainTabProgrammatic = true
+                                    selectedTab = idx
+                                    coroutineScope.launch {
+                                        try {
+                                            // 内层切天/周若还在惯性，先停掉
+                                            todayPagerState.cancelScroll()
+                                            pagerState.cancelScroll()
+                                            mainPagerState.cancelScroll()
+                                            mainPagerState.animateMainTabTo(idx)
+                                        } finally {
+                                            mainTabProgrammatic = false
+                                        }
+                                    }
+                                }
+                            },
                             liquidGlassBackdrop = chromeBackdrop
                         )
                     },
                     topBar = {
-                        ScheduleTopBar(
-                            visible = (!isShiftMode && selectedTab == 1) || (isShiftMode && selectedTab == 0),
-                            navBarStyle = navBarStyle,
-                            pagerCurrentPage = pagerState.currentPage,
-                            currentWeek = currentWeek,
-                            isHoliday = viewingIsHoliday,
-                            isViewingCurrentWeek = isViewingCurrentWeek,
-                            dayRange = dayRange,
-                            currentDayOfWeek = currentDayOfWeek,
-                            isCurrentWeek = pagerState.currentPage + 1 == currentWeek && currentWeek in 1..totalWeeks,
-                            weekDates = weekDates,
-                            onBackToCurrentWeek = {
-                                coroutineScope.launch {
-                                    val targetPage =
-                                        (currentWeek - 1).coerceIn(
-                                            0,
-                                            (totalWeeks - 1).coerceAtLeast(0)
-                                        )
-                                    pagerState.animateScrollToPage(targetPage)
-                                }
-                            },
-                            onOpenSwitchSchedule = {
-                                if (!isShiftMode && !showSwitchSchedule) {
-                                    coroutineScope.launch {
-                                        // 切换页组合与快照截取并行，避免串行等待导致界面无响应
-                                        switchPendingReverse = true
-                                        switchCapturingSnapshot = true
-                                        showSwitchSchedule = true
-                                        mainContentSnapshot = captureMainContentBitmap()
-                                    }
-                                }
-                            },
-                            onMoreClick = { showMorePopup = true },
-                            isTablet = isTablet,
-                            isShiftMode = isShiftMode,
-                            liquidGlassBackdrop = chromeBackdrop,
-                            scrollBehavior = scheduleScrollBehavior,
-                            showMorePopup = showMorePopup,
-                        )
-                        // 设置页顶栏在 Activity 层级渲染，避免 drawPlainBackdrop native crash
-                        if (selectedTab == 2 || (isShiftMode && selectedTab == 1)) {
-                            SettingsTopBar(
-                                liquidGlassBackdrop = chromeBackdrop,
-                                navBarStyle = navBarStyle,
-                                scrollBehavior = settingsScrollBehavior,
-                            )
+                        // 标题层跟主 pager 动画一起平移（仅点 tab 触发，无手动横滑）
+                        val mainTitlePage = mainPagerState.currentPage
+                        val mainTitleOffset = mainPagerState.currentPageOffsetFraction
+                        val showTodayTitle = !isShiftMode &&
+                            (mainTitlePage == 0 || (mainTitlePage == 1 && mainTitleOffset < 0f))
+                        val showScheduleTitle = if (isShiftMode) {
+                            mainTitlePage == 0 || (mainTitlePage == 1 && mainTitleOffset < 0f)
+                        } else {
+                            mainTitlePage == 1 ||
+                                (mainTitlePage == 0 && mainTitleOffset > 0f) ||
+                                (mainTitlePage == 2 && mainTitleOffset < 0f)
                         }
-                        // 始终渲染但 alpha=0，保证 currentHeightPx 启动即就位，切页不慢一帧
-                        TodayTopBar(
-                            liquidGlassBackdrop = chromeBackdrop,
-                            navBarStyle = navBarStyle,
-                            currentDayOfWeek = todaySelectedDayOfWeek,
-                            isToday = todayIsToday,
-                            onBackToToday = { scrollToTodayTrigger++ },
-                            onMoreClick = { showTodayMorePopup = true },
-                            scrollBehavior = todayScrollBehavior,
-                            showMorePopup = showTodayMorePopup,
-                            visible = !isShiftMode && selectedTab == 0,
-                        )
+                        val showSettingsTitle = if (isShiftMode) {
+                            mainTitlePage == 1 || (mainTitlePage == 0 && mainTitleOffset > 0f)
+                        } else {
+                            mainTitlePage == 2 || (mainTitlePage == 1 && mainTitleOffset > 0f)
+                        }
+                        Box(modifier = Modifier.fillMaxWidth()) {
+                            if (showScheduleTitle) {
+                                val scheduleTitleIndex = if (isShiftMode) 0 else 1
+                                Box(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .graphicsLayer {
+                                            translationX = (scheduleTitleIndex - mainTitlePage - mainTitleOffset) *
+                                                size.width
+                                        }
+                                ) {
+                                    ScheduleTopBar(
+                                        visible = true,
+                                        navBarStyle = navBarStyle,
+                                        pagerCurrentPage = pagerState.currentPage,
+                                        currentWeek = currentWeek,
+                                        isHoliday = viewingIsHoliday,
+                                        isViewingCurrentWeek = isViewingCurrentWeek,
+                                        dayRange = dayRange,
+                                        currentDayOfWeek = currentDayOfWeek,
+                                        isCurrentWeek = pagerState.currentPage + 1 == currentWeek && currentWeek in 1..totalWeeks,
+                                        weekDates = weekDates,
+                                        onBackToCurrentWeek = {
+                                            coroutineScope.launch {
+                                                val targetPage =
+                                                    (currentWeek - 1).coerceIn(
+                                                        0,
+                                                        (totalWeeks - 1).coerceAtLeast(0)
+                                                    )
+                                                pagerState.animateScrollToPage(targetPage)
+                                            }
+                                        },
+                                        onOpenSwitchSchedule = {
+                                            if (!isShiftMode && !showSwitchSchedule) {
+                                                coroutineScope.launch {
+                                                    // 切换页组合与快照截取并行，避免串行等待导致界面无响应
+                                                    switchPendingReverse = true
+                                                    switchCapturingSnapshot = true
+                                                    showSwitchSchedule = true
+                                                    mainContentSnapshot = captureMainContentBitmap()
+                                                }
+                                            }
+                                        },
+                                        onMoreClick = { showMorePopup = true },
+                                        isTablet = isTablet,
+                                        isShiftMode = isShiftMode,
+                                        liquidGlassBackdrop = chromeBackdrop,
+                                        scrollBehavior = scheduleScrollBehavior,
+                                        showMorePopup = showMorePopup,
+                                    )
+                                }
+                            }
+                            // 设置页顶栏在 Activity 层级渲染，避免 drawPlainBackdrop native crash
+                            if (showSettingsTitle) {
+                                val settingsTitleIndex = if (isShiftMode) 1 else 2
+                                Box(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .graphicsLayer {
+                                            translationX = (settingsTitleIndex - mainTitlePage - mainTitleOffset) *
+                                                size.width
+                                        }
+                                ) {
+                                    SettingsTopBar(
+                                        liquidGlassBackdrop = chromeBackdrop,
+                                        navBarStyle = navBarStyle,
+                                        scrollBehavior = settingsScrollBehavior,
+                                    )
+                                }
+                            }
+                            // 始终渲染但 alpha=0，保证 currentHeightPx 启动即就位，切页不慢一帧
+                            Box(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .graphicsLayer {
+                                        translationX = (0 - mainTitlePage - mainTitleOffset) * size.width
+                                        alpha = if (showTodayTitle) 1f else 0f
+                                    }
+                            ) {
+                                TodayTopBar(
+                                    liquidGlassBackdrop = chromeBackdrop,
+                                    navBarStyle = navBarStyle,
+                                    currentDayOfWeek = todaySelectedDayOfWeek,
+                                    isToday = todayIsToday,
+                                    onBackToToday = { scrollToTodayTrigger++ },
+                                    onMoreClick = { showTodayMorePopup = true },
+                                    scrollBehavior = todayScrollBehavior,
+                                    showMorePopup = showTodayMorePopup,
+                                    visible = showTodayTitle,
+                                )
+                            }
+                        }
                     }
                 ) { paddingValues ->
                     // 详情动画期间用快照占位；占位须吃满触摸，避免事件穿到卡片
@@ -2320,15 +2460,122 @@ fun CourseScheduleApp() {
                                     mustRecord = liquidGlassMustRecord
                                 )
                         ) {
-                            if (!isShiftMode) {
-                                // 仅组合当前 tab：未选中页不再参与 composition/layout，避免父级重组时三屏一起 skip
-                                when (selectedTab) {
-                                    0 -> {
-                                        // 今日页主题预先固定，切 tab 不跟着 chrome 闪一帧
-                                        val todayForced = if (captureThemeActive) captureThemeIsDark else todayPageForcedDark
-                                        val todayDark = todayForced ?: appSettingDark
-                                        val todayThemeController = remember {
-                                            ThemeController(if (todayDark) ColorSchemeMode.Dark else ColorSchemeMode.Light)
+                            // 共享壁纸层：画在主 pager 之下。
+                            // 今日↔课程表：壁纸钉死不动；课程表→设置：壁纸随页向左平移。
+                            val sharedWallpaperBitmap =
+                                if (showCustomizePage && !isWindowCutoutActive) originalWallpaperBitmap
+                                else wallpaperBitmap
+                            val sharedWallpaperOffset =
+                                if (showCustomizePage && !isWindowCutoutActive) originalWallpaperOffset
+                                else wallpaperOffset
+                            val sharedWallpaperScale =
+                                if (showCustomizePage && !isWindowCutoutActive) originalWallpaperScale
+                                else wallpaperScale
+                            val mainPageOffsetAbs = abs(mainPagerState.currentPageOffsetFraction)
+                            val showSharedWallpaperLayer = !isShiftMode && sharedWallpaperBitmap != null &&
+                                !(mainPagerState.currentPage == 0 && mainPageOffsetAbs < 0.01f && !todayShowWallpaper) &&
+                                (mainPagerState.currentPage != 2 || mainPageOffsetAbs > 0.01f)
+                            if (showSharedWallpaperLayer && sharedWallpaperBitmap != null) {
+                                val sharedMinScale = remember(sharedWallpaperBitmap, screenWPx, screenHPx) {
+                                    if (sharedWallpaperBitmap.width > 0 && sharedWallpaperBitmap.height > 0) {
+                                        val fit = minOf(
+                                            screenWPx / sharedWallpaperBitmap.width,
+                                            screenHPx / sharedWallpaperBitmap.height
+                                        )
+                                        val cover = maxOf(
+                                            screenWPx / sharedWallpaperBitmap.width,
+                                            screenHPx / sharedWallpaperBitmap.height
+                                        )
+                                        if (fit > 0f) cover / fit else 1f
+                                    } else 1f
+                                }
+                                val sharedBrightness = displayAppearance.wallpaperBrightness
+                                val sharedBrightnessFilter = if (sharedBrightness != 0f) {
+                                    val b = (1f + sharedBrightness / 50f).coerceIn(0f, 2f)
+                                    androidx.compose.ui.graphics.ColorFilter.colorMatrix(
+                                        androidx.compose.ui.graphics.ColorMatrix(
+                                            floatArrayOf(
+                                                b, 0f, 0f, 0f, 0f,
+                                                0f, b, 0f, 0f, 0f,
+                                                0f, 0f, b, 0f, 0f,
+                                                0f, 0f, 0f, 1f, 0f
+                                            )
+                                        )
+                                    )
+                                } else null
+                                val sharedBlurEffect = remember(displayAppearance.wallpaperBlur) {
+                                    if (displayAppearance.wallpaperBlur) {
+                                        val r = 24f * density.density
+                                        android.graphics.RenderEffect.createBlurEffect(
+                                            r, r, android.graphics.Shader.TileMode.CLAMP
+                                        ).asComposeRenderEffect()
+                                    } else null
+                                }
+                                // 课程表页索引：正常模式 1；滚过它去设置时壁纸开始位移
+                                val schedulePageIndex = if (isShiftMode) 0 else 1
+                                Image(
+                                    bitmap = sharedWallpaperBitmap.asImageBitmap(),
+                                    contentDescription = null,
+                                    modifier = Modifier
+                                        .fillMaxSize()
+                                        .liquidGlassLayerBackdrop(
+                                            backdrop = sharedWallpaperBackdrop,
+                                            recordKey = listOf(
+                                                sharedWallpaperBitmap,
+                                                sharedWallpaperScale,
+                                                sharedWallpaperOffset.x,
+                                                sharedWallpaperOffset.y,
+                                                sharedBrightness,
+                                                displayAppearance.wallpaperBlur,
+                                                sharedMinScale,
+                                                schedulePageIndex,
+                                            ),
+                                            mustRecord = {
+                                                // 滑向/离开设置时像素随位移变化，需重录
+                                                mainPagerState.isScrollInProgress ||
+                                                    abs(mainPagerState.currentPageOffsetFraction) > 0.001f
+                                            }
+                                        )
+                                        .graphicsLayer {
+                                            val s = maxOf(sharedWallpaperScale, sharedMinScale)
+                                            scaleX = s
+                                            scaleY = s
+                                            val scrollPos = mainPagerState.currentPage +
+                                                mainPagerState.currentPageOffsetFraction
+                                            // 今日/课程表区间内固定；越过课程表去设置时，壁纸向左跟页平移
+                                            val settingsShift =
+                                                if (scrollPos > schedulePageIndex) {
+                                                    -(scrollPos - schedulePageIndex) * size.width
+                                                } else {
+                                                    0f
+                                                }
+                                            translationX = sharedWallpaperOffset.x + settingsShift
+                                            translationY = sharedWallpaperOffset.y
+                                            renderEffect = sharedBlurEffect
+                                        },
+                                    contentScale = ContentScale.Fit,
+                                    colorFilter = sharedBrightnessFilter
+                                )
+                            }
+                            // 主 tab 仅由底栏点击平移切换；关闭用户横滑。
+                            // 内容区横向手势会经 nestedScroll 取消未完成的主 tab 动画。
+                            HorizontalPager(
+                                state = mainPagerState,
+                                modifier = Modifier
+                                    .fillMaxSize()
+                                    .nestedScroll(mainContentNestedScroll),
+                                key = { page -> if (isShiftMode) "shift-$page" else "main-$page" },
+                                userScrollEnabled = false,
+                                beyondViewportPageCount = 1,
+                            ) { page ->
+                                if (!isShiftMode) {
+                                    when (page) {
+                                        0 -> {
+                                            // 今日页主题预先固定，切 tab 不跟着 chrome 闪一帧
+                                            val todayForced = if (captureThemeActive) captureThemeIsDark else todayPageForcedDark
+                                            val todayDark = todayForced ?: appSettingDark
+                                            val todayThemeController = remember {
+                                                ThemeController(if (todayDark) ColorSchemeMode.Dark else ColorSchemeMode.Light)
                                         }
                                         todayThemeController.colorSchemeMode =
                                             if (todayDark) ColorSchemeMode.Dark else ColorSchemeMode.Light
@@ -2362,10 +2609,13 @@ fun CourseScheduleApp() {
                                             wallpaperBitmap = if (showCustomizePage && !isWindowCutoutActive) originalWallpaperBitmap else wallpaperBitmap,
                                             wallpaperOffset = if (showCustomizePage && !isWindowCutoutActive) originalWallpaperOffset else wallpaperOffset,
                                             wallpaperScale = if (showCustomizePage && !isWindowCutoutActive) originalWallpaperScale else wallpaperScale,
+                                            useSharedWallpaper = !isShiftMode && todayShowWallpaper && wallpaperBitmap != null,
+                                            sharedWallpaperBackdrop = sharedWallpaperBackdrop,
                                             wallpaperBrightness = displayAppearance.wallpaperBrightness,
                                             cardBlurRadius = displayAppearance.cardBlurRadius,
                                             cardRefraction = displayAppearance.cardRefraction,
                                             cardAlpha = displayAppearance.cardAlpha,
+                                            cardSurfaceAlpha = displayAppearance.cardSurfaceAlpha,
                                             wallpaperBlur = displayAppearance.wallpaperBlur,
                                             liquidGlassBackdrop = liquidGlassBackdrop,
                                             showClassroom = displayAppearance.showClassroom,
@@ -2674,6 +2924,8 @@ fun CourseScheduleApp() {
                                             wallpaperBitmap = if (showCustomizePage && !isWindowCutoutActive) originalWallpaperBitmap else wallpaperBitmap,
                                             wallpaperOffset = if (showCustomizePage && !isWindowCutoutActive) originalWallpaperOffset else wallpaperOffset,
                                             wallpaperScale = if (showCustomizePage && !isWindowCutoutActive) originalWallpaperScale else wallpaperScale,
+                                            useSharedWallpaper = !isShiftMode && wallpaperBitmap != null,
+                                            sharedWallpaperBackdrop = sharedWallpaperBackdrop,
                                             isWallpaperEditing = isWindowCutoutActive,
                                             onWallpaperOffsetChange = { wallpaperOffset = it },
                                             onWallpaperScaleChange = { wallpaperScale = it },
@@ -2735,7 +2987,7 @@ fun CourseScheduleApp() {
                                     }
                                 }
                             } else {
-                                when (selectedTab) {
+                                when (page) {
                                     0 -> ShiftScheduleScreen(
                                         shiftViewModel = shiftViewModel,
                                         settingsViewModel = settingsViewModel,
@@ -2766,6 +3018,7 @@ fun CourseScheduleApp() {
                                         liquidGlassBackdrop = liquidGlassBackdrop,
                                     )
                                 }
+                            }
                             }
                         }
                     }
@@ -3158,6 +3411,7 @@ fun CourseScheduleApp() {
                                 wallpaperBackdrop = if (wallpaperBitmap != null) liquidGlassBackdrop else null,
                                 cardBlurRadius = displayAppearance.cardBlurRadius,
                                 cardAlpha = displayAppearance.cardAlpha,
+                                cardSurfaceAlpha = displayAppearance.cardSurfaceAlpha,
                                 cardHeightPerSection = displayAppearance.cardHeight,
                                 cardCornerRadius = displayAppearance.cardCornerRadius,
                                 isTablet = isTablet,
@@ -3202,6 +3456,7 @@ fun CourseScheduleApp() {
                                 wallpaperBackdrop = if (wallpaperBitmap != null) liquidGlassBackdrop else null,
                                 cardBlurRadius = displayAppearance.cardBlurRadius,
                                 cardAlpha = displayAppearance.cardAlpha,
+                                cardSurfaceAlpha = displayAppearance.cardSurfaceAlpha,
                                 cardHeightPerSection = displayAppearance.cardHeight,
                                 cardCornerRadius = displayAppearance.cardCornerRadius,
                                 isTablet = isTablet,
@@ -3458,6 +3713,10 @@ fun CourseScheduleApp() {
                             wallpaperRepository.saveCombinationCardAlpha(
                                 combId,
                                 appearanceToSave.cardAlpha
+                            )
+                            wallpaperRepository.saveCombinationCardSurfaceAlpha(
+                                combId,
+                                appearanceToSave.cardSurfaceAlpha
                             )
                             wallpaperRepository.saveCombinationCardHeight(
                                 combId,
@@ -4088,6 +4347,7 @@ fun CourseScheduleApp() {
                 if (isExitingShift) {
                     shiftViewModel.exitShiftMode()
                     selectedTab = 0
+                    coroutineScope.launch { mainPagerState.scrollToPage(0) }
                 } else {
                     shiftViewModel.enterShiftMode()
                 }

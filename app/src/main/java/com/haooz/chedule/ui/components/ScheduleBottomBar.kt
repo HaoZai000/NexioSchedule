@@ -9,11 +9,6 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableIntStateOf
-import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.ColorFilter
@@ -61,8 +56,7 @@ internal fun ScheduleBottomBar(
         }
     } else if (liquidGlassBackdrop != null) {
         val iconTint = MiuixTheme.colorScheme.onSurfaceContainer.copy(alpha = 0.8f)
-        var liquidSelectedTab by remember { mutableIntStateOf(selectedTab) }
-        LaunchedEffect(selectedTab) { liquidSelectedTab = selectedTab }
+        // 直接读 selectedTab，去掉 LaunchedEffect 中转，避免 tab 高亮慢一拍
         if (isShiftMode) {
             Box(
                 modifier = Modifier
@@ -71,7 +65,7 @@ internal fun ScheduleBottomBar(
                 contentAlignment = Alignment.Center
             ) {
                 LiquidBottomTabs(
-                    selectedTabIndex = { liquidSelectedTab },
+                    selectedTabIndex = { selectedTab },
                     onTabSelected = { onSelect(it) },
                     backdrop = liquidGlassBackdrop,
                     tabsCount = 2,
@@ -107,7 +101,7 @@ internal fun ScheduleBottomBar(
                 contentAlignment = Alignment.Center
             ) {
                 LiquidBottomTabs(
-                    selectedTabIndex = { liquidSelectedTab },
+                    selectedTabIndex = { selectedTab },
                     onTabSelected = { onSelect(it) },
                     backdrop = liquidGlassBackdrop,
                     tabsCount = 3,

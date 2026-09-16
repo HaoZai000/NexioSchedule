@@ -1566,6 +1566,11 @@ class CourseRepository private constructor(context: Context) {
 
     fun getCombinationCardAlpha(id: Long): Float = getCombinationStyle(id).cardAlpha
 
+    fun saveCombinationCardSurfaceAlpha(id: Long, alpha: Float) =
+        updateCombinationStyle(id) { it.copy(cardSurfaceAlpha = alpha) }
+
+    fun getCombinationCardSurfaceAlpha(id: Long): Float = getCombinationStyle(id).safeCardSurfaceAlpha
+
     fun saveCombinationCardHeight(id: Long, height: Float) =
         updateCombinationStyle(id) { it.copy(cardHeight = height) }
 
