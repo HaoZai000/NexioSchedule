@@ -75,11 +75,12 @@ private fun SecondaryPagePredictiveBack(activity: SecondaryActivity) {
             progress.collect { backEvent ->
                 if (!sawGesture) {
                     sawGesture = true
-                    gestureBase = controller.progress.value.coerceIn(0f, 1f)
-                    // 冻结当前帧并中断进行中的入场（snapTo 会 cancel animateTo）
-                    controller.snapGestureProgress(gestureBase)
+                    // 仅开启跟手时才冻结进度并打断入场；关闭时让入场继续播完
+                    if (PredictiveBackSettings.enabled) {
+                        gestureBase = controller.progress.value.coerceIn(0f, 1f)
+                        controller.snapGestureProgress(gestureBase)
+                    }
                 }
-                // 预测性返回动画开关：关闭时不驱动跟随动画（返回仍被拦截，直接关闭）
                 if (PredictiveBackSettings.enabled) {
                     val p = (gestureBase * (1f - backEvent.progress)).coerceIn(0f, 1f)
                     controller.snapGestureProgress(p)
@@ -95,8 +96,10 @@ private fun SecondaryPagePredictiveBack(activity: SecondaryActivity) {
                 activity.finishSecondary()
             }
         } catch (c: CancellationException) {
-            // 跟手中途取消，或入场被冻结在半路：都弹回全开
-            controller.requestRestore()
+            // 开关关闭时未冻结进度，入场会自己跑完，无需回弹
+            if (PredictiveBackSettings.enabled) {
+                controller.requestRestore()
+            }
             throw c
         }
     }
