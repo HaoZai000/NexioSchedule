@@ -102,114 +102,114 @@
             android:name=".ui.activities.CourseTimeSettingsActivity"
             android:exported="false"
             android:label="课表节数与时间"
-            android:theme="@style/Theme.课程表"
+            android:theme="@style/Theme.课程表.Secondary"
             android:windowSoftInputMode="adjustResize" />
         <activity
             android:name=".ui.activities.CourseManageActivity"
             android:exported="false"
             android:label="课程管理"
-            android:theme="@style/Theme.课程表"
+            android:theme="@style/Theme.课程表.Secondary"
             android:windowSoftInputMode="adjustResize" />
         <activity
             android:name=".ui.activities.CourseReminderActivity"
             android:exported="false"
             android:label="课程提醒"
-            android:theme="@style/Theme.课程表"
+            android:theme="@style/Theme.课程表.Secondary"
             android:windowSoftInputMode="adjustResize" />
         <activity
             android:name=".ui.activities.HolidaySettingsActivity"
             android:exported="false"
             android:label="节假日与调休"
-            android:theme="@style/Theme.课程表"
+            android:theme="@style/Theme.课程表.Secondary"
             android:windowSoftInputMode="adjustResize" />
         <activity
             android:name=".ui.activities.WidgetIntroActivity"
             android:exported="false"
             android:label="桌面小部件"
-            android:theme="@style/Theme.课程表" />
+            android:theme="@style/Theme.课程表.Secondary" />
         <activity
             android:name=".ui.activities.SwitchScheduleActivity"
             android:exported="false"
             android:label="切换课表"
-            android:theme="@style/Theme.课程表"
+            android:theme="@style/Theme.课程表.Secondary"
             android:windowSoftInputMode="adjustResize" />
         <activity
             android:name=".ui.activities.AboutActivity"
             android:exported="false"
             android:label="关于应用"
-            android:theme="@style/Theme.课程表" />
+            android:theme="@style/Theme.课程表.Secondary" />
         <activity
             android:name=".ui.activities.AppreciateAuthorActivity"
             android:exported="false"
             android:label="捐赠支持"
-            android:theme="@style/Theme.课程表" />
+            android:theme="@style/Theme.课程表.Secondary" />
         <activity
             android:name=".ui.activities.ChangelogActivity"
             android:exported="false"
             android:label="更新日志"
-            android:theme="@style/Theme.课程表" />
+            android:theme="@style/Theme.课程表.Secondary" />
         <activity
             android:name=".ui.activities.UpdateSettingsActivity"
             android:exported="false"
             android:label="更新设置"
-            android:theme="@style/Theme.课程表" />
+            android:theme="@style/Theme.课程表.Secondary" />
         <activity
             android:name=".ui.activities.CommunicationActivity"
             android:exported="false"
             android:label="交流与反馈"
-            android:theme="@style/Theme.课程表" />
+            android:theme="@style/Theme.课程表.Secondary" />
         <activity
             android:name=".ui.activities.PreferenceSettingsActivity"
             android:exported="false"
             android:label="应用偏好设置"
-            android:theme="@style/Theme.课程表" />
+            android:theme="@style/Theme.课程表.Secondary" />
         <activity
             android:name=".ui.activities.WebDavSettingsActivity"
             android:exported="false"
             android:label="WebDAV 云同步"
-            android:theme="@style/Theme.课程表"
+            android:theme="@style/Theme.课程表.Secondary"
             android:windowSoftInputMode="adjustResize" />
         <activity
             android:name=".ui.activities.EducationalImportActivity"
             android:exported="false"
             android:label="教务系统导入"
-            android:theme="@style/Theme.课程表"
+            android:theme="@style/Theme.课程表.Secondary"
             android:windowSoftInputMode="adjustResize" />
         <activity
             android:name=".ui.activities.AiImportActivity"
             android:exported="false"
             android:label="AI 文本导入"
-            android:theme="@style/Theme.课程表"
+            android:theme="@style/Theme.课程表.Secondary"
             android:windowSoftInputMode="adjustResize" />
         <activity
             android:name=".ui.activities.BackupAndMigrationActivity"
             android:exported="false"
             android:label="课表导入"
-            android:theme="@style/Theme.课程表"
+            android:theme="@style/Theme.课程表.Secondary"
             android:windowSoftInputMode="adjustResize" />
         <activity
             android:name=".ui.activities.ScheduleImportActivity"
             android:exported="false"
             android:label="课表导入"
-            android:theme="@style/Theme.课程表"
+            android:theme="@style/Theme.课程表.Secondary"
             android:windowSoftInputMode="adjustResize" />
         <activity
             android:name=".ui.activities.ScheduleExportActivity"
             android:exported="false"
             android:label="课表导出"
-            android:theme="@style/Theme.课程表"
+            android:theme="@style/Theme.课程表.Secondary"
             android:windowSoftInputMode="adjustResize" />
         <activity
             android:name=".ui.activities.ScheduleBackupActivity"
             android:exported="false"
             android:label="课表备份"
-            android:theme="@style/Theme.课程表"
+            android:theme="@style/Theme.课程表.Secondary"
             android:windowSoftInputMode="adjustResize" />
         <activity
             android:name=".ui.activities.LocalBackupActivity"
             android:exported="false"
             android:label="本地备份"
-            android:theme="@style/Theme.课程表"
+            android:theme="@style/Theme.课程表.Secondary"
             android:windowSoftInputMode="adjustResize" />
 
 

@@ -5,9 +5,7 @@ import android.annotation.SuppressLint
 import android.os.Bundle
 import android.util.Log
 import android.widget.Toast
-import androidx.activity.ComponentActivity
 import androidx.activity.SystemBarStyle
-import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -58,7 +56,6 @@ import com.haooz.chedule.ui.basic.ProgressiveBlurTopBar
 import com.haooz.chedule.ui.basic.rememberSharedScrollBehavior
 import com.haooz.chedule.ui.screens.SchoolSelectionScreen
 import com.haooz.chedule.ui.screens.WebViewScreen
-import com.haooz.chedule.ui.theme.CourseScheduleTheme
 import com.haooz.chedule.ui.utils.applyThemeAwareSystemBars
 import com.haooz.chedule.viewmodel.CourseViewModel
 import com.haooz.chedule.viewmodel.ScheduleViewModel
@@ -87,7 +84,7 @@ import top.yukonga.miuix.kmp.icon.extended.Update
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 import com.kyant.backdrop.backdrops.layerBackdrop as liquidGlassLayerBackdrop
 
-class EducationalImportActivity : ComponentActivity() {
+class EducationalImportActivity : SecondaryActivity() {
 
     var isInFreeformWindow by mutableStateOf(false)
         private set
@@ -181,10 +178,9 @@ class EducationalImportActivity : ComponentActivity() {
         )
         applyThemeAwareSystemBars()
         startUpdate(this)
-        setContent {
-            CourseScheduleTheme {
-                EducationalImportApp()
-            }
+        setSecondaryContent {
+            EducationalImportApp()
+        
         }
     }
 
@@ -307,7 +303,7 @@ class EducationalImportActivity : ComponentActivity() {
                                 },
                                 startAction = { backdropAlpha, shadowAlpha ->
                                     LiquidTopBarButton(
-                                        onClick = { finish() },
+                                        onClick = { finishSecondary() },
                                         backdrop = liquidGlassBackdrop,
                                         icon = MiuixIcons.ChevronBackward,
                                         contentDescription = "返回",

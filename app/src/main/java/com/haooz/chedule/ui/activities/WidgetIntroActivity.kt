@@ -2,9 +2,7 @@
 package com.haooz.chedule.ui.activities
 
 import android.os.Bundle
-import androidx.activity.ComponentActivity
 import androidx.activity.SystemBarStyle
-import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -32,7 +30,6 @@ import com.haooz.chedule.ui.basic.LiquidGlassTextButton
 import com.haooz.chedule.ui.basic.LiquidTopBarButton
 import com.haooz.chedule.ui.basic.ProgressiveBlurTopBar
 import com.haooz.chedule.ui.basic.rememberSharedScrollBehavior
-import com.haooz.chedule.ui.theme.CourseScheduleTheme
 import com.haooz.chedule.ui.utils.applyThemeAwareSystemBars
 import top.yukonga.miuix.kmp.basic.Scaffold
 import top.yukonga.miuix.kmp.basic.TextButton
@@ -44,7 +41,7 @@ import top.yukonga.miuix.kmp.overlay.OverlayDialog
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 import com.kyant.backdrop.backdrops.layerBackdrop as liquidGlassLayerBackdrop
 
-class WidgetIntroActivity : ComponentActivity() {
+class WidgetIntroActivity : SecondaryActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge(
@@ -55,116 +52,115 @@ class WidgetIntroActivity : ComponentActivity() {
             navigationBarStyle = SystemBarStyle.dark(android.graphics.Color.TRANSPARENT)
         )
         applyThemeAwareSystemBars()
-        setContent {
-            CourseScheduleTheme {
-                val hapticFeedback = LocalHapticFeedback.current
-                val backgroundColor = MiuixTheme.colorScheme.surface
-                val backdrop = rememberLayerBackdrop {
-                    drawRect(backgroundColor)
-                    drawContent()
-                }
-                val liquidGlassBackdrop = com.kyant.backdrop.backdrops.rememberLayerBackdrop()
-                val scrollBehavior = rememberSharedScrollBehavior()
-                var showGuideDialog by remember { mutableStateOf(false) }
-                val isTablet = LocalConfiguration.current.screenWidthDp >= 600
-                val tabletHorizontalPadding = if (isTablet) {
-                    val screenWidthDp = LocalConfiguration.current.screenWidthDp
-                    ((screenWidthDp - 600).coerceIn(0, 600) / 600f * 112 + 16).dp
-                } else 16.dp
+        setSecondaryContent {
+            val hapticFeedback = LocalHapticFeedback.current
+            val backgroundColor = MiuixTheme.colorScheme.surface
+            val backdrop = rememberLayerBackdrop {
+                drawRect(backgroundColor)
+                drawContent()
+            }
+            val liquidGlassBackdrop = com.kyant.backdrop.backdrops.rememberLayerBackdrop()
+            val scrollBehavior = rememberSharedScrollBehavior()
+            var showGuideDialog by remember { mutableStateOf(false) }
+            val isTablet = LocalConfiguration.current.screenWidthDp >= 600
+            val tabletHorizontalPadding = if (isTablet) {
+                val screenWidthDp = LocalConfiguration.current.screenWidthDp
+                ((screenWidthDp - 600).coerceIn(0, 600) / 600f * 112 + 16).dp
+            } else 16.dp
 
-                Scaffold(
-                    topBar = {
-                        ProgressiveBlurTopBar(
-                            backdrop = liquidGlassBackdrop,
-                        ) {
-                            CollapsibleTopAppBar(
-                                title = "桌面小部件",
-                                largeTitle = "桌面小部件",
-                                modifier = Modifier,
-                                scrollBehavior = scrollBehavior,
-                                contentPadding = {},
-                                startAction = { backdropAlpha, shadowAlpha ->
-                                    LiquidTopBarButton(
-                                        onClick = { finish() },
-                                        backdrop = liquidGlassBackdrop,
-                                        icon = MiuixIcons.ChevronBackward,
-                                        contentDescription = "返回",
-                                        performHapticFeedback = false,
-                                        iconSize = 25.dp,
-                                        iconOffset = DpOffset(x = (-2).dp, y = 0.dp),
-                                        backdropAlpha = backdropAlpha,
-                                        shadowAlpha = shadowAlpha,
-                                    )
-                                },
-                            )
-                        }
-                    }
-                ) { _ ->
-                    Box(
-                        modifier = Modifier
-                            .fillMaxSize()
-                            .layerBackdrop(backdrop)
+            Scaffold(
+                topBar = {
+                    ProgressiveBlurTopBar(
+                        backdrop = liquidGlassBackdrop,
                     ) {
-                        // 采样层只包内容；玻璃按钮放在层外，避免循环采样
-                        Box(
-                            modifier = Modifier.fillMaxSize().then(
-                                Modifier.liquidGlassLayerBackdrop(liquidGlassBackdrop)
-                            )
-                        ) {
-                            WidgetIntroScreen(
-                                scrollBehavior = scrollBehavior,
-                                liquidGlassBackdrop = liquidGlassBackdrop,
-                            )
-                        }
-
-                        LiquidGlassTextButton(
-                            text = "添加到桌面",
-                            onClick = {
-                                hapticFeedback.performHapticFeedback(HapticFeedbackType.VirtualKey)
-                                showGuideDialog = true
+                        CollapsibleTopAppBar(
+                            title = "桌面小部件",
+                            largeTitle = "桌面小部件",
+                            modifier = Modifier,
+                            scrollBehavior = scrollBehavior,
+                            contentPadding = {},
+                            startAction = { backdropAlpha, shadowAlpha ->
+                                LiquidTopBarButton(
+                                    onClick = { finishSecondary() },
+                                    backdrop = liquidGlassBackdrop,
+                                    icon = MiuixIcons.ChevronBackward,
+                                    contentDescription = "返回",
+                                    performHapticFeedback = false,
+                                    iconSize = 25.dp,
+                                    iconOffset = DpOffset(x = (-2).dp, y = 0.dp),
+                                    backdropAlpha = backdropAlpha,
+                                    shadowAlpha = shadowAlpha,
+                                )
                             },
-                            backdrop = liquidGlassBackdrop,
-                            modifier = Modifier
-                                .align(Alignment.BottomCenter)
-                                .fillMaxWidth()
-                                .padding(
-                                    start = tabletHorizontalPadding + 16.dp,
-                                    end = tabletHorizontalPadding + 16.dp
-                                )
-                                .navigationBarsPadding()
-                                .padding(bottom = 20.dp)
                         )
-
-                        OverlayDialog(
-                            title = "添加桌面小部件",
-                            show = showGuideDialog,
+                    }
+                }
+            ) { _ ->
+                Box(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .layerBackdrop(backdrop)
+                ) {
+                    // 采样层只包内容；玻璃按钮放在层外，避免循环采样
+                    Box(
+                        modifier = Modifier.fillMaxSize().then(
+                            Modifier.liquidGlassLayerBackdrop(liquidGlassBackdrop)
+                        )
+                    ) {
+                        WidgetIntroScreen(
+                            scrollBehavior = scrollBehavior,
                             liquidGlassBackdrop = liquidGlassBackdrop,
-                            onDismissRequest = { showGuideDialog = false }
+                        )
+                    }
+
+                    LiquidGlassTextButton(
+                        text = "添加到桌面",
+                        onClick = {
+                            hapticFeedback.performHapticFeedback(HapticFeedbackType.VirtualKey)
+                            showGuideDialog = true
+                        },
+                        backdrop = liquidGlassBackdrop,
+                        modifier = Modifier
+                            .align(Alignment.BottomCenter)
+                            .fillMaxWidth()
+                            .padding(
+                                start = tabletHorizontalPadding + 16.dp,
+                                end = tabletHorizontalPadding + 16.dp
+                            )
+                            .navigationBarsPadding()
+                            .padding(bottom = 20.dp)
+                    )
+
+                    OverlayDialog(
+                        title = "添加桌面小部件",
+                        show = showGuideDialog,
+                        liquidGlassBackdrop = liquidGlassBackdrop,
+                        onDismissRequest = { showGuideDialog = false }
+                    ) {
+                        Column(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalAlignment = Alignment.CenterHorizontally
                         ) {
-                            Column(
-                                modifier = Modifier.fillMaxWidth(),
-                                horizontalAlignment = Alignment.CenterHorizontally
-                            ) {
-                                Text(
-                                    text = "1. 长按桌面空白处\n2. 选择「全部应用」内的「安卓小部件」\n3. 找到「Nexio课程表」并添加",
-                                    fontSize = 14.sp,
-                                    lineHeight = 24.sp,
-                                    color = MiuixTheme.colorScheme.onSurfaceVariantActions
-                                )
-                                Spacer(modifier = Modifier.height(20.dp))
-                                TextButton(
-                                    text = "我知道了",
-                                    onClick = {
-                                        hapticFeedback.performHapticFeedback(HapticFeedbackType.Confirm)
-                                        showGuideDialog = false
-                                    },
-                                    modifier = Modifier.fillMaxWidth()
-                                )
-                            }
+                            Text(
+                                text = "1. 长按桌面空白处\n2. 选择「全部应用」内的「安卓小部件」\n3. 找到「Nexio课程表」并添加",
+                                fontSize = 14.sp,
+                                lineHeight = 24.sp,
+                                color = MiuixTheme.colorScheme.onSurfaceVariantActions
+                            )
+                            Spacer(modifier = Modifier.height(20.dp))
+                            TextButton(
+                                text = "我知道了",
+                                onClick = {
+                                    hapticFeedback.performHapticFeedback(HapticFeedbackType.Confirm)
+                                    showGuideDialog = false
+                                },
+                                modifier = Modifier.fillMaxWidth()
+                            )
                         }
                     }
                 }
             }
+        
         }
     }
 }

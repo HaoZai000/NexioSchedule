@@ -25,6 +25,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.haooz.chedule.ui.activities.UpdateSettingsActivity
 import com.haooz.chedule.ui.utils.UpdateChecker
+import com.haooz.chedule.ui.utils.openSecondaryPage
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.withContext
@@ -161,7 +162,7 @@ internal fun UpdateDialog(liquidGlassBackdrop: com.kyant.backdrop.Backdrop? = nu
                         hapticFeedback.performHapticFeedback(HapticFeedbackType.Confirm)
                         showUpdateDialog = false
                         val intent = Intent(context, UpdateSettingsActivity::class.java)
-                        context.startActivity(intent)
+                        context.openSecondaryPage(intent)
                     },
                     colors = ButtonDefaults.buttonColorsPrimary()
                 ) {

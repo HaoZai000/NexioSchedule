@@ -55,7 +55,10 @@ import com.haooz.chedule.ui.basic.CollapsibleTopAppBarDefaults
 import com.haooz.chedule.ui.basic.SharedScrollBehavior
 import com.haooz.chedule.ui.basic.collapsibleTopInset
 import com.haooz.chedule.ui.utils.isAppDarkTheme
+import com.haooz.chedule.ui.utils.openSecondaryPage
 import com.haooz.chedule.ui.utils.overScrollVertical
+import com.haooz.chedule.ui.utils.secondaryOpenOptionsCompat
+import com.haooz.chedule.ui.utils.suppressOpenTransition
 import com.haooz.chedule.viewmodel.CourseViewModel
 import com.haooz.chedule.viewmodel.ScheduleViewModel
 import com.haooz.chedule.viewmodel.SettingsViewModel
@@ -334,7 +337,17 @@ fun SettingsScreen(
                                 onClick = {
                                     val intent =
                                         Intent(context, CourseTimeSettingsActivity::class.java)
-                                    courseTimeSettingsLauncher.launch(intent)
+                                    intent.addFlags(Intent.FLAG_ACTIVITY_NO_ANIMATION)
+                                    val act = context as? Activity
+                                    if (act != null) {
+                                        courseTimeSettingsLauncher.launch(
+                                            intent,
+                                            secondaryOpenOptionsCompat(act)
+                                        )
+                                        act.suppressOpenTransition()
+                                    } else {
+                                        courseTimeSettingsLauncher.launch(intent)
+                                    }
                                 }
                             )
                         }
@@ -361,14 +374,24 @@ fun SettingsScreen(
                                     holdDownState = activeSecondaryActivity == "CourseReminderActivity",
                                     onClick = {
                                         val intent = Intent(context, CourseReminderActivity::class.java)
-                                        reminderSettingsLauncher.launch(intent)
+                                        intent.addFlags(Intent.FLAG_ACTIVITY_NO_ANIMATION)
+                                        val act = context as? Activity
+                                        if (act != null) {
+                                            reminderSettingsLauncher.launch(
+                                                intent,
+                                                secondaryOpenOptionsCompat(act)
+                                            )
+                                            act.suppressOpenTransition()
+                                        } else {
+                                            reminderSettingsLauncher.launch(intent)
+                                        }
                                     }
                                 )
                                 ArrowPreference(
                                     title = "节假日与调休",
                                     holdDownState = activeSecondaryActivity == "HolidaySettingsActivity",
                                     onClick = {
-                                        context.startActivity(Intent(context, HolidaySettingsActivity::class.java))
+                                        context.openSecondaryPage(Intent(context, HolidaySettingsActivity::class.java))
                                     }
                                 )
                                 ArrowPreference(
@@ -376,7 +399,7 @@ fun SettingsScreen(
                                     holdDownState = activeSecondaryActivity == "WidgetIntroActivity",
                                     onClick = {
                                         val intent = Intent(context, WidgetIntroActivity::class.java)
-                                        context.startActivity(intent)
+                                        context.openSecondaryPage(intent)
                                     }
                                 )
                             }
@@ -459,7 +482,7 @@ fun SettingsScreen(
                                     summary = "AI文本、教务、文件、分享口令",
                                     holdDownState = activeSecondaryActivity in ScheduleImportActivities,
                                     onClick = {
-                                        context.startActivity(
+                                        context.openSecondaryPage(
                                             com.haooz.chedule.ui.activities.BackupAndMigrationActivity.importIntent(context)
                                         )
                                     }
@@ -469,7 +492,7 @@ fun SettingsScreen(
                                     summary = "文件、口令分享",
                                     holdDownState = activeSecondaryActivity in ScheduleExportActivities,
                                     onClick = {
-                                        context.startActivity(
+                                        context.openSecondaryPage(
                                             com.haooz.chedule.ui.activities.BackupAndMigrationActivity.exportIntent(context)
                                         )
                                     }
@@ -479,7 +502,7 @@ fun SettingsScreen(
                                     summary = "本地备份、WebDAV云备份",
                                     holdDownState = activeSecondaryActivity in ScheduleBackupActivities,
                                     onClick = {
-                                        context.startActivity(
+                                        context.openSecondaryPage(
                                             com.haooz.chedule.ui.activities.BackupAndMigrationActivity.backupIntent(context)
                                         )
                                     }
@@ -528,7 +551,7 @@ fun SettingsScreen(
                                     holdDownState = activeSecondaryActivity == "PreferenceSettingsActivity",
                                     onClick = {
                                         val intent = Intent(context, PreferenceSettingsActivity::class.java)
-                                        context.startActivity(intent)
+                                        context.openSecondaryPage(intent)
                                     }
                                 )
                                 ArrowPreference(
@@ -536,7 +559,7 @@ fun SettingsScreen(
                                     holdDownState = activeSecondaryActivity == "UpdateSettingsActivity",
                                     onClick = {
                                         val intent = Intent(context, UpdateSettingsActivity::class.java)
-                                        context.startActivity(intent)
+                                        context.openSecondaryPage(intent)
                                     }
                                 )
                                 ArrowPreference(
@@ -544,7 +567,7 @@ fun SettingsScreen(
                                     holdDownState = activeSecondaryActivity in AboutActivities,
                                     onClick = {
                                         val intent = Intent(context, AboutActivity::class.java)
-                                        context.startActivity(intent)
+                                        context.openSecondaryPage(intent)
                                     }
                                 )
                             }

@@ -1,0 +1,32 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- 窗口动画全空：打开/关闭都不让 HyperOS 播系统缩放 -->
+    <style name="Animation.SecondaryNoAnim" parent="@android:style/Animation.Activity">
+        <item name="android:activityOpenEnterAnimation">@anim/none</item>
+        <item name="android:activityOpenExitAnimation">@anim/none</item>
+        <item name="android:activityCloseEnterAnimation">@anim/none</item>
+        <item name="android:activityCloseExitAnimation">@anim/none</item>
+        <item name="android:taskOpenEnterAnimation">@anim/none</item>
+        <item name="android:taskOpenExitAnimation">@anim/none</item>
+        <item name="android:taskCloseEnterAnimation">@anim/none</item>
+        <item name="android:taskCloseExitAnimation">@anim/none</item>
+        <item name="android:taskToFrontEnterAnimation">@anim/none</item>
+        <item name="android:taskToFrontExitAnimation">@anim/none</item>
+        <item name="android:taskToBackEnterAnimation">@anim/none</item>
+        <item name="android:taskToBackExitAnimation">@anim/none</item>
+    </style>
+
+    <!-- 半透明二级页：下层 Activity 继续绘制，滑动时能看见底下那页 -->
+    <style name="Theme.课程表.Secondary" parent="Theme.课程表">
+        <item name="android:windowDisablePreview">true</item>
+        <item name="android:windowIsTranslucent">true</item>
+        <item name="android:windowBackground">@android:color/transparent</item>
+        <item name="android:windowContentOverlay">@null</item>
+        <item name="android:backgroundDimEnabled">false</item>
+        <item name="android:windowAnimationStyle">@style/Animation.SecondaryNoAnim</item>
+        <item name="android:colorBackgroundCacheHint">@null</item>
+        <item name="android:windowDrawsSystemBarBackgrounds">true</item>
+        <item name="android:statusBarColor">@android:color/transparent</item>
+        <item name="android:navigationBarColor">@android:color/transparent</item>
+    </style>
+</resources>

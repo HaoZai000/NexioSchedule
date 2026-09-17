@@ -4,9 +4,7 @@ package com.haooz.chedule.ui.activities
 import android.annotation.SuppressLint
 import android.graphics.Bitmap
 import android.os.Bundle
-import androidx.activity.ComponentActivity
 import androidx.activity.SystemBarStyle
-import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.tween
@@ -42,7 +40,6 @@ import com.haooz.chedule.ui.basic.rememberSharedScrollBehavior
 import com.haooz.chedule.ui.effects.motion.OobeCubicOutEasing
 import com.haooz.chedule.ui.effects.motion.OobeQuartOutEasing
 import com.haooz.chedule.ui.screens.TimeConfigEditScreen
-import com.haooz.chedule.ui.theme.CourseScheduleTheme
 import com.haooz.chedule.ui.utils.applyThemeAwareSystemBars
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
@@ -57,7 +54,7 @@ import kotlin.math.abs
 import kotlin.time.Duration.Companion.milliseconds
 import com.kyant.backdrop.backdrops.layerBackdrop as liquidGlassLayerBackdrop
 
-class CourseTimeSettingsActivity : ComponentActivity() {
+class CourseTimeSettingsActivity : SecondaryActivity() {
     // 小窗状态
     private var _isInFreeformWindow = mutableStateOf(false)
     val isInFreeformWindow: Boolean get() = _isInFreeformWindow.value
@@ -78,300 +75,299 @@ class CourseTimeSettingsActivity : ComponentActivity() {
         )
         applyThemeAwareSystemBars()
         _isInFreeformWindow.value = isInMultiWindowMode
-        setContent {
-            CourseScheduleTheme {
-                val backgroundColor = MiuixTheme.colorScheme.surface
-                val backdrop = rememberLayerBackdrop {
-                    drawRect(backgroundColor)
-                    drawContent()
-                }
-                val liquidGlassBackdrop = com.kyant.backdrop.backdrops.rememberLayerBackdrop()
-                val editLiquidGlassBackdrop = com.kyant.backdrop.backdrops.rememberLayerBackdrop()
-                val scrollBehavior = rememberSharedScrollBehavior()
-                val repository = remember { CourseRepository(this@CourseTimeSettingsActivity) }
-                val context = androidx.compose.ui.platform.LocalContext.current
-                val activity = context as? CourseTimeSettingsActivity
+        setSecondaryContent {
+            val backgroundColor = MiuixTheme.colorScheme.surface
+            val backdrop = rememberLayerBackdrop {
+                drawRect(backgroundColor)
+                drawContent()
+            }
+            val liquidGlassBackdrop = com.kyant.backdrop.backdrops.rememberLayerBackdrop()
+            val editLiquidGlassBackdrop = com.kyant.backdrop.backdrops.rememberLayerBackdrop()
+            val scrollBehavior = rememberSharedScrollBehavior()
+            val repository = remember { CourseRepository(this@CourseTimeSettingsActivity) }
+            val context = androidx.compose.ui.platform.LocalContext.current
+            val activity = context as? CourseTimeSettingsActivity
 
-                // 小窗状态
-                var isInFreeformWindow by remember { mutableStateOf(activity?.isInFreeformWindow ?: false) }
-                LaunchedEffect(Unit) {
-                    snapshotFlow { activity?.isInFreeformWindow }
-                        .collect { value ->
-                            isInFreeformWindow = value ?: false
-                        }
-                }
-
-                // 页面状态管理
-                var currentPage by remember { mutableStateOf("select") }
-                var editingConfig by remember { mutableStateOf<TimeConfig?>(null) }
-                var editingCardBounds by remember { mutableStateOf<TimeConfigCardBounds?>(null) }
-                var listRefreshTrigger by remember { mutableIntStateOf(0) }
-                var hideConfigId by remember { mutableStateOf<Long?>(null) }
-                var hideFab by remember { mutableStateOf(false) }
-                var newlyAddedConfigId by remember { mutableStateOf<Long?>(null) }
-                var isNewConfigCreation by remember { mutableStateOf(false) }
-
-                // 屏幕尺寸与圆角
-                val density = LocalDensity.current
-                val windowManager = remember { getSystemService(android.view.WindowManager::class.java) }
-                val windowMetrics = remember(isInFreeformWindow) { windowManager.currentWindowMetrics }
-                val screenWidth = remember(isInFreeformWindow) { windowMetrics.bounds.width().toFloat() }
-                val screenHeight = remember(isInFreeformWindow) { windowMetrics.bounds.height().toFloat() }
-                @SuppressLint("WrongConstant")
-                val screenCornerRadius = remember(isInFreeformWindow) {
-                    if (isInFreeformWindow) {
-                        20f * density.density
-                    } else {
-                        try {
-                            windowMetrics.windowInsets.getRoundedCorner(0)?.radius?.toFloat() ?: 0f
-                        } catch (_: Exception) { 0f }
+            // 小窗状态
+            var isInFreeformWindow by remember { mutableStateOf(activity?.isInFreeformWindow ?: false) }
+            LaunchedEffect(Unit) {
+                snapshotFlow { activity?.isInFreeformWindow }
+                    .collect { value ->
+                        isInFreeformWindow = value ?: false
                     }
+            }
+
+            // 页面状态管理
+            var currentPage by remember { mutableStateOf("select") }
+            var editingConfig by remember { mutableStateOf<TimeConfig?>(null) }
+            var editingCardBounds by remember { mutableStateOf<TimeConfigCardBounds?>(null) }
+            var listRefreshTrigger by remember { mutableIntStateOf(0) }
+            var hideConfigId by remember { mutableStateOf<Long?>(null) }
+            var hideFab by remember { mutableStateOf(false) }
+            var newlyAddedConfigId by remember { mutableStateOf<Long?>(null) }
+            var isNewConfigCreation by remember { mutableStateOf(false) }
+
+            // 屏幕尺寸与圆角
+            val density = LocalDensity.current
+            val windowManager = remember { getSystemService(android.view.WindowManager::class.java) }
+            val windowMetrics = remember(isInFreeformWindow) { windowManager.currentWindowMetrics }
+            val screenWidth = remember(isInFreeformWindow) { windowMetrics.bounds.width().toFloat() }
+            val screenHeight = remember(isInFreeformWindow) { windowMetrics.bounds.height().toFloat() }
+            @SuppressLint("WrongConstant")
+            val screenCornerRadius = remember(isInFreeformWindow) {
+                if (isInFreeformWindow) {
+                    20f * density.density
+                } else {
+                    try {
+                        windowMetrics.windowInsets.getRoundedCorner(0)?.radius?.toFloat() ?: 0f
+                    } catch (_: Exception) { 0f }
                 }
+            }
 
-                // 快照截取
-                val screenGraphicsLayer = rememberGraphicsLayer()
-                var cardSnapshot by remember { mutableStateOf<Bitmap?>(null) }
-                val coroutineScope = rememberCoroutineScope()
+            // 快照截取
+            val screenGraphicsLayer = rememberGraphicsLayer()
+            var cardSnapshot by remember { mutableStateOf<Bitmap?>(null) }
+            val coroutineScope = rememberCoroutineScope()
 
-                // 背景缩放与模糊动画
-                val backgroundScale = remember { Animatable(1f) }
-                val managePageBlurRadius = remember { Animatable(0f) }
+            // 背景缩放与模糊动画
+            val backgroundScale = remember { Animatable(1f) }
+            val managePageBlurRadius = remember { Animatable(0f) }
 
-                Box(modifier = Modifier.fillMaxSize()) {
-                    // 主内容（缩放+模糊动画）
-                    Box(modifier = Modifier
-                        .fillMaxSize()
-                        .graphicsLayer {
-                            // 使用 renderEffect 模糊，避免动画时重组
-                            val blurRadiusPx = managePageBlurRadius.value * this@graphicsLayer.density
-                            renderEffect = if (blurRadiusPx > 0f) {
-                                android.graphics.RenderEffect.createBlurEffect(
-                                    blurRadiusPx,
-                                    blurRadiusPx,
-                                    android.graphics.Shader.TileMode.CLAMP
-                                ).asComposeRenderEffect()
-                            } else {
-                                null
-                            }
+            Box(modifier = Modifier.fillMaxSize()) {
+                // 主内容（缩放+模糊动画）
+                Box(modifier = Modifier
+                    .fillMaxSize()
+                    .graphicsLayer {
+                        // 使用 renderEffect 模糊，避免动画时重组
+                        val blurRadiusPx = managePageBlurRadius.value * this@graphicsLayer.density
+                        renderEffect = if (blurRadiusPx > 0f) {
+                            android.graphics.RenderEffect.createBlurEffect(
+                                blurRadiusPx,
+                                blurRadiusPx,
+                                android.graphics.Shader.TileMode.CLAMP
+                            ).asComposeRenderEffect()
+                        } else {
+                            null
                         }
-                        .background(MiuixTheme.colorScheme.surface)
-                    ) {
-                        Box(
-                            modifier = Modifier
-                                .fillMaxSize()
-                                .graphicsLayer {
-                                    val scale = backgroundScale.value
-                                    scaleX = scale
-                                    scaleY = scale
+                    }
+                    .background(MiuixTheme.colorScheme.surface)
+                ) {
+                    Box(
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .graphicsLayer {
+                                val scale = backgroundScale.value
+                                scaleX = scale
+                                scaleY = scale
+                            }
+                            .drawWithContent {
+                                screenGraphicsLayer.record {
+                                    this@drawWithContent.drawContent()
                                 }
-                                .drawWithContent {
-                                    screenGraphicsLayer.record {
+                                val scale = backgroundScale.value
+                                if (scale < 0.999f) {
+                                    val path = Path().apply {
+                                        addSquircleRect(
+                                            width = size.width,
+                                            height = size.height,
+                                            cornerRadius = screenCornerRadius
+                                        )
+                                    }
+                                    clipPath(path) {
                                         this@drawWithContent.drawContent()
                                     }
-                                    val scale = backgroundScale.value
-                                    if (scale < 0.999f) {
-                                        val path = Path().apply {
-                                            addSquircleRect(
-                                                width = size.width,
-                                                height = size.height,
-                                                cornerRadius = screenCornerRadius
-                                            )
-                                        }
-                                        clipPath(path) {
-                                            this@drawWithContent.drawContent()
-                                        }
-                                    } else {
-                                        drawContent()
-                                    }
+                                } else {
+                                    drawContent()
                                 }
-                        ) {
-                            var topBarHeight by remember { mutableStateOf(0.dp) }
-                            Scaffold(
-                                topBar = {
-                                    ProgressiveBlurTopBar(
-                                        backdrop = liquidGlassBackdrop,
-                                    ) {
-                                        CollapsibleTopAppBar(
-                                            title = "课表节数与时间",
-                                            largeTitle = "课表节数与时间",
-                                            modifier = Modifier.zIndex(1f),
-                                            scrollBehavior = scrollBehavior,
-                                            contentPadding = { height -> topBarHeight = height },
-                                            startAction = { backdropAlpha, shadowAlpha ->
-                                                LiquidTopBarButton(
-                                                    onClick = { finish() },
-                                                    backdrop = liquidGlassBackdrop,
-                                                    icon = MiuixIcons.ChevronBackward,
-                                                    contentDescription = "返回",
-                                                    performHapticFeedback = false,
-                                                    iconSize = 25.dp,
-                                                    iconOffset = DpOffset(x = (-2).dp, y = 0.dp),
-                                                    backdropAlpha = backdropAlpha,
-                                                    shadowAlpha = shadowAlpha,
-                                                )
-                                            },
-                                        )
-                                    }
-                                }
-                            ) { _ ->
-                                Box(
-                                    modifier = Modifier
-                                        .fillMaxSize()
-                                        .layerBackdrop(backdrop)
+                            }
+                    ) {
+                        var topBarHeight by remember { mutableStateOf(0.dp) }
+                        Scaffold(
+                            topBar = {
+                                ProgressiveBlurTopBar(
+                                    backdrop = liquidGlassBackdrop,
                                 ) {
-                                    Box(
-                                        modifier = Modifier.fillMaxSize().then(
-                                            Modifier.liquidGlassLayerBackdrop(liquidGlassBackdrop)
-                                        )
-                                    ) {
-                                        CourseTimeSettingsScreen(
-                                            onEditConfig = { config, bounds ->
-                                                // 从 repository 重新读取最新的 TimeConfig，避免使用缓存的旧数据
-                                                val latestConfig = repository.getTimeConfig(config.id)
-                                                editingConfig = latestConfig
-                                                editingCardBounds = bounds
-                                                hideConfigId = config.id
-                                                isNewConfigCreation = false
-                                                // 先捕获快照（原始状态）
-                                                coroutineScope.launch {
-                                                    val lx = bounds.left.toInt().coerceIn(0, screenWidth.toInt() - 1)
-                                                    val ly = bounds.top.toInt().coerceIn(0, screenHeight.toInt() - 1)
-                                                    val lw = bounds.width.toInt().coerceIn(1, screenWidth.toInt() - lx)
-                                                    val lh = bounds.height.toInt().coerceIn(1, screenHeight.toInt() - ly)
-                                                    cardSnapshot = try {
-                                                        val fullBitmap = screenGraphicsLayer.toImageBitmap().asAndroidBitmap()
-                                                        Bitmap.createBitmap(fullBitmap, lx, ly, lw, lh)
-                                                    } catch (_: Exception) { null }
+                                    CollapsibleTopAppBar(
+                                        title = "课表节数与时间",
+                                        largeTitle = "课表节数与时间",
+                                        modifier = Modifier.zIndex(1f),
+                                        scrollBehavior = scrollBehavior,
+                                        contentPadding = { height -> topBarHeight = height },
+                                        startAction = { backdropAlpha, shadowAlpha ->
+                                            LiquidTopBarButton(
+                                                onClick = { finishSecondary() },
+                                                backdrop = liquidGlassBackdrop,
+                                                icon = MiuixIcons.ChevronBackward,
+                                                contentDescription = "返回",
+                                                performHapticFeedback = false,
+                                                iconSize = 25.dp,
+                                                iconOffset = DpOffset(x = (-2).dp, y = 0.dp),
+                                                backdropAlpha = backdropAlpha,
+                                                shadowAlpha = shadowAlpha,
+                                            )
+                                        },
+                                    )
+                                }
+                            }
+                        ) { _ ->
+                            Box(
+                                modifier = Modifier
+                                    .fillMaxSize()
+                                    .layerBackdrop(backdrop)
+                            ) {
+                                Box(
+                                    modifier = Modifier.fillMaxSize().then(
+                                        Modifier.liquidGlassLayerBackdrop(liquidGlassBackdrop)
+                                    )
+                                ) {
+                                    CourseTimeSettingsScreen(
+                                        onEditConfig = { config, bounds ->
+                                            // 从 repository 重新读取最新的 TimeConfig，避免使用缓存的旧数据
+                                            val latestConfig = repository.getTimeConfig(config.id)
+                                            editingConfig = latestConfig
+                                            editingCardBounds = bounds
+                                            hideConfigId = config.id
+                                            isNewConfigCreation = false
+                                            // 先捕获快照（原始状态）
+                                            coroutineScope.launch {
+                                                val lx = bounds.left.toInt().coerceIn(0, screenWidth.toInt() - 1)
+                                                val ly = bounds.top.toInt().coerceIn(0, screenHeight.toInt() - 1)
+                                                val lw = bounds.width.toInt().coerceIn(1, screenWidth.toInt() - lx)
+                                                val lh = bounds.height.toInt().coerceIn(1, screenHeight.toInt() - ly)
+                                                cardSnapshot = try {
+                                                    val fullBitmap = screenGraphicsLayer.toImageBitmap().asAndroidBitmap()
+                                                    Bitmap.createBitmap(fullBitmap, lx, ly, lw, lh)
+                                                } catch (_: Exception) { null }
+                                            }
+                                            // 等待一帧后启动背景动画
+                                            coroutineScope.launch {
+                                                delay(12.milliseconds)
+                                                launch {
+                                                    backgroundScale.animateTo(
+                                                        targetValue = 0.92f,
+                                                        animationSpec = tween(560, easing = OobeQuartOutEasing)
+                                                    )
                                                 }
-                                                // 等待一帧后启动背景动画
-                                                coroutineScope.launch {
-                                                    delay(12.milliseconds)
-                                                    launch {
-                                                        backgroundScale.animateTo(
-                                                            targetValue = 0.92f,
-                                                            animationSpec = tween(560, easing = OobeQuartOutEasing)
-                                                        )
-                                                    }
-                                                    launch {
-                                                        managePageBlurRadius.animateTo(
-                                                            targetValue = 5f,
-                                                            animationSpec = tween(560, easing = OobeQuartOutEasing)
-                                                        )
-                                                    }
+                                                launch {
+                                                    managePageBlurRadius.animateTo(
+                                                        targetValue = 5f,
+                                                        animationSpec = tween(560, easing = OobeQuartOutEasing)
+                                                    )
                                                 }
-                                                // 最后触发组合（背景已在动画中）
-                                                currentPage = "edit"
-                                            },
-                                            onCreateConfig = { bounds ->
-                                                editingConfig = TimeConfig(name = "")
-                                                editingCardBounds = bounds
-                                                hideFab = true
-                                                isNewConfigCreation = true
-                                                // 先捕获快照（原始状态）
-                                                coroutineScope.launch {
-                                                    val lx = bounds.left.toInt().coerceIn(0, screenWidth.toInt() - 1)
-                                                    val ly = bounds.top.toInt().coerceIn(0, screenHeight.toInt() - 1)
-                                                    val lw = bounds.width.toInt().coerceIn(1, screenWidth.toInt() - lx)
-                                                    val lh = bounds.height.toInt().coerceIn(1, screenHeight.toInt() - ly)
-                                                    cardSnapshot = try {
-                                                        val fullBitmap = screenGraphicsLayer.toImageBitmap().asAndroidBitmap()
-                                                        Bitmap.createBitmap(fullBitmap, lx, ly, lw, lh)
-                                                    } catch (_: Exception) { null }
+                                            }
+                                            // 最后触发组合（背景已在动画中）
+                                            currentPage = "edit"
+                                        },
+                                        onCreateConfig = { bounds ->
+                                            editingConfig = TimeConfig(name = "")
+                                            editingCardBounds = bounds
+                                            hideFab = true
+                                            isNewConfigCreation = true
+                                            // 先捕获快照（原始状态）
+                                            coroutineScope.launch {
+                                                val lx = bounds.left.toInt().coerceIn(0, screenWidth.toInt() - 1)
+                                                val ly = bounds.top.toInt().coerceIn(0, screenHeight.toInt() - 1)
+                                                val lw = bounds.width.toInt().coerceIn(1, screenWidth.toInt() - lx)
+                                                val lh = bounds.height.toInt().coerceIn(1, screenHeight.toInt() - ly)
+                                                cardSnapshot = try {
+                                                    val fullBitmap = screenGraphicsLayer.toImageBitmap().asAndroidBitmap()
+                                                    Bitmap.createBitmap(fullBitmap, lx, ly, lw, lh)
+                                                } catch (_: Exception) { null }
+                                            }
+                                            // 等待一帧后启动背景动画
+                                            coroutineScope.launch {
+                                                delay(12.milliseconds)
+                                                launch {
+                                                    backgroundScale.animateTo(
+                                                        targetValue = 0.92f,
+                                                        animationSpec = tween(560, easing = OobeQuartOutEasing)
+                                                    )
                                                 }
-                                                // 等待一帧后启动背景动画
-                                                coroutineScope.launch {
-                                                    delay(12.milliseconds)
-                                                    launch {
-                                                        backgroundScale.animateTo(
-                                                            targetValue = 0.92f,
-                                                            animationSpec = tween(560, easing = OobeQuartOutEasing)
-                                                        )
-                                                    }
-                                                    launch {
-                                                        managePageBlurRadius.animateTo(
-                                                            targetValue = 5f,
-                                                            animationSpec = tween(560, easing = OobeQuartOutEasing)
-                                                        )
-                                                    }
+                                                launch {
+                                                    managePageBlurRadius.animateTo(
+                                                        targetValue = 5f,
+                                                        animationSpec = tween(560, easing = OobeQuartOutEasing)
+                                                    )
                                                 }
-                                                // 最后触发组合（背景已在动画中）
-                                                currentPage = "edit"
-                                            },
-                                            refreshTrigger = listRefreshTrigger,
-                                hideConfigId = hideConfigId,
-                                hideFab = hideFab,
-                                newlyAddedConfigId = newlyAddedConfigId,
-                                onNewConfigAnimDone = { newlyAddedConfigId = null },
-                                scrollBehavior = scrollBehavior,
-                                liquidGlassBackdrop = liquidGlassBackdrop,
-                                        )
-                                    }
+                                            }
+                                            // 最后触发组合（背景已在动画中）
+                                            currentPage = "edit"
+                                        },
+                                        refreshTrigger = listRefreshTrigger,
+                            hideConfigId = hideConfigId,
+                            hideFab = hideFab,
+                            newlyAddedConfigId = newlyAddedConfigId,
+                            onNewConfigAnimDone = { newlyAddedConfigId = null },
+                            scrollBehavior = scrollBehavior,
+                            liquidGlassBackdrop = liquidGlassBackdrop,
+                                    )
                                 }
                             }
                         }
-                    }
-                }
-
-                // 编辑页面渲染在 Scaffold 外面（与 CourseManageActivity 结构一致）
-                if (currentPage == "edit") {
-                    editingConfig?.let { config ->
-                        val isNewConfig = isNewConfigCreation
-                        val bounds = editingCardBounds
-                        TimeConfigEditScreen(
-                            timeConfig = config,
-                            onBackStart = {
-                                coroutineScope.launch {
-                                    launch {
-                                        backgroundScale.animateTo(
-                                            targetValue = 1f,
-                                            animationSpec = tween(350, easing = OobeCubicOutEasing)
-                                        )
-                                    }
-                                    launch {
-                                        managePageBlurRadius.animateTo(
-                                            targetValue = 0f,
-                                            animationSpec = tween(350, easing = OobeCubicOutEasing)
-                                        )
-                                    }
-                                }
-                            },
-                            onBack = {
-                                currentPage = "select"
-                                editingConfig = null
-                                editingCardBounds = null
-                                cardSnapshot = null
-                                hideConfigId = null
-                                hideFab = false
-                            },
-                            onSave = { savedConfig ->
-                                if (isNewConfig) {
-                                    val newId = repository.addTimeConfig(savedConfig)
-                                    repository.switchToTimeConfig(newId)
-                                    newlyAddedConfigId = newId
-                                } else {
-                                    repository.saveTimeConfig(savedConfig)
-                                    if (savedConfig.id == repository.getCurrentTimeConfigId()) {
-                                        repository.switchToTimeConfig(savedConfig.id)
-                                    }
-                                }
-                                listRefreshTrigger++
-                            },
-                            cardLeft = bounds?.left ?: 0f,
-                            cardTop = bounds?.top ?: 0f,
-                            cardWidth = bounds?.width ?: screenWidth,
-                            cardHeight = bounds?.height ?: (screenHeight * 0.2f),
-                            screenWidth = screenWidth,
-                            screenHeight = screenHeight,
-                            screenCornerRadius = screenCornerRadius,
-                            cardStartCornerRadius = if (isNewConfig) 92f else 20f,
-                            cardSnapshot = cardSnapshot,
-                            isFabCreation = isNewConfig && bounds != null && bounds.width > 0f && bounds.height > 0f
-                                    && abs(bounds.width - bounds.height) / bounds.width < 0.2f,
-                            liquidGlassBackdrop = editLiquidGlassBackdrop,
-                        )
                     }
                 }
             }
+
+            // 编辑页面渲染在 Scaffold 外面（与 CourseManageActivity 结构一致）
+            if (currentPage == "edit") {
+                editingConfig?.let { config ->
+                    val isNewConfig = isNewConfigCreation
+                    val bounds = editingCardBounds
+                    TimeConfigEditScreen(
+                        timeConfig = config,
+                        onBackStart = {
+                            coroutineScope.launch {
+                                launch {
+                                    backgroundScale.animateTo(
+                                        targetValue = 1f,
+                                        animationSpec = tween(350, easing = OobeCubicOutEasing)
+                                    )
+                                }
+                                launch {
+                                    managePageBlurRadius.animateTo(
+                                        targetValue = 0f,
+                                        animationSpec = tween(350, easing = OobeCubicOutEasing)
+                                    )
+                                }
+                            }
+                        },
+                        onBack = {
+                            currentPage = "select"
+                            editingConfig = null
+                            editingCardBounds = null
+                            cardSnapshot = null
+                            hideConfigId = null
+                            hideFab = false
+                        },
+                        onSave = { savedConfig ->
+                            if (isNewConfig) {
+                                val newId = repository.addTimeConfig(savedConfig)
+                                repository.switchToTimeConfig(newId)
+                                newlyAddedConfigId = newId
+                            } else {
+                                repository.saveTimeConfig(savedConfig)
+                                if (savedConfig.id == repository.getCurrentTimeConfigId()) {
+                                    repository.switchToTimeConfig(savedConfig.id)
+                                }
+                            }
+                            listRefreshTrigger++
+                        },
+                        cardLeft = bounds?.left ?: 0f,
+                        cardTop = bounds?.top ?: 0f,
+                        cardWidth = bounds?.width ?: screenWidth,
+                        cardHeight = bounds?.height ?: (screenHeight * 0.2f),
+                        screenWidth = screenWidth,
+                        screenHeight = screenHeight,
+                        screenCornerRadius = screenCornerRadius,
+                        cardStartCornerRadius = if (isNewConfig) 92f else 20f,
+                        cardSnapshot = cardSnapshot,
+                        isFabCreation = isNewConfig && bounds != null && bounds.width > 0f && bounds.height > 0f
+                                && abs(bounds.width - bounds.height) / bounds.width < 0.2f,
+                        liquidGlassBackdrop = editLiquidGlassBackdrop,
+                    )
+                }
+            }
+        
         }
     }
 }

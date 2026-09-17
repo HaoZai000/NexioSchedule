@@ -69,6 +69,7 @@ import java.text.SimpleDateFormat
 import java.util.Calendar
 import java.util.Date
 import java.util.Locale
+import com.haooz.chedule.ui.utils.openSecondaryPage
 
 /** 数据管理：课表导入 / 导出 / 备份 三种页面模式 */
 enum class ScheduleDataManageMode {
@@ -268,7 +269,7 @@ fun BackupAndMigrationScreen(
                                 title = "AI 文本导入",
                                 summary = "粘贴由AI解析后的课程进行导入",
                                 onClick = {
-                                    context.startActivity(
+                                    context.openSecondaryPage(
                                         Intent(context, AiImportActivity::class.java)
                                     )
                                 }
@@ -277,7 +278,7 @@ fun BackupAndMigrationScreen(
                                 title = "教务系统导入",
                                 summary = "从学校教务系统一键拉取课表",
                                 onClick = {
-                                    context.startActivity(
+                                    context.openSecondaryPage(
                                         Intent(context, EducationalImportActivity::class.java)
                                     )
                                 }
@@ -441,7 +442,7 @@ fun BackupAndMigrationScreen(
                                 summary = "备份课表数据到设备存储",
                                 onClick = {
                                     val intent = Intent(context, LocalBackupActivity::class.java)
-                                    context.startActivity(intent)
+                                    context.openSecondaryPage(intent)
                                 }
                             )
                             ArrowPreference(
@@ -449,7 +450,7 @@ fun BackupAndMigrationScreen(
                                 summary = if (webDavManager.isConfigured()) lastSyncSummary else "配置WebDAV后可云备份/恢复",
                                 onClick = {
                                     val intent = Intent(context, WebDavSettingsActivity::class.java)
-                                    context.startActivity(intent)
+                                    context.openSecondaryPage(intent)
                                 }
                             )
                         }

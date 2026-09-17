@@ -2,9 +2,7 @@
 package com.haooz.chedule.ui.activities
 
 import android.os.Bundle
-import androidx.activity.ComponentActivity
 import androidx.activity.SystemBarStyle
-import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
@@ -15,7 +13,6 @@ import com.haooz.chedule.ui.basic.CollapsibleTopAppBar
 import com.haooz.chedule.ui.basic.LiquidTopBarButton
 import com.haooz.chedule.ui.basic.ProgressiveBlurTopBar
 import com.haooz.chedule.ui.basic.rememberSharedScrollBehavior
-import com.haooz.chedule.ui.theme.CourseScheduleTheme
 import com.haooz.chedule.ui.utils.applyThemeAwareSystemBars
 import top.yukonga.miuix.kmp.basic.Scaffold
 import top.yukonga.miuix.kmp.blur.layerBackdrop
@@ -25,7 +22,7 @@ import top.yukonga.miuix.kmp.icon.extended.ChevronBackward
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 import com.kyant.backdrop.backdrops.layerBackdrop as liquidGlassLayerBackdrop
 
-class AiImportActivity : ComponentActivity() {
+class AiImportActivity : SecondaryActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge(
@@ -36,9 +33,8 @@ class AiImportActivity : ComponentActivity() {
             navigationBarStyle = SystemBarStyle.dark(android.graphics.Color.TRANSPARENT)
         )
         applyThemeAwareSystemBars()
-        setContent {
-            CourseScheduleTheme {
-                val backgroundColor = MiuixTheme.colorScheme.surface
+        setSecondaryContent {
+            val backgroundColor = MiuixTheme.colorScheme.surface
                 val backdrop = rememberLayerBackdrop {
                     drawRect(backgroundColor)
                     drawContent()
@@ -59,7 +55,7 @@ class AiImportActivity : ComponentActivity() {
                                 contentPadding = {},
                                 startAction = { backdropAlpha, shadowAlpha ->
                                     LiquidTopBarButton(
-                                        onClick = { finish() },
+                                        onClick = { finishSecondary() },
                                         backdrop = liquidGlassBackdrop,
                                         icon = MiuixIcons.ChevronBackward,
                                         contentDescription = "返回",
@@ -85,7 +81,7 @@ class AiImportActivity : ComponentActivity() {
                             )
                         ) {
                             AiImportScreen(
-                                onBack = { finish() },
+                                onBack = { finishSecondary() },
                                 scrollBehavior = scrollBehavior,
                                 backdrop = backdrop,
                                 liquidGlassBackdrop = liquidGlassBackdrop
@@ -93,7 +89,6 @@ class AiImportActivity : ComponentActivity() {
                         }
                     }
                 }
-            }
         }
     }
 }

@@ -4,9 +4,7 @@ package com.haooz.chedule.ui.activities
 import android.content.Context
 import android.content.Intent
 import android.os.Bundle
-import androidx.activity.ComponentActivity
 import androidx.activity.SystemBarStyle
-import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
@@ -18,7 +16,6 @@ import com.haooz.chedule.ui.basic.CollapsibleTopAppBar
 import com.haooz.chedule.ui.basic.LiquidTopBarButton
 import com.haooz.chedule.ui.basic.ProgressiveBlurTopBar
 import com.haooz.chedule.ui.basic.rememberSharedScrollBehavior
-import com.haooz.chedule.ui.theme.CourseScheduleTheme
 import com.haooz.chedule.ui.utils.applyThemeAwareSystemBars
 import com.haooz.chedule.viewmodel.CourseViewModel
 import com.haooz.chedule.viewmodel.ScheduleViewModel
@@ -31,7 +28,7 @@ import top.yukonga.miuix.kmp.icon.extended.ChevronBackward
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 import com.kyant.backdrop.backdrops.layerBackdrop as liquidGlassLayerBackdrop
 
-open class BackupAndMigrationActivity : ComponentActivity() {
+open class BackupAndMigrationActivity : SecondaryActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge(
@@ -52,70 +49,69 @@ open class BackupAndMigrationActivity : ComponentActivity() {
             ScheduleDataManageMode.Backup -> "课表备份"
         }
 
-        setContent {
-            CourseScheduleTheme {
-                val backgroundColor = MiuixTheme.colorScheme.surface
-                val backdrop = rememberLayerBackdrop {
-                    drawRect(backgroundColor)
-                    drawContent()
-                }
-                val liquidGlassBackdrop = com.kyant.backdrop.backdrops.rememberLayerBackdrop()
-                val scrollBehavior = rememberSharedScrollBehavior()
+        setSecondaryContent {
+            val backgroundColor = MiuixTheme.colorScheme.surface
+            val backdrop = rememberLayerBackdrop {
+                drawRect(backgroundColor)
+                drawContent()
+            }
+            val liquidGlassBackdrop = com.kyant.backdrop.backdrops.rememberLayerBackdrop()
+            val scrollBehavior = rememberSharedScrollBehavior()
 
-                val courseViewModel: CourseViewModel = viewModel()
-                val scheduleViewModel: ScheduleViewModel = viewModel()
-                val settingsViewModel: SettingsViewModel = viewModel()
+            val courseViewModel: CourseViewModel = viewModel()
+            val scheduleViewModel: ScheduleViewModel = viewModel()
+            val settingsViewModel: SettingsViewModel = viewModel()
 
-                Scaffold(
-                    topBar = {
-                        ProgressiveBlurTopBar(
-                            backdrop = liquidGlassBackdrop,
-                        ) {
-                            CollapsibleTopAppBar(
-                                title = title,
-                                largeTitle = title,
-                                modifier = Modifier,
-                                scrollBehavior = scrollBehavior,
-                                contentPadding = {},
-                                startAction = { backdropAlpha, shadowAlpha ->
-                                    LiquidTopBarButton(
-                                        onClick = { finish() },
-                                        backdrop = liquidGlassBackdrop,
-                                        icon = MiuixIcons.ChevronBackward,
-                                        contentDescription = "返回",
-                                        performHapticFeedback = false,
-                                        iconSize = 25.dp,
-                                        iconOffset = DpOffset(x = (-2).dp, y = 0.dp),
-                                        backdropAlpha = backdropAlpha,
-                                        shadowAlpha = shadowAlpha,
-                                    )
-                                },
-                            )
-                        }
-                    }
-                ) { _ ->
-                    Box(
-                        modifier = Modifier
-                            .fillMaxSize()
-                            .layerBackdrop(backdrop)
+            Scaffold(
+                topBar = {
+                    ProgressiveBlurTopBar(
+                        backdrop = liquidGlassBackdrop,
                     ) {
-                        Box(
-                            modifier = Modifier.fillMaxSize().then(
-                                Modifier.liquidGlassLayerBackdrop(liquidGlassBackdrop)
-                            )
-                        ) {
-                            BackupAndMigrationScreen(
-                                scrollBehavior = scrollBehavior,
-                                courseViewModel = courseViewModel,
-                                scheduleViewModel = scheduleViewModel,
-                                settingsViewModel = settingsViewModel,
-                                liquidGlassBackdrop = liquidGlassBackdrop,
-                                mode = mode,
-                            )
-                        }
+                        CollapsibleTopAppBar(
+                            title = title,
+                            largeTitle = title,
+                            modifier = Modifier,
+                            scrollBehavior = scrollBehavior,
+                            contentPadding = {},
+                            startAction = { backdropAlpha, shadowAlpha ->
+                                LiquidTopBarButton(
+                                    onClick = { finishSecondary() },
+                                    backdrop = liquidGlassBackdrop,
+                                    icon = MiuixIcons.ChevronBackward,
+                                    contentDescription = "返回",
+                                    performHapticFeedback = false,
+                                    iconSize = 25.dp,
+                                    iconOffset = DpOffset(x = (-2).dp, y = 0.dp),
+                                    backdropAlpha = backdropAlpha,
+                                    shadowAlpha = shadowAlpha,
+                                )
+                            },
+                        )
+                    }
+                }
+            ) { _ ->
+                Box(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .layerBackdrop(backdrop)
+                ) {
+                    Box(
+                        modifier = Modifier.fillMaxSize().then(
+                            Modifier.liquidGlassLayerBackdrop(liquidGlassBackdrop)
+                        )
+                    ) {
+                        BackupAndMigrationScreen(
+                            scrollBehavior = scrollBehavior,
+                            courseViewModel = courseViewModel,
+                            scheduleViewModel = scheduleViewModel,
+                            settingsViewModel = settingsViewModel,
+                            liquidGlassBackdrop = liquidGlassBackdrop,
+                            mode = mode,
+                        )
                     }
                 }
             }
+        
         }
     }
 

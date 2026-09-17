@@ -6,9 +6,7 @@ import android.content.Intent
 import android.graphics.Bitmap
 import android.graphics.Canvas
 import android.os.Bundle
-import androidx.activity.ComponentActivity
 import androidx.activity.SystemBarStyle
-import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.animateFloatAsState
@@ -74,9 +72,9 @@ import com.haooz.chedule.ui.basic.rememberSharedScrollBehavior
 import com.haooz.chedule.ui.data.changelogData
 import com.haooz.chedule.ui.effects.background.BgEffectBackground
 import com.haooz.chedule.ui.effects.miuix.rememberBlurBackdrop
-import com.haooz.chedule.ui.theme.CourseScheduleTheme
 import com.haooz.chedule.ui.utils.applyThemeAwareSystemBars
 import com.haooz.chedule.ui.utils.isAppDarkTheme
+import com.haooz.chedule.ui.utils.openSecondaryPage
 import com.haooz.chedule.ui.utils.overScrollVertical
 import com.kyant.capsule.ContinuousRoundedRectangle
 import top.yukonga.miuix.kmp.basic.Card
@@ -100,7 +98,7 @@ import top.yukonga.miuix.kmp.utils.scrollEndHaptic
 import androidx.compose.ui.graphics.BlendMode as ComposeBlendMode
 import com.kyant.backdrop.backdrops.layerBackdrop as liquidGlassLayerBackdrop
 
-class AboutActivity : ComponentActivity() {
+class AboutActivity : SecondaryActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge(
@@ -111,11 +109,9 @@ class AboutActivity : ComponentActivity() {
             navigationBarStyle = SystemBarStyle.dark(android.graphics.Color.TRANSPARENT)
         )
         applyThemeAwareSystemBars()
-        setContent {
-            CourseScheduleTheme {
-                val liquidGlassBackdrop = com.kyant.backdrop.backdrops.rememberLayerBackdrop()
-                AboutScreen(onBack = { finish() }, liquidGlassBackdrop = liquidGlassBackdrop)
-            }
+        setSecondaryContent {
+            val liquidGlassBackdrop = com.kyant.backdrop.backdrops.rememberLayerBackdrop()
+            AboutScreen(onBack = { finishSecondary() }, liquidGlassBackdrop = liquidGlassBackdrop)
         }
     }
 }
@@ -413,7 +409,7 @@ private fun AboutScreen(onBack: () -> Unit, liquidGlassBackdrop: com.kyant.backd
                                     onClick = {
                                         val intent =
                                             Intent(context, CommunicationActivity::class.java)
-                                        context.startActivity(intent)
+                                        context.openSecondaryPage(intent)
                                     }
                                 )
                                 ArrowPreference(
@@ -434,7 +430,7 @@ private fun AboutScreen(onBack: () -> Unit, liquidGlassBackdrop: com.kyant.backd
                                     onClick = {
                                         val intent =
                                             Intent(context, AppreciateAuthorActivity::class.java)
-                                        context.startActivity(intent)
+                                        context.openSecondaryPage(intent)
                                     }
                                 )
                             }
@@ -472,7 +468,7 @@ private fun AboutScreen(onBack: () -> Unit, liquidGlassBackdrop: com.kyant.backd
                                     modifier = Modifier
                                         .fillMaxWidth()
                                         .clickable {
-                                            context.startActivity(
+                                            context.openSecondaryPage(
                                                 Intent(
                                                     context,
                                                     ChangelogActivity::class.java

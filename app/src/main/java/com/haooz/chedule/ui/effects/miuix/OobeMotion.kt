@@ -1,4 +1,4 @@
-﻿/*
+/*
  * Animation timings are derived from HyperCeiler provision at commit
  * 7266aaa0d698ad10795381c5bf23651c2e1719d0.
  * Copyright (C) 2023-2026 HyperCeiler Contributions
@@ -51,6 +51,20 @@ internal val OobeCubicOutEasing = Easing { fraction ->
 
 internal val OobeQuartOutEasing = Easing { fraction ->
     val inverse = 1f - fraction
+    1f - inverse.pow(4.5f)
+}
+
+/** [OobeQuartOutEasing] 的温和起步变体：Hermite 把起点速度压为 0，中后段保持原强减速 */
+internal val OobeQuartOutSoftStartEasing = Easing { fraction ->
+    val t = fraction.coerceIn(0f, 1f)
+    val k = 0.48f
+    val shaped = if (t <= k) {
+        // shaped(0)=0, shaped'(0)=0, shaped(k)=k, shaped'(k)=1
+        -t * t * t / (k * k) + 2f * t * t / k
+    } else {
+        t
+    }
+    val inverse = 1f - shaped
     1f - inverse.pow(4.5f)
 }
 

@@ -4,10 +4,8 @@ package com.haooz.chedule.ui.activities
 import android.annotation.SuppressLint
 import android.os.Bundle
 import android.widget.Toast
-import androidx.activity.ComponentActivity
 import androidx.activity.SystemBarStyle
 import androidx.activity.compose.BackHandler
-import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.EnterExitState
@@ -79,7 +77,6 @@ import com.haooz.chedule.ui.basic.collapsibleTopInset
 import com.haooz.chedule.ui.basic.rememberSharedScrollBehavior
 import com.haooz.chedule.ui.effects.edgelight.edgeLight
 import com.haooz.chedule.ui.effects.edgelight.rememberDefaultEdgeLight
-import com.haooz.chedule.ui.theme.CourseScheduleTheme
 import com.haooz.chedule.ui.utils.applyThemeAwareSystemBars
 import com.haooz.chedule.ui.utils.buildShareScheduleMap
 import com.haooz.chedule.ui.utils.isAppDarkTheme
@@ -117,7 +114,7 @@ import kotlin.time.Duration.Companion.milliseconds
 import androidx.compose.ui.graphics.Color as ComposeColor
 import com.kyant.backdrop.backdrops.layerBackdrop as liquidGlassLayerBackdrop
 
-class SwitchScheduleActivity : ComponentActivity() {
+class SwitchScheduleActivity : SecondaryActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge(
@@ -128,18 +125,16 @@ class SwitchScheduleActivity : ComponentActivity() {
             navigationBarStyle = SystemBarStyle.dark(android.graphics.Color.TRANSPARENT)
         )
         applyThemeAwareSystemBars()
-        setContent {
-            CourseScheduleTheme {
-                SwitchScheduleScreen(
-                    onBack = {
-                        setResult(RESULT_OK)
-                        finish()
-                    },
-                    onScheduleChanged = {
-                        setResult(RESULT_OK)
-                    }
-                )
-            }
+        setSecondaryContent {
+            SwitchScheduleScreen(
+                onBack = {
+                    setResult(RESULT_OK)
+                    finishSecondary()
+                },
+                onScheduleChanged = {
+                    setResult(RESULT_OK)
+                }
+            )
         }
     }
 }
