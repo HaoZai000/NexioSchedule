@@ -87,8 +87,8 @@ private fun SecondaryPagePredictiveBack(activity: SecondaryActivity) {
                 }
             }
             if (sawGesture && PredictiveBackSettings.enabled) {
-                // 已跟手到接近关闭：归零后直接 finish
-                controller.snapGestureProgress(0f)
+                // 松手吸附关闭后再 finish，避免 snapTo 生硬截断
+                controller.animateGestureDismiss()
                 SecondaryPushParallax.noteClose(controller)
                 activity.finishWithNoWindowAnim()
             } else {
