@@ -386,6 +386,8 @@ fun LiquidBottomTabs(
                                 currentIndex = target
                                 dampedDragAnimation.animateToValue(target.toFloat())
                                 dampedDragAnimation.release()
+                                // 立即通知宿主切页，不等 snapshotFlow 下一拍，减少底栏与 pager 错帧
+                                onTabSelected(target)
                                 animationScope.launch {
                                     offsetAnimation.animateTo(0f, spring(1f, 300f, 0.5f))
                                 }
