@@ -461,10 +461,10 @@ fun TimeConfigEditScreen(
                 val normalY = targetCenterY - screenHeight / 2f * (1f - scale) - (cardHeight + (screenHeight - cardHeight) * p) / 2f
                 val translationY = normalY * (1f - gesture)
 
-                // 手势推进期间裁切完全跟随页面缩放（视觉 Hs，圆角始终完整贴合）；
+                // 手势推进期间裁切跟随"当前展开高度×缩放"（打开未完成时也连续，底部不瞬间归位）；
                 // 松手/取消过渡期按 gesture 平滑插值衔接 morph 的底部收缩动画
-                val predictiveClip = screenHeight * scale
                 val morphClip = cardHeight + (screenHeight - cardHeight) * p
+                val predictiveClip = morphClip * scale
                 val rawClipBottom = if (isGestureActive) predictiveClip else predictiveClip * gesture + morphClip * (1f - gesture)
                 val clipBottom = rawClipBottom / scale
                 ConfigAnimState(bgAlpha, snapAlpha, contAlpha, translationX, translationY, scale, clipBottom, p, gesture)
@@ -486,6 +486,12 @@ fun TimeConfigEditScreen(
         onBackStart()
         scope.launch {
             coroutineScope {
+                launch {
+                    scaleProgress.animateTo(
+                        targetValue = 0f,
+                        animationSpec = tween(durationMillis = 350, easing = morphExitEase)
+                    )
+                }
                 launch {
                     animProgress.animateTo(
                         targetValue = 0f,
