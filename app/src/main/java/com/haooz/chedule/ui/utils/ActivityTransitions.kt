@@ -38,46 +38,75 @@ import com.kyant.capsule.ContinuousRoundedRectangle
 import java.lang.ref.WeakReference
 
 /**
- * 主页 push 视差：二级页盖住时 MainActivity 已 onPause、Compose 不再刷新，
- * 所以直接平移主页 decorView。用 token 集合而非计数，避免主题切换销毁组合导致计数泄漏。
+ * 导航栈 push 视差。
+ *
+ * 下层 Activity 已 onPause、Compose 不再刷新，必须直接平移其 decorView。
+ * 打开第 N 层时推动第 N-1 层（首页二级层推动主页，三级层推动二级页）。
  */
 object SecondaryPushParallax {
-    private var mainDecor: WeakReference<View>? = null
-    private val openTokens = HashSet<Int>()
-    private var lastFraction = 0f
+    private class Layer(val token: Any, activity: Activity) {
+        val decor: WeakReference<View> = WeakReference(activity.window.decorView)
+    }
 
-    /** 当前是否只有（或正在打开）第一层二级页——只有这时才驱动主页左移 */
-    val drivesMainParallax: Boolean get() = openTokens.size <= 1
+    private var mainDecor: WeakReference<View>? = null
+    /** 已打开的二级页，按打开顺序；末尾是栈顶 */
+    private val openPages = mutableListOf<Layer>()
+    private var mainFraction = 0f
 
     fun attachMainRoot(activity: Activity) {
         mainDecor = WeakReference(activity.window.decorView)
-        // 无二级页时强制归位，兜底 lastFraction 异常残留
-        if (openTokens.isEmpty()) {
-            applyToMain(0f)
-        } else {
-            applyToMain(lastFraction)
+        if (openPages.isEmpty()) {
+            applyToView(mainDecor, 0f)
+            mainFraction = 0f
+        } else if (openPages.size == 1) {
+            applyToView(mainDecor, mainFraction)
         }
+        // 嵌套打开时主页保持既有偏移
     }
 
-    fun noteOpen(token: Any) {
-        openTokens.add(System.identityHashCode(token))
+    fun noteOpen(token: Any, activity: Activity) {
+        if (openPages.any { it.token === token }) return
+        openPages.add(Layer(token, activity))
     }
 
     fun noteClose(token: Any) {
-        openTokens.remove(System.identityHashCode(token))
-        if (openTokens.isEmpty()) {
-            applyToMain(0f)
+        val idx = openPages.indexOfFirst { it.token === token }
+        if (idx < 0) return
+        openPages.removeAt(idx)
+        if (openPages.isEmpty()) {
+            applyToView(mainDecor, 0f)
+            mainFraction = 0f
+        } else if (idx >= 1) {
+            // 关掉栈上层：它曾推动的下层二级页归位
+            val below = openPages[idx - 1]
+            applyToView(below.decor, 0f)
+        }
+        // 关掉最底层但仍有上层（少见）：主页保持当前偏移，由上层动画再驱动
+    }
+
+    /**
+     * 当前转场进度应推动的下层：
+     * - 栈上只有一层二级页（或正在开第一层）→ 主页
+     * - 栈上有多层 → 栈顶下面那层二级页
+     */
+    fun applyTransitionProgress(fraction: Float) {
+        val f = fraction.coerceIn(0f, 1f)
+        if (openPages.size <= 1) {
+            mainFraction = f
+            applyToView(mainDecor, f)
+        } else {
+            val below = openPages[openPages.size - 2]
+            applyToView(below.decor, f)
         }
     }
 
-    /** 在 UI 线程把主页整窗平移；fraction: 0=原位，1=完全左移 */
-    fun applyToMain(fraction: Float) {
-        lastFraction = fraction.coerceIn(0f, 1f)
-        val decor = mainDecor?.get() ?: return
+    private fun applyToView(decorRef: WeakReference<View>?, fraction: Float) {
+        val decor = decorRef?.get() ?: return
+        val f = fraction.coerceIn(0f, 1f)
         decor.post {
             val w = decor.width.toFloat()
             if (w <= 0f) return@post
-            decor.translationX = -SECONDARY_PUSH_PARALLAX * lastFraction * w
+            decor.translationX = -SECONDARY_PUSH_PARALLAX * f * w
         }
     }
 }
@@ -131,6 +160,9 @@ fun secondaryOpenOptionsCompat(activity: Activity): ActivityOptionsCompat {
 class SecondaryPageTransitionController {
     val progress = Animatable(0f)
 
+    /** 入场是否已播过；主题切换等导致组合重建时避免从 0 重播 */
+    private var enterPlayed = false
+
     /** 顶栏返回置 true，由组合内动画消费 */
     var exitRequested by mutableStateOf(false)
 
@@ -141,13 +173,21 @@ class SecondaryPageTransitionController {
     var onExitComplete: (() -> Unit)? = null
 
     suspend fun animateEnter(durationMillis: Int = ENTER_DURATION) {
-        val driveMain = SecondaryPushParallax.drivesMainParallax
-        progress.snapTo(0f)
-        if (driveMain) SecondaryPushParallax.applyToMain(0f)
-        progress.animateTo(1f, tween(durationMillis, easing = SecondaryEnterEasing)) {
-            if (driveMain) SecondaryPushParallax.applyToMain(this.value)
+        // 已完整入场：组合重建时不要再从 0 重播
+        if (enterPlayed && progress.value >= 0.999f) {
+            SecondaryPushParallax.applyTransitionProgress(1f)
+            return
         }
-        if (driveMain) SecondaryPushParallax.applyToMain(1f)
+        // 半路被打断：从当前进度续播，不要 snapTo(0)
+        if (!enterPlayed) {
+            enterPlayed = true
+            progress.snapTo(0f)
+            SecondaryPushParallax.applyTransitionProgress(0f)
+        }
+        progress.animateTo(1f, tween(durationMillis, easing = SecondaryEnterEasing)) {
+            SecondaryPushParallax.applyTransitionProgress(this.value)
+        }
+        SecondaryPushParallax.applyTransitionProgress(1f)
     }
 
     /**
@@ -155,27 +195,23 @@ class SecondaryPageTransitionController {
      * 不要 snapTo(0)——那会先把整页甩到屏外，回弹被打断就只剩下层页。
      */
     suspend fun restoreFromGesture(durationMillis: Int = 220) {
-        val driveMain = SecondaryPushParallax.drivesMainParallax
         progress.animateTo(1f, tween(durationMillis, easing = FastOutSlowInEasing)) {
-            if (driveMain) SecondaryPushParallax.applyToMain(this.value)
+            SecondaryPushParallax.applyTransitionProgress(this.value)
         }
-        if (driveMain) SecondaryPushParallax.applyToMain(1f)
+        SecondaryPushParallax.applyTransitionProgress(1f)
     }
 
     suspend fun animateExit(durationMillis: Int = EXIT_DURATION) {
-        val driveMain = SecondaryPushParallax.drivesMainParallax
         progress.animateTo(0f, tween(durationMillis, easing = SecondaryExitEasing)) {
-            if (driveMain) SecondaryPushParallax.applyToMain(this.value)
+            SecondaryPushParallax.applyTransitionProgress(this.value)
         }
-        if (driveMain) SecondaryPushParallax.applyToMain(0f)
+        SecondaryPushParallax.applyTransitionProgress(0f)
     }
 
     suspend fun snapGestureProgress(p: Float) {
         val value = p.coerceIn(0f, 1f)
         progress.snapTo(value)
-        if (SecondaryPushParallax.drivesMainParallax) {
-            SecondaryPushParallax.applyToMain(value)
-        }
+        SecondaryPushParallax.applyTransitionProgress(value)
     }
 
     fun requestExit() {
@@ -196,6 +232,7 @@ fun SecondaryPageEnterTransition(
     content: @Composable () -> Unit,
 ) {
     val controller = LocalSecondaryPageTransition.current
+    val hostActivity = LocalContext.current as? Activity
     val p = controller.progress.value
 
     val windowWidthPx = LocalWindowInfo.current.containerSize.width
@@ -214,7 +251,7 @@ fun SecondaryPageEnterTransition(
     }
 
     LaunchedEffect(Unit) {
-        SecondaryPushParallax.noteOpen(controller)
+        hostActivity?.let { SecondaryPushParallax.noteOpen(controller, it) }
         controller.animateEnter()
     }
 
