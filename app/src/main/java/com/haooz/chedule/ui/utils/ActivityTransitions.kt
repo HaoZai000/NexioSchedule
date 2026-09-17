@@ -9,7 +9,6 @@ import android.os.Build
 import android.view.View
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.CubicBezierEasing
-import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
@@ -194,11 +193,23 @@ class SecondaryPageTransitionController {
      * 预测性返回取消回弹：从当前进度弹回完全显示。
      * 不要 snapTo(0)——那会先把整页甩到屏外，回弹被打断就只剩下层页。
      */
-    suspend fun restoreFromGesture(durationMillis: Int = 220) {
-        progress.animateTo(1f, tween(durationMillis, easing = FastOutSlowInEasing)) {
+    suspend fun restoreFromGesture() {
+        val remaining = (1f - progress.value).coerceIn(0f, 1f)
+        val duration = (180 + remaining * 180).toInt().coerceIn(180, 360)
+        progress.animateTo(1f, tween(duration, easing = GestureRestoreEasing)) {
             SecondaryPushParallax.applyTransitionProgress(this.value)
         }
         SecondaryPushParallax.applyTransitionProgress(1f)
+    }
+
+    /** 松手完成：按剩余行程软吸附到关闭，避免 snapTo 截断感 */
+    suspend fun animateGestureDismiss() {
+        val remaining = progress.value.coerceIn(0f, 1f)
+        val duration = (90 + remaining * 190).toInt().coerceIn(90, 280)
+        progress.animateTo(0f, tween(duration, easing = GestureSettleEasing)) {
+            SecondaryPushParallax.applyTransitionProgress(this.value)
+        }
+        SecondaryPushParallax.applyTransitionProgress(0f)
     }
 
     suspend fun animateExit(durationMillis: Int = EXIT_DURATION) {
@@ -345,6 +356,12 @@ private val SecondaryEnterEasing = OobeQuartOutSoftStartEasing
 
 /** 退出：起步更缓，后段正常滑出 */
 private val SecondaryExitEasing = CubicBezierEasing(0.36f, 0.18f, 0.3f, 0.85f)
+
+/** 手势松手吸附关闭：末端强减速，承接跟手速度 */
+private val GestureSettleEasing = CubicBezierEasing(0.2f, 0f, 0.15f, 1f)
+
+/** 手势取消回弹：更长更软，从半路舒缓回到全开 */
+private val GestureRestoreEasing = OobeQuartOutSoftStartEasing
 
 /** 下层主页压暗强度（0=不压，1=全黑）*/
 private const val SECONDARY_BG_DIM = 0.42f
