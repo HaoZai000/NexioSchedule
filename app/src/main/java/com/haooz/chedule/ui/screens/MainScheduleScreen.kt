@@ -64,6 +64,7 @@ import androidx.compose.ui.layout.layout
 import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.layout.positionInRoot
 import androidx.compose.ui.layout.positionInWindow
+import androidx.compose.ui.unit.Constraints
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
@@ -234,6 +235,8 @@ fun MainScheduleScreen(
     val configuration = LocalConfiguration.current
     val isTablet = configuration.screenWidthDp >= 600
     val density = LocalDensity.current
+    // 沉浸式：滚动视口不避开底栏。底部留白写进滚动 layout 高度，避免被测量链裁掉
+    val scheduleEndSpacer = 175.dp
     val screenWidthPx = with(density) { configuration.screenWidthDp.dp.toPx() }
     val screenHeightPx = with(density) { configuration.screenHeightDp.dp.toPx() }
     val scrollState = externalScrollState
@@ -636,12 +639,17 @@ fun MainScheduleScreen(
                         scheduleViewport.bottomPx = pos.y + coordinates.size.height
                     }
                     .verticalScroll(scrollState)
-                    // 布局期读顶栏高度，避免组合期读导致整页逐帧重组；内容高度无限，折叠期间子树不重测
+                    // 底部留白直接计入滚动内容高度；强制无界测量，避免 fillMaxSize/测量链把内容压回视口高
                     .layout { measurable, constraints ->
                         val topPad = contentTopPaddingDp.roundToPx().coerceAtLeast(0)
-
-                        val placeable = measurable.measure(constraints)
-                        layout(placeable.width, placeable.height + topPad) {
+                        val bottomPad = scheduleEndSpacer.roundToPx().coerceAtLeast(0)
+                        val placeable = measurable.measure(
+                            constraints.copy(
+                                minHeight = 0,
+                                maxHeight = Constraints.Infinity
+                            )
+                        )
+                        layout(placeable.width, placeable.height + topPad + bottomPad) {
                             placeable.place(0, topPad)
                         }
                     }
