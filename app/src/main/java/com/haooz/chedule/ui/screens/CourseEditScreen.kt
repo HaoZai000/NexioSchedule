@@ -72,6 +72,7 @@ import com.haooz.chedule.ui.basic.LiquidTopBarButton
 import top.yukonga.miuix.kmp.overlay.OverlayDialog
 import com.haooz.chedule.ui.basic.ProgressiveBlurTopBar
 import com.haooz.chedule.ui.basic.rememberSharedScrollBehavior
+import com.haooz.chedule.ui.utils.PredictiveBackSettings
 import com.haooz.chedule.ui.effects.motion.OobeCubicOutEasing
 import com.haooz.chedule.ui.effects.motion.OobeFifthpowerOutEasing
 import com.haooz.chedule.ui.effects.motion.OobeQuadraticOutEasing
@@ -317,10 +318,13 @@ fun CourseEditScreen(
                     transitionState is NavigationEventTransitionState.InProgress &&
                     transitionState.direction == NavigationEventTransitionState.TRANSITIONING_BACK
                 ) {
-                    isGestureActive = true
-                    val progress = transitionState.latestEvent.progress
-                    gestureBackProgress.snapTo(progress)
-                    scaleProgress.snapTo(1f - progress * 0.3f)
+                    // 预测性返回动画开关：关闭时不驱动跟随动画（返回仍被拦截，直接关闭）
+                    if (PredictiveBackSettings.enabled) {
+                        isGestureActive = true
+                        val progress = transitionState.latestEvent.progress
+                        gestureBackProgress.snapTo(progress)
+                        scaleProgress.snapTo(1f - progress * 0.3f)
+                    }
                 }
             }
     }

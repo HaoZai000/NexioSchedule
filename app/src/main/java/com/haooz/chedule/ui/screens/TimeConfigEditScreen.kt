@@ -78,6 +78,7 @@ import com.haooz.chedule.data.TimeConfig
 import com.haooz.chedule.ui.basic.CollapsibleTopAppBar
 import com.haooz.chedule.ui.basic.LiquidTopBarButton
 import com.haooz.chedule.ui.basic.ProgressiveBlurTopBar
+import com.haooz.chedule.ui.utils.PredictiveBackSettings
 import com.haooz.chedule.ui.basic.rememberSharedScrollBehavior
 import com.haooz.chedule.ui.effects.motion.OobeCubicOutEasing
 import com.haooz.chedule.ui.effects.motion.OobeFifthpowerOutEasing
@@ -400,11 +401,14 @@ fun TimeConfigEditScreen(
                 ) {
                     // 关闭动画进行中或无卡片边界时不驱动页面变形
                     if (!animating && hasCardBounds) {
-                        isGestureActive = true
-                        val progress = transitionState.latestEvent.progress
-                        gestureBackProgress.snapTo(progress)
-                        // 添加时间配置（右下角加号进入）退出时行程 50%，编辑模式为 200%
-                        scaleProgress.snapTo(1f - progress * if (isFabCreation) 0.2f else 2f)
+                        // 预测性返回动画开关：关闭时不驱动跟随动画（返回仍被拦截，直接关闭）
+                        if (PredictiveBackSettings.enabled) {
+                            isGestureActive = true
+                            val progress = transitionState.latestEvent.progress
+                            gestureBackProgress.snapTo(progress)
+                            // 添加时间配置（右下角加号进入）退出时行程 20%，编辑模式为 200%
+                            scaleProgress.snapTo(1f - progress * if (isFabCreation) 0.2f else 2f)
+                        }
                     }
                 }
             }

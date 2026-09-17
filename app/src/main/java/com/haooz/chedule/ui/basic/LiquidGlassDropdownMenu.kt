@@ -62,6 +62,7 @@ import androidx.navigationevent.NavigationEventTransitionState
 import androidx.navigationevent.compose.NavigationBackHandler
 import androidx.navigationevent.compose.rememberNavigationEventState
 import top.yukonga.miuix.kmp.basic.rememberDynamicCornerRadiusShape
+import com.haooz.chedule.ui.utils.PredictiveBackSettings
 
 private val ShadowPadding = 24.dp
 
@@ -126,6 +127,8 @@ fun LiquidGlassDropdownMenu(
                         transitionState is NavigationEventTransitionState.InProgress &&
                         transitionState.direction == NavigationEventTransitionState.TRANSITIONING_BACK
                     ) {
+                    // 预测性返回动画开关：关闭时不驱动跟随动画（返回仍被拦截，直接关闭）
+                    if (PredictiveBackSettings.enabled) {
                         val progress = transitionState.latestEvent.progress
                         backProgress.snapTo(progress)
                         onBackProgress?.invoke(progress)
@@ -135,6 +138,7 @@ fun LiquidGlassDropdownMenu(
                         fraction.snapTo(1f - progress)
                         transformOriginProgress.snapTo(1f - progress)
                         menuAlpha.snapTo(1f - progress)
+                    }
                     }
                 }
         }

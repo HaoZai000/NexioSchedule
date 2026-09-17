@@ -78,6 +78,7 @@ import com.haooz.chedule.ui.effects.edgelight.rememberDefaultEdgeLight
 import com.haooz.chedule.ui.utils.LocalForcedDarkTheme
 import com.haooz.chedule.ui.utils.LocalOverScrollState
 import com.haooz.chedule.ui.utils.OverScrollState
+import com.haooz.chedule.ui.utils.PredictiveBackSettings
 import com.haooz.chedule.ui.utils.rememberAppSettingDark
 import com.kyant.backdrop.Backdrop
 import com.kyant.backdrop.backdrops.layerBackdrop
@@ -346,7 +347,10 @@ private fun BlurBottomSheetContent(
                     transitionState is NavigationEventTransitionState.InProgress &&
                     transitionState.direction == NavigationEventTransitionState.TRANSITIONING_BACK
                 ) {
-                    backProgress.snapTo(transitionState.latestEvent.progress)
+                    // 预测性返回动画开关：关闭时不驱动跟随动画（返回仍被拦截，直接关闭）
+                    if (PredictiveBackSettings.enabled) {
+                        backProgress.snapTo(transitionState.latestEvent.progress)
+                    }
                 }
             }
     }

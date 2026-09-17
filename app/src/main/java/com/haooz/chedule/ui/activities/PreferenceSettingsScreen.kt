@@ -114,7 +114,7 @@ fun PreferenceSettingsScreen(
     val islandNotification by settingsViewModel.islandNotification.collectAsState()
     val reminderPrefs = remember { context.getSharedPreferences("course_reminder_prefs", Context.MODE_PRIVATE) }
     var islandExpandGlowEnabled by remember {
-        mutableStateOf(reminderPrefs.getBoolean("island_expand_glow_enabled", true))
+        mutableStateOf(reminderPrefs.getBoolean("island_expand_glow_enabled", false))
     }
     val appPrefs = remember { context.getSharedPreferences("app_preferences", Context.MODE_PRIVATE) }
     var hideBackground by remember {
@@ -302,6 +302,29 @@ fun PreferenceSettingsScreen(
                             )
                         }
                         Column(modifier = Modifier.fillMaxWidth()) {
+                            var predictiveBackEnabled by remember {
+                                mutableStateOf(
+                                    appPrefs.getBoolean(
+                                        com.haooz.chedule.ui.utils.PredictiveBackSettings.KEY_PREDICTIVE_BACK_ANIMATION,
+                                        true
+                                    )
+                                )
+                            }
+                            SwitchPreference(
+                                title = "预测性返回动画",
+                                summary = "返回手势时页面跟随手指的动画效果",
+                                checked = predictiveBackEnabled,
+                                onCheckedChange = {
+                                    predictiveBackEnabled = it
+                                    com.haooz.chedule.ui.utils.PredictiveBackSettings.enabled = it
+                                    appPrefs.edit {
+                                        putBoolean(
+                                            com.haooz.chedule.ui.utils.PredictiveBackSettings.KEY_PREDICTIVE_BACK_ANIMATION,
+                                            it
+                                        )
+                                    }
+                                }
+                            )
                             SwitchPreference(
                                 title = "应用触感反馈",
                                 summary = "点击、滑动等操作产生的震动反馈",

@@ -50,6 +50,7 @@ import androidx.navigationevent.NavigationEventInfo
 import androidx.navigationevent.NavigationEventTransitionState
 import androidx.navigationevent.compose.NavigationBackHandler
 import androidx.navigationevent.compose.rememberNavigationEventState
+import com.haooz.chedule.ui.utils.PredictiveBackSettings
 
 // 本地动画参数（库版本没有这些属性）
 private val FractionEnterAnimSpec = spring<Float>(dampingRatio = 0.78f, stiffness = 232f, visibilityThreshold = 0.0001f)
@@ -268,12 +269,15 @@ fun ListPopupLayout(
                         transitionState is NavigationEventTransitionState.InProgress &&
                         transitionState.direction == NavigationEventTransitionState.TRANSITIONING_BACK
                     ) {
+                    // 预测性返回动画开关：关闭时不驱动跟随动画（返回仍被拦截，直接关闭）
+                    if (PredictiveBackSettings.enabled) {
                         val inv = 1f - transitionState.latestEvent.progress
                         fractionProgress.snapTo(inv)
                         alphaProgress.snapTo(inv)
                         if (enableWindowDim) {
                             dimProgress.snapTo(inv)
                         }
+                    }
                     }
                 }
         }

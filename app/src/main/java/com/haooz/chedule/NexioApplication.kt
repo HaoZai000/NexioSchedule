@@ -1,6 +1,7 @@
 package com.haooz.chedule
 
 import android.app.Application
+import com.haooz.chedule.ui.utils.PredictiveBackSettings
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
@@ -20,6 +21,9 @@ class NexioApplication : Application() {
 
     override fun onCreate() {
         super.onCreate()
+        // 预测性返回动画开关：应用启动即同步到全局单例（应用设置中可切换）
+        PredictiveBackSettings.enabled = getSharedPreferences("app_preferences", MODE_PRIVATE)
+            .getBoolean(PredictiveBackSettings.KEY_PREDICTIVE_BACK_ANIMATION, true)
         warmUpSharedPreferences()
     }
 

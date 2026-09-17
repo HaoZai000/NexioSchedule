@@ -63,6 +63,7 @@ import com.haooz.chedule.ui.effects.motion.OobeQuadraticOutEasing
 import com.haooz.chedule.ui.effects.motion.OobeQuartOutEasing
 import com.haooz.chedule.ui.utils.blockTouchPassThrough
 import com.haooz.chedule.ui.utils.isAppDarkTheme
+import com.haooz.chedule.ui.utils.PredictiveBackSettings
 import com.haooz.chedule.ui.utils.overScrollVertical
 import com.kyant.backdrop.backdrops.rememberLayerBackdrop
 import com.kyant.capsule.ContinuousRoundedRectangle
@@ -271,10 +272,13 @@ fun CourseDetailScreen(
                     transitionState is NavigationEventTransitionState.InProgress &&
                     transitionState.direction == NavigationEventTransitionState.TRANSITIONING_BACK
                 ) {
-                    isGestureActive = true
-                    val progress = transitionState.latestEvent.progress
-                    gestureBackProgress.snapTo(progress)
-                    scaleProgress.snapTo(1f - progress * 2f)
+                    // 预测性返回动画开关：关闭时不驱动跟随动画（返回仍被拦截，直接关闭）
+                    if (PredictiveBackSettings.enabled) {
+                        isGestureActive = true
+                        val progress = transitionState.latestEvent.progress
+                        gestureBackProgress.snapTo(progress)
+                        scaleProgress.snapTo(1f - progress * 2f)
+                    }
                 }
             }
     }
