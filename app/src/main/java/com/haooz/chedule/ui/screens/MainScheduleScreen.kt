@@ -1651,14 +1651,17 @@ private fun AnimatedDropTargetMask(
                     if (dayIndex < 0) {
                         null
                     } else {
-                        val sectionTop = grid.sectionTop[hl.second.first] ?: 0f
-                        val span = (hl.second.last - hl.second.first + 1).coerceAtLeast(1)
-                        val h = with(density) { (span * cardHeightPerSection).dp.toPx() }
+                        // 用 sectionTop 差值算高度：跨午休/晚修时计入分界缝与特殊块挤占
+                        val first = hl.second.first
+                        val last = hl.second.last
+                        val topDp = grid.sectionTop[first] ?: 0f
+                        val bottomDp = (grid.sectionTop[last] ?: topDp) + cardHeightPerSection
+                        val hDp = (bottomDp - topDp).coerceAtLeast(cardHeightPerSection)
                         DropMaskBox(
                             left = dayAreaLeft + dayIndex * dayW + padH,
-                            top = with(density) { sectionTop.dp.toPx() } + padV,
+                            top = with(density) { topDp.dp.toPx() } + padV,
                             width = (dayW - padH * 2).coerceAtLeast(0f),
-                            height = (h - padV * 2).coerceAtLeast(0f),
+                            height = (with(density) { hDp.dp.toPx() } - padV * 2).coerceAtLeast(0f),
                         )
                     }
                 }
@@ -1675,7 +1678,7 @@ private fun AnimatedDropTargetMask(
             } else {
                 val prev = lastTarget.value
                 val wasVisible = alpha.value > 0.05f && prev != null
-                val spec = spring<Float>(dampingRatio = 0.85f, stiffness = 420f)
+                val spec = spring<Float>(dampingRatio = 0.95f, stiffness = 800f)
                 if (!wasVisible) {
                     // 出现：从源课格连续滑入落点（无源时在落点淡入），避免闪现
                     val from = originBox ?: targetBox

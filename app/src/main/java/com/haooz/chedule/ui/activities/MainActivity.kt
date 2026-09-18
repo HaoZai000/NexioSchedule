@@ -132,6 +132,7 @@ import com.haooz.chedule.ui.screens.AddCourseDialog
 import com.haooz.chedule.ui.screens.CourseDetailScreen
 import com.haooz.chedule.ui.screens.CustomizeScheduleScreen
 import com.haooz.chedule.ui.screens.MainScheduleScreen
+import com.haooz.chedule.ui.screens.ScheduleGridGeometry
 import com.haooz.chedule.ui.screens.SettingsScreen
 import com.haooz.chedule.ui.screens.ShiftScheduleScreen
 import com.haooz.chedule.ui.screens.TodayScreen
@@ -1589,6 +1590,38 @@ fun CourseScheduleApp() {
         }
     }
 
+    // 网格几何：分界缝只在开启时计入；节次 top / 课程视觉高度用于跨午休/晚修落点
+    fun dividerPxFor(geom: ScheduleGridGeometry): Float =
+        if (geom.showBreakDividers) with(density) { 24.dp.toPx() } else 0f
+
+    fun sectionTopPx(geom: ScheduleGridGeometry, section: Int, dividerPx: Float): Float {
+        val sectionH = geom.sectionHeightPx
+        if (sectionH <= 0f) return 0f
+        val morning = geom.morningSections
+        val afternoon = geom.afternoonSections
+        return when {
+            section <= morning -> (section - 1) * sectionH
+            section <= morning + afternoon ->
+                morning * sectionH + dividerPx + (section - morning - 1) * sectionH
+            else ->
+                morning * sectionH + dividerPx + afternoon * sectionH + dividerPx +
+                    (section - morning - afternoon - 1) * sectionH
+        }
+    }
+
+    fun courseVisualHeightPx(
+        geom: ScheduleGridGeometry,
+        startSection: Int,
+        endSection: Int,
+        dividerPx: Float
+    ): Float {
+        val sectionH = geom.sectionHeightPx
+        if (sectionH <= 0f) return 0f
+        val top = sectionTopPx(geom, startSection, dividerPx)
+        val bottom = sectionTopPx(geom, endSection.coerceAtLeast(startSection), dividerPx) + sectionH
+        return (bottom - top).coerceAtLeast(sectionH)
+    }
+
     // 目标落点卡片中心绝对坐标（root px），供吸附动画
     fun computeTargetCenter(dayOfWeek: Int, startSection: Int, sectionSpan: Int): Offset? {
         val geom = gridGeometry ?: return null
@@ -1596,27 +1629,11 @@ fun CourseScheduleApp() {
         if (bounds.size < 3) return null
         val centerX = (bounds[0] + bounds[1]) / 2f
         val topY = bounds[2]
-        val sectionH = geom.sectionHeightPx
-        val dividerH = with(density) { 24.dp.toPx() }
-        val morningEnd = geom.morningSections
-        val afternoonStart = morningEnd + 1
-        val afternoonEnd = morningEnd + geom.afternoonSections
-        val eveningStart = afternoonEnd + 1
-        val targetSectionTop: Float = when {
-            startSection <= morningEnd -> {
-                (startSection - 1) * sectionH
-            }
-
-            startSection in afternoonStart..afternoonEnd -> {
-                morningEnd * sectionH + dividerH + (startSection - afternoonStart) * sectionH
-            }
-
-            else -> {
-                morningEnd * sectionH + dividerH + geom.afternoonSections * sectionH + dividerH + (startSection - eveningStart) * sectionH
-            }
-        }
-        val cardTopY = topY + targetSectionTop
-        val cardCenterY = cardTopY + (sectionSpan + 1) * sectionH / 2f
+        val dividerPx = dividerPxFor(geom)
+        val startTop = sectionTopPx(geom, startSection, dividerPx)
+        val endSection = startSection + sectionSpan
+        val visualH = courseVisualHeightPx(geom, startSection, endSection, dividerPx)
+        val cardCenterY = topY + startTop + visualH / 2f
         return Offset(centerX, cardCenterY)
     }
 
@@ -2750,19 +2767,49 @@ fun CourseScheduleApp() {
                                                 draggingCourseIds = setOf(course.id)
                                                 draggedCardCourse = course
                                                 draggedWeek = currentWeek
-                                                // left/top 为卡片中心绝对坐标
-                                                draggedCardPosition = Offset(left, top)
+                                                // 跨午休/晚修课以整课视觉几何为锚点，避免长按在分段卡片上时中心偏移
+                                                val geom = gridGeometry
+                                                val anchorCenter: Offset
+                                                val anchorSize: Offset
+                                                if (geom != null) {
+                                                    val div = dividerPxFor(geom)
+                                                    val fullH = courseVisualHeightPx(
+                                                        geom,
+                                                        course.startSection,
+                                                        course.endSection,
+                                                        div
+                                                    )
+                                                    val bounds = geom.dayBounds[course.dayOfWeek]
+                                                    // 宽度沿用卡片回调（含 Day 列内 2dp padding 后的实际宽），不要用整列 dayBounds
+                                                    val topRel = sectionTopPx(geom, course.startSection, div)
+                                                    anchorCenter = if (bounds != null && bounds.size >= 3) {
+                                                        Offset(
+                                                            (bounds[0] + bounds[1]) / 2f,
+                                                            bounds[2] + topRel + fullH / 2f
+                                                        )
+                                                    } else {
+                                                        Offset(left, top)
+                                                    }
+                                                    anchorSize = Offset(width, fullH)
+                                                } else {
+                                                    anchorCenter = Offset(left, top)
+                                                    anchorSize = Offset(width, height)
+                                                }
+                                                draggedCardPosition = anchorCenter
                                                 dragMotion.reset()
                                                 floatingOffsetX.floatValue = 0f
                                                 floatingOffsetY.floatValue = 0f
-                                                draggedCardSize = Offset(width, height)
+                                                draggedCardSize = anchorSize
                                                 draggedCardBackdrop = backdrop
                                                 shortcutMenuCourse = course
                                                 emptyCellMenuTarget = null
                                                 shortcutMenuVisible = true
                                                 shortcutMenuPosition =
-                                                    Offset(left - width / 2f, top - height / 2f)
-                                                shortcutMenuAnchorWidth = width
+                                                    Offset(
+                                                        anchorCenter.x - anchorSize.x / 2f,
+                                                        anchorCenter.y - anchorSize.y / 2f
+                                                    )
+                                                shortcutMenuAnchorWidth = anchorSize.x
                                                 shortcutMenuBackdrop = backdrop
                                             },
                                             onCourseDragStart = { _ ->
@@ -3524,10 +3571,20 @@ fun CourseScheduleApp() {
                     if (course != null) {
                         // 锚点只用长按瞬间的中心；拖拽/吸附位移走 graphicsLayer，不进组合
                         val widthPx = draggedCardSize.x
-                        val sectionCount = course.endSection - course.startSection + 1
-                        val sectionH = gridGeometry?.sectionHeightPx
+                        val geom = gridGeometry
+                        val sectionH = geom?.sectionHeightPx
                             ?: with(density) { displayAppearance.cardHeight.dp.toPx() }
-                        val heightPx = sectionCount * sectionH
+                        // 高度含午休/晚修分界缝，与网格上分段卡片的视觉外接框一致
+                        val heightPx = if (geom != null) {
+                            courseVisualHeightPx(
+                                geom,
+                                course.startSection,
+                                course.endSection,
+                                dividerPxFor(geom)
+                            )
+                        } else {
+                            (course.endSection - course.startSection + 1) * sectionH
+                        }
                         val baseOffsetX = with(density) {
                             (draggedCardPosition.x - widthPx / 2f).toDp()
                         }
