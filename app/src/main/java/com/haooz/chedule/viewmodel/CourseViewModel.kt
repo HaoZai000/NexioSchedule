@@ -54,6 +54,10 @@ class CourseViewModel(application: Application) : AndroidViewModel(application) 
     private val _showAddDialog = MutableStateFlow(false)
     val showAddDialog: StateFlow<Boolean> = _showAddDialog.asStateFlow()
 
+    /** 空白格添加时的默认周次；调课日应传 followWeek（被调来源周） */
+    private val _addDialogDefaultWeeks = MutableStateFlow<Set<Int>>(emptySet())
+    val addDialogDefaultWeeks: StateFlow<Set<Int>> = _addDialogDefaultWeeks.asStateFlow()
+
     private val _showJumpWeekDialog = MutableStateFlow(false)
     val showJumpWeekDialog: StateFlow<Boolean> = _showJumpWeekDialog.asStateFlow()
 
@@ -279,24 +283,32 @@ class CourseViewModel(application: Application) : AndroidViewModel(application) 
         _dataVersion.value++
     }
 
-    fun showAddDialog(dayOfWeek: Int? = null, startSection: Int? = null, endSection: Int? = null) {
+    fun showAddDialog(
+        dayOfWeek: Int? = null,
+        startSection: Int? = null,
+        endSection: Int? = null,
+        defaultWeeks: Set<Int> = emptySet(),
+    ) {
         _editingCourse.value = null
         _selectedDay.value = dayOfWeek ?: 0
         if (startSection != null) {
             _selectedStartSection.value = startSection
             _selectedEndSection.value = endSection ?: startSection
         }
+        _addDialogDefaultWeeks.value = defaultWeeks
         _showAddDialog.value = true
     }
 
     fun showEditDialog(course: Course) {
         _editingCourse.value = course
+        _addDialogDefaultWeeks.value = emptySet()
         _showAddDialog.value = true
     }
 
     fun hideDialog() {
         _showAddDialog.value = false
         _editingCourse.value = null
+        _addDialogDefaultWeeks.value = emptySet()
     }
 
     fun showJumpWeekDialog() {

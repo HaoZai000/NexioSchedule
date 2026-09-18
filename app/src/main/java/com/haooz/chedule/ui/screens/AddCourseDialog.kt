@@ -108,6 +108,7 @@ private class AddCourseFormState(
     selectedDay: Int,
     defaultStartSection: Int,
     defaultEndSection: Int,
+    defaultWeeks: Set<Int> = emptySet(),
 ) {
     var name by mutableStateOf(course?.name ?: "")
     var classroom by mutableStateOf(course?.classroom ?: "")
@@ -133,6 +134,9 @@ private class AddCourseFormState(
                     }
                 }
             }
+        } else if (defaultWeeks.isNotEmpty()) {
+            // 空白格添加：预选调课来源周 / 当前浏览周
+            addAll(defaultWeeks)
         }
     }
 
@@ -155,6 +159,7 @@ fun AddCourseDialog(
     totalSections: Int = 12,
     defaultStartSection: Int = 1,
     defaultEndSection: Int = 2,
+    defaultWeeks: Set<Int> = emptySet(),
     getOccupiedWeeks: (dayOfWeek: Int, startSection: Int, endSection: Int, excludeIds: List<String>, startTime: String?, endTime: String?) -> Set<Int> = { _, _, _, _, _, _ -> emptySet() },
     onDismiss: () -> Unit,
     onConfirm: (Course) -> Unit,
@@ -186,7 +191,7 @@ fun AddCourseDialog(
 
     // 父级组合期不解引用 form 字段，读取下沉到各卡片内部
     val form = remember(show) {
-        AddCourseFormState(course, selectedDay, defaultStartSection, defaultEndSection)
+        AddCourseFormState(course, selectedDay, defaultStartSection, defaultEndSection, defaultWeeks)
     }
 
     // 自定义上课时间弹窗暂存值（只在时间弹窗内被读取）

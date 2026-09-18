@@ -195,6 +195,14 @@ private suspend fun PagerState.cancelScroll() {
     scroll(MutatePriority.PreventUserInput) { }
 }
 
+/** 空白格快捷菜单锚点：高亮用列星期，添加课程用调课映射后的星期/周 */
+private data class EmptyCellMenuTarget(
+    val columnDay: Int,
+    val section: Int,
+    val addDay: Int,
+    val addWeek: Int,
+)
+
 /** 主 tab 翻页动画（点底栏 tab 时平移切换）；略偏紧，跨页时更跟手 */
 private val MainTabPagerAnimSpec = spring<Float>(
     dampingRatio = Spring.DampingRatioNoBouncy,
@@ -1114,7 +1122,8 @@ fun CourseScheduleApp() {
     // 左移时菜单右边缘对齐卡片右边缘
     var shortcutMenuAnchorWidth by remember { mutableFloatStateOf(0f) }
     // (星期, 起始节次)；粘贴目标=长按格
-    var emptyCellMenuTarget by remember { mutableStateOf<Pair<Int, Int>?>(null) }
+    // columnDay 用于格子高亮；addDay/addWeek 供「添加」默认落到调课来源星期/周
+    var emptyCellMenuTarget by remember { mutableStateOf<EmptyCellMenuTarget?>(null) }
     // 页面会话级剪贴板，再次复制覆盖，粘贴后保留
     var copiedCourseForPaste by remember { mutableStateOf<Course?>(null) }
     var showPasteRangeDialog by remember { mutableStateOf(false) }
@@ -2751,9 +2760,14 @@ fun CourseScheduleApp() {
                                                 )
                                             },
                                             onPopupStateChange = { showCourseDetailPopup = it },
-                                            onEmptyLongPress = { day, section, centerX, cellTopY, width, _ ->
+                                            onEmptyLongPress = { day, section, centerX, cellTopY, width, _, addDay, addWeek ->
                                                 shortcutMenuCourse = null
-                                                emptyCellMenuTarget = day to section
+                                                emptyCellMenuTarget = EmptyCellMenuTarget(
+                                                    columnDay = day,
+                                                    section = section,
+                                                    addDay = addDay,
+                                                    addWeek = addWeek,
+                                                )
                                                 shortcutMenuVisible = true
                                                 shortcutMenuPosition = Offset(centerX - width / 2f, cellTopY)
                                                 shortcutMenuAnchorWidth = width
@@ -3056,7 +3070,7 @@ fun CourseScheduleApp() {
                                             dropHighlight = run {
                                                 val emptyTarget = emptyCellMenuTarget
                                                 if (emptyTarget != null && shortcutMenuVisible) {
-                                                    emptyTarget.first to (emptyTarget.second..emptyTarget.second)
+                                                    emptyTarget.columnDay to (emptyTarget.section..emptyTarget.section)
                                                 } else {
                                                     val target = pendingDropTarget
                                                     val source = draggedCardCourse
@@ -3074,7 +3088,7 @@ fun CourseScheduleApp() {
                                                 } else {
                                                     val emptyTarget = emptyCellMenuTarget
                                                     if (emptyTarget != null && shortcutMenuVisible) {
-                                                        emptyTarget.first to (emptyTarget.second..emptyTarget.second)
+                                                        emptyTarget.columnDay to (emptyTarget.section..emptyTarget.section)
                                                     } else null
                                                 }
                                             },
@@ -3307,6 +3321,7 @@ fun CourseScheduleApp() {
                     }
                     MiuixTheme(controller = appDialogController) {
                         CompositionLocalProvider(LocalForcedDarkTheme provides null) {
+                            val addDialogDefaultWeeks by viewModel.addDialogDefaultWeeks.collectAsState()
                             AddCourseDialog(
                                 show = showAddDialog,
                                 course = editingCourse,
@@ -3316,6 +3331,7 @@ fun CourseScheduleApp() {
                                 totalSections = totalSections,
                                 defaultStartSection = editingStartSection,
                                 defaultEndSection = editingEndSection,
+                                defaultWeeks = addDialogDefaultWeeks,
                                 getOccupiedWeeks = { dayOfWeek, startSection, endSection, excludeIds, startTime, endTime ->
                                     viewModel.getOccupiedWeeks(
                                         dayOfWeek = dayOfWeek,
@@ -3749,8 +3765,10 @@ fun CourseScheduleApp() {
                     )
                 )
             } else {
-                val emptyDay = activeEmptyTarget?.first ?: -1
-                val emptySection = activeEmptyTarget?.second ?: -1
+                val emptyDay = activeEmptyTarget?.columnDay ?: -1
+                val emptySection = activeEmptyTarget?.section ?: -1
+                val emptyAddDay = activeEmptyTarget?.addDay ?: emptyDay
+                val emptyAddWeek = activeEmptyTarget?.addWeek ?: -1
                 buildList {
                     if (copiedCourseForPaste != null && activeEmptyTarget != null) {
                         add(
@@ -3776,7 +3794,9 @@ fun CourseScheduleApp() {
                                 label = "添加",
                                 iconSize = 24.dp,
                                 onClick = {
-                                    viewModel.showAddDialog(emptyDay, emptySection)
+                                    val defaultWeeks =
+                                        if (emptyAddWeek > 0) setOf(emptyAddWeek) else emptySet()
+                                    viewModel.showAddDialog(emptyAddDay, emptySection, null, defaultWeeks)
                                     shortcutMenuVisible = false
                                     coroutineScope.launch {
                                         delay(240.milliseconds)

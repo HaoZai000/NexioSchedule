@@ -178,7 +178,17 @@ fun MainScheduleScreen(
     onCourseClick: (courses: List<Course>, cardLeft: Float, cardTop: Float, cardWidth: Float, cardHeight: Float, snapshot: android.graphics.Bitmap?, courseIdToHide: String, targetWeek: Int) -> Unit = { _, _, _, _, _, _, _, _ -> },
     onPopupStateChange: (Boolean) -> Unit = {},
     // 空白格长按：返回 Root 绝对坐标供上层定位快捷菜单
-    onEmptyLongPress: (day: Int, section: Int, centerX: Float, cellTopY: Float, width: Float, height: Float) -> Unit = { _, _, _, _, _, _ -> },
+    onEmptyLongPress: (
+        day: Int,
+        section: Int,
+        centerX: Float,
+        cellTopY: Float,
+        width: Float,
+        height: Float,
+        // 调课日：添加课程默认落到 followWeekday / followWeek；非调课与 day 相同
+        addDay: Int,
+        addWeek: Int,
+    ) -> Unit = { _, _, _, _, _, _, _, _ -> },
     onCourseLongPress: (course: Course, cardLeft: Float, cardTop: Float, width: Float, height: Float, backdrop: com.kyant.backdrop.Backdrop?, currentWeek: Int) -> Unit = { _, _, _, _, _, _, _ -> },
     onCourseDragStart: (courseId: String) -> Unit = { _ -> },
     onCourseDrag: (courseId: String, offsetX: Float, offsetY: Float) -> Unit = { _, _, _ -> },
@@ -449,12 +459,13 @@ fun MainScheduleScreen(
     }
 
     // 数据变化时一次算齐全部周：换周组合只查表，避免新页首帧在 composition 里扫课程/调休
-    val weekFilteredCourses: Map<Int, Map<Int, Pair<Int, List<Course>>>> = remember(
+    /** page -> dayOfWeek -> Triple(显示星期, 显示周次, 课程)；调课日显示 follow 星期/周次 */
+    val weekFilteredCourses: Map<Int, Map<Int, Triple<Int, Int, List<Course>>>> = remember(
         coursesByDay, showNonCurrentWeek, dataVersion, holidayVersion,
         workswapIndex, semesterStartMonday, totalWeeks
     ) {
         if (totalWeeks <= 0) emptyMap()
-        else HashMap<Int, Map<Int, Pair<Int, List<Course>>>>(totalWeeks).apply {
+        else HashMap<Int, Map<Int, Triple<Int, Int, List<Course>>>>(totalWeeks).apply {
             for (page in 0 until totalWeeks) {
                 val weekForPage = page + 1
                 put(page, allDays.associateWith { dayOfWeek ->
@@ -467,7 +478,7 @@ fun MainScheduleScreen(
                     val dayCourses = coursesByDay[displayDay] ?: emptyList()
                     val filtered = if (showNonCurrentWeek) dayCourses
                     else dayCourses.filter { it.isActiveInWeek(displayWeek) }
-                    displayWeek to filtered
+                    Triple(displayDay, displayWeek, filtered)
                 })
             }
         }
@@ -802,11 +813,15 @@ fun MainScheduleScreen(
                         )
 
                         pageDayRange.forEach { dayOfWeek ->
-                            val (displayWeekForDay, filteredDayCourses) =
-                                weekFilteredCourses[page]?.get(dayOfWeek) ?: (week to emptyList())
+                            val (displayDayForCol, displayWeekForDay, filteredDayCourses) =
+                                weekFilteredCourses[page]?.get(dayOfWeek)
+                                    ?: Triple(dayOfWeek, week, emptyList())
                             val dayFlags = weekDayFlags[page]?.get(dayOfWeek) ?: (false to false)
                             val isHoliday = dayFlags.first
                             val isWorkSwap = dayFlags.second
+                            // 调课日空白格添加：落到 follow 星期/周（周五课调到周二 → 点周二默认周五）
+                            val addDayForCol = if (isWorkSwap) displayDayForCol else dayOfWeek
+                            val addWeekForCol = if (isWorkSwap) displayWeekForDay else -1
                             val stableOnCourseClick: (Course) -> Unit =
                                 remember(page, dayOfWeek, week, displayWeekForDay) {
                                     { course ->
@@ -823,16 +838,30 @@ fun MainScheduleScreen(
                                         onPopupStateChange(true)
                                     }
                                 }
-                            val stableOnEmptyClick: (Int) -> Unit = remember(dayOfWeek) {
-                                { section -> viewModel.showAddDialog(dayOfWeek, section) }
-                            }
+                            val stableOnEmptyClick: (Int) -> Unit =
+                                remember(dayOfWeek, addDayForCol, addWeekForCol) {
+                                    { section ->
+                                        val defaultWeeks =
+                                            if (addWeekForCol > 0) setOf(addWeekForCol) else emptySet()
+                                        viewModel.showAddDialog(addDayForCol, section, null, defaultWeeks)
+                                    }
+                                }
                             val stableOnEmptyLongPress: (Int, Float, Float, Float, Float) -> Unit =
-                                remember(dayOfWeek, onEmptyLongPress) {
+                                remember(dayOfWeek, addDayForCol, addWeekForCol, onEmptyLongPress) {
                                     { section, centerX, cellTopY, width, height ->
                                         // 长按进菜单时清掉 pending，避免两层交互叠加
                                         pendingDay = -1
                                         pendingSection = -1
-                                        onEmptyLongPress(dayOfWeek, section, centerX, cellTopY, width, height)
+                                        onEmptyLongPress(
+                                            dayOfWeek,
+                                            section,
+                                            centerX,
+                                            cellTopY,
+                                            width,
+                                            height,
+                                            addDayForCol,
+                                            addWeekForCol,
+                                        )
                                     }
                                 }
                             val stableOnCourseLongPress: (Course, Float, Float, Float, Float, com.kyant.backdrop.Backdrop?, Int) -> Unit =
