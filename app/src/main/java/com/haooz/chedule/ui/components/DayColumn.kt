@@ -168,7 +168,7 @@ fun DayColumn(
 
             fun sectionTopDp(section: Int): Float = grid.sectionTop[section] ?: 0f
 
-            // 单节点承载所有空节次点击/长按 + 落点高亮，避免每节一个 Box
+            // 单节点承载所有空节次点击/长按；落点高亮已提升到 MainScheduleScreen 动画遮罩
             val emptyLayerBounds = remember { FloatArray(4) }
             Box(
                 modifier = Modifier
@@ -182,29 +182,6 @@ fun DayColumn(
                             emptyLayerBounds[2] = coordinates.size.width.toFloat()
                             emptyLayerBounds[3] = coordinates.size.height.toFloat()
                         }
-                    }
-                    .drawBehind {
-                        val range = dropHighlightSections ?: return@drawBehind
-                        val cornerPx = cardCornerRadius.dp.toPx()
-                        val padV = 2.dp.toPx()
-                        val padH = 2.dp.toPx()
-                        val firstTopPx = with(density) { sectionTopDp(range.first).dp.toPx() }
-                        val lastBottomPx = with(density) { sectionTopDp(range.last).dp.toPx() } + perSectionPx
-                        val path = Path().apply {
-                            addRoundRect(
-                                roundRect = RoundRect(
-                                    left = padH,
-                                    top = firstTopPx + padV,
-                                    right = size.width - padH,
-                                    bottom = lastBottomPx - padV,
-                                    topLeftCornerRadius = CornerRadius(cornerPx),
-                                    topRightCornerRadius = CornerRadius(cornerPx),
-                                    bottomLeftCornerRadius = CornerRadius(cornerPx),
-                                    bottomRightCornerRadius = CornerRadius(cornerPx)
-                                )
-                            )
-                        }
-                        drawPath(path, dropHighlightColor)
                     }
                     .pointerInput(dayOfWeek, occupiedSections, totalSectionsGrid, perSectionPx, specialBlocks, grid) {
                         detectTapGestures(
@@ -269,43 +246,6 @@ fun DayColumn(
                         onEmptyClick = onEmptyClick
                     )
                 }
-            }
-
-            // 壁纸模式高亮需走 backdrop；非壁纸由上方 drawBehind 纯色绘制
-            if (hasBlur && wallpaperBackdrop != null && dropHighlightSections != null) {
-                val hlRange = dropHighlightSections!!
-                val hlTop = sectionTopDp(hlRange.first)
-                val hlHeight = (hlRange.last - hlRange.first + 1) * cardHeightPerSection
-                val hlShape = remember(cardCornerRadius) { ContinuousRoundedRectangle(cardCornerRadius.dp) }
-                val hlBlurPx = with(density) { remember(cardBlurRadius) { cardBlurRadius.dp.toPx() } }
-                val isSharedBlur = wallpaperBackdrop is SharedBlurBackdrop
-                val hlEffects: com.kyant.backdrop.BackdropEffectScope.() -> Unit = remember(isSharedBlur, hlBlurPx) {
-                    {
-                        if (!isSharedBlur) blur(hlBlurPx)
-                    }
-                }
-                val hlSurfaceColor = remember(isDark) {
-                    if (isDark) Color(0xFF242424).copy(alpha = 0.64f) else Color(0xFFF0F0F0).copy(alpha = 0.5f)
-                }
-                Box(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .height(hlHeight.dp)
-                        .offset(y = hlTop.dp)
-                        .padding(horizontal = 2.dp, vertical = 2.dp)
-                        .drawBackdrop(
-                            backdrop = wallpaperBackdrop!!,
-                            shape = { hlShape },
-                            effects = hlEffects,
-                            highlight = null,
-                            shadow = null,
-                            viewport = com.kyant.backdrop.LocalBackdropViewport.current,
-                            onDrawSurface = {
-                                drawRect(hlSurfaceColor)
-                            }
-                        )
-                        .edgeLight(shape = hlShape, edgeLight = rememberCourseCardEdgeLight())
-                )
             }
 
             // 特殊横带在整表层渲染；独立成层使周切换只重组本层，静态骨架可跳过

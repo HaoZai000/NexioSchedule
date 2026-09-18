@@ -2,9 +2,11 @@ package com.haooz.chedule.ui.screens
 
 import android.annotation.SuppressLint
 import android.widget.Toast
+import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.CubicBezierEasing
 import androidx.compose.animation.core.animate
 import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.spring
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -14,6 +16,7 @@ import androidx.compose.foundation.gestures.calculatePan
 import androidx.compose.foundation.gestures.calculateZoom
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
@@ -26,6 +29,7 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.statusBars
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.pager.HorizontalPager
 import androidx.compose.foundation.pager.PagerState
 import androidx.compose.foundation.rememberScrollState
@@ -51,11 +55,16 @@ import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.drawBehind
+import androidx.compose.ui.geometry.CornerRadius
+import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Rect
+import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.asComposeRenderEffect
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.input.pointer.pointerInput
@@ -113,6 +122,7 @@ import top.yukonga.miuix.kmp.theme.MiuixTheme
 import top.yukonga.miuix.kmp.utils.PressFeedbackType
 import top.yukonga.miuix.kmp.utils.scrollEndHaptic
 import java.time.LocalDate
+import kotlin.math.roundToInt
 import kotlin.time.Duration.Companion.milliseconds
 import com.kyant.backdrop.backdrops.layerBackdrop as kyantLayerBackdrop
 import com.kyant.backdrop.backdrops.rememberLayerBackdrop as rememberKyantLayerBackdrop
@@ -187,6 +197,8 @@ fun MainScheduleScreen(
     liquidGlassBackdrop: com.kyant.backdrop.Backdrop? = null,
     // 拖拽落点高亮：Pair(dayOfWeek, sectionRange)，sectionRange 为落点覆盖的节次区间
     dropHighlight: Pair<Int, IntRange>? = null,
+    // 落点遮罩出现动画的起点（通常是源课格），避免首次直接闪现在落点
+    dropHighlightOrigin: Pair<Int, IntRange>? = null,
     onGridGeometryChange: (ScheduleGridGeometry) -> Unit = {},
     scheduleScrollBehavior: SharedScrollBehavior? = null,
     // Activity 层提升，return@Scaffold 不会销毁
@@ -736,6 +748,21 @@ fun MainScheduleScreen(
                             )
                         }
                     }
+
+                    // 调课落点示意：跨列/节连续位移，出现从源格滑入，消失仅透明度
+                    AnimatedDropTargetMask(
+                        dropHighlight = dropHighlight,
+                        dropHighlightOrigin = dropHighlightOrigin,
+                        pageDayRange = pageDayRange,
+                        grid = specialGrid,
+                        cardHeightPerSection = cardHeightPerSection,
+                        cardCornerRadius = cardCornerRadius,
+                        isTablet = isTablet,
+                        isDark = scheduleIsDark,
+                        hasWallpaper = wallpaperBitmap != null,
+                        wallpaperBackdrop = activeCardBackdrop,
+                        cardBlurRadius = cardBlurRadius,
+                    )
 
                     Row(
                         modifier = Modifier
@@ -1561,5 +1588,179 @@ private fun CourseDetailSheet(
             skipEnterAnimation = skipSheetEnterAnimation,
             content = content,
         )
+    }
+}
+
+private data class DropMaskBox(
+    val left: Float,
+    val top: Float,
+    val width: Float,
+    val height: Float,
+)
+
+/**
+ * 调课落点示意遮罩：拖动换格时弹簧连续位移；出现从上方轻微落入，消失淡出。
+ * 放在 DayColumn 之前，保证卡片画在遮罩之上。
+ */
+@Composable
+private fun AnimatedDropTargetMask(
+    dropHighlight: Pair<Int, IntRange>?,
+    dropHighlightOrigin: Pair<Int, IntRange>?,
+    pageDayRange: List<Int>,
+    grid: com.haooz.chedule.ui.components.SpecialGridLayout,
+    cardHeightPerSection: Float,
+    cardCornerRadius: Float,
+    isTablet: Boolean,
+    isDark: Boolean,
+    hasWallpaper: Boolean,
+    wallpaperBackdrop: com.kyant.backdrop.Backdrop?,
+    cardBlurRadius: Float,
+) {
+    val density = LocalDensity.current
+    val left = remember { Animatable(0f) }
+    val top = remember { Animatable(0f) }
+    val width = remember { Animatable(0f) }
+    val height = remember { Animatable(0f) }
+    val alpha = remember { Animatable(0f) }
+    val lastTarget = remember { mutableStateOf<DropMaskBox?>(null) }
+
+    BoxWithConstraints(
+        modifier = Modifier
+            .fillMaxWidth()
+            .height(grid.totalHeight.dp)
+    ) {
+        val sectionW = with(density) { (if (isTablet) 56 else 36).dp.toPx() }
+        val padStart = with(density) { (if (isTablet) 24 else 0).dp.toPx() }
+        val padEnd = with(density) { (if (isTablet) 24 else 2).dp.toPx() }
+        val padH = with(density) { 2.dp.toPx() }
+        val padV = with(density) { 2.dp.toPx() }
+        val maxW = constraints.maxWidth.toFloat()
+        val dayCount = pageDayRange.size.coerceAtLeast(1)
+        val dayW = ((maxW - padStart - sectionW - padEnd) / dayCount).coerceAtLeast(0f)
+        val dayAreaLeft = padStart + sectionW
+        val cornerPx = with(density) { cardCornerRadius.dp.toPx() }
+
+        val boxOf: (Pair<Int, IntRange>?) -> DropMaskBox? = remember(
+            pageDayRange, grid, cardHeightPerSection, dayW, dayAreaLeft, density, padH, padV
+        ) {
+            { hl ->
+                if (hl == null) {
+                    null
+                } else {
+                    val dayIndex = pageDayRange.indexOf(hl.first)
+                    if (dayIndex < 0) {
+                        null
+                    } else {
+                        val sectionTop = grid.sectionTop[hl.second.first] ?: 0f
+                        val span = (hl.second.last - hl.second.first + 1).coerceAtLeast(1)
+                        val h = with(density) { (span * cardHeightPerSection).dp.toPx() }
+                        DropMaskBox(
+                            left = dayAreaLeft + dayIndex * dayW + padH,
+                            top = with(density) { sectionTop.dp.toPx() } + padV,
+                            width = (dayW - padH * 2).coerceAtLeast(0f),
+                            height = (h - padV * 2).coerceAtLeast(0f),
+                        )
+                    }
+                }
+            }
+        }
+        val targetBox = remember(dropHighlight, boxOf) { boxOf(dropHighlight) }
+        val originBox = remember(dropHighlightOrigin, boxOf) { boxOf(dropHighlightOrigin) }
+
+        LaunchedEffect(targetBox) {
+            if (targetBox == null) {
+                // 带出：仅透明度
+                alpha.animateTo(0f, tween(durationMillis = 180, easing = CubicBezierEasing(0.4f, 0f, 1f, 1f)))
+                lastTarget.value = null
+            } else {
+                val prev = lastTarget.value
+                val wasVisible = alpha.value > 0.05f && prev != null
+                val spec = spring<Float>(dampingRatio = 0.85f, stiffness = 420f)
+                if (!wasVisible) {
+                    // 出现：从源课格连续滑入落点（无源时在落点淡入），避免闪现
+                    val from = originBox ?: targetBox
+                    left.snapTo(from.left)
+                    top.snapTo(from.top)
+                    width.snapTo(from.width)
+                    height.snapTo(from.height)
+                    alpha.snapTo(0f)
+                    launch {
+                        alpha.animateTo(1f, tween(durationMillis = 180, easing = CubicBezierEasing(0.2f, 0.8f, 0.2f, 1f)))
+                    }
+                    if (from != targetBox) {
+                        launch { left.animateTo(targetBox.left, spec) }
+                        launch { top.animateTo(targetBox.top, spec) }
+                        launch { width.animateTo(targetBox.width, spec) }
+                        launch { height.animateTo(targetBox.height, spec) }
+                    }
+                } else {
+                    // 目标变化：位置/尺寸弹簧连贯移动
+                    launch { left.animateTo(targetBox.left, spec) }
+                    launch { width.animateTo(targetBox.width, spec) }
+                    launch { height.animateTo(targetBox.height, spec) }
+                    launch { top.animateTo(targetBox.top, spec) }
+                    if (alpha.value < 1f) {
+                        launch { alpha.animateTo(1f, tween(durationMillis = 180)) }
+                    }
+                }
+                lastTarget.value = targetBox
+            }
+        }
+
+        val hasWallpaperMask = hasWallpaper && wallpaperBackdrop != null
+        val solidColor = Color(0xFF9E9E9E).copy(alpha = if (isDark) 0.13f else 0.15f)
+        val glassSurface = if (isDark) Color(0xFF242424).copy(alpha = 0.64f) else Color(0xFFF0F0F0).copy(alpha = 0.5f)
+        val blurPx = with(density) { remember(cardBlurRadius) { cardBlurRadius.dp.toPx() } }
+        val maskShape = remember(cardCornerRadius) { ContinuousRoundedRectangle(cardCornerRadius.dp) }
+
+        if (hasWallpaperMask) {
+            // 壁纸玻璃表面：offset+layout 跟动画几何，alpha 走 graphicsLayer
+            Box(
+                modifier = Modifier
+                    .offset {
+                        IntOffset(
+                            left.value.roundToInt(),
+                            top.value.roundToInt()
+                        )
+                    }
+                    .layout { measurable, _ ->
+                        val w = width.value.roundToInt().coerceAtLeast(0)
+                        val h = height.value.roundToInt().coerceAtLeast(0)
+                        val placeable = measurable.measure(Constraints.fixed(w, h))
+                        layout(w, h) {
+                            placeable.place(0, 0)
+                        }
+                    }
+                    .graphicsLayer { this.alpha = alpha.value }
+                    .drawBackdrop(
+                        backdrop = wallpaperBackdrop!!,
+                        shape = { maskShape },
+                        effects = {
+                            if (wallpaperBackdrop !is SharedBlurBackdrop) blur(blurPx)
+                        },
+                        highlight = null,
+                        shadow = null,
+                        downsampleScale = 0.48f,
+                        onDrawSurface = { drawRect(glassSurface) }
+                    )
+            )
+        } else {
+            // 纯色路径：drawBehind 读 Animatable，位移/尺寸/透明度均不触发重组
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(grid.totalHeight.dp)
+                    .drawBehind {
+                        val a = alpha.value
+                        if (a <= 0.01f) return@drawBehind
+                        drawRoundRect(
+                            color = solidColor.copy(alpha = solidColor.alpha * a),
+                            topLeft = Offset(left.value, top.value),
+                            size = Size(width.value, height.value),
+                            cornerRadius = CornerRadius(cornerPx),
+                        )
+                    }
+            )
+        }
     }
 }

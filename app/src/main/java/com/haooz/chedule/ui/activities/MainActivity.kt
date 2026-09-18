@@ -3020,6 +3020,17 @@ fun CourseScheduleApp() {
                                                     } else null
                                                 }
                                             },
+                                            dropHighlightOrigin = run {
+                                                val source = draggedCardCourse
+                                                if (floatingCardVisible && source != null && !isPasteFlight) {
+                                                    source.dayOfWeek to (source.startSection..source.endSection)
+                                                } else {
+                                                    val emptyTarget = emptyCellMenuTarget
+                                                    if (emptyTarget != null && shortcutMenuVisible) {
+                                                        emptyTarget.first to (emptyTarget.second..emptyTarget.second)
+                                                    } else null
+                                                }
+                                            },
                                             scheduleScrollBehavior = scheduleScrollBehavior,
                                                 externalScrollState = scheduleScrollState,
                                             externalShowCourseDetail = scheduleShowCourseDetail,
