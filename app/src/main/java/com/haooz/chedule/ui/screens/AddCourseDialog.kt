@@ -818,7 +818,10 @@ private fun AddCourseDialogContent(
                         hapticFeedback.performHapticFeedback(HapticFeedbackType.Confirm)
                         stableOnDeleteClick()
                     },
-                    colors = ButtonDefaults.buttonColors(),
+                    colors = ButtonDefaults.buttonColors(
+                        color = if (isDark) Color.White.copy(alpha = 0.1f)
+                        else Color.Black.copy(alpha = 0.06f)
+                    ),
                 ) {
                     Icon(
                         imageVector = MiuixIcons.Delete,
