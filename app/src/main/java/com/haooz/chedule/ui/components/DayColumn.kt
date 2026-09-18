@@ -499,7 +499,9 @@ private fun CourseCardsLayer(
         }
 
         renderData.segments.forEachIndexed { idx, (segStartSection, segEndSection) ->
-            val displayCourse = course.copy(startSection = segStartSection, endSection = segEndSection)
+            val displayCourse = remember(course.id, segStartSection, segEndSection) {
+                course.copy(startSection = segStartSection, endSection = segEndSection)
+            }
             val segOffset = (grid.sectionTop[segStartSection] ?: 0f).toInt()
 
             Box(

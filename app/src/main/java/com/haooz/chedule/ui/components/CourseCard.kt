@@ -3,6 +3,7 @@ package com.haooz.chedule.ui.components
 import android.annotation.SuppressLint
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.FastOutSlowInEasing
+import androidx.compose.animation.core.spring
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.gestures.awaitEachGesture
@@ -10,7 +11,6 @@ import androidx.compose.foundation.gestures.awaitFirstDown
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -57,10 +57,6 @@ import com.kyant.backdrop.effects.lens
 import com.kyant.capsule.ContinuousRoundedRectangle
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
-import top.yukonga.miuix.kmp.basic.Card
-import top.yukonga.miuix.kmp.basic.CardDefaults
-import top.yukonga.miuix.kmp.theme.MiuixTheme
-import top.yukonga.miuix.kmp.utils.PressFeedbackType
 import kotlin.math.hypot
 import kotlin.time.Duration.Companion.milliseconds
 import android.graphics.Color as AndroidColor
@@ -116,27 +112,37 @@ fun CourseCard(
     val scope = rememberCoroutineScope()
     val localDensity = LocalDensity.current
 
-    // 近处几乎立刻、远处按距离铺开；初始记当前 token，避免新进组合树误触发旧涟漪
+    // 近处几乎立刻、远处按距离铺开；token=0（常态）不挂协程，降低新周页首帧组合成本
     val landRipple = LocalLandRipple.current
     val rippleScale = remember { Animatable(1f) }
     val cardBoundsPx = remember { FloatArray(4) }
-    val lastRippleToken = remember { mutableIntStateOf(landRipple.token) }
-    LaunchedEffect(landRipple.token) {
-        if (landRipple.token == 0) return@LaunchedEffect
-        if (landRipple.token == lastRippleToken.intValue) return@LaunchedEffect
-        lastRippleToken.intValue = landRipple.token
-        val cx = cardBoundsPx[0]
-        val cy = cardBoundsPx[1]
-        if (cx == 0f && cy == 0f) return@LaunchedEffect
-        val dist = hypot(cx - landRipple.center.x, cy - landRipple.center.y)
-        val delayMs = if (dist < 90f) {
-            0L
-        } else {
-            ((dist - 90f) * 0.3f).toLong().coerceAtMost(400L)
+    // Sink：仅缩放反馈，不叠 indication 压暗；参数对齐 Miuix SinkFeedback(0.94, spring(0.8,600))
+    var sinkPressed by remember { mutableStateOf(false) }
+    val sinkScale = remember { Animatable(1f) }
+    LaunchedEffect(sinkPressed) {
+        sinkScale.animateTo(
+            targetValue = if (sinkPressed) 0.94f else 1f,
+            animationSpec = spring(dampingRatio = 0.8f, stiffness = 600f)
+        )
+    }
+    if (landRipple.token != 0) {
+        val lastRippleToken = remember { mutableIntStateOf(landRipple.token) }
+        LaunchedEffect(landRipple.token) {
+            if (landRipple.token == lastRippleToken.intValue) return@LaunchedEffect
+            lastRippleToken.intValue = landRipple.token
+            val cx = cardBoundsPx[0]
+            val cy = cardBoundsPx[1]
+            if (cx == 0f && cy == 0f) return@LaunchedEffect
+            val dist = hypot(cx - landRipple.center.x, cy - landRipple.center.y)
+            val delayMs = if (dist < 90f) {
+                0L
+            } else {
+                ((dist - 90f) * 0.3f).toLong().coerceAtMost(400L)
+            }
+            if (delayMs > 0) delay(delayMs.milliseconds)
+            rippleScale.animateTo(1.08f, tween(80, easing = FastOutSlowInEasing))
+            rippleScale.animateTo(1f, tween(320, easing = FastOutSlowInEasing))
         }
-        if (delayMs > 0) delay(delayMs.milliseconds)
-        rippleScale.animateTo(1.08f, tween(80, easing = FastOutSlowInEasing))
-        rippleScale.animateTo(1f, tween(320, easing = FastOutSlowInEasing))
     }
 
     val effectiveAlpha = if (hasBlur) cardAlpha * 1.6f else cardAlpha
@@ -179,8 +185,6 @@ fun CourseCard(
 
     if (hasBlur) {
         key(effectiveCornerRadius) {
-            var isPressed by remember { mutableStateOf(false) }
-            val scale = remember { Animatable(1f) }
             val backdropShape = remember(effectiveCornerRadius) { ContinuousRoundedRectangle(effectiveCornerRadius.dp) }
             val blurPx = with(localDensity) { remember(cardBlurRadius) { cardBlurRadius.dp.toPx() } }
             val lensRadiusPx = with(localDensity) { remember(cardRefraction) { cardRefraction.lensRadiusDp.dp.toPx() } }
@@ -216,19 +220,6 @@ fun CourseCard(
                 androidx.compose.ui.graphics.drawscope.Stroke(with(localDensity) { 2.dp.toPx() })
             }
             val outlineCache = remember { OutlineCache() }
-            LaunchedEffect(isPressed) {
-                if (isPressed) {
-                    scale.animateTo(
-                        targetValue = 0.94f,
-                        animationSpec = tween(durationMillis = 100)
-                    )
-                } else {
-                    scale.animateTo(
-                        targetValue = 1f,
-                        animationSpec = tween(durationMillis = 180)
-                    )
-                }
-            }
 
             Box(
                 modifier = modifier
@@ -236,7 +227,7 @@ fun CourseCard(
                     .height(cardHeight)
                     .then(if (disablePadding) Modifier else Modifier.padding(horizontal = 2.dp, vertical = 2.dp))
                     .graphicsLayer {
-                        val s = scale.value * rippleScale.value
+                        val s = sinkScale.value * rippleScale.value
                         scaleX = s
                         scaleY = s
                         alpha = if (isDragging) 0f else 1f
@@ -284,7 +275,7 @@ fun CourseCard(
                         awaitEachGesture {
                             val down = awaitFirstDown(requireUnconsumed = false)
                             down.consume()
-                            isPressed = true
+                            sinkPressed = true
                             val downPosition = down.position
                             var isLongPress = false
                             var isDraggingCard = false
@@ -292,7 +283,7 @@ fun CourseCard(
                             val longPressJob = scope.launch {
                                 delay(320.milliseconds)
                                 isLongPress = true
-                                isPressed = false
+                                sinkPressed = false
                                 menuShown = true
                                 onLongPressStart(
                                     cardBoundsPx[0],
@@ -310,7 +301,7 @@ fun CourseCard(
                                     val event = awaitPointerEvent(pass)
                                     val pressed = event.changes.any { it.pressed }
                                     if (!pressed) {
-                                        isPressed = false
+                                        sinkPressed = false
                                         if (isDraggingCard) {
                                             if (menuShown) {
                                                 onDrag(0f, 0f)
@@ -340,17 +331,18 @@ fun CourseCard(
                                         && kotlin.math.abs(dx) > 5f * density
                                         && kotlin.math.abs(dx) > kotlin.math.abs(dy) * 1.2f
                                     ) {
-                                        isPressed = false
+                                        sinkPressed = false
                                         break
                                     }
 
                                     if (!isLongPress && dragDist > 8f * density) {
-                                        isPressed = false
+                                        sinkPressed = false
                                         event.changes.forEach { it.consume() }
                                         break
                                     }
                                     if (menuShown && !isDraggingCard) {
                                         isDraggingCard = true
+                                        sinkPressed = false
                                         onDragStart()
                                     }
                                     if (menuShown) {
@@ -378,16 +370,25 @@ fun CourseCard(
             }
         }
     } else {
+        // 无壁纸路径：手势已在外层 pointerInput 处理，不再套 Miuix Card
+        //（其 interactionSource/pressable/combinedClickable/squircle 每卡都是一笔首帧组合开销）
+        val cardShape = remember(effectiveCornerRadius) {
+            ContinuousRoundedRectangle(effectiveCornerRadius.dp)
+        }
         Box(
             modifier = modifier
                 .fillMaxWidth()
                 .height(cardHeight)
                 .then(if (disablePadding) Modifier else Modifier.padding(horizontal = 2.dp, vertical = 2.dp))
                 .graphicsLayer {
-                    scaleX = rippleScale.value
-                    scaleY = rippleScale.value
+                    val s = sinkScale.value * rippleScale.value
+                    scaleX = s
+                    scaleY = s
                     alpha = if (isDragging) 0f else 1f
+                    shape = cardShape
+                    clip = true
                 }
+                .background(cardColor, cardShape)
                 .onGloballyPositioned { coordinates ->
                     // 与 hasBlur 分支一致：上报中心绝对坐标
                     val center = coordinates.localToRoot(Offset(coordinates.size.width / 2f, coordinates.size.height / 2f))
@@ -400,6 +401,7 @@ fun CourseCard(
                     awaitEachGesture {
                         val down = awaitFirstDown(requireUnconsumed = false)
                         down.consume()
+                        sinkPressed = true
                         val downPosition = down.position
                         var isLongPress = false
                         var isDraggingCard = false
@@ -407,6 +409,7 @@ fun CourseCard(
                             val longPressJob = scope.launch {
                                 delay(320.milliseconds)
                                 isLongPress = true
+                                sinkPressed = false
                                 menuShown = true
                                 onLongPressStart(
                                     cardBoundsPx[0],
@@ -423,6 +426,7 @@ fun CourseCard(
                                 val event = awaitPointerEvent(pass)
                                 val pressed = event.changes.any { it.pressed }
                                 if (!pressed) {
+                                    sinkPressed = false
                                     if (isDraggingCard) {
                                         if (menuShown) {
                                             onDrag(0f, 0f)
@@ -452,15 +456,18 @@ fun CourseCard(
                                     && kotlin.math.abs(dx) > 5f * density
                                     && kotlin.math.abs(dx) > kotlin.math.abs(dy) * 1.2f
                                 ) {
+                                    sinkPressed = false
                                     break
                                 }
 
                                 if (!isLongPress && dragDist > 8f * density) {
+                                    sinkPressed = false
                                     event.changes.forEach { it.consume() }
                                     break
                                 }
                                 if (menuShown && !isDraggingCard) {
                                     isDraggingCard = true
+                                    sinkPressed = false
                                     onDragStart()
                                 }
                                 if (menuShown) {
@@ -481,22 +488,9 @@ fun CourseCard(
                     }
                 }
         ) {
-            Card(
-                modifier = Modifier.fillMaxSize(),
-                cornerRadius = effectiveCornerRadius.dp,
-                insideMargin = PaddingValues(0.dp),
-                pressFeedbackType = PressFeedbackType.Sink,
-                showIndication = true,
-                colors = CardDefaults.defaultColors(
-                    color = cardColor,
-                    contentColor = MiuixTheme.colorScheme.onSurface
-                ),
-                onClick = {}
-            ) {
-                CardContent(course, sectionCount, textColor, hasMultipleCourses,
-                    isTablet, cardContentAlignment, cardHeight.value, cardHeightPerSection,
-                    isHoliday, isWorkSwap, isCurrentWeek, showClassroom, showTeacher, cardTextScale, isDark)
-            }
+            CardContent(course, sectionCount, textColor, hasMultipleCourses,
+                isTablet, cardContentAlignment, cardHeight.value, cardHeightPerSection,
+                isHoliday, isWorkSwap, isCurrentWeek, showClassroom, showTeacher, cardTextScale, isDark)
         }
     }
 }

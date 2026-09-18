@@ -432,12 +432,49 @@ fun MainScheduleScreen(
         }
     }
 
-    // 仅在 pager 内部访问时计算；值：dayOfWeek -> (displayWeek, 该日课程)
-    @Suppress("RedundantInitializer")
-    val filteredCoursesCache = remember(
-        coursesByDay, showNonCurrentWeek, dataVersion, holidayVersion, workswapIndex
+    // 数据变化时一次算齐全部周：换周组合只查表，避免新页首帧在 composition 里扫课程/调休
+    val weekFilteredCourses: Map<Int, Map<Int, Pair<Int, List<Course>>>> = remember(
+        coursesByDay, showNonCurrentWeek, dataVersion, holidayVersion,
+        workswapIndex, semesterStartMonday, totalWeeks
     ) {
-        mutableMapOf<Int, Map<Int, Pair<Int, List<Course>>>>()
+        if (totalWeeks <= 0) emptyMap()
+        else HashMap<Int, Map<Int, Pair<Int, List<Course>>>>(totalWeeks).apply {
+            for (page in 0 until totalWeeks) {
+                val weekForPage = page + 1
+                put(page, allDays.associateWith { dayOfWeek ->
+                    val dateForDay = semesterStartMonday
+                        .plusWeeks((weekForPage - 1).toLong())
+                        .plusDays((dayOfWeek - 1).toLong())
+                    val swapForDay = workswapIndex[dateForDay.toString()]
+                    val displayDay = swapForDay?.followWeekday?.takeIf { it in 1..7 } ?: dayOfWeek
+                    val displayWeek = swapForDay?.followWeek?.takeIf { it > 0 } ?: weekForPage
+                    val dayCourses = coursesByDay[displayDay] ?: emptyList()
+                    val filtered = if (showNonCurrentWeek) dayCourses
+                    else dayCourses.filter { it.isActiveInWeek(displayWeek) }
+                    displayWeek to filtered
+                })
+            }
+        }
+    }
+    // page -> dayOfWeek -> (isHoliday, isWorkSwap)，同样预计算
+    val weekDayFlags: Map<Int, Map<Int, Pair<Boolean, Boolean>>> = remember(
+        semesterStartMonday, holidayIndex, workswapIndex, totalWeeks
+    ) {
+        if (totalWeeks <= 0) emptyMap()
+        else HashMap<Int, Map<Int, Pair<Boolean, Boolean>>>(totalWeeks).apply {
+            for (page in 0 until totalWeeks) {
+                val weekForPage = page + 1
+                put(page, allDays.associateWith { dayOfWeek ->
+                    val dateForDay = semesterStartMonday
+                        .plusWeeks((weekForPage - 1).toLong())
+                        .plusDays((dayOfWeek - 1).toLong())
+                    val isHoliday = holidayIndex[dateForDay.toString()] != null
+                    val isWorkSwap = workswapIndex[dateForDay.toString()]
+                        ?.followWeekday?.takeIf { it in 1..7 } != null
+                    isHoliday to isWorkSwap
+                })
+            }
+        }
     }
 
     @Suppress("RedundantInitializer")
@@ -611,11 +648,11 @@ fun MainScheduleScreen(
             }
         }
 
-// beyondViewportPageCount=1 让 next page 先进 composition+layout，缓解水平滑动掉帧
+// beyondViewportPageCount=2：邻近 2 周提前 composition，快滑跨周时目标页多半已就绪
     HorizontalPager(
         state = pagerState,
         modifier = Modifier.fillMaxSize(),
-        beyondViewportPageCount = 1,
+        beyondViewportPageCount = 2,
         userScrollEnabled = !isWallpaperEditing
     ) { page ->
             val week = page + 1
@@ -725,28 +762,11 @@ fun MainScheduleScreen(
                         )
 
                         pageDayRange.forEach { dayOfWeek ->
-                            // 按需缓存；调休日返回映射后的 displayWeek
-                            val (displayWeekForDay, filteredDayCourses) = filteredCoursesCache.getOrPut(page) {
-                                val weekForPage = page + 1
-                                allDays.associateWith { dayOfWeek ->
-                                    val dateForDay = semesterStartMonday
-                                        .plusWeeks((weekForPage - 1).toLong())
-                                        .plusDays((dayOfWeek - 1).toLong())
-                                    val swapForDay = workswapIndex[dateForDay.toString()]
-                                    val displayDay = swapForDay?.followWeekday?.takeIf { it in 1..7 } ?: dayOfWeek
-                                    val displayWeek = swapForDay?.followWeek?.takeIf { it > 0 } ?: weekForPage
-                                    val dayCourses = coursesByDay[displayDay] ?: emptyList()
-                                    val courses = if (showNonCurrentWeek) dayCourses
-                                    else dayCourses.filter { it.isActiveInWeek(displayWeek) }
-                                    displayWeek to courses
-                                }
-                            }.getOrElse(dayOfWeek) { week to emptyList() }
-                            val dateForDay = semesterStartMonday
-                                .plusWeeks((week - 1).toLong())
-                                .plusDays((dayOfWeek - 1).toLong())
-                            val isHoliday = holidayIndex[dateForDay.toString()] != null
-                            val isWorkSwap = workswapIndex[dateForDay.toString()]
-                                ?.followWeekday?.takeIf { it in 1..7 } != null
+                            val (displayWeekForDay, filteredDayCourses) =
+                                weekFilteredCourses[page]?.get(dayOfWeek) ?: (week to emptyList())
+                            val dayFlags = weekDayFlags[page]?.get(dayOfWeek) ?: (false to false)
+                            val isHoliday = dayFlags.first
+                            val isWorkSwap = dayFlags.second
                             val stableOnCourseClick: (Course) -> Unit =
                                 remember(page, dayOfWeek, week, displayWeekForDay) {
                                     { course ->
