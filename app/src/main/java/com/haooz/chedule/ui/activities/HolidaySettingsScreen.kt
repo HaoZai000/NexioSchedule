@@ -165,7 +165,9 @@ fun HolidaySettingsScreen(
         endYear = end.year
         endMonth = end.monthValue
         endDay = end.dayOfMonth
-        followWeek = if (entry.type == HolidayManager.TYPE_WORKSWAP) {
+        followWeek = if (entry.type == HolidayManager.TYPE_WORKSWAP && entry.followWeek > 0) {
+            entry.followWeek.toString()
+        } else if (entry.type == HolidayManager.TYPE_WORKSWAP) {
             weekOfDate(startYear, startMonth, startDay)
         } else {
             "1"
