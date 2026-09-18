@@ -250,7 +250,7 @@ class WebCompatDelegate(private val webView: WebView) {
         return object : WebViewClient() {
             override fun shouldInterceptRequest(view: WebView?, request: WebResourceRequest?): WebResourceResponse? {
                 if (request != null) {
-                    val interceptedResponse = interceptor.intercept(request, isDesktopMode, currentUserAgent)
+                    val interceptedResponse = interceptor.intercept(request, currentUserAgent)
                     if (interceptedResponse != null) {
                         return interceptedResponse
                     }

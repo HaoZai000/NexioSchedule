@@ -79,7 +79,12 @@ fun PreferenceSettingsScreen(
     val context = LocalContext.current
 
     val eduPrefs = remember { context.getSharedPreferences("edu_import_prefs", Context.MODE_PRIVATE) }
-    var repoUrl by remember { mutableStateOf(eduPrefs.getString("repo_url", "https://gitee.com/XingHeYuZhuan-gh/shiguang_warehouse") ?: "https://gitee.com/XingHeYuZhuan-gh/shiguang_warehouse") }
+    var repoUrl by remember {
+        mutableStateOf(
+            eduPrefs.getString("repo_url", "https://gitee.com/com_haooz_account/shiguang_warehouse")
+                ?: "https://gitee.com/com_haooz_account/shiguang_warehouse"
+        )
+    }
 
     val weatherPrefs = remember { context.getSharedPreferences("weather_prefs", Context.MODE_PRIVATE) }
     var weatherSource by remember { mutableStateOf(weatherPrefs.getString("weather_source", "caiyun") ?: "caiyun") }
@@ -366,6 +371,14 @@ fun PreferenceSettingsScreen(
                         Column(modifier = Modifier.fillMaxWidth()) {
                             val repoEntry = DropdownEntry(
                                 items = listOf(
+                                    DropdownItem(
+                                        text = "Fork源",
+                                        selected = repoUrl == "https://gitee.com/com_haooz_account/shiguang_warehouse",
+                                        onClick = {
+                                            repoUrl = "https://gitee.com/com_haooz_account/shiguang_warehouse"
+                                            eduPrefs.edit { putString("repo_url", repoUrl) }
+                                        }
+                                    ),
                                     DropdownItem(
                                         text = "GitHub",
                                         selected = repoUrl == "https://github.com/XingHeYuZhuan/shiguang_warehouse",

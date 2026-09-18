@@ -687,9 +687,19 @@ fun WebViewScreen(
             }
         ) { }
 
-        // 桌面模式切换后要重新加载才生效：document-start 脚本只对新的文档起作用。
-        // 统一在这里触发，避免切换处抢在脚本注册之前 reload。
-        if (webView.url != null) webView.reload()
+        // 切换 UA 后必须带新 UA 重新取页才生效（document-start 脚本只对新的文档起作用）。
+        // 且不能只 reload 当前地址：部分站点识别出手机端后会把页面重定向到手机专属地址
+        //（如 m.xxx.com），此时 reload 仍是手机版页面；需带新 UA 重新访问导入入口，
+        // 让站点按新 UA 重新解析。同域（未被重定向到其它主机）则 reload 保持当前流程位置。
+        if (webView.url != null) {
+            val currentHost = webView.url?.toUri()?.host?.lowercase()?.removePrefix("www.")
+            val importHost = importUrl?.toUri()?.host?.lowercase()?.removePrefix("www.")
+            if (!currentHost.isNullOrBlank() && !importHost.isNullOrBlank() && currentHost != importHost) {
+                webView.loadUrl(importUrl!!)
+            } else {
+                webView.reload()
+            }
+        }
     }
 
     LaunchedEffect(currentUrl) {

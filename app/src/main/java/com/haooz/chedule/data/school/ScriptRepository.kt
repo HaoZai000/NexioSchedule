@@ -18,7 +18,8 @@ import java.util.concurrent.TimeUnit
 class ScriptRepository(private val context: Context, private val repoUrl: String? = null) {
 
     companion object {
-        private const val DEFAULT_REPO_URL = "https://gitee.com/XingHeYuZhuan-gh/shiguang_warehouse"
+        // 上游拾光仓库封禁期间，默认改用本应用维护的 Fork 源
+        private const val DEFAULT_REPO_URL = "https://gitee.com/com_haooz_account/shiguang_warehouse"
         private const val RESOURCES_BRANCH = "main"
         private const val INDEX_BRANCH = "index-pb-release"
         private const val INDEX_FILE_NAME = "school_index.pb"
