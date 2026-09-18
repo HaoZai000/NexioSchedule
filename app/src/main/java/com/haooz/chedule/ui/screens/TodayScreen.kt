@@ -62,6 +62,7 @@ import com.haooz.chedule.ui.effects.edgelight.rememberCardEdgeLight
 import com.haooz.chedule.ui.effects.edgelight.rememberDefaultEdgeLight
 import com.haooz.chedule.ui.utils.isAppDarkTheme
 import com.haooz.chedule.ui.utils.overScrollVertical
+import com.haooz.chedule.ui.utils.pagerAxisTakeoverGesture
 import com.haooz.chedule.viewmodel.CourseViewModel
 import com.haooz.chedule.viewmodel.SettingsViewModel
 import com.kyant.backdrop.Backdrop
@@ -535,7 +536,11 @@ fun TodayScreen(
 
             HorizontalPager(
                 state = pagerState,
-                modifier = Modifier.fillMaxSize()
+                modifier = Modifier
+                    .fillMaxSize()
+                    // 与课表周 pager 共用的横竖主导翻页手势；纵向仍归页内 LazyColumn
+                    .pagerAxisTakeoverGesture(pagerState = pagerState),
+                userScrollEnabled = false,
             ) { page ->
                 val pageListState = remember(page) { LazyListState() }
                 // 只把当前页的滚动状态报给 Activity（顶栏折叠 / 液态玻璃重录）

@@ -96,6 +96,7 @@ import com.haooz.chedule.ui.effects.edgelight.edgeLight
 import com.haooz.chedule.ui.effects.edgelight.rememberCourseCardEdgeLight
 import com.haooz.chedule.ui.utils.isAppDarkTheme
 import com.haooz.chedule.ui.utils.overScrollVertical
+import com.haooz.chedule.ui.utils.pagerAxisTakeoverGesture
 import com.haooz.chedule.viewmodel.CourseViewModel
 import com.haooz.chedule.viewmodel.SettingsViewModel
 import com.kyant.backdrop.backdrops.SharedBlurBackdrop
@@ -265,6 +266,9 @@ fun MainScheduleScreen(
             scheduleScrollInProgress.value = it
         }
     }
+    // 横纵双轴手势：横向由 pagerAxisTakeoverGesture 接管，纵向仍归页内 verticalScroll
+    val latestIsWallpaperEditing by rememberUpdatedState(isWallpaperEditing)
+    val latestDraggingCourseIds by rememberUpdatedState(draggingCourseIds)
     // 由顶栏自身几何纯计算（切页不变），避免 paddingValues 随 tab 变化导致位移
     val statusBarHeight = WindowInsets.statusBars.asPaddingValues().calculateTopPadding()
     val contentTopPaddingDp = remember(statusBarHeight) { scheduleContentTopPadding(statusBarHeight) }
@@ -663,9 +667,18 @@ fun MainScheduleScreen(
 // beyondViewportPageCount=2：邻近 2 周提前 composition，快滑跨周时目标页多半已就绪
     HorizontalPager(
         state = pagerState,
-        modifier = Modifier.fillMaxSize(),
+        modifier = Modifier
+            .fillMaxSize()
+            // 横竖主导手势（与今日页共用）：横向接管 pager，纵向仍归页内滚动
+            .pagerAxisTakeoverGesture(
+                pagerState = pagerState,
+                blockGesture = {
+                    latestIsWallpaperEditing || latestDraggingCourseIds.isNotEmpty()
+                },
+            ),
         beyondViewportPageCount = 2,
-        userScrollEnabled = !isWallpaperEditing
+        // 横向触摸改由 pagerAxisTakeoverGesture 驱动；纵滑主导时交给 verticalScroll
+        userScrollEnabled = false
     ) { page ->
             val week = page + 1
 
