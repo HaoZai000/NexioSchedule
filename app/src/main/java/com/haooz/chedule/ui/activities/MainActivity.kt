@@ -1474,8 +1474,8 @@ fun CourseScheduleApp() {
     val currentViewingWeek = pagerState.currentPage + 1
     val courses by viewModel.courses.collectAsState()
     val dataVersion by viewModel.dataVersion.collectAsState()
-    // dataVersion 必须进 key：假期/调休返回 reload 后课程数可能不变，原先只看 size 不会重算
-    val dayRange = remember(currentViewingWeek, smartWeekend, courses.size, dataVersion) {
+    // dataVersion + courses 引用都进 key：调课 size 可能不变，只靠 size 会让智能周末星期行停在旧值
+    val dayRange = remember(currentViewingWeek, smartWeekend, courses, dataVersion) {
         (1..5).toList() + settingsViewModel.getWeekendDaysForWeek(currentViewingWeek)
             .filter { it in 6..7 }
     }

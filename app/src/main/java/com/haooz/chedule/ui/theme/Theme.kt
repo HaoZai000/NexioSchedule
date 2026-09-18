@@ -61,7 +61,9 @@ fun CourseScheduleTheme(
         }
     }
 
-    val controller = remember(themeMode.value) {
+    // 稳定 ThemeController：只改 colorSchemeMode，避免 remember(themeMode) 换实例
+    // 导致二级/三级页组合树重建、SecondaryPageEnterTransition 重放进进入动画
+    val controller = remember {
         ThemeController(
             when (themeMode.value) {
                 "light" -> ColorSchemeMode.Light
@@ -69,6 +71,11 @@ fun CourseScheduleTheme(
                 else -> ColorSchemeMode.System
             }
         )
+    }
+    controller.colorSchemeMode = when (themeMode.value) {
+        "light" -> ColorSchemeMode.Light
+        "dark" -> ColorSchemeMode.Dark
+        else -> ColorSchemeMode.System
     }
     // 捕获当前（系统默认）触感实现，封装为受开关控制的门控实现
     val defaultHaptic = LocalHapticFeedback.current

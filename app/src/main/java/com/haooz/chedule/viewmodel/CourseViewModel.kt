@@ -99,6 +99,8 @@ class CourseViewModel(application: Application) : AndroidViewModel(application) 
 
     private fun applyCoursesAndRefreshWidgets(courses: List<Course>) {
         _courses.value = courses
+        // 调课/交换可能不改变 size，必须 bump 才能让 dayRange 等按 dataVersion 记忆的 UI 重算
+        _dataVersion.value++
         _isHoliday.value = isWeekHoliday(_currentWeek.value)
         updateWidgets()
     }
