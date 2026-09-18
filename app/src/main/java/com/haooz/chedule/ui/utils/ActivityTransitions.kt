@@ -9,6 +9,7 @@ import android.os.Build
 import android.view.View
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.CubicBezierEasing
+import androidx.compose.animation.core.Easing
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
@@ -191,22 +192,36 @@ class SecondaryPageTransitionController {
 
     /**
      * 预测性返回取消回弹：从当前进度弹回完全显示。
-     * 不要 snapTo(0)——那会先把整页甩到屏外，回弹被打断就只剩下层页。
+     * 在入场曲线上反解当前进度对应的时间点，用剩余时间播出，且 easing 取曲线尾段。
      */
     suspend fun restoreFromGesture() {
-        val remaining = (1f - progress.value).coerceIn(0f, 1f)
-        val duration = (180 + remaining * 180).toInt().coerceIn(180, 360)
-        progress.animateTo(1f, tween(duration, easing = GestureRestoreEasing)) {
+        val from = progress.value.coerceIn(0f, 1f)
+        val (durationMs, easing) = settleOnGlobalCurve(
+            fromProgress = from,
+            toProgress = 1f,
+            fullEasing = SecondaryEnterEasing,
+            totalDuration = ENTER_DURATION,
+            invertGlobal = false,
+            minDuration = MIN_GESTURE_RESTORE_MS,
+        )
+        progress.animateTo(1f, tween(durationMs, easing = easing)) {
             SecondaryPushParallax.applyTransitionProgress(this.value)
         }
         SecondaryPushParallax.applyTransitionProgress(1f)
     }
 
-    /** 松手完成：按剩余行程软吸附到关闭，避免 snapTo 截断感 */
+    /** 松手完成吸附关闭：在出场曲线上反解剩余时间，与关闭动画一致 */
     suspend fun animateGestureDismiss() {
-        val remaining = progress.value.coerceIn(0f, 1f)
-        val duration = (90 + remaining * 190).toInt().coerceIn(90, 280)
-        progress.animateTo(0f, tween(duration, easing = GestureSettleEasing)) {
+        val from = progress.value.coerceIn(0f, 1f)
+        val (durationMs, easing) = settleOnGlobalCurve(
+            fromProgress = from,
+            toProgress = 0f,
+            fullEasing = SecondaryExitEasing,
+            totalDuration = EXIT_DURATION,
+            invertGlobal = true,
+            minDuration = MIN_GESTURE_SETTLE_MS,
+        )
+        progress.animateTo(0f, tween(durationMs, easing = easing)) {
             SecondaryPushParallax.applyTransitionProgress(this.value)
         }
         SecondaryPushParallax.applyTransitionProgress(0f)
@@ -232,6 +247,55 @@ class SecondaryPageTransitionController {
     fun requestRestore() {
         restoreRequested = true
     }
+}
+
+/**
+ * 在全局开/关曲线上，从 [fromProgress] 播到 [toProgress] 的剩余段
+ * - [invertGlobal] = false：全局进度 = easing(u)（入场 0→1）
+ * - [invertGlobal] = true：全局进度 = 1 - easing(u)（出场 1→0）
+ * 返回 (剩余时长, 把该尾段映射到 0..1 的局部 easing)
+ */
+private fun settleOnGlobalCurve(
+    fromProgress: Float,
+    toProgress: Float,
+    fullEasing: Easing,
+    totalDuration: Int,
+    invertGlobal: Boolean,
+    minDuration: Int,
+): Pair<Int, Easing> {
+    val from = fromProgress.coerceIn(0f, 1f)
+    val to = toProgress.coerceIn(0f, 1f)
+    val span = to - from
+    if (kotlin.math.abs(span) < 1e-4f) {
+        return minDuration.coerceAtMost(totalDuration) to fullEasing
+    }
+
+    // 全局进度 = from 时，fullEasing 的参数 u0
+    val eAtFrom = if (invertGlobal) 1f - from else from
+    val u0 = inverseEasingTime(fullEasing, eAtFrom)
+    val durationMs = (((1f - u0) * totalDuration).toInt()).coerceIn(minDuration, totalDuration)
+
+    val local = Easing { fraction ->
+        val u = u0 + (1f - u0) * fraction.coerceIn(0f, 1f)
+        val e = fullEasing.transform(u)
+        val global = if (invertGlobal) 1f - e else e
+        ((global - from) / span).coerceIn(0f, 1f)
+    }
+    return durationMs to local
+}
+
+/** 二分求 easing(u) = progress 的 u ∈ [0,1] */
+private fun inverseEasingTime(easing: Easing, progress: Float): Float {
+    val p = progress.coerceIn(0f, 1f)
+    if (p <= 0f) return 0f
+    if (p >= 1f) return 1f
+    var lo = 0f
+    var hi = 1f
+    repeat(18) {
+        val mid = (lo + hi) * 0.5f
+        if (easing.transform(mid) < p) lo = mid else hi = mid
+    }
+    return (lo + hi) * 0.5f
 }
 
 val LocalSecondaryPageTransition = staticCompositionLocalOf {
@@ -357,14 +421,16 @@ private val SecondaryEnterEasing = OobeQuartOutSoftStartEasing
 /** 退出：起步更缓，后段正常滑出 */
 private val SecondaryExitEasing = CubicBezierEasing(0.36f, 0.18f, 0.3f, 0.85f)
 
-/** 手势松手吸附关闭：末端强减速，承接跟手速度 */
-private val GestureSettleEasing = CubicBezierEasing(0.2f, 0f, 0.15f, 1f)
 
-/** 手势取消回弹：更长更软，从半路舒缓回到全开 */
-private val GestureRestoreEasing = OobeQuartOutSoftStartEasing
 
 /** 下层主页压暗强度（0=不压，1=全黑）*/
 private const val SECONDARY_BG_DIM = 0.42f
 
 private const val ENTER_DURATION = 600
 private const val EXIT_DURATION = 320
+
+/** 手势松手吸附最短时长，避免剩余行程极短时闪一下 */
+private const val MIN_GESTURE_SETTLE_MS = 100
+
+/** 取消回弹最短时长：保证强减速段能被看出来，否则像硬吸 */
+private const val MIN_GESTURE_RESTORE_MS = 200
