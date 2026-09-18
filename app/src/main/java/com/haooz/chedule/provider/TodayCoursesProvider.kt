@@ -32,8 +32,13 @@ class TodayCoursesProvider : ContentProvider() {
 
         val appContext = requireNotNull(context)
         val repository = CourseRepository(appContext)
-        // uri query 参数 size=2x2 区分详情文案；缺省 4x2
+        // uri query 参数 size=2x2 区分详情文案；size=single 为单日程小组件专属截断；缺省 4x2
         val widgetSize = uri.getQueryParameter("size")
+        // loc_only=1|true 或 size=single：location 仅回地点（单日程）
+        val locOnly = widgetSize == "single" || when (uri.getQueryParameter("loc_only")?.lowercase()) {
+            "1", "true", "yes" -> true
+            else -> false
+        }
 
         return when (match) {
             TODAY_COURSES, TOMORROW_COURSES, DISPLAY_COURSES -> {
@@ -45,7 +50,11 @@ class TodayCoursesProvider : ContentProvider() {
                     else -> resolveState(appContext, repository).courses
                 }
                 MatrixCursor(columns.toTypedArray()).apply {
-                    courses.forEach { course -> newRow().also { row -> fillCourseRow(row, columns, course, repository, widgetSize) } }
+                    courses.forEach { course ->
+                        newRow().also { row ->
+                            fillCourseRow(row, columns, course, repository, widgetSize, locOnly)
+                        }
+                    }
                 }
             }
             else -> { // DISPLAY_STATE
@@ -137,7 +146,7 @@ class TodayCoursesProvider : ContentProvider() {
         val lastWeekWithCourses = repository.getLastWeekWithCourses()
         val isHoliday = currentWeek > totalWeeks || (currentWeek >= 1 && currentWeek > lastWeekWithCourses)
 
-        val title = if (showTomorrow) "明天" else DAY_NAMES[targetDay - 1]
+        val title = DAY_NAMES[targetDay - 1]
         val weekText = when {
             isHoliday -> "放假中"
             currentWeek < 1 -> "未开始"
@@ -159,6 +168,7 @@ class TodayCoursesProvider : ContentProvider() {
         course: Course,
         repository: CourseRepository,
         size: String?,
+        locOnly: Boolean = false,
     ) {
         val calendar = Calendar.getInstance()
         val currentMinutes = calendar.get(Calendar.HOUR_OF_DAY) * 60 + calendar.get(Calendar.MINUTE)
@@ -177,27 +187,41 @@ val subText = when {
     showSection -> listOf(sectionText, course.classroom, course.teacher).filter { it.isNotEmpty() }.joinToString("｜")
     else -> listOf(course.classroom, course.teacher).filter { it.isNotEmpty() }.joinToString("｜")
 }
-        // 2x2：行2时间范围，行3地点｜教师
+        // 2x2：行2时间范围，行3地点｜教师；loc_only/single 时第三行只回地点
         val timeRange = listOf(startText, end.orEmpty()).filter { it.isNotEmpty() }.joinToString(" - ")
-        val locationTeacher = listOf(course.classroom, course.teacher).filter { it.isNotEmpty() }.joinToString("｜")
-        // App 端按容器宽度测量截断；4x2 上课时为右侧倒计时让位，2x2 截第1/3行
+        val locationRaw = if (locOnly) {
+            course.classroom
+        } else {
+            listOf(course.classroom, course.teacher).filter { it.isNotEmpty() }.joinToString("｜")
+        }
+        // App 端按容器宽度测量截断
+        // size=single：单日程 440 设计稿，名称 x=42 size=48，地点 x=92 size=38
+        // size=2x2：日程表卡片内 名称/地点｜教师
+        // 默认 4x2：上课时为右侧倒计时让位
+        val isSingle = size == "single"
         val isTwoByTwo = size == "2x2"
         val detailWidthPx = if (isNow == 1) 170f else 255f
-        val displayName = if (isTwoByTwo) {
-            truncateByPx(course.name, TWO_X_TWO_WIDTH, TWO_X_TWO_NAME_TEXT_SIZE)
-        } else {
-            truncateByPx(course.name, detailWidthPx, NAME_TEXT_SIZE)
+        val displayName = when {
+            isSingle -> truncateByPx(course.name, SINGLE_NAME_WIDTH, SINGLE_NAME_TEXT_SIZE)
+            isTwoByTwo -> truncateByPx(course.name, TWO_X_TWO_WIDTH, TWO_X_TWO_NAME_TEXT_SIZE)
+            else -> truncateByPx(course.name, detailWidthPx, NAME_TEXT_SIZE)
         }
         val displaySubText = if (isTwoByTwo) subText else truncateByPx(subText, detailWidthPx, SUB_TEXT_SIZE)
-        val displayLocationTeacher = if (isTwoByTwo) {
-            truncateByPx(locationTeacher, TWO_X_TWO_WIDTH, TWO_X_TWO_SUB_TEXT_SIZE)
+        val displayLocationTeacher = when {
+            isSingle -> truncateByPx(locationRaw, SINGLE_LOCATION_WIDTH, SINGLE_LOCATION_TEXT_SIZE)
+            isTwoByTwo -> truncateByPx(locationRaw, TWO_X_TWO_WIDTH, TWO_X_TWO_SUB_TEXT_SIZE)
+            else -> locationRaw
+        }
+        // classroom 列：单日程也按地点字号截断，保证 @course_classroom 不超长
+        val displayClassroom = if (isSingle) {
+            truncateByPx(course.classroom, SINGLE_LOCATION_WIDTH, SINGLE_LOCATION_TEXT_SIZE)
         } else {
-            locationTeacher
+            course.classroom
         }
         val values = mapOf<String, Any?>(
             COLUMN_ID to course.id,
             COLUMN_NAME to displayName,
-            COLUMN_CLASSROOM to course.classroom,
+            COLUMN_CLASSROOM to displayClassroom,
             COLUMN_TEACHER to course.teacher,
             COLUMN_START_SECTION to course.startSection,
             COLUMN_END_SECTION to course.endSection,
@@ -278,6 +302,11 @@ val subText = when {
         const val TWO_X_TWO_WIDTH = 320f
         const val TWO_X_TWO_NAME_TEXT_SIZE = 38f
         const val TWO_X_TWO_SUB_TEXT_SIZE = 32f
+        // 单日程 440 设计稿：名称 x=42 size=48（可用约 360）；地点 x=92 size=38（可用约 320）
+        const val SINGLE_NAME_WIDTH = 360f
+        const val SINGLE_NAME_TEXT_SIZE = 48f
+        const val SINGLE_LOCATION_WIDTH = 320f
+        const val SINGLE_LOCATION_TEXT_SIZE = 38f
         const val PATH_TODAY = "today"
         const val PATH_TOMORROW = "tomorrow"
         const val PATH_DISPLAY = "display"

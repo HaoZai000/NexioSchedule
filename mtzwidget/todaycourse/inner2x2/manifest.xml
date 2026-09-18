@@ -171,7 +171,7 @@
 
         <!-- ═────── 课程行2（胶囊色条 + 课程信息右侧） ═────── -->
         <Group visibility="le(2,#today_count)">
-            <Group x="76" y="134+#detailOffset1" w="340" h="140">
+            <Group x="76" y="304+#detailOffset1" w="340" h="140">
                 <Text textExp="@course_name[1]" x="0" y="0" size="38"
                     color="@textColor" alignV="center" align="left" fontFamily="mipro-medium" />
                 <Text textExp="@course_time_range[1]" x="0" y="42" size="32"
