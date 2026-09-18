@@ -6,6 +6,7 @@ import android.app.ActivityOptions
 import android.content.Context
 import android.content.Intent
 import android.os.Build
+import android.os.Looper
 import android.view.View
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.CubicBezierEasing
@@ -21,8 +22,10 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.drawWithContent
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.GraphicsLayerScope
 import androidx.compose.ui.graphics.Shape
@@ -30,12 +33,15 @@ import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.platform.LocalWindowInfo
 import androidx.compose.ui.unit.dp
 import androidx.core.app.ActivityOptionsCompat
 import com.haooz.chedule.ui.effects.motion.OobeQuartOutSoftStartEasing
 import com.kyant.capsule.ContinuousRoundedRectangle
 import java.lang.ref.WeakReference
+import kotlin.coroutines.resume
+import kotlinx.coroutines.suspendCancellableCoroutine
 
 /**
  * 导航栈 push 视差。
@@ -103,10 +109,16 @@ object SecondaryPushParallax {
     private fun applyToView(decorRef: WeakReference<View>?, fraction: Float) {
         val decor = decorRef?.get() ?: return
         val f = fraction.coerceIn(0f, 1f)
-        decor.post {
+        fun apply() {
             val w = decor.width.toFloat()
-            if (w <= 0f) return@post
+            if (w <= 0f) return
             decor.translationX = -SECONDARY_PUSH_PARALLAX * f * w
+        }
+        // 主线程且已测量：直接改 translationX，避免 post 晚一帧导致与二级页不同步
+        if (decor.width > 0 && Looper.myLooper() == Looper.getMainLooper()) {
+            apply()
+        } else {
+            decor.post { apply() }
         }
     }
 }
@@ -163,11 +175,20 @@ class SecondaryPageTransitionController {
     /** 入场是否已播过；主题切换等导致组合重建时避免从 0 重播 */
     private var enterPlayed = false
 
+    /** 入场是否已完整播完：组合重建时不要再等首帧、不要重播 */
+    val isEnterSettled: Boolean
+        get() = enterPlayed && progress.value >= 0.999f
+
     /** 顶栏返回置 true，由组合内动画消费 */
     var exitRequested by mutableStateOf(false)
 
-    /** 预测性返回取消时置 true，组合内回弹到完全显示 */
-    var restoreRequested by mutableStateOf(false)
+    /**
+     * 预测性返回取消：每次 +1 作为 LaunchedEffect key。
+     * 不能用 Boolean：新手势 snapTo 会取消进行中的 restore，Boolean 仍为 true
+     * 时再次 requestRestore() 不会重启 Effect，页面会卡在半路。
+     */
+    var restoreToken by mutableIntStateOf(0)
+        private set
 
     /** 出场动画播完后回调（finish） */
     var onExitComplete: (() -> Unit)? = null
@@ -187,7 +208,7 @@ class SecondaryPageTransitionController {
         progress.animateTo(1f, tween(durationMillis, easing = SecondaryEnterEasing)) {
             SecondaryPushParallax.applyTransitionProgress(this.value)
         }
-        SecondaryPushParallax.applyTransitionProgress(1f)
+        settleFullyOpen()
     }
 
     /**
@@ -196,6 +217,10 @@ class SecondaryPageTransitionController {
      */
     suspend fun restoreFromGesture() {
         val from = progress.value.coerceIn(0f, 1f)
+        if (from >= 0.999f) {
+            settleFullyOpen()
+            return
+        }
         val (durationMs, easing) = settleOnGlobalCurve(
             fromProgress = from,
             toProgress = 1f,
@@ -207,6 +232,14 @@ class SecondaryPageTransitionController {
         progress.animateTo(1f, tween(durationMs, easing = easing)) {
             SecondaryPushParallax.applyTransitionProgress(this.value)
         }
+        settleFullyOpen()
+    }
+
+    /** 进度与主页视差一并锁到完全显示，避免浮点残差导致「差一点盖满」 */
+    private suspend fun settleFullyOpen() {
+        progress.snapTo(1f)
+        // 归位后视为已入场，防止后续 animateEnter 从 0 重播
+        enterPlayed = true
         SecondaryPushParallax.applyTransitionProgress(1f)
     }
 
@@ -236,6 +269,8 @@ class SecondaryPageTransitionController {
 
     suspend fun snapGestureProgress(p: Float) {
         val value = p.coerceIn(0f, 1f)
+        // 手势已接管进度：标记入场已开始，避免 animateEnter 再 snapTo(0)
+        enterPlayed = true
         progress.snapTo(value)
         SecondaryPushParallax.applyTransitionProgress(value)
     }
@@ -245,7 +280,7 @@ class SecondaryPageTransitionController {
     }
 
     fun requestRestore() {
-        restoreRequested = true
+        restoreToken++
     }
 }
 
@@ -308,7 +343,10 @@ fun SecondaryPageEnterTransition(
 ) {
     val controller = LocalSecondaryPageTransition.current
     val hostActivity = LocalContext.current as? Activity
+    val composeView = LocalView.current
     val p = controller.progress.value
+    /** 二级页内容是否已真实绘制过一帧；release 冷启动首构较慢，必须等它再推主页 */
+    var contentDrawn by remember { mutableStateOf(false) }
 
     val windowWidthPx = LocalWindowInfo.current.containerSize.width
     val screenWidthDp = LocalConfiguration.current.screenWidthDp
@@ -327,6 +365,57 @@ fun SecondaryPageEnterTransition(
 
     LaunchedEffect(Unit) {
         hostActivity?.let { SecondaryPushParallax.noteOpen(controller, it) }
+        if (controller.isEnterSettled) {
+            SecondaryPushParallax.applyTransitionProgress(1f)
+            return@LaunchedEffect
+        }
+        // 等首帧期间可能已有手势取消并发起 restore：交给 restoreToken 效果，避免双动画抢同一 Animatable
+        if (controller.restoreToken > 0) {
+            return@LaunchedEffect
+        }
+        // 等内容画过一帧再入场：主页视差走 View.translationX，比 Compose 首绘更快；
+        // 不等的话会出现「主页已推走、二级页仍透明空白」的异常转场。
+        if (!contentDrawn) {
+            suspendCancellableCoroutine<Unit> { cont ->
+                var resumed = false
+                fun resumeOnce() {
+                    if (!resumed) {
+                        resumed = true
+                        if (cont.isActive) cont.resume(Unit)
+                    }
+                }
+                val observer = composeView.viewTreeObserver
+                val listener = object : android.view.ViewTreeObserver.OnDrawListener {
+                    override fun onDraw() {
+                        composeView.post {
+                            runCatching {
+                                if (composeView.viewTreeObserver.isAlive) {
+                                    composeView.viewTreeObserver.removeOnDrawListener(this)
+                                }
+                            }
+                        }
+                        resumeOnce()
+                    }
+                }
+                if (observer.isAlive) {
+                    observer.addOnDrawListener(listener)
+                }
+                // 组合树已就绪；主动 invalidate，保证空闲时也会进入一次 draw
+                composeView.postInvalidate()
+                if (contentDrawn) resumeOnce()
+                cont.invokeOnCancellation {
+                    runCatching {
+                        if (composeView.viewTreeObserver.isAlive) {
+                            composeView.viewTreeObserver.removeOnDrawListener(listener)
+                        }
+                    }
+                }
+            }
+        }
+        // 首帧等待结束后手势可能已介入
+        if (controller.restoreToken > 0 || controller.isEnterSettled) {
+            return@LaunchedEffect
+        }
         controller.animateEnter()
     }
 
@@ -347,13 +436,12 @@ fun SecondaryPageEnterTransition(
         }
     }
 
-    // 预测性返回取消：从当前跟手位置弹回。
-    // 先播完再清标志——否则 key 变化取消本 Effect，页面停在半路。
-    LaunchedEffect(controller.restoreRequested) {
-        if (controller.restoreRequested) {
-            controller.restoreFromGesture()
-            controller.restoreRequested = false
-        }
+    // 预测性返回取消：从当前跟手位置弹回完全显示。
+    // key 用递增 token：上一次 restore 被新手势 snapTo 打断后，Effect 被取消，
+    // Boolean 标志会卡在 true，导致后续取消再也无法启动回弹（页面停在半路）。
+    LaunchedEffect(controller.restoreToken) {
+        if (controller.restoreToken <= 0) return@LaunchedEffect
+        controller.restoreFromGesture()
     }
 
     Box(modifier = Modifier.fillMaxSize()) {
@@ -368,6 +456,10 @@ fun SecondaryPageEnterTransition(
         Box(
             modifier = Modifier
                 .fillMaxSize()
+                .drawWithContent {
+                    drawContent()
+                    contentDrawn = true
+                }
                 .graphicsLayer {
                     if (isEmbedded) {
                         alpha = p
