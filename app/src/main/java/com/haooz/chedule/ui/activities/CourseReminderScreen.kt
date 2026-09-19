@@ -40,7 +40,6 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.input.nestedscroll.nestedScroll
@@ -134,6 +133,12 @@ fun CourseReminderScreen(
     var tempInClassLeadMinutes by remember { mutableIntStateOf(inClassLeadMinutes) }
 
     val masterEnabled = preClassReminder || nextDayReminder
+    // 总开关关闭时联动关掉子开关：勿扰 + 课中提醒（与下节课/次日提醒置 false 同一策略）
+    val disableMasterDependentSwitches = {
+        settingsViewModel.setClassDndEnabled(false)
+        inClassEnabled = false
+        reminderPrefs.edit { putBoolean(CourseReminderHelper.KEY_IN_CLASS, false) }
+    }
     var permissionRefreshKey by remember { mutableIntStateOf(0) }
     val batteryOptLauncher = androidx.activity.compose.rememberLauncherForActivityResult(
         contract = ActivityResultContracts.StartActivityForResult()
@@ -225,7 +230,7 @@ fun CourseReminderScreen(
                 settingsViewModel.setPreClassReminder(enable)
                 settingsViewModel.setNextDayReminder(enable)
                 if (!enable) {
-                    settingsViewModel.setClassDndEnabled(false)
+                    disableMasterDependentSwitches()
                 }
                 if (enable) {
                     CourseReminderHelper.startReminderService(context)
@@ -307,7 +312,7 @@ fun CourseReminderScreen(
                                     settingsViewModel.setPreClassReminder(it)
                                     settingsViewModel.setNextDayReminder(it)
                                     if (!it) {
-                                        settingsViewModel.setClassDndEnabled(false)
+                                        disableMasterDependentSwitches()
                                     }
                                     if (it) {
                                         CourseReminderHelper.startReminderService(context)
@@ -415,7 +420,7 @@ fun CourseReminderScreen(
                                 }
                             )
                             AnimatedVisibility(
-                                visible = inClassEnabled,
+                                visible = masterEnabled && inClassEnabled,
                                 enter = expandVertically(animationSpec = tween(250)) + fadeIn(animationSpec = tween(200)),
                                 exit = shrinkVertically(animationSpec = tween(200)) + fadeOut(animationSpec = tween(150))
                             ) {
@@ -459,8 +464,8 @@ fun CourseReminderScreen(
                                     CourseReminderHelper.startReminderService(context)
                                 }
                             )
-                            // 档位选择不随「自动开启勿扰」开关隐藏：通知/超级岛上的「上课勿扰」按钮
-                            // 也能切换开关，此处需始终可调（仅受总开关约束）
+                            // 总开关开启时档位始终可见：通知/超级岛上的「上课勿扰」按钮也能切换勿扰开关
+                            // 总开关关闭时整页子项折叠，档位一并隐藏
                             val selectMode: (Int) -> Unit = { mode ->
                                 settingsViewModel.setClassDndMode(mode)
                                 // DND / PRIORITY 两档生效需要勿扰权限；未授权时引导用户授权
@@ -496,14 +501,20 @@ fun CourseReminderScreen(
                                     )
                                 )
                             }
-                            OverlayDropdownMenu(
-                                title = "勿扰模式档位",
-                                entry = modeEntry,
-                                collapseOnSelection = true,
-                                enabled = masterEnabled,
-                                liquidGlassBackdrop = liquidGlassBackdrop,
-                                dropdownColors = liquidGlassDropdownColors,
-                            )
+                            AnimatedVisibility(
+                                visible = masterEnabled,
+                                enter = expandVertically(animationSpec = tween(250)) + fadeIn(animationSpec = tween(200)),
+                                exit = shrinkVertically(animationSpec = tween(200)) + fadeOut(animationSpec = tween(150))
+                            ) {
+                                OverlayDropdownMenu(
+                                    title = "勿扰模式档位",
+                                    entry = modeEntry,
+                                    collapseOnSelection = true,
+                                    enabled = masterEnabled,
+                                    liquidGlassBackdrop = liquidGlassBackdrop,
+                                    dropdownColors = liquidGlassDropdownColors,
+                                )
+                            }
                         }
                     }
 
@@ -935,7 +946,6 @@ fun CourseReminderScreen(
                             value = tempInClassTimingMode,
                             onValueChange = {
                                 tempInClassTimingMode = it
-                                hapticFeedback.performHapticFeedback(HapticFeedbackType.Confirm)
                             },
                             range = CourseReminderHelper.IN_CLASS_TIMING_FULL..CourseReminderHelper.IN_CLASS_TIMING_BEFORE_END,
                             visibleItemCount = 3,
@@ -960,9 +970,7 @@ fun CourseReminderScreen(
                             textStyle = MiuixTheme.textStyles.title2,
                             wrapAround = true,
                             enabled = minutesEnabled,
-                            modifier = Modifier
-                                .weight(1f)
-                                .alpha(if (minutesEnabled) 1f else 0.35f)
+                            modifier = Modifier.weight(1f)
                         )
                     }
                     Text(

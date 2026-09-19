@@ -21,6 +21,10 @@ val JS_INTERCEPT_POST = """
     }
 }
 
+    // 是否启用「加头 + OkHttp 转发」：默认关闭
+    // 个别确实需要转发的学校再由 App 侧开启（AndroidBridge.setPostForwardEnabled(true)）。
+    var postForward = !!(window.AndroidBridge && window.AndroidBridge.isPostForwardEnabled === true);
+
     // --- 1. XMLHttpRequest 拦截 ---
     var oldOpen = XMLHttpRequest.prototype.open;
     XMLHttpRequest.prototype.open = function(method, url) {
@@ -60,7 +64,7 @@ val JS_INTERCEPT_POST = """
 
             if (bodyStr) {
                 register(id, bodyStr, contentType);
-                this.setRequestHeader(requestIdHeader, id);
+                if (postForward) this.setRequestHeader(requestIdHeader, id);
             }
         }
         return oldSend.apply(this, arguments);
@@ -96,13 +100,15 @@ val JS_INTERCEPT_POST = """
                 if (bodyStr) {
                     register(id, bodyStr, contentType);
 
-                    if (!init.headers) init.headers = {};
-                    if (init.headers instanceof Headers) {
-                        init.headers.set(requestIdHeader, id);
-                    } else if (Array.isArray(init.headers)) {
-                        init.headers.push([requestIdHeader, id]);
-                    } else {
-                        init.headers[requestIdHeader] = id;
+                    if (postForward) {
+                        if (!init.headers) init.headers = {};
+                        if (init.headers instanceof Headers) {
+                            init.headers.set(requestIdHeader, id);
+                        } else if (Array.isArray(init.headers)) {
+                            init.headers.push([requestIdHeader, id]);
+                        } else {
+                            init.headers[requestIdHeader] = id;
+                        }
                     }
                 }
             }
@@ -129,9 +135,12 @@ val JS_INTERCEPT_POST = """
         var params = new URLSearchParams(formData);
         register(id, params.toString(), 'application/x-www-form-urlencoded');
 
-        var action = form.getAttribute('action') || window.location.href;
-        var separator = action.indexOf('?') !== -1 ? '&' : '?';
-        form.setAttribute('action', action + separator + requestIdParam + '=' + id);
+        // 默认走原生表单提交（不加 _webview_post_id 污染 URL），postForward 时才接转发
+        if (postForward) {
+            var action = form.getAttribute('action') || window.location.href;
+            var separator = action.indexOf('?') !== -1 ? '&' : '?';
+            form.setAttribute('action', action + separator + requestIdParam + '=' + id);
+        }
     }, true);
 
     console.log('Unified X-Requested-With interceptor active');

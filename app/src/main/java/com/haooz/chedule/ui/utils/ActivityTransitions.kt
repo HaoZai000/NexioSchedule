@@ -41,6 +41,7 @@ import com.haooz.chedule.ui.effects.motion.OobeQuartOutSoftStartEasing
 import com.kyant.capsule.ContinuousRoundedRectangle
 import java.lang.ref.WeakReference
 import kotlin.coroutines.resume
+import kotlin.math.abs
 import kotlinx.coroutines.suspendCancellableCoroutine
 
 /**
@@ -60,7 +61,12 @@ object SecondaryPushParallax {
     private var mainFraction = 0f
 
     fun attachMainRoot(activity: Activity) {
-        mainDecor = WeakReference(activity.window.decorView)
+        val decor = activity.window.decorView
+        // 视差只改 translationX：硬件层让系统合成器做纯变换，避免整窗每帧重绘主页
+        if (decor.layerType != View.LAYER_TYPE_HARDWARE) {
+            decor.setLayerType(View.LAYER_TYPE_HARDWARE, null)
+        }
+        mainDecor = WeakReference(decor)
         if (openPages.isEmpty()) {
             applyToView(mainDecor, 0f)
             mainFraction = 0f
@@ -112,7 +118,10 @@ object SecondaryPushParallax {
         fun apply() {
             val w = decor.width.toFloat()
             if (w <= 0f) return
-            decor.translationX = -SECONDARY_PUSH_PARALLAX * f * w
+            val target = -SECONDARY_PUSH_PARALLAX * f * w
+            // 亚像素不变则跳过，避免多余 invalidate（视觉无差异）
+            if (abs(decor.translationX - target) < 0.5f) return
+            decor.translationX = target
         }
         // 主线程且已测量：直接改 translationX，避免 post 晚一帧导致与二级页不同步
         if (decor.width > 0 && Looper.myLooper() == Looper.getMainLooper()) {
@@ -344,7 +353,10 @@ fun SecondaryPageEnterTransition(
     val controller = LocalSecondaryPageTransition.current
     val hostActivity = LocalContext.current as? Activity
     val composeView = LocalView.current
-    val p = controller.progress.value
+    // 只持有 Animatable 引用。progress.value 必须在 graphicsLayer 内读：
+    // 组合期读取会让动画每帧重组整棵二级页（偏好设置等重 UI），是掉帧主因。
+    // 曲线/时长/视差比例/压暗/圆角裁切均不变。
+    val progress = controller.progress
     /** 二级页内容是否已真实绘制过一帧；release 冷启动首构较慢，必须等它再推主页 */
     var contentDrawn by remember { mutableStateOf(false) }
 
@@ -445,22 +457,29 @@ fun SecondaryPageEnterTransition(
     }
 
     Box(modifier = Modifier.fillMaxSize()) {
-        // 下层主页压暗
+        // 下层主页压暗（progress 只在 layer 内读，避免每帧重组）
         Box(
             modifier = Modifier
                 .fillMaxSize()
-                .graphicsLayer { alpha = p * SECONDARY_BG_DIM }
+                .graphicsLayer { alpha = progress.value * SECONDARY_BG_DIM }
                 .background(Color.Black),
         )
-        // 不要在这里 background()：会盖住下层 Activity。页面自身 Scaffold 已有不透明底。
+
+        // 首帧标志用一次性 modifier，画过后卸掉 draw 钩子。
+        val contentDrawnModifier = if (contentDrawn) {
+            Modifier
+        } else {
+            Modifier.drawWithContent {
+                drawContent()
+                contentDrawn = true
+            }
+        }
         Box(
             modifier = Modifier
                 .fillMaxSize()
-                .drawWithContent {
-                    drawContent()
-                    contentDrawn = true
-                }
+                .then(contentDrawnModifier)
                 .graphicsLayer {
+                    val p = progress.value
                     if (isEmbedded) {
                         alpha = p
                     } else {

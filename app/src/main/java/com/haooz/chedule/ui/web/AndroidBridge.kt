@@ -39,6 +39,19 @@ class AndroidBridge(
     /** 当前导入的目标课表ID（由执行导入前选择课表时设置，空表示导入到当前课表） */
     private var importTableId: String? = null
 
+    /** 是否启用 POST 加头 + OkHttp 转发（默认 false：POST 走原生，避免 WAF 拒带 X-WebView-Post-Id 的请求） */
+    @Volatile
+    private var postForwardEnabled: Boolean = false
+
+    /** JS 读取：POST 是否走转发通道 */
+    @JavascriptInterface
+    fun isPostForwardEnabled(): Boolean = postForwardEnabled
+
+    /** App 侧按需开启（个别必须转发的学校/适配器） */
+    fun setPostForwardEnabled(enabled: Boolean) {
+        postForwardEnabled = enabled
+    }
+
     /** 设置导入的目标课表ID */
     fun setImportTableId(tableId: String?) {
         this.importTableId = tableId
