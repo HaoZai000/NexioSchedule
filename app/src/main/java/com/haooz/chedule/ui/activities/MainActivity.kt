@@ -449,6 +449,8 @@ class MainActivity : ComponentActivity() {
     override fun onMultiWindowModeChanged(isInMultiWindowMode: Boolean, newConfig: Configuration) {
         super.onMultiWindowModeChanged(isInMultiWindowMode, newConfig)
         isInFreeformWindow = isInMultiWindowMode
+        // 平板分窗/自由窗口：主界面不参与二级页 push 左移
+        SecondaryPushParallax.setMainMultiWindowMode(isInMultiWindowMode)
     }
 
     override fun onResume() {
@@ -1576,14 +1578,15 @@ fun CourseScheduleApp() {
     val calendar = Calendar.getInstance()
     val currentDayOfWeek = (calendar.get(Calendar.DAY_OF_WEEK) + 5) % 7 + 1
     val smartWeekend by settingsViewModel.smartWeekend.collectAsState()
+    // 节假日/调休保存后需能重算跳周；resume 时刷新版本号
+    val holidayVersion = remember(resumeCount, context) {
+        com.haooz.chedule.data.HolidayManager.getVersion(context)
+    }
 
     val basePage = (currentWeek - 1).coerceIn(0, (totalWeeks - 1).coerceAtLeast(0))
-    val autoAdvancePage = remember(currentWeek, totalWeeks, currentDayOfWeek, smartWeekend) {
-        if (currentDayOfWeek in 6..7 && smartWeekend) {
-            val weekendDays = settingsViewModel.getWeekendDaysForWeek(currentWeek)
-            if (currentDayOfWeek !in weekendDays) {
-                (basePage + 1).coerceIn(0, (totalWeeks - 1).coerceAtLeast(0))
-            } else basePage
+    val autoAdvancePage = remember(currentWeek, totalWeeks, currentDayOfWeek, smartWeekend, holidayVersion) {
+        if (settingsViewModel.shouldAdvanceToNextWeek(currentDayOfWeek, currentWeek)) {
+            (basePage + 1).coerceIn(0, (totalWeeks - 1).coerceAtLeast(0))
         } else basePage
     }
 
@@ -1614,13 +1617,10 @@ fun CourseScheduleApp() {
         shiftModeInitialized = true
     }
 
-    LaunchedEffect(currentWeek, totalWeeks, smartWeekend) {
+    LaunchedEffect(currentWeek, totalWeeks, smartWeekend, holidayVersion) {
         val base = (currentWeek - 1).coerceIn(0, (totalWeeks - 1).coerceAtLeast(0))
-        val target = if (currentDayOfWeek in 6..7 && smartWeekend) {
-            val weekendDays = settingsViewModel.getWeekendDaysForWeek(currentWeek)
-            if (currentDayOfWeek !in weekendDays) {
-                (base + 1).coerceIn(0, (totalWeeks - 1).coerceAtLeast(0))
-            } else base
+        val target = if (settingsViewModel.shouldAdvanceToNextWeek(currentDayOfWeek, currentWeek)) {
+            (base + 1).coerceIn(0, (totalWeeks - 1).coerceAtLeast(0))
         } else base
         if (pagerState.currentPage != target) {
             pagerState.scrollToPage(target)
@@ -2333,25 +2333,37 @@ fun CourseScheduleApp() {
             value = list.isNotEmpty()
         }
     }
-    // 分屏右侧 Activity 类名，用于压暗左侧对应选项
-    val activeSecondaryActivity by produceState<String?>(initialValue = null) {
+    // 已打开的二级/三级 Activity 类名集合：设置项压暗与整条导航栈联动
+    // （打开三级时，绑定的二级选项仍保持压暗，而不是只亮最顶层）
+    val activeSecondaryActivities by produceState(initialValue = emptySet<String>()) {
         val app = context.applicationContext as? android.app.Application ?: return@produceState
         val mainActivityClass = activity?.javaClass
+        val openNames = LinkedHashSet<String>()
         val callback = object : android.app.Application.ActivityLifecycleCallbacks {
-            override fun onActivityResumed(a: android.app.Activity) {
-                if (a.javaClass == mainActivityClass) return
-                value = a.javaClass.simpleName
+            override fun onActivityStarted(a: android.app.Activity) {
+                if (mainActivityClass != null && a.javaClass == mainActivityClass) return
+                openNames.add(a.javaClass.simpleName)
+                value = openNames.toSet()
             }
 
-            override fun onActivityPaused(a: android.app.Activity) {
-                if (a.javaClass.simpleName == value) value = null
+            override fun onActivityDestroyed(a: android.app.Activity) {
+                if (mainActivityClass != null && a.javaClass == mainActivityClass) return
+                if (openNames.remove(a.javaClass.simpleName)) {
+                    value = openNames.toSet()
+                }
             }
 
             override fun onActivityCreated(a: android.app.Activity, b: Bundle?) {}
-            override fun onActivityStarted(a: android.app.Activity) {}
+            override fun onActivityResumed(a: android.app.Activity) {
+                if (mainActivityClass != null && a.javaClass == mainActivityClass) return
+                if (openNames.add(a.javaClass.simpleName)) {
+                    value = openNames.toSet()
+                }
+            }
+
+            override fun onActivityPaused(a: android.app.Activity) {}
             override fun onActivityStopped(a: android.app.Activity) {}
             override fun onActivitySaveInstanceState(a: android.app.Activity, b: Bundle) {}
-            override fun onActivityDestroyed(a: android.app.Activity) {}
         }
         app.registerActivityLifecycleCallbacks(callback)
         awaitDispose { app.unregisterActivityLifecycleCallbacks(callback) }
@@ -3312,7 +3324,7 @@ fun CourseScheduleApp() {
                                             navBarStyle = navBarStyle,
                                             onScrollYChanged = { _ -> },
                                             settingsScrollBehavior = settingsScrollBehavior,
-                                            activeSecondaryActivity = activeSecondaryActivity,
+                                            activeSecondaryActivities = activeSecondaryActivities,
                                             liquidGlassBackdrop = liquidGlassBackdrop,
                                         )
                                             }
@@ -3347,7 +3359,7 @@ fun CourseScheduleApp() {
                                         navBarStyle = navBarStyle,
                                         onScrollYChanged = { _ -> },
                                         settingsScrollBehavior = settingsScrollBehavior,
-                                        activeSecondaryActivity = activeSecondaryActivity,
+                                        activeSecondaryActivities = activeSecondaryActivities,
                                         liquidGlassBackdrop = liquidGlassBackdrop,
                                     )
                                 }

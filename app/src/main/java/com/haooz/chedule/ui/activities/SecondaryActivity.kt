@@ -12,13 +12,17 @@ import com.haooz.chedule.ui.utils.PredictiveBackSettings
 import com.haooz.chedule.ui.utils.SecondaryPageEnterTransition
 import com.haooz.chedule.ui.utils.SecondaryPageTransitionController
 import com.haooz.chedule.ui.utils.SecondaryPushParallax
+import com.haooz.chedule.ui.utils.isInSecondarySplitMode
 import com.haooz.chedule.ui.utils.suppressCloseTransition
 import com.haooz.chedule.ui.utils.suppressOpenTransition
 import kotlin.coroutines.cancellation.CancellationException
 
 /**
- * 二级页基类：打开压掉系统动画、Compose 右推入场（半透明窗保留下层主页）；
- * 顶栏返回经 [finishSecondary] 组合内播出场；侧滑/系统返回由预测性返回进度驱动同一 progress。
+ * 二级页基类。
+ *
+ * - 打开：压掉系统转场，由 [SecondaryPageEnterTransition] 自绘入场
+ * - 关闭：顶栏返回经 [finishSecondary] 播出场后再 finish；侧滑/返回键走预测性返回
+ * - 分屏/嵌入：onCreate 时给窗口铺应用 surface，避免同级切换首帧闪背景
  */
 open class SecondaryActivity : ComponentActivity() {
 
@@ -27,11 +31,14 @@ open class SecondaryActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         suppressOpenTransition()
+        if (isInMultiWindowMode || this.isInSecondarySplitMode()) {
+            SecondaryPushParallax.ensureWindowSurfaceBackground(this)
+        }
         pageTransition.onExitComplete = { finishWithNoWindowAnim() }
     }
 
     override fun onDestroy() {
-        // 真正销毁时才 hardClose；组合重建不能走这里
+        // 仅在真正销毁时出栈；组合重建不可走这里
         SecondaryPushParallax.noteClose(pageTransition, hardClose = true)
         super.onDestroy()
     }
@@ -43,7 +50,7 @@ open class SecondaryActivity : ComponentActivity() {
         suppressCloseTransition()
     }
 
-    /** 顶栏返回：组合内播出场再 finish */
+    /** 顶栏返回：请求出场动画，播完后由 onExitComplete finish */
     fun finishSecondary() {
         if (isFinishing || isDestroyed) return
         if (pageTransition.exitRequested) return
@@ -64,18 +71,18 @@ open class SecondaryActivity : ComponentActivity() {
     }
 }
 
+/** 预测性返回：跟手时冻结/驱动 progress；松手吸附关闭或取消回弹 */
 @Composable
 private fun SecondaryPagePredictiveBack(activity: SecondaryActivity) {
     val controller = activity.pageTransition
     PredictiveBackHandler { progress ->
         var sawGesture = false
-        // 手势起点处的页面进度；入场未播完时应从当前值继续，而不是从 1 重开
+        // 手势起点进度；入场未播完时从当前值继续，而不是从 1 重开
         var gestureBase = 1f
         try {
             progress.collect { backEvent ->
                 if (!sawGesture) {
                     sawGesture = true
-                    // 仅开启跟手时才冻结进度并打断入场；关闭时让入场继续播完
                     if (PredictiveBackSettings.enabled) {
                         gestureBase = controller.progress.value.coerceIn(0f, 1f)
                         controller.snapGestureProgress(gestureBase)
@@ -87,16 +94,14 @@ private fun SecondaryPagePredictiveBack(activity: SecondaryActivity) {
                 }
             }
             if (sawGesture && PredictiveBackSettings.enabled) {
-                // 松手吸附关闭后再 finish，避免 snapTo 生硬截断
                 controller.animateGestureDismiss()
                 SecondaryPushParallax.noteClose(controller, hardClose = true)
                 activity.finishWithNoWindowAnim()
             } else {
-                // 未跟手（返回键 / 开关关闭）：播正常出场，避免整页闪退
+                // 未跟手（返回键 / 跟手开关关闭）
                 activity.finishSecondary()
             }
         } catch (c: CancellationException) {
-            // 开关关闭时未冻结进度，入场会自己跑完，无需回弹
             if (PredictiveBackSettings.enabled) {
                 controller.requestRestore()
             }

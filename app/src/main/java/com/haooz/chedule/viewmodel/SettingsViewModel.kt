@@ -29,6 +29,17 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
         }
     }
 
+    /**
+     * 智能周末：当前日是否应自动跳到下周课表。
+     * 当天有课，或已配置调休且映射日/周有课 → 停留本周；
+     * 无课可上（含 API 导入未配置 followWeekday、映射日无课）→ 跳下周。
+     */
+    fun shouldAdvanceToNextWeek(todayDayOfWeek: Int, week: Int): Boolean {
+        if (!_smartWeekend.value) return false
+        if (todayDayOfWeek !in 6..7) return false
+        return !repository.hasDisplayableCoursesOnDay(todayDayOfWeek, week)
+    }
+
     private val _showNonCurrentWeek = MutableStateFlow(repository.getShowNonCurrentWeek())
     val showNonCurrentWeek: StateFlow<Boolean> = _showNonCurrentWeek.asStateFlow()
 

@@ -198,14 +198,21 @@ fun HolidaySettingsScreen(
         }
         val week = followWeek.toIntOrNull()?.takeIf { it > 0 } ?: -1
         val weekday = followWeekday.toIntOrNull()?.takeIf { it in 1..7 } ?: -1
-        val all = HolidayManager.load(context, year).toMutableList()
+        // 按开始日期所属年份落库，避免 UI 选中年与日期年不一致时 workSwap 查不到
+        val entryYear = runCatching { LocalDate.parse(startDate).year }.getOrDefault(year)
+        fun isSameEntry(e: HolidayManager.Entry, old: HolidayManager.Entry): Boolean =
+            e.date == old.date && e.type == old.type && e.name == old.name
+
         editingEntry?.let { old ->
-            all.removeAll {
-                it.date == old.date &&
-                    it.type == old.type &&
-                    it.name == old.name
+            val oldYear = runCatching { LocalDate.parse(old.date).year }.getOrDefault(year)
+            if (oldYear != entryYear) {
+                val oldAll = HolidayManager.load(context, oldYear).toMutableList()
+                oldAll.removeAll { isSameEntry(it, old) }
+                HolidayManager.save(context, oldYear, oldAll)
             }
         }
+        val all = HolidayManager.load(context, entryYear).toMutableList()
+        editingEntry?.let { old -> all.removeAll { isSameEntry(it, old) } }
         all += HolidayManager.Entry(
             date = startDate,
             endDate = endDate,
@@ -215,7 +222,7 @@ fun HolidaySettingsScreen(
             followWeekday = if (isHoliday) -1 else weekday,
             custom = true,
         )
-        HolidayManager.save(context, year, all)
+        HolidayManager.save(context, entryYear, all)
         reload()
         CourseReminderHelper.startReminderService(context)
         showDialog = false
@@ -223,15 +230,14 @@ fun HolidaySettingsScreen(
     }
 
     fun deleteEntry() {
-        val all = HolidayManager.load(context, year).toMutableList()
         editingEntry?.let { old ->
+            val oldYear = runCatching { LocalDate.parse(old.date).year }.getOrDefault(year)
+            val all = HolidayManager.load(context, oldYear).toMutableList()
             all.removeAll {
-                it.date == old.date &&
-                    it.type == old.type &&
-                    it.name == old.name
+                it.date == old.date && it.type == old.type && it.name == old.name
             }
+            HolidayManager.save(context, oldYear, all)
         }
-        HolidayManager.save(context, year, all)
         reload()
         CourseReminderHelper.startReminderService(context)
         showDeleteConfirm = false

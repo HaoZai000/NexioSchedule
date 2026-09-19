@@ -108,18 +108,22 @@ private fun getDaysInMonth(year: Int, month: Int): Int {
 }
 
 // 顶栏折叠期间会逐帧重组，提到顶层避免组合期每帧新建 Set
+// 含二级入口 + 从该入口打开的三级页：栈上任一命中即压暗，与三级联动
 private val ScheduleImportActivities = setOf(
     "ScheduleImportActivity",
+    "BackupAndMigrationActivity",
     "AiImportActivity",
     "EducationalImportActivity",
 )
 
 private val ScheduleExportActivities = setOf(
     "ScheduleExportActivity",
+    "BackupAndMigrationActivity",
 )
 
 private val ScheduleBackupActivities = setOf(
     "ScheduleBackupActivity",
+    "BackupAndMigrationActivity",
     "LocalBackupActivity",
     "WebDavSettingsActivity",
 )
@@ -144,7 +148,8 @@ fun SettingsScreen(
     navBarStyle: String = "standard",
     onScrollYChanged: (Int) -> Unit = {},
     settingsScrollBehavior: SharedScrollBehavior? = null,
-    activeSecondaryActivity: String? = null,
+    /** 当前打开的二级/三级 Activity 类名集合，用于设置项压暗与导航栈联动 */
+    activeSecondaryActivities: Set<String> = emptySet(),
     liquidGlassBackdrop: com.kyant.backdrop.Backdrop? = null,
 ) {
     val totalWeeks by viewModel.totalWeeks.collectAsState()
@@ -333,7 +338,7 @@ fun SettingsScreen(
                             ArrowPreference(
                                 title = "课表节数与时间",
                                 summary = "管理不同课表的节数与课程时间",
-                                holdDownState = activeSecondaryActivity == "CourseTimeSettingsActivity",
+                                holdDownState = "CourseTimeSettingsActivity" in activeSecondaryActivities,
                                 onClick = {
                                     val intent =
                                         Intent(context, CourseTimeSettingsActivity::class.java)
@@ -371,7 +376,7 @@ fun SettingsScreen(
                                 ArrowPreference(
                                     title = "课程提醒",
                                     summary = "课前提醒、次日课程提醒",
-                                    holdDownState = activeSecondaryActivity == "CourseReminderActivity",
+                                    holdDownState = "CourseReminderActivity" in activeSecondaryActivities,
                                     onClick = {
                                         val intent = Intent(context, CourseReminderActivity::class.java)
                                         intent.addFlags(Intent.FLAG_ACTIVITY_NO_ANIMATION)
@@ -389,14 +394,14 @@ fun SettingsScreen(
                                 )
                                 ArrowPreference(
                                     title = "节假日与调休",
-                                    holdDownState = activeSecondaryActivity == "HolidaySettingsActivity",
+                                    holdDownState = "HolidaySettingsActivity" in activeSecondaryActivities,
                                     onClick = {
                                         context.openSecondaryPage(Intent(context, HolidaySettingsActivity::class.java))
                                     }
                                 )
                                 ArrowPreference(
                                     title = "桌面小部件",
-                                    holdDownState = activeSecondaryActivity == "WidgetIntroActivity",
+                                    holdDownState = "WidgetIntroActivity" in activeSecondaryActivities,
                                     onClick = {
                                         val intent = Intent(context, WidgetIntroActivity::class.java)
                                         context.openSecondaryPage(intent)
@@ -480,7 +485,7 @@ fun SettingsScreen(
                                 ArrowPreference(
                                     title = "课表导入",
                                     summary = "AI文本、教务、文件、分享口令",
-                                    holdDownState = activeSecondaryActivity in ScheduleImportActivities,
+                                    holdDownState = ScheduleImportActivities.any { it in activeSecondaryActivities },
                                     onClick = {
                                         context.openSecondaryPage(
                                             com.haooz.chedule.ui.activities.BackupAndMigrationActivity.importIntent(context)
@@ -490,7 +495,7 @@ fun SettingsScreen(
                                 ArrowPreference(
                                     title = "课表导出",
                                     summary = "文件、口令分享",
-                                    holdDownState = activeSecondaryActivity in ScheduleExportActivities,
+                                    holdDownState = ScheduleExportActivities.any { it in activeSecondaryActivities },
                                     onClick = {
                                         context.openSecondaryPage(
                                             com.haooz.chedule.ui.activities.BackupAndMigrationActivity.exportIntent(context)
@@ -500,7 +505,7 @@ fun SettingsScreen(
                                 ArrowPreference(
                                     title = "课表备份",
                                     summary = "本地备份、WebDAV云备份",
-                                    holdDownState = activeSecondaryActivity in ScheduleBackupActivities,
+                                    holdDownState = ScheduleBackupActivities.any { it in activeSecondaryActivities },
                                     onClick = {
                                         context.openSecondaryPage(
                                             com.haooz.chedule.ui.activities.BackupAndMigrationActivity.backupIntent(context)
@@ -548,7 +553,9 @@ fun SettingsScreen(
                             ) {
                                 ArrowPreference(
                                     title = "应用偏好设置",
-                                    holdDownState = activeSecondaryActivity == "PreferenceSettingsActivity",
+                                    // 只在偏好设置页仍在栈上时压暗；
+                                    // 单独打开更新设置时不应连带压暗本项
+                                    holdDownState = "PreferenceSettingsActivity" in activeSecondaryActivities,
                                     onClick = {
                                         val intent = Intent(context, PreferenceSettingsActivity::class.java)
                                         context.openSecondaryPage(intent)
@@ -556,7 +563,7 @@ fun SettingsScreen(
                                 )
                                 ArrowPreference(
                                     title = "更新设置",
-                                    holdDownState = activeSecondaryActivity == "UpdateSettingsActivity",
+                                    holdDownState = "UpdateSettingsActivity" in activeSecondaryActivities,
                                     onClick = {
                                         val intent = Intent(context, UpdateSettingsActivity::class.java)
                                         context.openSecondaryPage(intent)
@@ -564,7 +571,7 @@ fun SettingsScreen(
                                 )
                                 ArrowPreference(
                                     title = "关于应用",
-                                    holdDownState = activeSecondaryActivity in AboutActivities,
+                                    holdDownState = AboutActivities.any { it in activeSecondaryActivities },
                                     onClick = {
                                         val intent = Intent(context, AboutActivity::class.java)
                                         context.openSecondaryPage(intent)

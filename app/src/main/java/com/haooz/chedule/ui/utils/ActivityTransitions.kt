@@ -1,3 +1,4 @@
+/** 二级页导航转场：push 视差、入场/出场动画、预测性返回 */
 package com.haooz.chedule.ui.utils
 
 import android.annotation.SuppressLint
@@ -5,9 +6,11 @@ import android.app.Activity
 import android.app.ActivityOptions
 import android.content.Context
 import android.content.Intent
+import android.graphics.drawable.ColorDrawable
 import android.os.Build
 import android.os.Looper
 import android.view.View
+import android.view.Window
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.CubicBezierEasing
 import androidx.compose.animation.core.Easing
@@ -30,10 +33,8 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.GraphicsLayerScope
 import androidx.compose.ui.graphics.Shape
 import androidx.compose.ui.graphics.graphicsLayer
-import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
-import androidx.compose.ui.platform.LocalWindowInfo
 import androidx.compose.ui.unit.dp
 import androidx.core.app.ActivityOptionsCompat
 import com.haooz.chedule.ui.effects.motion.OobeQuartOutSoftStartEasing
@@ -44,117 +45,52 @@ import java.lang.ref.WeakReference
 import kotlin.math.abs
 import kotlin.time.Duration.Companion.milliseconds
 
-/**
- * 导航栈 push 视差。
- *
- * 下层 Activity 已 onPause、Compose 不再刷新，必须直接平移其 decorView。
- * 打开第 N 层时推动第 N-1 层（首页二级层推动主页，三级层推动二级页）。
- */
-object SecondaryPushParallax {
-    private class Layer(val token: Any, activity: Activity) {
-        val decor: WeakReference<View> = WeakReference(activity.window.decorView)
-    }
+// region 常量
 
-    private var mainDecor: WeakReference<View>? = null
-    /** 已打开的二级页，按打开顺序；末尾是栈顶 */
-    private val openPages = mutableListOf<Layer>()
-    private var mainFraction = 0f
-
-    fun attachMainRoot(activity: Activity) {
-        val decor = activity.window.decorView
-        // 视差只改 translationX：硬件层让系统合成器做纯变换，避免整窗每帧重绘主页
-        if (decor.layerType != View.LAYER_TYPE_HARDWARE) {
-            decor.setLayerType(View.LAYER_TYPE_HARDWARE, null)
-        }
-        mainDecor = WeakReference(decor)
-        if (openPages.isEmpty()) {
-            applyToView(mainDecor, 0f)
-            mainFraction = 0f
-        } else if (openPages.size == 1) {
-            applyToView(mainDecor, mainFraction)
-        }
-        // 嵌套打开时主页保持既有偏移
-    }
-
-    fun noteOpen(token: Any, activity: Activity) {
-        if (openPages.any { it.token === token }) {
-            // 组合重建/重复 noteOpen：刷新 decor 弱引用，不要重复入栈
-            val idx = openPages.indexOfFirst { it.token === token }
-            if (idx >= 0) {
-                openPages[idx] = Layer(token, activity)
-            }
-            return
-        }
-        openPages.add(Layer(token, activity))
-    }
-
-    /**
-     * 登记二级页关闭。
-     * [hardClose]=true 时才把视差归零（Activity 真正销毁 / 出场动画结束）。
-     * 组合重建导致的临时 dispose 不能传 true，否则会把下层页 translationX 打回 0，
-     * 再叠加入场动画，表现为旧页左右抖动。
-     */
-    fun noteClose(token: Any, hardClose: Boolean = true) {
-        val idx = openPages.indexOfFirst { it.token === token }
-        if (idx < 0) return
-        if (!hardClose) return
-        openPages.removeAt(idx)
-        if (openPages.isEmpty()) {
-            applyToView(mainDecor, 0f)
-            mainFraction = 0f
-        } else if (idx >= 1) {
-            // 关掉栈上层：它曾推动的下层二级页归位
-            val below = openPages[idx - 1]
-            applyToView(below.decor, 0f)
-        }
-        // 关掉最底层但仍有上层（少见）：主页保持当前偏移，由上层动画再驱动
-    }
-
-    /**
-     * 当前转场进度应推动的下层：
-     * - 栈上只有一层二级页（或正在开第一层）→ 主页
-     * - 栈上有多层 → 栈顶下面那层二级页
-     */
-    fun applyTransitionProgress(fraction: Float) {
-        val f = fraction.coerceIn(0f, 1f)
-        if (openPages.size <= 1) {
-            mainFraction = f
-            applyToView(mainDecor, f)
-        } else {
-            val below = openPages[openPages.size - 2]
-            applyToView(below.decor, f)
-        }
-    }
-
-    private fun applyToView(decorRef: WeakReference<View>?, fraction: Float) {
-        val decor = decorRef?.get() ?: return
-        val f = fraction.coerceIn(0f, 1f)
-        fun apply() {
-            val w = decor.width.toFloat()
-            if (w <= 0f) return
-            val target = -SECONDARY_PUSH_PARALLAX * f * w
-            // 亚像素不变则跳过，避免多余 invalidate（视觉无差异）
-            if (abs(decor.translationX - target) < 0.5f) return
-            decor.translationX = target
-        }
-        // 主线程且已测量：直接改 translationX，避免 post 晚一帧导致与二级页不同步
-        if (decor.width > 0 && Looper.myLooper() == Looper.getMainLooper()) {
-            apply()
-        } else {
-            decor.post { apply() }
-        }
-    }
-}
-
-/** 主页左移距离相对屏宽比例（iOS push 常见约 0.25–0.30） */
+/** 下层页左移距离 / 窗口宽度（约 iOS push 的 0.25–0.30） */
 const val SECONDARY_PUSH_PARALLAX = 0.24f
 
-/**
- * 二级页转场：打开时压掉系统动画（主题空动画 + FLAG_NO_ANIMATION + options(0,0)），
- * 半透明窗让下层主页继续绘制，Compose 整页从右推入；顶栏返回由组合内播出场后 finish；
- * 手势返回走系统预测性返回。
- */
+/** 下层页压暗强度：0=不压，1=全黑 */
+private const val SECONDARY_BG_DIM = 0.42f
 
+/** 入场时长 */
+private const val ENTER_DURATION = 600
+
+/** 出场时长 */
+private const val EXIT_DURATION = 320
+
+/** 手势松手吸附关闭的最短时长，避免剩余行程过短时闪一下 */
+private const val MIN_GESTURE_SETTLE_MS = 100
+
+/** 预测性返回取消回弹的最短时长，保证减速段可被看见 */
+private const val MIN_GESTURE_RESTORE_MS = 200
+
+/** 冷启动重页（如关于）内容壳首绘等待上限；超时仍入场，避免透明空窗 */
+private const val FIRST_FRAME_WAIT_MS = 500L
+
+/** 入场曲线：更晚进入减速，尾段更长更慢 */
+private val SecondaryEnterEasing = OobeQuartOutSoftStartEasing
+
+/** 出场曲线：起步更缓，后段正常滑出 */
+private val SecondaryExitEasing = CubicBezierEasing(0.36f, 0.18f, 0.3f, 0.85f)
+
+// endregion
+
+// region 分屏判定与窗口启动工具
+
+/**
+ * 是否处于平板分窗 / Activity Embedding 窄栏。
+ * 分栏内二级页在独立窗格切换：不播 Compose 右推动画，主界面也不左移。
+ */
+fun Activity?.isInSecondarySplitMode(): Boolean {
+    val act = this ?: return false
+    if (act.isInMultiWindowMode) return true
+    val decorW = act.window.decorView.width
+    val screenW = act.resources.displayMetrics.widthPixels
+    return screenW > 0 && decorW in 1 until (screenW * 0.85f).toInt()
+}
+
+/** 压掉 Activity 打开的系统转场（二级页由 Compose 自绘入场） */
 fun Activity.suppressOpenTransition() {
     if (Build.VERSION.SDK_INT >= 34) {
         overrideActivityTransition(Activity.OVERRIDE_TRANSITION_OPEN, 0, 0)
@@ -164,6 +100,7 @@ fun Activity.suppressOpenTransition() {
     }
 }
 
+/** 压掉 Activity 关闭的系统转场 */
 fun Activity.suppressCloseTransition() {
     if (Build.VERSION.SDK_INT >= 34) {
         overrideActivityTransition(Activity.OVERRIDE_TRANSITION_CLOSE, 0, 0)
@@ -173,6 +110,7 @@ fun Activity.suppressCloseTransition() {
     }
 }
 
+/** 以无系统动画的方式打开二级页 */
 fun Context.openSecondaryPage(intent: Intent) {
     intent.addFlags(Intent.FLAG_ACTIVITY_NO_ANIMATION)
     val activity = this as? Activity
@@ -183,46 +121,293 @@ fun Context.openSecondaryPage(intent: Intent) {
     activity?.suppressOpenTransition()
 }
 
+/** Activity Result 启动二级页时使用的无动画 Options */
 fun secondaryOpenOptionsCompat(activity: Activity): ActivityOptionsCompat {
     return ActivityOptionsCompat.makeCustomAnimation(activity, 0, 0)
 }
 
+// endregion
+
+// region SecondaryPushParallax — 导航栈 push 视差
+
 /**
- * 0=整页在右侧屏外，1=完全覆盖。
- * 出场必须在组合作用域内驱动（LaunchedEffect / rememberCoroutineScope），
- * 否则 Animatable 缺 MonotonicFrameClock，立刻结束或抛错，表现为"闪现消失"。
+ * 导航栈 push 视差。
+ *
+ * 下层 Activity 已 onPause，Compose 不再刷新，只能直接改 View 的 `translationX`。
+ *
+ * 实现要点：
+ * - 只平移 `android.R.id.content`；decor 不动，并铺应用 surface，避免右缘残影叠层
+ * - 被推动的 content 入栈时即挂 `LAYER_TYPE_HARDWARE`，避免与位移同帧改层类型导致闪烁
+ * - 手机全屏：一级→二级推主页，二级→三级推栈顶下方的二级页
+ * - 平板分窗 / Embedding：主页不左移
+ */
+object SecondaryPushParallax {
+
+    private class Layer(
+        val token: Any,
+        val activityRef: WeakReference<Activity>,
+        val content: WeakReference<View>,
+    )
+
+    private var mainContent: WeakReference<View>? = null
+
+    /** 已打开的二级页，按打开顺序；末尾为栈顶 */
+    private val openPages = mutableListOf<Layer>()
+
+    /** 主页当前视差进度（0–1），退出分窗后用于恢复 */
+    private var mainFraction = 0f
+
+    /** 系统分窗/自由窗口时主页不参与左移 */
+    @Volatile
+    private var mainInMultiWindow = false
+
+    /** 分窗状态变化时由 MainActivity 调用 */
+    fun setMainMultiWindowMode(enabled: Boolean) {
+        mainInMultiWindow = enabled
+        if (enabled) {
+            mainFraction = 0f
+            applyToView(mainContent, 0f)
+        } else if (openPages.size == 1) {
+            applyToView(mainContent, mainFraction.takeIf { it > 0f } ?: 1f)
+        }
+    }
+
+    /** MainActivity onCreate/onResume：登记主页 content，并保证窗口底色与层类型 */
+    fun attachMainRoot(activity: Activity) {
+        val window = activity.window
+        val decor = window.decorView
+        val content = resolveContentRoot(activity)
+
+        mainInMultiWindow = activity.isInMultiWindowMode
+        ensureAppSurfaceBackground(activity, window)
+        if (decor.layerType == View.LAYER_TYPE_HARDWARE) {
+            decor.setLayerType(View.LAYER_TYPE_NONE, null)
+        }
+        if (content !== decor && content.layerType != View.LAYER_TYPE_HARDWARE) {
+            content.setLayerType(View.LAYER_TYPE_HARDWARE, null)
+        }
+
+        mainContent = WeakReference(content)
+        pruneDeadLayers()
+        when {
+            openPages.isEmpty() || mainInMultiWindow -> {
+                if (openPages.isEmpty()) mainFraction = 0f
+                applyToView(mainContent, 0f)
+            }
+            openPages.size == 1 -> applyToView(mainContent, mainFraction)
+        }
+    }
+
+    /** 分屏二级页 onCreate：窗口先铺应用 surface，避免同级切换首帧闪背景 */
+    fun ensureWindowSurfaceBackground(activity: Activity) {
+        ensureAppSurfaceBackground(activity, activity.window)
+    }
+
+    /** 二级页入栈（SecondaryPageEnterTransition 首次组合时） */
+    fun noteOpen(token: Any, activity: Activity) {
+        pruneDeadLayers()
+        val content = resolveContentRoot(activity)
+        if (content.layerType != View.LAYER_TYPE_HARDWARE) {
+            content.setLayerType(View.LAYER_TYPE_HARDWARE, null)
+        }
+        val existing = openPages.indexOfFirst { it.token === token }
+        if (existing >= 0) {
+            openPages[existing] = layerOf(token, activity)
+            return
+        }
+        openPages.add(layerOf(token, activity))
+    }
+
+    /**
+     * 二级页关闭登记。
+     * [hardClose]=true 才出栈并归零视差（Activity 销毁或出场动画结束）。
+     * 组合重建等临时 dispose 不可传 true，否则会与入场动画抢同一进度。
+     */
+    fun noteClose(token: Any, hardClose: Boolean = true) {
+        if (!hardClose) return
+        pruneDeadLayers()
+        val idx = openPages.indexOfFirst { it.token === token }
+        if (idx < 0) return
+        openPages.removeAt(idx)
+        when {
+            openPages.isEmpty() -> {
+                mainFraction = 0f
+                applyToView(mainContent, 0f)
+            }
+            idx >= 1 -> applyToView(openPages[idx - 1].content, 0f)
+        }
+    }
+
+    /**
+     * 转场进度驱动下层视差：
+     * - 栈上仅一层二级（一级→二级）→ 推主页（分窗时强制 0）
+     * - 栈上多层（二级→三级）→ 推栈顶下方那层二级页
+     */
+    fun applyTransitionProgress(fraction: Float) {
+        pruneDeadLayers()
+        val f = fraction.coerceIn(0f, 1f)
+        if (openPages.size <= 1) {
+            if (mainInMultiWindow || isMainNarrowWindow()) {
+                mainFraction = 0f
+                applyToView(mainContent, 0f)
+            } else {
+                mainFraction = f
+                applyToView(mainContent, f)
+            }
+        } else {
+            applyToView(openPages[openPages.size - 2].content, f)
+            if (mainInMultiWindow || isMainNarrowWindow()) {
+                applyToView(mainContent, 0f)
+            }
+        }
+    }
+
+    private fun layerOf(token: Any, activity: Activity): Layer {
+        return Layer(
+            token = token,
+            activityRef = WeakReference(activity),
+            content = WeakReference(resolveContentRoot(activity)),
+        )
+    }
+
+    private fun resolveContentRoot(activity: Activity): View {
+        return activity.findViewById(android.R.id.content) ?: activity.window.decorView
+    }
+
+    private fun View.hostActivity(): Activity? {
+        var ctx = context
+        while (ctx is android.content.ContextWrapper) {
+            if (ctx is Activity) return ctx
+            ctx = ctx.baseContext
+        }
+        return null
+    }
+
+    /** 剔除已销毁页，避免 noteClose 漏调时 openPages 无限增长 */
+    private fun pruneDeadLayers() {
+        openPages.removeAll { layer ->
+            val view = layer.content.get()
+            val act = layer.activityRef.get() ?: view?.hostActivity()
+            view == null || act == null || act.isDestroyed
+        }
+    }
+
+    /** 窗口底色与 Miuix surface 对齐：浅色 0xFFF4F4F4，深色 0xFF000000 */
+    private fun ensureAppSurfaceBackground(activity: Activity, window: Window) {
+        val color = resolveAppSurfaceColor(activity)
+        val current = (window.decorView.background as? ColorDrawable)?.color
+        if (current != color) {
+            window.setBackgroundDrawable(ColorDrawable(color))
+        }
+    }
+
+    private fun resolveAppSurfaceColor(activity: Activity): Int {
+        val prefs = activity.getSharedPreferences("app_theme_prefs", Context.MODE_PRIVATE)
+        val mode = prefs.getString("theme_mode", "system") ?: "system"
+        val dark = when (mode) {
+            "dark" -> true
+            "light" -> false
+            else -> {
+                val night = activity.resources.configuration.uiMode and
+                    android.content.res.Configuration.UI_MODE_NIGHT_MASK
+                night == android.content.res.Configuration.UI_MODE_NIGHT_YES
+            }
+        }
+        return if (dark) 0xFF000000.toInt() else 0xFFF4F4F4.toInt()
+    }
+
+    /** 主页是否处于窄窗（Embedding 左栏等） */
+    private fun isMainNarrowWindow(): Boolean {
+        val content = mainContent?.get() ?: return false
+        val w = content.width
+        val screenW = content.resources.displayMetrics.widthPixels
+        return screenW > 0 && w in 1 until (screenW * 0.85f).toInt()
+    }
+
+    private fun isMainView(view: View): Boolean = mainContent?.get() === view
+
+    private fun applyToView(contentRef: WeakReference<View>?, fraction: Float) {
+        val content = contentRef?.get() ?: return
+        val f = fraction.coerceIn(0f, 1f)
+        fun apply() {
+            if (isMainView(content) && (mainInMultiWindow || isMainNarrowWindow())) {
+                if (content.translationX != 0f) {
+                    content.translationX = 0f
+                    content.invalidate()
+                    (content.parent as? View)?.invalidate()
+                }
+                return
+            }
+            if (content.layerType != View.LAYER_TYPE_HARDWARE) {
+                content.setLayerType(View.LAYER_TYPE_HARDWARE, null)
+            }
+            val w = content.width.toFloat().takeIf { it > 0f }
+                ?: content.resources.displayMetrics.widthPixels.toFloat()
+            if (w <= 0f) return
+            val target = -SECONDARY_PUSH_PARALLAX * f * w
+            if (abs(content.translationX - target) < 0.5f) {
+                if (target == 0f && content.translationX != 0f) {
+                    content.translationX = 0f
+                    (content.parent as? View)?.invalidate()
+                }
+                return
+            }
+            // 硬件层下 translationX 由合成器处理，不必再 invalidate 整窗
+            content.translationX = target
+        }
+        if ((content.width > 0 || content.resources.displayMetrics.widthPixels > 0) &&
+            Looper.myLooper() == Looper.getMainLooper()
+        ) {
+            apply()
+        } else {
+            content.post { apply() }
+        }
+    }
+}
+
+// endregion
+
+// region SecondaryPageTransitionController — 入场/出场进度
+
+/**
+ * 二级页转场进度：0=整页在窗口右侧外，1=完全覆盖。
+ *
+ * 出场/手势动画必须在组合作用域内驱动（LaunchedEffect 等），
+ * 否则 Animatable 缺少 MonotonicFrameClock，会立刻结束或表现为闪退。
  */
 class SecondaryPageTransitionController {
+
     val progress = Animatable(0f)
 
-    /** 入场是否已播过；主题切换等导致组合重建时避免从 0 重播 */
+    /** 入场是否已开始/播过；组合重建时避免从 0 重播 */
     private var enterPlayed = false
 
-    /** 入场是否已完整播完：组合重建时不要再等首帧、不要重播 */
     val isEnterSettled: Boolean
         get() = enterPlayed && progress.value >= 0.999f
 
-    /** 顶栏返回置 true，由组合内动画消费 */
+    /** 分屏同级切换：标记入场已完成，不播滑入动画 */
+    fun markEnterSettledWithoutAnimation() {
+        enterPlayed = true
+    }
+
+    /** 顶栏返回置 true，由 SecondaryPageEnterTransition 消费 */
     var exitRequested by mutableStateOf(false)
 
     /**
-     * 预测性返回取消：每次 +1 作为 LaunchedEffect key。
-     * 不能用 Boolean：新手势 snapTo 会取消进行中的 restore，Boolean 仍为 true
-     * 时再次 requestRestore() 不会重启 Effect，页面会卡在半路。
+     * 预测性返回取消时递增，作为 LaunchedEffect key。
+     * 不能用 Boolean：新手势 snapTo 会取消进行中的 restore，Boolean 会卡在 true。
      */
     var restoreToken by mutableIntStateOf(0)
         private set
 
-    /** 出场动画播完后回调（finish） */
+    /** 出场动画播完后回调（通常用于 finish） */
     var onExitComplete: (() -> Unit)? = null
 
     suspend fun animateEnter(durationMillis: Int = ENTER_DURATION) {
-        // 已完整入场：组合重建时不要再从 0 重播
-        if (enterPlayed && progress.value >= 0.999f) {
+        if (isEnterSettled) {
             SecondaryPushParallax.applyTransitionProgress(1f)
             return
         }
-        // 半路被打断：从当前进度续播，不要 snapTo(0)
         if (!enterPlayed) {
             enterPlayed = true
             progress.snapTo(0f)
@@ -234,10 +419,7 @@ class SecondaryPageTransitionController {
         settleFullyOpen()
     }
 
-    /**
-     * 预测性返回取消回弹：从当前进度弹回完全显示。
-     * 在入场曲线上反解当前进度对应的时间点，用剩余时间播出，且 easing 取曲线尾段。
-     */
+    /** 预测性返回取消：从当前进度弹回完全显示 */
     suspend fun restoreFromGesture() {
         val from = progress.value.coerceIn(0f, 1f)
         if (from >= 0.999f) {
@@ -258,15 +440,7 @@ class SecondaryPageTransitionController {
         settleFullyOpen()
     }
 
-    /** 进度与主页视差一并锁到完全显示，避免浮点残差导致「差一点盖满」 */
-    private suspend fun settleFullyOpen() {
-        progress.snapTo(1f)
-        // 归位后视为已入场，防止后续 animateEnter 从 0 重播
-        enterPlayed = true
-        SecondaryPushParallax.applyTransitionProgress(1f)
-    }
-
-    /** 松手完成吸附关闭：在出场曲线上反解剩余时间，与关闭动画一致 */
+    /** 松手吸附关闭：按出场曲线反解剩余时长 */
     suspend fun animateGestureDismiss() {
         val from = progress.value.coerceIn(0f, 1f)
         val (durationMs, easing) = settleOnGlobalCurve(
@@ -291,9 +465,8 @@ class SecondaryPageTransitionController {
     }
 
     suspend fun snapGestureProgress(p: Float) {
-        val value = p.coerceIn(0f, 1f)
-        // 手势已接管进度：标记入场已开始，避免 animateEnter 再 snapTo(0)
         enterPlayed = true
+        val value = p.coerceIn(0f, 1f)
         progress.snapTo(value)
         SecondaryPushParallax.applyTransitionProgress(value)
     }
@@ -305,13 +478,17 @@ class SecondaryPageTransitionController {
     fun requestRestore() {
         restoreToken++
     }
+
+    private suspend fun settleFullyOpen() {
+        progress.snapTo(1f)
+        enterPlayed = true
+        SecondaryPushParallax.applyTransitionProgress(1f)
+    }
 }
 
 /**
- * 在全局开/关曲线上，从 [fromProgress] 播到 [toProgress] 的剩余段
- * - [invertGlobal] = false：全局进度 = easing(u)（入场 0→1）
- * - [invertGlobal] = true：全局进度 = 1 - easing(u)（出场 1→0）
- * 返回 (剩余时长, 把该尾段映射到 0..1 的局部 easing)
+ * 在全局开/关曲线上，从 [fromProgress] 播到 [toProgress] 的剩余段。
+ * 返回 (剩余时长, 将该尾段映射到 0..1 的局部 easing)。
  */
 private fun settleOnGlobalCurve(
     fromProgress: Float,
@@ -327,12 +504,9 @@ private fun settleOnGlobalCurve(
     if (abs(span) < 1e-4f) {
         return minDuration.coerceAtMost(totalDuration) to fullEasing
     }
-
-    // 全局进度 = from 时，fullEasing 的参数 u0
     val eAtFrom = if (invertGlobal) 1f - from else from
     val u0 = inverseEasingTime(fullEasing, eAtFrom)
     val durationMs = (((1f - u0) * totalDuration).toInt()).coerceIn(minDuration, totalDuration)
-
     val local = Easing { fraction ->
         val u = u0 + (1f - u0) * fraction.coerceIn(0f, 1f)
         val e = fullEasing.transform(u)
@@ -356,29 +530,36 @@ private fun inverseEasingTime(easing: Easing, progress: Float): Float {
     return (lo + hi) * 0.5f
 }
 
+// endregion
+
+// region SecondaryPageEnterTransition — Compose 入场壳
+
 val LocalSecondaryPageTransition = staticCompositionLocalOf {
     SecondaryPageTransitionController()
 }
 
+/**
+ * 二级页内容壳：压暗层 + 可选整窗 surface + 从右滑入的页面。
+ *
+ * - progress 只在 graphicsLayer 内读，避免动画每帧重组整页
+ * - 分屏/嵌入：跳过入场动画，并整窗铺 surface（防同级切换闪背景）
+ * - 手机全屏：不铺整窗底色，避免盖住被推开的一级页
+ * - 关闭登记不在 DisposableEffect：组合重建会误伤下层视差
+ */
 @Composable
 fun SecondaryPageEnterTransition(
     content: @Composable () -> Unit,
 ) {
     val controller = LocalSecondaryPageTransition.current
     val hostActivity = LocalContext.current as? Activity
-    // 只持有 Animatable 引用。progress.value 必须在 graphicsLayer 内读：
-    // 组合期读取会让动画每帧重组整棵二级页（偏好设置等重 UI），是掉帧主因。
-    // 曲线/时长/视差比例/压暗/圆角裁切均不变。
     val progress = controller.progress
-    /** 二级页内容壳是否已真实绘制过一帧（drawWithContent）；冷启动关于页首构较慢，必须等它再推下层 */
     var contentDrawn by remember { mutableStateOf(false) }
 
-    val windowWidthPx = LocalWindowInfo.current.containerSize.width
-    val screenWidthDp = LocalConfiguration.current.screenWidthDp
-    val density = LocalDensity.current
-    val isEmbedded = windowWidthPx > 0 &&
-        with(density) { windowWidthPx.toDp() } < screenWidthDp.dp * 0.85f
+    val paintsFullSurface = remember(hostActivity) {
+        hostActivity?.isInMultiWindowMode == true || hostActivity.isInSecondarySplitMode()
+    }
 
+    val density = LocalDensity.current
     val screenCornerRadiusPx = rememberScreenCornerRadiusPx()
     val screenClipShape = remember(screenCornerRadiusPx, density) {
         if (screenCornerRadiusPx > 0f) {
@@ -390,19 +571,21 @@ fun SecondaryPageEnterTransition(
 
     LaunchedEffect(Unit) {
         hostActivity?.let { SecondaryPushParallax.noteOpen(controller, it) }
+
+        // 分屏/嵌入：同级二级切换不播入场动画
+        if (hostActivity.isInSecondarySplitMode()) {
+            controller.markEnterSettledWithoutAnimation()
+            controller.progress.snapTo(1f)
+            SecondaryPushParallax.applyTransitionProgress(0f)
+            return@LaunchedEffect
+        }
         if (controller.isEnterSettled) {
             SecondaryPushParallax.applyTransitionProgress(1f)
             return@LaunchedEffect
         }
-        // 等首帧期间可能已有手势取消并发起 restore：交给 restoreToken 效果，避免双动画抢同一 Animatable
-        if (controller.restoreToken > 0) {
-            return@LaunchedEffect
-        }
-        // 只认内容壳 drawWithContent 置起的 contentDrawn。
-        // 不能用 ViewTreeObserver.OnDrawListener：它在本帧真正绘制子节点之前就会回调，
-        // 压暗层/空树一画就 resume → 入场提前开跑。此时新页尚未渲染，只能看到下层被视差推走
-        // + 透明窗黑底；等 About 等重页首构完成时 progress 已到 1，内容闪现。
-        // 冷启动关于页首构很重，这里带超时：超时后仍入场，但页壳已铺 surface，不会整段黑。
+        if (controller.restoreToken > 0) return@LaunchedEffect
+
+        // 等内容壳真实绘过一帧再入场；OnDrawListener 会过早回调，不可用
         if (!contentDrawn) {
             withTimeoutOrNull(FIRST_FRAME_WAIT_MS.milliseconds) {
                 while (!contentDrawn) {
@@ -410,20 +593,12 @@ fun SecondaryPageEnterTransition(
                 }
             }
         }
-        // 首帧等待结束后手势可能已介入
         if (controller.restoreToken > 0 || controller.isEnterSettled) {
             return@LaunchedEffect
         }
-        // 内容壳已至少绘制过一帧（或超时），再驱动：新页滑入 + 下层视差，两者同相位
         controller.animateEnter()
     }
 
-    // 注意：不要在这里 DisposableEffect→noteClose。
-    // 主题/重页首构导致组合树短暂重建时 dispose 会把下层视差打回 0，
-    // 与进行中的入场动画打架，表现为旧页左右闪。
-    // 真正的关闭登记在 SecondaryActivity.onDestroy / 出场动画完成时 hardClose。
-
-    // 出场：必须在这里跑，才有 MonotonicFrameClock
     LaunchedEffect(controller.exitRequested) {
         if (controller.exitRequested) {
             controller.animateExit()
@@ -433,16 +608,13 @@ fun SecondaryPageEnterTransition(
         }
     }
 
-    // 预测性返回取消：从当前跟手位置弹回完全显示。
-    // key 用递增 token：上一次 restore 被新手势 snapTo 打断后，Effect 被取消，
-    // Boolean 标志会卡在 true，导致后续取消再也无法启动回弹（页面停在半路）。
     LaunchedEffect(controller.restoreToken) {
         if (controller.restoreToken <= 0) return@LaunchedEffect
         controller.restoreFromGesture()
     }
 
     Box(modifier = Modifier.fillMaxSize()) {
-        // 下层主页压暗（progress 只在 layer 内读，避免每帧重组）
+        // 下层压暗
         Box(
             modifier = Modifier
                 .fillMaxSize()
@@ -450,7 +622,16 @@ fun SecondaryPageEnterTransition(
                 .background(Color.Black),
         )
 
-        // 首帧标志：只挂在内容壳上；壳带 surface，首绘即代表「新页这一层已经能被看见」
+        val pageSurface = MiuixTheme.colorScheme.surface
+        // 仅分屏铺整窗 surface（不随 content 平移）
+        if (paintsFullSurface) {
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .background(pageSurface)
+            )
+        }
+
         val contentDrawnModifier = if (contentDrawn) {
             Modifier
         } else {
@@ -459,22 +640,15 @@ fun SecondaryPageEnterTransition(
                 contentDrawn = true
             }
         }
-        val pageSurface = MiuixTheme.colorScheme.surface
         Box(
             modifier = Modifier
                 .fillMaxSize()
                 .then(contentDrawnModifier)
                 .graphicsLayer {
                     val p = progress.value
-                    if (isEmbedded) {
-                        alpha = p
-                    } else {
-                        translationX = (1f - p) * size.width
-                    }
+                    translationX = (1f - p) * size.width
                     applyScreenClipDuringTransition(p, screenClipShape)
                 }
-                // 滑入页壳铺 surface：关于页等首构慢时，页体一进场就有底色，
-                // 不会整页透明被当成「新页没加载出来」
                 .background(pageSurface),
         ) {
             content()
@@ -482,7 +656,7 @@ fun SecondaryPageEnterTransition(
     }
 }
 
-/** 动画/手势过程中（0 < p < 1）用 Kyant 连续圆角裁切推入页，推满后恢复直角 */
+/** 转场过程中（0<p<1）用连续圆角裁切推入页，推满后恢复直角 */
 private fun GraphicsLayerScope.applyScreenClipDuringTransition(
     progress: Float,
     shape: Shape?,
@@ -515,25 +689,4 @@ private fun rememberScreenCornerRadiusPx(): Float {
     }
 }
 
-/** 入场：更晚进入减速，尾段拖得更长更慢 */
-private val SecondaryEnterEasing = OobeQuartOutSoftStartEasing
-
-/** 退出：起步更缓，后段正常滑出 */
-private val SecondaryExitEasing = CubicBezierEasing(0.36f, 0.18f, 0.3f, 0.85f)
-
-
-
-/** 下层页压暗强度（0=不压，1=全黑）*/
-private const val SECONDARY_BG_DIM = 0.42f
-
-/** 冷启动重页（关于等）内容壳首绘等待上限；超时仍要带 surface 入场，避免透明空窗黑底 */
-private const val FIRST_FRAME_WAIT_MS = 500L
-
-private const val ENTER_DURATION = 600
-private const val EXIT_DURATION = 320
-
-/** 手势松手吸附最短时长，避免剩余行程极短时闪一下 */
-private const val MIN_GESTURE_SETTLE_MS = 100
-
-/** 取消回弹最短时长：保证强减速段能被看出来，否则像硬吸 */
-private const val MIN_GESTURE_RESTORE_MS = 200
+// endregion

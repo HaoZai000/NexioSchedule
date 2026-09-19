@@ -686,13 +686,33 @@ class CourseRepository private constructor(context: Context) {
 
     /** 待配置补班（followWeekday 未设置）不视为有课，避免智能周末误显示 */
     fun hasWorkSwapOnDay(dayOfWeek: Int, week: Int): Boolean {
+        val swap = workSwapEntryOnDay(dayOfWeek, week) ?: return false
+        return swap.followWeekday in 1..7
+    }
+
+    /**
+     * 该课表日「有没有课可上」：当天有课，或已配置调休且映射日/映射周有课。
+     * 智能周末跳周用：无课可上（含未配置 followWeekday）→ 应跳下周。
+     */
+    fun hasDisplayableCoursesOnDay(dayOfWeek: Int, week: Int): Boolean {
+        if (dayOfWeek !in 1..7) return false
+        if (getAllCourses().any { it.dayOfWeek == dayOfWeek && it.isActiveInWeek(week) }) return true
+        val swap = workSwapEntryOnDay(dayOfWeek, week) ?: return false
+        if (swap.followWeekday !in 1..7) return false
+        val mappedWeek = if (swap.followWeek > 0) swap.followWeek else week
+        return getAllCourses().any {
+            it.dayOfWeek == swap.followWeekday && it.isActiveInWeek(mappedWeek)
+        }
+    }
+
+    private fun workSwapEntryOnDay(dayOfWeek: Int, week: Int): HolidayManager.Entry? {
+        if (dayOfWeek !in 1..7) return null
         val start = runCatching {
             LocalDate.parse(getClassStartTime().replace("/", "-"))
-        }.getOrNull() ?: return false
+        }.getOrNull() ?: return null
         val monday = start.minusDays((start.dayOfWeek.value - 1).toLong())
         val date = monday.plusWeeks((week - 1).toLong()).plusDays((dayOfWeek - 1).toLong())
-        val swap = HolidayManager.workSwap(appContext, date) ?: return false
-        return swap.followWeekday in 1..7
+        return HolidayManager.workSwap(appContext, date)
     }
 
     fun getShowNonCurrentWeek(): Boolean {
