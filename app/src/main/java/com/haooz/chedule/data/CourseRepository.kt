@@ -28,10 +28,13 @@ class CourseRepository private constructor(context: Context) {
     private var globalSectionTimesCache: Map<Int, String>? = null
     private val combinationStyleCache = mutableMapOf<Long, CombinationStyle>()
 
-    // 壁纸解码是主要瓶颈，按可用内存 1/8 做 Lru 缓存
+    // 壁纸解码是主要瓶颈，按可用内存 1/8 做 Lru 缓存，绝对上限 32MB 防大堆机型占压过大
     private val wallpaperCache: android.util.LruCache<Long, android.graphics.Bitmap> =
         run {
-            val maxBytes = (Runtime.getRuntime().maxMemory() / 8).coerceAtLeast(4L * 1024 * 1024)
+            val maxBytes = minOf(
+                Runtime.getRuntime().maxMemory() / 8,
+                32L * 1024 * 1024,
+            ).coerceAtLeast(4L * 1024 * 1024)
             object : android.util.LruCache<Long, android.graphics.Bitmap>(maxBytes.toInt()) {
                 override fun sizeOf(key: Long, value: android.graphics.Bitmap): Int {
                     return value.byteCount

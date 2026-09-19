@@ -28,6 +28,8 @@ class ScriptRepository(private val context: Context, private val repoUrl: String
         private const val CLIENT_PROTOCOL_VERSION = 2
 
         private const val TIMEOUT_SECONDS = 30L
+        // 索引/脚本整包进内存前的硬上限，防止异常大响应直接 OOM
+        private const val MAX_DOWNLOAD_BYTES = 8 * 1024 * 1024
 
         fun getRepoUrl(context: Context): String {
             val prefs = context.getSharedPreferences("edu_import_prefs", Context.MODE_PRIVATE)
@@ -204,6 +206,24 @@ class ScriptRepository(private val context: Context, private val repoUrl: String
         }
     }
 
+    /** 带大小上限读取响应体；超限返回 null，避免 body.bytes() 无界分配 */
+    private fun readLimitedBytes(body: okhttp3.ResponseBody, maxBytes: Int): ByteArray? {
+        if (body.contentLength() > maxBytes) return null
+        val out = java.io.ByteArrayOutputStream()
+        val buffer = ByteArray(8192)
+        var total = 0
+        body.byteStream().use { input ->
+            while (true) {
+                val n = input.read(buffer)
+                if (n == -1) break
+                total += n
+                if (total > maxBytes) return null
+                out.write(buffer, 0, n)
+            }
+        }
+        return out.toByteArray()
+    }
+
     private fun downloadBytes(url: String, onLog: ((String) -> Unit)? = null): ByteArray? {
         onLog?.invoke("正在下载: $url")
         var currentUrl = url
@@ -211,7 +231,8 @@ class ScriptRepository(private val context: Context, private val repoUrl: String
             val request = Request.Builder().url(currentUrl).get().build()
             client.newCall(request).execute().use { response ->
                 if (!response.isSuccessful) return null
-                val bytes = response.body?.bytes() ?: return null
+                val body = response.body ?: return null
+                val bytes = readLimitedBytes(body, MAX_DOWNLOAD_BYTES) ?: return null
                 if (bytes.isEmpty()) return null
                 // gitee 防盗链：首次请求拿到签名页时，跟随签名链接重试
                 if (attempt == 0 && isGiteeAntiHotlinkPage(bytes)) {

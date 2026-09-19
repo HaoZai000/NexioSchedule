@@ -23,6 +23,25 @@ object CourseReminderHelper {
 
     private const val TAG = "CourseReminder"
 
+    @Volatile
+    private var debugLogs: Boolean? = null
+
+    /** 仅 debug 包打热路径日志，release 避免每分钟字符串拼接 */
+    private fun debugEnabled(context: Context): Boolean {
+        debugLogs?.let { return it }
+        val enabled = try {
+            (context.applicationInfo.flags and android.content.pm.ApplicationInfo.FLAG_DEBUGGABLE) != 0
+        } catch (_: Exception) {
+            false
+        }
+        debugLogs = enabled
+        return enabled
+    }
+
+    private fun logD(context: Context, message: String) {
+        if (debugEnabled(context)) android.util.Log.d(TAG, message)
+    }
+
     const val EXTRA_REMINDER_TYPE = "reminder_type"
     const val EXTRA_COURSE_NAME = "course_name"
     const val EXTRA_COURSE_SECTION = "course_section"
@@ -269,6 +288,29 @@ object CourseReminderHelper {
         ClassDndHelper.applyCurrentState(context)
     }
 
+    /**
+     * 闹钟触发后的轻量收尾：只保 widget 刷新链与勿扰对账。
+     * 今日课程闹钟在调度时已一次性注册，无需每次触发都 cancel+全量重装。
+     * 课表变更仍由设置页 / ViewModel / 开机 / 跨日路径调用 startReminderService。
+     */
+    fun onAlarmProcessed(context: Context, fullReschedule: Boolean = false) {
+        if (fullReschedule) {
+            startReminderService(context)
+            return
+        }
+        val alarmManager = context.getSystemService(Context.ALARM_SERVICE) as AlarmManager
+        scheduleNextWidgetRefresh(context, alarmManager)
+        ClassDndHelper.applyCurrentState(context)
+    }
+
+    /** 次日提醒触发后只注册下一个次日闹钟，避免全量重调度 */
+    fun scheduleNextDayOnly(context: Context) {
+        val repository = CourseRepository(context)
+        if (!repository.getNextDayReminder() || !isSemesterStarted(repository)) return
+        val alarmManager = context.getSystemService(Context.ALARM_SERVICE) as AlarmManager
+        scheduleNextDayAlarm(context, repository, alarmManager)
+    }
+
     // 开学日期所在周的周一之后才算已开始；解析失败时保守放行，避免误屏蔽
     fun isSemesterStarted(repository: CourseRepository): Boolean {
         return try {
@@ -393,17 +435,16 @@ object CourseReminderHelper {
 
         val minutesBefore = repository.getPreClassReminderMinutes()
 
-        android.util.Log.d(TAG, "schedulePre: entered semesterStarted=${isSemesterStarted(repository)} preReminder=${repository.getPreClassReminder()} minuteBefore=$minutesBefore")
+        logD(context, "schedulePre: semesterStarted=true minuteBefore=$minutesBefore")
 
         // 复用 getTodayCourses，勿再内联 workSwap/周次/节假日过滤
         val todayCourses = getTodayCourses(context)
         if (todayCourses.isEmpty()) {
-            android.util.Log.d(TAG, "schedulePre: RETURN noCoursesForToday")
+            logD(context, "schedulePre: noCoursesForToday")
             writeRcSet(context, KEY_PRE_CLASS_RCS, emptySet())
             return
         }
-        android.util.Log.d(TAG, "schedulePre: todayCourses=${todayCourses.size}")
-        todayCourses.forEach { android.util.Log.d(TAG, "schedulePre:   course=${it.name} day=${it.dayOfWeek} start=${getCourseStartTime(it, repository)} end=${getCourseEndTime(it, repository)}") }
+        logD(context, "schedulePre: todayCourses=${todayCourses.size}")
 
         // 登记本次注册的 RC，供 cancelAllAlarms 清理孤儿闹钟
         val scheduledRcs = mutableSetOf<Int>()
@@ -454,7 +495,7 @@ object CourseReminderHelper {
 
             if (currentMinutes >= triggerMinutes) {
                 // 已过触发时间且课未开始：立即补发，用统一 dedupId 避免重复/漏发
-                android.util.Log.d(TAG, "schedulePre: immediate-branch ${course.name} cur=$currentMinutes trigger=$triggerMinutes start=$startTotalMinutes inWindow=${currentMinutes < startTotalMinutes}")
+                logD(context, "schedulePre: immediate ${course.name} cur=$currentMinutes trigger=$triggerMinutes")
                 if (currentMinutes < startTotalMinutes) {
                     val dedupId = "${course.name}|${course.getTimeDisplayText()}|$startTime"
                     val alreadySent = isPreClassSentRecently(context, dedupId) ||
@@ -466,12 +507,12 @@ object CourseReminderHelper {
                             context, alarmManager, repository, course, startTime,
                             useIsland, startMillis, endMillis
                         )
-                        android.util.Log.d(TAG, "schedulePre: immediate-SENT ${course.name}")
+                        logD(context, "schedulePre: immediate-SENT ${course.name}")
                     }
                 }
                 continue
             }
-            android.util.Log.d(TAG, "schedulePre: scheduling-alarm ${course.name} trigger=$triggerMinutes start=$startTotalMinutes")
+            logD(context, "schedulePre: alarm ${course.name} trigger=$triggerMinutes")
 
             val intent = Intent(context, AlarmReceiver::class.java).apply {
                 putExtra(EXTRA_REMINDER_TYPE, TYPE_PRE_CLASS)
@@ -578,8 +619,7 @@ object CourseReminderHelper {
 
         // 课前提醒窗口内也保持每分钟刷新，保证补发与倒计时都被驱动
         val minutesBefore = repository.getPreClassReminderMinutes()
-        android.util.Log.d(TAG, "computeNext: entered cur=$currentMinutes b=$minutesBefore todayCourses=${todayCourses.size} countdown=$hasActiveCountdown")
-        todayCourses.forEach { android.util.Log.d(TAG, "computeNext:   c=${it.name} s=${getCourseStartTime(it, repository)} e=${getCourseEndTime(it, repository)}") }
+        logD(context, "computeNext: courses=${todayCourses.size} countdown=$hasActiveCountdown inClassEnd=$inClassEndMillis")
         var hasActiveCourse = hasActiveCountdown
         var nextEventTime: Long? = null
         // 用于把刷新对齐到上课瞬间，避免倒计时归零后等一整分钟才切"已上课"
@@ -645,11 +685,71 @@ object CourseReminderHelper {
         }
         // clamp 到 now+1s，否则过去时间会让 setExactAndAllowWhileIdle 立即触发连刷
         val safe = maxOf(result, now + 1_000L)
-        android.util.Log.d(TAG, "computeNext: RESULT active=$hasActiveCourse nextEvent=$nextEventTime ret=${java.text.SimpleDateFormat("HH:mm:ss", java.util.Locale.getDefault()).format(java.util.Date(safe))}")
+        logD(context, "computeNext: active=$hasActiveCourse ret=$safe")
         return safe
     }
 
-    // Doze 下用 setExactAndAllowWhileIdle 保证精确触发
+    /**
+     * widget/对账刷新链是否必须精确唤醒。
+     * 无论提醒开关如何：课表边界（上课短窗、下课短窗）必须精确，否则小组件 is_now/圆点/「今日已上完」会滞后。
+     * 课前提醒窗口、课中提醒窗口、倒计时/岛未收起 → 也精确。
+     * 其余场景（含仅用小组件、无提醒）交给 setAndAllowWhileIdle，允许系统合并唤醒。
+     * 课前/上课/次日/勿扰主提醒闹钟不受此影响，始终 setExactAndAllowWhileIdle。
+     */
+    fun shouldUseExactWidgetRefresh(context: Context): Boolean {
+        val now = System.currentTimeMillis()
+        val countdownPrefs = context.getSharedPreferences("countdown_state", Context.MODE_PRIVATE)
+        if (countdownPrefs.getBoolean("active", false)) return true
+        if (IslandNotificationHelper.IslandState.isActiveAny(context)) return true
+
+        val repository = CourseRepository(context)
+        val preClassOn = repository.getPreClassReminder()
+        val minutesBefore = repository.getPreClassReminderMinutes()
+        val inClassOn = isInClassEnabled(context)
+
+        val todayCourses = getTodayCourses(context)
+        if (todayCourses.isEmpty()) return false
+        val cal = Calendar.getInstance()
+        val currentMinutes = cal.get(Calendar.HOUR_OF_DAY) * 60 + cal.get(Calendar.MINUTE)
+
+        for (course in todayCourses) {
+            val startStr = getCourseStartTime(course, repository) ?: continue
+            val endStr = getCourseEndTime(course, repository) ?: continue
+            val startMin = startStr.toMinutes()
+            val endMin = endStr.toMinutes()
+            if (startMin == Int.MAX_VALUE || endMin == Int.MAX_VALUE) continue
+            val startMillis = parseTimeToTodayMillis(startStr)
+            val endMillis = parseTimeToTodayMillis(endStr)
+
+            // 课前提醒窗口：闹钟丢失时兜底补发要准点（依赖课前提醒开关）
+            if (preClassOn && currentMinutes in (startMin - minutesBefore) until startMin) {
+                return true
+            }
+            // 上课瞬间 + 3 分钟：态切换/圆点剔除/is_now —— 即使无提醒也要准时
+            if (currentMinutes in startMin until minOf(endMin, startMin + 3)) {
+                return true
+            }
+            // 下课瞬间：圆点/「今日课程已上完」切换 —— 即使无提醒也要准时
+            if (currentMinutes in (endMin - 1) until (endMin + 2)) {
+                return true
+            }
+            // 课中提醒：进度分钟与「距下课」进窗点
+            if (inClassOn && endMillis > startMillis && now in startMillis until endMillis) {
+                if (shouldShowInClassNow(context, startMillis, endMillis, now)) return true
+                if (getInClassTimingMode(context) == IN_CLASS_TIMING_BEFORE_END) {
+                    val totalMs = endMillis - startMillis
+                    val leadMs = getInClassLeadMinutes(context) * 60_000L
+                    if (leadMs < totalMs) {
+                        val enterWindow = endMillis - leadMs
+                        if (now >= enterWindow - 90_000L && now < enterWindow) return true
+                    }
+                }
+            }
+        }
+        return false
+    }
+
+    /** Doze 下关键路径用 setExactAndAllowWhileIdle，非关键用 setAndAllowWhileIdle 允许合并 */
     fun scheduleNextWidgetRefresh(context: Context, alarmManager: AlarmManager) {
         val intent = Intent(context, WidgetRefreshReceiver::class.java).apply {
             action = WidgetRefreshReceiver.ACTION_REFRESH_WIDGET
@@ -663,12 +763,21 @@ object CourseReminderHelper {
         alarmManager.cancel(pendingIntent)
 
         val triggerAt = computeNextWidgetRefreshTime(context)
+        val exact = shouldUseExactWidgetRefresh(context)
         try {
-            alarmManager.setExactAndAllowWhileIdle(
-                AlarmManager.RTC_WAKEUP,
-                triggerAt,
-                pendingIntent
-            )
+            if (exact) {
+                alarmManager.setExactAndAllowWhileIdle(
+                    AlarmManager.RTC_WAKEUP,
+                    triggerAt,
+                    pendingIntent
+                )
+            } else {
+                alarmManager.setAndAllowWhileIdle(
+                    AlarmManager.RTC_WAKEUP,
+                    triggerAt,
+                    pendingIntent
+                )
+            }
         } catch (_: SecurityException) { }
     }
 
@@ -716,7 +825,6 @@ object CourseReminderHelper {
         val repository = CourseRepository(context)
         val date = LocalDate.now()
         if (HolidayManager.isHoliday(context, date)) {
-            android.util.Log.d(TAG, "getToday: RETURN holiday")
             return emptyList()
         }
         val workSwap = HolidayManager.workSwap(context, date)
@@ -724,9 +832,7 @@ object CourseReminderHelper {
         val today = workSwap?.followWeekday?.takeIf { it in 1..7 } ?: getTodayOfWeek()
         val totalWeeks = repository.getTotalWeeks()
         val lastWeekWithCourses = repository.getLastWeekWithCourses()
-        android.util.Log.d(TAG, "getToday: date=$date week=$currentWeek today=$today total=$totalWeeks lastWeek=$lastWeekWithCourses all=${repository.getAllCourses().size}")
         if (currentWeek > totalWeeks || currentWeek > lastWeekWithCourses) {
-            android.util.Log.d(TAG, "getToday: RETURN weekOutOfRange cur=$currentWeek total=$totalWeeks last=$lastWeekWithCourses")
             return emptyList()
         }
         return repository.getAllCourses()
@@ -1262,22 +1368,11 @@ object CourseReminderHelper {
             }
 
             if (inClassOn && !inClassNow) {
-                // 课中已开但「距下课」窗口未到：保持 active，到点只闪一次「已上课」，进窗后再切课中
-                if (!prefs.getBoolean("started_shown", false)) {
-                    manager.cancel(liveCountdownId(testMode))
-                    IslandNotificationHelper.cancelIslandState(context, ISLAND_NOTIFICATION_ID)
-                    showStartedLiveNotification(
-                        context = context,
-                        courseName = courseName,
-                        classroom = classroom,
-                        startTime = startTime,
-                        testMode = testMode
-                    )
-                    prefs.edit { putBoolean("started_shown", true) }
-                }
+                // 课中已开但「距下课」未进窗：不发「已上课」，保持 active 等进窗再切课中
                 return
             }
 
+            // 课中未开：到点闪一次「已上课」
             manager.cancel(liveCountdownId(testMode))
             IslandNotificationHelper.cancelIslandState(context, ISLAND_NOTIFICATION_ID)
             cancelInClassLiveNotification(context, testMode)
@@ -1508,14 +1603,13 @@ object CourseReminderHelper {
         val now = System.currentTimeMillis()
 
         val inClassEnabled = IslandNotificationHelper.isInClassReminderEnabled(context)
-        // 已上课且课中开着（含「距下课」未进窗）：不按 15 秒收起
-        val keepForInClass = inClassEnabled && state.switched && state.endMillis > now
+        // 课中开启：不按 15 秒「已上课」收起；对账只负责进课中/刷进度/下课收起
+        val keepForInClass = inClassEnabled && state.endMillis > now
         val shouldShowInClass = keepForInClass &&
             shouldShowInClassNow(context, state.startMillis, state.endMillis, now)
 
         val expiredByEnd = state.endMillis > 0 && now >= state.endMillis
-        // 课中提醒：不因 15 秒展示窗收起，挂到下课；非课中维持原 15 秒策略
-        val expiredByShow = !keepForInClass && state.switched &&
+        val expiredByShow = !inClassEnabled && state.switched &&
             now - state.switchedAt >= IslandNotificationHelper.ISLAND_STARTED_VISIBLE_MS
         if (expiredByEnd || expiredByShow) {
             // 连带收起另一半（倒计时/已上课），避免残留岛一直停在 00:00
@@ -1548,22 +1642,42 @@ object CourseReminderHelper {
             return
         }
 
-        // 课中提醒：进窗后切课中卡；已在课中则跨分钟刷新剩余时间/进度
-        if (shouldShowInClass) {
+        // 课中提醒：到点/进窗后切课中卡；已在课中则无需重推（系统 timer 自刷距下课）
+        // 课中开启时对账不再补「已上课」
+        if (inClassEnabled && now >= state.startMillis) {
             val alreadyInClass = IslandNotificationHelper.isInClassNotificationId(state.notificationId)
-            if (alreadyInClass) {
-                IslandNotificationHelper.updateInClassIslandIfNeeded(context, state, testMode)
-            } else {
-                IslandNotificationHelper.sendInClassIslandNotification(
-                    context = context,
-                    courseName = state.courseName,
-                    classroom = state.classroom,
-                    startTime = state.startTime,
-                    endTime = state.endTime,
-                    notificationId = state.notificationId,
-                    testMode = testMode
-                )
+            val canShow = state.endMillis > now
+            if (canShow) {
+                if (alreadyInClass) {
+                    IslandNotificationHelper.updateInClassIslandIfNeeded(context, state, testMode)
+                } else if (shouldShowInClass || state.endMillis > state.startMillis) {
+                    IslandNotificationHelper.sendInClassIslandNotification(
+                        context = context,
+                        courseName = state.courseName,
+                        classroom = state.classroom,
+                        section = state.section,
+                        startTime = state.startTime,
+                        endTime = state.endTime,
+                        notificationId = state.notificationId,
+                        testMode = testMode
+                    )
+                }
             }
+            return
+        }
+
+        if (shouldShowInClass) {
+            // 理论上 inClassEnabled 已在上面 return；此处兜底
+            IslandNotificationHelper.sendInClassIslandNotification(
+                context = context,
+                courseName = state.courseName,
+                classroom = state.classroom,
+                section = state.section,
+                startTime = state.startTime,
+                endTime = state.endTime,
+                notificationId = state.notificationId,
+                testMode = testMode
+            )
         }
     }
 
@@ -1599,18 +1713,15 @@ object CourseReminderHelper {
     fun checkPendingPreClassReminders(context: Context) {
         val repository = CourseRepository(context)
         if (!repository.getPreClassReminder()) {
-            android.util.Log.d(TAG, "checkPending: preClassReminder OFF")
             return
         }
         if (!isSemesterStarted(repository)) {
-            android.util.Log.d(TAG, "checkPending: semesterNotStarted")
             return
         }
 
         // 复用 getTodayCourses，勿再内联过滤逻辑
         val courses = getTodayCourses(context)
         if (courses.isEmpty()) {
-            android.util.Log.d(TAG, "checkPending: noCoursesForToday")
             return
         }
 
@@ -1619,8 +1730,6 @@ object CourseReminderHelper {
         val useIsland = repository.getIslandNotification() && IslandNotificationHelper.isIslandSupported(context)
         val now = Calendar.getInstance()
         val currentMinutes = now.get(Calendar.HOUR_OF_DAY) * 60 + now.get(Calendar.MINUTE)
-
-        android.util.Log.d(TAG, "checkPending: RUN minutesBefore=$minutesBefore current=$currentMinutes courses=${courses.size}")
 
         for ((index, course) in courses.withIndex()) {
             val startTime = getCourseStartTime(course, repository) ?: continue
@@ -1641,7 +1750,6 @@ object CourseReminderHelper {
             val dedupHit = isPreClassSentRecently(context, dedupId11)
             // 岛当天已发过则不重发（重发会触发岛重新弹出）
             val islandHit = useIsland && hasIslandPreClassSentToday(context, dedupId11)
-            android.util.Log.d(TAG, "checkPending: ${course.name} start=$startTime cur=$currentMinutes win=[$windowStart,$startTotal) inWindow=$inWindow dedupHit=$dedupHit islandHit=$islandHit")
             if (!inWindow || dedupHit || islandHit) continue
             val startMillis = parseTimeToTodayMillis(startTime)
             val endMillis = parseTimeToTodayMillis(getCourseEndTime(course, repository))
@@ -1649,7 +1757,7 @@ object CourseReminderHelper {
                 context, alarmManager, repository, course, startTime,
                 useIsland, startMillis, endMillis
             )
-            android.util.Log.d(TAG, "checkPending: SENT ${course.name}")
+            logD(context, "checkPending: SENT ${course.name}")
         }
     }
 

@@ -2,10 +2,28 @@ package com.haooz.chedule.ui.utils
 
 import android.content.Context
 import android.util.Log
+import java.io.File
+import java.io.RandomAccessFile
 
+/**
+ * 更新 APK 的唯一清理入口。
+ *
+ * 策略与 [UpdateInstaller] 下载路径对齐，按 **tag 有效性** 保留，而不是「按修改时间只留最新」：
+ * - 目标 tag（update_settings.latest_tag）且包体完整 → 保留
+ * - 其它 tag 的 update-*.apk → 删除
+ * - 不完整/半成品（含 .part）→ 删除，即使它 mtime 最新
+ * - 没有 latest_tag 时：至多保留一个完整 APK，同样先丢掉半成品
+ */
 internal object UpdateChecker {
 
     private const val TAG = "UpdateChecker"
+
+    private const val PREF_UPDATE = "update_settings"
+    private const val KEY_LATEST_TAG = "latest_tag"
+    private const val APK_PREFIX = "update-"
+    private const val APK_SUFFIX = ".apk"
+    private const val PART_SUFFIX = ".part"
+    private const val MIN_COMPLETE_APK_BYTES = 512L * 1024L
 
     data class GiteeRelease(
         val tagName: String,
@@ -132,20 +150,73 @@ internal object UpdateChecker {
         }
     }
 
-    fun cleanOldApks(context: Context, keepTag: String) {
+    /** 当前待安装目标 tag；无则 null */
+    fun currentKeepTag(context: Context): String? {
+        return context.getSharedPreferences(PREF_UPDATE, Context.MODE_PRIVATE)
+            .getString(KEY_LATEST_TAG, null)
+            ?.takeIf { it.isNotBlank() }
+    }
+
+    /** 包体是否像完整 APK：ZIP 魔数 + 最小体积，避免把半成品当可安装包 */
+    fun isLikelyCompleteApk(file: File): Boolean {
+        if (!file.isFile) return false
+        if (file.length() < MIN_COMPLETE_APK_BYTES) return false
+        return try {
+            RandomAccessFile(file, "r").use { raf ->
+                if (raf.length() < 4L) return false
+                val header = ByteArray(4)
+                raf.readFully(header)
+                // ZIP local file header: PK\x03\x04
+                header[0] == 0x50.toByte() && header[1] == 0x4B.toByte() &&
+                    header[2] == 0x03.toByte() && header[3] == 0x04.toByte()
+            }
+        } catch (_: Exception) {
+            false
+        }
+    }
+
+    fun apkTagOrNull(fileName: String): String? {
+        if (!fileName.startsWith(APK_PREFIX) || !fileName.endsWith(APK_SUFFIX)) return null
+        return fileName.removePrefix(APK_PREFIX).removeSuffix(APK_SUFFIX)
+    }
+
+    /**
+     * 按 tag 清理 filesDir 下的更新包。
+     * [keepTag] 为目标版本；null/空则不按 tag 保，只保证「不留下半成品、至多一个完整包」。
+     */
+    fun cleanOldApks(context: Context, keepTag: String?) {
         try {
+            val keep = keepTag?.takeIf { it.isNotBlank() }
             val filesDir = context.filesDir
-            val prefix = "update-"
-            val suffix = ".apk"
-            filesDir.listFiles()?.forEach { file ->
+            val candidates = filesDir.listFiles()?.filter { file ->
+                file.isFile && file.name.startsWith(APK_PREFIX) &&
+                    (file.name.endsWith(APK_SUFFIX) || file.name.endsWith(PART_SUFFIX))
+            } ?: return
+
+            var keptComplete = false
+            for (file in candidates) {
                 val name = file.name
-                if (name.startsWith(prefix) && name.endsWith(suffix)) {
-                    val tag = name.removePrefix(prefix).removeSuffix(suffix)
-                    if (tag != keepTag) {
-                        if (file.delete()) {
-                            Log.d(TAG, "已清理旧APK: $name")
-                        }
-                    }
+                val isPart = name.endsWith(PART_SUFFIX)
+                val tag = if (isPart) null else apkTagOrNull(name)
+
+                if (isPart) {
+                    if (file.delete()) Log.d(TAG, "清理下载中间态: $name")
+                    continue
+                }
+
+                val complete = isLikelyCompleteApk(file)
+                val shouldKeep = when {
+                    keep != null && tag == keep && complete -> true
+                    keep != null -> false
+                    complete && !keptComplete -> true
+                    else -> false
+                }
+                if (shouldKeep) {
+                    keptComplete = true
+                    continue
+                }
+                if (file.delete()) {
+                    Log.d(TAG, "已清理APK: $name complete=$complete keepTag=$keep")
                 }
             }
         } catch (e: Exception) {
@@ -153,4 +224,11 @@ internal object UpdateChecker {
         }
     }
 
+    /**
+     * 启动 / 通用清理入口：与检查更新后的 cleanOldApks 同一策略。
+     * 不再「按 mtime 只留最新」，避免半成品挤掉完好旧包。
+     */
+    fun cleanupTransientApks(context: Context) {
+        cleanOldApks(context, currentKeepTag(context))
+    }
 }

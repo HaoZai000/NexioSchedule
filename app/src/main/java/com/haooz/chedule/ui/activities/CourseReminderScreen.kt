@@ -411,7 +411,7 @@ fun CourseReminderScreen(
                             }
                             SwitchPreference(
                                 title = "课中提醒",
-                                summary = "上课中以进度卡片显示剩余时间",
+                                summary = "上课中以距下课倒计时显示，缩略岛展示正在上课",
                                 checked = inClassEnabled,
                                 enabled = masterEnabled,
                                 onCheckedChange = {

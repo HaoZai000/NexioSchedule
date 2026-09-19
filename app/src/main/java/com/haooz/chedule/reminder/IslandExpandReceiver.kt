@@ -64,7 +64,9 @@ class IslandExpandReceiver : BroadcastReceiver() {
             section = section,
             startTime = startTime,
             endTime = endTime,
-            notificationId = notificationId
+            notificationId = notificationId,
+            // 测试岛 ID 必须映射到 testMode，否则 snapshot 读真实课表 state，课中分流会错
+            testMode = IslandNotificationHelper.isIslandTestId(notificationId)
         )
     }
 }

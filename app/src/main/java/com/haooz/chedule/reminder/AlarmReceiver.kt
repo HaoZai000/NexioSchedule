@@ -54,14 +54,14 @@ class AlarmReceiver : BroadcastReceiver() {
                 // 去重检查：如果该课程最近已发送过，跳过本次（避免闹钟触发后重新调度导致双发）
                 if (CourseReminderHelper.isPreClassSentRecently(context, dedupId)) {
                     Log.d("AlarmReceiver", "Pre-class notification already sent recently for $courseName, skipping")
-                    CourseReminderHelper.startReminderService(context)
+                    CourseReminderHelper.onAlarmProcessed(context)
                     return
                 }
 
                 // 学期未开始（未到开学日期所在周的周一）：不发送，并重新调度清理残留闹钟
                 if (!CourseReminderHelper.isSemesterStarted(repository)) {
                     Log.d("AlarmReceiver", "Semester not started yet, skipping pre-class notification for $courseName")
-                    CourseReminderHelper.startReminderService(context)
+                    CourseReminderHelper.onAlarmProcessed(context)
                     return
                 }
 
@@ -77,8 +77,9 @@ class AlarmReceiver : BroadcastReceiver() {
                     }
                 }
                 if (matched == null) {
-                    Log.d("AlarmReceiver", "Stale alarm: $courseName($startTime) no longer in today's schedule, dropped")
-                    CourseReminderHelper.startReminderService(context)
+                    // 课表可能已变更：全量重注册，清掉过期闹钟
+                    Log.d("AlarmReceiver", "Stale alarm: $courseName($startTime) no longer in today's schedule")
+                    CourseReminderHelper.onAlarmProcessed(context, fullReschedule = true)
                     return
                 }
 
@@ -89,7 +90,7 @@ class AlarmReceiver : BroadcastReceiver() {
 
                 if (startMillis <= 0L) {
                     Log.d("AlarmReceiver", "Invalid start time for ${matched.name}, skipped")
-                    CourseReminderHelper.startReminderService(context)
+                    CourseReminderHelper.onAlarmProcessed(context, fullReschedule = true)
                     return
                 }
 
@@ -110,13 +111,14 @@ class AlarmReceiver : BroadcastReceiver() {
                 // 记录已发送，防止后续 startReminderService 重调度时重复发送
                 CourseReminderHelper.recordPreClassSent(context, dedupId)
 
-                CourseReminderHelper.startReminderService(context)
+                // 其余今日课程闹钟已在调度时注册，无需全量重装
+                CourseReminderHelper.onAlarmProcessed(context)
             }
 
             CourseReminderHelper.TYPE_NEXT_DAY -> {
                 // 学期未开始（未到开学日期所在周的周一）：不发送次日提醒
                 if (!CourseReminderHelper.isSemesterStarted(repository)) {
-                    CourseReminderHelper.startReminderService(context)
+                    CourseReminderHelper.onAlarmProcessed(context)
                     return
                 }
 
@@ -138,7 +140,9 @@ class AlarmReceiver : BroadcastReceiver() {
                     CourseReminderHelper.showReminderNotification(context, type, title, details)
                 }
 
-                CourseReminderHelper.startReminderService(context)
+                // 只补注册下一个次日闹钟，避免 cancel+重建全部课程闹钟
+                CourseReminderHelper.scheduleNextDayOnly(context)
+                CourseReminderHelper.onAlarmProcessed(context)
             }
         }
     }

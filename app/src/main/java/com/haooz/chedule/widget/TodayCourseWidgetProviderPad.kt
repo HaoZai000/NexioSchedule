@@ -60,8 +60,6 @@ class TodayCourseWidgetProviderPad : AppWidgetProvider() {
     ) {
         val repository = CourseRepository(context)
         val dark = WidgetTextSizes.isDark(context)
-        val views = RemoteViews(context.packageName, R.layout.widget_today_course_standard)
-        WidgetTextSizes.applyTodayCourse(views)
 
         val currentWeek = repository.getCurrentWeek()
         // getTodayOfWeek/getTodayCourses 统一在 CourseReminderHelper（含 workSwap / 节假日 / 周次范围 / 排序），
@@ -108,17 +106,18 @@ class TodayCourseWidgetProviderPad : AppWidgetProvider() {
         val isHoliday = currentWeek > totalWeeks || (currentWeek >= 1 && currentWeek > lastWeekWithCourses)
 
         val titleText = if (showTomorrow) "明天" else dayNames[dayOfWeek - 1]
-        views.setTextViewText(R.id.widget_title, titleText)
         val weekText = when {
             isHoliday -> "放假中"
             currentWeek < 1 -> "未开始"
             else -> "第${currentWeek}周"
         }
-        views.setTextViewText(R.id.widget_week, weekText)
 
         val displayCourse: Course?
         val remainingCourses: List<Course>
         val allCourses: List<Course>
+        val emptyText: String
+        val startTime: String
+        val endTime: String
 
         if (showTomorrow) {
             displayCourse = targetCourses.firstOrNull()
@@ -139,12 +138,63 @@ class TodayCourseWidgetProviderPad : AppWidgetProvider() {
         }
 
         if (displayCourse != null) {
+            emptyText = ""
+            startTime = getCourseStartTime(displayCourse, repository) ?: ""
+            endTime = getCourseEndTime(displayCourse, repository) ?: ""
+        } else {
+            emptyText = when {
+                isHoliday -> "假期中，暂无课程"
+                currentWeek < 1 -> "学期暂未开始"
+                showTomorrow -> "明日无课"
+                todayCourses.isEmpty() -> "今日无课"
+                else -> "今日课程已上完"
+            }
+            startTime = ""
+            endTime = ""
+        }
+
+        // 上课瞬间圆点列表会从 allCourses 变为去掉当前课，签名必须含 is_now 与圆点摘要
+        val inCourse = displayCourse != null && run {
+            val sp = startTime.split(":")
+            val ep = endTime.split(":")
+            sp.size == 2 && ep.size == 2 &&
+                currentMinutes in ((sp[0].toIntOrNull() ?: 0) * 60 + (sp[1].toIntOrNull() ?: 0)) until
+                ((ep[0].toIntOrNull() ?: 0) * 60 + (ep[1].toIntOrNull() ?: 0))
+        }
+        val dotCourses = if (displayCourse != null && !showTomorrow && inCourse) {
+            allCourses.filter { it.id != displayCourse.id }
+        } else if (displayCourse != null) {
+            allCourses
+        } else {
+            emptyList()
+        }
+
+        val signature = buildString {
+            append(dark).append('|').append(repository.getWidgetPaddingMode())
+            append('|').append(titleText).append('|').append(weekText)
+            if (displayCourse != null) {
+                append('|').append(displayCourse.id).append('|').append(displayCourse.name)
+                append('|').append(startTime).append('-').append(endTime)
+                append('|').append(displayCourse.classroom)
+                append('|').append(remainingCourses.size)
+                append('|').append(if (inCourse) "in" else "out")
+                append('|').append(dotCourses.joinToString(",") { "${it.id}:${it.colorRes}" })
+            } else {
+                append('|').append(emptyText)
+            }
+        }
+        if (WidgetUpdateCache.shouldSkip("today_pad_$appWidgetId", signature)) return
+
+        val views = RemoteViews(context.packageName, R.layout.widget_today_course_standard)
+        WidgetTextSizes.applyTodayCourse(views)
+        views.setTextViewText(R.id.widget_title, titleText)
+        views.setTextViewText(R.id.widget_week, weekText)
+
+        if (displayCourse != null) {
             views.setViewVisibility(R.id.widget_course_content, View.VISIBLE)
             views.setViewVisibility(R.id.widget_empty, View.GONE)
 
             views.setTextViewText(R.id.widget_course_name, displayCourse.name)
-            val startTime = getCourseStartTime(displayCourse, repository) ?: ""
-            val endTime = getCourseEndTime(displayCourse, repository) ?: ""
             views.setTextViewText(R.id.widget_course_time, "$startTime-$endTime")
             views.setTextViewText(R.id.widget_course_location, displayCourse.classroom)
 
@@ -156,22 +206,6 @@ class TodayCourseWidgetProviderPad : AppWidgetProvider() {
                 R.id.widget_dot1, R.id.widget_dot2, R.id.widget_dot3, R.id.widget_dot4,
                 R.id.widget_dot5, R.id.widget_dot6, R.id.widget_dot7, R.id.widget_dot8
             )
-
-            val dotCourses = if (!showTomorrow) {
-                val start = getCourseStartTime(displayCourse, repository)
-                val end = getCourseEndTime(displayCourse, repository)
-                if (start != null && end != null) {
-                    val startParts = start.split(":")
-                    val endParts = end.split(":")
-                    if (startParts.size == 2 && endParts.size == 2) {
-                        val startMin = (startParts[0].toIntOrNull() ?: 0) * 60 + (startParts[1].toIntOrNull() ?: 0)
-                        val endMin = (endParts[0].toIntOrNull() ?: 0) * 60 + (endParts[1].toIntOrNull() ?: 0)
-                        if (currentMinutes in startMin until endMin) {
-                            allCourses.filter { it.id != displayCourse.id }
-                        } else allCourses
-                    } else allCourses
-                } else allCourses
-            } else allCourses
 
             for (i in dotIds.indices) {
                 if (i < dotCourses.size) {
@@ -185,13 +219,6 @@ class TodayCourseWidgetProviderPad : AppWidgetProvider() {
         } else {
             views.setViewVisibility(R.id.widget_course_content, View.GONE)
             views.setViewVisibility(R.id.widget_empty, View.VISIBLE)
-            val emptyText = when {
-                isHoliday -> "假期中，暂无课程"
-                currentWeek < 1 -> "学期暂未开始"
-                showTomorrow -> "明日无课"
-                todayCourses.isEmpty() -> "今日无课"
-                else -> "今日课程已上完"
-            }
             views.setTextViewText(R.id.widget_empty_text, emptyText)
             val dotIds = listOf(
                 R.id.widget_dot1, R.id.widget_dot2, R.id.widget_dot3, R.id.widget_dot4,
@@ -212,6 +239,11 @@ class TodayCourseWidgetProviderPad : AppWidgetProvider() {
         views.setOnClickPendingIntent(R.id.widget_empty, launchPending)
 
         appWidgetManager.updateAppWidget(appWidgetId, views)
+    }
+
+    override fun onDeleted(context: Context, appWidgetIds: IntArray) {
+        super.onDeleted(context, appWidgetIds)
+        appWidgetIds.forEach { WidgetUpdateCache.invalidateWidget("today_pad_$it") }
     }
 
     private fun createCircleBitmap(context: Context, color: Int, background: Int): Bitmap {

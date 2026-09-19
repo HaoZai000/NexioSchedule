@@ -162,8 +162,8 @@ fun WidgetIntroScreen(
                         hapticFeedback.performHapticFeedback(HapticFeedbackType.VirtualKey)
                         paddingMode = mode
                         repository.setWidgetPaddingMode(mode)
-                        TodayCourseWidgetProviderStandard.updateAllWidgets(context)
-                        CourseWidgetProviderStandard.updateAllWidgets(context)
+                        com.haooz.chedule.widget.WidgetUpdateCache.clear()
+                        com.haooz.chedule.widget.WidgetUpdateCache.updateInstalledWidgets(context)
                     }
                 )
 

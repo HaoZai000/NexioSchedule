@@ -111,8 +111,7 @@ class CourseViewModel(application: Application) : AndroidViewModel(application) 
 
     private fun updateWidgets() {
         viewModelScope.launch {
-            CourseWidgetProviderStandard.updateAllWidgets(getApplication())
-            TodayCourseWidgetProviderStandard.updateAllWidgets(getApplication())
+            com.haooz.chedule.widget.WidgetUpdateCache.updateInstalledWidgets(getApplication())
         }
     }
 

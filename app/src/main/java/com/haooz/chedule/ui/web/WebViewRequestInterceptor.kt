@@ -32,12 +32,28 @@ class WebViewRequestInterceptor {
             .followSslRedirects(false)
             .build()
 
+        // JS 注册了但请求未发出时 body 会残留；封顶并允许页面销毁时清空
+        private const val MAX_POST_REGISTRY = 32
+
         private val postBodyRegistry = java.util.Collections.synchronizedMap(
             mutableMapOf<String, RegisteredPostData>()
         )
 
         fun registerPostData(id: String, body: String, contentType: String) {
-            postBodyRegistry[id] = RegisteredPostData(body, contentType)
+            synchronized(postBodyRegistry) {
+                if (postBodyRegistry.size >= MAX_POST_REGISTRY) {
+                    val iterator = postBodyRegistry.entries.iterator()
+                    while (postBodyRegistry.size >= MAX_POST_REGISTRY && iterator.hasNext()) {
+                        iterator.next()
+                        iterator.remove()
+                    }
+                }
+                postBodyRegistry[id] = RegisteredPostData(body, contentType)
+            }
+        }
+
+        fun clearPostData() {
+            postBodyRegistry.clear()
         }
 
         private data class RegisteredPostData(val body: String, val contentType: String)

@@ -23,13 +23,15 @@ internal object UpdateInstaller {
     fun apkFile(context: Context, tag: String): File =
         File(context.filesDir, "update-$tag.apk")
 
+    private fun partFile(context: Context, tag: String): File =
+        File(context.filesDir, "update-$tag.apk.part")
+
     fun hasValidApk(context: Context, tag: String): Boolean {
-        val file = apkFile(context, tag)
-        return file.exists() && file.length() > 0
+        return UpdateChecker.isLikelyCompleteApk(apkFile(context, tag))
     }
 
     /**
-     * 下载 APK 到 filesDir。
+     * 下载 APK：先写 .part，完整后再原子 rename，避免半成品被当成可安装包。
      * @param onProgress 0f..1f，在主线程回调
      */
     suspend fun downloadApk(
@@ -39,28 +41,49 @@ internal object UpdateInstaller {
         onProgress: suspend (Float) -> Unit,
     ): File = withContext(Dispatchers.IO) {
         if (apkUrl.isBlank()) throw IllegalArgumentException("未找到下载链接")
-        val connection = URL(apkUrl).openConnection() as HttpURLConnection
-        connection.connectTimeout = 30000
-        connection.readTimeout = 30000
-        connection.connect()
-        val fileSize = connection.contentLength.toLong()
-        val file = apkFile(context, tag)
-        connection.inputStream.use { input ->
-            FileOutputStream(file).use { output ->
-                val buffer = ByteArray(8192)
-                var bytesRead: Int
-                var totalRead = 0L
-                while (input.read(buffer).also { bytesRead = it } != -1) {
-                    output.write(buffer, 0, bytesRead)
-                    totalRead += bytesRead
-                    if (fileSize > 0) {
-                        val p = (totalRead.toFloat() / fileSize).coerceIn(0f, 1f)
-                        withContext(Dispatchers.Main) { onProgress(p) }
+        val finalFile = apkFile(context, tag)
+        val part = partFile(context, tag)
+        if (part.exists()) part.delete()
+        try {
+            val connection = URL(apkUrl).openConnection() as HttpURLConnection
+            connection.connectTimeout = 30000
+            connection.readTimeout = 30000
+            connection.connect()
+            val fileSize = connection.contentLength.toLong()
+            connection.inputStream.use { input ->
+                FileOutputStream(part).use { output ->
+                    val buffer = ByteArray(8192)
+                    var bytesRead: Int
+                    var totalRead = 0L
+                    while (input.read(buffer).also { bytesRead = it } != -1) {
+                        output.write(buffer, 0, bytesRead)
+                        totalRead += bytesRead
+                        if (fileSize > 0) {
+                            val p = (totalRead.toFloat() / fileSize).coerceIn(0f, 1f)
+                            withContext(Dispatchers.Main) { onProgress(p) }
+                        }
                     }
+                    output.fd.sync()
                 }
             }
+            if (fileSize > 0 && part.length() != fileSize) {
+                part.delete()
+                throw java.io.IOException("APK 下载不完整: ${part.length()}/$fileSize")
+            }
+            if (!UpdateChecker.isLikelyCompleteApk(part)) {
+                part.delete()
+                throw java.io.IOException("APK 包体校验失败")
+            }
+            if (finalFile.exists()) finalFile.delete()
+            if (!part.renameTo(finalFile)) {
+                part.delete()
+                throw java.io.IOException("APK 落盘失败")
+            }
+            finalFile
+        } catch (e: Exception) {
+            runCatching { part.delete() }
+            throw e
         }
-        file
     }
 
     /**

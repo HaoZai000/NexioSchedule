@@ -565,6 +565,69 @@ private fun computeWallpaperIsLight(bitmap: android.graphics.Bitmap?): Boolean? 
     return avg >= 128
 }
 
+/**
+ * 按屏幕长短边降采样解码相册选图。
+ * 相册原图可达 50MP+，全尺寸 ARGB_8888 解码是选壁纸路径 OOM 的主因。
+ */
+private fun decodeWallpaperSampled(
+    context: android.content.Context,
+    uri: android.net.Uri,
+    screenWPx: Float,
+    screenHPx: Float,
+): android.graphics.Bitmap? {
+    return try {
+        val targetW = maxOf(screenWPx, screenHPx).toInt().coerceAtLeast(1)
+        val targetH = minOf(screenWPx, screenHPx).toInt().coerceAtLeast(1)
+        val bounds = android.graphics.BitmapFactory.Options().apply { inJustDecodeBounds = true }
+        context.contentResolver.openInputStream(uri)?.use { stream ->
+            android.graphics.BitmapFactory.decodeStream(stream, null, bounds)
+        } ?: return null
+        if (bounds.outWidth <= 0 || bounds.outHeight <= 0) return null
+        var sample = 1
+        while ((bounds.outWidth / 2 / sample) >= targetW &&
+            (bounds.outHeight / 2 / sample) >= targetH
+        ) {
+            sample *= 2
+        }
+        val opts = android.graphics.BitmapFactory.Options().apply { inSampleSize = sample }
+        val decoded = context.contentResolver.openInputStream(uri)?.use { stream ->
+            android.graphics.BitmapFactory.decodeStream(stream, null, opts)
+        } ?: return null
+        // 采样后仍明显大于屏幕时再缩一次，压住极端长图/超高像素
+        if (decoded.width > targetW * 2 || decoded.height > targetH * 2) {
+            val scale = minOf(
+                targetW.toFloat() / decoded.width,
+                targetH.toFloat() / decoded.height,
+            )
+            val scaled = decoded.scale(
+                (decoded.width * scale).toInt().coerceAtLeast(1),
+                (decoded.height * scale).toInt().coerceAtLeast(1),
+                true,
+            )
+            if (scaled !== decoded) decoded.recycle()
+            scaled
+        } else {
+            decoded
+        }
+    } catch (_: Exception) {
+        null
+    }
+}
+
+/** 释放独立快照位图；与进程级壁纸缓存或 keep 引用共用时不 recycle */
+private fun recycleIndependentBitmap(
+    bitmap: android.graphics.Bitmap?,
+    vararg keep: android.graphics.Bitmap?,
+) {
+    if (bitmap == null || bitmap.isRecycled) return
+    if (bitmap === MainActivity.cachedWallpaperBitmap) return
+    if (keep.any { it === bitmap }) return
+    try {
+        if (!bitmap.isRecycled) bitmap.recycle()
+    } catch (_: Exception) {
+    }
+}
+
 @Composable
 private fun DeleteWeekCourseDialog(
     show: Boolean,
@@ -2099,8 +2162,14 @@ fun CourseScheduleApp() {
         coroutineScope.launch {
             // 隐藏课程前先截全屏，保证快照完整
             val fullSnapshot = captureMainContentBitmap()
+            recycleIndependentBitmap(
+                mainContentSnapshot,
+                fullSnapshot,
+                MainActivity.cachedWallpaperBitmap,
+            )
             mainContentSnapshot = fullSnapshot
             hiddenCourseIds = setOf(courseIdToHide)
+            val oldDetail = detailSnapshot
             detailSnapshot = try {
                 val x = cardLeft.toInt().coerceIn(0, fullSnapshot.width - 1)
                 val y = cardTop.toInt().coerceIn(0, fullSnapshot.height - 1)
@@ -2110,6 +2179,7 @@ fun CourseScheduleApp() {
             } catch (_: Exception) {
                 null
             }
+            recycleIndependentBitmap(oldDetail, detailSnapshot, fullSnapshot)
 
             showDetail = true
             delay(12.milliseconds)
@@ -2133,6 +2203,7 @@ fun CourseScheduleApp() {
         coroutineScope.launch {
             val screenW = windowInfo.containerSize.width.toFloat()
             customizeExitTargetScale = (screenW * 0.65f) / screenW
+            val oldCombSnapshots = combinations.mapNotNull { it.snapshot }
             combinations = combinations.map { it.copy(snapshot = null) }
             delay(50.milliseconds)
             // toImageBitmap 硬件位图直接画回会与背景模糊形成 RenderNode 自引用导致栈溢出，
@@ -2141,10 +2212,26 @@ fun CourseScheduleApp() {
             val currentSnapshot = withContext(Dispatchers.IO) {
                 captured.copy(android.graphics.Bitmap.Config.ARGB_8888, false) ?: captured
             }
+            val oldCustomize = customizeSnapshot
+            val oldCover = snapshotCoverBitmap
             customizeSnapshot = currentSnapshot
+            // 先丢弃引用，下一帧再 recycle，避免仍在组合树中的 Image 读到已释放位图
             if (combinations.isNotEmpty()) {
                 combinations = combinations.toMutableList().also {
                     it[0] = it[0].copy(snapshot = currentSnapshot)
+                }
+            }
+            launch {
+                delay(32.milliseconds)
+                recycleIndependentBitmap(oldCustomize, currentSnapshot, captured)
+                recycleIndependentBitmap(oldCover, currentSnapshot, captured)
+                oldCombSnapshots.forEach { snap ->
+                    recycleIndependentBitmap(
+                        snap,
+                        currentSnapshot,
+                        captured,
+                        MainActivity.cachedWallpaperBitmap,
+                    )
                 }
             }
             customizeExitScale.snapTo(1f)
@@ -2187,9 +2274,9 @@ fun CourseScheduleApp() {
         contract = androidx.activity.result.contract.ActivityResultContracts.PickVisualMedia()
     ) { uri ->
         uri?.let {
-            val bitmap = context.contentResolver.openInputStream(it)?.use { stream ->
-                android.graphics.BitmapFactory.decodeStream(stream)
-            }
+            // 相册原图必须先按屏幕分辨率降采样，全尺寸解码极易 OOM
+            val bitmap = decodeWallpaperSampled(context, it, screenWPx, screenHPx)
+            val oldWallpaper = wallpaperBitmap
             wallpaperBitmap = bitmap
             wallpaperOffset = Offset.Zero
             val autoScale = computeWallpaperMinScale(bitmap, screenWPx, screenHPx)
@@ -2205,6 +2292,19 @@ fun CourseScheduleApp() {
                         wallpaperIsLight = isLight
                     )
                 }
+            }
+            // 旧壁纸已离开当前 combination/显示引用后再回收（避开缓存与仍被展示的同一对象）
+            coroutineScope.launch {
+                delay(32.milliseconds)
+                recycleIndependentBitmap(
+                    oldWallpaper,
+                    bitmap,
+                    MainActivity.cachedWallpaperBitmap,
+                    wallpaperBitmap,
+                    savedWallpaperBitmap,
+                    originalWallpaperBitmap,
+                    *combinations.mapNotNull { c -> c.bitmap }.toTypedArray(),
+                )
             }
         }
     }
@@ -4107,8 +4207,9 @@ fun CourseScheduleApp() {
                             pendingScheduleThemeMode = null
                         }
                     }
-                    // 快照仅存内存
+                    // 快照仅存内存；替换前记下旧 snapshot，延迟回收
                     val idx = currentCombinationIndex
+                    val replacedSnapshot = combinations.getOrNull(idx)?.snapshot
                     if (idx in combinations.indices) {
                         combinations = combinations.toMutableList().also {
                             it[idx] = it[idx].copy(
@@ -4117,6 +4218,18 @@ fun CourseScheduleApp() {
                                 scale = wallpaperScale,
                                 snapshot = capturedSnapshot,
                                 wallpaperIsLight = isLight
+                            )
+                        }
+                    }
+                    if (replacedSnapshot !== capturedSnapshot) {
+                        launch {
+                            delay(32.milliseconds)
+                            recycleIndependentBitmap(
+                                replacedSnapshot,
+                                capturedSnapshot,
+                                customizeSnapshot,
+                                MainActivity.cachedWallpaperBitmap,
+                                wallpaperBitmap,
                             )
                         }
                     }
@@ -4300,7 +4413,33 @@ fun CourseScheduleApp() {
                 }
                 isCustomizeExiting = false
                 showCustomizePage = false
+                val exitingSnapshot = customizeSnapshot
+                val exitingCover = snapshotCoverBitmap
                 customizeSnapshot = null
+                snapshotCoverBitmap = null
+                // combinations 可能仍持有同一 snapshot 引用，共用时不 recycle
+                val keptCombSnapshots = combinations.mapNotNull { it.snapshot }.toTypedArray()
+                val keptCombBitmaps = combinations.mapNotNull { it.bitmap }.toTypedArray()
+                recycleIndependentBitmap(
+                    exitingSnapshot,
+                    exitingCover,
+                    MainActivity.cachedWallpaperBitmap,
+                    wallpaperBitmap,
+                    originalWallpaperBitmap,
+                    savedWallpaperBitmap,
+                    *keptCombSnapshots,
+                    *keptCombBitmaps,
+                )
+                recycleIndependentBitmap(
+                    exitingCover,
+                    exitingSnapshot,
+                    MainActivity.cachedWallpaperBitmap,
+                    wallpaperBitmap,
+                    originalWallpaperBitmap,
+                    savedWallpaperBitmap,
+                    *keptCombSnapshots,
+                    *keptCombBitmaps,
+                )
                 customizeCoverActive = false
                 isWindowCutoutActive = false
                 // 原搭配已恢复，forcedDark 自然接管
@@ -4361,10 +4500,28 @@ fun CourseScheduleApp() {
                 onBack = {
                     showDetail = false
                     hiddenCourseIds = emptySet()
-                    // 延迟清快照，让内容先重组完
+                    // 延迟清快照，让内容先重组完；移出组合后再 recycle 独立副本
                     coroutineScope.launch {
                         delay(16.milliseconds)
+                        val oldMain = mainContentSnapshot
+                        val oldDetail = detailSnapshot
                         mainContentSnapshot = null
+                        detailSnapshot = null
+                        recycleIndependentBitmap(
+                            oldDetail,
+                            oldMain,
+                            MainActivity.cachedWallpaperBitmap,
+                            wallpaperBitmap,
+                            savedWallpaperBitmap,
+                            originalWallpaperBitmap,
+                        )
+                        recycleIndependentBitmap(
+                            oldMain,
+                            MainActivity.cachedWallpaperBitmap,
+                            wallpaperBitmap,
+                            savedWallpaperBitmap,
+                            originalWallpaperBitmap,
+                        )
                     }
                 }
             )
@@ -4453,11 +4610,27 @@ fun CourseScheduleApp() {
                             }
                             showSwitchSchedule = false
                             switchOverlayActive = false
+                            val oldSwitchCard = switchCardSnapshot
+                            val oldSwitchMain = mainContentSnapshot
                             switchCardSnapshot = null
                             switchCardBounds = null
                             switchCurrentCardBounds = null
                             mainContentSnapshot = null
                             switchAnimRunning = false
+                            launch {
+                                delay(32.milliseconds)
+                                recycleIndependentBitmap(
+                                    oldSwitchCard,
+                                    oldSwitchMain,
+                                    MainActivity.cachedWallpaperBitmap,
+                                    wallpaperBitmap,
+                                )
+                                recycleIndependentBitmap(
+                                    oldSwitchMain,
+                                    MainActivity.cachedWallpaperBitmap,
+                                    wallpaperBitmap,
+                                )
+                            }
                         }
                     },
                     onScheduleChanged = {

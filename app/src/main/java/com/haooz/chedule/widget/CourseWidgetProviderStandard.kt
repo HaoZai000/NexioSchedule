@@ -64,9 +64,6 @@ class CourseWidgetProviderStandard : AppWidgetProvider() {
     ) {
         val repository = CourseRepository(context)
         val dark = WidgetTextSizes.isDark(context)
-        val views = RemoteViews(context.packageName, R.layout.widget_course_reminder_standard)
-        applyWidgetMode(views, context, repository)
-        WidgetTextSizes.applyCourseReminder(views)
 
         val currentWeek = repository.getCurrentWeek()
         // getTodayOfWeek/getTodayCourses 统一在 CourseReminderHelper（含 workSwap / 节假日 / 周次范围 / 排序），
@@ -112,13 +109,12 @@ class CourseWidgetProviderStandard : AppWidgetProvider() {
         val lastWeekWithCourses = repository.getLastWeekWithCourses()
         val isHoliday = currentWeek > totalWeeks || (currentWeek >= 1 && currentWeek > lastWeekWithCourses)
         val prefix = if (showTomorrow) "明日课程" else "今天"
-        views.setTextViewText(R.id.widget_title, "$prefix / ${dayNames[dayOfWeek - 1]}")
+        val titleText = "$prefix / ${dayNames[dayOfWeek - 1]}"
         val weekText = when {
             isHoliday -> "放假中"
             currentWeek < 1 -> "未开始"
             else -> "第${currentWeek}周"
         }
-        views.setTextViewText(R.id.widget_week, weekText)
 
         val displayCourses = if (showTomorrow) {
             targetCourses.take(2)
@@ -133,66 +129,101 @@ class CourseWidgetProviderStandard : AppWidgetProvider() {
             }.take(2)
         }
 
-        if (displayCourses.isEmpty()) {
-            views.setViewVisibility(R.id.widget_course1, View.GONE)
-            views.setViewVisibility(R.id.widget_course2, View.GONE)
-            views.setViewVisibility(R.id.widget_empty, View.VISIBLE)
-            val emptyText = when {
+        data class CourseSlot(
+            val id: String,
+            val name: String,
+            val start: String,
+            val end: String,
+            val info: String,
+            val color: Int,
+            val remaining: Int?
+        )
+        val slots = displayCourses.map { c ->
+            val start = getCourseStartTime(c, repository) ?: ""
+            val end = getCourseEndTime(c, repository) ?: ""
+            val remaining = if (showTomorrow) null else getRemainingMinutes(start, end, currentMinutes)
+            CourseSlot(c.id, c.name, start, end, buildCourseInfo(c), c.colorRes.toInt(), remaining)
+        }
+        val emptyText = if (displayCourses.isEmpty()) {
+            when {
                 isHoliday -> "假期中，暂无课程"
                 currentWeek < 1 -> "学期暂未开始"
                 showTomorrow -> "明日无课"
                 todayCourses.isEmpty() -> "今日无课"
                 else -> "今日课程已上完"
             }
+        } else ""
+
+        val paddingMode = repository.getWidgetPaddingMode()
+        val signature = buildString {
+            append(dark).append('|').append(paddingMode)
+            append('|').append(titleText).append('|').append(weekText)
+            if (slots.isEmpty()) {
+                append('|').append(emptyText)
+            } else {
+                slots.forEach { s ->
+                    append('|').append(s.id).append(':').append(s.name)
+                        .append(':').append(s.start).append('-').append(s.end)
+                        .append(':').append(s.info).append(':').append(s.color)
+                        .append(':').append(s.remaining ?: -1)
+                }
+            }
+        }
+        if (WidgetUpdateCache.shouldSkip("course_std_$appWidgetId", signature)) return
+
+        val views = RemoteViews(context.packageName, R.layout.widget_course_reminder_standard)
+        applyWidgetMode(views, context, repository)
+        WidgetTextSizes.applyCourseReminder(views)
+        views.setTextViewText(R.id.widget_title, titleText)
+        views.setTextViewText(R.id.widget_week, weekText)
+
+        if (slots.isEmpty()) {
+            views.setViewVisibility(R.id.widget_course1, View.GONE)
+            views.setViewVisibility(R.id.widget_course2, View.GONE)
+            views.setViewVisibility(R.id.widget_empty, View.VISIBLE)
             views.setTextViewText(R.id.widget_empty_text, emptyText)
         } else {
             views.setViewVisibility(R.id.widget_empty, View.GONE)
             views.setViewVisibility(R.id.widget_course1, View.VISIBLE)
             views.setViewVisibility(R.id.widget_course2, View.VISIBLE)
 
-            val c1 = displayCourses[0]
+            val s1 = slots[0]
             views.setViewVisibility(R.id.widget_course1, View.VISIBLE)
-            views.setTextViewText(R.id.widget_name1, c1.name)
-            val start1 = getCourseStartTime(c1, repository) ?: ""
-            val end1 = getCourseEndTime(c1, repository) ?: ""
-            views.setTextViewText(R.id.widget_time_start1, start1)
-            views.setTextViewText(R.id.widget_time_end1, end1)
-            val remaining1 = if (showTomorrow) null else getRemainingMinutes(start1, end1, currentMinutes)
+            views.setTextViewText(R.id.widget_name1, s1.name)
+            views.setTextViewText(R.id.widget_time_start1, s1.start)
+            views.setTextViewText(R.id.widget_time_end1, s1.end)
             // 色条位图使用不透明卡片底色填充，避免透明像素在部分桌面被渲染成灰色框
             views.setBitmap(R.id.widget_color1, "setImageBitmap",
-                createColorBarBitmap(context, c1.colorRes.toInt(),
-                    if (remaining1 != null) {
+                createColorBarBitmap(context, s1.color,
+                    if (s1.remaining != null) {
                         if (dark) ACTIVE_CARD_OPAQUE_BG_DARK else ACTIVE_CARD_OPAQUE_BG_LIGHT
                     } else {
                         if (dark) WidgetTextSizes.CARD_INACTIVE_BG_DARK else WidgetTextSizes.CARD_INACTIVE_BG_LIGHT
                     }))
-            views.setViewVisibility(R.id.widget_now1, if (remaining1 != null) View.VISIBLE else View.GONE)
-            if (remaining1 != null) views.setTextViewText(R.id.widget_now1, "${remaining1}分钟结束")
+            views.setViewVisibility(R.id.widget_now1, if (s1.remaining != null) View.VISIBLE else View.GONE)
+            if (s1.remaining != null) views.setTextViewText(R.id.widget_now1, "${s1.remaining}分钟结束")
             views.setInt(R.id.widget_course1, "setBackgroundResource",
-                if (remaining1 != null) R.drawable.widget_card_active_background else R.drawable.widget_card_background)
-            views.setTextViewText(R.id.widget_info1, buildCourseInfo(c1))
+                if (s1.remaining != null) R.drawable.widget_card_active_background else R.drawable.widget_card_background)
+            views.setTextViewText(R.id.widget_info1, s1.info)
 
-            if (displayCourses.size >= 2) {
-                val c2 = displayCourses[1]
+            if (slots.size >= 2) {
+                val s2 = slots[1]
                 views.setViewVisibility(R.id.widget_color2, View.VISIBLE)
-                views.setTextViewText(R.id.widget_name2, c2.name)
-                val start2 = getCourseStartTime(c2, repository) ?: ""
-                val end2 = getCourseEndTime(c2, repository) ?: ""
-                views.setTextViewText(R.id.widget_time_start2, start2)
-                views.setTextViewText(R.id.widget_time_end2, end2)
-                val remaining2 = if (showTomorrow) null else getRemainingMinutes(start2, end2, currentMinutes)
+                views.setTextViewText(R.id.widget_name2, s2.name)
+                views.setTextViewText(R.id.widget_time_start2, s2.start)
+                views.setTextViewText(R.id.widget_time_end2, s2.end)
                 views.setBitmap(R.id.widget_color2, "setImageBitmap",
-                    createColorBarBitmap(context, c2.colorRes.toInt(),
-                        if (remaining2 != null) {
+                    createColorBarBitmap(context, s2.color,
+                        if (s2.remaining != null) {
                             if (dark) ACTIVE_CARD_OPAQUE_BG_DARK else ACTIVE_CARD_OPAQUE_BG_LIGHT
                         } else {
                             if (dark) WidgetTextSizes.CARD_INACTIVE_BG_DARK else WidgetTextSizes.CARD_INACTIVE_BG_LIGHT
                         }))
-                views.setViewVisibility(R.id.widget_now2, if (remaining2 != null) View.VISIBLE else View.GONE)
-                if (remaining2 != null) views.setTextViewText(R.id.widget_now2, "${remaining2}分钟结束")
+                views.setViewVisibility(R.id.widget_now2, if (s2.remaining != null) View.VISIBLE else View.GONE)
+                if (s2.remaining != null) views.setTextViewText(R.id.widget_now2, "${s2.remaining}分钟结束")
                 views.setInt(R.id.widget_course2, "setBackgroundResource",
-                    if (remaining2 != null) R.drawable.widget_card_active_background else R.drawable.widget_card_background)
-                views.setTextViewText(R.id.widget_info2, buildCourseInfo(c2))
+                    if (s2.remaining != null) R.drawable.widget_card_active_background else R.drawable.widget_card_background)
+                views.setTextViewText(R.id.widget_info2, s2.info)
             } else {
                 // 无课时直接隐藏色条，不再塞占位位图，避免灰色竖杆/矩形残留
                 views.setViewVisibility(R.id.widget_color2, View.GONE)
@@ -223,6 +254,11 @@ class CourseWidgetProviderStandard : AppWidgetProvider() {
         views.setOnClickPendingIntent(R.id.widget_empty, refreshPending)
 
         appWidgetManager.updateAppWidget(appWidgetId, views)
+    }
+
+    override fun onDeleted(context: Context, appWidgetIds: IntArray) {
+        super.onDeleted(context, appWidgetIds)
+        appWidgetIds.forEach { WidgetUpdateCache.invalidateWidget("course_std_$it") }
     }
 
     private fun applyWidgetMode(

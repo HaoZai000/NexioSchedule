@@ -711,6 +711,7 @@ fun WebViewScreen(
 
     DisposableEffect(webView) {
         onDispose {
+            com.haooz.chedule.ui.web.WebViewRequestInterceptor.clearPostData()
             webView.stopLoading()
             webView.clearCache(true)
             webView.clearHistory()

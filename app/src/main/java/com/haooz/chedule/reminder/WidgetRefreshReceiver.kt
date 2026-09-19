@@ -4,6 +4,7 @@ package com.haooz.chedule.reminder
 import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
+import com.haooz.chedule.widget.WidgetUpdateCache
 
 class WidgetRefreshReceiver : BroadcastReceiver() {
 
@@ -12,7 +13,6 @@ class WidgetRefreshReceiver : BroadcastReceiver() {
     }
 
     override fun onReceive(context: Context, intent: Intent) {
-        android.util.Log.d("CourseReminder", "WidgetRefreshReceiver: ${intent.action} ${java.text.SimpleDateFormat("HH:mm:ss", java.util.Locale.getDefault()).format(java.util.Date())}")
         if (intent.action == ACTION_REFRESH_WIDGET) {
             val alarmManager = context.getSystemService(Context.ALARM_SERVICE) as android.app.AlarmManager
             try {
@@ -20,16 +20,16 @@ class WidgetRefreshReceiver : BroadcastReceiver() {
                 CourseReminderHelper.checkAndRescheduleOnDayChange(context)
                 // 兜底补发：若某门课闹钟未触发/丢失，在提醒窗口内立即补发（含超级岛通道）
                 CourseReminderHelper.checkPendingPreClassReminders(context)
-                com.haooz.chedule.widget.CourseWidgetProviderStandard.updateAllWidgets(context)
-                com.haooz.chedule.widget.TodayCourseWidgetProviderStandard.updateAllWidgets(context)
+                // 桌面未放置任何小组件时跳过 RemoteViews/Canvas 重绘
+                WidgetUpdateCache.updateInstalledWidgets(context)
                 // 超级岛对账：闹钟丢失/Doze 延迟时兜底切换到"已上课"并按时收起
                 CourseReminderHelper.reconcileIslandCountdown(context)
                 CourseReminderHelper.updateActiveCountdown(context)
-                // 上课勿扰对账：闹钟丢失/被系统清理时，靠每分钟刷新兜底补上开关
+                // 上课勿扰对账：闹钟丢失/被系统清理时，靠刷新链兜底补上开关
                 ClassDndHelper.applyCurrentState(context)
             } finally {
                 // 链式调度下一次刷新放在 finally：即使上面任一步抛异常，
-                // 也要保证 30 分钟/分钟的刷新链不中断，否则跨日重设与兜底补发会永久停摆
+                // 也要保证跨日重设与兜底补发不中断
                 CourseReminderHelper.scheduleNextWidgetRefresh(context, alarmManager)
             }
         }

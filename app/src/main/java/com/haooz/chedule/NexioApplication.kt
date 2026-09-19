@@ -5,6 +5,7 @@ import com.haooz.chedule.ui.utils.PredictiveBackSettings
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
+import java.io.File
 
 /**
  * 应用入口 - 启动加速
@@ -25,6 +26,7 @@ class NexioApplication : Application() {
         PredictiveBackSettings.enabled = getSharedPreferences("app_preferences", MODE_PRIVATE)
             .getBoolean(PredictiveBackSettings.KEY_PREDICTIVE_BACK_ANIMATION, true)
         warmUpSharedPreferences()
+        cleanupTransientFiles()
     }
 
     /**
@@ -46,6 +48,26 @@ class NexioApplication : Application() {
                     // 访问一次即触发 awaitLoaded()，加载在后台线程完成后返回
                     getSharedPreferences(name, MODE_PRIVATE).all
                 }
+            }
+        }
+    }
+
+    /** 清理分享卡片与旧版更新 APK，避免 cache/files 无界膨胀 */
+    private fun cleanupTransientFiles() {
+        CoroutineScope(Dispatchers.IO).launch {
+            runCatching {
+                val now = System.currentTimeMillis()
+                val dayMs = 24L * 60 * 60 * 1000
+                File(cacheDir, "share").listFiles()?.forEach { file ->
+                    if (file.isFile &&
+                        file.name.startsWith("share_") &&
+                        now - file.lastModified() > dayMs
+                    ) {
+                        file.delete()
+                    }
+                }
+                // APK 与检查更新同一策略：按 latest_tag 保留完整包，不按 mtime 只留最新
+                com.haooz.chedule.ui.utils.UpdateChecker.cleanupTransientApks(this@NexioApplication)
             }
         }
     }
