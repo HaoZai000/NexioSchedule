@@ -35,8 +35,12 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.unit.dp
 import com.google.gson.GsonBuilder
+import com.haooz.chedule.data.Course
 import com.haooz.chedule.data.CourseRepository
 import com.haooz.chedule.data.ShareCodeApi
+import com.haooz.chedule.data.ThirdPartyShareImporter
+import com.haooz.chedule.data.ThirdPartySharePayload
+import com.haooz.chedule.data.ThirdPartyShareSource
 import com.haooz.chedule.data.WebDavManager
 import com.haooz.chedule.ui.basic.CollapsibleTopAppBarDefaults
 import com.haooz.chedule.ui.basic.OverlayDropdownMenu
@@ -45,6 +49,7 @@ import com.haooz.chedule.ui.basic.collapsibleTopInset
 import com.haooz.chedule.ui.screens.applyScheduleData
 import com.haooz.chedule.ui.screens.parseFullScheduleJson
 import com.haooz.chedule.ui.screens.parseIcsFile
+import com.haooz.chedule.ui.utils.openSecondaryPage
 import com.haooz.chedule.ui.utils.overScrollVertical
 import com.haooz.chedule.ui.utils.performScheduleShare
 import com.haooz.chedule.viewmodel.CourseViewModel
@@ -69,7 +74,6 @@ import java.text.SimpleDateFormat
 import java.util.Calendar
 import java.util.Date
 import java.util.Locale
-import com.haooz.chedule.ui.utils.openSecondaryPage
 
 /** 数据管理：课表导入 / 导出 / 备份 三种页面模式 */
 enum class ScheduleDataManageMode {
@@ -122,6 +126,15 @@ fun BackupAndMigrationScreen(
     var showShareCodeDialog by remember { mutableStateOf(false) }
     var shareCodeInput by remember { mutableStateOf("") }
     var isImportingShareCode by remember { mutableStateOf(false) }
+
+    // WakeUp / 星链：课表导入页直接输入口令导入
+    // 弹窗始终挂载、靠 show 驱动，避免 if/let 卸载导致关闭无退出动画
+    var showThirdPartyCodeDialog by remember { mutableStateOf(false) }
+    var thirdPartySource by remember { mutableStateOf(ThirdPartyShareSource.WakeUp) }
+    var thirdPartyCodeInput by remember { mutableStateOf("") }
+    var isImportingThirdParty by remember { mutableStateOf(false) }
+    var pendingThirdPartyPayload by remember { mutableStateOf<ThirdPartySharePayload?>(null) }
+    var showThirdPartyConfirmDialog by remember { mutableStateOf(false) }
 
     val scheduleNames by scheduleViewModel.scheduleNames.collectAsState()
     val currentScheduleName by scheduleViewModel.currentScheduleName.collectAsState()
@@ -301,24 +314,6 @@ fun BackupAndMigrationScreen(
                     ) {
                         Column(modifier = Modifier.fillMaxWidth()) {
                             ArrowPreference(
-                                title = "JSON 文件导入",
-                                summary = "支持拾光课程表/Neixo课程表",
-                                onClick = {
-                                    jsonFilePickerLauncher.launch(
-                                        arrayOf("application/json", "*/*")
-                                    )
-                                }
-                            )
-                            ArrowPreference(
-                                title = "ICS 文件导入",
-                                summary = "从日程文件导入课程",
-                                onClick = {
-                                    icsFilePickerLauncher.launch(
-                                        arrayOf("text/calendar", "*/*")
-                                    )
-                                }
-                            )
-                            ArrowPreference(
                                 title = "分享口令导入",
                                 summary = "输入好友分享的口令导入课表",
                                 onClick = {
@@ -326,9 +321,54 @@ fun BackupAndMigrationScreen(
                                     showShareCodeDialog = true
                                 }
                             )
+                            ArrowPreference(
+                                title = "WakeUp课程表口令导入",
+                                summary = "输入WakeUp分享口令即可获取",
+                                onClick = {
+                                    thirdPartySource = ThirdPartyShareSource.WakeUp
+                                    thirdPartyCodeInput = ""
+                                    showThirdPartyCodeDialog = true
+                                }
+                            )
+                            ArrowPreference(
+                                title = "星链课表分享码导入",
+                                summary = "输入星链课表分享码即可获取",
+                                onClick = {
+                                    thirdPartySource = ThirdPartyShareSource.StarLink
+                                    thirdPartyCodeInput = ""
+                                    showThirdPartyCodeDialog = true
+                                }
+                            )
                         }
                     }
                 }
+                item {
+                    Card(
+                    cornerRadius = 20.dp,
+                    modifier = Modifier.fillMaxWidth(),
+                    insideMargin = PaddingValues(0.dp)
+                ) {
+                    Column(modifier = Modifier.fillMaxWidth()) {
+                        ArrowPreference(
+                            title = "JSON 文件导入",
+                            summary = "支持拾光课程表/Neixo课程表",
+                            onClick = {
+                                jsonFilePickerLauncher.launch(
+                                    arrayOf("application/json", "*/*")
+                                )
+                            }
+                        )
+                        ArrowPreference(
+                            title = "ICS 文件导入",
+                            summary = "从日程文件导入课程",
+                            onClick = {
+                                icsFilePickerLauncher.launch(
+                                    arrayOf("text/calendar", "*/*")
+                                )
+                            }
+                        )
+                    }
+                } }
             }
 
             if (mode == ScheduleDataManageMode.Export) {
@@ -653,6 +693,247 @@ fun BackupAndMigrationScreen(
                 }
             }
         }
+
+    // WakeUp / 星链口令输入（始终挂载，靠 show 驱动退出动画）
+    OverlayDialog(
+        title = thirdPartySource.displayName,
+        summary = "输入${thirdPartySource.inputLabel}即可导入课表",
+        show = showThirdPartyCodeDialog,
+        liquidGlassBackdrop = liquidGlassBackdrop,
+        onDismissRequest = {
+            if (!isImportingThirdParty) {
+                showThirdPartyCodeDialog = false
+                thirdPartyCodeInput = ""
+            }
+        }
+    ) {
+        Column(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalAlignment = Alignment.CenterHorizontally
+        ) {
+            NativeMiuixTextField(
+                value = thirdPartyCodeInput,
+                onValueChange = { thirdPartyCodeInput = it },
+                label = thirdPartySource.inputLabel,
+                modifier = Modifier.fillMaxWidth(),
+                requestFocus = showThirdPartyCodeDialog
+            )
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(top = 16.dp),
+                horizontalArrangement = Arrangement.spacedBy(12.dp)
+            ) {
+                TextButton(
+                    text = "取消",
+                    onClick = {
+                        if (!isImportingThirdParty) {
+                            hapticFeedback.performHapticFeedback(HapticFeedbackType.Confirm)
+                            showThirdPartyCodeDialog = false
+                            thirdPartyCodeInput = ""
+                        }
+                    },
+                    modifier = Modifier.weight(1f)
+                )
+                TextButton(
+                    text = if (isImportingThirdParty) "导入中…" else "获取课表",
+                    onClick = {
+                        if (isImportingThirdParty) return@TextButton
+                        val source = thirdPartySource
+                        val code = thirdPartyCodeInput.trim()
+                        if (code.isBlank()) {
+                            Toast.makeText(context, "请输入${source.inputLabel}", Toast.LENGTH_SHORT).show()
+                            return@TextButton
+                        }
+                        hapticFeedback.performHapticFeedback(HapticFeedbackType.Confirm)
+                        isImportingThirdParty = true
+                        scope.launch {
+                            try {
+                                val result = ThirdPartyShareImporter.import(context, source, code)
+                                result.fold(
+                                    onSuccess = { payload ->
+                                        showThirdPartyCodeDialog = false
+                                        thirdPartyCodeInput = ""
+                                        pendingThirdPartyPayload = payload
+                                        pendingImportScheduleName = when (payload.source) {
+                                            ThirdPartyShareSource.WakeUp -> "WakeUp导入课表"
+                                            ThirdPartyShareSource.StarLink -> "星链导入课表"
+                                        }
+                                        showThirdPartyConfirmDialog = true
+                                    },
+                                    onFailure = { e ->
+                                        Toast.makeText(
+                                            context,
+                                            e.message ?: "口令无效或导入失败",
+                                            Toast.LENGTH_LONG
+                                        ).show()
+                                    }
+                                )
+                            } finally {
+                                isImportingThirdParty = false
+                            }
+                        }
+                    },
+                    colors = ButtonDefaults.textButtonColorsPrimary(),
+                    modifier = Modifier.weight(1f)
+                )
+            }
+        }
+    }
+
+    // WakeUp / 星链：确认课表名后导入（始终挂载，退出动画期间保留文案）
+    val thirdPartyConfirmSourceName = pendingThirdPartyPayload?.source?.displayName.orEmpty()
+    val thirdPartyConfirmCourseCount = pendingThirdPartyPayload?.courseCount ?: 0
+    OverlayDialog(
+        title = "导入课表",
+        summary = if (thirdPartyConfirmSourceName.isEmpty()) {
+            "确定导入将创建一个新的课表"
+        } else {
+            "是否导入「$thirdPartyConfirmSourceName」课表？\n共 $thirdPartyConfirmCourseCount 门课程，将创建新课表"
+        },
+        show = showThirdPartyConfirmDialog,
+        liquidGlassBackdrop = liquidGlassBackdrop,
+        onDismissRequest = {
+            if (!isImportingThirdParty) {
+                showThirdPartyConfirmDialog = false
+            }
+        }
+    ) {
+        Column(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalAlignment = Alignment.CenterHorizontally
+        ) {
+            NativeMiuixTextField(
+                value = pendingImportScheduleName,
+                onValueChange = { pendingImportScheduleName = it },
+                label = "课表名称",
+                modifier = Modifier.fillMaxWidth(),
+                requestFocus = showThirdPartyConfirmDialog
+            )
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(top = 16.dp),
+                horizontalArrangement = Arrangement.spacedBy(12.dp)
+            ) {
+                TextButton(
+                    text = "取消",
+                    onClick = {
+                        hapticFeedback.performHapticFeedback(HapticFeedbackType.Confirm)
+                        // 只改 show，避免退出动画期间文案被清空
+                        showThirdPartyConfirmDialog = false
+                    },
+                    modifier = Modifier.weight(1f)
+                )
+                TextButton(
+                    text = "确定导入",
+                    onClick = {
+                        hapticFeedback.performHapticFeedback(HapticFeedbackType.Confirm)
+                        val payload = pendingThirdPartyPayload
+                        val name = pendingImportScheduleName.trim()
+                        if (payload != null && name.isNotBlank()) {
+                            val (_, message) = applyThirdPartySharePayload(
+                                context = context,
+                                courseViewModel = courseViewModel,
+                                scheduleViewModel = scheduleViewModel,
+                                settingsViewModel = settingsViewModel,
+                                scheduleName = name,
+                                payload = payload,
+                            )
+                            Toast.makeText(context, message, Toast.LENGTH_LONG).show()
+                        }
+                        showThirdPartyConfirmDialog = false
+                    },
+                    colors = ButtonDefaults.textButtonColorsPrimary(),
+                    modifier = Modifier.weight(1f)
+                )
+            }
+        }
+    }
+}
+
+/** 将 WakeUp / 星链解析结果写入新建课表（课程 + 可选时间段/学期配置） */
+private fun applyThirdPartySharePayload(
+    context: android.content.Context,
+    courseViewModel: CourseViewModel,
+    scheduleViewModel: ScheduleViewModel,
+    settingsViewModel: SettingsViewModel,
+    scheduleName: String,
+    payload: ThirdPartySharePayload,
+): Pair<Boolean, String> {
+    return try {
+        if (scheduleName in scheduleViewModel.scheduleNames.value) {
+            return false to "课表「$scheduleName」已存在"
+        }
+        scheduleViewModel.addSchedule(scheduleName)
+
+        val colorMap = mutableMapOf<String, Long>()
+        var colorIndex = 0
+        val courses = payload.courses.map { item ->
+            val color = colorMap.getOrPut(item.name) {
+                Course.courseColors[colorIndex % Course.courseColors.size].also { colorIndex++ }
+            }
+            item.toCourse(scheduleName, color)
+        }
+        if (courses.isEmpty()) {
+            return false to "未解析到课程数据"
+        }
+        scheduleViewModel.saveCoursesToSchedule(scheduleName, courses)
+
+        if (payload.timeSlots.isNotEmpty()) {
+            val repository = CourseRepository(context)
+            val maxSlot = payload.timeSlots.maxOf { it.number }
+            val morningSections = settingsViewModel.morningSections.value.coerceAtLeast(1)
+            val afternoonSections = settingsViewModel.afternoonSections.value.coerceAtLeast(1)
+            var eveningSections = settingsViewModel.eveningSections.value.coerceAtLeast(1)
+            val capacity = morningSections + afternoonSections + eveningSections
+            if (maxSlot > capacity) {
+                eveningSections = (maxSlot - morningSections - afternoonSections).coerceAtLeast(1)
+            }
+            val morningTimes = mutableMapOf<Int, String>()
+            val afternoonTimes = mutableMapOf<Int, String>()
+            val eveningTimes = mutableMapOf<Int, String>()
+            for (slot in payload.timeSlots) {
+                val timeStr = "${slot.startTime}-${slot.endTime}"
+                when {
+                    slot.number <= morningSections -> morningTimes[slot.number] = timeStr
+                    slot.number <= morningSections + afternoonSections ->
+                        afternoonTimes[slot.number - morningSections] = timeStr
+                    else -> eveningTimes[slot.number - morningSections - afternoonSections] = timeStr
+                }
+            }
+            repository.applyTimeImportToSchedule(
+                scheduleName,
+                morningSections,
+                afternoonSections,
+                eveningSections,
+                morningTimes,
+                afternoonTimes,
+                eveningTimes,
+            )
+        } else {
+            // 无时间段时复用当前课表的时间配置
+            val currentConfigId = scheduleViewModel.getCurrentScheduleTimeConfigId()
+            if (currentConfigId != 0L) {
+                scheduleViewModel.setScheduleTimeConfigId(scheduleName, currentConfigId)
+            }
+        }
+
+        scheduleViewModel.switchToSchedule(scheduleName)
+        payload.semesterStartDate?.takeIf { it.isNotBlank() }?.let {
+            courseViewModel.setClassStartTime(it)
+        }
+        payload.semesterTotalWeeks?.takeIf { it > 0 }?.let {
+            courseViewModel.setTotalWeeks(it)
+        }
+
+        courseViewModel.reloadCourses()
+        settingsViewModel.refreshSettings()
+        scheduleViewModel.refreshScheduleList()
+        true to "成功导入课表「$scheduleName」\n共 ${courses.size} 门课程"
+    } catch (e: Exception) {
+        false to "导入失败: ${e.message}"
+    }
 }
 
 private fun buildExportJson(
