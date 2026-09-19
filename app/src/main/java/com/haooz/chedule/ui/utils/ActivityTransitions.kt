@@ -18,10 +18,10 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
-import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.runtime.withFrameNanos
 import androidx.compose.ui.Modifier
@@ -38,10 +38,11 @@ import androidx.compose.ui.unit.dp
 import androidx.core.app.ActivityOptionsCompat
 import com.haooz.chedule.ui.effects.motion.OobeQuartOutSoftStartEasing
 import com.kyant.capsule.ContinuousRoundedRectangle
-import java.lang.ref.WeakReference
-import kotlin.math.abs
 import kotlinx.coroutines.withTimeoutOrNull
 import top.yukonga.miuix.kmp.theme.MiuixTheme
+import java.lang.ref.WeakReference
+import kotlin.math.abs
+import kotlin.time.Duration.Companion.milliseconds
 
 /**
  * 导航栈 push 视差。
@@ -323,7 +324,7 @@ private fun settleOnGlobalCurve(
     val from = fromProgress.coerceIn(0f, 1f)
     val to = toProgress.coerceIn(0f, 1f)
     val span = to - from
-    if (kotlin.math.abs(span) < 1e-4f) {
+    if (abs(span) < 1e-4f) {
         return minDuration.coerceAtMost(totalDuration) to fullEasing
     }
 
@@ -403,7 +404,7 @@ fun SecondaryPageEnterTransition(
         // + 透明窗黑底；等 About 等重页首构完成时 progress 已到 1，内容闪现。
         // 冷启动关于页首构很重，这里带超时：超时后仍入场，但页壳已铺 surface，不会整段黑。
         if (!contentDrawn) {
-            withTimeoutOrNull(FIRST_FRAME_WAIT_MS) {
+            withTimeoutOrNull(FIRST_FRAME_WAIT_MS.milliseconds) {
                 while (!contentDrawn) {
                     withFrameNanos { }
                 }
