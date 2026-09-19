@@ -203,16 +203,24 @@ private data class EmptyCellMenuTarget(
     val addWeek: Int,
 )
 
-/** 主 tab 翻页动画（点底栏 tab 时平移切换）；略偏紧，跨页时更跟手 */
+/** 主 tab 翻页动画（点底栏 tab 时平移切换）；相邻页略偏软 */
 private val MainTabPagerAnimSpec = spring<Float>(
     dampingRatio = Spring.DampingRatioNoBouncy,
-    stiffness = Spring.StiffnessMediumLow,
+    stiffness = 320f,
+)
+
+/** 跨页（今日↔设置，距离 2 页）更缓，避免长距离仍按同刚度显得急 */
+private val MainTabPagerCrossPageAnimSpec = spring<Float>(
+    dampingRatio = Spring.DampingRatioNoBouncy,
+    stiffness = 240f,
 )
 
 /** 动画切到目标主 tab；正常结束后若未精确落页则强制吸附 */
 private suspend fun PagerState.animateMainTabTo(target: Int) {
+    val distance = abs(target - currentPage)
+    val spec = if (distance > 1) MainTabPagerCrossPageAnimSpec else MainTabPagerAnimSpec
     try {
-        animateScrollToPage(target, animationSpec = MainTabPagerAnimSpec)
+        animateScrollToPage(target, animationSpec = spec)
     } catch (e: kotlinx.coroutines.CancellationException) {
         throw e
     }
@@ -382,11 +390,27 @@ class MainActivity : ComponentActivity() {
                     if (ids.isNotEmpty()) {
                         val currentIdValue = ids[idx]
                         cachedWallpaperBitmap = repo.loadCombinationWallpaper(currentIdValue)
-                        cachedWallpaperOffset = Offset(
+                        val storedOffset = Offset(
                             repo.getCombinationOffsetX(currentIdValue),
                             repo.getCombinationOffsetY(currentIdValue)
                         )
-                        cachedWallpaperScale = repo.getCombinationScale(currentIdValue)
+                        val storedScale = repo.getCombinationScale(currentIdValue)
+                        val refW = repo.getCombinationOffsetRefW(currentIdValue)
+                        val refH = repo.getCombinationOffsetRefH(currentIdValue)
+                        val metrics = this@MainActivity.resources.displayMetrics
+                        val curW = metrics.widthPixels.toFloat()
+                        val curH = metrics.heightPixels.toFloat()
+                        if (refW > 0f && refH > 0f && (refW != curW || refH != curH)) {
+                            val mapped = remapWallpaperForScreen(
+                                storedOffset, storedScale, cachedWallpaperBitmap,
+                                refW, refH, curW, curH
+                            )
+                            cachedWallpaperOffset = mapped.first
+                            cachedWallpaperScale = mapped.second
+                        } else {
+                            cachedWallpaperOffset = storedOffset
+                            cachedWallpaperScale = storedScale
+                        }
                         cachedAppearance = com.haooz.chedule.data.AppearanceConfig(
                             cardBlurRadius = repo.getCombinationCardBlur(currentIdValue),
                             cardAlpha = repo.getCombinationCardAlpha(currentIdValue),
@@ -496,10 +520,27 @@ private fun computeWallpaperMinScale(
     screenWPx: Float,
     screenHPx: Float
 ): Float {
-    if (bitmap == null || bitmap.width <= 0 || bitmap.height <= 0) return 1f
-    val fitScale = minOf(screenWPx / bitmap.width, screenHPx / bitmap.height)
-    val coverScale = maxOf(screenWPx / bitmap.width, screenHPx / bitmap.height)
-    return if (fitScale > 0f) coverScale / fitScale else 1f
+    if (bitmap == null) return 1f
+    return com.haooz.chedule.data.WallpaperTransform.minScale(bitmap.width, bitmap.height, screenWPx, screenHPx)
+}
+
+/**
+ * 将壁纸 offset/scale 从 fromW×fromH 重映射到 toW×toH。
+ * 无有效 bitmap/参考尺寸时原样返回，避免横竖屏切换把数据算坏。
+ */
+private fun remapWallpaperForScreen(
+    offset: Offset,
+    scale: Float,
+    bitmap: android.graphics.Bitmap?,
+    fromW: Float,
+    fromH: Float,
+    toW: Float,
+    toH: Float,
+): Pair<Offset, Float> {
+    if (bitmap == null || bitmap.width <= 0 || bitmap.height <= 0) return offset to scale
+    return com.haooz.chedule.data.WallpaperTransform.remap(
+        offset, scale, bitmap.width, bitmap.height, fromW, fromH, toW, toH
+    )
 }
 
 // 16×16 网格感知加权测光，avg≥128 判亮
@@ -999,6 +1040,8 @@ fun CourseScheduleApp() {
     val density = LocalDensity.current
     val screenWPx = with(density) { config.screenWidthDp.dp.toPx() }
     val screenHPx = with(density) { config.screenHeightDp.dp.toPx() }
+    val latestScreenWPx by rememberUpdatedState(screenWPx)
+    val latestScreenHPx by rememberUpdatedState(screenHPx)
 
     // 首帧后预热 RenderEffect，避免首次开 BlurBottomSheet 掉帧
     val warmupBlurPx = with(density) { 24.dp.toPx() }
@@ -1149,6 +1192,8 @@ fun CourseScheduleApp() {
     var wallpaperBitmap by remember { mutableStateOf(MainActivity.cachedWallpaperBitmap) }
     var wallpaperOffset by remember { mutableStateOf(MainActivity.cachedWallpaperOffset) }
     var wallpaperScale by remember { mutableFloatStateOf(MainActivity.cachedWallpaperScale) }
+    // offset/scale 当前对应的屏幕尺寸；旋转后按此重映射，避免像素值跨方向复用
+    var wallpaperScreenRef by remember { mutableStateOf(screenWPx to screenHPx) }
     // 截快照时临时按该搭配的壁纸亮暗覆盖主题
     var captureThemeActive by remember { mutableStateOf(false) }
     var captureThemeIsDark by remember { mutableStateOf<Boolean?>(null) }
@@ -1323,18 +1368,60 @@ fun CourseScheduleApp() {
 
         val curr = combinations.getOrNull(0)
         if (curr != null) {
+            val curW = latestScreenWPx
+            val curH = latestScreenHPx
+            val refW = wallpaperRepository.getCombinationOffsetRefW(curr.id)
+            val refH = wallpaperRepository.getCombinationOffsetRefH(curr.id)
+            // 有参考尺寸且与当前屏不一致时重映射；旧数据 ref=0 时原样加载
+            val (mappedOffset, mappedScale) = if (refW > 0f && refH > 0f && (refW != curW || refH != curH)) {
+                remapWallpaperForScreen(curr.offset, curr.scale, curr.bitmap, refW, refH, curW, curH)
+            } else {
+                curr.offset to curr.scale
+            }
             wallpaperBitmap = curr.bitmap
-            wallpaperOffset = curr.offset
-            val minScale = computeWallpaperMinScale(curr.bitmap, screenWPx, screenHPx)
-            wallpaperScale = maxOf(curr.scale, minScale)
+            wallpaperOffset = mappedOffset
+            // 不把当前方向的 minScale 写回用户 scale：绘制层已 max(scale, minScale)，
+            // 这里烘焙会导致旋转回原方向时缩放被抬高、画面错位
+            wallpaperScale = mappedScale
+            wallpaperScreenRef = curW to curH
             savedWallpaperBitmap = curr.bitmap
-            savedWallpaperOffset = curr.offset
-            savedWallpaperScale = wallpaperScale
+            savedWallpaperOffset = mappedOffset
+            savedWallpaperScale = mappedScale
             savedAppearance = com.haooz.chedule.data.AppearanceConfig.fromCombination(curr)
             originalWallpaperBitmap = curr.bitmap
-            originalWallpaperOffset = curr.offset
-            originalWallpaperScale = wallpaperScale
+            originalWallpaperOffset = mappedOffset
+            originalWallpaperScale = mappedScale
+            if (mappedOffset != curr.offset || mappedScale != curr.scale) {
+                combinations = combinations.toMutableList().also { list ->
+                    list[0] = list[0].copy(offset = mappedOffset, scale = mappedScale)
+                }
+            }
+            MainActivity.cachedWallpaperOffset = mappedOffset
+            MainActivity.cachedWallpaperScale = mappedScale
         }
+    }
+
+    // 横竖屏（含自由窗口）尺寸变化：把当前显示中的变换从旧屏重映射到新屏
+    LaunchedEffect(screenWPx, screenHPx) {
+        val (prevW, prevH) = wallpaperScreenRef
+        if (prevW == screenWPx && prevH == screenHPx) return@LaunchedEffect
+        val bmp = wallpaperBitmap
+        if (bmp != null && prevW > 0f && prevH > 0f) {
+            val (newOffset, newScale) = remapWallpaperForScreen(
+                wallpaperOffset, wallpaperScale, bmp, prevW, prevH, screenWPx, screenHPx
+            )
+            wallpaperOffset = newOffset
+            wallpaperScale = newScale
+            val idx = currentCombinationIndex
+            if (idx in combinations.indices) {
+                combinations = combinations.toMutableList().also { list ->
+                    list[idx] = list[idx].copy(offset = newOffset, scale = newScale)
+                }
+            }
+            MainActivity.cachedWallpaperOffset = newOffset
+            MainActivity.cachedWallpaperScale = newScale
+        }
+        wallpaperScreenRef = screenWPx to screenHPx
     }
     val cutoutMainScale = remember { Animatable(1f) }
     var cutoutCenterYRatio by remember { mutableFloatStateOf(0.5f) }
@@ -1344,10 +1431,11 @@ fun CourseScheduleApp() {
         if (isWindowCutoutActive) {
             val c = combinations.getOrNull(currentCombinationIndex)
             if (c != null) {
+                // combinations 在加载/旋转时已同步为当前屏坐标系的 offset/scale
                 wallpaperBitmap = c.bitmap
                 wallpaperOffset = c.offset
-                val minScale = computeWallpaperMinScale(c.bitmap, screenWPx, screenHPx)
-                wallpaperScale = maxOf(c.scale, minScale)
+                wallpaperScale = c.scale
+                wallpaperScreenRef = latestScreenWPx to latestScreenHPx
             }
             cutoutMainScale.snapTo(0.65f)
             cutoutMainScale.animateTo(
@@ -3945,7 +4033,10 @@ fun CourseScheduleApp() {
                                 combId,
                                 wallpaperOffset.x,
                                 wallpaperOffset.y,
-                                wallpaperScale
+                                wallpaperScale,
+                                // 与当前显示尺寸绑定，旋转后可按参考屏重映射
+                                latestScreenWPx,
+                                latestScreenHPx
                             )
                             val appearanceToSave = currentAppearance()
                             wallpaperRepository.saveCombinationCardBlur(

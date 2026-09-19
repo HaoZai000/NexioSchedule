@@ -41,6 +41,9 @@ data class CombinationStyle(
     val offsetX: Float = 0f,
     val offsetY: Float = 0f,
     val scale: Float = 1f,
+    /** offset/scale 保存时的屏幕宽高（px）；0=旧数据未记录，加载时不重映射 */
+    val offsetRefW: Float = 0f,
+    val offsetRefH: Float = 0f,
     val cardBlur: Float = 0f,
     val cardAlpha: Float = 0.15f,
     /** 有壁纸时白/黑底不透明度；null=旧快照未写入，用默认 */
@@ -79,7 +82,8 @@ data class CombinationStyle(
 
         /** 仅用于校验快照键名，不参与取值 */
         private val FIELD_NAMES = setOf(
-            "offsetX", "offsetY", "scale", "cardBlur", "cardAlpha", "cardSurfaceAlpha",
+            "offsetX", "offsetY", "scale", "offsetRefW", "offsetRefH",
+            "cardBlur", "cardAlpha", "cardSurfaceAlpha",
             "cardHeight",
             "cardCornerRadius", "wallpaperBrightness", "wallpaperIsLight",
             "showBreakDividers", "cardContentAlignment", "cardTextColor",

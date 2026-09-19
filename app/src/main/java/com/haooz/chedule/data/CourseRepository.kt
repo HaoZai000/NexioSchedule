@@ -1476,10 +1476,12 @@ class CourseRepository private constructor(context: Context) {
         )
     }
 
-    /** 壁纸的目标存储/解码分辨率（屏幕分辨率），用于平衡显示质量与内存占用 */
+    /** 壁纸的目标存储/解码分辨率：用长短边而非当前横竖屏，避免进应用方向不同导致采样/尺寸漂移 */
     private fun wallpaperTargetBounds(): Pair<Int, Int> {
         val metrics = appContext.resources.displayMetrics
-        return metrics.widthPixels to metrics.heightPixels
+        val w = metrics.widthPixels
+        val h = metrics.heightPixels
+        return maxOf(w, h) to minOf(w, h)
     }
 
     /** 计算满足目标尺寸的 2 的幂次降采样倍数（inSampleSize） */
@@ -1549,12 +1551,22 @@ class CourseRepository private constructor(context: Context) {
         }
     }
 
-    fun saveCombinationState(id: Long, offsetX: Float, offsetY: Float, scale: Float) =
-        updateCombinationStyle(id) { it.copy(offsetX = offsetX, offsetY = offsetY, scale = scale) }
+    fun saveCombinationState(
+        id: Long,
+        offsetX: Float,
+        offsetY: Float,
+        scale: Float,
+        refW: Float = 0f,
+        refH: Float = 0f,
+    ) = updateCombinationStyle(id) {
+        it.copy(offsetX = offsetX, offsetY = offsetY, scale = scale, offsetRefW = refW, offsetRefH = refH)
+    }
 
     fun getCombinationOffsetX(id: Long): Float = getCombinationStyle(id).offsetX
     fun getCombinationOffsetY(id: Long): Float = getCombinationStyle(id).offsetY
     fun getCombinationScale(id: Long): Float = getCombinationStyle(id).scale
+    fun getCombinationOffsetRefW(id: Long): Float = getCombinationStyle(id).offsetRefW
+    fun getCombinationOffsetRefH(id: Long): Float = getCombinationStyle(id).offsetRefH
 
     fun saveCombinationCardBlur(id: Long, blurRadius: Float) =
         updateCombinationStyle(id) { it.copy(cardBlur = blurRadius) }
