@@ -16,7 +16,6 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -24,6 +23,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.staticCompositionLocalOf
+import androidx.compose.runtime.withFrameNanos
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.drawWithContent
 import androidx.compose.ui.graphics.Color
@@ -33,16 +33,15 @@ import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
-import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.platform.LocalWindowInfo
 import androidx.compose.ui.unit.dp
 import androidx.core.app.ActivityOptionsCompat
 import com.haooz.chedule.ui.effects.motion.OobeQuartOutSoftStartEasing
 import com.kyant.capsule.ContinuousRoundedRectangle
 import java.lang.ref.WeakReference
-import kotlin.coroutines.resume
 import kotlin.math.abs
-import kotlinx.coroutines.suspendCancellableCoroutine
+import kotlinx.coroutines.withTimeoutOrNull
+import top.yukonga.miuix.kmp.theme.MiuixTheme
 
 /**
  * 导航栈 push 视差。
@@ -77,13 +76,27 @@ object SecondaryPushParallax {
     }
 
     fun noteOpen(token: Any, activity: Activity) {
-        if (openPages.any { it.token === token }) return
+        if (openPages.any { it.token === token }) {
+            // 组合重建/重复 noteOpen：刷新 decor 弱引用，不要重复入栈
+            val idx = openPages.indexOfFirst { it.token === token }
+            if (idx >= 0) {
+                openPages[idx] = Layer(token, activity)
+            }
+            return
+        }
         openPages.add(Layer(token, activity))
     }
 
-    fun noteClose(token: Any) {
+    /**
+     * 登记二级页关闭。
+     * [hardClose]=true 时才把视差归零（Activity 真正销毁 / 出场动画结束）。
+     * 组合重建导致的临时 dispose 不能传 true，否则会把下层页 translationX 打回 0，
+     * 再叠加入场动画，表现为旧页左右抖动。
+     */
+    fun noteClose(token: Any, hardClose: Boolean = true) {
         val idx = openPages.indexOfFirst { it.token === token }
         if (idx < 0) return
+        if (!hardClose) return
         openPages.removeAt(idx)
         if (openPages.isEmpty()) {
             applyToView(mainDecor, 0f)
@@ -352,12 +365,11 @@ fun SecondaryPageEnterTransition(
 ) {
     val controller = LocalSecondaryPageTransition.current
     val hostActivity = LocalContext.current as? Activity
-    val composeView = LocalView.current
     // 只持有 Animatable 引用。progress.value 必须在 graphicsLayer 内读：
     // 组合期读取会让动画每帧重组整棵二级页（偏好设置等重 UI），是掉帧主因。
     // 曲线/时长/视差比例/压暗/圆角裁切均不变。
     val progress = controller.progress
-    /** 二级页内容是否已真实绘制过一帧；release 冷启动首构较慢，必须等它再推主页 */
+    /** 二级页内容壳是否已真实绘制过一帧（drawWithContent）；冷启动关于页首构较慢，必须等它再推下层 */
     var contentDrawn by remember { mutableStateOf(false) }
 
     val windowWidthPx = LocalWindowInfo.current.containerSize.width
@@ -385,42 +397,15 @@ fun SecondaryPageEnterTransition(
         if (controller.restoreToken > 0) {
             return@LaunchedEffect
         }
-        // 等内容画过一帧再入场：主页视差走 View.translationX，比 Compose 首绘更快；
-        // 不等的话会出现「主页已推走、二级页仍透明空白」的异常转场。
+        // 只认内容壳 drawWithContent 置起的 contentDrawn。
+        // 不能用 ViewTreeObserver.OnDrawListener：它在本帧真正绘制子节点之前就会回调，
+        // 压暗层/空树一画就 resume → 入场提前开跑。此时新页尚未渲染，只能看到下层被视差推走
+        // + 透明窗黑底；等 About 等重页首构完成时 progress 已到 1，内容闪现。
+        // 冷启动关于页首构很重，这里带超时：超时后仍入场，但页壳已铺 surface，不会整段黑。
         if (!contentDrawn) {
-            suspendCancellableCoroutine<Unit> { cont ->
-                var resumed = false
-                fun resumeOnce() {
-                    if (!resumed) {
-                        resumed = true
-                        if (cont.isActive) cont.resume(Unit)
-                    }
-                }
-                val observer = composeView.viewTreeObserver
-                val listener = object : android.view.ViewTreeObserver.OnDrawListener {
-                    override fun onDraw() {
-                        composeView.post {
-                            runCatching {
-                                if (composeView.viewTreeObserver.isAlive) {
-                                    composeView.viewTreeObserver.removeOnDrawListener(this)
-                                }
-                            }
-                        }
-                        resumeOnce()
-                    }
-                }
-                if (observer.isAlive) {
-                    observer.addOnDrawListener(listener)
-                }
-                // 组合树已就绪；主动 invalidate，保证空闲时也会进入一次 draw
-                composeView.postInvalidate()
-                if (contentDrawn) resumeOnce()
-                cont.invokeOnCancellation {
-                    runCatching {
-                        if (composeView.viewTreeObserver.isAlive) {
-                            composeView.viewTreeObserver.removeOnDrawListener(listener)
-                        }
-                    }
+            withTimeoutOrNull(FIRST_FRAME_WAIT_MS) {
+                while (!contentDrawn) {
+                    withFrameNanos { }
                 }
             }
         }
@@ -428,22 +413,21 @@ fun SecondaryPageEnterTransition(
         if (controller.restoreToken > 0 || controller.isEnterSettled) {
             return@LaunchedEffect
         }
+        // 内容壳已至少绘制过一帧（或超时），再驱动：新页滑入 + 下层视差，两者同相位
         controller.animateEnter()
     }
 
-    // 组合销毁（finish / 主题等路径）时补偿注销，避免 open 计数泄漏
-    DisposableEffect(controller) {
-        onDispose {
-            SecondaryPushParallax.noteClose(controller)
-        }
-    }
+    // 注意：不要在这里 DisposableEffect→noteClose。
+    // 主题/重页首构导致组合树短暂重建时 dispose 会把下层视差打回 0，
+    // 与进行中的入场动画打架，表现为旧页左右闪。
+    // 真正的关闭登记在 SecondaryActivity.onDestroy / 出场动画完成时 hardClose。
 
     // 出场：必须在这里跑，才有 MonotonicFrameClock
     LaunchedEffect(controller.exitRequested) {
         if (controller.exitRequested) {
             controller.animateExit()
             controller.exitRequested = false
-            SecondaryPushParallax.noteClose(controller)
+            SecondaryPushParallax.noteClose(controller, hardClose = true)
             controller.onExitComplete?.invoke()
         }
     }
@@ -465,7 +449,7 @@ fun SecondaryPageEnterTransition(
                 .background(Color.Black),
         )
 
-        // 首帧标志用一次性 modifier，画过后卸掉 draw 钩子。
+        // 首帧标志：只挂在内容壳上；壳带 surface，首绘即代表「新页这一层已经能被看见」
         val contentDrawnModifier = if (contentDrawn) {
             Modifier
         } else {
@@ -474,6 +458,7 @@ fun SecondaryPageEnterTransition(
                 contentDrawn = true
             }
         }
+        val pageSurface = MiuixTheme.colorScheme.surface
         Box(
             modifier = Modifier
                 .fillMaxSize()
@@ -486,7 +471,10 @@ fun SecondaryPageEnterTransition(
                         translationX = (1f - p) * size.width
                     }
                     applyScreenClipDuringTransition(p, screenClipShape)
-                },
+                }
+                // 滑入页壳铺 surface：关于页等首构慢时，页体一进场就有底色，
+                // 不会整页透明被当成「新页没加载出来」
+                .background(pageSurface),
         ) {
             content()
         }
@@ -534,8 +522,11 @@ private val SecondaryExitEasing = CubicBezierEasing(0.36f, 0.18f, 0.3f, 0.85f)
 
 
 
-/** 下层主页压暗强度（0=不压，1=全黑）*/
+/** 下层页压暗强度（0=不压，1=全黑）*/
 private const val SECONDARY_BG_DIM = 0.42f
+
+/** 冷启动重页（关于等）内容壳首绘等待上限；超时仍要带 surface 入场，避免透明空窗黑底 */
+private const val FIRST_FRAME_WAIT_MS = 500L
 
 private const val ENTER_DURATION = 600
 private const val EXIT_DURATION = 320

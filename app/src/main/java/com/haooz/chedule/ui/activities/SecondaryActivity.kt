@@ -31,8 +31,8 @@ open class SecondaryActivity : ComponentActivity() {
     }
 
     override fun onDestroy() {
-        // 异常销毁（配置变更/系统回收）时补偿，避免主页视差登记泄漏
-        SecondaryPushParallax.noteClose(pageTransition)
+        // 真正销毁时才 hardClose；组合重建不能走这里
+        SecondaryPushParallax.noteClose(pageTransition, hardClose = true)
         super.onDestroy()
     }
 
@@ -89,7 +89,7 @@ private fun SecondaryPagePredictiveBack(activity: SecondaryActivity) {
             if (sawGesture && PredictiveBackSettings.enabled) {
                 // 松手吸附关闭后再 finish，避免 snapTo 生硬截断
                 controller.animateGestureDismiss()
-                SecondaryPushParallax.noteClose(controller)
+                SecondaryPushParallax.noteClose(controller, hardClose = true)
                 activity.finishWithNoWindowAnim()
             } else {
                 // 未跟手（返回键 / 开关关闭）：播正常出场，避免整页闪退
