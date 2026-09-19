@@ -103,14 +103,12 @@ class TodayCoursesProvider : ContentProvider() {
     private fun <T> unsupportedWrite(uri: Uri): T =
         throw UnsupportedOperationException("$uri is read-only")
 
-    // 与标准小组件一致：开了明日提醒且已过提醒时间、今日课全上完时自动切到明日
+    // 与标准小组件一致：开了明日提醒且已过提醒时间、今日课全上完时自动切到明日。
+    // 接口（URI/列名）不变；内部课程解析与小部件/次日提醒同口径（含调休、节假日）。
     private fun resolveState(context: android.content.Context, repository: CourseRepository): DisplayState {
-        val all = repository.getAllCourses()
         val currentWeek = repository.getCurrentWeek()
-        val today = getTodayOfWeek()
-        val todayCourses = all
-            .filter { it.dayOfWeek == today && it.isActiveInWeek(currentWeek) }
-            .sortedBy { CourseReminderHelper.getCourseStartTime(it, repository).toMinutes() }
+        val todayResolution = CourseReminderHelper.resolveDaySchedule(context, forTomorrow = false)
+        val todayCourses = todayResolution.courses
 
         val calendar = Calendar.getInstance()
         val currentMinutes = calendar.get(Calendar.HOUR_OF_DAY) * 60 + calendar.get(Calendar.MINUTE)
@@ -123,20 +121,17 @@ class TodayCoursesProvider : ContentProvider() {
         } else true
         val showTomorrow = nextDayEnabled && currentMinutes >= reminderMinutes && todayFinished
 
-        val (targetDay, targetWeek) = if (showTomorrow) {
-            if (today == 7) 1 to (currentWeek + 1) else (today + 1) to currentWeek
+        val resolution = if (showTomorrow) {
+            CourseReminderHelper.resolveDaySchedule(context, forTomorrow = true)
         } else {
-            today to currentWeek
+            todayResolution
         }
-        val targetCourses = all
-            .filter { it.dayOfWeek == targetDay && it.isActiveInWeek(targetWeek) }
-            .sortedBy { CourseReminderHelper.getCourseStartTime(it, repository).toMinutes() }
 
         // 今天只保留在课/未开始；明天展示全部
         val displayCourses = if (showTomorrow) {
-            targetCourses
+            resolution.courses
         } else {
-            targetCourses.filter { course ->
+            resolution.courses.filter { course ->
                 val endMinutes = CourseReminderHelper.getCourseEndTime(course, repository)?.toMinutes() ?: Int.MAX_VALUE
                 endMinutes > currentMinutes
             }
@@ -146,15 +141,18 @@ class TodayCoursesProvider : ContentProvider() {
         val lastWeekWithCourses = repository.getLastWeekWithCourses()
         val isHoliday = currentWeek > totalWeeks || (currentWeek >= 1 && currentWeek > lastWeekWithCourses)
 
-        val title = DAY_NAMES[targetDay - 1]
+        // 标题星期用日历日，不用调休映射日（周日补周二课时写「周日」而非「周二」）
+        val title = DAY_NAMES[(resolution.calendarDayOfWeek - 1).coerceIn(0, 6)]
         val weekText = when {
             isHoliday -> "放假中"
             currentWeek < 1 -> "未开始"
+            showTomorrow -> "第${resolution.displayWeek}周"
             else -> "第${currentWeek}周"
         }
         val emptyText = when {
             isHoliday -> "假期中，暂无课程"
             currentWeek < 1 -> "学期暂未开始"
+            showTomorrow && resolution.isHolidayDate -> "假期中，暂无课程"
             showTomorrow -> "明日无课"
             todayCourses.isEmpty() -> "今日无课"
             else -> "今日课程已上完"

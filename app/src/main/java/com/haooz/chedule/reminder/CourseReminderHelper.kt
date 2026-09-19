@@ -798,47 +798,80 @@ object CourseReminderHelper {
     fun getCourseEndTime(course: Course, repository: CourseRepository): String? =
         com.haooz.chedule.data.CourseTimeResolver.getEndTime(course, repository)
 
-    fun getTomorrowCourses(context: Context): List<Course> {
+    /**
+     * 小组件/ContentProvider 共用的某日课表解析。
+     * 与 App 内今日页、次日提醒同口径：节假日空课；调休按 followWeekday/followWeek 映射。
+     */
+    data class DayScheduleResolution(
+        val courses: List<Course>,
+        /** 实际用于查课的星期（调休映射后） */
+        val displayDayOfWeek: Int,
+        /** 实际用于查课的周次 */
+        val displayWeek: Int,
+        /** 日历上的星期（未映射） */
+        val calendarDayOfWeek: Int,
+        /** 目标日是否为节假日 */
+        val isHolidayDate: Boolean,
+        /** 目标日是否配置了调休映射 */
+        val isWorkSwap: Boolean,
+    )
+
+    fun resolveDaySchedule(context: Context, forTomorrow: Boolean): DayScheduleResolution {
         val repository = CourseRepository(context)
         val todayDate = LocalDate.now()
-        val tomorrowDate = todayDate.plusDays(1)
-        if (HolidayManager.isHoliday(context, tomorrowDate)) return emptyList()
+        val targetDate = if (forTomorrow) todayDate.plusDays(1) else todayDate
+        val calendarDay = targetDate.dayOfWeek.value
+        val isHolidayDate = HolidayManager.isHoliday(context, targetDate)
         val todayEntry = HolidayManager.workSwap(context, todayDate)
-        val tomorrowEntry = HolidayManager.workSwap(context, tomorrowDate)
+        val targetEntry = HolidayManager.workSwap(context, targetDate)
         val currentWeek = todayEntry?.followWeek?.takeIf { it > 0 } ?: repository.getCurrentWeek()
+        val isWorkSwap = targetEntry?.followWeekday?.let { it in 1..7 } == true
+        val displayDay = targetEntry?.followWeekday?.takeIf { it in 1..7 } ?: calendarDay
+        val displayWeek = targetEntry?.followWeek?.takeIf { it > 0 }
+            ?: if (forTomorrow && displayDay == 1) currentWeek + 1 else currentWeek
+
+        if (isHolidayDate) {
+            return DayScheduleResolution(
+                courses = emptyList(),
+                displayDayOfWeek = displayDay,
+                displayWeek = displayWeek,
+                calendarDayOfWeek = calendarDay,
+                isHolidayDate = true,
+                isWorkSwap = isWorkSwap,
+            )
+        }
+
         val totalWeeks = repository.getTotalWeeks()
         val lastWeekWithCourses = repository.getLastWeekWithCourses()
+        if (displayWeek < 1 || displayWeek > totalWeeks || displayWeek > lastWeekWithCourses) {
+            return DayScheduleResolution(
+                courses = emptyList(),
+                displayDayOfWeek = displayDay,
+                displayWeek = displayWeek,
+                calendarDayOfWeek = calendarDay,
+                isHolidayDate = false,
+                isWorkSwap = isWorkSwap,
+            )
+        }
+
         val courses = repository.getAllCourses()
-        val tomorrowDayOfWeek = tomorrowEntry?.followWeekday?.takeIf { it in 1..7 }
-            ?: tomorrowDate.dayOfWeek.value
-        val tomorrowWeek = tomorrowEntry?.followWeek?.takeIf { it > 0 }
-            ?: if (tomorrowDayOfWeek == 1) currentWeek + 1 else currentWeek
-
-        if (tomorrowWeek < 1 || tomorrowWeek > totalWeeks || tomorrowWeek > lastWeekWithCourses) return emptyList()
-
-        return courses.filter { course ->
-            course.dayOfWeek == tomorrowDayOfWeek && course.isActiveInWeek(tomorrowWeek)
-        }.sortedBy { getCourseStartTime(it, repository).toMinutes() }
-    }
-
-    fun getTodayCourses(context: Context): List<Course> {
-        val repository = CourseRepository(context)
-        val date = LocalDate.now()
-        if (HolidayManager.isHoliday(context, date)) {
-            return emptyList()
-        }
-        val workSwap = HolidayManager.workSwap(context, date)
-        val currentWeek = workSwap?.followWeek?.takeIf { it > 0 } ?: repository.getCurrentWeek()
-        val today = workSwap?.followWeekday?.takeIf { it in 1..7 } ?: getTodayOfWeek()
-        val totalWeeks = repository.getTotalWeeks()
-        val lastWeekWithCourses = repository.getLastWeekWithCourses()
-        if (currentWeek > totalWeeks || currentWeek > lastWeekWithCourses) {
-            return emptyList()
-        }
-        return repository.getAllCourses()
-            .filter { it.dayOfWeek == today && it.isActiveInWeek(currentWeek) }
+            .filter { it.dayOfWeek == displayDay && it.isActiveInWeek(displayWeek) }
             .sortedBy { getCourseStartTime(it, repository).toMinutes() }
+        return DayScheduleResolution(
+            courses = courses,
+            displayDayOfWeek = displayDay,
+            displayWeek = displayWeek,
+            calendarDayOfWeek = calendarDay,
+            isHolidayDate = false,
+            isWorkSwap = isWorkSwap,
+        )
     }
+
+    fun getTomorrowCourses(context: Context): List<Course> =
+        resolveDaySchedule(context, forTomorrow = true).courses
+
+    fun getTodayCourses(context: Context): List<Course> =
+        resolveDaySchedule(context, forTomorrow = false).courses
 
     fun findNextCourseToday(context: Context): Course? {
         val repository = CourseRepository(context)

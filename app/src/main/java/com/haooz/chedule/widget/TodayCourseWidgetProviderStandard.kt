@@ -87,28 +87,31 @@ class TodayCourseWidgetProviderStandard : AppWidgetProvider() {
         val showTomorrow = isNextDayReminderEnabled && currentMinutes >= reminderMinutes && todayCoursesFinished
 
         val dayNames = listOf("周一", "周二", "周三", "周四", "周五", "周六", "周日")
-        val dayOfWeek: Int
-        val targetWeek: Int
-        if (showTomorrow) {
-            val tomorrow = today + 1
-            dayOfWeek = if (tomorrow > 7) 1 else tomorrow
-            targetWeek = if (tomorrow > 7) currentWeek + 1 else currentWeek
+        // 明日预告与次日提醒同口径：节假日/调休走 resolveDaySchedule
+        val resolution = CourseReminderHelper.resolveDaySchedule(context, forTomorrow = showTomorrow)
+        val dayOfWeek = if (showTomorrow) resolution.displayDayOfWeek else today
+        val targetWeek = resolution.displayWeek
+        val targetCourses = if (showTomorrow) {
+            resolution.courses
         } else {
-            dayOfWeek = today
-            targetWeek = currentWeek
+            courses.filter { it.dayOfWeek == dayOfWeek && it.isActiveInWeek(targetWeek) }
+                .sortedBy { getCourseStartTime(it, repository).toMinutes() }
         }
-
-        val targetCourses = courses.filter { it.dayOfWeek == dayOfWeek && it.isActiveInWeek(targetWeek) }
-            .sortedBy { getCourseStartTime(it, repository).toMinutes() }
 
         val totalWeeks = repository.getTotalWeeks()
         val lastWeekWithCourses = repository.getLastWeekWithCourses()
         val isHoliday = currentWeek > totalWeeks || (currentWeek >= 1 && currentWeek > lastWeekWithCourses)
 
-        val titleText = if (showTomorrow) "明天" else dayNames[dayOfWeek - 1]
+        val titleText = if (showTomorrow) {
+            "明天"
+        } else {
+            // 今日也用日历日，避免调休日标题写成映射星期
+            dayNames[(resolution.calendarDayOfWeek - 1).coerceIn(0, 6)]
+        }
         val weekText = when {
             isHoliday -> "放假中"
             currentWeek < 1 -> "未开始"
+            showTomorrow -> "第${targetWeek}周"
             else -> "第${currentWeek}周"
         }
 
@@ -159,6 +162,7 @@ class TodayCourseWidgetProviderStandard : AppWidgetProvider() {
             emptyText = when {
                 isHoliday -> "假期中，暂无课程"
                 currentWeek < 1 -> "学期暂未开始"
+                showTomorrow && resolution.isHolidayDate -> "假期中，暂无课程"
                 showTomorrow -> "明日无课"
                 todayCourses.isEmpty() -> "今日无课"
                 else -> "今日课程已上完"
