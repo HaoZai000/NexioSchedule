@@ -29,6 +29,11 @@ class CourseViewModel(application: Application) : AndroidViewModel(application) 
     private val _dataVersion = MutableStateFlow(0)
     val dataVersion: StateFlow<Int> = _dataVersion.asStateFlow()
 
+    /** 节假日/调休等外部数据变更时 bump，让今日页 remember 失效（不重载课程列表） */
+    fun bumpDataVersion() {
+        _dataVersion.value++
+    }
+
     private val _currentWeek = MutableStateFlow(1)
     val currentWeek: StateFlow<Int> = _currentWeek.asStateFlow()
 

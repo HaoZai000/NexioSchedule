@@ -146,13 +146,12 @@ class TodayCoursesProvider : ContentProvider() {
         val weekText = when {
             isHoliday -> "放假中"
             currentWeek < 1 -> "未开始"
-            showTomorrow -> "第${resolution.displayWeek}周"
-            else -> "第${currentWeek}周"
+            else -> "第${resolution.displayWeek}周"
         }
         val emptyText = when {
             isHoliday -> "假期中，暂无课程"
             currentWeek < 1 -> "学期暂未开始"
-            showTomorrow && resolution.isHolidayDate -> "假期中，暂无课程"
+            resolution.isHolidayDate -> "假期中，暂无课程"
             showTomorrow -> "明日无课"
             todayCourses.isEmpty() -> "今日无课"
             else -> "今日课程已上完"

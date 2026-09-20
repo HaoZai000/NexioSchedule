@@ -61,6 +61,7 @@ import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
@@ -570,32 +571,28 @@ private fun computeWallpaperIsLight(bitmap: android.graphics.Bitmap?): Boolean? 
 /**
  * 按屏幕长短边降采样解码相册选图。
  * 相册原图可达 50MP+，全尺寸 ARGB_8888 解码是选壁纸路径 OOM 的主因。
+ * 部分机型/云相册 URI 一次 open 不稳，先落到缓存文件再解码。
  */
 private fun decodeWallpaperSampled(
-    context: android.content.Context,
+    context: Context,
     uri: android.net.Uri,
     screenWPx: Float,
     screenHPx: Float,
 ): android.graphics.Bitmap? {
-    return try {
-        val targetW = maxOf(screenWPx, screenHPx).toInt().coerceAtLeast(1)
-        val targetH = minOf(screenWPx, screenHPx).toInt().coerceAtLeast(1)
-        val bounds = android.graphics.BitmapFactory.Options().apply { inJustDecodeBounds = true }
-        context.contentResolver.openInputStream(uri)?.use { stream ->
-            android.graphics.BitmapFactory.decodeStream(stream, null, bounds)
-        } ?: return null
-        if (bounds.outWidth <= 0 || bounds.outHeight <= 0) return null
+    val targetW = maxOf(screenWPx, screenHPx).toInt().coerceAtLeast(1)
+    val targetH = minOf(screenWPx, screenHPx).toInt().coerceAtLeast(1)
+
+    fun sampleSizeFromBounds(outW: Int, outH: Int): Int {
         var sample = 1
-        while ((bounds.outWidth / 2 / sample) >= targetW &&
-            (bounds.outHeight / 2 / sample) >= targetH
-        ) {
+        while ((outW / 2 / sample) >= targetW && (outH / 2 / sample) >= targetH) {
             sample *= 2
         }
-        val opts = android.graphics.BitmapFactory.Options().apply { inSampleSize = sample }
-        val decoded = context.contentResolver.openInputStream(uri)?.use { stream ->
-            android.graphics.BitmapFactory.decodeStream(stream, null, opts)
-        } ?: return null
-        // 采样后仍明显大于屏幕时再缩一次，压住极端长图/超高像素
+        return sample
+    }
+
+    fun downscaleIfNeeded(decoded: android.graphics.Bitmap?): android.graphics.Bitmap? {
+        decoded ?: return null
+        if (decoded.width <= 0 || decoded.height <= 0) return null
         if (decoded.width > targetW * 2 || decoded.height > targetH * 2) {
             val scale = minOf(
                 targetW.toFloat() / decoded.width,
@@ -607,13 +604,63 @@ private fun decodeWallpaperSampled(
                 true,
             )
             if (scaled !== decoded) decoded.recycle()
-            scaled
-        } else {
-            decoded
+            return scaled
         }
-    } catch (_: Exception) {
-        null
+        return decoded
     }
+
+    // 1) 直接 URI 解码
+    try {
+        val bounds = android.graphics.BitmapFactory.Options().apply { inJustDecodeBounds = true }
+        context.contentResolver.openInputStream(uri)?.use { stream ->
+            android.graphics.BitmapFactory.decodeStream(stream, null, bounds)
+        }
+        if (bounds.outWidth > 0 && bounds.outHeight > 0) {
+            val sampleOpts = android.graphics.BitmapFactory.Options().apply {
+                inSampleSize = sampleSizeFromBounds(bounds.outWidth, bounds.outHeight)
+            }
+            val decoded = context.contentResolver.openInputStream(uri)?.use { stream ->
+                android.graphics.BitmapFactory.decodeStream(stream, null, sampleOpts)
+            }
+            downscaleIfNeeded(decoded)?.let { return it }
+        }
+    } catch (_: Exception) { }
+
+    // 2) ImageDecoder（HEIC/部分云图更稳）
+    try {
+        val decoded = android.graphics.ImageDecoder.decodeBitmap(
+            android.graphics.ImageDecoder.createSource(context.contentResolver, uri)
+        ) { decoder, info, _ ->
+            decoder.allocator = android.graphics.ImageDecoder.ALLOCATOR_SOFTWARE
+            val sample = sampleSizeFromBounds(info.size.width, info.size.height)
+            if (sample > 1) decoder.setTargetSampleSize(sample)
+        }
+        downscaleIfNeeded(decoded)?.let { return it }
+    } catch (_: Exception) { }
+
+    // 3) 复制到缓存再解码：规避 content URI 只能读一次 / 权限瞬时失效
+    val cacheFile = java.io.File(context.cacheDir, "wallpaper_pick_${System.currentTimeMillis()}.img")
+    try {
+        val copied = context.contentResolver.openInputStream(uri)?.use { input ->
+            cacheFile.outputStream().use { output -> input.copyTo(output) }
+            true
+        } == true
+        if (copied && cacheFile.exists() && cacheFile.length() > 0) {
+            val bounds = android.graphics.BitmapFactory.Options().apply { inJustDecodeBounds = true }
+            android.graphics.BitmapFactory.decodeFile(cacheFile.absolutePath, bounds)
+            if (bounds.outWidth > 0 && bounds.outHeight > 0) {
+                val sampleOpts = android.graphics.BitmapFactory.Options().apply {
+                    inSampleSize = sampleSizeFromBounds(bounds.outWidth, bounds.outHeight)
+                }
+                val decoded = android.graphics.BitmapFactory.decodeFile(cacheFile.absolutePath, sampleOpts)
+                downscaleIfNeeded(decoded)?.let { return it }
+            }
+        }
+    } catch (_: Exception) { } finally {
+        // 成功/失败都删，避免 cacheDir 残留 wallpaper_pick_*.img
+        runCatching { cacheFile.delete() }
+    }
+    return null
 }
 
 /** 释放独立快照位图；与进程级壁纸缓存或 keep 引用共用时不 recycle */
@@ -1098,6 +1145,19 @@ fun CourseScheduleApp() {
             viewModel.reloadCourses()
         }
     }
+    // 节假日/调休保存不走课程 reload；resume 时对比 HolidayManager 版本，变了才 bump dataVersion
+    var seenHolidayVersion by remember {
+        mutableLongStateOf(
+            com.haooz.chedule.data.HolidayManager.getVersion(context)
+        )
+    }
+    LaunchedEffect(resumeCount) {
+        val holidayV = com.haooz.chedule.data.HolidayManager.getVersion(context)
+        if (holidayV != seenHolidayVersion) {
+            seenHolidayVersion = holidayV
+            viewModel.bumpDataVersion()
+        }
+    }
     val config = LocalConfiguration.current
     val isTablet = config.screenWidthDp >= 600
     val navBarStyle = if (isTablet) "rail" else "standard"
@@ -1173,7 +1233,7 @@ fun CourseScheduleApp() {
     var draggedWeek by remember { mutableIntStateOf(1) }
     // 拖拽落点检测用网格几何
     var gridGeometry by remember {
-        mutableStateOf<com.haooz.chedule.ui.screens.ScheduleGridGeometry?>(
+        mutableStateOf<ScheduleGridGeometry?>(
             null
         )
     }
@@ -2270,16 +2330,35 @@ fun CourseScheduleApp() {
         }
     }
 
+    var wallpaperDecodeJob by remember { mutableStateOf<kotlinx.coroutines.Job?>(null) }
+
     val wallpaperPickerLauncher = rememberLauncherForActivityResult(
         contract = androidx.activity.result.contract.ActivityResultContracts.PickVisualMedia()
     ) { uri ->
-        uri?.let {
-            // 相册原图必须先按屏幕分辨率降采样，全尺寸解码极易 OOM
-            val bitmap = decodeWallpaperSampled(context, it, screenWPx, screenHPx)
+        if (uri == null) {
+            android.widget.Toast.makeText(context, "未选择图片", android.widget.Toast.LENGTH_SHORT).show()
+            return@rememberLauncherForActivityResult
+        }
+        if (wallpaperDecodeJob?.isActive == true) {
+            android.widget.Toast.makeText(context, "正在处理壁纸，请稍候", android.widget.Toast.LENGTH_SHORT).show()
+            return@rememberLauncherForActivityResult
+        }
+        val decodeW = screenWPx
+        val decodeH = screenHPx
+        android.widget.Toast.makeText(context, "正在处理壁纸…", android.widget.Toast.LENGTH_SHORT).show()
+        wallpaperDecodeJob = coroutineScope.launch {
+            val bitmap = withContext(Dispatchers.IO) {
+                decodeWallpaperSampled(context, uri, decodeW, decodeH)
+            }
+            if (bitmap == null) {
+                android.widget.Toast.makeText(context, "壁纸解码失败，请换一张图片", android.widget.Toast.LENGTH_LONG).show()
+                return@launch
+            }
             val oldWallpaper = wallpaperBitmap
             wallpaperBitmap = bitmap
+            MainActivity.cachedWallpaperBitmap = bitmap
             wallpaperOffset = Offset.Zero
-            val autoScale = computeWallpaperMinScale(bitmap, screenWPx, screenHPx)
+            val autoScale = computeWallpaperMinScale(bitmap, decodeW, decodeH)
             wallpaperScale = autoScale
             val isLight = computeWallpaperIsLight(bitmap)
             val idx = currentCombinationIndex
@@ -2287,6 +2366,8 @@ fun CourseScheduleApp() {
                 combinations = combinations.toMutableList().also { list ->
                     list[idx] = list[idx].copy(
                         bitmap = bitmap,
+                        // 清掉旧快照，搭配预览回退显示新壁纸，避免「选完没反应」
+                        snapshot = null,
                         offset = Offset.Zero,
                         scale = autoScale,
                         wallpaperIsLight = isLight
@@ -2294,7 +2375,7 @@ fun CourseScheduleApp() {
                 }
             }
             // 旧壁纸已离开当前 combination/显示引用后再回收（避开缓存与仍被展示的同一对象）
-            coroutineScope.launch {
+            launch {
                 delay(32.milliseconds)
                 recycleIndependentBitmap(
                     oldWallpaper,
@@ -2760,9 +2841,14 @@ fun CourseScheduleApp() {
                                 isShiftMode,
                                 sharedWallpaperBitmap,
                                 todayShowWallpaper,
+                                showCustomizePage,
                                 mainPagerState,
                             ) {
                                 derivedStateOf {
+                                    // 搭配页/开洞编辑：必须始终显示壁纸层，否则选完壁纸「没反应」
+                                    if (showCustomizePage && sharedWallpaperBitmap != null) {
+                                        return@derivedStateOf true
+                                    }
                                     val page = mainPagerState.currentPage
                                     val off = abs(mainPagerState.currentPageOffsetFraction)
                                     !isShiftMode && sharedWallpaperBitmap != null &&
@@ -2886,6 +2972,7 @@ fun CourseScheduleApp() {
                                             viewModel = viewModel,
                                             settingsViewModel = settingsViewModel,
                                             hiddenCourseIds = hiddenCourseIds,
+                                            holidayDataTick = resumeCount,
                                             onCourseClick = { courses, left, top, width, height, _, courseIdToHide, targetWeek ->
                                                 openCourseDetail(
                                                     courses,

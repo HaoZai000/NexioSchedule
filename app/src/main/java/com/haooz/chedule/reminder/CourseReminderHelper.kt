@@ -16,7 +16,9 @@ import com.haooz.chedule.data.Course
 import com.haooz.chedule.data.CourseRepository
 import com.haooz.chedule.data.HolidayManager
 import com.haooz.chedule.ui.activities.MainActivity
+import com.haooz.chedule.widget.WidgetUpdateCache
 import java.time.LocalDate
+import java.time.temporal.ChronoUnit
 import java.util.Calendar
 
 object CourseReminderHelper {
@@ -799,8 +801,8 @@ object CourseReminderHelper {
         com.haooz.chedule.data.CourseTimeResolver.getEndTime(course, repository)
 
     /**
-     * 小组件/ContentProvider 共用的某日课表解析。
-     * 与 App 内今日页、次日提醒同口径：节假日空课；调休按 followWeekday/followWeek 映射。
+     * 小组件/ContentProvider/今日页/次日提醒共用的某日课表解析。
+     * 节假日空课；调休按 followWeekday/followWeek 映射；无映射时按日历周次查课。
      */
     data class DayScheduleResolution(
         val courses: List<Course>,
@@ -816,19 +818,45 @@ object CourseReminderHelper {
         val isWorkSwap: Boolean,
     )
 
+    /** 由开学日推目标日期所在日历课表周；仅作相对偏移，不直接当「当前周」 */
+    fun calendarWeekForDate(repository: CourseRepository, date: LocalDate): Int {
+        return try {
+            val start = LocalDate.parse(repository.getClassStartTime().replace("/", "-"))
+            val startMonday = start.minusDays((start.dayOfWeek.value - 1).toLong())
+            val daysBetween = ChronoUnit.DAYS.between(startMonday, date)
+            daysBetween.floorDiv(7).toInt() + 1
+        } catch (_: Exception) {
+            repository.getCurrentWeek()
+        }
+    }
+
+    /**
+     * 与主课表「当前周」对齐的目标日周次。
+     * 存储周（Settings 可手动调）为基准，按目标日相对今天的日历周差平移；
+     * 避免 widget/今日页/提醒用纯日历周，与主课表手动调周后的单双周错位。
+     * 调休 followWeek 仍由调用方优先覆盖。
+     */
+    fun alignedStoredWeekForDate(repository: CourseRepository, date: LocalDate): Int {
+        val today = LocalDate.now()
+        val delta = calendarWeekForDate(repository, date) - calendarWeekForDate(repository, today)
+        return repository.getCurrentWeek() + delta
+    }
+
     fun resolveDaySchedule(context: Context, forTomorrow: Boolean): DayScheduleResolution {
+        val today = LocalDate.now()
+        return resolveDaySchedule(context, if (forTomorrow) today.plusDays(1) else today)
+    }
+
+    fun resolveDaySchedule(context: Context, date: LocalDate): DayScheduleResolution {
         val repository = CourseRepository(context)
-        val todayDate = LocalDate.now()
-        val targetDate = if (forTomorrow) todayDate.plusDays(1) else todayDate
-        val calendarDay = targetDate.dayOfWeek.value
-        val isHolidayDate = HolidayManager.isHoliday(context, targetDate)
-        val todayEntry = HolidayManager.workSwap(context, todayDate)
-        val targetEntry = HolidayManager.workSwap(context, targetDate)
-        val currentWeek = todayEntry?.followWeek?.takeIf { it > 0 } ?: repository.getCurrentWeek()
+        val calendarDay = date.dayOfWeek.value
+        val isHolidayDate = HolidayManager.isHoliday(context, date)
+        val targetEntry = HolidayManager.workSwap(context, date)
         val isWorkSwap = targetEntry?.followWeekday?.let { it in 1..7 } == true
         val displayDay = targetEntry?.followWeekday?.takeIf { it in 1..7 } ?: calendarDay
+        // 未配置映射：用「存储当前周 + 日历偏移」，与主课表手动调周一致，且不受今日调休 followWeek 污染
         val displayWeek = targetEntry?.followWeek?.takeIf { it > 0 }
-            ?: if (forTomorrow && displayDay == 1) currentWeek + 1 else currentWeek
+            ?: alignedStoredWeekForDate(repository, date)
 
         if (isHolidayDate) {
             return DayScheduleResolution(
@@ -865,6 +893,12 @@ object CourseReminderHelper {
             isHolidayDate = false,
             isWorkSwap = isWorkSwap,
         )
+    }
+
+    /** 节假日/调休数据变更后：重排提醒并立即刷新已放置的小部件 */
+    fun onHolidayDataChanged(context: Context) {
+        startReminderService(context)
+        WidgetUpdateCache.updateInstalledWidgets(context)
     }
 
     fun getTomorrowCourses(context: Context): List<Course> =

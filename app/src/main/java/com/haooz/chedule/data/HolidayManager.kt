@@ -50,9 +50,12 @@ object HolidayManager {
 
     fun save(context: Context, year: Int, entries: List<Entry>) {
         val array = JSONArray().apply { entries.sortedBy { it.date }.forEach { put(it.toJson()) } }
-        context.getSharedPreferences(PREFS, Context.MODE_PRIVATE).edit {
+        val prefs = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
+        // 单调递增：同一毫秒内两次 save 也要变号，避免 UI 版本对比失效
+        val prev = prefs.getLong(KEY_VERSION, 0L)
+        prefs.edit {
             putString("$KEY_PREFIX$year", array.toString())
-            putLong(KEY_VERSION, System.currentTimeMillis())
+            putLong(KEY_VERSION, maxOf(System.currentTimeMillis(), prev + 1L))
         }
     }
 

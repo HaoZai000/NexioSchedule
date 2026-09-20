@@ -66,10 +66,6 @@ class CourseWidgetProviderStandard : AppWidgetProvider() {
         val dark = WidgetTextSizes.isDark(context)
 
         val currentWeek = repository.getCurrentWeek()
-        // getTodayOfWeek/getTodayCourses 统一在 CourseReminderHelper（含 workSwap / 节假日 / 周次范围 / 排序），
-        // 这里不再保留私有副本。
-        val today = CourseReminderHelper.getTodayOfWeek()
-        val courses = repository.getAllCourses()
         val todayCourses = CourseReminderHelper.getTodayCourses(context)
 
         val calendar = Calendar.getInstance()
@@ -91,16 +87,10 @@ class CourseWidgetProviderStandard : AppWidgetProvider() {
         val showTomorrow = isNextDayReminderEnabled && currentMinutes >= reminderMinutes && todayCoursesFinished
 
         val dayNames = listOf("周一", "周二", "周三", "周四", "周五", "周六", "周日")
-        // 明日预告与次日提醒同口径：节假日/调休走 resolveDaySchedule，不再按日历 day+1 硬算
+        // 今日/明日统一走 resolveDaySchedule：节假日空课、调休按映射查课
         val resolution = CourseReminderHelper.resolveDaySchedule(context, forTomorrow = showTomorrow)
-        val dayOfWeek = if (showTomorrow) resolution.displayDayOfWeek else today
         val targetWeek = resolution.displayWeek
-        val targetCourses = if (showTomorrow) {
-            resolution.courses
-        } else {
-            courses.filter { it.dayOfWeek == dayOfWeek && it.isActiveInWeek(targetWeek) }
-                .sortedBy { getCourseStartTime(it, repository).toMinutes() }
-        }
+        val targetCourses = resolution.courses
 
         val totalWeeks = repository.getTotalWeeks()
         val lastWeekWithCourses = repository.getLastWeekWithCourses()
@@ -112,8 +102,7 @@ class CourseWidgetProviderStandard : AppWidgetProvider() {
         val weekText = when {
             isHoliday -> "放假中"
             currentWeek < 1 -> "未开始"
-            showTomorrow -> "第${targetWeek}周"
-            else -> "第${currentWeek}周"
+            else -> "第${targetWeek}周"
         }
 
         val displayCourses = if (showTomorrow) {
@@ -148,7 +137,7 @@ class CourseWidgetProviderStandard : AppWidgetProvider() {
             when {
                 isHoliday -> "假期中，暂无课程"
                 currentWeek < 1 -> "学期暂未开始"
-                showTomorrow && resolution.isHolidayDate -> "假期中，暂无课程"
+                resolution.isHolidayDate -> "假期中，暂无课程"
                 showTomorrow -> "明日无课"
                 todayCourses.isEmpty() -> "今日无课"
                 else -> "今日课程已上完"

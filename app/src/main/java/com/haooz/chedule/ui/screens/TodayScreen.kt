@@ -53,7 +53,6 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.haooz.chedule.data.CardRefractionLevel
 import com.haooz.chedule.data.Course
-import com.haooz.chedule.data.HolidayManager
 import com.haooz.chedule.ui.basic.CollapsibleTopAppBarDefaults
 import com.haooz.chedule.ui.basic.SharedScrollBehavior
 import com.haooz.chedule.ui.basic.collapsibleTopInset
@@ -322,15 +321,6 @@ private fun CourseItemContent(course: Course, sectionTimes: Map<Int, String>, pa
     }
 }
 
-private fun calculateWeekFromDate(startDate: String, date: LocalDate): Int {
-    return try {
-        val start = LocalDate.parse(startDate.replace("/", "-"))
-        val startMonday = start.minusDays((start.dayOfWeek.value - 1).toLong())
-        val daysBetween = ChronoUnit.DAYS.between(startMonday, date)
-        daysBetween.floorDiv(7).toInt() + 1
-    } catch (_: Exception) { 1 }
-}
-
 @SuppressLint("ConfigurationScreenWidthHeight")
 @Composable
 fun TodayScreen(
@@ -364,9 +354,12 @@ fun TodayScreen(
     liquidGlassBackdrop: Backdrop? = null,
     showClassroom: Boolean = true,
     showTeacher: Boolean = true,
+    /** 主界面 resume/节假日版本变化时递增，强制今日页重读 HolidayManager */
+    holidayDataTick: Int = 0,
 ) {
     val courses by viewModel.courses.collectAsState()
     val classStartTime by viewModel.classStartTime.collectAsState()
+    val dataVersion by viewModel.dataVersion.collectAsState()
     val sectionTimes by settingsViewModel.sectionTimes.collectAsState()
     val morningSections by settingsViewModel.morningSections.collectAsState()
     val afternoonSections by settingsViewModel.afternoonSections.collectAsState()
@@ -561,29 +554,30 @@ fun TodayScreen(
                     }
                 }
                 val pageDate = LocalDate.now().plusDays((page - MAX_DATE_OFFSET).toLong())
-                val pageDayOfWeek = pageDate.dayOfWeek.value.let { if (it == 7) 7 else it }
-                val pageWeek = remember(pageDate, classStartTime) {
-                    calculateWeekFromDate(classStartTime, pageDate)
+                // 节假日/调休保存不 bump dataVersion；用 resume/版本 tick 重读，避免 remember 缓存旧映射
+                val holidayVersion = remember(dataVersion, classStartTime, holidayDataTick) {
+                    com.haooz.chedule.data.HolidayManager.getVersion(appContext)
                 }
-                // 调休补班日：按配置映射到「第 X 周星期 Y」的课，与课表页 / 小组件同一套逻辑
-                val pageSwap = remember(pageDate) {
-                    HolidayManager.workSwap(appContext, pageDate)
+                // 与课前提醒/小部件同口径：节假日空课，调休按 followWeek/followWeekday 映射
+                val pageResolution = remember(
+                    pageDate, courses, dataVersion, holidayVersion, classStartTime
+                ) {
+                    com.haooz.chedule.reminder.CourseReminderHelper.resolveDaySchedule(appContext, pageDate)
                 }
-                val displayDay = pageSwap?.followWeekday?.takeIf { it in 1..7 } ?: pageDayOfWeek
-                val displayWeek = pageSwap?.followWeek?.takeIf { it > 0 } ?: pageWeek
-                val isWorkSwapDay = pageSwap?.followWeekday?.let { it in 1..7 } == true
-                val pageCourses = remember(courses, displayWeek, displayDay, smartWeekend, isWorkSwapDay) {
+                val displayWeek = pageResolution.displayWeek
+                val pageCourses = remember(pageResolution, smartWeekend, dataVersion) {
                     val dayRange =
                         (1..5).toList() + settingsViewModel.getWeekendDaysForWeek(displayWeek)
                             .filter { it in 6..7 }
-                    // 调休补班即使落在智能周末隐藏的周六日也要显示
-                    if (isWorkSwapDay || displayDay in dayRange) {
-                        courses.filter { it.dayOfWeek == displayDay && it.isActiveInWeek(displayWeek) }
-                            .sortedBy { it.startSection }
-                    } else {
-                        emptyList()
+                    // 节假日直接空课；调休补班即使落在智能周末隐藏的周六日也显示
+                    when {
+                        pageResolution.isHolidayDate -> emptyList()
+                        pageResolution.isWorkSwap || pageResolution.displayDayOfWeek in dayRange ->
+                            pageResolution.courses
+                        else -> emptyList()
                     }
                 }
+                val pageWeek = displayWeek
                 val coursePeriods = pageCourses.associateWith {
                     it.periodIndex(sectionTimes, morningSections, afternoonSections)
                 }
@@ -593,19 +587,12 @@ fun TodayScreen(
 
                 val isPageToday = pageDate == LocalDate.now()
 
-                val tomorrowCourses = remember(courses, pageWeek, pageDayOfWeek, isPageToday, pageDate) {
-                    if (isPageToday) {
-                        val tomorrowDate = pageDate.plusDays(1)
-                        val tomorrowSwap = HolidayManager.workSwap(appContext, tomorrowDate)
-                        val tomorrowDay = tomorrowSwap?.followWeekday?.takeIf { it in 1..7 }
-                            ?: if (pageDayOfWeek == 7) 1 else pageDayOfWeek + 1
-                        val tomorrowWeek = tomorrowSwap?.followWeek?.takeIf { it > 0 }
-                            ?: if (pageDayOfWeek == 7) pageWeek + 1 else pageWeek
-                        courses.filter { it.dayOfWeek == tomorrowDay && it.isActiveInWeek(tomorrowWeek) }
-                            .sortedBy { it.startSection }
-                    } else {
-                        emptyList()
-                    }
+                val tomorrowCourses = remember(
+                    isPageToday, pageDate, courses, dataVersion, holidayVersion, classStartTime
+                ) {
+                    if (!isPageToday) emptyList()
+                    else com.haooz.chedule.reminder.CourseReminderHelper
+                        .resolveDaySchedule(appContext, forTomorrow = true).courses
                 }
 
                 val dateText = pageDate.format(DATE_FORMATTER)
@@ -683,7 +670,7 @@ fun TodayScreen(
                             ),
                             verticalArrangement = Arrangement.spacedBy(12.dp)
                         ) {
-                            addCourseSections(morningCourses, afternoonCourses, eveningCourses, pageCourses, isPageToday, pageDate, pageWeek, courses, hiddenCourseIds, sectionTimes, onCourseClick, if (hasWallpaper) cardBackdrop else null, cardBlurRadius, courseCardOpacity, showClassroom, showTeacher)
+                            addCourseSections(morningCourses, afternoonCourses, eveningCourses, pageCourses, isPageToday, pageDate, pageWeek, courses, hiddenCourseIds, sectionTimes, onCourseClick, if (hasWallpaper) cardBackdrop else null, cardBlurRadius, courseCardOpacity, showClassroom, showTeacher, isHolidayDate = pageResolution.isHolidayDate)
                         }
                     }
                 } else {
@@ -746,7 +733,7 @@ fun TodayScreen(
                                 )
                             }
                         }
-                        addCourseSections(morningCourses, afternoonCourses, eveningCourses, pageCourses, isPageToday, pageDate, pageWeek, courses, hiddenCourseIds, sectionTimes, onCourseClick, if (hasWallpaper) cardBackdrop else null, cardBlurRadius, courseCardOpacity, showClassroom, showTeacher)
+                        addCourseSections(morningCourses, afternoonCourses, eveningCourses, pageCourses, isPageToday, pageDate, pageWeek, courses, hiddenCourseIds, sectionTimes, onCourseClick, if (hasWallpaper) cardBackdrop else null, cardBlurRadius, courseCardOpacity, showClassroom, showTeacher, isHolidayDate = pageResolution.isHolidayDate)
                     }
                 }
             }
@@ -1411,15 +1398,18 @@ private fun QuoteCard(
 
 
 // 今日页分组标题：始终套椭圆（胶囊）底；有壁纸时走与卡片相同的 blur/lens/透明度
+// textAlign：节标题默认起始对齐；空态等居中场景由调用方传 Center
 @Composable
 private fun CourseSectionTitle(
     text: String,
     wallpaperBackdrop: Backdrop? = null,
     blurRadius: Float = 0f,
     surfaceOpacity: Float,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    style: androidx.compose.ui.text.TextStyle =
+        MiuixTheme.textStyles.subtitle.copy(fontWeight = FontWeight.Medium),
+    textAlign: TextAlign? = null,
 ) {
-    val style = MiuixTheme.textStyles.subtitle.copy(fontWeight = FontWeight.Medium)
     val isDark = isAppDarkTheme()
     val refraction = LocalCardRefraction.current
     // 有壁纸时用纯黑/纯白，压在毛玻璃上更干净
@@ -1455,6 +1445,7 @@ private fun CourseSectionTitle(
                 text = text,
                 style = style,
                 color = textColor,
+                textAlign = textAlign,
                 modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp)
             )
         }
@@ -1470,6 +1461,7 @@ private fun CourseSectionTitle(
         text = text,
         style = style,
         color = textColor,
+        textAlign = textAlign,
         modifier = modifier
             .padding(vertical = 6.dp)
             .clip(ContinuousCapsule())
@@ -1494,7 +1486,8 @@ private fun androidx.compose.foundation.lazy.LazyListScope.addCourseSections(
     blurRadius: Float = 0f,
     surfaceOpacity: Float,
     showClassroom: Boolean = true,
-    showTeacher: Boolean = true
+    showTeacher: Boolean = true,
+    isHolidayDate: Boolean = false,
 ) {
     if (morningCourses.isNotEmpty()) {
         item {
@@ -1555,12 +1548,26 @@ private fun androidx.compose.foundation.lazy.LazyListScope.addCourseSections(
     }
     if (pageCourses.isEmpty()) {
         item {
-            Box(modifier = Modifier.fillMaxWidth().height(250.dp), contentAlignment = Alignment.Center) {
-                Text(
-                    text = if (isPageToday) "今天没有课程，好好休息吧！" else "这天没有课程",
-                    style = MiuixTheme.textStyles.body2,
-                    color = MiuixTheme.colorScheme.onSurfaceVariantActions,
-                    textAlign = TextAlign.Center
+            Box(
+                modifier = Modifier.fillMaxWidth().height(250.dp),
+                contentAlignment = Alignment.Center
+            ) {
+                CourseSectionTitle(
+                    text = when {
+                        isHolidayDate && isPageToday -> "今天是假期，好好休息吧！"
+                        isHolidayDate -> "这天是假期"
+                        isPageToday -> "今天没有课程，好好休息吧！"
+                        else -> "这天没有课程"
+                    },
+                    wallpaperBackdrop = wallpaperBackdrop,
+                    blurRadius = blurRadius,
+                    surfaceOpacity = surfaceOpacity,
+                    style = MiuixTheme.textStyles.body1.copy(
+                        fontSize = 18.sp,
+                        fontWeight = FontWeight.Medium,
+                    ),
+                    textAlign = TextAlign.Center,
+                    modifier = Modifier.padding(horizontal = 24.dp, vertical = 8.dp)
                 )
             }
         }

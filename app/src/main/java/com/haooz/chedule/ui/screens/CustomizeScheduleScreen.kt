@@ -791,26 +791,19 @@ fun CustomizeScheduleScreen(
                                         onClick = {}
                                     )
                             ) {
-                                if (isCurrentComb && snapshot != null && animDone && !cardHidden) {
+                                // 当前搭配：刚选完壁纸时 comb.snapshot 被清掉，优先实时壁纸，避免旧快照盖住新图
+                                val previewBitmap = when {
+                                    isCurrentComb && wallpaperBitmap != null && comb?.snapshot == null ->
+                                        wallpaperBitmap
+                                    isCurrentComb && snapshot != null && animDone && !cardHidden ->
+                                        snapshot
+                                    comb != null && comb.snapshot != null -> comb.snapshot
+                                    comb != null && comb.bitmap != null -> comb.bitmap
+                                    else -> null
+                                }
+                                if (previewBitmap != null) {
                                     Image(
-                                        bitmap = snapshot.asImageBitmap(),
-                                        contentDescription = null,
-                                        modifier = Modifier.fillMaxSize(),
-                                        contentScale = ContentScale.Crop
-                                    )
-                                } else if (comb?.snapshot != null) {
-                                    val combSnapshot = comb.snapshot!!
-                                    Image(
-                                        bitmap = combSnapshot.asImageBitmap(),
-                                        contentDescription = null,
-                                        modifier = Modifier.fillMaxSize(),
-                                        contentScale = ContentScale.Crop
-                                    )
-                                } else if (comb?.bitmap != null) {
-                                    // 兼容旧数据：仅有壁纸时回退使用壁纸
-                                    val combBitmap = comb.bitmap!!
-                                    Image(
-                                        bitmap = combBitmap.asImageBitmap(),
+                                        bitmap = previewBitmap.asImageBitmap(),
                                         contentDescription = null,
                                         modifier = Modifier.fillMaxSize(),
                                         contentScale = ContentScale.Crop

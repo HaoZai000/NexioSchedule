@@ -224,7 +224,7 @@ fun HolidaySettingsScreen(
         )
         HolidayManager.save(context, entryYear, all)
         reload()
-        CourseReminderHelper.startReminderService(context)
+        CourseReminderHelper.onHolidayDataChanged(context)
         showDialog = false
         editingEntry = null
     }
@@ -239,7 +239,7 @@ fun HolidaySettingsScreen(
             HolidayManager.save(context, oldYear, all)
         }
         reload()
-        CourseReminderHelper.startReminderService(context)
+        CourseReminderHelper.onHolidayDataChanged(context)
         showDeleteConfirm = false
         showDialog = false
         editingEntry = null

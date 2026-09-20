@@ -20,6 +20,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.DpOffset
 import androidx.compose.ui.unit.dp
 import com.haooz.chedule.data.HolidayManager
+import com.haooz.chedule.reminder.CourseReminderHelper
 import com.haooz.chedule.ui.basic.CollapsibleTopAppBar
 import com.haooz.chedule.ui.basic.LiquidTopBarButton
 import com.haooz.chedule.ui.basic.ProgressiveBlurTopBar
@@ -88,6 +89,10 @@ class HolidaySettingsActivity : SecondaryActivity() {
                         HolidayManager.mergeApiEntries(context, targetYear, result)
                         if (targetYear == year) reload()
                         loading = false
+                        if (result.isNotEmpty()) {
+                            // API 合并同样要重排提醒并刷小部件，不能只改本地 SP
+                            CourseReminderHelper.onHolidayDataChanged(context)
+                        }
                         val message = if (result.isEmpty()) {
                             "获取失败或暂无数据"
                         } else {
