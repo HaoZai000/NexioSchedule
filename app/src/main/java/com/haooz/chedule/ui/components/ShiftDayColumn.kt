@@ -121,35 +121,61 @@ fun ShiftDayColumn(
             }
         }
 
-        for (group in groups) {
-            // 跨分界线的课程拆分为多段，避免午休/晚休栏穿过卡片中间
-            val lunchBreak = morningSections
-            val dinnerBreak = morningSections + afternoonSections
-            val segments = mutableListOf<Pair<Int, Int>>()
-            var segStart = group.startSection
-            while (segStart <= group.endSection) {
-                var segEnd = group.endSection
-                if (lunchBreak in segStart..<segEnd) segEnd = lunchBreak
-                if (dinnerBreak in segStart..<segEnd) segEnd = dinnerBreak
-                segments.add(segStart to segEnd)
-                segStart = segEnd + 1
+        // 排班分组块：早上/下午每 2 个小节为一组，晚上整段为一组
+        // （每个块天然含午休/晚休边界，段不会跨分割条）
+        val groupBlocks = buildList<Pair<Int, Int>> {
+            for (s in 1..morningSections step 2) {
+                add(s to minOf(s + 1, morningSections))
             }
-
-            segments.forEach { (segStartSection, segEndSection) ->
-                val span = segEndSection - segStartSection + 1
-                val cardHeight = span * cardHeightPerSection
-                val y = sectionToY(segStartSection)
-                ShiftCell(
-                    courses = group.items,
-                    isTablet = isTablet,
-                    cardCornerRadius = cardCornerRadius,
-                    onClick = { onSlotClick(dayOfWeek, group.startSection, group.items) },
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .height(cardHeight.dp)
-                        .offset(y = y.dp)
+            for (s in (morningSections + 1)..(morningSections + afternoonSections) step 2) {
+                add(s to minOf(s + 1, morningSections + afternoonSections))
+            }
+            if (eveningSections > 0) {
+                add(
+                    (morningSections + afternoonSections + 1) to
+                        (morningSections + afternoonSections + eveningSections)
                 )
             }
+        }
+
+        // 所有课程按组块边界拆分，跨组的课程落到各自块内：
+        // 例：1-2 节 → 第一组；1-3 节 → 12 第一组 + 3 第二组；2-3 节 → 2 第一组 + 3 第二组；
+        // 1-4 节 → 12 第一组 + 34 第二组；晚上课程无论几节 → 整段一组。
+        // 同一组块可能被多个不同小节范围的课程（不同课表的课）命中，
+        // 全部聚合为一块一张卡，范围取并集，避免各自渲染互相重叠。
+        data class BlockSlot(
+            var startSection: Int,
+            var endSection: Int,
+            val items: MutableList<Pair<String, Course>> = mutableListOf()
+        )
+        val blockSlots = LinkedHashMap<Pair<Int, Int>, BlockSlot>()
+        for (group in groups) {
+            for ((blockStart, blockEnd) in groupBlocks) {
+                val segStart = maxOf(blockStart, group.startSection)
+                val segEnd = minOf(blockEnd, group.endSection)
+                if (segStart > segEnd) continue
+                val key = blockStart to blockEnd
+                val slot = blockSlots.getOrPut(key) { BlockSlot(segStart, segEnd) }
+                if (segStart < slot.startSection) slot.startSection = segStart
+                if (segEnd > slot.endSection) slot.endSection = segEnd
+                slot.items.addAll(group.items)
+            }
+        }
+
+        blockSlots.values.forEach { slot ->
+            val span = slot.endSection - slot.startSection + 1
+            val cardHeight = span * cardHeightPerSection
+            val y = sectionToY(slot.startSection)
+            ShiftCell(
+                courses = slot.items.distinctBy { it.first },
+                isTablet = isTablet,
+                cardCornerRadius = cardCornerRadius,
+                onClick = { onSlotClick(dayOfWeek, slot.startSection, slot.items) },
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(cardHeight.dp)
+                    .offset(y = y.dp)
+            )
         }
     }
 }

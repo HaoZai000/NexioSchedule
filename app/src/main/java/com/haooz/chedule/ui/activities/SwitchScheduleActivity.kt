@@ -17,6 +17,7 @@ import androidx.compose.animation.core.animateFloat
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -34,7 +35,11 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyItemScope
+import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -116,6 +121,33 @@ import com.kyant.backdrop.backdrops.layerBackdrop as liquidGlassLayerBackdrop
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import com.haooz.chedule.ui.theme.CourseScheduleTheme
+import androidx.compose.ui.graphics.vector.path
+
+/** 内置图标库没有文件夹图标，这里手绘一个 Material Folder 矢量图标 */
+private val FolderIcon: androidx.compose.ui.graphics.vector.ImageVector by lazy {
+    androidx.compose.ui.graphics.vector.ImageVector.Builder(
+        name = "Folder",
+        defaultWidth = 24.dp,
+        defaultHeight = 24.dp,
+        viewportWidth = 24f,
+        viewportHeight = 24f
+    ).apply {
+        path(fill = androidx.compose.ui.graphics.SolidColor(androidx.compose.ui.graphics.Color.Black)) {
+            moveTo(10f, 4f)
+            horizontalLineTo(4f)
+            curveTo(2.9f, 4f, 2.01f, 4.9f, 2.01f, 6f)
+            lineTo(2f, 18f)
+            curveTo(2f, 19.1f, 2.9f, 20f, 4f, 20f)
+            horizontalLineTo(20f)
+            curveTo(21.1f, 20f, 22f, 19.1f, 22f, 18f)
+            verticalLineTo(8f)
+            curveTo(22f, 6.9f, 21.1f, 6f, 20f, 6f)
+            horizontalLineTo(12f)
+            lineTo(10f, 4f)
+            close()
+        }
+    }.build()
+}
 
 class SwitchScheduleActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -229,6 +261,17 @@ fun SwitchScheduleScreen(
     var isSharingSchedule by remember { mutableStateOf(false) }
     var showShareConfirmDialog by remember { mutableStateOf(false) }
     var shareConfirmScheduleName by remember { mutableStateOf<String?>(null) }
+    var showNewFolderDialog by remember { mutableStateOf(false) }
+    var newFolderName by remember { mutableStateOf("") }
+    var scheduleFolders by remember { mutableStateOf(repository.getScheduleFolders()) }
+    var showMoveDialog by remember { mutableStateOf(false) }
+    var moveTargetFolder by remember { mutableStateOf<String?>(null) }
+    var showDeleteFolderDialog by remember { mutableStateOf(false) }
+    var deletingFolderName by remember { mutableStateOf<String?>(null) }
+    // 已折叠的文件夹（点击标题行切换）
+    var collapsedFolders by remember { mutableStateOf(setOf<String>()) }
+    // 移动课表后自增，驱动列表重新按文件夹分组
+    var folderRefreshKey by remember { mutableIntStateOf(0) }
 
     fun performShareSchedule(scheduleName: String) {
         if (isSharingSchedule) return
@@ -338,6 +381,19 @@ fun SwitchScheduleScreen(
                         },
                         endAction = if (!isEditMode) { backdropAlpha, shadowAlpha ->
                             Row(verticalAlignment = Alignment.CenterVertically) {
+                                LiquidTopBarButton(
+                                    onClick = {
+                                        hapticFeedback.performHapticFeedback(HapticFeedbackType.Confirm)
+                                        showNewFolderDialog = true
+                                    },
+                                    backdrop = liquidGlassBackdrop,
+                                    icon = FolderIcon,
+                                    contentDescription = "新建文件夹",
+                                    iconSize = 24.dp,
+                                    backdropAlpha = backdropAlpha,
+                                    shadowAlpha = shadowAlpha,
+                                )
+                                Spacer(Modifier.width(8.dp))
                                 LiquidTopBarButton(
                                     onClick = {
                                         hapticFeedback.performHapticFeedback(HapticFeedbackType.Confirm)
@@ -479,6 +535,18 @@ fun SwitchScheduleScreen(
                                                 shareConfirmScheduleName = selected
                                                 showShareConfirmDialog = true
                                             }
+                                        }
+                                    }
+                                )
+                                BottomBarItem(
+                                    icon = FolderIcon,
+                                    label = "移动",
+                                    enabled = checkedCount >= 1,
+                                    onClick = {
+                                        hapticFeedback.performHapticFeedback(HapticFeedbackType.KeyboardTap)
+                                        if (checkedCount >= 1) {
+                                            moveTargetFolder = null
+                                            showMoveDialog = true
                                         }
                                     }
                                 )
@@ -654,16 +722,16 @@ fun SwitchScheduleScreen(
                             }
                         }
                         if (scheduleNames.size > 1) {
-                            items(
-                                scheduleNames.size - 1,
-                                key = { scheduleNames[it + 1] }) { index ->
-                                if (index == 0) {
-                                    SmallTitle(
-                                        text = "其他课表",
-                                        modifier = Modifier.offset(x = (-16).dp)
-                                    )
-                                }
-                                val scheduleName = scheduleNames[index + 1]
+                            // 读取 state 以订阅变化：移动课表/新建文件夹后 folderRefreshKey++ 触发本块重算
+                            val folderStamp = folderRefreshKey
+                            val rest = scheduleNames.drop(1)
+                            // 按文件夹分组：未分组的留在"其他课表"，其余进入各自文件夹区块
+                            val ungrouped = rest.filter { repository.getScheduleFolderName(it) == null }
+                            val folderBlocks = scheduleFolders.mapNotNull { folder ->
+                                val inFolder = rest.filter { repository.getScheduleFolderName(it) == folder }
+                                if (inFolder.isEmpty()) null else folder to inFolder
+                            }
+                            val scheduleCardContent: @Composable LazyItemScope.(String) -> Unit = { scheduleName ->
                                 val summary = remember(
                                     scheduleName,
                                     scheduleSummaries
@@ -808,6 +876,76 @@ fun SwitchScheduleScreen(
                                     }
                                 }
                             }
+                            if (ungrouped.isNotEmpty()) {
+                                item {
+                                    SmallTitle(
+                                        text = "其他课表",
+                                        modifier = Modifier.offset(x = (-16).dp)
+                                    )
+                                }
+                                items(ungrouped, key = { it }) { scheduleName ->
+                                    scheduleCardContent(scheduleName)
+                                }
+                            }
+                            folderBlocks.forEach { (folder, schedules) ->
+                                item {
+                                    val folderExpanded by animateFloatAsState(
+                                        targetValue = if (folder in collapsedFolders) 0f else 1f,
+                                        animationSpec = tween(200),
+                                        label = "folderArrow"
+                                    )
+                                    Row(
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .clickable {
+                                                hapticFeedback.performHapticFeedback(
+                                                    HapticFeedbackType.Confirm
+                                                )
+                                                collapsedFolders = if (folder in collapsedFolders) {
+                                                    collapsedFolders - folder
+                                                } else {
+                                                    collapsedFolders + folder
+                                                }
+                                            },
+                                        verticalAlignment = Alignment.CenterVertically
+                                    ) {
+                                        SmallTitle(
+                                            text = folder,
+                                            modifier = Modifier.offset(x = (-16).dp)
+                                        )
+                                        Text(
+                                            text = ">",
+                                            fontSize = 18.sp,
+                                            color = MiuixTheme.colorScheme.onSurfaceVariantSummary,
+                                            modifier = Modifier
+                                                .padding(start = 2.dp)
+                                                .graphicsLayer {
+                                                    // 收起时指向右，展开时旋转 90° 指向下
+                                                    rotationZ = folderExpanded * 90f
+                                                }
+                                        )
+                                        Spacer(modifier = Modifier.weight(1f))
+                                        Icon(
+                                            imageVector = MiuixIcons.Delete,
+                                            contentDescription = "删除文件夹",
+                                            tint = MiuixTheme.colorScheme.onSurfaceVariantSummary,
+                                            modifier = Modifier
+                                                .size(18.dp)
+                                                .clickable {
+                                                    hapticFeedback.performHapticFeedback(HapticFeedbackType.Confirm)
+                                                    deletingFolderName = folder
+                                                    showDeleteFolderDialog = true
+                                                }
+                                        )
+                                        Spacer(modifier = Modifier.width(8.dp))
+                                    }
+                                }
+                                if (folder !in collapsedFolders) {
+                                    items(schedules, key = { it }) { scheduleName ->
+                                        scheduleCardContent(scheduleName)
+                                    }
+                                }
+                            }
                         }
                     }
                 }
@@ -914,6 +1052,217 @@ fun SwitchScheduleScreen(
                                 onScheduleChanged()
                             },
                             colors = ButtonDefaults.textButtonColorsPrimary(),
+                            modifier = Modifier.weight(1f)
+                        )
+                    }
+                }
+            }
+
+            OverlayDialog(
+                title = "新建文件夹",
+                show = showNewFolderDialog,
+                liquidGlassBackdrop = liquidGlassBackdrop,
+                onDismissRequest = {
+                    showNewFolderDialog = false
+                    newFolderName = ""
+                }
+            ) {
+                Column(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalAlignment = Alignment.CenterHorizontally
+                ) {
+                    NativeMiuixTextField(
+                        value = newFolderName,
+                        onValueChange = { newFolderName = it },
+                        label = "文件夹名称",
+                        modifier = Modifier.fillMaxWidth(),
+                        requestFocus = showNewFolderDialog
+                    )
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(top = 12.dp),
+                        horizontalArrangement = Arrangement.spacedBy(12.dp)
+                    ) {
+                        TextButton(
+                            text = "取消",
+                            onClick = {
+                                hapticFeedback.performHapticFeedback(HapticFeedbackType.Confirm)
+                                showNewFolderDialog = false
+                                newFolderName = ""
+                            },
+                            modifier = Modifier.weight(1f)
+                        )
+                        TextButton(
+                            text = "确定",
+                            enabled = newFolderName.isNotBlank(),
+                            onClick = {
+                                hapticFeedback.performHapticFeedback(HapticFeedbackType.Confirm)
+                                val name = newFolderName
+                                if (scheduleFolders.contains(name)) {
+                                    Toast.makeText(
+                                        context,
+                                        "已存在同名文件夹",
+                                        Toast.LENGTH_SHORT
+                                    ).show()
+                                    return@TextButton
+                                }
+                                scheduleFolders = repository.createScheduleFolder(name)
+                                showNewFolderDialog = false
+                                newFolderName = ""
+                                folderRefreshKey++
+                            },
+                            colors = ButtonDefaults.textButtonColorsPrimary(),
+                            modifier = Modifier.weight(1f)
+                        )
+                    }
+                }
+            }
+
+            OverlayDialog(
+                title = "移动到文件夹",
+                show = showMoveDialog,
+                liquidGlassBackdrop = liquidGlassBackdrop,
+                onDismissRequest = {
+                    showMoveDialog = false
+                    moveTargetFolder = null
+                }
+            ) {
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .verticalScroll(rememberScrollState()),
+                    horizontalAlignment = Alignment.CenterHorizontally
+                ) {
+                    Text(
+                        text = "将选中的课表移入哪个文件夹？",
+                        style = MiuixTheme.textStyles.body1,
+                        color = MiuixTheme.colorScheme.onSurface
+                    )
+                    Spacer(modifier = Modifier.height(12.dp))
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clickable {
+                                hapticFeedback.performHapticFeedback(HapticFeedbackType.Confirm)
+                                moveTargetFolder = null
+                            }
+                            .padding(vertical = 10.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        androidx.compose.material3.RadioButton(
+                            selected = moveTargetFolder == null,
+                            onClick = { moveTargetFolder = null }
+                        )
+                        Text(
+                            text = "不放入文件夹",
+                            fontSize = 15.sp,
+                            color = MiuixTheme.colorScheme.onSurface
+                        )
+                    }
+                    (scheduleFolders.takeIf { it.isNotEmpty() } ?: emptyList()).forEach { folder ->
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clickable {
+                                    hapticFeedback.performHapticFeedback(HapticFeedbackType.Confirm)
+                                    moveTargetFolder = folder
+                                }
+                                .padding(vertical = 10.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            androidx.compose.material3.RadioButton(
+                                selected = moveTargetFolder == folder,
+                                onClick = { moveTargetFolder = folder }
+                            )
+                            Text(
+                                text = folder,
+                                fontSize = 15.sp,
+                                color = MiuixTheme.colorScheme.onSurface
+                            )
+                        }
+                    }
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(top = 12.dp),
+                        horizontalArrangement = Arrangement.spacedBy(12.dp)
+                    ) {
+                        TextButton(
+                            text = "取消",
+                            onClick = {
+                                hapticFeedback.performHapticFeedback(HapticFeedbackType.Confirm)
+                                showMoveDialog = false
+                                moveTargetFolder = null
+                            },
+                            modifier = Modifier.weight(1f)
+                        )
+                        TextButton(
+                            text = "移动",
+                            onClick = {
+                                hapticFeedback.performHapticFeedback(HapticFeedbackType.Confirm)
+                                val target = moveTargetFolder
+                                checkboxStates.filter { it.value }.keys.forEach { name ->
+                                    repository.setScheduleFolderName(name, target)
+                                }
+                                showMoveDialog = false
+                                moveTargetFolder = null
+                                checkboxStates.clear()
+                                folderRefreshKey++
+                            },
+                            colors = ButtonDefaults.textButtonColorsPrimary(),
+                            modifier = Modifier.weight(1f)
+                        )
+                    }
+                }
+            }
+
+            OverlayDialog(
+                title = "删除文件夹",
+                show = showDeleteFolderDialog,
+                liquidGlassBackdrop = liquidGlassBackdrop,
+                onDismissRequest = {
+                    showDeleteFolderDialog = false
+                    deletingFolderName = null
+                }
+            ) {
+                Column(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalAlignment = Alignment.CenterHorizontally
+                ) {
+                    Text(
+                        text = "确定删除文件夹「${deletingFolderName.orEmpty()}」吗？\n其中的课表将移回根目录，课表本身不会被删除。",
+                        style = MiuixTheme.textStyles.body1,
+                        color = MiuixTheme.colorScheme.onSurface
+                    )
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(top = 16.dp),
+                        horizontalArrangement = Arrangement.spacedBy(12.dp)
+                    ) {
+                        TextButton(
+                            text = "取消",
+                            onClick = {
+                                hapticFeedback.performHapticFeedback(HapticFeedbackType.Confirm)
+                                showDeleteFolderDialog = false
+                                deletingFolderName = null
+                            },
+                            modifier = Modifier.weight(1f)
+                        )
+                        TextButton(
+                            text = "删除",
+                            onClick = {
+                                hapticFeedback.performHapticFeedback(HapticFeedbackType.Confirm)
+                                val folder = deletingFolderName
+                                showDeleteFolderDialog = false
+                                deletingFolderName = null
+                                if (folder != null) {
+                                    scheduleFolders = repository.deleteScheduleFolder(folder)
+                                    folderRefreshKey++
+                                }
+                            },
+                            textColor = ComposeColor(0xFFF44336),
                             modifier = Modifier.weight(1f)
                         )
                     }

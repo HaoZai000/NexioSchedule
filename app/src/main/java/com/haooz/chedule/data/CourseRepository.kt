@@ -212,6 +212,9 @@ class CourseRepository private constructor(context: Context) {
         private const val KEY_CLASS_DND_MODE = "class_dnd_mode"
         private const val KEY_SHIFT_MODE = "shift_mode_enabled"
         private const val KEY_SHIFT_SELECTED_SCHEDULES = "shift_selected_schedules"
+        // 课表文件夹：文件夹名列表（JSON）+ 课表名 -> 文件夹名 映射（JSON）
+        private const val KEY_SCHEDULE_FOLDERS = "schedule_folders"
+        private const val KEY_SCHEDULE_FOLDER_MAP = "schedule_folder_map"
         private const val KEY_DEFAULT_HOMEPAGE = "default_homepage"
         private const val KEY_WIDGET_PADDING_MODE = "widget_padding_mode"
         private const val KEY_TODAY_SHOW_WALLPAPER = "today_show_wallpaper"
@@ -1322,6 +1325,10 @@ class CourseRepository private constructor(context: Context) {
             // 绑定键不匹配 schedule_{name}_ 前缀，必须单独删；
             // 否则同名课表再导入会撞上残留绑定
             remove("$SCHEDULE_TIME_CONFIG_PREFIX$name")
+            // 删除课表时同步清理其文件夹归属
+            val folderMap = getScheduleFolderMap().toMutableMap()
+            folderMap.remove(name)
+            putString(KEY_SCHEDULE_FOLDER_MAP, gson.toJson(folderMap))
         }
         // 直接改写了 prefs，必须失效否则同名重建会读到旧数据
         invalidateAllCaches()
@@ -1395,6 +1402,11 @@ class CourseRepository private constructor(context: Context) {
                     remove(oldBoundKey)
                 }
             }
+            // 重命名课表时同步更新其文件夹归属
+            val folderMap = getScheduleFolderMap().toMutableMap()
+            val folder = folderMap.remove(oldName)
+            if (folder != null) folderMap[newName] = folder
+            prefs.edit(commit = true) { putString(KEY_SCHEDULE_FOLDER_MAP, gson.toJson(folderMap)) }
             invalidateAllCaches()
         }
         notifyCourseChanged("settings")
@@ -1455,6 +1467,72 @@ class CourseRepository private constructor(context: Context) {
     fun setShiftSelectedSchedules(names: List<String>) {
         val json = gson.toJson(names)
         prefs.edit {putString(KEY_SHIFT_SELECTED_SCHEDULES, json) }
+    }
+
+    // ===== 课表文件夹 =====
+
+    /** 全部文件夹名（按创建顺序） */
+    fun getScheduleFolders(): List<String> {
+        val json = prefs.getString(KEY_SCHEDULE_FOLDERS, null)
+        return try {
+            if (json.isNullOrBlank()) emptyList()
+            else gson.fromJson(json, object : TypeToken<List<String>>() {}.type) ?: emptyList()
+        } catch (_: Exception) {
+            emptyList()
+        }
+    }
+
+    /** 新建文件夹；重名忽略，返回最新文件夹列表 */
+    fun createScheduleFolder(name: String): List<String> {
+        val folders = getScheduleFolders().toMutableList()
+        if (name.isNotBlank() && name !in folders) {
+            folders.add(name)
+            prefs.edit { putString(KEY_SCHEDULE_FOLDERS, gson.toJson(folders)) }
+        }
+        return folders
+    }
+
+    /** 删除文件夹（其中的课表一并移出到根目录） */
+    fun deleteScheduleFolder(name: String): List<String> {
+        val folders = getScheduleFolders().toMutableList()
+        folders.remove(name)
+        prefs.edit {
+            putString(KEY_SCHEDULE_FOLDERS, gson.toJson(folders))
+            putString(KEY_SCHEDULE_FOLDER_MAP, gson.toJson(getScheduleFolderMap().filterValues { it != name }))
+        }
+        return folders
+    }
+
+    /** 课表名 -> 文件夹名 映射 */
+    private fun getScheduleFolderMap(): Map<String, String> {
+        val json = prefs.getString(KEY_SCHEDULE_FOLDER_MAP, null)
+        return try {
+            if (json.isNullOrBlank()) emptyMap()
+            else gson.fromJson(json, object : TypeToken<Map<String, String>>() {}.type) ?: emptyMap()
+        } catch (_: Exception) {
+            emptyMap()
+        }
+    }
+
+    /** 指定课表所属文件夹；null 表示在根目录 */
+    fun getScheduleFolderName(scheduleName: String): String? {
+        return getScheduleFolderMap()[scheduleName]?.takeIf { it in getScheduleFolders() }
+    }
+
+    /** 把课表移动/移出文件夹；folderName 为 null 表示移回根目录 */
+    fun setScheduleFolderName(scheduleName: String, folderName: String?) {
+        val map = getScheduleFolderMap().toMutableMap()
+        if (folderName.isNullOrBlank()) {
+            map.remove(scheduleName)
+        } else {
+            map[scheduleName] = folderName
+        }
+        prefs.edit { putString(KEY_SCHEDULE_FOLDER_MAP, gson.toJson(map)) }
+    }
+
+    /** 某文件夹下的全部课表（按课表列表顺序） */
+    fun getSchedulesInFolder(folderName: String): List<String> {
+        return getScheduleNames().filter { getScheduleFolderName(it) == folderName }
     }
 
     fun getDefaultHomepage(): String {
@@ -2186,7 +2264,9 @@ class CourseRepository private constructor(context: Context) {
             KEY_SHIFT_SELECTED_SCHEDULES,
             KEY_DEFAULT_HOMEPAGE,
             KEY_TIME_CONFIG_IDS,
-            KEY_CURRENT_TIME_CONFIG_ID
+            KEY_CURRENT_TIME_CONFIG_ID,
+            KEY_SCHEDULE_FOLDERS,
+            KEY_SCHEDULE_FOLDER_MAP
         )
         for ((key, value) in prefs.all) {
             if (key.startsWith(SCHEDULE_KEY_PREFIX) || key.startsWith(TIME_CONFIG_PREFIX) ||
@@ -2222,6 +2302,8 @@ class CourseRepository private constructor(context: Context) {
             remove(KEY_TIME_CONFIG_IDS)
             remove(KEY_CURRENT_TIME_CONFIG_ID)
             remove(KEY_DEFAULT_HOMEPAGE)
+            remove(KEY_SCHEDULE_FOLDERS)
+            remove(KEY_SCHEDULE_FOLDER_MAP)
 
             for ((key, value) in data) {
                 when (value) {
