@@ -35,9 +35,11 @@ import androidx.compose.ui.graphics.Shape
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
-import androidx.compose.ui.unit.dp
 import androidx.core.app.ActivityOptionsCompat
+import androidx.window.layout.WindowMetricsCalculator
 import com.haooz.chedule.ui.effects.motion.OobeQuartOutSoftStartEasing
+import com.haooz.chedule.ui.utils.SecondaryPushParallax.attachMainRoot
+import com.haooz.chedule.ui.utils.SecondaryPushParallax.updateMainPushPolicy
 import com.kyant.capsule.ContinuousRoundedRectangle
 import kotlinx.coroutines.withTimeoutOrNull
 import top.yukonga.miuix.kmp.theme.MiuixTheme
@@ -54,7 +56,7 @@ const val SECONDARY_PUSH_PARALLAX = 0.24f
 private const val SECONDARY_BG_DIM = 0.42f
 
 /** 入场时长 */
-private const val ENTER_DURATION = 640
+private const val ENTER_DURATION = 600
 
 /** 出场时长 */
 private const val EXIT_DURATION = 320
@@ -110,34 +112,20 @@ fun Activity?.isInFreeformWindowingMode(): Boolean {
 
     // 1) 当前窗口 vs 最大窗口：小窗宽高都明显更小
     try {
-        if (Build.VERSION.SDK_INT >= 30) {
-            val cur = act.windowManager.currentWindowMetrics.bounds
-            val max = act.windowManager.maximumWindowMetrics.bounds
-            if (max.width() > 0 && max.height() > 0 && cur.width() > 0 && cur.height() > 0) {
-                val wRatio = cur.width().toFloat() / max.width()
-                val hRatio = cur.height().toFloat() / max.height()
-                if (wRatio < 0.92f && hRatio < 0.92f) return true
-                // 半宽 + 近全高 → 分屏/分栏，不是 freeform
-                if (hRatio >= 0.85f && wRatio < 0.75f) return false
-                if (wRatio >= 0.92f && hRatio >= 0.92f) return false
-            }
+        val calculator = WindowMetricsCalculator.getOrCreate()
+        val cur = calculator.computeCurrentWindowMetrics(act).bounds
+        val max = calculator.computeMaximumWindowMetrics(act).bounds
+        if (max.width() > 0 && max.height() > 0 && cur.width() > 0 && cur.height() > 0) {
+            val wRatio = cur.width().toFloat() / max.width()
+            val hRatio = cur.height().toFloat() / max.height()
+            if (wRatio < 0.92f && hRatio < 0.92f) return true
+            // 半宽 + 近全高 → 分屏/分栏，不是 freeform
+            if (hRatio >= 0.85f && wRatio < 0.75f) return false
+            if (wRatio >= 0.92f && hRatio >= 0.92f) return false
         }
     } catch (_: Exception) { }
 
-    // 2) 反射读 windowingMode（5 = WINDOWING_MODE_FREEFORM）
-    try {
-        val config = act.resources.configuration
-        val field = android.content.res.Configuration::class.java
-            .getDeclaredField("windowConfiguration")
-        field.isAccessible = true
-        val wc = field.get(config)
-        val mode = wc.javaClass.getMethod("getWindowingMode").invoke(wc) as Int
-        if (mode == 5) return true
-        // 1=FULLSCREEN 2=PINNED 6=MULTI_WINDOW(split)
-        if (mode == 1 || mode == 2 || mode == 6) return false
-    } catch (_: Exception) { }
-
-    // 3) decor vs 真实屏幕尺寸
+    // 2) decor vs 真实屏幕尺寸
     try {
         val dm = android.util.DisplayMetrics()
         @Suppress("DEPRECATION")
@@ -151,7 +139,7 @@ fun Activity?.isInFreeformWindowingMode(): Boolean {
         }
     } catch (_: Exception) { }
 
-    // 4) multi-window 且无法判定：按小窗处理，绝不误铺纯色底
+    // 3) multi-window 且无法判定：按小窗处理，绝不误铺纯色底
     return true
 }
 
@@ -161,14 +149,12 @@ fun Activity?.isInSplitPaneWindow(): Boolean {
     if (!act.isInMultiWindowMode) return false
     if (act.isInFreeformWindowingMode()) return false
     try {
-        if (Build.VERSION.SDK_INT >= 30) {
-            val cur = act.windowManager.currentWindowMetrics.bounds
-            val max = act.windowManager.maximumWindowMetrics.bounds
-            if (max.width() > 0 && max.height() > 0 && cur.width() > 0 && cur.height() > 0) {
-                val wRatio = cur.width().toFloat() / max.width()
-                val hRatio = cur.height().toFloat() / max.height()
-                return wRatio < 0.75f && hRatio > 0.85f
-            }
+        val cur = act.windowManager.currentWindowMetrics.bounds
+        val max = act.windowManager.maximumWindowMetrics.bounds
+        if (max.width() > 0 && max.height() > 0 && cur.width() > 0 && cur.height() > 0) {
+            val wRatio = cur.width().toFloat() / max.width()
+            val hRatio = cur.height().toFloat() / max.height()
+            return wRatio < 0.75f && hRatio > 0.85f
         }
     } catch (_: Exception) { }
     // 无法证明是分栏 → 不当分栏
@@ -706,9 +692,6 @@ private fun inverseEasingTime(easing: Easing, progress: Float): Float {
     return (lo + hi) * 0.5f
 }
 
-// endregion
-
-// region SecondaryPageEnterTransition — Compose 入场壳
 
 val LocalSecondaryPageTransition = staticCompositionLocalOf {
     SecondaryPageTransitionController()
@@ -722,6 +705,7 @@ val LocalSecondaryPageTransition = staticCompositionLocalOf {
  * - 手机全屏：不铺整窗底色，避免盖住被推开的一级页
  * - 关闭登记不在 DisposableEffect：组合重建会误伤下层视差
  */
+@SuppressLint("ContextCastToActivity")
 @Composable
 fun SecondaryPageEnterTransition(
     content: @Composable () -> Unit,
