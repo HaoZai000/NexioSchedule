@@ -83,8 +83,11 @@ import top.yukonga.miuix.kmp.icon.extended.Refresh
 import top.yukonga.miuix.kmp.icon.extended.Update
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 import com.kyant.backdrop.backdrops.layerBackdrop as liquidGlassLayerBackdrop
+import androidx.activity.ComponentActivity
+import androidx.activity.compose.setContent
+import com.haooz.chedule.ui.theme.CourseScheduleTheme
 
-class EducationalImportActivity : SecondaryActivity() {
+class EducationalImportActivity : ComponentActivity() {
 
     var isInFreeformWindow by mutableStateOf(false)
         private set
@@ -178,9 +181,11 @@ class EducationalImportActivity : SecondaryActivity() {
         )
         applyThemeAwareSystemBars()
         startUpdate(this)
-        setSecondaryContent {
+        setContent {
+            CourseScheduleTheme {
             EducationalImportApp()
         
+        }
         }
     }
 
@@ -303,7 +308,7 @@ class EducationalImportActivity : SecondaryActivity() {
                                 },
                                 startAction = { backdropAlpha, shadowAlpha ->
                                     LiquidTopBarButton(
-                                        onClick = { finishSecondary() },
+                                        onClick = { finish() },
                                         backdrop = liquidGlassBackdrop,
                                         icon = MiuixIcons.ChevronBackward,
                                         contentDescription = "返回",

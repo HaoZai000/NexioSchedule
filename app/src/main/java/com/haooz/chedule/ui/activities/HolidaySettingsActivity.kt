@@ -41,8 +41,11 @@ import java.net.HttpURLConnection
 import java.net.URL
 import java.time.LocalDate
 import com.kyant.backdrop.backdrops.layerBackdrop as liquidGlassLayerBackdrop
+import androidx.activity.ComponentActivity
+import androidx.activity.compose.setContent
+import com.haooz.chedule.ui.theme.CourseScheduleTheme
 
-class HolidaySettingsActivity : SecondaryActivity() {
+class HolidaySettingsActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge(
@@ -50,7 +53,8 @@ class HolidaySettingsActivity : SecondaryActivity() {
             navigationBarStyle = SystemBarStyle.dark(android.graphics.Color.TRANSPARENT)
         )
         applyThemeAwareSystemBars()
-        setSecondaryContent {
+        setContent {
+            CourseScheduleTheme {
             val context = LocalContext.current
             val scope = rememberCoroutineScope()
             val backgroundColor = MiuixTheme.colorScheme.surface
@@ -115,7 +119,7 @@ class HolidaySettingsActivity : SecondaryActivity() {
                             contentPadding = {},
                             startAction = { backdropAlpha, shadowAlpha ->
                                 LiquidTopBarButton(
-                                    onClick = { finishSecondary() },
+                                    onClick = { finish() },
                                     backdrop = liquidGlassBackdrop,
                                     icon = MiuixIcons.ChevronBackward,
                                     contentDescription = "返回",
@@ -180,6 +184,7 @@ class HolidaySettingsActivity : SecondaryActivity() {
                 }
             }
         
+        }
         }
     }
 }

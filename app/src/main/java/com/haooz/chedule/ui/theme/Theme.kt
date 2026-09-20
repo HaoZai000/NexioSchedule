@@ -61,8 +61,7 @@ fun CourseScheduleTheme(
         }
     }
 
-    // 稳定 ThemeController：只改 colorSchemeMode，避免 remember(themeMode) 换实例
-    // 导致二级/三级页组合树重建、SecondaryPageEnterTransition 重放进进入动画
+    // 稳定 ThemeController：只改 colorSchemeMode，避免 remember(themeMode) 换实例导致组合树重建
     val controller = remember {
         ThemeController(
             when (themeMode.value) {

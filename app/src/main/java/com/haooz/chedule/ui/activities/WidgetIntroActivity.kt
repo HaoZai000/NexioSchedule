@@ -40,8 +40,11 @@ import top.yukonga.miuix.kmp.icon.extended.ChevronBackward
 import top.yukonga.miuix.kmp.overlay.OverlayDialog
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 import com.kyant.backdrop.backdrops.layerBackdrop as liquidGlassLayerBackdrop
+import androidx.activity.ComponentActivity
+import androidx.activity.compose.setContent
+import com.haooz.chedule.ui.theme.CourseScheduleTheme
 
-class WidgetIntroActivity : SecondaryActivity() {
+class WidgetIntroActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge(
@@ -52,7 +55,8 @@ class WidgetIntroActivity : SecondaryActivity() {
             navigationBarStyle = SystemBarStyle.dark(android.graphics.Color.TRANSPARENT)
         )
         applyThemeAwareSystemBars()
-        setSecondaryContent {
+        setContent {
+            CourseScheduleTheme {
             val hapticFeedback = LocalHapticFeedback.current
             val backgroundColor = MiuixTheme.colorScheme.surface
             val backdrop = rememberLayerBackdrop {
@@ -81,7 +85,7 @@ class WidgetIntroActivity : SecondaryActivity() {
                             contentPadding = {},
                             startAction = { backdropAlpha, shadowAlpha ->
                                 LiquidTopBarButton(
-                                    onClick = { finishSecondary() },
+                                    onClick = { finish() },
                                     backdrop = liquidGlassBackdrop,
                                     icon = MiuixIcons.ChevronBackward,
                                     contentDescription = "返回",
@@ -161,6 +165,7 @@ class WidgetIntroActivity : SecondaryActivity() {
                 }
             }
         
+        }
         }
     }
 }

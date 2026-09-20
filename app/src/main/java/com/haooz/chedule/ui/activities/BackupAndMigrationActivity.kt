@@ -27,8 +27,11 @@ import top.yukonga.miuix.kmp.icon.MiuixIcons
 import top.yukonga.miuix.kmp.icon.extended.ChevronBackward
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 import com.kyant.backdrop.backdrops.layerBackdrop as liquidGlassLayerBackdrop
+import androidx.activity.ComponentActivity
+import androidx.activity.compose.setContent
+import com.haooz.chedule.ui.theme.CourseScheduleTheme
 
-open class BackupAndMigrationActivity : SecondaryActivity() {
+open class BackupAndMigrationActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge(
@@ -49,7 +52,8 @@ open class BackupAndMigrationActivity : SecondaryActivity() {
             ScheduleDataManageMode.Backup -> "课表备份"
         }
 
-        setSecondaryContent {
+        setContent {
+            CourseScheduleTheme {
             val backgroundColor = MiuixTheme.colorScheme.surface
             val backdrop = rememberLayerBackdrop {
                 drawRect(backgroundColor)
@@ -75,7 +79,7 @@ open class BackupAndMigrationActivity : SecondaryActivity() {
                             contentPadding = {},
                             startAction = { backdropAlpha, shadowAlpha ->
                                 LiquidTopBarButton(
-                                    onClick = { finishSecondary() },
+                                    onClick = { finish() },
                                     backdrop = liquidGlassBackdrop,
                                     icon = MiuixIcons.ChevronBackward,
                                     contentDescription = "返回",
@@ -112,6 +116,7 @@ open class BackupAndMigrationActivity : SecondaryActivity() {
                 }
             }
         
+        }
         }
     }
 

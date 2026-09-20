@@ -49,7 +49,6 @@ import com.haooz.chedule.ui.basic.collapsibleTopInset
 import com.haooz.chedule.ui.screens.applyScheduleData
 import com.haooz.chedule.ui.screens.parseFullScheduleJson
 import com.haooz.chedule.ui.screens.parseIcsFile
-import com.haooz.chedule.ui.utils.openSecondaryPage
 import com.haooz.chedule.ui.utils.overScrollVertical
 import com.haooz.chedule.ui.utils.performScheduleShare
 import com.haooz.chedule.viewmodel.CourseViewModel
@@ -282,7 +281,7 @@ fun BackupAndMigrationScreen(
                                 title = "AI 文本导入",
                                 summary = "粘贴由AI解析后的课程进行导入",
                                 onClick = {
-                                    context.openSecondaryPage(
+                                    context.startActivity(
                                         Intent(context, AiImportActivity::class.java)
                                     )
                                 }
@@ -291,7 +290,7 @@ fun BackupAndMigrationScreen(
                                 title = "教务系统导入",
                                 summary = "从学校教务系统一键拉取课表",
                                 onClick = {
-                                    context.openSecondaryPage(
+                                    context.startActivity(
                                         Intent(context, EducationalImportActivity::class.java)
                                     )
                                 }
@@ -482,7 +481,7 @@ fun BackupAndMigrationScreen(
                                 summary = "备份课表数据到设备存储",
                                 onClick = {
                                     val intent = Intent(context, LocalBackupActivity::class.java)
-                                    context.openSecondaryPage(intent)
+                                    context.startActivity(intent)
                                 }
                             )
                             ArrowPreference(
@@ -490,7 +489,7 @@ fun BackupAndMigrationScreen(
                                 summary = if (webDavManager.isConfigured()) lastSyncSummary else "配置WebDAV后可云备份/恢复",
                                 onClick = {
                                     val intent = Intent(context, WebDavSettingsActivity::class.java)
-                                    context.openSecondaryPage(intent)
+                                    context.startActivity(intent)
                                 }
                             )
                         }

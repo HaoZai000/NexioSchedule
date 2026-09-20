@@ -53,8 +53,11 @@ import top.yukonga.miuix.kmp.theme.MiuixTheme
 import kotlin.math.abs
 import kotlin.time.Duration.Companion.milliseconds
 import com.kyant.backdrop.backdrops.layerBackdrop as liquidGlassLayerBackdrop
+import androidx.activity.ComponentActivity
+import androidx.activity.compose.setContent
+import com.haooz.chedule.ui.theme.CourseScheduleTheme
 
-class CourseTimeSettingsActivity : SecondaryActivity() {
+class CourseTimeSettingsActivity : ComponentActivity() {
     // 小窗状态
     private var _isInFreeformWindow = mutableStateOf(false)
     val isInFreeformWindow: Boolean get() = _isInFreeformWindow.value
@@ -75,7 +78,8 @@ class CourseTimeSettingsActivity : SecondaryActivity() {
         )
         applyThemeAwareSystemBars()
         _isInFreeformWindow.value = isInMultiWindowMode
-        setSecondaryContent {
+        setContent {
+            CourseScheduleTheme {
             val backgroundColor = MiuixTheme.colorScheme.surface
             val backdrop = rememberLayerBackdrop {
                 drawRect(backgroundColor)
@@ -195,7 +199,7 @@ class CourseTimeSettingsActivity : SecondaryActivity() {
                                         contentPadding = { height -> topBarHeight = height },
                                         startAction = { backdropAlpha, shadowAlpha ->
                                             LiquidTopBarButton(
-                                                onClick = { finishSecondary() },
+                                                onClick = { finish() },
                                                 backdrop = liquidGlassBackdrop,
                                                 icon = MiuixIcons.ChevronBackward,
                                                 contentDescription = "返回",
@@ -368,6 +372,7 @@ class CourseTimeSettingsActivity : SecondaryActivity() {
                 }
             }
         
+        }
         }
     }
 }

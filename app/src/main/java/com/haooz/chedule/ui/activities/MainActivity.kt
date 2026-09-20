@@ -139,12 +139,10 @@ import com.haooz.chedule.ui.screens.ShiftScheduleScreen
 import com.haooz.chedule.ui.screens.TodayScreen
 import com.haooz.chedule.ui.theme.CourseScheduleTheme
 import com.haooz.chedule.ui.utils.LocalForcedDarkTheme
-import com.haooz.chedule.ui.utils.SecondaryPushParallax
 import com.haooz.chedule.ui.utils.applyNavigationBarIsDark
 import com.haooz.chedule.ui.utils.applyThemeAwareSystemBars
 import com.haooz.chedule.ui.utils.consumeAllTouches
 import com.haooz.chedule.ui.utils.isAppDarkTheme
-import com.haooz.chedule.ui.utils.openSecondaryPage
 import com.haooz.chedule.ui.utils.rememberAppSettingDark
 import com.haooz.chedule.ui.utils.rememberScheduleThemeMode
 import com.haooz.chedule.viewmodel.CourseViewModel
@@ -443,22 +441,16 @@ class MainActivity : ComponentActivity() {
                 CourseScheduleApp()
             }
         }
-        // 二级页 push 视差：直接平移本页 decorView（本页 onPause 时 Compose 不会刷新）
-        SecondaryPushParallax.attachMainRoot(this)
     }
 
     override fun onMultiWindowModeChanged(isInMultiWindowMode: Boolean, newConfig: Configuration) {
         super.onMultiWindowModeChanged(isInMultiWindowMode, newConfig)
         isInFreeformWindow = isInMultiWindowMode
-        // 小窗仍要推主页；仅分栏/Embedding 锁定不左移
-        SecondaryPushParallax.updateMainPushPolicy(this)
     }
 
     override fun onResume() {
         super.onResume()
         resumeCount++
-        SecondaryPushParallax.attachMainRoot(this)
-        SecondaryPushParallax.updateMainPushPolicy(this)
         // 同步返回回调：仅"退出即隐藏后台"开启时需要自定义回调（moveTaskToBack），
         // 其余情况交回系统默认返回（finish），保留 Android 14+ 的预测性返回动画
         syncBackCallback()
@@ -495,7 +487,7 @@ class MainActivity : ComponentActivity() {
             ) == true
         ) {
             intent.removeExtra(CourseReminderHelper.EXTRA_OPEN_REMINDER_SETTINGS)
-            openSecondaryPage(Intent(this, CourseReminderActivity::class.java))
+            startActivity(Intent(this, CourseReminderActivity::class.java))
         }
     }
 
@@ -4153,7 +4145,7 @@ fun CourseScheduleApp() {
                     onJumpWeek = { viewModel.showJumpWeekDialog() },
                     onCourseManage = {
                         val intent = Intent(context, CourseManageActivity::class.java)
-                        context.openSecondaryPage(intent)
+                        context.startActivity(intent)
                     },
                     onEnterCustomize = {
                         coroutineScope.launch {

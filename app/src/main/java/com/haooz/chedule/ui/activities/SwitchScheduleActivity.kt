@@ -113,8 +113,11 @@ import top.yukonga.miuix.kmp.utils.scrollEndHaptic
 import kotlin.time.Duration.Companion.milliseconds
 import androidx.compose.ui.graphics.Color as ComposeColor
 import com.kyant.backdrop.backdrops.layerBackdrop as liquidGlassLayerBackdrop
+import androidx.activity.ComponentActivity
+import androidx.activity.compose.setContent
+import com.haooz.chedule.ui.theme.CourseScheduleTheme
 
-class SwitchScheduleActivity : SecondaryActivity() {
+class SwitchScheduleActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge(
@@ -125,16 +128,18 @@ class SwitchScheduleActivity : SecondaryActivity() {
             navigationBarStyle = SystemBarStyle.dark(android.graphics.Color.TRANSPARENT)
         )
         applyThemeAwareSystemBars()
-        setSecondaryContent {
+        setContent {
+            CourseScheduleTheme {
             SwitchScheduleScreen(
                 onBack = {
                     setResult(RESULT_OK)
-                    finishSecondary()
+                    finish()
                 },
                 onScheduleChanged = {
                     setResult(RESULT_OK)
                 }
             )
+        }
         }
     }
 }
