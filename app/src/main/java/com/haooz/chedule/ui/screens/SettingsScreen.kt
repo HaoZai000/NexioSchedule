@@ -86,7 +86,7 @@ import kotlin.time.Duration.Companion.milliseconds
 import androidx.compose.ui.graphics.Color as ComposeColor
 
 // 解析失败时回退到今天，避免弹窗初值出现非法日期
-private fun parseDate(dateStr: String): Triple<Int, Int, Int> {
+internal fun parseDate(dateStr: String): Triple<Int, Int, Int> {
     return try {
         val parts = dateStr.split("/")
         Triple(parts[0].toInt(), parts[1].toInt(), parts[2].toInt())
@@ -96,7 +96,7 @@ private fun parseDate(dateStr: String): Triple<Int, Int, Int> {
     }
 }
 
-private fun getDaysInMonth(year: Int, month: Int): Int {
+internal fun getDaysInMonth(year: Int, month: Int): Int {
     return try {
         LocalDate.of(year, month, 1).lengthOfMonth()
     } catch (_: Exception) {
@@ -195,6 +195,19 @@ fun SettingsScreen(
     var tempDay by remember { mutableIntStateOf(tempDayInit) }
 
     val backgroundColor = MiuixTheme.colorScheme.surface
+    // 平板：设置页左右两栏，原地静态切换，不跳 Activity
+    if (navBarStyle == "rail") {
+        TabletSettingsScreen(
+            viewModel = viewModel,
+            scheduleViewModel = scheduleViewModel,
+            settingsViewModel = settingsViewModel,
+            shiftViewModel = shiftViewModel,
+            isShiftMode = isShiftMode,
+            onExitShiftMode = onExitShiftMode,
+            liquidGlassBackdrop = liquidGlassBackdrop,
+        )
+        return
+    }
     val backdrop = rememberLayerBackdrop {
         drawRect(backgroundColor)
         drawContent()

@@ -122,17 +122,14 @@ class AboutActivity : ComponentActivity() {
 
 @SuppressLint("LocalContextGetResourceValueCall", "ConfigurationScreenWidthHeight")
 @Composable
-private fun AboutScreen(onBack: () -> Unit, liquidGlassBackdrop: com.kyant.backdrop.backdrops.LayerBackdrop) {
+fun AboutScreen(onBack: () -> Unit, liquidGlassBackdrop: com.kyant.backdrop.backdrops.LayerBackdrop) {
     val hapticFeedback = LocalHapticFeedback.current
     val scrollBehavior = rememberSharedScrollBehavior()
     val context = LocalContext.current
     val uriHandler = LocalUriHandler.current
     val isInDark = isAppDarkTheme()
     val isTablet = LocalConfiguration.current.screenWidthDp >= 600
-    val tabletHorizontalPadding = if (isTablet) {
-        val screenWidthDp = LocalConfiguration.current.screenWidthDp
-        ((screenWidthDp - 600).coerceIn(0, 600) / 600f * 128).dp
-    } else 0.dp
+    val tabletHorizontalPadding = 20.dp
 
     val packageInfo = remember {
         try {

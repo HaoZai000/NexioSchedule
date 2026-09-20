@@ -105,7 +105,6 @@ import androidx.core.content.edit
 import androidx.core.graphics.get
 import androidx.core.graphics.scale
 import androidx.lifecycle.viewmodel.compose.viewModel
-import androidx.window.embedding.SplitController
 import com.haooz.chedule.data.Course
 import com.haooz.chedule.data.ThemeMode
 import com.haooz.chedule.reminder.CourseReminderHelper
@@ -159,11 +158,9 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import top.yukonga.miuix.kmp.basic.ButtonDefaults
 import top.yukonga.miuix.kmp.basic.Checkbox
-import top.yukonga.miuix.kmp.basic.NavigationRailDefaults
 import top.yukonga.miuix.kmp.basic.NumberPicker
 import top.yukonga.miuix.kmp.basic.Scaffold
 import top.yukonga.miuix.kmp.basic.TextButton
-import top.yukonga.miuix.kmp.basic.rememberNavigationRailState
 import top.yukonga.miuix.kmp.icon.MiuixIcons
 import top.yukonga.miuix.kmp.icon.basic.FastForward
 import top.yukonga.miuix.kmp.icon.extended.Add
@@ -274,6 +271,9 @@ private class BlurEffectCache {
 class MainActivity : ComponentActivity() {
 
     companion object {
+        /** 二级页侧栏点选主 tab */
+        const val EXTRA_MAIN_TAB = "extra_main_tab"
+
         // 跨 Activity 重建复用，避免每次启动重新解码壁纸
         @Volatile
         var cachedWallpaperBitmap: android.graphics.Bitmap? = null
@@ -337,6 +337,9 @@ class MainActivity : ComponentActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        intent?.getIntExtra(EXTRA_MAIN_TAB, -1)?.takeIf { it in 0..2 }?.let {
+            com.haooz.chedule.ui.components.TabletNavSideState.pendingMainTab = it
+        }
 
         // 默认不启用：只有"退出即隐藏后台"开启时才启用（见 syncBackCallback），
         // 其余情况交回系统默认返回，保证预测性返回动画可用
@@ -469,6 +472,9 @@ class MainActivity : ComponentActivity() {
         setIntent(intent)
         extractIntentData(intent)
         handleReminderSettingsIntent(intent)
+        intent.getIntExtra(EXTRA_MAIN_TAB, -1).takeIf { it in 0..2 }?.let {
+            com.haooz.chedule.ui.components.TabletNavSideState.pendingMainTab = it
+        }
         shareIntentVersion++
     }
 
@@ -1185,20 +1191,13 @@ fun CourseScheduleApp() {
                 )
         )
     }
-    val railState = if (navBarStyle == "rail") rememberNavigationRailState() else null
-    val railPaddingStart by animateDpAsState(
-        targetValue = if (navBarStyle == "rail") {
-            0.dp
-        } else if (railState != null && railState.isExpanded) {
-            NavigationRailDefaults.ExpandedWidth
-        } else if (navBarStyle == "rail") {
-            NavigationRailDefaults.MinWidth
+    // 侧栏展开状态用全局对象；内容让位为静态 padding，避免进页/重组时入场动画
+    val railPaddingStart =
+        if (navBarStyle == "rail" && com.haooz.chedule.ui.components.TabletNavSideState.expanded) {
+            config.screenWidthDp.dp * com.haooz.chedule.ui.components.TabletNavSideWidthFraction
         } else {
             0.dp
-        },
-        animationSpec = tween(durationMillis = 320, easing = FastOutSlowInEasing),
-        label = "railPadding",
-    )
+        }
     val isShiftMode by shiftViewModel.isShiftMode.collectAsState()
 
     var showCourseDetailPopup by remember { mutableStateOf(false) }
@@ -1661,6 +1660,16 @@ fun CourseScheduleApp() {
     )
     // 程序化切 tab 期间为 true，避免 currentPage 在动画中途把 selectedTab 拉回去
     var mainTabProgrammatic by remember { mutableStateOf(false) }
+
+    // 二级页侧栏点选主 tab（无转场回来后处理）
+    LaunchedEffect(com.haooz.chedule.ui.components.TabletNavSideState.pendingMainTab) {
+        val pending = com.haooz.chedule.ui.components.TabletNavSideState.pendingMainTab
+        if (pending in 0..2 && shiftModeInitialized) {
+            selectedTab = pending
+            mainPagerState.scrollToPage(pending)
+            com.haooz.chedule.ui.components.TabletNavSideState.pendingMainTab = -1
+        }
+    }
 
     LaunchedEffect(isShiftMode) {
         if (shiftModeInitialized) {
@@ -2399,14 +2408,6 @@ fun CourseScheduleApp() {
 
     val isViewingCurrentWeek = currentViewingWeek == currentWeek
 
-    // 分屏分割线画在最外层，避免被顶部模糊层遮挡（本页为分屏左侧）
-    val splitDividerColor = if (isDark) Color(0xFF222222) else Color(0xFFEEEEEE)
-    val isInSplit by produceState(initialValue = false) {
-        val act = activity ?: return@produceState
-        SplitController.getInstance(context).splitInfoList(act).collect { list ->
-            value = list.isNotEmpty()
-        }
-    }
     // 已打开的二级/三级 Activity 类名集合：设置项压暗与整条导航栈联动
     // （打开三级时，绑定的二级选项仍保持压暗，而不是只亮最顶层）
     val activeSecondaryActivities by produceState(initialValue = emptySet<String>()) {
@@ -2449,15 +2450,7 @@ fun CourseScheduleApp() {
             .background(if (showCustomizePage) Color(0xFF1A1A1A) else MiuixTheme.colorScheme.surface)
             .drawWithContent {
                 drawContent()
-                if (isInSplit) {
-                    val strokeWidth = 1.dp.toPx()
-                    drawLine(
-                        color = splitDividerColor,
-                        start = Offset(size.width - strokeWidth / 2f, 0f),
-                        end = Offset(size.width - strokeWidth / 2f, size.height),
-                        strokeWidth = strokeWidth
-                    )
-                }
+
             }) {
         val displayAppearance =
             // 开洞前显示已应用外观，避免快照过渡期闪编辑值
@@ -2487,13 +2480,13 @@ fun CourseScheduleApp() {
             mainPagerState.currentPage, isShiftMode, showDetail, showCustomizePage, showSwitchSchedule,
             isWindowCutoutActive, shortcutMenuVisible, isDraggingCard, floatingCardVisible,
             dataVersion, currentWeek, totalWeeks, currentCombinationIndex, effectiveIsDark,
-            wallpaperBitmap, railState?.isExpanded, scheduleShowCourseDetail.value
+            wallpaperBitmap, com.haooz.chedule.ui.components.TabletNavSideState.expanded, scheduleShowCourseDetail.value
         ) {
             listOf(
                 mainPagerState.currentPage, isShiftMode, showDetail, showCustomizePage, showSwitchSchedule,
                 isWindowCutoutActive, shortcutMenuVisible, isDraggingCard, floatingCardVisible,
                 dataVersion, currentWeek, totalWeeks, currentCombinationIndex, effectiveIsDark,
-                wallpaperBitmap, railState?.isExpanded == true, scheduleShowCourseDetail.value
+                wallpaperBitmap, com.haooz.chedule.ui.components.TabletNavSideState.expanded, scheduleShowCourseDetail.value
             )
         }
         // 局部 val 不能直接捕获进 remember lambda，一律经 rememberUpdatedState
@@ -2624,38 +2617,34 @@ fun CourseScheduleApp() {
                 )
         ) {
             val scaffoldContent = @Composable {
+                val onMainTabSelected: (Int) -> Unit = { idx ->
+                    if (idx != selectedTab) {
+                        mainTabProgrammatic = true
+                        selectedTab = idx
+                        coroutineScope.launch {
+                            try {
+                                if (todayPagerState.isScrollInProgress) todayPagerState.cancelScroll()
+                                if (pagerState.isScrollInProgress) pagerState.cancelScroll()
+                                if (mainPagerState.isScrollInProgress) mainPagerState.cancelScroll()
+                                mainPagerState.animateMainTabTo(idx)
+                            } finally {
+                                mainTabProgrammatic = false
+                            }
+                        }
+                    }
+                }
                 Scaffold(
                     bottomBar = {
-                        ScheduleBottomBar(
-                            navBarStyle = navBarStyle,
-                            isShiftMode = isShiftMode,
-                            selectedTab = selectedTab,
-                            onTabSelected = { idx ->
-                                if (idx != selectedTab) {
-                                    // 先锁 programmatic，再改 selectedTab，避免动画中途被拉回
-                                    mainTabProgrammatic = true
-                                    selectedTab = idx
-                                    coroutineScope.launch {
-                                        try {
-                                            // 内层切天/周若还在惯性，先停掉；未滚动则不空跑
-                                            if (todayPagerState.isScrollInProgress) {
-                                                todayPagerState.cancelScroll()
-                                            }
-                                            if (pagerState.isScrollInProgress) {
-                                                pagerState.cancelScroll()
-                                            }
-                                            if (mainPagerState.isScrollInProgress) {
-                                                mainPagerState.cancelScroll()
-                                            }
-                                            mainPagerState.animateMainTabTo(idx)
-                                        } finally {
-                                            mainTabProgrammatic = false
-                                        }
-                                    }
-                                }
-                            },
-                            liquidGlassBackdrop = chromeBackdrop
-                        )
+                        // 平板导航在叠层；这里不占 Scaffold bottomBar，避免全屏挡住内容滚动
+                        if (navBarStyle != "rail") {
+                            ScheduleBottomBar(
+                                navBarStyle = navBarStyle,
+                                isShiftMode = isShiftMode,
+                                selectedTab = selectedTab,
+                                onTabSelected = onMainTabSelected,
+                                liquidGlassBackdrop = chromeBackdrop,
+                            )
+                        }
                     },
                     topBar = {
                         // 标题可见性只在页码/方向变化时重组；平移读 pager 写在 graphicsLayer，
@@ -3839,6 +3828,39 @@ fun CourseScheduleApp() {
             MiuixTheme(controller = pageController) {
                 CompositionLocalProvider(LocalForcedDarkTheme provides effectiveForcedDark) {
                     scaffoldContent()
+                    // 平板：胶囊/侧栏叠层（不占 Scaffold bottomBar，内容可正常滚动）
+                    if (navBarStyle == "rail") {
+                        val onTabletTabSelected: (Int) -> Unit = { idx ->
+                            if (idx != selectedTab) {
+                                mainTabProgrammatic = true
+                                selectedTab = idx
+                                coroutineScope.launch {
+                                    try {
+                                        if (todayPagerState.isScrollInProgress) todayPagerState.cancelScroll()
+                                        if (pagerState.isScrollInProgress) pagerState.cancelScroll()
+                                        if (mainPagerState.isScrollInProgress) mainPagerState.cancelScroll()
+                                        mainPagerState.animateMainTabTo(idx)
+                                    } finally {
+                                        mainTabProgrammatic = false
+                                    }
+                                }
+                            }
+                        }
+                        com.haooz.chedule.ui.components.LiquidNavigationRail(
+                            selectedTab = selectedTab,
+                            onTabSelected = onTabletTabSelected,
+                            backdrop = chromeBackdrop,
+                            isShiftMode = isShiftMode,
+                            onSidebarExpandedChange = {
+                                com.haooz.chedule.ui.components.TabletNavSideState.expanded = it
+                            },
+                            modifier = Modifier.fillMaxSize().zIndex(22f),
+                        )
+                    }
+                    // 平板设置：标题与分界线画在顶栏模糊之上
+                    if (navBarStyle == "rail" && selectedTab == 2 && !isShiftMode) {
+                        com.haooz.chedule.ui.screens.TabletSettingsChromeOverlay()
+                    }
                 }
             }
             // 快照层也要拦截触摸，覆盖 showDetail 已 false 但快照未清除的窗口
@@ -4963,27 +4985,18 @@ private fun SettingsTopBar(
     scrollBehavior: SharedScrollBehavior? = null,
 ) {
     if (liquidGlassBackdrop == null) return
-    val isTabletLiquidGlass = navBarStyle == "rail"
+    val isTablet = navBarStyle == "rail"
 
     ProgressiveBlurTopBar(
         backdrop = liquidGlassBackdrop,
     ) {
         CollapsibleTopAppBar(
-            title = "我的",
-            largeTitle = "我的",
+            // 平板设置：顶栏不再显示「我的」，标题由 MainActivity 叠层绘制
+            title = if (isTablet) "" else "我的",
+            largeTitle = if (isTablet) "" else "我的",
             modifier = Modifier.zIndex(1f),
             scrollBehavior = scrollBehavior,
-            startAction = if (isTabletLiquidGlass) {
-                { _, _ ->
-                    Text(
-                        text = "我的",
-                        fontSize = 21.sp,
-                        fontWeight = FontWeight.Medium,
-                        color = MiuixTheme.colorScheme.onSurface,
-                        modifier = Modifier.padding(start = 12.dp)
-                    )
-                }
-            } else null,
+            startAction = null,
         )
     }
 }
@@ -5032,20 +5045,8 @@ private fun TodayTopBar(
             largeTitle = titleText,
             modifier = Modifier.zIndex(1f),
             scrollBehavior = scrollBehavior,
-            startAction = if (visible && isTabletLiquidGlass) {
-                { _, _ ->
-                    Text(
-                        text = titleText,
-                        fontSize = 21.sp,
-                        fontWeight = FontWeight.Medium,
-                        color = MiuixTheme.colorScheme.onSurface,
-                        modifier = Modifier.padding(start = 12.dp)
-                    )
-                }
-            } else {
-                // 手机端左上角不再放「返回今天」，改为底栏上方悬浮液态玻璃按钮
-                null
-            },
+            // 平板左上角不放标题
+            startAction = null,
             endAction = { backdropAlpha, shadowAlpha ->
                 if (visible) {
                     if (isTabletLiquidGlass) {

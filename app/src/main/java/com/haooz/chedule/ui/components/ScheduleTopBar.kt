@@ -119,18 +119,8 @@ internal fun ScheduleTopBar(
                 modifier = Modifier.zIndex(1f),
                 gradientMaskHeight = CollapsedHeight + 110.dp,
                 scrollBehavior = scrollBehavior,
-                startAction = { _, _ ->
-                    if (navBarStyle == "rail") {
-                        Text(
-                            text = titleText,
-                            fontSize = 21.sp,
-                            fontWeight = FontWeight.Medium,
-                            color = MiuixTheme.colorScheme.onSurface,
-                            modifier = Modifier.padding(start = 12.dp)
-                        )
-                    }
-                    // 手机端左上角不再放「返回本周」，改为底栏上方悬浮液态玻璃按钮
-                },
+                // 平板左上角不放标题
+                startAction = null,
                 endAction = { backdropAlpha, shadowAlpha ->
                     Row(
                         horizontalArrangement = Arrangement.spacedBy(8.dp),

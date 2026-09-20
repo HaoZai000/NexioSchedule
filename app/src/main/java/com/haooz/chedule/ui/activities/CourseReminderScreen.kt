@@ -255,10 +255,7 @@ fun CourseReminderScreen(
         selectedContainerColor = Color.Transparent,
     )
     val isTablet = LocalConfiguration.current.screenWidthDp >= 600
-    val tabletHorizontalPadding = if (isTablet) {
-        val screenWidthDp = LocalConfiguration.current.screenWidthDp
-        ((screenWidthDp - 600).coerceIn(0, 600) / 600f * 112 + 16).dp
-    } else 16.dp
+    val tabletHorizontalPadding = 20.dp
 
     Box(modifier = Modifier.fillMaxSize()) {
         Scaffold(
@@ -283,7 +280,7 @@ fun CourseReminderScreen(
                         ),
                     contentPadding = PaddingValues(
                         start = tabletHorizontalPadding,
-                        top = paddingValues.calculateTopPadding() + CollapsibleTopAppBarDefaults.CollapsedHeight + 12.dp,
+                        top = paddingValues.calculateTopPadding() + CollapsibleTopAppBarDefaults.CollapsedHeight + 24.dp,
                         end = tabletHorizontalPadding,
                         bottom = 120.dp
                     ),

@@ -96,10 +96,7 @@ fun AppreciateAuthorScreen(
         drawContent()
     }
     val isTablet = LocalConfiguration.current.screenWidthDp >= 600
-    val tabletHorizontalPadding = if (isTablet) {
-        val screenWidthDp = LocalConfiguration.current.screenWidthDp
-        ((screenWidthDp - 600).coerceIn(0, 600) / 600f * 112 + 16).dp
-    } else 16.dp
+    val tabletHorizontalPadding = 20.dp
 
     Scaffold(
         topBar = {}
@@ -109,36 +106,46 @@ fun AppreciateAuthorScreen(
                 .fillMaxSize()
                 .layerBackdrop(backdrop)
         ) {
-            val density = androidx.compose.ui.platform.LocalDensity.current
-            if (isTablet) {
-                // 平板：左侧固定图片 + 右侧独立滚动列表
-                val tabletListState = rememberLazyListState()
-                LaunchedEffect(tabletListState) {
-                    // 触发条件：已滚到底(无法继续前滚)或内容不足一屏。含 donations.size 使加载后重新评估，
-                    // 从而能继续加载末尾不足 10 条的剩余分页
-                    snapshotFlow { tabletListState.canScrollForward to donations.size }
-                        .collect { (canScroll, _) ->
-                            if (donations.isNotEmpty() && !canScroll && hasMore) loadMore()
-                        }
-                }
-                Row(
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .padding(
-                            start = tabletHorizontalPadding,
-                            end = tabletHorizontalPadding,
-                        ),
-                    horizontalArrangement = Arrangement.spacedBy(24.dp)
-                ) {
-                    // 左侧 - 赞赏码（固定，不可滚动）
+            // 单列滚动：赞赏码在上、捐赠明细在下（pad 也不做页内左右分栏）
+            val listState = rememberLazyListState()
+            LaunchedEffect(listState) {
+                snapshotFlow { listState.firstVisibleItemScrollOffset }
+                    .collect { offset ->
+                        listScrollY = offset
+                    }
+            }
+            // 滚动到底自动加载下一页捐赠
+            LaunchedEffect(listState) {
+                snapshotFlow { listState.canScrollForward to donations.size }
+                    .collect { (canScroll, _) ->
+                        if (donations.isNotEmpty() && !canScroll && hasMore) loadMore()
+                    }
+            }
+            LazyColumn(
+                state = listState,
+                modifier = Modifier
+                    .fillMaxSize()
+                    .overScrollVertical()
+                    .scrollEndHaptic(
+                        hapticFeedbackType = androidx.compose.ui.hapticfeedback.HapticFeedbackType.TextHandleMove
+                    )
+                    .collapsibleTopInset(scrollBehavior)
+                    .then(
+                        scrollBehavior?.let { Modifier.nestedScroll(it.nestedScrollConnection) } ?: Modifier
+                    ),
+                contentPadding = PaddingValues(
+                    start = tabletHorizontalPadding,
+                    end = tabletHorizontalPadding,
+                    top = paddingValues.calculateTopPadding() + CollapsibleTopAppBarDefaults.CollapsedHeight + 24.dp,
+                    bottom = 60.dp
+                ),
+                verticalArrangement = Arrangement.spacedBy(12.dp)
+            ) {
+                item {
                     Card(
                         cornerRadius = 20.dp,
                         modifier = Modifier
-                            .weight(1f)
-                            .padding(
-                                top = paddingValues.calculateTopPadding() + CollapsibleTopAppBarDefaults.CollapsedHeight + 12.dp,
-                                bottom = 60.dp
-                            )
+                            .fillMaxWidth()
                             .aspectRatio(1f),
                         insideMargin = PaddingValues(0.dp)
                     ) {
@@ -152,162 +159,43 @@ fun AppreciateAuthorScreen(
                             contentScale = ContentScale.Crop,
                         )
                     }
-                    // 右侧 - 捐赠明细（独立滚动）
-                    if (donationList.isNotEmpty()) {
-                        LazyColumn(
-                            state = tabletListState,
-                            modifier = Modifier
-                                .weight(1f)
-                                .fillMaxHeight()
-                                .overScrollVertical()
-                                .scrollEndHaptic(
-                                    hapticFeedbackType = androidx.compose.ui.hapticfeedback.HapticFeedbackType.TextHandleMove
-                                )
-                                .collapsibleTopInset(scrollBehavior)
-                                .then(
-                                    scrollBehavior?.let { Modifier.nestedScroll(it.nestedScrollConnection) } ?: Modifier
-                                ),
-                            contentPadding = PaddingValues(
-                                top = paddingValues.calculateTopPadding() + CollapsibleTopAppBarDefaults.CollapsedHeight + 12.dp,
-                                bottom = 60.dp
-                            ),
-                            verticalArrangement = Arrangement.spacedBy(0.dp)
-                        ) {
-                            item {
-                                Row(
-                                    modifier = Modifier.fillMaxWidth(),
-                                    verticalAlignment = Alignment.CenterVertically
-                                ) {
-                                    SmallTitle(
-                                        text = "捐赠明细",
-                                        modifier = Modifier.offset(x = (-16).dp)
-                                    )
-                                    Text(
-                                        text = "正在手工填写中",
-                                        style = MiuixTheme.textStyles.body2,
-                                        color = MiuixTheme.colorScheme.onSurfaceVariantActions,
-                                        modifier = Modifier
-                                            .padding(end = 12.dp)
-                                    )
-                                }
-                            }
-                            item {
-                                Card(
-                                    cornerRadius = 20.dp,
-                                    modifier = Modifier.fillMaxWidth(),
-                                    insideMargin = PaddingValues(0.dp)
-                                ) {
-                                    Column(modifier = Modifier.fillMaxWidth()) {
-                                        donationList.forEachIndexed { index, item ->
-                                            AppreciationListItem(item = item)
-                                            if (index < donationList.lastIndex) {
-                                                Spacer(
-                                                    modifier = Modifier
-                                                        .fillMaxWidth()
-                                                        .padding(horizontal = 16.dp)
-                                                        .height(0.5.dp)
-                                                        .background(MiuixTheme.colorScheme.surfaceVariant)
-                                                )
-                                            }
-                                        }
-                                    }
-                                }
-                            }
-                        }
-                    }
                 }
-            } else {
-                // 手机：上下排列，整体滚动
-                val listState = rememberLazyListState()
-                LaunchedEffect(listState) {
-                    snapshotFlow { listState.firstVisibleItemScrollOffset }
-                        .collect { offset ->
-                            listScrollY = offset
-                        }
-                }
-                // 滚动到底自动加载下一页捐赠
-                LaunchedEffect(listState) {
-                    snapshotFlow { listState.canScrollForward to donations.size }
-                        .collect { (canScroll, _) ->
-                            if (donations.isNotEmpty() && !canScroll && hasMore) loadMore()
-                        }
-                }
-                LazyColumn(
-                    state = listState,
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .overScrollVertical()
-                        .scrollEndHaptic(
-                            hapticFeedbackType = androidx.compose.ui.hapticfeedback.HapticFeedbackType.TextHandleMove
-                        )
-                        .collapsibleTopInset(scrollBehavior)
-                        .then(
-                            scrollBehavior?.let { Modifier.nestedScroll(it.nestedScrollConnection) } ?: Modifier
-                        ),
-                    contentPadding = PaddingValues(
-                        start = tabletHorizontalPadding,
-                        end = tabletHorizontalPadding,
-                        top = paddingValues.calculateTopPadding() + CollapsibleTopAppBarDefaults.CollapsedHeight + 12.dp,
-                        bottom = 60.dp
-                    ),
-                    verticalArrangement = Arrangement.spacedBy(12.dp)
-                ) {
+
+                if (donationList.isNotEmpty()) {
                     item {
-                        Card(
-                            cornerRadius = 20.dp,
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .aspectRatio(1f),
-                            insideMargin = PaddingValues(0.dp)
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            verticalAlignment = Alignment.CenterVertically
                         ) {
-                            Image(
-                                painter = painterResource(id = R.drawable.zanshangma),
-                                contentDescription = "赞赏码",
+                            SmallTitle(
+                                text = "捐赠明细",
+                                modifier = Modifier.offset(x = (-16).dp)
+                            )
+                            Spacer(modifier = Modifier.weight(1f))
+                            Text(
+                                text = "正在手工填写中",
+                                style = MiuixTheme.textStyles.body2,
+                                color = MiuixTheme.colorScheme.onSurfaceVariantActions,
                                 modifier = Modifier
-                                    .fillMaxSize()
-                                    .padding(14.dp)
-                                    .clip(ContinuousRoundedRectangle(10.dp)),
-                                contentScale = ContentScale.Crop,
+                                    .padding(end = 12.dp)
                             )
                         }
-                    }
-
-                    if (donationList.isNotEmpty()) {
-                        item {
-                            Row(
-                                modifier = Modifier.fillMaxWidth(),
-                                verticalAlignment = Alignment.CenterVertically
-                            ) {
-                                SmallTitle(
-                                        text = "捐赠明细",
-                                        modifier = Modifier.offset(x = (-16).dp)
-                                    )
-                                    Spacer(modifier = Modifier.weight(1f))
-                                    Text(
-                                        text = "正在手工填写中",
-                                        style = MiuixTheme.textStyles.body2,
-                                        color = MiuixTheme.colorScheme.onSurfaceVariantActions,
-                                        modifier = Modifier
-                                            .padding(end = 12.dp)
-                                    )
-                            }
-                            Card(
-                                cornerRadius = 20.dp,
-                                modifier = Modifier.fillMaxWidth(),
-                                insideMargin = PaddingValues(0.dp)
-                            ) {
-                                Column(modifier = Modifier.fillMaxWidth()) {
-                                    donationList.forEachIndexed { index, item ->
-                                        AppreciationListItem(item = item)
-                                        if (index < donationList.lastIndex) {
-                                            Spacer(
-                                                modifier = Modifier
-                                                    .fillMaxWidth()
-                                                    .padding(horizontal = 16.dp)
-                                                    .height(0.5.dp)
-                                                    .background(MiuixTheme.colorScheme.surfaceVariant)
-                                            )
-                                        }
+                        Card(
+                            cornerRadius = 20.dp,
+                            modifier = Modifier.fillMaxWidth(),
+                            insideMargin = PaddingValues(0.dp)
+                        ) {
+                            Column(modifier = Modifier.fillMaxWidth()) {
+                                donationList.forEachIndexed { index, item ->
+                                    AppreciationListItem(item = item)
+                                    if (index < donationList.lastIndex) {
+                                        Spacer(
+                                            modifier = Modifier
+                                                .fillMaxWidth()
+                                                .padding(horizontal = 16.dp)
+                                                .height(0.5.dp)
+                                                .background(MiuixTheme.colorScheme.surfaceVariant)
+                                        )
                                     }
                                 }
                             }

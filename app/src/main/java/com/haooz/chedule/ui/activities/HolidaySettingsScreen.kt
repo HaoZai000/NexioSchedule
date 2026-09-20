@@ -263,7 +263,7 @@ fun HolidaySettingsScreen(
                 ),
             contentPadding = PaddingValues(
                 16.dp,
-                padding.calculateTopPadding() + CollapsibleTopAppBarDefaults.CollapsedHeight + 12.dp,
+                padding.calculateTopPadding() + CollapsibleTopAppBarDefaults.CollapsedHeight + 24.dp,
                 16.dp,
                 60.dp,
             ),

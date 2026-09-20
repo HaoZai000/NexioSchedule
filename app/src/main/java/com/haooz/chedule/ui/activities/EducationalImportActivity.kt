@@ -191,7 +191,7 @@ class EducationalImportActivity : ComponentActivity() {
 
     @SuppressLint("ConfigurationScreenWidthHeight")
     @Composable
-    private fun EducationalImportApp() {
+    fun EducationalImportApp() {
         val isUpdating by _isUpdating.collectAsState()
         val dataVersion by _dataVersion.collectAsState()
 

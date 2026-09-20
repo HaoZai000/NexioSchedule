@@ -94,6 +94,8 @@ fun BackupAndMigrationScreen(
     settingsViewModel: SettingsViewModel,
     liquidGlassBackdrop: com.kyant.backdrop.Backdrop? = null,
     mode: ScheduleDataManageMode = ScheduleDataManageMode.Import,
+    /** pad 设置右栏：导入页去掉「导入方式」，并把口令/文件拆成两个小标题 */
+    compactImport: Boolean = false,
 ) {
     val context = LocalContext.current
     val hapticFeedback = LocalHapticFeedback.current
@@ -105,10 +107,7 @@ fun BackupAndMigrationScreen(
     )
 
     val isTablet = LocalConfiguration.current.screenWidthDp >= 600
-    val tabletHorizontalPadding = if (isTablet) {
-        val screenWidthDp = LocalConfiguration.current.screenWidthDp
-        ((screenWidthDp - 600).coerceIn(0, 600) / 600f * 112 + 16).dp
-    } else 16.dp
+    val tabletHorizontalPadding = 20.dp
 
     val webDavManager = remember { WebDavManager(context) }
     val lastSyncTimeMs = webDavManager.lastSyncTime
@@ -260,12 +259,12 @@ fun BackupAndMigrationScreen(
             contentPadding = PaddingValues(
                 start = tabletHorizontalPadding,
                 end = tabletHorizontalPadding,
-                top = paddingValues.calculateTopPadding() + CollapsibleTopAppBarDefaults.CollapsedHeight,
+                top = paddingValues.calculateTopPadding() + CollapsibleTopAppBarDefaults.CollapsedHeight + 12.dp,
                 bottom = 60.dp
             ),
             verticalArrangement = Arrangement.spacedBy(12.dp)
         ) {
-            if (mode == ScheduleDataManageMode.Import) {
+            if (mode == ScheduleDataManageMode.Import && !compactImport) {
                 item {
                     SmallTitle(
                         text = "导入方式",
@@ -300,7 +299,82 @@ fun BackupAndMigrationScreen(
                 }
             }
 
-            if (mode == ScheduleDataManageMode.Import) {
+            if (mode == ScheduleDataManageMode.Import && compactImport) {
+                // pad：口令
+                item {
+                    SmallTitle(
+                        text = "口令",
+                        modifier = Modifier.offset(x = (-15).dp)
+                    )
+                    Card(
+                        cornerRadius = 20.dp,
+                        modifier = Modifier.fillMaxWidth(),
+                        insideMargin = PaddingValues(0.dp)
+                    ) {
+                        Column(modifier = Modifier.fillMaxWidth()) {
+                            ArrowPreference(
+                                title = "分享口令导入",
+                                summary = "输入好友分享的口令导入课表",
+                                onClick = {
+                                    shareCodeInput = ""
+                                    showShareCodeDialog = true
+                                }
+                            )
+                            ArrowPreference(
+                                title = "WakeUp课程表口令导入",
+                                summary = "输入WakeUp分享口令即可获取",
+                                onClick = {
+                                    thirdPartySource = ThirdPartyShareSource.WakeUp
+                                    thirdPartyCodeInput = ""
+                                    showThirdPartyCodeDialog = true
+                                }
+                            )
+                            ArrowPreference(
+                                title = "星链课表分享码导入",
+                                summary = "输入星链课表分享码即可获取",
+                                onClick = {
+                                    thirdPartySource = ThirdPartyShareSource.StarLink
+                                    thirdPartyCodeInput = ""
+                                    showThirdPartyCodeDialog = true
+                                }
+                            )
+                        }
+                    }
+                }
+                // pad：文件
+                item {
+                    SmallTitle(
+                        text = "文件",
+                        modifier = Modifier.offset(x = (-15).dp)
+                    )
+                    Card(
+                        cornerRadius = 20.dp,
+                        modifier = Modifier.fillMaxWidth(),
+                        insideMargin = PaddingValues(0.dp)
+                    ) {
+                        Column(modifier = Modifier.fillMaxWidth()) {
+                            ArrowPreference(
+                                title = "JSON 文件导入",
+                                summary = "支持拾光课程表/Neixo课程表",
+                                onClick = {
+                                    jsonFilePickerLauncher.launch(
+                                        arrayOf("application/json", "*/*")
+                                    )
+                                }
+                            )
+                            ArrowPreference(
+                                title = "ICS 文件导入",
+                                summary = "从日程文件导入课程",
+                                onClick = {
+                                    icsFilePickerLauncher.launch(
+                                        arrayOf("text/calendar", "*/*")
+                                    )
+                                }
+                            )
+                        }
+                    }
+                }
+            } else if (mode == ScheduleDataManageMode.Import) {
                 item {
                     SmallTitle(
                         text = "文件与口令",
