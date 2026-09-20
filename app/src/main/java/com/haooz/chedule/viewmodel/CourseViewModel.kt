@@ -29,6 +29,9 @@ class CourseViewModel(application: Application) : AndroidViewModel(application) 
     private val _dataVersion = MutableStateFlow(0)
     val dataVersion: StateFlow<Int> = _dataVersion.asStateFlow()
 
+    /** 上次向小组件广播刷新的日期，用于同一天内内容未变时跳过广播 */
+    private var lastWidgetRefreshDate: LocalDate? = null
+
     /** 节假日/调休等外部数据变更时 bump，让今日页 remember 失效（不重载课程列表） */
     fun bumpDataVersion() {
         _dataVersion.value++
@@ -71,14 +74,16 @@ class CourseViewModel(application: Application) : AndroidViewModel(application) 
 
     private val _isHoliday = MutableStateFlow(false)
 
-    init {
-        repository.onCourseChanged = { _, _ ->
-            viewModelScope.launch(Dispatchers.IO) {
-                loadCourses()
-                // 课程变更后重排闹钟并驱动 widget 刷新链，否则新课程在提醒窗口内无驱动源
-                rescheduleReminders()
-            }
+    private val courseChangedListener: (String, String) -> Unit = { _, _ ->
+        viewModelScope.launch(Dispatchers.IO) {
+            loadCourses()
+            // 课程变更后重排闹钟并驱动 widget 刷新链，否则新课程在提醒窗口内无驱动源
+            rescheduleReminders()
         }
+    }
+
+    init {
+        repository.addCourseChangedListener(courseChangedListener)
         loadEssentialData()
         viewModelScope.launch(Dispatchers.IO) {
             loadCourses()
@@ -90,20 +95,41 @@ class CourseViewModel(application: Application) : AndroidViewModel(application) 
         CourseReminderHelper.startReminderService(context, repository)
     }
 
-    private fun loadEssentialData() {
-        _totalWeeks.value = repository.getTotalWeeks()
-        _classStartTime.value = repository.getClassStartTime()
-        val calculatedWeek = calculateCurrentWeekFromDate(_classStartTime.value)
+    /**
+     * 只在「会影响课表渲染的数据」真的变了才返回 true。
+     *
+     * 不要在这里无条件 `_dataVersion.value++`：
+     * MainScheduleScreen 的 weekendDaysByWeek / weekFilteredCourses 都以 dataVersion 为 key，
+     * 预计算「全周次 × 全课程」两张表。无脑 bump 会让每次从二级页返回时在主线程整表重算，
+     * 而这恰好落在 MainActivity 刚 resume、主界面刚可见的那几帧上 → 返回时卡一下。
+     */
+    private fun loadEssentialData(): Boolean {
+        val newTotalWeeks = repository.getTotalWeeks()
+        val newClassStartTime = repository.getClassStartTime()
+        var changed = _totalWeeks.value != newTotalWeeks || _classStartTime.value != newClassStartTime
+        _totalWeeks.value = newTotalWeeks
+        _classStartTime.value = newClassStartTime
+
+        val calculatedWeek = calculateCurrentWeekFromDate(newClassStartTime)
+        if (_currentWeek.value != calculatedWeek) changed = true
         _currentWeek.value = calculatedWeek
         repository.setCurrentWeek(calculatedWeek)
-        _isHoliday.value = isWeekHoliday(calculatedWeek)
-        _dataVersion.value++
+
+        val holiday = isWeekHoliday(calculatedWeek)
+        if (_isHoliday.value != holiday) changed = true
+        _isHoliday.value = holiday
+        return changed
     }
 
-    private fun loadCourses() {
-        _courses.value = repository.getAllCourses()
-        _isHoliday.value = isWeekHoliday(_currentWeek.value)
-        updateWidgets()
+    private fun loadCourses(): Boolean {
+        val newCourses = repository.getAllCourses()
+        var changed = _courses.value != newCourses
+        _courses.value = newCourses
+        val holiday = isWeekHoliday(_currentWeek.value)
+        if (_isHoliday.value != holiday) changed = true
+        _isHoliday.value = holiday
+        updateWidgetsIfNeeded(contentChanged = changed)
+        return changed
     }
 
     private fun applyCoursesAndRefreshWidgets(courses: List<Course>) {
@@ -120,9 +146,23 @@ class CourseViewModel(application: Application) : AndroidViewModel(application) 
         }
     }
 
+    /**
+     * 小组件广播：内容变了、或跨天（今日/明日预告与周次都随时间变）才发。
+     * 每次 resume 都无条件广播，会让 provider 在本进程主线程重建所有 RemoteViews，
+     * 正好和主界面 resume 后的重组撞在一起。跨天仍会刷，不会漏掉日期滚动。
+     */
+    private fun updateWidgetsIfNeeded(contentChanged: Boolean) {
+        val today = LocalDate.now()
+        if (!contentChanged && lastWidgetRefreshDate == today) return
+        lastWidgetRefreshDate = today
+        updateWidgets()
+    }
+
     private fun loadData() {
-        loadEssentialData()
-        loadCourses()
+        val essentialChanged = loadEssentialData()
+        val coursesChanged = loadCourses()
+        // 显式加载：只有数据真的变了才驱动 UI 重算（见 loadEssentialData 注释）
+        if (essentialChanged || coursesChanged) _dataVersion.value++
     }
 
     // 返回 Job：调用方需等待加载完成后再截取新课表快照
@@ -160,10 +200,12 @@ class CourseViewModel(application: Application) : AndroidViewModel(application) 
     }
 
     fun setClassStartTime(time: String) {
-        _classStartTime.value = time
-        repository.setClassStartTime(time)
+        // 教务导入常给 yyyy-MM-dd；先规范化，避免被 getClassStartTime 重置成今天
+        val normalized = CourseRepository.normalizeClassStartDate(time) ?: return
+        _classStartTime.value = normalized
+        repository.setClassStartTime(normalized)
 
-        val newWeek = calculateCurrentWeekFromDate(time)
+        val newWeek = calculateCurrentWeekFromDate(normalized)
         _currentWeek.value = newWeek
         repository.setCurrentWeek(newWeek)
         _isHoliday.value = isWeekHoliday(newWeek)
@@ -171,6 +213,7 @@ class CourseViewModel(application: Application) : AndroidViewModel(application) 
     }
 
     fun setTotalWeeks(weeks: Int) {
+        if (weeks <= 0) return
         _totalWeeks.value = weeks
         repository.setTotalWeeks(weeks)
         _isHoliday.value = isWeekHoliday(_currentWeek.value)
@@ -352,6 +395,6 @@ class CourseViewModel(application: Application) : AndroidViewModel(application) 
 
     override fun onCleared() {
         super.onCleared()
-        repository.onCourseChanged = null
+        repository.removeCourseChangedListener(courseChangedListener)
     }
 }

@@ -47,8 +47,28 @@ class CourseRepository private constructor(context: Context) {
         migrateScheduleTimeConfigBindingsIfNeeded()
     }
 
-    // 变更回调
-    var onCourseChanged: ((action: String, courseId: String) -> Unit)? = null
+    // 变更回调：多播列表，避免后构造的 ViewModel 覆盖先注册的监听
+    private val courseChangedListeners =
+        java.util.concurrent.CopyOnWriteArrayList<(action: String, courseId: String) -> Unit>()
+
+    fun addCourseChangedListener(listener: (action: String, courseId: String) -> Unit) {
+        if (!courseChangedListeners.contains(listener)) {
+            courseChangedListeners.add(listener)
+        }
+    }
+
+    fun removeCourseChangedListener(listener: (action: String, courseId: String) -> Unit) {
+        courseChangedListeners.remove(listener)
+    }
+
+    private fun dispatchCourseChanged(action: String, courseId: String) {
+        for (listener in courseChangedListeners) {
+            try {
+                listener(action, courseId)
+            } catch (_: Exception) {
+            }
+        }
+    }
 
     /** 绕过本类 setter 直接改写 prefs 后必须调用，否则读到陈旧缓存 */
     private fun invalidateAllCaches() {
@@ -77,7 +97,7 @@ class CourseRepository private constructor(context: Context) {
             commitSettingsChanged()
             return
         }
-        onCourseChanged?.invoke(action, courseId)
+        dispatchCourseChanged(action, courseId)
     }
 
     /** 更新时间戳（本地修改不被远程覆盖）、失效时间缓存、通知 UI */
@@ -85,7 +105,22 @@ class CourseRepository private constructor(context: Context) {
         val prefix = getScheduleKeyPrefix()
         prefs.edit { putLong("${prefix}_settings_last_modified", System.currentTimeMillis()) }
         invalidateTimeCaches()
-        onCourseChanged?.invoke("settings", "")
+        dispatchCourseChanged("settings", "")
+    }
+
+    /**
+     * 某课表设置变更落库后的时间戳/UI 通知。
+     * - 始终更新**该课表**的 `settings_last_modified`（按课表分键保存，供备份还原与后续同步预留）
+     * - 仅当写入的是当前课表时才失效缓存并通知 UI / 触发重排
+     * - 写非当前课表时不碰当前课表时间戳，也不通知当前 UI
+     */
+    private fun markScheduleSettingsChanged(scheduleId: String) {
+        val prefix = getScheduleKeyPrefix(scheduleId)
+        prefs.edit { putLong("${prefix}_settings_last_modified", System.currentTimeMillis()) }
+        if (scheduleId != getCurrentScheduleId()) return
+        if (batchingSettings) return
+        invalidateTimeCaches()
+        dispatchCourseChanged("settings", "")
     }
 
     companion object {
@@ -100,6 +135,55 @@ class CourseRepository private constructor(context: Context) {
 
         // 兼容旧代码的构造方式
         operator fun invoke(context: Context): CourseRepository = getInstance(context)
+
+        /** 开学日规范格式 yyyy/MM/dd */
+        fun formatClassStartDate(date: java.time.LocalDate): String =
+            String.format(java.util.Locale.ROOT, "%04d/%02d/%02d", date.year, date.monthValue, date.dayOfMonth)
+
+        /**
+         * 解析教务/设置/备份里各种开学日写法。
+         * 支持：yyyy/MM/dd、yyyy-MM-dd、yyyy/M/d、yyyyMMdd、带时间的 ISO 前缀。
+         * 年份限 1970..2100，避免「26/9/1」被当成公元 26 年。
+         */
+        fun parseFlexibleDate(raw: String?): java.time.LocalDate? {
+            if (raw.isNullOrBlank()) return null
+            fun validYear(y: Int) = y in 1970..2100
+            val trimmed = raw.trim().substringBefore(' ').substringBefore('T')
+            val sep = when {
+                trimmed.contains('-') -> '-'
+                trimmed.contains('/') -> '/'
+                else -> null
+            }
+            if (sep != null) {
+                val parts = trimmed.split(sep)
+                if (parts.size == 3) {
+                    val y = parts[0].toIntOrNull()
+                    val m = parts[1].toIntOrNull()
+                    val d = parts[2].toIntOrNull()
+                    if (y != null && m != null && d != null && validYear(y)) {
+                        return runCatching { java.time.LocalDate.of(y, m, d) }.getOrNull()
+                    }
+                }
+            }
+            val digits = trimmed.filter { it.isDigit() }
+            if (digits.length == 8) {
+                val y = digits.substring(0, 4).toInt()
+                if (!validYear(y)) return null
+                return runCatching {
+                    java.time.LocalDate.of(
+                        y,
+                        digits.substring(4, 6).toInt(),
+                        digits.substring(6, 8).toInt()
+                    )
+                }.getOrNull()
+            }
+            return null
+        }
+
+        /** 规范为 yyyy/MM/dd；无法解析返回 null */
+        fun normalizeClassStartDate(raw: String?): String? =
+            parseFlexibleDate(raw)?.let { formatClassStartDate(it) }
+
         private const val PREFS_NAME = "course_schedule_prefs"
         private const val KEY_COURSES = "courses"
         private const val KEY_CURRENT_WEEK = "current_week"
@@ -279,7 +363,7 @@ class CourseRepository private constructor(context: Context) {
         prefs.edit { putString(key, json) }
         courseCache[scheduleId] = courses
         occupiedWeeksCache.clear()
-        if (notify) onCourseChanged?.invoke("bulk", "")
+        if (notify) dispatchCourseChanged("bulk", "")
     }
 
     fun addCourse(course: Course): List<Course> {
@@ -612,12 +696,18 @@ class CourseRepository private constructor(context: Context) {
     }
 
     fun setTotalWeeks(weeks: Int) {
-        val key = "${getScheduleKeyPrefix()}$KEY_TOTAL_WEEKS"
-        prefs.edit { putInt(key, weeks) }
-        notifyCourseChanged("settings")
+        setTotalWeeks(getCurrentScheduleId(), weeks)
     }
 
-    /** 旧值不是 YYYY/MM/DD 时自动回退当天并写回 */
+    /** 写目标课表总周数；更新该课表同步时间戳，仅当前课表才通知 UI */
+    fun setTotalWeeks(scheduleId: String, weeks: Int) {
+        if (weeks <= 0) return
+        val key = "${getScheduleKeyPrefix(scheduleId)}$KEY_TOTAL_WEEKS"
+        prefs.edit { putInt(key, weeks) }
+        markScheduleSettingsChanged(scheduleId)
+    }
+
+    /** 旧值不是可识别日期时回退当天并写回；兼容 yyyy-MM-dd / yyyy/M/d / yyyyMMdd */
     fun getClassStartTime(): String {
         return getClassStartTime(getCurrentScheduleId())
     }
@@ -631,17 +721,28 @@ class CourseRepository private constructor(context: Context) {
             cal.get(java.util.Calendar.DAY_OF_MONTH)
         )
         val stored = prefs.getString(key, null)
-        if (stored != null && Regex("^\\d{4}/\\d{2}/\\d{2}$").matches(stored)) {
-            return stored
+        val normalized = normalizeClassStartDate(stored)
+        if (normalized != null) {
+            // 教务脚本等常写入 yyyy-MM-dd：识别后就地规范化，绝不能重置成今天
+            if (normalized != stored) {
+                prefs.edit { putString(key, normalized) }
+            }
+            return normalized
         }
         prefs.edit { putString(key, default) }
         return default
     }
 
     fun setClassStartTime(time: String) {
-        val key = "${getScheduleKeyPrefix()}$KEY_CLASS_START_TIME"
-        prefs.edit { putString(key, time) }
-        notifyCourseChanged("settings")
+        setClassStartTime(getCurrentScheduleId(), time)
+    }
+
+    /** 指定课表写入开学日；非法日期直接忽略，避免导入路径把开学日写成今天 */
+    fun setClassStartTime(scheduleId: String, time: String) {
+        val normalized = normalizeClassStartDate(time) ?: return
+        val key = "${getScheduleKeyPrefix(scheduleId)}$KEY_CLASS_START_TIME"
+        prefs.edit { putString(key, normalized) }
+        markScheduleSettingsChanged(scheduleId)
     }
 
     fun getSmartWeekend(): Boolean {
@@ -2151,7 +2252,7 @@ class CourseRepository private constructor(context: Context) {
             }
         }
         invalidateAllCaches()
-        onCourseChanged?.invoke("restore", "")
+        dispatchCourseChanged("restore", "")
     }
 
     fun getSectionsForSchedule(scheduleId: String): Triple<Int, Int, Int> {
@@ -2271,6 +2372,6 @@ class CourseRepository private constructor(context: Context) {
             setScheduleTimeConfigId(scheduleName, newConfigId)
         }
 
-        onCourseChanged?.invoke("restore", "")
+        dispatchCourseChanged("restore", "")
     }
 }

@@ -466,7 +466,7 @@ class EducationalImportActivity : SecondaryActivity() {
                                     val hasStartDate = prefs.getString("semester_start_date", null) != null
                                     val hasTotalWeeks = prefs.getInt("semester_total_weeks", -1) > 0
                                     if (hasStartDate || hasTotalWeeks) {
-                                        applyImportedScheduleConfig(courseViewModel)
+                                        applyImportedScheduleConfig(courseViewModel, scheduleViewModel)
                                     }
                                 },
                                 onPageTitleChanged = { webPageTitle = it },
@@ -611,24 +611,50 @@ class EducationalImportActivity : SecondaryActivity() {
     /**
      * 应用教务脚本通过 saveCourseConfig 传回的课表配置（开学时间、总周数）。
      * 与 applyPresetTimeSlots 一致，仅在导入完成时消费一次性标记，避免重复/旧数据覆盖。
+     * 开学日写入目标课表（可能非当前课表）；日期先规范化，防止被读路径重置成今天。
      */
-    private fun applyImportedScheduleConfig(courseViewModel: CourseViewModel) {
+    private fun applyImportedScheduleConfig(
+        courseViewModel: CourseViewModel,
+        scheduleViewModel: ScheduleViewModel,
+    ) {
         val prefs = getSharedPreferences("edu_import_prefs", MODE_PRIVATE)
-        val startDate = prefs.getString("semester_start_date", null)
+        val rawStart = prefs.getString("semester_start_date", null)
+        val startDate = CourseRepository.normalizeClassStartDate(rawStart)
         val totalWeeks = prefs.getInt("semester_total_weeks", -1)
+        val targetScheduleId = prefs.getString("target_schedule_id", null)
+        val isTargetCurrent = targetScheduleId.isNullOrEmpty() ||
+            targetScheduleId == scheduleViewModel.currentScheduleName.value
 
         var applied = false
-        if (!startDate.isNullOrBlank()) {
-            courseViewModel.setClassStartTime(startDate)
+        if (startDate != null) {
+            if (isTargetCurrent) {
+                courseViewModel.setClassStartTime(startDate)
+            } else if (!targetScheduleId.isNullOrEmpty()) {
+                // 只写目标课表存储，不 refreshEssentialData：当前 UI/提醒不应被非当前课表改动触发
+                CourseRepository.getInstance(this)
+                    .setClassStartTime(targetScheduleId, startDate)
+            }
             applied = true
+            Log.d("EduImport", "应用开学日: raw=$rawStart -> $startDate target=$targetScheduleId")
+        } else if (!rawStart.isNullOrBlank()) {
+            Log.w("EduImport", "开学日无法解析，已忽略: $rawStart")
         }
         if (totalWeeks > 0) {
-            courseViewModel.setTotalWeeks(totalWeeks)
+            if (isTargetCurrent) {
+                courseViewModel.setTotalWeeks(totalWeeks)
+            } else if (!targetScheduleId.isNullOrEmpty()) {
+                CourseRepository.getInstance(this)
+                    .setTotalWeeks(targetScheduleId, totalWeeks)
+            }
             applied = true
         }
         if (applied) {
-            prefs.edit { remove("semester_start_date"); remove("semester_total_weeks") }
-            Log.d("EduImport", "应用课表配置成功: 开学时间=$startDate, 总周数=$totalWeeks")
+            prefs.edit {
+                remove("semester_start_date")
+                remove("semester_total_weeks")
+                remove("target_schedule_id")
+            }
+            Log.d("EduImport", "应用课表配置成功: 开学时间=$startDate, 总周数=$totalWeeks, target=$targetScheduleId")
         }
     }
 }

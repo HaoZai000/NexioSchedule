@@ -177,6 +177,10 @@ class AndroidBridge(
                     return@post
                 }
 
+                // 目标课表与课程一并登记：后续 saveCourseConfig / apply 都以它为准
+                val prefs = context.getSharedPreferences("edu_import_prefs", Context.MODE_PRIVATE)
+                prefs.edit().putString("target_schedule_id", importTableId).apply()
+
                 // name/teacher/position/weeks 等非空字段：脚本缺键时 Gson 会置 null，这里兜默认值
                 @Suppress(
                     "USELESS_ELVIS",
@@ -229,9 +233,23 @@ class AndroidBridge(
                 Log.d(TAG, "课表配置解析成功: semesterStartDate=${config.semesterStartDate}, totalWeeks=${config.semesterTotalWeeks}")
 
                 val prefs = context.getSharedPreferences("edu_import_prefs", Context.MODE_PRIVATE)
+                val normalizedStart = com.haooz.chedule.data.CourseRepository
+                    .normalizeClassStartDate(config.semesterStartDate)
                 prefs.edit().apply {
-                    putString("semester_start_date", config.semesterStartDate)
-                    putInt("semester_total_weeks", config.semesterTotalWeeks)
+                    // 显式写/清：本次未传的字段不能残留上一次导入的值
+                    if (normalizedStart != null) {
+                        putString("semester_start_date", normalizedStart)
+                    } else {
+                        remove("semester_start_date")
+                    }
+                    if (config.semesterTotalWeeks > 0) {
+                        putInt("semester_total_weeks", config.semesterTotalWeeks)
+                    } else {
+                        remove("semester_total_weeks")
+                    }
+                    // 与课程同目标：作息未导入时也不能让开学日/周数落到别的课表
+                    // null 表示导入到当前课表（SharedPreferences putString(null) 即移除）
+                    putString("target_schedule_id", importTableId)
                     putInt("default_class_duration", config.defaultClassDuration)
                     putInt("default_break_duration", config.defaultBreakDuration)
                     putInt("first_day_of_week", config.firstDayOfWeek)

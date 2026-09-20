@@ -39,3 +39,6 @@ temp_*/
 # --- 教务索引（release 构建由 downloadEduIndex 从 gitee 拉取，勿提交） ---
 app/src/main/assets/eduloader/school_index.pb
 
+# --- 工作助手本地目录 ---
+.workbuddy/
+

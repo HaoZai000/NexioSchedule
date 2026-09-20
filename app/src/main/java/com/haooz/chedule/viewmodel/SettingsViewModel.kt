@@ -99,14 +99,22 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
     private val _defaultHomepage = MutableStateFlow(repository.getDefaultHomepage())
     val defaultHomepage: StateFlow<String> = _defaultHomepage.asStateFlow()
 
-    init {
-        repository.onCourseChanged = { action, _ ->
-            if (action == "settings") {
-                viewModelScope.launch {
-                    refreshSettings()
-                }
+    private val settingsChangedListener: (String, String) -> Unit = { action, _ ->
+        if (action == "settings") {
+            viewModelScope.launch {
+                refreshSettings()
             }
         }
+    }
+
+    init {
+        // 多播监听：与 CourseViewModel 并存，不互相覆盖
+        repository.addCourseChangedListener(settingsChangedListener)
+    }
+
+    override fun onCleared() {
+        super.onCleared()
+        repository.removeCourseChangedListener(settingsChangedListener)
     }
 
     // 兼容：合并各时段相对节次为全局绝对编号（下午偏移上午节数，晚上偏移上午+下午）
