@@ -1563,7 +1563,7 @@ private fun androidx.compose.foundation.lazy.LazyListScope.addCourseSections(
                     blurRadius = blurRadius,
                     surfaceOpacity = surfaceOpacity,
                     style = MiuixTheme.textStyles.body1.copy(
-                        fontSize = 18.sp,
+                        fontSize = 15.sp,
                         fontWeight = FontWeight.Medium,
                     ),
                     textAlign = TextAlign.Center,

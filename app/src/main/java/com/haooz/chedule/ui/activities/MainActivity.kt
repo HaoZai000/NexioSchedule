@@ -450,14 +450,15 @@ class MainActivity : ComponentActivity() {
     override fun onMultiWindowModeChanged(isInMultiWindowMode: Boolean, newConfig: Configuration) {
         super.onMultiWindowModeChanged(isInMultiWindowMode, newConfig)
         isInFreeformWindow = isInMultiWindowMode
-        // 平板分窗/自由窗口：主界面不参与二级页 push 左移
-        SecondaryPushParallax.setMainMultiWindowMode(isInMultiWindowMode)
+        // 小窗仍要推主页；仅分栏/Embedding 锁定不左移
+        SecondaryPushParallax.updateMainPushPolicy(this)
     }
 
     override fun onResume() {
         super.onResume()
         resumeCount++
         SecondaryPushParallax.attachMainRoot(this)
+        SecondaryPushParallax.updateMainPushPolicy(this)
         // 同步返回回调：仅"退出即隐藏后台"开启时需要自定义回调（moveTaskToBack），
         // 其余情况交回系统默认返回（finish），保留 Android 14+ 的预测性返回动画
         syncBackCallback()

@@ -54,7 +54,7 @@ const val SECONDARY_PUSH_PARALLAX = 0.24f
 private const val SECONDARY_BG_DIM = 0.42f
 
 /** 入场时长 */
-private const val ENTER_DURATION = 600
+private const val ENTER_DURATION = 640
 
 /** 出场时长 */
 private const val EXIT_DURATION = 320
@@ -81,13 +81,154 @@ private val SecondaryExitEasing = CubicBezierEasing(0.36f, 0.18f, 0.3f, 0.85f)
 /**
  * 是否处于平板分窗 / Activity Embedding 窄栏。
  * 分栏内二级页在独立窗格切换：不播 Compose 右推动画，主界面也不左移。
+ * 注意：小窗（freeform）也算 multi-window，应仍播二级页自身入场，见 [isInFreeformWindowingMode]。
  */
 fun Activity?.isInSecondarySplitMode(): Boolean {
     val act = this ?: return false
     if (act.isInMultiWindowMode) return true
+    return act.isInEmbeddingNarrowPane()
+}
+
+/** Embedding 窄栏：decor 宽度明显小于屏幕且接近全高语义由调用方组合 */
+fun Activity?.isInEmbeddingNarrowPane(): Boolean {
+    val act = this ?: return false
+    if (act.isInMultiWindowMode) return false
     val decorW = act.window.decorView.width
     val screenW = act.resources.displayMetrics.widthPixels
     return screenW > 0 && decorW in 1 until (screenW * 0.85f).toInt()
+}
+
+/**
+ * 系统小窗 / 自由窗口。
+ * 不能拿 displayMetrics 比：MIUI 小窗下 displayMetrics 往往已是「小窗尺寸」，
+ * 比值≈1 会误判成分栏，再铺不透明 windowBackground 就会盖住下层主页。
+ */
+fun Activity?.isInFreeformWindowingMode(): Boolean {
+    val act = this ?: return false
+    if (!act.isInMultiWindowMode) return false
+    if (act.isInPictureInPictureMode) return false
+
+    // 1) 当前窗口 vs 最大窗口：小窗宽高都明显更小
+    try {
+        if (Build.VERSION.SDK_INT >= 30) {
+            val cur = act.windowManager.currentWindowMetrics.bounds
+            val max = act.windowManager.maximumWindowMetrics.bounds
+            if (max.width() > 0 && max.height() > 0 && cur.width() > 0 && cur.height() > 0) {
+                val wRatio = cur.width().toFloat() / max.width()
+                val hRatio = cur.height().toFloat() / max.height()
+                if (wRatio < 0.92f && hRatio < 0.92f) return true
+                // 半宽 + 近全高 → 分屏/分栏，不是 freeform
+                if (hRatio >= 0.85f && wRatio < 0.75f) return false
+                if (wRatio >= 0.92f && hRatio >= 0.92f) return false
+            }
+        }
+    } catch (_: Exception) { }
+
+    // 2) 反射读 windowingMode（5 = WINDOWING_MODE_FREEFORM）
+    try {
+        val config = act.resources.configuration
+        val field = android.content.res.Configuration::class.java
+            .getDeclaredField("windowConfiguration")
+        field.isAccessible = true
+        val wc = field.get(config)
+        val mode = wc.javaClass.getMethod("getWindowingMode").invoke(wc) as Int
+        if (mode == 5) return true
+        // 1=FULLSCREEN 2=PINNED 6=MULTI_WINDOW(split)
+        if (mode == 1 || mode == 2 || mode == 6) return false
+    } catch (_: Exception) { }
+
+    // 3) decor vs 真实屏幕尺寸
+    try {
+        val dm = android.util.DisplayMetrics()
+        @Suppress("DEPRECATION")
+        act.windowManager.defaultDisplay.getRealMetrics(dm)
+        val decorW = act.window.decorView.width
+        val decorH = act.window.decorView.height
+        if (dm.widthPixels > 0 && dm.heightPixels > 0 && decorW > 0 && decorH > 0) {
+            if (decorW < dm.widthPixels * 0.92f && decorH < dm.heightPixels * 0.92f) {
+                return true
+            }
+        }
+    } catch (_: Exception) { }
+
+    // 4) multi-window 且无法判定：按小窗处理，绝不误铺纯色底
+    return true
+}
+
+/** 分屏/分栏窗格：相对最大窗口约「半宽 + 近全高」 */
+fun Activity?.isInSplitPaneWindow(): Boolean {
+    val act = this ?: return false
+    if (!act.isInMultiWindowMode) return false
+    if (act.isInFreeformWindowingMode()) return false
+    try {
+        if (Build.VERSION.SDK_INT >= 30) {
+            val cur = act.windowManager.currentWindowMetrics.bounds
+            val max = act.windowManager.maximumWindowMetrics.bounds
+            if (max.width() > 0 && max.height() > 0 && cur.width() > 0 && cur.height() > 0) {
+                val wRatio = cur.width().toFloat() / max.width()
+                val hRatio = cur.height().toFloat() / max.height()
+                return wRatio < 0.75f && hRatio > 0.85f
+            }
+        }
+    } catch (_: Exception) { }
+    // 无法证明是分栏 → 不当分栏
+    return false
+}
+
+/**
+ * 二级页窗口是否需要铺不透明应用底（仅分栏窗格切换防闪）。
+ * 小窗 / 无法判定的 multi-window 一律 false，避免盖住下层主页。
+ */
+fun Activity?.shouldPaintOpaquePaneSurface(): Boolean {
+    val act = this ?: return false
+    if (act.isInFreeformWindowingMode()) return false
+    if (act.isInPictureInPictureMode) return false
+    if (!act.isInMultiWindowMode) return act.isInEmbeddingNarrowPane()
+    return act.isInSplitPaneWindow()
+}
+
+/**
+ * 是否应锁定一级页 push 左移。
+ * - 小窗 freeform：否（与全屏一致，主页跟着推）
+ * - 系统分屏 / 平行视界：是（能明确识别为「相对真屏约半宽 + 近全高」时）
+ * - Embedding 窄栏：是
+ * - 手机全屏 / multi-window 但无法判定：否（小窗优先，避免首次进小窗被锁死）
+ */
+fun Activity?.shouldLockMainPushParallax(): Boolean {
+    val act = this ?: return false
+    if (!act.isInMultiWindowMode) return act.isInEmbeddingNarrowPane()
+    if (act.isInFreeformWindowingMode()) return false
+    return act.looksLikeTabletSplitPane()
+}
+
+/** 相对真实屏幕约「半宽 + 近全高」才算平板分屏；拿不到尺寸时不当分屏 */
+fun Activity?.looksLikeTabletSplitPane(): Boolean {
+    val act = this ?: return false
+    if (!act.isInMultiWindowMode) return false
+    if (act.isInFreeformWindowingMode()) return false
+    try {
+        val dm = android.util.DisplayMetrics()
+        @Suppress("DEPRECATION")
+        act.windowManager.defaultDisplay.getRealMetrics(dm)
+        val decorW = act.window.decorView.width
+        val decorH = act.window.decorView.height
+        if (dm.widthPixels > 0 && dm.heightPixels > 0 && decorW > 0 && decorH > 0) {
+            return decorW < dm.widthPixels * 0.75f && decorH >= dm.heightPixels * 0.85f
+        }
+    } catch (_: Exception) { }
+    return false
+}
+
+/**
+ * 是否应跳过二级页 Compose 入场（整页瞬间显示）。
+ * - 平板分栏 / Embedding 窄栏 / 非 freeform 的 multi-window：是
+ * - 小窗 freeform：否
+ * - 手机全屏：否
+ */
+fun Activity?.shouldSkipSecondaryEnterAnimation(): Boolean {
+    val act = this ?: return false
+    if (act.isInFreeformWindowingMode()) return false
+    return act.shouldLockMainPushParallax()
 }
 
 /** 压掉 Activity 打开的系统转场（二级页由 Compose 自绘入场） */
@@ -138,8 +279,8 @@ fun secondaryOpenOptionsCompat(activity: Activity): ActivityOptionsCompat {
  * 实现要点：
  * - 只平移 `android.R.id.content`；decor 不动，并铺应用 surface，避免右缘残影叠层
  * - 被推动的 content 入栈时即挂 `LAYER_TYPE_HARDWARE`，避免与位移同帧改层类型导致闪烁
- * - 手机全屏：一级→二级推主页，二级→三级推栈顶下方的二级页
- * - 平板分窗 / Embedding：主页不左移
+ * - 手机全屏 / 小窗 freeform（同一任务栈）：一级→二级推主页，二级→三级推栈顶下方的二级页
+ * - 平板分栏 / Embedding 窄栏：主页不左移（独立窗格切换）
  */
 object SecondaryPushParallax {
 
@@ -154,21 +295,36 @@ object SecondaryPushParallax {
     /** 已打开的二级页，按打开顺序；末尾为栈顶 */
     private val openPages = mutableListOf<Layer>()
 
-    /** 主页当前视差进度（0–1），退出分窗后用于恢复 */
+    /** 主页当前视差进度（0–1），退出后用于恢复 */
     private var mainFraction = 0f
 
-    /** 系统分窗/自由窗口时主页不参与左移 */
+    /** 仅分栏/Embedding 时锁定主页不左移；小窗 freeform 仍要参与 push */
     @Volatile
-    private var mainInMultiWindow = false
+    private var mainPushLocked = false
 
-    /** 分窗状态变化时由 MainActivity 调用 */
-    fun setMainMultiWindowMode(enabled: Boolean) {
-        mainInMultiWindow = enabled
-        if (enabled) {
+    /** 主页内容平移策略变化（分栏 ⇄ 小窗/全屏）时调用 */
+    fun updateMainPushPolicy(activity: Activity) {
+        val locked = activity.shouldLockMainPushParallax()
+        if (locked == mainPushLocked) return
+        mainPushLocked = locked
+        if (locked) {
             mainFraction = 0f
             applyToView(mainContent, 0f)
         } else if (openPages.size == 1) {
             applyToView(mainContent, mainFraction.takeIf { it > 0f } ?: 1f)
+        }
+    }
+
+    /** 兼容旧调用：由 [updateMainPushPolicy] / [attachMainRoot] 细分 freeform 与分栏 */
+    fun setMainMultiWindowMode(enabled: Boolean) {
+        if (!enabled && mainPushLocked) {
+            mainPushLocked = false
+            if (openPages.size == 1) {
+                applyToView(mainContent, mainFraction.takeIf { it > 0f } ?: 1f)
+            } else if (openPages.isEmpty()) {
+                mainFraction = 0f
+                applyToView(mainContent, 0f)
+            }
         }
     }
 
@@ -178,7 +334,7 @@ object SecondaryPushParallax {
         val decor = window.decorView
         val content = resolveContentRoot(activity)
 
-        mainInMultiWindow = activity.isInMultiWindowMode
+        mainPushLocked = activity.shouldLockMainPushParallax()
         ensureAppSurfaceBackground(activity, window)
         if (decor.layerType == View.LAYER_TYPE_HARDWARE) {
             decor.setLayerType(View.LAYER_TYPE_NONE, null)
@@ -189,23 +345,34 @@ object SecondaryPushParallax {
 
         mainContent = WeakReference(content)
         pruneDeadLayers()
-        when {
-            openPages.isEmpty() || mainInMultiWindow -> {
-                if (openPages.isEmpty()) mainFraction = 0f
-                applyToView(mainContent, 0f)
-            }
-            openPages.size == 1 -> applyToView(mainContent, mainFraction)
+        // 锁定（分屏）时必须清零，避免退出二级页时主页从左移位置「弹回」
+        if (mainPushLocked || openPages.isEmpty()) {
+            if (openPages.isEmpty()) mainFraction = 0f
+            applyToView(mainContent, 0f)
+        } else if (openPages.size == 1) {
+            applyToView(mainContent, mainFraction)
         }
     }
 
     /** 分屏二级页 onCreate：窗口先铺应用 surface，避免同级切换首帧闪背景 */
     fun ensureWindowSurfaceBackground(activity: Activity) {
-        ensureAppSurfaceBackground(activity, activity.window)
+        // 小窗绝不铺不透明底：半透明窗口会被盖死，下层主页不可见
+        if (activity.shouldPaintOpaquePaneSurface()) {
+            ensureAppSurfaceBackground(activity, activity.window)
+        }
     }
 
     /** 二级页入栈（SecondaryPageEnterTransition 首次组合时） */
     fun noteOpen(token: Any, activity: Activity) {
         pruneDeadLayers()
+        // 首次进小窗时窗口 metrics 可能滞后：入栈前用主页再判定一次，避免第一次被锁死
+        mainContent?.get()?.hostActivity()?.let { host ->
+            val locked = host.shouldLockMainPushParallax()
+            if (locked != mainPushLocked) {
+                mainPushLocked = locked
+                applyToView(mainContent, 0f)
+            }
+        }
         val content = resolveContentRoot(activity)
         if (content.layerType != View.LAYER_TYPE_HARDWARE) {
             content.setLayerType(View.LAYER_TYPE_HARDWARE, null)
@@ -240,14 +407,16 @@ object SecondaryPushParallax {
 
     /**
      * 转场进度驱动下层视差：
-     * - 栈上仅一层二级（一级→二级）→ 推主页（分窗时强制 0）
+     * - 栈上仅一层二级（一级→二级）→ 推主页（分屏锁定时恒 0；小窗/全屏照推）
      * - 栈上多层（二级→三级）→ 推栈顶下方那层二级页
+     * - 锁定时绝不把主页推到负位移，避免出场首帧从「左移位置」弹回
      */
     fun applyTransitionProgress(fraction: Float) {
         pruneDeadLayers()
         val f = fraction.coerceIn(0f, 1f)
+        val lockMain = mainPushLocked || isMainPushLockedByNarrowPane()
         if (openPages.size <= 1) {
-            if (mainInMultiWindow || isMainNarrowWindow()) {
+            if (lockMain) {
                 mainFraction = 0f
                 applyToView(mainContent, 0f)
             } else {
@@ -256,7 +425,8 @@ object SecondaryPushParallax {
             }
         } else {
             applyToView(openPages[openPages.size - 2].content, f)
-            if (mainInMultiWindow || isMainNarrowWindow()) {
+            if (lockMain) {
+                mainFraction = 0f
                 applyToView(mainContent, 0f)
             }
         }
@@ -316,12 +486,13 @@ object SecondaryPushParallax {
         return if (dark) 0xFF000000.toInt() else 0xFFF4F4F4.toInt()
     }
 
-    /** 主页是否处于窄窗（Embedding 左栏等） */
-    private fun isMainNarrowWindow(): Boolean {
+    /** Embedding 窄栏时主页不左移；小窗 freeform / 分屏误判时不要用 decor 比例二次锁死 */
+    private fun isMainPushLockedByNarrowPane(): Boolean {
         val content = mainContent?.get() ?: return false
-        val w = content.width
-        val screenW = content.resources.displayMetrics.widthPixels
-        return screenW > 0 && w in 1 until (screenW * 0.85f).toInt()
+        val act = content.hostActivity() ?: return false
+        // 以窗口模式判定为准：小窗刚进入时 decor 与 displayMetrics 不同步，
+        // 若用 decor < 0.85 * displayMetrics 会把小窗误判成窄栏，第一次进二级页就不推
+        return act.shouldLockMainPushParallax()
     }
 
     private fun isMainView(view: View): Boolean = mainContent?.get() === view
@@ -330,7 +501,7 @@ object SecondaryPushParallax {
         val content = contentRef?.get() ?: return
         val f = fraction.coerceIn(0f, 1f)
         fun apply() {
-            if (isMainView(content) && (mainInMultiWindow || isMainNarrowWindow())) {
+            if (isMainView(content) && (mainPushLocked || isMainPushLockedByNarrowPane())) {
                 if (content.translationX != 0f) {
                     content.translationX = 0f
                     content.invalidate()
@@ -341,9 +512,13 @@ object SecondaryPushParallax {
             if (content.layerType != View.LAYER_TYPE_HARDWARE) {
                 content.setLayerType(View.LAYER_TYPE_HARDWARE, null)
             }
+            // 优先 content 实宽；小窗首帧 width 可能为 0，回退 metrics 后仍为 0 则等 layout
             val w = content.width.toFloat().takeIf { it > 0f }
                 ?: content.resources.displayMetrics.widthPixels.toFloat()
-            if (w <= 0f) return
+            if (w <= 0f) {
+                content.post { apply() }
+                return
+            }
             val target = -SECONDARY_PUSH_PARALLAX * f * w
             if (abs(content.translationX - target) < 0.5f) {
                 if (target == 0f && content.translationX != 0f) {
@@ -352,14 +527,15 @@ object SecondaryPushParallax {
                 }
                 return
             }
-            // 硬件层下 translationX 由合成器处理，不必再 invalidate 整窗
             content.translationX = target
         }
-        if ((content.width > 0 || content.resources.displayMetrics.widthPixels > 0) &&
-            Looper.myLooper() == Looper.getMainLooper()
-        ) {
+        if (Looper.myLooper() == Looper.getMainLooper()) {
             apply()
         } else {
+            content.post { apply() }
+        }
+        // 首次进小窗：layout 未完成时 width=0，延迟一帧按当前 fraction 补推
+        if (content.width <= 0) {
             content.post { apply() }
         }
     }
@@ -556,7 +732,8 @@ fun SecondaryPageEnterTransition(
     var contentDrawn by remember { mutableStateOf(false) }
 
     val paintsFullSurface = remember(hostActivity) {
-        hostActivity?.isInMultiWindowMode == true || hostActivity.isInSecondarySplitMode()
+        // 仅确认分栏窗格才整窗铺 surface；小窗保持半透明，让下层主页在入场时可见
+        hostActivity?.shouldPaintOpaquePaneSurface() == true
     }
 
     val density = LocalDensity.current
@@ -572,8 +749,8 @@ fun SecondaryPageEnterTransition(
     LaunchedEffect(Unit) {
         hostActivity?.let { SecondaryPushParallax.noteOpen(controller, it) }
 
-        // 分屏/嵌入：同级二级切换不播入场动画
-        if (hostActivity.isInSecondarySplitMode()) {
+        // 平板分栏/Embedding：同级二级切换不播入场；小窗仍播二级页自身滑入
+        if (hostActivity.shouldSkipSecondaryEnterAnimation()) {
             controller.markEnterSettledWithoutAnimation()
             controller.progress.snapTo(1f)
             SecondaryPushParallax.applyTransitionProgress(0f)
@@ -596,11 +773,23 @@ fun SecondaryPageEnterTransition(
         if (controller.restoreToken > 0 || controller.isEnterSettled) {
             return@LaunchedEffect
         }
-        controller.animateEnter()
+        // 小窗与全屏同速、同视差；仅分栏跳过入场（上面已 return）
+        controller.animateEnter(ENTER_DURATION)
     }
 
     LaunchedEffect(controller.exitRequested) {
         if (controller.exitRequested) {
+            // 分屏/分栏：入场未推主页，出场也不能用 progress=1 去推，否则主页会先左移再归位
+            if (hostActivity.shouldSkipSecondaryEnterAnimation() ||
+                hostActivity.shouldLockMainPushParallax()
+            ) {
+                controller.progress.snapTo(0f)
+                SecondaryPushParallax.applyTransitionProgress(0f)
+                controller.exitRequested = false
+                SecondaryPushParallax.noteClose(controller, hardClose = true)
+                controller.onExitComplete?.invoke()
+                return@LaunchedEffect
+            }
             controller.animateExit()
             controller.exitRequested = false
             SecondaryPushParallax.noteClose(controller, hardClose = true)

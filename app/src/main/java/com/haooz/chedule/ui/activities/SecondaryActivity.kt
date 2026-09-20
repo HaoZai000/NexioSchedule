@@ -12,7 +12,9 @@ import com.haooz.chedule.ui.utils.PredictiveBackSettings
 import com.haooz.chedule.ui.utils.SecondaryPageEnterTransition
 import com.haooz.chedule.ui.utils.SecondaryPageTransitionController
 import com.haooz.chedule.ui.utils.SecondaryPushParallax
-import com.haooz.chedule.ui.utils.isInSecondarySplitMode
+import com.haooz.chedule.ui.utils.shouldLockMainPushParallax
+import com.haooz.chedule.ui.utils.shouldPaintOpaquePaneSurface
+import com.haooz.chedule.ui.utils.shouldSkipSecondaryEnterAnimation
 import com.haooz.chedule.ui.utils.suppressCloseTransition
 import com.haooz.chedule.ui.utils.suppressOpenTransition
 import kotlin.coroutines.cancellation.CancellationException
@@ -23,6 +25,7 @@ import kotlin.coroutines.cancellation.CancellationException
  * - 打开：压掉系统转场，由 [SecondaryPageEnterTransition] 自绘入场
  * - 关闭：顶栏返回经 [finishSecondary] 播出场后再 finish；侧滑/返回键走预测性返回
  * - 分屏/嵌入：onCreate 时给窗口铺应用 surface，避免同级切换首帧闪背景
+ * - 小窗 freeform：窗口保持半透明（主题默认），不铺不透明底，否则会盖住下层主页
  */
 open class SecondaryActivity : ComponentActivity() {
 
@@ -31,7 +34,9 @@ open class SecondaryActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         suppressOpenTransition()
-        if (isInMultiWindowMode || this.isInSecondarySplitMode()) {
+        // 仅「确认是分栏窗格」才铺不透明 windowBackground。
+        // 小窗/无法判定的 multi-window 保持主题半透明，否则盖住下层主页、入场变纯色。
+        if (shouldPaintOpaquePaneSurface()) {
             SecondaryPushParallax.ensureWindowSurfaceBackground(this)
         }
         pageTransition.onExitComplete = { finishWithNoWindowAnim() }
@@ -94,7 +99,15 @@ private fun SecondaryPagePredictiveBack(activity: SecondaryActivity) {
                 }
             }
             if (sawGesture && PredictiveBackSettings.enabled) {
-                controller.animateGestureDismiss()
+                if (activity.shouldSkipSecondaryEnterAnimation() ||
+                    activity.shouldLockMainPushParallax()
+                ) {
+                    // 分屏：不播跟手归位动画，避免主页从左移位置弹回
+                    controller.progress.snapTo(0f)
+                    SecondaryPushParallax.applyTransitionProgress(0f)
+                } else {
+                    controller.animateGestureDismiss()
+                }
                 SecondaryPushParallax.noteClose(controller, hardClose = true)
                 activity.finishWithNoWindowAnim()
             } else {
