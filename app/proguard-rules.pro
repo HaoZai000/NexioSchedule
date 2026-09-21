@@ -9,6 +9,13 @@
 -allowaccessmodification
 -optimizationpasses 3
 
+# --- 崩溃栈可读性：只停止改名，压缩与优化照常 ------------------
+# -dontobfuscate 只禁止重命名，R8 的 tree-shaking / 内联 / 类合并全部保留
+#想恢复混淆：把下面 -dontobfuscate 一行注释掉即可。
+-dontobfuscate
+# 保留真实文件名 + 行号，配合未混淆的类名，崩溃栈可直接读。
+-keepattributes SourceFile,LineNumberTable
+
 # --- Gson 序列化 ----------------------------------------------
 # Signature：TypeToken 靠它保留泛型签名，缺了会丢类型
 # *Annotation*：@SerializedName 靠它保留运行期注解

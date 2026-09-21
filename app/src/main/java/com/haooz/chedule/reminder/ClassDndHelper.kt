@@ -406,18 +406,11 @@ object ClassDndHelper {
             intent,
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
         )
-        try {
-            alarmManager.setExactAndAllowWhileIdle(
-                AlarmManager.RTC_WAKEUP,
-                triggerAt,
-                pendingIntent
-            )
-            Log.d(TAG, "scheduleOne OK action=$action at=" +
-                java.text.SimpleDateFormat("MM-dd HH:mm:ss", java.util.Locale.getDefault()).format(java.util.Date(triggerAt)) +
-                " rc=$requestCode")
-        } catch (e: SecurityException) {
-            Log.e(TAG, "scheduleOne SecurityException action=$action (需精确闹钟权限)", e)
-        }
+        // 上课/下课属于课表边界，走 setAlarmClock 保证 Doze 下也准点
+        CourseReminderHelper.setCourseBoundaryAlarm(alarmManager, triggerAt, pendingIntent)
+        Log.d(TAG, "scheduleOne OK action=$action at=" +
+            java.text.SimpleDateFormat("MM-dd HH:mm:ss", java.util.Locale.getDefault()).format(java.util.Date(triggerAt)) +
+            " rc=$requestCode")
     }
 
     fun cancelClassDndAlarms(context: Context, alarmManager: AlarmManager) {

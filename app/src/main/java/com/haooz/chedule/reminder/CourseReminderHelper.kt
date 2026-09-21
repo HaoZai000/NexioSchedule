@@ -25,6 +25,18 @@ object CourseReminderHelper {
 
     private const val TAG = "CourseReminder"
 
+    // --- startReminderService 合并窗口所需状态（见 SERVICE_START_COALESCE_MS）---
+    // 不能用 Long.MIN_VALUE：now - Long.MIN_VALUE 会溢出成负数，
+    // 反而小于合并窗口 → 首次调用会被误判成「窗口内」，从此再也不真正执行。
+    @Volatile
+    private var lastServiceStartAt = -SERVICE_START_COALESCE_MS
+    private val coalesceLock = Any()
+    @Volatile
+    private var coalescePending = false
+    private val coalesceHandler by lazy(LazyThreadSafetyMode.SYNCHRONIZED) {
+        android.os.Handler(android.os.Looper.getMainLooper())
+    }
+
     @Volatile
     private var debugLogs: Boolean? = null
 
@@ -267,14 +279,131 @@ object CourseReminderHelper {
         }.timeInMillis
     }
 
+    /**
+     * 课表边界闹钟专用：课前提醒点、上课瞬间、下课瞬间。
+     *
+     * 用 setAlarmClock 而非 setExactAndAllowWhileIdle——后者受 Doze 的
+     *「每应用每 9 分钟一次」配额限制，会被高频的对账刷新抢占而迟到最多约 8 分钟；
+     * 而 setAlarmClock 不受该配额限制，系统会提前退出 Doze 保证准点。
+     *
+     * 代价：状态栏会显示闹钟图标，下一个闹钟时间会暴露给锁屏与其他应用。
+     *
+     * 只用于课表边界这类一次性关键时刻。**每分钟的对账刷新链绝不能用**，
+     * 否则状态栏闹钟图标会一直亮着（刷新链走 scheduleNextWidgetRefresh）。
+     */
+    fun setCourseBoundaryAlarm(
+        alarmManager: AlarmManager,
+        triggerAt: Long,
+        pendingIntent: PendingIntent
+    ) {
+        try {
+            alarmManager.setAlarmClock(
+                AlarmManager.AlarmClockInfo(triggerAt, null),
+                pendingIntent
+            )
+        } catch (_: SecurityException) {
+            // 精确闹钟权限被撤销时退回，至少不让闹钟静默丢失
+            try {
+                alarmManager.setExactAndAllowWhileIdle(
+                    AlarmManager.RTC_WAKEUP,
+                    triggerAt,
+                    pendingIntent
+                )
+            } catch (_: SecurityException) { }
+        }
+    }
+
+    /**
+     * 合并窗口。一次「切换课表」会同时惊动 CourseViewModel / ScheduleViewModel /
+     * SettingsViewModel，各自调一次 startReminderService，实测 1ms 内触发 4 次，
+     * 而每次都是 cancelAllAlarms + scheduleAllAlarms（全量重排）+ 写 SP。
+     * 这些调用读的是同一份最新状态，重复执行毫无意义，所以窗口内只真正跑一次。
+     */
+    private const val SERVICE_START_COALESCE_MS = 400L
+
     fun startReminderService(context: Context) {
         startReminderService(context, CourseRepository(context))
     }
 
     fun startReminderService(context: Context, repository: CourseRepository) {
+        val now = android.os.SystemClock.elapsedRealtime()
+        synchronized(coalesceLock) {
+            if (now - lastServiceStartAt < SERVICE_START_COALESCE_MS) {
+                // 命中窗口：本次不立即执行，只在窗口末尾补跑一次，保证最终状态一定生效
+                scheduleCoalescedStartLocked(context)
+                com.haooz.chedule.ui.utils.FeatureLog.reminderFlow("service_start_coalesced") {
+                    "sinceLast=${now - lastServiceStartAt}ms from=${callSite()}"
+                }
+                return
+            }
+            // 立即占位：检查与更新必须原子，否则两条并发线程会同时通过判断、各全量重排一次
+            lastServiceStartAt = now
+        }
+        doStartReminderService(context, repository)
+    }
+
+    /**
+     * 调用来源：跳过自身栈帧，回溯到第一个外部调用点。
+     * 只在录制时求值（走 lambda 惰性），正式版未录制零成本。
+     */
+    private fun callSite(): String {
+        val st = Thread.currentThread().stackTrace
+        for (i in st.indices) {
+            val e = st[i]
+            val cn = e.className
+            // 跳过自身与抓栈本身产生的内部帧（VMStack / Thread.getStackTrace）
+            if (cn.contains("CourseReminderHelper") || cn.contains("VMStack") ||
+                cn == "java.lang.Thread"
+            ) continue
+            return "${e.fileName}:${e.lineNumber} ${e.methodName}"
+        }
+        return "unknown"
+    }
+
+    private fun scheduleCoalescedStartLocked(context: Context) {
+        val app = context.applicationContext
+        if (coalescePending) return
+        // 必须置位：补发回调靠它判断要不要真的跑，漏了这行补发会被永久跳过
+        coalescePending = true
+        coalesceHandler.postDelayed({
+            synchronized(coalesceLock) {
+                if (!coalescePending) return@postDelayed
+                coalescePending = false
+            }
+            // 全量重排 + 写 SP，放后台线程，别占主线程
+            Thread {
+                runCatching { doStartReminderService(app, CourseRepository(app), fromCoalesced = true) }
+            }.apply {
+                isDaemon = true
+                name = "reminder-coalesced"
+            }.start()
+        }, SERVICE_START_COALESCE_MS)
+    }
+
+    /** 关闭提醒时取消待补发，否则延迟的那次会把刚关掉的闹钟又排上 */
+    private fun cancelCoalescedStart() {
+        synchronized(coalesceLock) {
+            coalescePending = false
+        }
+    }
+
+    private fun doStartReminderService(
+        context: Context,
+        repository: CourseRepository,
+        fromCoalesced: Boolean = false
+    ) {
+        lastServiceStartAt = android.os.SystemClock.elapsedRealtime()
         val alarmManager = context.getSystemService(Context.ALARM_SERVICE) as AlarmManager
-        if (!repository.getPreClassReminder() && !repository.getNextDayReminder()) {
+        val pre = repository.getPreClassReminder()
+        val next = repository.getNextDayReminder()
+        // detail 惰性求值：未录制时连 dnd 这次 SP 读、这次抓栈都不做
+        com.haooz.chedule.ui.utils.FeatureLog.reminderFlow("service_start") {
+            "pre=$pre next=$next dnd=${repository.getClassDndEnabled()} " +
+                "coalesced=$fromCoalesced from=${callSite()}"
+        }
+        if (!pre && !next) {
             // 提醒关闭：取消本应用闹钟/通知，但 widget 刷新闹钟必须保留（只用小组件也要刷新）
+            com.haooz.chedule.ui.utils.FeatureLog.reminderFlow("service_start_path", "all_off_cleanup")
             cancelAllAlarms(context, alarmManager)
             cancelIslandExpandAlarms(context, alarmManager)
             cancelCourseStartAlarms(context, alarmManager)
@@ -284,6 +413,7 @@ object CourseReminderHelper {
             scheduleNextWidgetRefresh(context, alarmManager)
             return
         }
+        com.haooz.chedule.ui.utils.FeatureLog.reminderFlow("service_start_path", "schedule_all")
         scheduleAllAlarms(context, repository, alarmManager)
         scheduleWidgetRefresh(context, alarmManager)
         // 开关切换后立即对账，不必等闹钟
@@ -325,6 +455,8 @@ object CourseReminderHelper {
     }
 
     fun stopReminderService(context: Context) {
+        com.haooz.chedule.ui.utils.FeatureLog.reminderFlow("service_stop")
+        cancelCoalescedStart()
         val alarmManager = context.getSystemService(Context.ALARM_SERVICE) as AlarmManager
         cancelAllAlarms(context, alarmManager)
         cancelIslandExpandAlarms(context, alarmManager)
@@ -532,14 +664,8 @@ object CourseReminderHelper {
                 PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
             )
 
-            try {
-                alarmManager.setExactAndAllowWhileIdle(
-                    AlarmManager.RTC_WAKEUP,
-                    alarmTime.timeInMillis,
-                    pendingIntent
-                )
-                scheduledRcs.add(course.id.hashCode())
-            } catch (_: SecurityException) { }
+            setCourseBoundaryAlarm(alarmManager, alarmTime.timeInMillis, pendingIntent)
+            scheduledRcs.add(course.id.hashCode())
         }
 
         writeRcSet(context, KEY_PRE_CLASS_RCS, scheduledRcs)
@@ -1266,13 +1392,7 @@ object CourseReminderHelper {
                 alarmIntent,
                 PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
             )
-            try {
-                alarmManager.setExactAndAllowWhileIdle(
-                    AlarmManager.RTC_WAKEUP,
-                    triggerAt,
-                    pendingIntent
-                )
-            } catch (_: SecurityException) { }
+            setCourseBoundaryAlarm(alarmManager, triggerAt, pendingIntent)
         }
 
         // 启动 widget 刷新链，确保倒计时每分钟更新
@@ -1584,14 +1704,8 @@ object CourseReminderHelper {
             context, rc, expandIntent,
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
         )
-        try {
-            alarmManager.setExactAndAllowWhileIdle(
-                AlarmManager.RTC_WAKEUP,
-                courseStartMillis,
-                expandPending
-            )
-            writeRcSet(context, KEY_EXPAND_RCS, readRcSet(context, KEY_EXPAND_RCS) + rc)
-        } catch (_: SecurityException) { }
+        setCourseBoundaryAlarm(alarmManager, courseStartMillis, expandPending)
+        writeRcSet(context, KEY_EXPAND_RCS, readRcSet(context, KEY_EXPAND_RCS) + rc)
     }
 
     // 每分钟对账：兜底切换闹钟丢失/Doze 延迟、岛残留、开关关闭后的清理

@@ -284,6 +284,7 @@ fun PreferenceSettingsScreen(
                                         text = "今日",
                                         selected = defaultHomepage == "今日",
                                         onClick = {
+                                            com.haooz.chedule.ui.utils.FeatureLog.preference("default_homepage=今日")
                                             settingsViewModel.setDefaultHomepage("今日")
                                         }
                                     ),
@@ -291,6 +292,7 @@ fun PreferenceSettingsScreen(
                                         text = "课程表",
                                         selected = defaultHomepage == "课程表",
                                         onClick = {
+                                            com.haooz.chedule.ui.utils.FeatureLog.preference("default_homepage=课程表")
                                             settingsViewModel.setDefaultHomepage("课程表")
                                         }
                                     ),

@@ -43,6 +43,9 @@ import com.haooz.chedule.ui.theme.CourseScheduleTheme
 class CourseReminderActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        // 设置页点击记的是 reminder/open，这里区分成 activity_open
+        com.haooz.chedule.ui.utils.FeatureLog.reminder("activity_open")
+        com.haooz.chedule.ui.utils.FeatureLog.reminderFlow("activity_onCreate")
         enableEdgeToEdge(
             statusBarStyle = SystemBarStyle.light(
                 android.graphics.Color.TRANSPARENT,
@@ -121,11 +124,17 @@ class CourseReminderActivity : ComponentActivity() {
                     LiquidGlassTextButton(
                         text = if (islandEnabled) "测试小米超级岛" else "测试实时活动",
                         onClick = {
+                            com.haooz.chedule.ui.utils.FeatureLog.reminderFlow(
+                                "test_notification",
+                                if (islandEnabled) "island" else "live"
+                            )
                             if (islandEnabled) {
                                 IslandNotificationHelper.sendTestIslandNotification(context)
+                                com.haooz.chedule.ui.utils.FeatureLog.reminderFlow("test_island_sent")
                                 Toast.makeText(context, "已发送超级岛测试通知", Toast.LENGTH_SHORT).show()
                             } else {
                                 CourseReminderHelper.sendTestLiveNotification(context)
+                                com.haooz.chedule.ui.utils.FeatureLog.reminderFlow("test_live_sent")
                                 Toast.makeText(context, "已发送实时活动测试通知", Toast.LENGTH_SHORT).show()
                             }
                         },

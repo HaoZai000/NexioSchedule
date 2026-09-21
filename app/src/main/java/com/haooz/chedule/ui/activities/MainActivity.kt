@@ -2253,6 +2253,7 @@ fun CourseScheduleApp() {
 
     // 顶栏「课表外观」与长按按钮共用
     val enterCustomizePage: () -> Unit = {
+        com.haooz.chedule.ui.utils.CrashLogHelper.trace("课表外观", "enter")
         coroutineScope.launch {
             val screenW = windowInfo.containerSize.width.toFloat()
             customizeExitTargetScale = (screenW * 0.65f) / screenW
@@ -2635,6 +2636,9 @@ fun CourseScheduleApp() {
                                     // 先锁 programmatic，再改 selectedTab，避免动画中途被拉回
                                     mainTabProgrammatic = true
                                     selectedTab = idx
+                                    com.haooz.chedule.ui.utils.CrashLogHelper.trace(
+                                        "主页", "tab", "idx=$idx shift=$isShiftMode"
+                                    )
                                     coroutineScope.launch {
                                         try {
                                             // 内层切天/周若还在惯性，先停掉；未滚动则不空跑
@@ -2731,12 +2735,28 @@ fun CourseScheduleApp() {
                                         },
                                         onOpenSwitchSchedule = {
                                             if (!isShiftMode && !showSwitchSchedule) {
+                                                com.haooz.chedule.ui.utils.CrashLogHelper.trace(
+                                                    "切换课表", "open",
+                                                    "shift=$isShiftMode tab=$selectedTab"
+                                                )
                                                 coroutineScope.launch {
                                                     // 切换页组合与快照截取并行，避免串行等待导致界面无响应
                                                     switchPendingReverse = true
                                                     switchCapturingSnapshot = true
                                                     showSwitchSchedule = true
-                                                    mainContentSnapshot = captureMainContentBitmap()
+                                                    mainContentSnapshot = try {
+                                                        captureMainContentBitmap()
+                                                    } catch (e: Exception) {
+                                                        com.haooz.chedule.ui.utils.CrashLogHelper.trace(
+                                                            "切换课表", "open_snapshot_fail",
+                                                            e.javaClass.simpleName
+                                                        )
+                                                        null
+                                                    }
+                                                    com.haooz.chedule.ui.utils.CrashLogHelper.trace(
+                                                        "切换课表", "open_snapshot_ok",
+                                                        "bmp=${mainContentSnapshot != null}"
+                                                    )
                                                 }
                                             }
                                         },
@@ -3398,6 +3418,7 @@ fun CourseScheduleApp() {
                                             settingsViewModel = settingsViewModel,
                                             shiftViewModel = shiftViewModel,
                                             onEnterShiftMode = {
+                                                com.haooz.chedule.ui.utils.FeatureLog.shift("enter_loading")
                                                 showShiftLoading = true
                                                 isExitingShift = false
                                             },
@@ -3429,6 +3450,7 @@ fun CourseScheduleApp() {
                                         shiftViewModel = shiftViewModel,
                                         isShiftMode = true,
                                         onExitShiftMode = {
+                                            com.haooz.chedule.ui.utils.FeatureLog.shift("exit_loading")
                                             showShiftLoading = true
                                             isExitingShift = true
                                         },
@@ -4006,6 +4028,7 @@ fun CourseScheduleApp() {
                         icon = MiuixIcons.Edit,
                         label = "编辑",
                         onClick = {
+                            com.haooz.chedule.ui.utils.FeatureLog.course("edit_shortcut")
                             shortcutMenuVisible = false
                             dismissFloatingCard()
                             coroutineScope.launch {
@@ -4019,6 +4042,7 @@ fun CourseScheduleApp() {
                         icon = MiuixIcons.Copy,
                         label = "复制",
                         onClick = {
+                            com.haooz.chedule.ui.utils.FeatureLog.course("copy_shortcut")
                             copiedCourseForPaste = activeShortcutCourse
                             shortcutMenuVisible = false
                             dismissFloatingCard()
@@ -4033,6 +4057,7 @@ fun CourseScheduleApp() {
                         icon = MiuixIcons.Delete,
                         label = "删除",
                         onClick = {
+                            com.haooz.chedule.ui.utils.FeatureLog.course("delete_shortcut")
                             deleteConfirmCourse = activeShortcutCourse
                             shortcutMenuVisible = false
                             dismissFloatingCard()
@@ -4701,6 +4726,9 @@ fun CourseScheduleApp() {
                                 )
                             }
                             showSwitchSchedule = false
+                            com.haooz.chedule.ui.utils.CrashLogHelper.trace(
+                                "切换课表", "close", "forward=$wasForward"
+                            )
                             switchOverlayActive = false
                             val oldSwitchCard = switchCardSnapshot
                             val oldSwitchMain = mainContentSnapshot
@@ -4726,6 +4754,7 @@ fun CourseScheduleApp() {
                         }
                     },
                     onScheduleChanged = {
+                        com.haooz.chedule.ui.utils.CrashLogHelper.trace("切换课表", "schedule_changed")
                         switchReloadJob = viewModel.reloadCourses()
                         settingsViewModel.refreshSettings()
                         scheduleChanged = true
@@ -4794,6 +4823,10 @@ fun CourseScheduleApp() {
                             switchPendingReverse = false
                             switchAnimForward = true
                             switchAnimRunning = true
+                            com.haooz.chedule.ui.utils.CrashLogHelper.trace(
+                                "切换课表", "anim_enter_start",
+                                "bmp=${screenBitmap != null} bounds=$cardBounds"
+                            )
                             switchAnimJob?.cancel()
                             val cardBoundsInScreen = androidx.compose.ui.geometry.Rect(
                                 left = switchContentRootX + cardBounds.left,
@@ -4851,6 +4884,10 @@ fun CourseScheduleApp() {
                                         durationMillis = remainingDuration,
                                         easing = OobeCubicOutEasing
                                     )
+                                )
+                                com.haooz.chedule.ui.utils.CrashLogHelper.trace(
+                                    "切换课表", "anim_enter_end",
+                                    "p=${switchAnimProgress.value}"
                                 )
                                 switchOverlayActive = false
                                 switchCardSnapshot = null
@@ -4943,10 +4980,12 @@ fun CourseScheduleApp() {
             show = showShiftLoading,
             onShiftReady = {
                 if (isExitingShift) {
+                    com.haooz.chedule.ui.utils.FeatureLog.shift("exit_confirmed")
                     shiftViewModel.exitShiftMode()
                     selectedTab = 0
                     coroutineScope.launch { mainPagerState.scrollToPage(0) }
                 } else {
+                    com.haooz.chedule.ui.utils.FeatureLog.shift("enter_confirmed")
                     shiftViewModel.enterShiftMode()
                 }
             },

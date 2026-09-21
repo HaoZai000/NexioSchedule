@@ -34,6 +34,7 @@ class ShiftViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     fun enterShiftMode() {
+        com.haooz.chedule.ui.utils.FeatureLog.shift("enter_mode")
         _isShiftMode.value = true
         repository.setShiftModeEnabled(true)
         if (_shiftSelectedSchedules.value.isEmpty()) {
@@ -44,6 +45,7 @@ class ShiftViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     fun exitShiftMode() {
+        com.haooz.chedule.ui.utils.FeatureLog.shift("exit_mode")
         _isShiftMode.value = false
         repository.setShiftModeEnabled(false)
     }

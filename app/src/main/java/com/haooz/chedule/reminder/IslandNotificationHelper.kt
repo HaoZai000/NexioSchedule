@@ -1224,15 +1224,12 @@ object IslandNotificationHelper {
             context, rc, intent,
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
         )
-        try {
-            val alarmManager = context.getSystemService(Context.ALARM_SERVICE) as android.app.AlarmManager
-            alarmManager.setExactAndAllowWhileIdle(
-                android.app.AlarmManager.RTC_WAKEUP,
-                triggerAtMillis,
-                pendingIntent
-            )
-        } catch (_: SecurityException) {
-            Log.w(TAG, "Cannot schedule island dismiss alarm")
-        }
+        // 下课收起属于课表边界，走 setAlarmClock 保证 Doze 下也准点
+        val alarmManager = context.getSystemService(Context.ALARM_SERVICE) as android.app.AlarmManager
+        CourseReminderHelper.setCourseBoundaryAlarm(
+            alarmManager,
+            triggerAtMillis,
+            pendingIntent
+        )
     }
 }

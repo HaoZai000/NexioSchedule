@@ -167,6 +167,7 @@ class CourseViewModel(application: Application) : AndroidViewModel(application) 
 
     // 返回 Job：调用方需等待加载完成后再截取新课表快照
     fun reloadCourses(): Job {
+        com.haooz.chedule.ui.utils.FeatureLog.t("课程数据", "reload")
         return viewModelScope.launch(Dispatchers.IO) {
             loadData()
         }
@@ -184,6 +185,7 @@ class CourseViewModel(application: Application) : AndroidViewModel(application) 
 
     // 同步调整开学日期：新开学日 = 原开学日 + (旧周次-新周次)*7，保留星期几对齐
     fun setCurrentWeek(week: Int) {
+        com.haooz.chedule.ui.utils.FeatureLog.t("课表", "set_week", "week=$week")
         val oldWeek = _currentWeek.value
         _currentWeek.value = week
         repository.setCurrentWeek(week)

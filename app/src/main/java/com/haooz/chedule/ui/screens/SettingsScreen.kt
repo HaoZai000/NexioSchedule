@@ -54,6 +54,7 @@ import com.haooz.chedule.ui.activities.WidgetIntroActivity
 import com.haooz.chedule.ui.basic.CollapsibleTopAppBarDefaults
 import com.haooz.chedule.ui.basic.SharedScrollBehavior
 import com.haooz.chedule.ui.basic.collapsibleTopInset
+import com.haooz.chedule.ui.utils.FeatureLog
 import com.haooz.chedule.ui.utils.isAppDarkTheme
 import com.haooz.chedule.ui.utils.overScrollVertical
 import com.haooz.chedule.viewmodel.CourseViewModel
@@ -272,6 +273,7 @@ fun SettingsScreen(
                                     )
                                 },
                                 onClick = {
+                                    FeatureLog.t("设置", "start_date_dialog")
                                     val (y, m, d) = parseDate(classStartTime)
                                     tempYear = y
                                     tempMonth = m
@@ -295,6 +297,7 @@ fun SettingsScreen(
                                     )
                                 },
                                 onClick = {
+                                    FeatureLog.t("设置", "current_week_dialog")
                                     tempCurrentWeek = currentWeek.coerceAtMost(totalWeeks)
                                     showCurrentWeekDialog = true
                                 },
@@ -311,6 +314,7 @@ fun SettingsScreen(
                                     )
                                 },
                                 onClick = {
+                                    FeatureLog.t("设置", "total_weeks_dialog")
                                     tempTotalWeeks = totalWeeks
                                     showTotalWeeksDialog = true
                                 },
@@ -337,6 +341,7 @@ fun SettingsScreen(
                                 summary = "管理不同课表的节数与课程时间",
                                 holdDownState = "CourseTimeSettingsActivity" in activeSecondaryActivities,
                                 onClick = {
+                                    FeatureLog.timeConfig("open")
                                     val intent =
                                         Intent(context, CourseTimeSettingsActivity::class.java)
                                     courseTimeSettingsLauncher.launch(intent)
@@ -365,6 +370,7 @@ fun SettingsScreen(
                                     summary = "课前提醒、次日课程提醒",
                                     holdDownState = "CourseReminderActivity" in activeSecondaryActivities,
                                     onClick = {
+                                        FeatureLog.reminder("open")
                                         val intent = Intent(context, CourseReminderActivity::class.java)
                                         reminderSettingsLauncher.launch(intent)
                                     }
@@ -373,6 +379,7 @@ fun SettingsScreen(
                                     title = "节假日与调休",
                                     holdDownState = "HolidaySettingsActivity" in activeSecondaryActivities,
                                     onClick = {
+                                        FeatureLog.holiday("open")
                                         context.startActivity(Intent(context, HolidaySettingsActivity::class.java))
                                     }
                                 )
@@ -380,6 +387,7 @@ fun SettingsScreen(
                                     title = "桌面小部件",
                                     holdDownState = "WidgetIntroActivity" in activeSecondaryActivities,
                                     onClick = {
+                                        FeatureLog.widget("open")
                                         val intent = Intent(context, WidgetIntroActivity::class.java)
                                         context.startActivity(intent)
                                     }
@@ -464,6 +472,7 @@ fun SettingsScreen(
                                     summary = "AI文本、教务、文件、分享口令",
                                     holdDownState = ScheduleImportActivities.any { it in activeSecondaryActivities },
                                     onClick = {
+                                        FeatureLog.import("open")
                                         context.startActivity(
                                             com.haooz.chedule.ui.activities.BackupAndMigrationActivity.importIntent(context)
                                         )
@@ -474,6 +483,7 @@ fun SettingsScreen(
                                     summary = "文件、口令分享",
                                     holdDownState = ScheduleExportActivities.any { it in activeSecondaryActivities },
                                     onClick = {
+                                        FeatureLog.backup("open_export")
                                         context.startActivity(
                                             com.haooz.chedule.ui.activities.BackupAndMigrationActivity.exportIntent(context)
                                         )
@@ -484,6 +494,7 @@ fun SettingsScreen(
                                     summary = "本地备份、WebDAV云备份",
                                     holdDownState = ScheduleBackupActivities.any { it in activeSecondaryActivities },
                                     onClick = {
+                                        FeatureLog.backup("open_backup")
                                         context.startActivity(
                                             com.haooz.chedule.ui.activities.BackupAndMigrationActivity.backupIntent(context)
                                         )
@@ -512,6 +523,7 @@ fun SettingsScreen(
                                     title = "开启新学期",
                                     summary = "复用当前课表设置，创建空课程的新课表",
                                     onClick = {
+                                        FeatureLog.t("设置", "new_semester_dialog")
                                         newSemesterName = ""
                                         showNewSemesterDialog = true
                                     }
@@ -534,6 +546,7 @@ fun SettingsScreen(
                                     // 单独打开更新设置时不应连带压暗本项
                                     holdDownState = "PreferenceSettingsActivity" in activeSecondaryActivities,
                                     onClick = {
+                                        FeatureLog.preference("open")
                                         val intent = Intent(context, PreferenceSettingsActivity::class.java)
                                         context.startActivity(intent)
                                     }
@@ -542,6 +555,7 @@ fun SettingsScreen(
                                     title = "更新设置",
                                     holdDownState = "UpdateSettingsActivity" in activeSecondaryActivities,
                                     onClick = {
+                                        FeatureLog.update("open")
                                         val intent = Intent(context, UpdateSettingsActivity::class.java)
                                         context.startActivity(intent)
                                     }
@@ -550,6 +564,7 @@ fun SettingsScreen(
                                     title = "关于应用",
                                     holdDownState = AboutActivities.any { it in activeSecondaryActivities },
                                     onClick = {
+                                        FeatureLog.about("open")
                                         val intent = Intent(context, AboutActivity::class.java)
                                         context.startActivity(intent)
                                     }
