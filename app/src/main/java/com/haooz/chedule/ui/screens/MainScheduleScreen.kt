@@ -702,6 +702,7 @@ fun MainScheduleScreen(
                         if (scheduleScrollBehavior != null) Modifier.nestedScroll(scheduleScrollBehavior.nestedScrollConnection)
                         else Modifier
                     )
+                    // overScroll 必须在 verticalScroll 外侧，作为滚动容器的 parent 才能收到 fling
                     .overScrollVertical()
                     .scrollEndHaptic(
                         hapticFeedbackType = HapticFeedbackType.TextHandleMove
@@ -1212,6 +1213,7 @@ fun MainScheduleScreen(
             }
             Column(
                 modifier = Modifier
+                    // overScroll 在 verticalScroll 外侧
                     .overScrollVertical()
                     .scrollEndHaptic(
                         hapticFeedbackType = HapticFeedbackType.TextHandleMove

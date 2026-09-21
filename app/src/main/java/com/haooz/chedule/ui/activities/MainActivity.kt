@@ -5134,8 +5134,10 @@ private fun SettingsTopBar(
     if (liquidGlassBackdrop == null) return
     val isTablet = navBarStyle == "rail"
 
+    // 平板设置：渐变画在 TabletSettingsScreen 内容层，这里不再叠全宽遮罩
     ProgressiveBlurTopBar(
         backdrop = liquidGlassBackdrop,
+        blurAlpha = if (isTablet) 0f else 1f,
         resampleKey = blurResampleKey,
         sampleTrack = blurSampleTrack,
     ) {
@@ -5145,8 +5147,9 @@ private fun SettingsTopBar(
             largeTitle = if (isTablet) "" else "我的",
             showLargeTitle = if (isTablet) false else null,
             showSmallTitle = if (isTablet) true else null,
+            showGradientOverlay = !isTablet,
             modifier = Modifier.zIndex(1f),
-            scrollBehavior = scrollBehavior,
+            scrollBehavior = if (isTablet) null else scrollBehavior,
             startAction = null,
         )
     }

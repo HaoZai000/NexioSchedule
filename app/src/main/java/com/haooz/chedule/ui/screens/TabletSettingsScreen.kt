@@ -1,5 +1,8 @@
 package com.haooz.chedule.ui.screens
 
+import androidx.compose.animation.core.Animatable
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -20,29 +23,42 @@ import androidx.compose.foundation.layout.statusBars
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
-import androidx.compose.ui.input.nestedscroll.nestedScroll
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.material3.Text
 import androidx.activity.compose.LocalActivity
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
+import androidx.compose.ui.input.nestedscroll.NestedScrollConnection
+import androidx.compose.ui.input.nestedscroll.NestedScrollSource
+import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.IntOffset
+import androidx.compose.ui.unit.Velocity
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.zIndex
+import kotlin.math.abs
 import kotlin.math.roundToInt
 import com.haooz.chedule.data.HolidayManager
 import com.haooz.chedule.ui.activities.AboutScreen
@@ -60,13 +76,17 @@ import com.haooz.chedule.ui.activities.ScheduleDataManageMode
 import com.haooz.chedule.ui.activities.UpdateSettingsScreen
 import com.haooz.chedule.ui.activities.WebDavSettingsScreen
 import com.haooz.chedule.ui.activities.WidgetIntroScreen
+import com.haooz.chedule.ui.basic.ProgressiveBlurTopBar
 import com.haooz.chedule.ui.basic.rememberSharedScrollBehavior
+import com.kyant.backdrop.backdrops.layerBackdrop
+import com.kyant.backdrop.backdrops.rememberLayerBackdrop
 import com.haooz.chedule.ui.utils.overScrollVertical
 import com.haooz.chedule.viewmodel.CourseViewModel
 import com.haooz.chedule.viewmodel.ScheduleViewModel
 import com.haooz.chedule.viewmodel.SettingsViewModel
 import com.haooz.chedule.viewmodel.ShiftViewModel
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.launch
 import top.yukonga.miuix.kmp.basic.Card
 import top.yukonga.miuix.kmp.basic.NumberPicker
 import top.yukonga.miuix.kmp.basic.SmallTitle
@@ -181,9 +201,117 @@ fun TabletSettingsChromeOverlay() {
     }
 }
 
+/** pad 设置左右栏顶部糊层高度：120.dp + 状态栏 */
+private val TabletPaneBlurHeight: Dp
+    @Composable get() {
+        val statusBar = WindowInsets.statusBars.asPaddingValues().calculateTopPadding()
+        return 80.dp + statusBar
+    }
+
+/**
+ * 本栏顶部：渐变模糊常驻；表面色遮罩仅在上滑后出现。
+ * 糊层采样本栏本地 backdrop（兄弟节点），避免与全局层循环采样。
+ */
+@Composable
+private fun TabletPaneTopChrome(
+    scrolledPx: Float,
+    backdrop: com.kyant.backdrop.Backdrop?,
+    modifier: Modifier = Modifier,
+) {
+    val density = LocalDensity.current
+    val thresholdPx = with(density) { 16.dp.toPx() }
+    // 过阈值后固定时长淡入/淡出，不随滚动距离改变透明度
+    val showMask = scrolledPx > thresholdPx
+    val maskAnim = remember { Animatable(0f) }
+    LaunchedEffect(showMask) {
+        maskAnim.animateTo(
+            targetValue = if (showMask) 1f else 0f,
+            animationSpec = tween(durationMillis = 500),
+        )
+    }
+    val maskAlpha = maskAnim.value
+    val maskHeight = TabletPaneBlurHeight
+    val gradientColor = if (com.haooz.chedule.ui.utils.isAppDarkTheme()) Color.Black else Color.White
+
+    Box(
+        modifier = modifier
+            .fillMaxWidth()
+            .height(maskHeight)
+    ) {
+        // 渐变模糊：常驻
+        if (backdrop != null) {
+            ProgressiveBlurTopBar(
+                backdrop = backdrop,
+                modifier = Modifier.fillMaxSize(),
+                height = maskHeight,
+                blurAlpha = 1f,
+                content = {},
+            )
+        }
+        // 表面色遮罩：alpha 随滚动连续变化
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .zIndex(1f)
+                .graphicsLayer { alpha = maskAlpha }
+                .background(
+                    Brush.verticalGradient(
+                        0f to gradientColor.copy(alpha = 0.88f),
+                        0.4f to gradientColor.copy(alpha = 0.62f),
+                        0.7f to gradientColor.copy(alpha = 0.38f),
+                        0.88f to gradientColor.copy(alpha = 0.16f),
+                        1f to Color.Transparent,
+                    )
+                )
+        )
+    }
+}
+
+/** 只观察、不消费的滚动累计：正数表示内容已上滑；到顶/顶部回弹时清零 */
+@Composable
+private fun rememberPaneScrollTracker(
+    onScrollPx: (Float) -> Unit,
+): NestedScrollConnection {
+    val currentOnScrollPx by rememberUpdatedState(onScrollPx)
+    val acc = remember { floatArrayOf(0f) }
+    return remember {
+        object : NestedScrollConnection {
+            override fun onPostScroll(
+                consumed: Offset,
+                available: Offset,
+                source: NestedScrollSource,
+            ): Offset {
+                when {
+                    consumed.y != 0f -> {
+                        acc[0] = (acc[0] - consumed.y).coerceAtLeast(0f)
+                    }
+                    // 列表已在顶部：继续下拉/回弹时未消费的向下位移 → 遮罩应收起
+                    available.y > 0f -> {
+                        acc[0] = 0f
+                    }
+                }
+                currentOnScrollPx(acc[0])
+                return Offset.Zero
+            }
+
+            override suspend fun onPostFling(
+                consumed: Velocity,
+                available: Velocity,
+            ): Velocity {
+                // 朝列表顶部甩、还有剩余速度：归位后清零
+                if (available.y > 1f) {
+                    acc[0] = 0f
+                    currentOnScrollPx(0f)
+                }
+                return Velocity.Zero
+            }
+        }
+    }
+}
+
 /**
  * 平板设置：左右两栏。左=平铺入口，右=选中内容。静态替换，无 Activity 跳转。
- * 固定标题与分界线由 MainActivity 叠层绘制，避免被顶栏渐变模糊盖住。
+ * 固定标题与分界线由 MainActivity 叠层绘制；顶部渐变画在本页内容层，左右各自驱动。
  */
 @Composable
 fun TabletSettingsScreen(
@@ -197,8 +325,6 @@ fun TabletSettingsScreen(
     settingsScrollBehavior: com.haooz.chedule.ui.basic.SharedScrollBehavior? = null,
 ) {
     val selected = TabletSettingsUiState.selected
-    // 左右栏滚动都上报到 MainActivity 的 settingsScrollBehavior，驱动顶栏渐变遮罩
-    val scrollBehavior = settingsScrollBehavior
     val groups = remember { TabletSettingsDest.entries.groupBy { it.group } }
     val context = LocalContext.current
     val paneHorizontal = 20.dp
@@ -208,189 +334,239 @@ fun TabletSettingsScreen(
             com.haooz.chedule.ui.basic.CollapsibleTopAppBarDefaults.CollapsedHeight +
             12.dp
 
+    // 左栏滚动用列表状态驱动遮罩；右栏用只观察的 nestedScroll（不挂在列表上）
+    var leftScrollPx by remember { mutableFloatStateOf(0f) }
+    var rightScrollPx by remember { mutableFloatStateOf(0f) }
+    LaunchedEffect(selected) { rightScrollPx = 0f }
+
+    val leftListState = rememberLazyListState()
+    LaunchedEffect(leftListState) {
+        snapshotFlow {
+            leftListState.firstVisibleItemIndex * 8_000 +
+                leftListState.firstVisibleItemScrollOffset
+        }.collect { leftScrollPx = it.toFloat().coerceAtLeast(0f) }
+    }
+    LaunchedEffect(leftListState) {
+        snapshotFlow {
+            leftListState.firstVisibleItemIndex == 0 &&
+                leftListState.firstVisibleItemScrollOffset == 0
+        }.collect { atTop -> if (atTop) leftScrollPx = 0f }
+    }
+    val rightTrack = rememberPaneScrollTracker { rightScrollPx = it }
+
     BoxWithConstraints(modifier = Modifier.fillMaxSize()) {
         val leftWidth = maxWidth * 0.42f
         val rightWidth = maxWidth - leftWidth
+        val surfaceColor = MiuixTheme.colorScheme.surface
+        val leftPaneBackdrop = rememberLayerBackdrop {
+            drawRect(surfaceColor)
+            drawContent()
+        }
+        val rightPaneBackdrop = rememberLayerBackdrop {
+            drawRect(surfaceColor)
+            drawContent()
+        }
 
         Row(modifier = Modifier.fillMaxSize()) {
-            Column(
+            // —— 左栏：结构对齐手机设置页 —— layerBackdrop 包列表，列表只用 overScrollVertical
+            Box(
                 modifier = Modifier
                     .width(leftWidth)
                     .fillMaxHeight()
-                    .background(MiuixTheme.colorScheme.surface)
+                    .background(surfaceColor)
             ) {
-                LazyColumn(
+                Box(
                     modifier = Modifier
                         .fillMaxSize()
-                        .overScrollVertical()
-                        .then(
-                            if (scrollBehavior != null) {
-                                Modifier.nestedScroll(scrollBehavior.nestedScrollConnection)
-                            } else Modifier
-                        ),
-                    contentPadding = PaddingValues(
-                        start = paneHorizontal,
-                        top = chromeTop,
-                        end = paneHorizontal,
-                        bottom = 120.dp,
-                    ),
-                    verticalArrangement = Arrangement.spacedBy(12.dp)
+                        .layerBackdrop(leftPaneBackdrop)
                 ) {
-                    groups.forEach { (group, dests) ->
-                        item(key = "g_$group") {
-                            SmallTitle(
-                                text = group,
-                                modifier = Modifier.offset(x = (-16).dp)
-                            )
-                            Card(
-                                cornerRadius = 20.dp,
-                                modifier = Modifier.fillMaxWidth(),
-                                insideMargin = PaddingValues(0.dp)
-                            ) {
-                                Column(modifier = Modifier.fillMaxWidth()) {
-                                    dests.forEach { dest ->
-                                        // 教务导入：不进右栏，点击直接跳 Activity
-                                        val jumpActivity = dest == TabletSettingsDest.EducationalImport
-                                        ArrowPreference(
-                                            title = dest.title,
-                                            holdDownState = !jumpActivity && dest == selected,
-                                            onClick = {
-                                                if (jumpActivity) {
-                                                    context.startActivity(
-                                                        android.content.Intent(
-                                                            context,
-                                                            com.haooz.chedule.ui.activities.EducationalImportActivity::class.java
+                    LazyColumn(
+                        state = leftListState,
+                        // 与完整设置页相同：只用公共 overScrollVertical
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .overScrollVertical(),
+                        contentPadding = PaddingValues(
+                            start = paneHorizontal,
+                            top = chromeTop,
+                            end = paneHorizontal,
+                            bottom = 120.dp,
+                        ),
+                        verticalArrangement = Arrangement.spacedBy(12.dp)
+                    ) {
+                        groups.forEach { (group, dests) ->
+                            item(key = "g_$group") {
+                                SmallTitle(
+                                    text = group,
+                                    modifier = Modifier.offset(x = (-16).dp)
+                                )
+                                Card(
+                                    cornerRadius = 20.dp,
+                                    modifier = Modifier.fillMaxWidth(),
+                                    insideMargin = PaddingValues(0.dp)
+                                ) {
+                                    Column(modifier = Modifier.fillMaxWidth()) {
+                                        dests.forEach { dest ->
+                                            val jumpActivity =
+                                                dest == TabletSettingsDest.EducationalImport
+                                            ArrowPreference(
+                                                title = dest.title,
+                                                holdDownState = !jumpActivity && dest == selected,
+                                                onClick = {
+                                                    if (jumpActivity) {
+                                                        context.startActivity(
+                                                            android.content.Intent(
+                                                                context,
+                                                                com.haooz.chedule.ui.activities.EducationalImportActivity::class.java
+                                                            )
                                                         )
-                                                    )
-                                                } else {
-                                                    TabletSettingsUiState.selected = dest
+                                                    } else {
+                                                        TabletSettingsUiState.selected = dest
+                                                    }
                                                 }
-                                            }
-                                        )
+                                            )
+                                        }
                                     }
                                 }
                             }
                         }
                     }
                 }
+                TabletPaneTopChrome(
+                    scrolledPx = leftScrollPx,
+                    backdrop = leftPaneBackdrop,
+                    modifier = Modifier.align(Alignment.TopStart),
+                )
             }
 
-            Column(
+            // —— 右栏：观察 nestedScroll 放在录制层外层，列表自身只保留 overScrollVertical ——
+            Box(
                 modifier = Modifier
                     .width(rightWidth)
                     .fillMaxHeight()
-                    .background(MiuixTheme.colorScheme.surface)
+                    .background(surfaceColor)
             ) {
                 Box(
                     modifier = Modifier
                         .fillMaxSize()
+                        .nestedScroll(rightTrack)
                 ) {
-            when (selected) {
-                TabletSettingsDest.Semester -> TabletSemesterPane(
-                    viewModel = viewModel,
-                    scheduleViewModel = scheduleViewModel,
-                    settingsViewModel = settingsViewModel,
-                    shiftViewModel = shiftViewModel,
-                    isShiftMode = isShiftMode,
-                    onExitShiftMode = onExitShiftMode,
-                    liquidGlassBackdrop = liquidGlassBackdrop,
-                    scrollBehavior = scrollBehavior,
-                )
+                    Box(
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .layerBackdrop(rightPaneBackdrop)
+                    ) {
+                        when (selected) {
+                            TabletSettingsDest.Semester -> TabletSemesterPane(
+                                viewModel = viewModel,
+                                scheduleViewModel = scheduleViewModel,
+                                settingsViewModel = settingsViewModel,
+                                shiftViewModel = shiftViewModel,
+                                isShiftMode = isShiftMode,
+                                onExitShiftMode = onExitShiftMode,
+                                liquidGlassBackdrop = liquidGlassBackdrop,
+                                scrollBehavior = null,
+                            )
 
-                TabletSettingsDest.CourseTime -> CourseTimeSettingsScreen(
-                    onEditConfig = { _, _ -> },
-                    onCreateConfig = {},
-                    scrollBehavior = scrollBehavior,
-                    liquidGlassBackdrop = liquidGlassBackdrop,
-                    hideFab = true,
-                )
+                            TabletSettingsDest.CourseTime -> CourseTimeSettingsScreen(
+                                onEditConfig = { _, _ -> },
+                                onCreateConfig = {},
+                                scrollBehavior = null,
+                                liquidGlassBackdrop = liquidGlassBackdrop,
+                                hideFab = true,
+                            )
 
-                TabletSettingsDest.Reminder -> CourseReminderScreen(
-                    settingsViewModel = settingsViewModel,
-                    scrollBehavior = scrollBehavior,
-                    liquidGlassBackdrop = liquidGlassBackdrop,
-                )
+                            TabletSettingsDest.Reminder -> CourseReminderScreen(
+                                settingsViewModel = settingsViewModel,
+                                scrollBehavior = null,
+                                liquidGlassBackdrop = liquidGlassBackdrop,
+                            )
 
-                TabletSettingsDest.Holiday -> TabletHolidayPane(
-                    scrollBehavior = scrollBehavior,
-                    liquidGlassBackdrop = liquidGlassBackdrop,
-                )
+                            TabletSettingsDest.Holiday -> TabletHolidayPane(
+                                scrollBehavior = null,
+                                liquidGlassBackdrop = liquidGlassBackdrop,
+                            )
 
-                TabletSettingsDest.Widget -> WidgetIntroScreen(
-                    scrollBehavior = scrollBehavior,
-                    liquidGlassBackdrop = liquidGlassBackdrop,
-                )
+                            TabletSettingsDest.Widget -> WidgetIntroScreen(
+                                scrollBehavior = null,
+                                liquidGlassBackdrop = liquidGlassBackdrop,
+                            )
 
-                TabletSettingsDest.ScheduleImport -> BackupAndMigrationScreen(
-                    courseViewModel = viewModel,
-                    scheduleViewModel = scheduleViewModel,
-                    settingsViewModel = settingsViewModel,
-                    scrollBehavior = scrollBehavior,
-                    liquidGlassBackdrop = liquidGlassBackdrop,
-                    mode = ScheduleDataManageMode.Import,
-                    // pad：无「导入方式」，口令/文件拆成两个小标题
-                    compactImport = true,
-                )
+                            TabletSettingsDest.ScheduleImport -> BackupAndMigrationScreen(
+                                courseViewModel = viewModel,
+                                scheduleViewModel = scheduleViewModel,
+                                settingsViewModel = settingsViewModel,
+                                scrollBehavior = null,
+                                liquidGlassBackdrop = liquidGlassBackdrop,
+                                mode = ScheduleDataManageMode.Import,
+                                compactImport = true,
+                            )
 
-                TabletSettingsDest.EducationalImport -> {
-                    // 教务导入走 Activity 跳转，右栏不分栏展示
-                    Box(modifier = Modifier.fillMaxSize())
+                            TabletSettingsDest.EducationalImport -> {
+                                Box(modifier = Modifier.fillMaxSize())
+                            }
+
+                            TabletSettingsDest.AiImport -> AiImportScreen(
+                                onBack = {},
+                                scrollBehavior = null,
+                                viewModel = viewModel,
+                                settingsViewModel = settingsViewModel,
+                                liquidGlassBackdrop = liquidGlassBackdrop,
+                            )
+
+                            TabletSettingsDest.ScheduleExport -> BackupAndMigrationScreen(
+                                courseViewModel = viewModel,
+                                scheduleViewModel = scheduleViewModel,
+                                settingsViewModel = settingsViewModel,
+                                scrollBehavior = null,
+                                liquidGlassBackdrop = liquidGlassBackdrop,
+                                mode = ScheduleDataManageMode.Export,
+                            )
+
+                            TabletSettingsDest.LocalBackup -> LocalBackupScreen(
+                                scrollBehavior = null,
+                                liquidGlassBackdrop = liquidGlassBackdrop,
+                            )
+
+                            TabletSettingsDest.WebDav -> WebDavSettingsScreen(
+                                scrollBehavior = null,
+                            )
+
+                            TabletSettingsDest.Preference -> PreferenceSettingsScreen(
+                                scrollBehavior = null,
+                                liquidGlassBackdrop = liquidGlassBackdrop,
+                            )
+
+                            TabletSettingsDest.Update -> UpdateSettingsScreen(
+                                scrollBehavior = null,
+                                liquidGlassBackdrop = liquidGlassBackdrop,
+                            )
+
+                            TabletSettingsDest.About -> {
+                                val aboutBackdrop =
+                                    com.kyant.backdrop.backdrops.rememberLayerBackdrop()
+                                AboutScreen(onBack = {}, liquidGlassBackdrop = aboutBackdrop)
+                            }
+
+                            TabletSettingsDest.Appreciate -> AppreciateAuthorScreen(
+                                scrollBehavior = null,
+                            )
+
+                            TabletSettingsDest.Changelog -> ChangelogScreen(
+                                scrollBehavior = null,
+                            )
+
+                            TabletSettingsDest.Communication -> CommunicationScreen(
+                                scrollBehavior = null,
+                            )
+                        }
+                    }
                 }
-
-                TabletSettingsDest.AiImport -> AiImportScreen(
-                    onBack = {},
-                    scrollBehavior = scrollBehavior,
-                    viewModel = viewModel,
-                    settingsViewModel = settingsViewModel,
-                    liquidGlassBackdrop = liquidGlassBackdrop,
+                TabletPaneTopChrome(
+                    scrolledPx = rightScrollPx,
+                    backdrop = rightPaneBackdrop,
+                    modifier = Modifier.align(Alignment.TopStart),
                 )
-
-                TabletSettingsDest.ScheduleExport -> BackupAndMigrationScreen(
-                    courseViewModel = viewModel,
-                    scheduleViewModel = scheduleViewModel,
-                    settingsViewModel = settingsViewModel,
-                    scrollBehavior = scrollBehavior,
-                    liquidGlassBackdrop = liquidGlassBackdrop,
-                    mode = ScheduleDataManageMode.Export,
-                )
-
-                TabletSettingsDest.LocalBackup -> LocalBackupScreen(
-                    scrollBehavior = scrollBehavior,
-                    liquidGlassBackdrop = liquidGlassBackdrop,
-                )
-
-                TabletSettingsDest.WebDav -> WebDavSettingsScreen(
-                    scrollBehavior = scrollBehavior,
-                )
-
-                TabletSettingsDest.Preference -> PreferenceSettingsScreen(
-                    scrollBehavior = scrollBehavior,
-                    liquidGlassBackdrop = liquidGlassBackdrop,
-                )
-
-                TabletSettingsDest.Update -> UpdateSettingsScreen(
-                    scrollBehavior = scrollBehavior,
-                    liquidGlassBackdrop = liquidGlassBackdrop,
-                )
-
-                TabletSettingsDest.About -> {
-                    val aboutBackdrop = com.kyant.backdrop.backdrops.rememberLayerBackdrop()
-                    AboutScreen(onBack = {}, liquidGlassBackdrop = aboutBackdrop)
-                }
-
-                TabletSettingsDest.Appreciate -> AppreciateAuthorScreen(
-                    scrollBehavior = scrollBehavior,
-                )
-
-                TabletSettingsDest.Changelog -> ChangelogScreen(
-                    scrollBehavior = scrollBehavior,
-                )
-
-                TabletSettingsDest.Communication -> CommunicationScreen(
-                    scrollBehavior = scrollBehavior,
-                )
-            }
-                }
             }
         }
     }

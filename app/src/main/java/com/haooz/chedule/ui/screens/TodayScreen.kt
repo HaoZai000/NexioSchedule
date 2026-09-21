@@ -656,13 +656,14 @@ fun TodayScreen(
                                 .weight(1f)
                                 .collapsibleTopInset(settingsScrollBehavior)
                                 .fillMaxHeight()
-                                .overScrollVertical()
                                 .scrollEndHaptic(
                                     hapticFeedbackType = HapticFeedbackType.TextHandleMove
                                 )
                                 .then(
                                     if (settingsScrollBehavior != null) Modifier.nestedScroll(settingsScrollBehavior.nestedScrollConnection) else Modifier
-                                ),
+                                )
+                                // 放在最后 = 最靠近列表，优先收到 fling，与手机设置页一致
+                                .overScrollVertical(),
                             contentPadding = PaddingValues(
                                 top = paddingValues.calculateTopPadding() +
                                     CollapsibleTopAppBarDefaults.CollapsedHeight + 14.dp,
@@ -679,13 +680,13 @@ fun TodayScreen(
                         modifier = Modifier
                             .collapsibleTopInset(settingsScrollBehavior)
                             .fillMaxSize()
-                            .overScrollVertical()
                             .scrollEndHaptic(
                                 hapticFeedbackType = HapticFeedbackType.TextHandleMove
                             )
                             .then(
                                 if (settingsScrollBehavior != null) Modifier.nestedScroll(settingsScrollBehavior.nestedScrollConnection) else Modifier
-                            ),
+                            )
+                            .overScrollVertical(),
                         contentPadding = PaddingValues(
                             start = tabletHorizontalPadding,
                             top = paddingValues.calculateTopPadding() +
