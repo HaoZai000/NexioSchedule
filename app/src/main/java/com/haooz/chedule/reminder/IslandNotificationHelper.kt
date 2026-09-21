@@ -564,6 +564,8 @@ object IslandNotificationHelper {
         val prefs = context.getSharedPreferences("course_reminder_prefs", Context.MODE_PRIVATE)
         val expandGlowEnabled = prefs.getBoolean(KEY_ISLAND_EXPAND_GLOW_ENABLED, true)
         val aodMode = prefs.getInt("island_aod_mode", 0)
+        // 课中岛缩略态 B 区：0=正在上课（静态文案），1=距下课倒计时
+        val inClassRightMode = prefs.getInt("island_in_class_right_mode", 0)
 
         val now = System.currentTimeMillis()
         val counting = courseEndMillis > now
@@ -656,7 +658,7 @@ object IslandNotificationHelper {
                 })
             })
 
-            // 缩略态：模板2，与课前同构；A区课程名，B区固定「正在上课」
+            // 缩略态：模板2，与课前同构；A区课程名，B区可在「正在上课」与距下课倒计时间自选
             put("param_island", JSONObject().apply {
                 put("islandProperty", 1)
                 put("islandTimeout", 3600)
@@ -672,14 +674,36 @@ object IslandNotificationHelper {
                             put("narrowFont", false)
                         })
                     })
-                    // B区：固定「正在上课」
-                    put("textInfo", JSONObject().apply {
-                        put("frontTitle", "")
-                        put("title", "正在上课")
-                        put("content", "")
-                        put("showHighlightColor", false)
-                        put("narrowFont", false)
-                    })
+                    if (inClassRightMode == 1 && counting) {
+                        // B区：距下课倒计时。与课前「N分钟上课」同一套 sameWidthDigitInfo 机制，
+                        // 由系统 timer 自刷到下课，App 无需按分钟重推，也不会让岛反复弹出
+                        put("sameWidthDigitInfo", JSONObject().apply {
+                            put("content", "下课")
+                            put("showHighlightColor", false)
+                            put("timerInfo", JSONObject().apply {
+                                put("timerType", -1)
+                                put("timerWhen", courseEndMillis)
+                                put("timerTotal", 0L)
+                                put("timerSystemCurrent", now)
+                            })
+                        })
+                        put("textInfo", JSONObject().apply {
+                            put("frontTitle", "")
+                            put("title", "")
+                            put("content", "")
+                            put("showHighlightColor", false)
+                            put("narrowFont", false)
+                        })
+                    } else {
+                        // B区：静态文案
+                        put("textInfo", JSONObject().apply {
+                            put("frontTitle", "")
+                            put("title", if (counting) "正在上课" else "已下课")
+                            put("content", "")
+                            put("showHighlightColor", false)
+                            put("narrowFont", false)
+                        })
+                    }
                 })
                 put("smallIslandArea", JSONObject().apply {
                     put("picInfo", JSONObject().apply {

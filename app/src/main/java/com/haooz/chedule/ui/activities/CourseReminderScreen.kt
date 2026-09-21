@@ -117,6 +117,10 @@ fun CourseReminderScreen(
     var islandRightMode by remember { mutableIntStateOf(reminderPrefs.getInt("island_right_mode", 1)) }
     // 超级岛息屏显示：0=课程名称，1=上课地点
     var islandAodMode by remember { mutableIntStateOf(reminderPrefs.getInt("island_aod_mode", 0)) }
+    // 课中岛缩略态右侧：0=正在上课，1=距下课倒计时（仅超级岛生效）
+    var islandInClassRightMode by remember {
+        mutableIntStateOf(reminderPrefs.getInt("island_in_class_right_mode", 0))
+    }
     // 课中提醒：超级岛 / 原生实况共用同一开关
     var inClassEnabled by remember {
         mutableStateOf(CourseReminderHelper.isInClassEnabled(context))
@@ -411,7 +415,7 @@ fun CourseReminderScreen(
                             }
                             SwitchPreference(
                                 title = "课中提醒",
-                                summary = "上课中以距下课倒计时显示，缩略岛展示正在上课",
+                                summary = "上课中展示距离下课时间与课程状态",
                                 checked = inClassEnabled,
                                 enabled = masterEnabled,
                                 onCheckedChange = {
@@ -713,6 +717,26 @@ fun CourseReminderScreen(
                             ),
                         )
 
+                        // 课中岛缩略态右侧：与课前岛的左右两侧互不干扰
+                        val islandInClassRightOptions = listOf(
+                            DropdownItem(
+                                text = "正在上课",
+                                selected = islandInClassRightMode == 0,
+                                onClick = {
+                                    islandInClassRightMode = 0
+                                    reminderPrefs.edit { putInt("island_in_class_right_mode", 0) }
+                                }
+                            ),
+                            DropdownItem(
+                                text = "倒计时",
+                                selected = islandInClassRightMode == 1,
+                                onClick = {
+                                    islandInClassRightMode = 1
+                                    reminderPrefs.edit { putInt("island_in_class_right_mode", 1) }
+                                }
+                            ),
+                        )
+
                         if (!islandNotification || !isIslandSupported) {
                             // 原生实况：只保留右侧缩略内容；课中开关已在上方勿扰卡片
                             Card(
@@ -749,6 +773,16 @@ fun CourseReminderScreen(
                                     liquidGlassBackdrop = liquidGlassBackdrop,
                                     dropdownColors = liquidGlassDropdownColors,
                                 )
+                                // 课中专用：未开课中提醒时整页不出现这一项
+                                if (inClassEnabled) {
+                                    OverlayDropdownMenu(
+                                        title = "课中岛右侧",
+                                        entry = DropdownEntry(items = islandInClassRightOptions),
+                                        collapseOnSelection = true,
+                                        liquidGlassBackdrop = liquidGlassBackdrop,
+                                        dropdownColors = liquidGlassDropdownColors,
+                                    )
+                                }
                                 OverlayDropdownMenu(
                                     title = "息屏显示",
                                     summary = "全天候显示时无效",
