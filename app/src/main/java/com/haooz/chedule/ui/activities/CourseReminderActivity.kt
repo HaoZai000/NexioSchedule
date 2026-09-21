@@ -10,6 +10,8 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -17,7 +19,6 @@ import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.DpOffset
 import androidx.compose.ui.unit.dp
-import com.haooz.chedule.data.CourseRepository
 import com.haooz.chedule.reminder.CourseReminderHelper
 import com.haooz.chedule.reminder.IslandNotificationHelper
 import com.haooz.chedule.ui.basic.CollapsibleTopAppBar
@@ -26,6 +27,7 @@ import com.haooz.chedule.ui.basic.LiquidTopBarButton
 import com.haooz.chedule.ui.basic.ProgressiveBlurTopBar
 import com.haooz.chedule.ui.basic.rememberSharedScrollBehavior
 import com.haooz.chedule.ui.utils.applyThemeAwareSystemBars
+import com.haooz.chedule.viewmodel.SettingsViewModel
 import top.yukonga.miuix.kmp.basic.Scaffold
 import top.yukonga.miuix.kmp.blur.layerBackdrop
 import top.yukonga.miuix.kmp.blur.rememberLayerBackdrop
@@ -35,11 +37,15 @@ import top.yukonga.miuix.kmp.theme.MiuixTheme
 import com.kyant.backdrop.backdrops.layerBackdrop as liquidGlassLayerBackdrop
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
+import androidx.lifecycle.viewmodel.compose.viewModel
 import com.haooz.chedule.ui.theme.CourseScheduleTheme
 
 class CourseReminderActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        // 设置页点击记的是 reminder/open，这里区分成 activity_open
+        com.haooz.chedule.ui.utils.FeatureLog.reminder("activity_open")
+        com.haooz.chedule.ui.utils.FeatureLog.reminderFlow("activity_onCreate")
         enableEdgeToEdge(
             statusBarStyle = SystemBarStyle.light(
                 android.graphics.Color.TRANSPARENT,
@@ -109,18 +115,26 @@ class CourseReminderActivity : ComponentActivity() {
                         )
                     }
 
-                    val islandEnabled = remember {
-                        CourseRepository(context).getIslandNotification() &&
-                            IslandNotificationHelper.isIslandSupported(context)
-                    }
+                    // 是否支持超级岛是设备静态能力，缓存一次即可；开关值必须跟随 ViewModel，
+                    // 否则 remember 无 key 会把初次求值的结果钉死，切换开关后按钮文案不会更新
+                    val settingsViewModel: SettingsViewModel = viewModel()
+                    val islandNotification by settingsViewModel.islandNotification.collectAsState()
+                    val islandSupported = remember { IslandNotificationHelper.isIslandSupported(context) }
+                    val islandEnabled = islandNotification && islandSupported
                     LiquidGlassTextButton(
                         text = if (islandEnabled) "测试小米超级岛" else "测试实时活动",
                         onClick = {
+                            com.haooz.chedule.ui.utils.FeatureLog.reminderFlow(
+                                "test_notification",
+                                if (islandEnabled) "island" else "live"
+                            )
                             if (islandEnabled) {
                                 IslandNotificationHelper.sendTestIslandNotification(context)
+                                com.haooz.chedule.ui.utils.FeatureLog.reminderFlow("test_island_sent")
                                 Toast.makeText(context, "已发送超级岛测试通知", Toast.LENGTH_SHORT).show()
                             } else {
                                 CourseReminderHelper.sendTestLiveNotification(context)
+                                com.haooz.chedule.ui.utils.FeatureLog.reminderFlow("test_live_sent")
                                 Toast.makeText(context, "已发送实时活动测试通知", Toast.LENGTH_SHORT).show()
                             }
                         },

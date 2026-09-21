@@ -204,6 +204,10 @@ fun SwitchScheduleScreen(
         )
     }
     LaunchedEffect(Unit) {
+        com.haooz.chedule.ui.utils.CrashLogHelper.trace(
+            "切换课表", "screen_compose",
+            "names=${scheduleNames.size} current=$currentScheduleId"
+        )
         if (initialCurrentScheduleId == null) {
             currentScheduleId = repository.getCurrentScheduleId()
         }
@@ -242,6 +246,7 @@ fun SwitchScheduleScreen(
 
     val switchToCurrentSchedule = {
         val firstSchedule = scheduleNames.firstOrNull() ?: ""
+        com.haooz.chedule.ui.utils.CrashLogHelper.trace("切换课表", "select_current", firstSchedule)
         currentScheduleId = firstSchedule
         repository.switchToSchedule(firstSchedule)
         onScheduleChanged()
@@ -466,6 +471,7 @@ fun SwitchScheduleScreen(
                                     label = "分享",
                                     enabled = checkedCount == 1 && !isSharingSchedule,
                                     onClick = {
+                                        com.haooz.chedule.ui.utils.FeatureLog.switchSchedule("share_dialog")
                                         hapticFeedback.performHapticFeedback(HapticFeedbackType.KeyboardTap)
                                         val selected = checkboxStates.entries.find { it.value }?.key
                                         if (selected != null && !isSharingSchedule) {
@@ -743,6 +749,9 @@ fun SwitchScheduleScreen(
                                             ),
                                             pressFeedbackType = PressFeedbackType.None,
                                             onClick = {
+                                                com.haooz.chedule.ui.utils.CrashLogHelper.trace(
+                                                    "切换课表", "select_other", scheduleName
+                                                )
                                                 val names = scheduleNames.toMutableList()
                                                 names.remove(scheduleName)
                                                 names.add(0, scheduleName)
@@ -906,6 +915,7 @@ fun SwitchScheduleScreen(
                                 val name = newScheduleName
                                 showAddDialog = false
                                 newScheduleName = ""
+                                com.haooz.chedule.ui.utils.FeatureLog.switchSchedule("add", name)
                                 scheduleNames = repository.addSchedule(name)
                                 // 手动新建课表：自动新建默认专属时间配置（跟随课表名）
                                 repository.createDefaultTimeConfigForSchedule(name)
@@ -982,6 +992,7 @@ fun SwitchScheduleScreen(
                                 }
                                 val oldName = editingScheduleName
                                 val newName = editScheduleName
+                                com.haooz.chedule.ui.utils.FeatureLog.switchSchedule("rename", "$oldName->$newName")
                                 val wasChecked = checkboxStates[oldName] == true
                                 showEditDialog = false
                                 editScheduleName = ""
@@ -1037,6 +1048,9 @@ fun SwitchScheduleScreen(
                             onClick = {
                                 hapticFeedback.performHapticFeedback(HapticFeedbackType.Confirm)
                                 val selectedNames = checkboxStates.filter { it.value }.keys.toList()
+                                com.haooz.chedule.ui.utils.FeatureLog.switchSchedule(
+                                    "delete", selectedNames.joinToString()
+                                )
                                 showDeleteDialog = false
                                 isEditMode = false
                                 editMode = ""
