@@ -20,6 +20,7 @@ import androidx.compose.foundation.layout.statusBars
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.material3.Text
 import androidx.activity.compose.LocalActivity
 import androidx.compose.runtime.Composable
@@ -198,10 +199,11 @@ fun TabletSettingsScreen(
     isShiftMode: Boolean,
     onExitShiftMode: () -> Unit,
     liquidGlassBackdrop: com.kyant.backdrop.Backdrop? = null,
+    settingsScrollBehavior: com.haooz.chedule.ui.basic.SharedScrollBehavior? = null,
 ) {
     val selected = TabletSettingsUiState.selected
-    // 右栏二级页不用 MainActivity 的 nestedScroll：避免与自身列表抢手势
-    val scrollBehavior = null
+    // 左右栏滚动都上报到 MainActivity 的 settingsScrollBehavior，驱动顶栏渐变遮罩
+    val scrollBehavior = settingsScrollBehavior
     val groups = remember { TabletSettingsDest.entries.groupBy { it.group } }
     val context = LocalContext.current
     val paneHorizontal = 20.dp
@@ -225,7 +227,12 @@ fun TabletSettingsScreen(
                 LazyColumn(
                     modifier = Modifier
                         .fillMaxSize()
-                        .overScrollVertical(),
+                        .overScrollVertical()
+                        .then(
+                            if (scrollBehavior != null) {
+                                Modifier.nestedScroll(scrollBehavior.nestedScrollConnection)
+                            } else Modifier
+                        ),
                     contentPadding = PaddingValues(
                         start = paneHorizontal,
                         top = chromeTop,
@@ -292,6 +299,7 @@ fun TabletSettingsScreen(
                     isShiftMode = isShiftMode,
                     onExitShiftMode = onExitShiftMode,
                     liquidGlassBackdrop = liquidGlassBackdrop,
+                    scrollBehavior = scrollBehavior,
                 )
 
                 TabletSettingsDest.CourseTime -> CourseTimeSettingsScreen(
@@ -406,6 +414,7 @@ private fun TabletSemesterPane(
     isShiftMode: Boolean,
     onExitShiftMode: () -> Unit,
     liquidGlassBackdrop: com.kyant.backdrop.Backdrop?,
+    scrollBehavior: com.haooz.chedule.ui.basic.SharedScrollBehavior? = null,
 ) {
     val context = LocalContext.current
     val hapticFeedback = androidx.compose.ui.platform.LocalHapticFeedback.current
@@ -437,7 +446,12 @@ private fun TabletSemesterPane(
     LazyColumn(
         modifier = Modifier
             .fillMaxSize()
-            .overScrollVertical(),
+            .overScrollVertical()
+            .then(
+                if (scrollBehavior != null) {
+                    Modifier.nestedScroll(scrollBehavior.nestedScrollConnection)
+                } else Modifier
+            ),
         // 学期页无自带顶栏 inset，这里对齐折叠标题下方
         contentPadding = PaddingValues(
             start = 20.dp,

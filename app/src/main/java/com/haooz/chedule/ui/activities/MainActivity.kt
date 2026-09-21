@@ -4994,6 +4994,8 @@ private fun SettingsTopBar(
             // 平板设置：顶栏不再显示「我的」，标题由 MainActivity 叠层绘制
             title = if (isTablet) "" else "我的",
             largeTitle = if (isTablet) "" else "我的",
+            showLargeTitle = if (isTablet) false else null,
+            showSmallTitle = if (isTablet) true else null,
             modifier = Modifier.zIndex(1f),
             scrollBehavior = scrollBehavior,
             startAction = null,

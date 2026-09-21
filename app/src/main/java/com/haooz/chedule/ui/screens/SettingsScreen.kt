@@ -205,6 +205,7 @@ fun SettingsScreen(
             isShiftMode = isShiftMode,
             onExitShiftMode = onExitShiftMode,
             liquidGlassBackdrop = liquidGlassBackdrop,
+            settingsScrollBehavior = settingsScrollBehavior,
         )
         return
     }
