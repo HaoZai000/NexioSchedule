@@ -691,67 +691,18 @@ object CourseReminderHelper {
         return safe
     }
 
+    // 这里曾按「关键 / 非关键时段」分流，非关键时段降级为 setAndAllowWhileIdle 以省电。
+    // 已移除，勿再引入：刷新链是链式的（每次触发后才注册下一次），
+    // 一旦掺入非精确闹钟，触发点漂移会逐次累积，Doze 深处延迟可达数小时，
+    // 跨日重调度与课前补发会整个失效——用户反馈的「提醒不准时」正源于此。
+    // 刷新链现在一律走 setExactAndAllowWhileIdle，见 scheduleNextWidgetRefresh。
+
     /**
-     * widget/对账刷新链是否必须精确唤醒。
-     * 无论提醒开关如何：课表边界（上课短窗、下课短窗）必须精确，否则小组件 is_now/圆点/「今日已上完」会滞后。
-     * 课前提醒窗口、课中提醒窗口、倒计时/岛未收起 → 也精确。
-     * 其余场景（含仅用小组件、无提醒）交给 setAndAllowWhileIdle，允许系统合并唤醒。
-     * 课前/上课/次日/勿扰主提醒闹钟不受此影响，始终 setExactAndAllowWhileIdle。
+     * 刷新链必须始终精确唤醒，不能用 setAndAllowWhileIdle 降级。
+     * 它是链式调度：每次触发后才注册下一次。非精确闹钟会让触发点漂移，
+     * 且漂移逐次累积——Doze 深处可能延迟数小时，跨日重调度与课前补发会整个失效。
+     * 省下的那点电远不抵「提醒不准时」的代价。
      */
-    fun shouldUseExactWidgetRefresh(context: Context): Boolean {
-        val now = System.currentTimeMillis()
-        val countdownPrefs = context.getSharedPreferences("countdown_state", Context.MODE_PRIVATE)
-        if (countdownPrefs.getBoolean("active", false)) return true
-        if (IslandNotificationHelper.IslandState.isActiveAny(context)) return true
-
-        val repository = CourseRepository(context)
-        val preClassOn = repository.getPreClassReminder()
-        val minutesBefore = repository.getPreClassReminderMinutes()
-        val inClassOn = isInClassEnabled(context)
-
-        val todayCourses = getTodayCourses(context)
-        if (todayCourses.isEmpty()) return false
-        val cal = Calendar.getInstance()
-        val currentMinutes = cal.get(Calendar.HOUR_OF_DAY) * 60 + cal.get(Calendar.MINUTE)
-
-        for (course in todayCourses) {
-            val startStr = getCourseStartTime(course, repository) ?: continue
-            val endStr = getCourseEndTime(course, repository) ?: continue
-            val startMin = startStr.toMinutes()
-            val endMin = endStr.toMinutes()
-            if (startMin == Int.MAX_VALUE || endMin == Int.MAX_VALUE) continue
-            val startMillis = parseTimeToTodayMillis(startStr)
-            val endMillis = parseTimeToTodayMillis(endStr)
-
-            // 课前提醒窗口：闹钟丢失时兜底补发要准点（依赖课前提醒开关）
-            if (preClassOn && currentMinutes in (startMin - minutesBefore) until startMin) {
-                return true
-            }
-            // 上课瞬间 + 3 分钟：态切换/圆点剔除/is_now —— 即使无提醒也要准时
-            if (currentMinutes in startMin until minOf(endMin, startMin + 3)) {
-                return true
-            }
-            // 下课瞬间：圆点/「今日课程已上完」切换 —— 即使无提醒也要准时
-            if (currentMinutes in (endMin - 1) until (endMin + 2)) {
-                return true
-            }
-            // 课中提醒：进度分钟与「距下课」进窗点
-            if (inClassOn && endMillis > startMillis && now in startMillis until endMillis) {
-                if (shouldShowInClassNow(context, startMillis, endMillis, now)) return true
-                if (getInClassTimingMode(context) == IN_CLASS_TIMING_BEFORE_END) {
-                    val totalMs = endMillis - startMillis
-                    val leadMs = getInClassLeadMinutes(context) * 60_000L
-                    if (leadMs < totalMs) {
-                        val enterWindow = endMillis - leadMs
-                        if (now >= enterWindow - 90_000L && now < enterWindow) return true
-                    }
-                }
-            }
-        }
-        return false
-    }
-
-    /** Doze 下关键路径用 setExactAndAllowWhileIdle，非关键用 setAndAllowWhileIdle 允许合并 */
     fun scheduleNextWidgetRefresh(context: Context, alarmManager: AlarmManager) {
         val intent = Intent(context, WidgetRefreshReceiver::class.java).apply {
             action = WidgetRefreshReceiver.ACTION_REFRESH_WIDGET
@@ -765,21 +716,12 @@ object CourseReminderHelper {
         alarmManager.cancel(pendingIntent)
 
         val triggerAt = computeNextWidgetRefreshTime(context)
-        val exact = shouldUseExactWidgetRefresh(context)
         try {
-            if (exact) {
-                alarmManager.setExactAndAllowWhileIdle(
-                    AlarmManager.RTC_WAKEUP,
-                    triggerAt,
-                    pendingIntent
-                )
-            } else {
-                alarmManager.setAndAllowWhileIdle(
-                    AlarmManager.RTC_WAKEUP,
-                    triggerAt,
-                    pendingIntent
-                )
-            }
+            alarmManager.setExactAndAllowWhileIdle(
+                AlarmManager.RTC_WAKEUP,
+                triggerAt,
+                pendingIntent
+            )
         } catch (_: SecurityException) { }
     }
 
