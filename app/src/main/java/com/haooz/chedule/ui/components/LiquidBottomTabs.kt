@@ -428,6 +428,10 @@ fun LiquidBottomTabs(
     }
 }
 
+/**
+ * pad 主导航：只保留侧边态（展开=图标+文字，折叠=仅图标）。
+ * 不再使用顶部胶囊；折叠按钮为 Miuix Sidebar 图标。
+ */
 @Composable
 fun LiquidNavigationRail(
     selectedTab: Int,
@@ -440,99 +444,14 @@ fun LiquidNavigationRail(
     var liquidSelectedTab by remember { mutableIntStateOf(selectedTab) }
     LaunchedEffect(selectedTab) { liquidSelectedTab = selectedTab }
 
-    // 全局展开状态：二级页与主页共用
     val sidebarExpanded = TabletNavSideState.expanded
     LaunchedEffect(sidebarExpanded) { onSidebarExpandedChange?.invoke(sidebarExpanded) }
 
-    val statusBarPadding = WindowInsets.statusBars.asPaddingValues().calculateTopPadding()
-    val topPadding = if (statusBarPadding > 0.dp) statusBarPadding else 36.dp
-    val isLightTheme = !isAppDarkTheme()
-    val textColor = if (isLightTheme) Color.Black.copy(alpha = 0.8f) else Color.White.copy(alpha = 0.8f)
-    val containerColor =
-        if (isLightTheme) Color(0xFFFFFFFF).copy(0.6f) else Color(0xFF121212).copy(0.54f)
-    val defaultEdgeLight = rememberDefaultEdgeLight()
-
-    if (sidebarExpanded) {
-        TabletNavSideBar(
-            backdrop = backdrop,
-            selectedTab = liquidSelectedTab,
-            onTabSelected = onTabSelected,
-            onCollapse = { TabletNavSideState.expanded = false },
-            modifier = modifier,
-        )
-        return
-    }
-
-    // 收起：顶部居中胶囊 + 最左侧展开按钮
-    Box(
-        modifier = modifier.fillMaxSize(),
-        contentAlignment = Alignment.TopCenter
-    ) {
-        Row(
-            modifier = Modifier.padding(top = topPadding + 4.dp),
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            Box(
-                modifier = Modifier
-                    .padding(end = 6.dp)
-                    .size(42.dp)
-                    .drawBackdrop(
-                        backdrop = backdrop,
-                        shape = { ContinuousCapsule() },
-                        effects = {
-                            vibrancy()
-                            blur(8f.dp.toPx())
-                            lens(24f.dp.toPx(), 24f.dp.toPx())
-                        },
-                        onDrawSurface = { drawRect(containerColor) },
-                    )
-                    .edgeLight(shape = ContinuousCapsule(), edgeLight = defaultEdgeLight)
-                    .clip(ContinuousCapsule())
-                    .clickable(
-                        interactionSource = remember { MutableInteractionSource() },
-                        indication = null,
-                        onClick = { TabletNavSideState.expanded = true },
-                    ),
-                contentAlignment = Alignment.Center,
-            ) {
-                Icon(
-                    imageVector = TabletNavSideIcon,
-                    contentDescription = "展开侧栏",
-                    tint = textColor,
-                    modifier = Modifier.size(18.dp),
-                )
-            }
-            LiquidBottomTabs(
-                selectedTabIndex = { liquidSelectedTab },
-                onTabSelected = { onTabSelected(it) },
-                backdrop = backdrop,
-                tabsCount = if (!isShiftMode) 3 else 2,
-                modifier = Modifier
-                    .width(if (isShiftMode) 160.dp else 240.dp)
-                    .height(42.dp),
-                containerHeight = 400.dp,
-                highlightHeight = 34.dp,
-                selectorHeight = 34.dp
-            ) {
-                if (!isShiftMode) {
-                    LiquidBottomTab(index = 0) {
-                        Text("今日", fontSize = 15.sp, fontWeight = FontWeight.Medium, color = textColor)
-                    }
-                    LiquidBottomTab(index = 1) {
-                        Text("课程表", fontSize = 15.sp, fontWeight = FontWeight.Medium, color = textColor)
-                    }
-                    LiquidBottomTab(index = 2) {
-                        Text("我的", fontSize = 15.sp, fontWeight = FontWeight.Medium, color = textColor)
-                    }
-                } else {
-                    LiquidBottomTab(index = 0) {
-                        Text("排班课表", fontSize = 15.sp, fontWeight = FontWeight.Medium, color = textColor)
-                    }
-                    LiquidBottomTab(index = 1) {
-                        Text("设置", fontSize = 15.sp, fontWeight = FontWeight.Medium, color = textColor)
-                    }
-                }
-            }
-        }
-    }
+    TabletNavSideBar(
+        backdrop = backdrop,
+        selectedTab = liquidSelectedTab,
+        onTabSelected = onTabSelected,
+        isShiftMode = isShiftMode,
+        modifier = modifier,
+    )
 }

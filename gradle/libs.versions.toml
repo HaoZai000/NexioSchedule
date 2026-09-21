@@ -62,8 +62,6 @@ shizuku-provider = { group = "dev.rikka.shizuku", name = "provider", version.ref
 # NavigationEvent
 navigationevent-compose = { group = "androidx.navigationevent", name = "navigationevent-compose", version.ref = "navigationevent" }  # SearchBar 返回处理
 
-
-
 # Backdrop（已 fork 到本地源码 app/src/main/java/com/kyant/backdrop，移除远程 jar 依赖）
 materialKolor-utilities = { group = "com.materialkolor", name = "material-color-utilities", version.ref = "materialKolor" } # Material Color（miuix theme 依赖）
 

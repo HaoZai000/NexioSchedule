@@ -49,6 +49,7 @@ import androidx.compose.foundation.layout.statusBars
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.pager.HorizontalPager
 import androidx.compose.foundation.pager.PagerState
+import androidx.compose.foundation.pager.VerticalPager
 import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.material3.Icon
@@ -1193,11 +1194,26 @@ fun CourseScheduleApp() {
     }
     // 侧栏展开状态用全局对象；内容让位为静态 padding，避免进页/重组时入场动画
     val railPaddingStart =
-        if (navBarStyle == "rail" && com.haooz.chedule.ui.components.TabletNavSideState.expanded) {
-            config.screenWidthDp.dp * com.haooz.chedule.ui.components.TabletNavSideWidthFraction
+        if (navBarStyle == "rail") {
+            com.haooz.chedule.ui.components.tabletNavSideStartPadding()
         } else {
             0.dp
         }
+    val railExpandProgress =
+        if (navBarStyle == "rail") {
+            com.haooz.chedule.ui.components.rememberTabletNavExpandProgress()
+        } else {
+            0f
+        }
+    // 侧栏伸缩后强制续录 + 顶栏糊层重采样：否则采样停在旧帧，切页才会恢复
+    val railBlurResampleEpoch = remember { mutableIntStateOf(0) }
+    val railForceRecordFrames = remember { intArrayOf(0) }
+    LaunchedEffect(com.haooz.chedule.ui.components.TabletNavSideState.expanded, navBarStyle) {
+        if (navBarStyle != "rail") return@LaunchedEffect
+        railForceRecordFrames[0] = 12
+        delay(360)
+        railBlurResampleEpoch.intValue++
+    }
     val isShiftMode by shiftViewModel.isShiftMode.collectAsState()
 
     var showCourseDetailPopup by remember { mutableStateOf(false) }
@@ -1755,7 +1771,10 @@ fun CourseScheduleApp() {
     val mainContentNestedScroll = remember(mainPagerState) {
         object : NestedScrollConnection {
             override fun onPreScroll(available: Offset, source: NestedScrollSource): Offset {
-                if (source == NestedScrollSource.UserInput && abs(available.x) > 1f) {
+                // 横向（手机主 tab）与纵向（平板主 tab）手势都取消未完成的切页动画
+                if (source == NestedScrollSource.UserInput &&
+                    (abs(available.x) > 1f || abs(available.y) > 1f)
+                ) {
                     cancelUnfinishedMainTabAnim()
                 }
                 return Offset.Zero
@@ -2507,19 +2526,32 @@ fun CourseScheduleApp() {
         val latestShowSwitch by rememberUpdatedState(showSwitchSchedule)
         val latestDraggingCard by rememberUpdatedState(isDraggingCard)
         val latestRailPad by rememberUpdatedState(railPaddingStart)
+        val latestRailExpand by rememberUpdatedState(railExpandProgress)
+        val latestRailBlurEpoch by rememberUpdatedState(railBlurResampleEpoch.intValue)
         // 课表/今日/设置滚动时主内容像素在变，必须重录，否则顶栏/底栏玻璃冻结
         val liquidGlassMustRecord = remember(scheduleScrollState, todayListScrollInProgress, pagerState, todayPagerState, mainPagerState) {
             var lastRailPad = Float.NaN
+            var lastRailExpand = Float.NaN
+            var lastBlurEpoch = -1
             {
                 val railPad = latestRailPad.value
                 val railMoving = railPad != lastRailPad
                 lastRailPad = railPad
+                val expandMoving = latestRailExpand != lastRailExpand
+                lastRailExpand = latestRailExpand
+                val epochBumped = latestRailBlurEpoch != lastBlurEpoch
+                lastBlurEpoch = latestRailBlurEpoch
+                val forceRail = railForceRecordFrames[0] > 0
+                if (forceRail) railForceRecordFrames[0] = railForceRecordFrames[0] - 1
                 scheduleScrollState.isScrollInProgress ||
                     todayListScrollInProgress.value ||
                     pagerState.isScrollInProgress ||
                     todayPagerState.isScrollInProgress ||
                     mainPagerState.isScrollInProgress ||
                     railMoving ||
+                    expandMoving ||
+                    forceRail ||
+                    epochBumped ||
                     // 开洞编辑时主内容持续缩放，绝不能停录
                     latestIsWindowCutout ||
                     (latestShowCustomize && latestIsCustomizeExiting) ||
@@ -2693,8 +2725,14 @@ fun CourseScheduleApp() {
                                         .graphicsLayer {
                                             val page = mainPagerState.currentPage
                                             val off = mainPagerState.currentPageOffsetFraction
-                                            translationX =
-                                                (scheduleTitleIndex - page - off) * size.width
+                                            val delta = scheduleTitleIndex - page - off
+                                            if (navBarStyle == "rail") {
+                                                translationX = 0f
+                                                translationY = delta * screenHPx
+                                            } else {
+                                                translationY = 0f
+                                                translationX = delta * size.width
+                                            }
                                         }
                                 ) {
                                     ScheduleTopBar(
@@ -2736,6 +2774,8 @@ fun CourseScheduleApp() {
                                         scrollBehavior = scheduleScrollBehavior,
                                         showMorePopup = showMorePopup,
                                         buttonFractionParam = scheduleMoreButtonFraction,
+                                        blurResampleKey = railBlurResampleEpoch.intValue,
+                                        blurSampleTrack = railExpandProgress,
                                     )
                                 }
                             }
@@ -2748,14 +2788,22 @@ fun CourseScheduleApp() {
                                         .graphicsLayer {
                                             val page = mainPagerState.currentPage
                                             val off = mainPagerState.currentPageOffsetFraction
-                                            translationX =
-                                                (settingsTitleIndex - page - off) * size.width
+                                            val delta = settingsTitleIndex - page - off
+                                            if (navBarStyle == "rail") {
+                                                translationX = 0f
+                                                translationY = delta * screenHPx
+                                            } else {
+                                                translationY = 0f
+                                                translationX = delta * size.width
+                                            }
                                         }
                                 ) {
                                     SettingsTopBar(
                                         liquidGlassBackdrop = chromeBackdrop,
                                         navBarStyle = navBarStyle,
                                         scrollBehavior = settingsScrollBehavior,
+                                        blurResampleKey = railBlurResampleEpoch.intValue,
+                                        blurSampleTrack = railExpandProgress,
                                     )
                                 }
                             }
@@ -2766,7 +2814,14 @@ fun CourseScheduleApp() {
                                     .graphicsLayer {
                                         val page = mainPagerState.currentPage
                                         val off = mainPagerState.currentPageOffsetFraction
-                                        translationX = (0 - page - off) * size.width
+                                        val delta = 0 - page - off
+                                        if (navBarStyle == "rail") {
+                                            translationX = 0f
+                                            translationY = delta * screenHPx
+                                        } else {
+                                            translationY = 0f
+                                            translationX = delta * size.width
+                                        }
                                         alpha = if (showTodayTitle) 1f else 0f
                                     }
                             ) {
@@ -2781,6 +2836,8 @@ fun CourseScheduleApp() {
                                     showMorePopup = showTodayMorePopup,
                                     visible = showTodayTitle,
                                     buttonFractionParam = todayMoreButtonFraction,
+                                    blurResampleKey = railBlurResampleEpoch.intValue,
+                                    blurSampleTrack = railExpandProgress,
                                 )
                             }
                         }
@@ -2792,20 +2849,22 @@ fun CourseScheduleApp() {
                         return@Scaffold
                     }
                     // 不门控 combinations.isEmpty()：网格只依赖 viewModel，与壁纸加载解耦
+                    // backdrop 挂在未 padding 的全屏层：录制原点固定在屏幕，
+                    // 侧栏伸缩时内容在层内平移，顶栏采样坐标不再跟着漂
                     Box(
                         modifier = Modifier
                             .fillMaxSize()
-                            .padding(start = railPaddingStart)
+                            // 开洞时 mustRecord 恒 true：停录会让顶栏/底栏玻璃采样空内容
+                            .liquidGlassLayerBackdrop(
+                                backdrop = liquidGlassBackdrop,
+                                recordKey = liquidGlassRecordKey,
+                                mustRecord = liquidGlassMustRecord
+                            )
                         ) {
                         Box(
                             modifier = Modifier
                                 .fillMaxSize()
-                                // 开洞时 mustRecord 恒 true：停录会让顶栏/底栏玻璃采样空内容
-                                .liquidGlassLayerBackdrop(
-                                    backdrop = liquidGlassBackdrop,
-                                    recordKey = liquidGlassRecordKey,
-                                    mustRecord = liquidGlassMustRecord
-                                )
+                                .padding(start = railPaddingStart)
                         ) {
                             // 共享壁纸层：画在主 pager 之下。
                             // 今日↔课程表：壁纸钉死不动；课程表→设置：壁纸随页向左平移。
@@ -2910,33 +2969,38 @@ fun CourseScheduleApp() {
                                             scaleY = s
                                             val scrollPos = mainPagerState.currentPage +
                                                 mainPagerState.currentPageOffsetFraction
-                                            // 今日/课程表区间内固定；越过课程表去设置时，壁纸向左跟页平移
+                                            // 今日/课程表区间内固定；越过课程表去设置时壁纸跟页
+                                            // 手机横向（向左），平板竖向（向上）
                                             val settingsShift =
                                                 if (scrollPos > schedulePageIndex) {
-                                                    -(scrollPos - schedulePageIndex) * size.width
+                                                    val span =
+                                                        if (navBarStyle == "rail") size.height else size.width
+                                                    -(scrollPos - schedulePageIndex) * span
                                                 } else {
                                                     0f
                                                 }
-                                            translationX = sharedWallpaperOffset.x + settingsShift
-                                            translationY = sharedWallpaperOffset.y
+                                            if (navBarStyle == "rail") {
+                                                translationX = sharedWallpaperOffset.x
+                                                translationY = sharedWallpaperOffset.y + settingsShift
+                                            } else {
+                                                translationX = sharedWallpaperOffset.x + settingsShift
+                                                translationY = sharedWallpaperOffset.y
+                                            }
                                             renderEffect = sharedBlurEffect
                                         },
                                     contentScale = ContentScale.Fit,
                                     colorFilter = sharedBrightnessFilter
                                 )
                             }
-                            // 主 tab 仅由底栏点击平移切换；关闭用户横滑。
-                            // 内容区横向手势会经 nestedScroll 取消未完成的主 tab 动画。
-                            HorizontalPager(
-                                state = mainPagerState,
-                                modifier = Modifier
-                                    .fillMaxSize()
-                                    .nestedScroll(mainContentNestedScroll),
-                                key = { page -> if (isShiftMode) "shift-$page" else "main-$page" },
-                                userScrollEnabled = false,
-                                // 三页常驻合成，今日↔我的跨页切换不再中途首构目标页
-                                beyondViewportPageCount = 2,
-                            ) { page ->
+                            // 主 tab 仅由底栏/侧栏点击切换；关闭用户手势翻页。
+                            // 平板（rail）竖向移动，手机横向移动。
+                            val mainPagerModifier = Modifier
+                                .fillMaxSize()
+                                .nestedScroll(mainContentNestedScroll)
+                            val mainPagerPageKey: (Int) -> String = { page ->
+                                if (isShiftMode) "shift-$page" else "main-$page"
+                            }
+                            val mainPagerPageContent: @Composable (Int) -> Unit = { page ->
                                 if (!isShiftMode) {
                                     when (page) {
                                         0 -> {
@@ -3433,6 +3497,23 @@ fun CourseScheduleApp() {
                                     )
                                 }
                             }
+                            }
+                            if (navBarStyle == "rail") {
+                                VerticalPager(
+                                    state = mainPagerState,
+                                    modifier = mainPagerModifier,
+                                    key = mainPagerPageKey,
+                                    userScrollEnabled = false,
+                                    beyondViewportPageCount = 2,
+                                ) { page -> mainPagerPageContent(page) }
+                            } else {
+                                HorizontalPager(
+                                    state = mainPagerState,
+                                    modifier = mainPagerModifier,
+                                    key = mainPagerPageKey,
+                                    userScrollEnabled = false,
+                                    beyondViewportPageCount = 2,
+                                ) { page -> mainPagerPageContent(page) }
                             }
                         }
                     }
@@ -4983,12 +5064,16 @@ private fun SettingsTopBar(
     liquidGlassBackdrop: com.kyant.backdrop.Backdrop?,
     navBarStyle: String,
     scrollBehavior: SharedScrollBehavior? = null,
+    blurResampleKey: Int = 0,
+    blurSampleTrack: Float = 0f,
 ) {
     if (liquidGlassBackdrop == null) return
     val isTablet = navBarStyle == "rail"
 
     ProgressiveBlurTopBar(
         backdrop = liquidGlassBackdrop,
+        resampleKey = blurResampleKey,
+        sampleTrack = blurSampleTrack,
     ) {
         CollapsibleTopAppBar(
             // 平板设置：顶栏不再显示「我的」，标题由 MainActivity 叠层绘制
@@ -5015,6 +5100,8 @@ private fun TodayTopBar(
     showMorePopup: Boolean = false,
     visible: Boolean = true,
     buttonFractionParam: Animatable<Float, *>? = null,
+    blurResampleKey: Int = 0,
+    blurSampleTrack: Float = 0f,
 ) {
     if (liquidGlassBackdrop == null) return
     val isTabletLiquidGlass = navBarStyle == "rail"
@@ -5041,6 +5128,8 @@ private fun TodayTopBar(
     ProgressiveBlurTopBar(
         backdrop = liquidGlassBackdrop,
         modifier = Modifier.graphicsLayer { alpha = if (visible) 1f else 0f },
+        resampleKey = blurResampleKey,
+        sampleTrack = blurSampleTrack,
     ) {
         CollapsibleTopAppBar(
             title = titleText,

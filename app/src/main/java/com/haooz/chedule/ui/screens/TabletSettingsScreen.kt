@@ -131,12 +131,7 @@ fun TabletSettingsChromeOverlay() {
             .fillMaxSize()
             .zIndex(24f)
     ) {
-        val sidePad =
-            if (com.haooz.chedule.ui.components.TabletNavSideState.expanded) {
-                maxWidth * com.haooz.chedule.ui.components.TabletNavSideWidthFraction
-            } else {
-                0.dp
-            }
+        val sidePad = com.haooz.chedule.ui.components.tabletNavSideStartPadding()
         val contentWidth = maxWidth - sidePad
         val leftWidth = contentWidth * 0.42f
         val dividerX = sidePad + leftWidth
