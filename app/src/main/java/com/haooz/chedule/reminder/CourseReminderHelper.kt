@@ -1163,6 +1163,11 @@ object CourseReminderHelper {
             enableLights(false)
             enableVibration(false)
             lockscreenVisibility = Notification.VISIBILITY_PUBLIC
+            // 绕过勿扰：本频道承载倒计时/已上课/课中进度，若不放行，
+            // 开「上课勿扰」后用户特意打开的课中提醒就永远看不见了。
+            // 注意：仅对 PRIORITY 档生效；完全勿扰（INTERRUPTION_FILTER_NONE）
+            // 属系统级全静音，bypassDnd 无法放行。
+            setBypassDnd(true)
         }
         manager.createNotificationChannel(alertChannel)
         manager.createNotificationChannel(liveChannel)
@@ -1435,7 +1440,10 @@ object CourseReminderHelper {
             }
 
             if (inClassOn && !inClassNow) {
-                // 课中已开但「距下课」未进窗：不发「已上课」，保持 active 等进窗再切课中
+                // 课中已开但「距下课」未进窗：不发「已上课」，保持 active 等进窗再切课中。
+                // 但上课时刻已过，倒计时卡失去意义，必须收起，否则会一直停在 00:00。
+                manager.cancel(liveCountdownId(testMode))
+                IslandNotificationHelper.cancelIslandState(context, ISLAND_NOTIFICATION_ID)
                 return
             }
 

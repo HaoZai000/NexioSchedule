@@ -291,6 +291,8 @@ object IslandNotificationHelper {
         ).apply {
             description = "课程提醒超级岛通知"
             setShowBadge(true)
+            // 与实况频道同理：不放行的话开「上课勿扰」后超级岛会被一并屏蔽
+            setBypassDnd(true)
         }
         manager.createNotificationChannel(channel)
     }
