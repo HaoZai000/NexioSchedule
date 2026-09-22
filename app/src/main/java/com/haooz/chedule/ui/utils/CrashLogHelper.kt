@@ -224,10 +224,15 @@ object CrashLogHelper {
             Log.w(TAG, "startRecording write failed", it)
             return false
         }
+        // 只保留最新一份录制：新文件已写成功，此前的 recording_*.txt 全部清掉。
+        // 否则这些含设备信息与操作轨迹的文件会一直累积在 filesDir 里且永不回收。
+        runCatching { trimRecordingFiles(dir, file) }
         app.getSharedPreferences(PREFS, Context.MODE_PRIVATE).edit()
             .putBoolean(KEY_RECORDING_ACTIVE, true)
             .putString(KEY_RECORDING_FILE, file.absolutePath)
             .putLong(KEY_RECORDING_STARTED, recordingStartedAt)
+            // 旧录制的「可分享」标记一并失效，否则下次启动会恢复出一个已被删除的路径
+            .remove(KEY_READY_FILE)
             .apply()
         readyRecordingPath = file.absolutePath
         hasReadyRecording = false
@@ -324,6 +329,7 @@ object CrashLogHelper {
 
         return runCatching {
             val dir = File(context.cacheDir, SHARE_DIR).apply { mkdirs() }
+            trimShareFiles(dir)
             val stamp = SimpleDateFormat("yyyyMMdd_HHmmss", Locale.ROOT).format(Date())
             val out = File(dir, "nexio_recording_$stamp.txt")
             out.writeText(body)
@@ -359,6 +365,7 @@ object CrashLogHelper {
         val content = buildExportContent(context)
         val uri = runCatching {
             val dir = File(context.cacheDir, SHARE_DIR).apply { mkdirs() }
+            trimShareFiles(dir)
             val stamp = SimpleDateFormat("yyyyMMdd_HHmmss", Locale.ROOT).format(Date())
             val file = File(dir, "nexio_crash_$stamp.txt")
             file.writeText(content)
@@ -621,6 +628,23 @@ object CrashLogHelper {
             .putString("ready_reason", readyReason)
             .putString(KEY_READY_FILE, readyRecordingPath)
             .apply()
+    }
+
+    /**
+     * 录制日志只保留最新一份：删掉除 keep 之外的所有 recording_*.txt。
+     * 只认前缀、只删文件，任何一步失败都不影响正在进行的录制。
+     */
+    private fun trimRecordingFiles(dir: File, keep: File) {
+        val keepPath = keep.absolutePath
+        val files = dir.listFiles()
+            ?.filter { it.isFile && it.name.startsWith("recording_") && it.absolutePath != keepPath }
+            ?: return
+        files.forEach { runCatching { it.delete() } }
+    }
+
+    /** 分享用的临时文件同样只留最新一份（在 cacheDir，但没必要堆积） */
+    private fun trimShareFiles(dir: File) {
+        dir.listFiles()?.forEach { runCatching { it.delete() } }
     }
 
     private fun trimCrashFiles(dir: File) {

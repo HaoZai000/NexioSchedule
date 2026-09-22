@@ -123,6 +123,7 @@ class CourseTimeSettingsActivity : ComponentActivity() {
                     20f * density.density
                 } else {
                     try {
+                        @SuppressLint("WrongConstant")
                         windowMetrics.windowInsets.getRoundedCorner(0)?.radius?.toFloat() ?: 0f
                     } catch (_: Exception) { 0f }
                 }

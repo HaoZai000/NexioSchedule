@@ -1,5 +1,6 @@
 package com.kyant.backdrop
 
+import android.annotation.SuppressLint
 import org.intellij.lang.annotations.Language
 
 sealed interface RuntimeShaderCache {
@@ -9,6 +10,8 @@ sealed interface RuntimeShaderCache {
 
 internal class RuntimeShaderCacheImpl : RuntimeShaderCache {
 
+    // 调用方均先校验 isRuntimeShaderSupported() 才走到这里，运行时安全
+    @SuppressLint("NewApi")
     override fun obtainRuntimeShader(key: String, string: String): RuntimeShader {
         return ShaderRegistry.runtimeShaders.getOrPut(key) { RuntimeShader(string) }
     }

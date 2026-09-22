@@ -1427,7 +1427,7 @@ fun TimeConfigEditScreen(
                                             textStyle = MiuixTheme.textStyles.title2,
                                             modifier = Modifier.weight(1f)
                                         )
-                                        val breakOptions = listOf(5, 10, 15, 20, 25, 30)
+                                        val breakOptions = listOf(5, 10, 15, 20, 25, 30, 35, 40, 45, 50, 55, 60)
                                         val breakIndex =
                                             breakOptions.indexOf(quickTempValue).coerceAtLeast(0)
                                         NumberPicker(

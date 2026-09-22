@@ -405,6 +405,11 @@ fun SettingsScreen(
                                         context.startActivity(intent)
                                     }
                                 )
+                                ArrowPreference(
+                                    title = "排班模式",
+                                    summary = "同时对比多个课表的排班情况",
+                                    onClick = { showShiftModeConfirmDialog = true }
+                                )
                             }
                         }
                     }
