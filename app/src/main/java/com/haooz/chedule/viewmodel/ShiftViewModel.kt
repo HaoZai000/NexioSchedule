@@ -38,7 +38,10 @@ class ShiftViewModel(application: Application) : AndroidViewModel(application) {
         _isShiftMode.value = true
         repository.setShiftModeEnabled(true)
         if (_shiftSelectedSchedules.value.isEmpty()) {
-            _shiftSelectedSchedules.value = repository.getScheduleNames()
+            // 默认只对比当前课表，避免把所有课表的内容都塞进排班视图；
+            // 需要对比其他课表时再到「设置 → 选择对比课表」中勾选
+            val current = repository.getCurrentScheduleId()
+            _shiftSelectedSchedules.value = listOf(current)
             repository.setShiftSelectedSchedules(_shiftSelectedSchedules.value)
         }
         reloadShiftData()
