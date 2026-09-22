@@ -109,6 +109,8 @@ import top.yukonga.miuix.kmp.icon.extended.Play
 import top.yukonga.miuix.kmp.icon.extended.Update
 import top.yukonga.miuix.kmp.overlay.OverlayDialog
 import top.yukonga.miuix.kmp.preference.ArrowPreference
+import top.yukonga.miuix.kmp.preference.CheckboxLocation
+import top.yukonga.miuix.kmp.preference.CheckboxPreference
 import top.yukonga.miuix.kmp.preference.SwitchPreference
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 import java.net.HttpURLConnection
@@ -144,6 +146,7 @@ enum class TabletSettingsDest(val title: String, val group: String) {
 /** 平板设置选中项：MainActivity 叠层读它画固定标题 */
 object TabletSettingsUiState {
     var selected by mutableStateOf(TabletSettingsDest.Semester)
+
     /** 课表节数与时间的编辑屏是否打开：打开时叠层不画右栏标题，避免与编辑屏标题重合 */
     var timeEditorOpen by mutableStateOf(false)
 }
@@ -265,7 +268,8 @@ private fun TabletPaneTopChrome(
 ) {
     val resolvedMaskAlpha = maskAlpha ?: rememberPaneMaskAlpha(scrolledPx)
     val maskHeight = TabletPaneBlurHeight
-    val gradientColor = if (com.haooz.chedule.ui.utils.isAppDarkTheme()) Color.Black else Color.White
+    val gradientColor =
+        if (com.haooz.chedule.ui.utils.isAppDarkTheme()) Color.Black else Color.White
 
     Box(
         modifier = modifier
@@ -364,6 +368,7 @@ fun TabletSettingsScreen(
     shiftViewModel: ShiftViewModel,
     isShiftMode: Boolean,
     onExitShiftMode: () -> Unit,
+    onEnterShiftMode: () -> Unit = {},
     liquidGlassBackdrop: com.kyant.backdrop.Backdrop? = null,
 ) {
     val selected = TabletSettingsUiState.selected
@@ -408,18 +413,19 @@ fun TabletSettingsScreen(
     val islandSupported = remember { IslandNotificationHelper.isIslandSupported(context) }
     val islandEnabled = islandNotification && islandSupported
     val hapticFeedback = LocalHapticFeedback.current
+    var showShiftModeConfirmDialog by remember { mutableStateOf(false) }
 
     val leftListState = rememberLazyListState()
     LaunchedEffect(leftListState) {
         snapshotFlow {
             leftListState.firstVisibleItemIndex * 8_000 +
-                leftListState.firstVisibleItemScrollOffset
+                    leftListState.firstVisibleItemScrollOffset
         }.collect { leftScrollPx = it.toFloat().coerceAtLeast(0f) }
     }
     LaunchedEffect(leftListState) {
         snapshotFlow {
             leftListState.firstVisibleItemIndex == 0 &&
-                leftListState.firstVisibleItemScrollOffset == 0
+                    leftListState.firstVisibleItemScrollOffset == 0
         }.collect { atTop -> if (atTop) leftScrollPx = 0f }
     }
     // 右栏专属 overscroll：与全局 CompositionLocal 分离，避免左右栏越界状态串扰
@@ -474,7 +480,10 @@ fun TabletSettingsScreen(
                         ),
                         verticalArrangement = Arrangement.spacedBy(12.dp)
                     ) {
-                        groups.forEach { (group, dests) ->
+                        groups.filterKeys { key ->
+                            // 排班模式只保留「基本设置」分类
+                            !isShiftMode || key == TabletSettingsDest.Semester.group
+                        }.forEach { (group, dests) ->
                             item(key = "g_$group") {
                                 SmallTitle(
                                     text = group,
@@ -486,45 +495,107 @@ fun TabletSettingsScreen(
                                     insideMargin = PaddingValues(0.dp)
                                 ) {
                                     Column(modifier = Modifier.fillMaxWidth()) {
-                                        dests.filterNot { it in BottomMoreDests }.forEach { dest ->
-                                            val jumpActivity =
-                                                dest == TabletSettingsDest.EducationalImport
-                                            TabletLeftEntry(
-                                                dest = dest,
-                                                isSelected = !jumpActivity && dest == selected,
-                                                onSelect = {
-                                                    if (jumpActivity) {
-                                                        context.startActivity(
-                                                            android.content.Intent(
-                                                                context,
-                                                                com.haooz.chedule.ui.activities.EducationalImportActivity::class.java
+                                        dests.filterNot { it in StandaloneDests || it in BottomMoreDests }
+                                            .forEach { dest ->
+                                                val jumpActivity =
+                                                    dest == TabletSettingsDest.EducationalImport
+                                                TabletLeftEntry(
+                                                    dest = dest,
+                                                    isSelected = !jumpActivity && dest == selected,
+                                                    onSelect = {
+                                                        if (jumpActivity) {
+                                                            context.startActivity(
+                                                                android.content.Intent(
+                                                                    context,
+                                                                    com.haooz.chedule.ui.activities.EducationalImportActivity::class.java
+                                                                )
                                                             )
-                                                        )
-                                                    } else {
-                                                        TabletSettingsUiState.selected = dest
+                                                        } else {
+                                                            TabletSettingsUiState.selected = dest
+                                                        }
                                                     }
-                                                }
+                                                )
+                                            }
+                                        // 排班模式入口：并入「特色功能」分类，非排班模式时显示
+                                        if (group == TabletSettingsDest.Reminder.group && !isShiftMode) {
+                                            ArrowPreference(
+                                                title = "排班模式",
+                                                summary = "同时对比多个课表的排班情况",
+                                                holdDownState = showShiftModeConfirmDialog,
+                                                onClick = { showShiftModeConfirmDialog = true }
                                             )
                                         }
                                     }
                                 }
                             }
-                        }
-                        // 底部独立卡片：关于应用 / 捐赠支持 / 交流与反馈（不新建分类）
-                        item(key = "bottom_more") {
-                            Card(
-                                cornerRadius = 20.dp,
-                                modifier = Modifier.fillMaxWidth(),
-                                insideMargin = PaddingValues(0.dp)
-                            ) {
-                                Column(modifier = Modifier.fillMaxWidth()) {
-                                    BottomMoreDests.forEach { dest ->
-                                        TabletLeftEntry(
-                                            dest = dest,
-                                            isSelected = dest == selected,
-                                            onSelect = { TabletSettingsUiState.selected = dest }
-                                        )
+                            // 课表导出独立卡片：同「导入与导出」分类下、教务系统导入之后
+                            if (group == TabletSettingsDest.ScheduleExport.group && StandaloneDests.isNotEmpty()) {
+                                item(key = "x_export") {
+                                    Card(
+                                        cornerRadius = 20.dp,
+                                        modifier = Modifier.fillMaxWidth(),
+                                        insideMargin = PaddingValues(0.dp)
+                                    ) {
+                                        Column(modifier = Modifier.fillMaxWidth()) {
+                                            StandaloneDests.forEach { dest ->
+                                                TabletLeftEntry(
+                                                    dest = dest,
+                                                    isSelected = dest == selected,
+                                                    onSelect = {
+                                                        TabletSettingsUiState.selected = dest
+                                                    }
+                                                )
+                                            }
+                                        }
                                     }
+                                }
+                            }
+                            // 关于应用/捐赠支持/交流与反馈独立卡片：同「其他」分类下
+                            if (group == TabletSettingsDest.About.group && BottomMoreDests.isNotEmpty()) {
+                                item(key = "x_about_more") {
+                                    Card(
+                                        cornerRadius = 20.dp,
+                                        modifier = Modifier.fillMaxWidth(),
+                                        insideMargin = PaddingValues(0.dp)
+                                    ) {
+                                        Column(modifier = Modifier.fillMaxWidth()) {
+                                            BottomMoreDests.forEach { dest ->
+                                                TabletLeftEntry(
+                                                    dest = dest,
+                                                    isSelected = dest == selected,
+                                                    onSelect = {
+                                                        TabletSettingsUiState.selected = dest
+                                                    }
+                                                )
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                        // 排班模式：退出入口放左栏
+                        if (isShiftMode) {
+                            item(key = "shift_exit") {
+                                top.yukonga.miuix.kmp.basic.Button(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .padding(top = 24.dp)
+                                        .height(50.dp),
+                                    onClick = {
+                                        hapticFeedback.performHapticFeedback(HapticFeedbackType.Confirm)
+                                        onExitShiftMode()
+                                    },
+                                    colors = if (
+                                        com.haooz.chedule.ui.utils.isAppDarkTheme()
+                                    ) ButtonDefaults.buttonColors(color = Color(0xFF181818))
+                                    else ButtonDefaults.buttonColors(),
+                                ) {
+                                    Text(
+                                        text = "退出排班模式",
+                                        fontSize = 17.sp,
+                                        fontWeight = FontWeight.Medium,
+                                        color = Color(0xFFF44336)
+                                    )
                                 }
                             }
                         }
@@ -549,423 +620,465 @@ fun TabletSettingsScreen(
                     val rightTrack = rememberPaneScrollTracker(selected) { rightScrollPx = it }
                     // 右上角按钮与右栏顶遮罩共用同一 alpha，真实滚动或越界拉伸时同步淡入
                     val rightMaskAlpha = rememberPaneMaskAlpha(rightScrollPx)
-                Box(
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .nestedScroll(rightTrack)
-                ) {
                     Box(
                         modifier = Modifier
                             .fillMaxSize()
-                            .layerBackdrop(rightPaneBackdrop)
+                            .nestedScroll(rightTrack)
                     ) {
-                        when (selected) {
-                            TabletSettingsDest.Semester -> TabletSemesterPane(
-                                viewModel = viewModel,
-                                scheduleViewModel = scheduleViewModel,
-                                settingsViewModel = settingsViewModel,
-                                isShiftMode = isShiftMode,
-                                onExitShiftMode = onExitShiftMode,
-                                liquidGlassBackdrop = liquidGlassBackdrop,
-                                scrollBehavior = null,
-                            )
+                        Box(
+                            modifier = Modifier
+                                .fillMaxSize()
+                                .layerBackdrop(rightPaneBackdrop)
+                        ) {
+                            when (selected) {
+                                TabletSettingsDest.Semester -> TabletSemesterPane(
+                                    viewModel = viewModel,
+                                    scheduleViewModel = scheduleViewModel,
+                                    settingsViewModel = settingsViewModel,
+                                    shiftViewModel = shiftViewModel,
+                                    isShiftMode = isShiftMode,
+                                    liquidGlassBackdrop = liquidGlassBackdrop,
+                                    scrollBehavior = null,
+                                )
 
-                            TabletSettingsDest.CourseTime -> CourseTimeSettingsScreen(
-                                onEditConfig = { config, _ ->
-                                    // 从 repository 重读最新配置，避免使用缓存旧数据
-                                    editingTimeConfig =
-                                        courseRepository.getTimeConfig(config.id) ?: config
-                                    creatingTimeConfig = false
-                                    TabletSettingsUiState.timeEditorOpen = true
-                                    uiScope.launch {
-                                        timeEditorSlide.snapTo(1f)
-                                        timeEditorSlide.animateTo(
-                                            0f,
-                                            animationSpec = tween(
-                                                520,
-                                                easing = CubicBezierEasing(0.3f, 0.92f, 0.3f, 1f)
+                                TabletSettingsDest.CourseTime -> CourseTimeSettingsScreen(
+                                    onEditConfig = { config, _ ->
+                                        // 从 repository 重读最新配置，避免使用缓存旧数据
+                                        editingTimeConfig =
+                                            courseRepository.getTimeConfig(config.id)
+                                        creatingTimeConfig = false
+                                        TabletSettingsUiState.timeEditorOpen = true
+                                        uiScope.launch {
+                                            timeEditorSlide.snapTo(1f)
+                                            timeEditorSlide.animateTo(
+                                                0f,
+                                                animationSpec = tween(
+                                                    520,
+                                                    easing = CubicBezierEasing(
+                                                        0.3f,
+                                                        0.92f,
+                                                        0.3f,
+                                                        1f
+                                                    )
+                                                )
                                             )
-                                        )
-                                    }
-                                },
-                                onCreateConfig = {
-                                    editingTimeConfig =
-                                        com.haooz.chedule.data.TimeConfig(name = "")
-                                    creatingTimeConfig = true
-                                    TabletSettingsUiState.timeEditorOpen = true
-                                    uiScope.launch {
-                                        timeEditorSlide.snapTo(1f)
-                                        timeEditorSlide.animateTo(
-                                            0f,
-                                            animationSpec = tween(
-                                                480,
-                                                easing = CubicBezierEasing(0.34f, 1.12f, 0.3f, 1f)
-                                            )
-                                        )
-                                    }
-                                },
-                                refreshTrigger = timeConfigRefreshTrigger,
-                                scrollBehavior = null,
-                                liquidGlassBackdrop = liquidGlassBackdrop,
-                                hideFab = true,
-                            )
-
-                            TabletSettingsDest.Reminder -> CourseReminderScreen(
-                                settingsViewModel = settingsViewModel,
-                                scrollBehavior = null,
-                                liquidGlassBackdrop = liquidGlassBackdrop,
-                            )
-
-                            TabletSettingsDest.Holiday -> TabletHolidayPane(
-                                scrollBehavior = null,
-                                liquidGlassBackdrop = liquidGlassBackdrop,
-                                onUpdateReady = { onHolidayUpdate = it },
-                                onLoadingChange = { holidayLoading = it },
-                            )
-
-                            TabletSettingsDest.Widget -> WidgetIntroScreen(
-                                scrollBehavior = null,
-                                liquidGlassBackdrop = liquidGlassBackdrop,
-                            )
-
-                            TabletSettingsDest.ScheduleImport -> BackupAndMigrationScreen(
-                                courseViewModel = viewModel,
-                                scheduleViewModel = scheduleViewModel,
-                                settingsViewModel = settingsViewModel,
-                                scrollBehavior = null,
-                                liquidGlassBackdrop = liquidGlassBackdrop,
-                                mode = ScheduleDataManageMode.Import,
-                                compactImport = true,
-                            )
-
-                            TabletSettingsDest.EducationalImport -> {
-                                Box(modifier = Modifier.fillMaxSize())
-                            }
-
-                            TabletSettingsDest.AiImport -> AiImportScreen(
-                                onBack = {},
-                                scrollBehavior = null,
-                                viewModel = viewModel,
-                                settingsViewModel = settingsViewModel,
-                                liquidGlassBackdrop = liquidGlassBackdrop,
-                            )
-
-                            TabletSettingsDest.ScheduleExport -> BackupAndMigrationScreen(
-                                courseViewModel = viewModel,
-                                scheduleViewModel = scheduleViewModel,
-                                settingsViewModel = settingsViewModel,
-                                scrollBehavior = null,
-                                liquidGlassBackdrop = liquidGlassBackdrop,
-                                mode = ScheduleDataManageMode.Export,
-                            )
-
-                            TabletSettingsDest.LocalBackup -> LocalBackupScreen(
-                                scrollBehavior = null,
-                                liquidGlassBackdrop = liquidGlassBackdrop,
-                            )
-
-                            TabletSettingsDest.WebDav -> WebDavSettingsScreen(
-                                scrollBehavior = null,
-                                onConnectedChange = { webDavConnected = it },
-                                onTestConnectionReady = { onWebDavTestConnection = it },
-                                onBackupRestoreReady = { backup, restore ->
-                                    onWebDavBackup = backup
-                                    onWebDavRestore = restore
-                                },
-                                onBusyStateChange = { b, r ->
-                                    webDavBackingUp = b
-                                    webDavRestoring = r
-                                },
-                            )
-
-                            TabletSettingsDest.Preference -> PreferenceSettingsScreen(
-                                scrollBehavior = null,
-                                liquidGlassBackdrop = liquidGlassBackdrop,
-                            )
-
-                            TabletSettingsDest.Update -> UpdateSettingsScreen(
-                                scrollBehavior = null,
-                                liquidGlassBackdrop = liquidGlassBackdrop,
-                            )
-
-                            TabletSettingsDest.About -> {
-                                val aboutBackdrop =
-                                    rememberLayerBackdrop()
-                                AboutScreen(onBack = {}, liquidGlassBackdrop = aboutBackdrop, embedded = true)
-                            }
-
-                            TabletSettingsDest.Appreciate -> AppreciateAuthorScreen(
-                                scrollBehavior = null,
-                            )
-
-
-                            TabletSettingsDest.Communication -> CommunicationScreen(
-                                scrollBehavior = null,
-                            )
-                        }
-                    }
-
-                    // 底部操作按钮：与手机 Activity 层同款。玻璃按钮必须采样右栏本地 backdrop（兄弟节点，
-                    // 记录内容不含按钮本身）；不能采样全局 liquidGlassBackdrop——按钮就在全局玻璃层内，
-                    // 采样自身会触发循环采样。弹窗在根部 PopupHost 渲染，仍可正常采样全局层。
-                    val glassBackdrop = liquidGlassBackdrop
-                    if (glassBackdrop != null) when (selected) {
-                        TabletSettingsDest.Reminder -> {
-                            Box(
-                                modifier = Modifier
-                                    .align(Alignment.BottomCenter)
-                                    .fillMaxWidth()
-                                    .padding(horizontal = 36.dp)
-                                    .navigationBarsPadding()
-                                    .padding(bottom = 20.dp)
-                            ) {
-                                LiquidGlassTextButton(
-                                    text = if (islandEnabled) "测试小米超级岛" else "测试实时活动",
-                                    onClick = {
-                                        com.haooz.chedule.ui.utils.FeatureLog.reminderFlow(
-                                            "test_notification",
-                                            if (islandEnabled) "island" else "live"
-                                        )
-                                        if (islandEnabled) {
-                                            IslandNotificationHelper.sendTestIslandNotification(context)
-                                            com.haooz.chedule.ui.utils.FeatureLog.reminderFlow("test_island_sent")
-                                            android.widget.Toast.makeText(
-                                                context,
-                                                "已发送超级岛测试通知",
-                                                android.widget.Toast.LENGTH_SHORT
-                                            ).show()
-                                        } else {
-                                            CourseReminderHelper.sendTestLiveNotification(context)
-                                            com.haooz.chedule.ui.utils.FeatureLog.reminderFlow("test_live_sent")
-                                            android.widget.Toast.makeText(
-                                                context,
-                                                "已发送实时活动测试通知",
-                                                android.widget.Toast.LENGTH_SHORT
-                                            ).show()
                                         }
                                     },
-                                    backdrop = rightPaneBackdrop,
-                                    modifier = Modifier.fillMaxWidth(),
+                                    onCreateConfig = {
+                                        editingTimeConfig =
+                                            com.haooz.chedule.data.TimeConfig(name = "")
+                                        creatingTimeConfig = true
+                                        TabletSettingsUiState.timeEditorOpen = true
+                                        uiScope.launch {
+                                            timeEditorSlide.snapTo(1f)
+                                            timeEditorSlide.animateTo(
+                                                0f,
+                                                animationSpec = tween(
+                                                    480,
+                                                    easing = CubicBezierEasing(
+                                                        0.34f,
+                                                        1.12f,
+                                                        0.3f,
+                                                        1f
+                                                    )
+                                                )
+                                            )
+                                        }
+                                    },
+                                    refreshTrigger = timeConfigRefreshTrigger,
+                                    scrollBehavior = null,
+                                    liquidGlassBackdrop = liquidGlassBackdrop,
+                                    hideFab = true,
+                                )
+
+                                TabletSettingsDest.Reminder -> CourseReminderScreen(
+                                    settingsViewModel = settingsViewModel,
+                                    scrollBehavior = null,
+                                    liquidGlassBackdrop = liquidGlassBackdrop,
+                                )
+
+                                TabletSettingsDest.Holiday -> TabletHolidayPane(
+                                    scrollBehavior = null,
+                                    liquidGlassBackdrop = liquidGlassBackdrop,
+                                    onUpdateReady = { onHolidayUpdate = it },
+                                    onLoadingChange = { holidayLoading = it },
+                                )
+
+                                TabletSettingsDest.Widget -> WidgetIntroScreen(
+                                    scrollBehavior = null,
+                                    liquidGlassBackdrop = liquidGlassBackdrop,
+                                )
+
+                                TabletSettingsDest.ScheduleImport -> BackupAndMigrationScreen(
+                                    courseViewModel = viewModel,
+                                    scheduleViewModel = scheduleViewModel,
+                                    settingsViewModel = settingsViewModel,
+                                    scrollBehavior = null,
+                                    liquidGlassBackdrop = liquidGlassBackdrop,
+                                    mode = ScheduleDataManageMode.Import,
+                                    compactImport = true,
+                                )
+
+                                TabletSettingsDest.EducationalImport -> {
+                                    Box(modifier = Modifier.fillMaxSize())
+                                }
+
+                                TabletSettingsDest.AiImport -> AiImportScreen(
+                                    onBack = {},
+                                    scrollBehavior = null,
+                                    viewModel = viewModel,
+                                    settingsViewModel = settingsViewModel,
+                                    liquidGlassBackdrop = liquidGlassBackdrop,
+                                )
+
+                                TabletSettingsDest.ScheduleExport -> BackupAndMigrationScreen(
+                                    courseViewModel = viewModel,
+                                    scheduleViewModel = scheduleViewModel,
+                                    settingsViewModel = settingsViewModel,
+                                    scrollBehavior = null,
+                                    liquidGlassBackdrop = liquidGlassBackdrop,
+                                    mode = ScheduleDataManageMode.Export,
+                                )
+
+                                TabletSettingsDest.LocalBackup -> LocalBackupScreen(
+                                    scrollBehavior = null,
+                                    liquidGlassBackdrop = liquidGlassBackdrop,
+                                )
+
+                                TabletSettingsDest.WebDav -> WebDavSettingsScreen(
+                                    scrollBehavior = null,
+                                    onConnectedChange = { webDavConnected = it },
+                                    onTestConnectionReady = { onWebDavTestConnection = it },
+                                    onBackupRestoreReady = { backup, restore ->
+                                        onWebDavBackup = backup
+                                        onWebDavRestore = restore
+                                    },
+                                    onBusyStateChange = { b, r ->
+                                        webDavBackingUp = b
+                                        webDavRestoring = r
+                                    },
+                                )
+
+                                TabletSettingsDest.Preference -> PreferenceSettingsScreen(
+                                    scrollBehavior = null,
+                                    liquidGlassBackdrop = liquidGlassBackdrop,
+                                )
+
+                                TabletSettingsDest.Update -> UpdateSettingsScreen(
+                                    scrollBehavior = null,
+                                    liquidGlassBackdrop = liquidGlassBackdrop,
+                                )
+
+                                TabletSettingsDest.About -> {
+                                    val aboutBackdrop =
+                                        rememberLayerBackdrop()
+                                    AboutScreen(
+                                        onBack = {},
+                                        liquidGlassBackdrop = aboutBackdrop,
+                                        embedded = true
+                                    )
+                                }
+
+                                TabletSettingsDest.Appreciate -> AppreciateAuthorScreen(
+                                    scrollBehavior = null,
+                                )
+
+
+                                TabletSettingsDest.Communication -> CommunicationScreen(
+                                    scrollBehavior = null,
                                 )
                             }
                         }
 
-                        TabletSettingsDest.Widget -> {
-                            Box(
-                                modifier = Modifier
-                                    .align(Alignment.BottomCenter)
-                                    .fillMaxWidth()
-                                    .padding(horizontal = 36.dp)
-                                    .navigationBarsPadding()
-                                    .padding(bottom = 20.dp)
-                            ) {
-                                LiquidGlassTextButton(
-                                    text = "添加到桌面",
-                                    onClick = {
-                                        hapticFeedback.performHapticFeedback(HapticFeedbackType.VirtualKey)
-                                        showWidgetGuideDialog = true
-                                    },
-                                    backdrop = rightPaneBackdrop,
-                                    modifier = Modifier.fillMaxWidth(),
-                                )
+                        // 底部操作按钮：与手机 Activity 层同款。玻璃按钮必须采样右栏本地 backdrop（兄弟节点，
+                        // 记录内容不含按钮本身）；不能采样全局 liquidGlassBackdrop——按钮就在全局玻璃层内，
+                        // 采样自身会触发循环采样。弹窗在根部 PopupHost 渲染，仍可正常采样全局层。
+                        val glassBackdrop = liquidGlassBackdrop
+                        if (glassBackdrop != null) when (selected) {
+                            TabletSettingsDest.Reminder -> {
+                                Box(
+                                    modifier = Modifier
+                                        .align(Alignment.BottomCenter)
+                                        .fillMaxWidth()
+                                        .padding(horizontal = 36.dp)
+                                        .navigationBarsPadding()
+                                        .padding(bottom = 20.dp)
+                                ) {
+                                    LiquidGlassTextButton(
+                                        text = if (islandEnabled) "测试小米超级岛" else "测试实时活动",
+                                        onClick = {
+                                            com.haooz.chedule.ui.utils.FeatureLog.reminderFlow(
+                                                "test_notification",
+                                                if (islandEnabled) "island" else "live"
+                                            )
+                                            if (islandEnabled) {
+                                                IslandNotificationHelper.sendTestIslandNotification(
+                                                    context
+                                                )
+                                                com.haooz.chedule.ui.utils.FeatureLog.reminderFlow("test_island_sent")
+                                                android.widget.Toast.makeText(
+                                                    context,
+                                                    "已发送超级岛测试通知",
+                                                    android.widget.Toast.LENGTH_SHORT
+                                                ).show()
+                                            } else {
+                                                CourseReminderHelper.sendTestLiveNotification(
+                                                    context
+                                                )
+                                                com.haooz.chedule.ui.utils.FeatureLog.reminderFlow("test_live_sent")
+                                                android.widget.Toast.makeText(
+                                                    context,
+                                                    "已发送实时活动测试通知",
+                                                    android.widget.Toast.LENGTH_SHORT
+                                                ).show()
+                                            }
+                                        },
+                                        backdrop = rightPaneBackdrop,
+                                        modifier = Modifier.fillMaxWidth(),
+                                    )
+                                }
                             }
 
-                            OverlayDialog(
-                                title = "添加桌面小部件",
-                                show = showWidgetGuideDialog,
-                                liquidGlassBackdrop = glassBackdrop,
-                                onDismissRequest = { showWidgetGuideDialog = false }
-                            ) {
-                                Column(
-                                    modifier = Modifier.fillMaxWidth(),
-                                    horizontalAlignment = Alignment.CenterHorizontally
+                            TabletSettingsDest.Widget -> {
+                                Box(
+                                    modifier = Modifier
+                                        .align(Alignment.BottomCenter)
+                                        .fillMaxWidth()
+                                        .padding(horizontal = 36.dp)
+                                        .navigationBarsPadding()
+                                        .padding(bottom = 20.dp)
                                 ) {
-                                    Text(
-                                        text = "1. 长按桌面空白处\n2. 选择「全部应用」内的「安卓小部件」\n3. 找到「Nexio课程表」并添加",
-                                        fontSize = 14.sp,
-                                        lineHeight = 24.sp,
-                                        color = MiuixTheme.colorScheme.onSurfaceVariantActions
-                                    )
-                                    Spacer(modifier = Modifier.height(20.dp))
-                                    TextButton(
-                                        text = "我知道了",
+                                    LiquidGlassTextButton(
+                                        text = "添加到桌面",
                                         onClick = {
-                                            hapticFeedback.performHapticFeedback(HapticFeedbackType.Confirm)
-                                            showWidgetGuideDialog = false
+                                            hapticFeedback.performHapticFeedback(HapticFeedbackType.VirtualKey)
+                                            showWidgetGuideDialog = true
                                         },
-                                        modifier = Modifier.fillMaxWidth()
+                                        backdrop = rightPaneBackdrop,
+                                        modifier = Modifier.fillMaxWidth(),
+                                    )
+                                }
+
+                                OverlayDialog(
+                                    title = "添加桌面小部件",
+                                    show = showWidgetGuideDialog,
+                                    liquidGlassBackdrop = glassBackdrop,
+                                    onDismissRequest = { showWidgetGuideDialog = false }
+                                ) {
+                                    Column(
+                                        modifier = Modifier.fillMaxWidth(),
+                                        horizontalAlignment = Alignment.CenterHorizontally
+                                    ) {
+                                        Text(
+                                            text = "1. 长按桌面空白处\n2. 选择「全部应用」内的「安卓小部件」\n3. 找到「Nexio课程表」并添加",
+                                            fontSize = 14.sp,
+                                            lineHeight = 24.sp,
+                                            color = MiuixTheme.colorScheme.onSurfaceVariantActions
+                                        )
+                                        Spacer(modifier = Modifier.height(20.dp))
+                                        TextButton(
+                                            text = "我知道了",
+                                            onClick = {
+                                                hapticFeedback.performHapticFeedback(
+                                                    HapticFeedbackType.Confirm
+                                                )
+                                                showWidgetGuideDialog = false
+                                            },
+                                            modifier = Modifier.fillMaxWidth()
+                                        )
+                                    }
+                                }
+                            }
+
+                            TabletSettingsDest.WebDav -> {
+                                Row(
+                                    modifier = Modifier
+                                        .align(Alignment.BottomCenter)
+                                        .fillMaxWidth()
+                                        .padding(horizontal = 36.dp)
+                                        .navigationBarsPadding()
+                                        .padding(bottom = 20.dp),
+                                    horizontalArrangement = Arrangement.spacedBy(12.dp)
+                                ) {
+                                    LiquidGlassTextButton(
+                                        text = if (webDavBackingUp) "备份中..." else "备份到云端",
+                                        onClick = { onWebDavBackup() },
+                                        backdrop = rightPaneBackdrop,
+                                        modifier = Modifier.weight(1f)
+                                    )
+                                    LiquidGlassTextButton(
+                                        text = if (webDavRestoring) "恢复中..." else "从云端恢复",
+                                        onClick = { onWebDavRestore() },
+                                        backdrop = rightPaneBackdrop,
+                                        modifier = Modifier.weight(1f)
+                                    )
+                                }
+                            }
+
+                            else -> {}
+                        }
+                    }
+                    // 关于应用页内嵌且自绘顶栏糊层/遮罩，这里不再叠加设置页右栏顶部糊层
+                    if (selected != TabletSettingsDest.About) {
+                        TabletPaneTopChrome(
+                            scrolledPx = rightScrollPx,
+                            backdrop = rightPaneBackdrop,
+                            modifier = Modifier.align(Alignment.TopStart),
+                            maskAlpha = rightMaskAlpha,
+                        )
+                    }
+
+                    // 右上角操作按钮：节假日「更新」、WebDAV「测试连接」。
+                    // 与底部按钮同理采样右栏本地 backdrop（兄弟节点，记录内容不含按钮）。
+                    // 作为 TabletPaneTopChrome 后的兄弟绘制，落在顶部糊层之上。
+                    // 出现/消失只动玻璃材质（backdropAlpha/shadowAlpha），图标常驻。
+                    if (liquidGlassBackdrop != null) when (selected) {
+                        TabletSettingsDest.Holiday -> {
+                            Box(
+                                modifier = Modifier
+                                    .align(Alignment.TopEnd)
+                                    .windowInsetsPadding(
+                                        WindowInsets.systemBars.only(
+                                            WindowInsetsSides.Top
+                                        )
+                                    )
+                                    .padding(top = 6.dp, end = 16.dp)
+                            ) {
+                                if (holidayLoading) {
+                                    Box(
+                                        modifier = Modifier
+                                            .offset(x = (-6).dp, y = (-4).dp)
+                                            .size(40.dp),
+                                        contentAlignment = Alignment.Center
+                                    ) {
+                                        CircularProgressIndicator(
+                                            modifier = Modifier.size(20.dp),
+                                            progress = null,
+                                        )
+                                    }
+                                } else {
+                                    LiquidTopBarButton(
+                                        onClick = { onHolidayUpdate() },
+                                        backdrop = rightPaneBackdrop,
+                                        icon = MiuixIcons.Normal.Update,
+                                        contentDescription = "更新",
+                                        iconSize = 28.dp,
+                                        backdropAlpha = rightMaskAlpha,
+                                        shadowAlpha = rightMaskAlpha,
                                     )
                                 }
                             }
                         }
 
                         TabletSettingsDest.WebDav -> {
-                            Row(
+                            Box(
                                 modifier = Modifier
-                                    .align(Alignment.BottomCenter)
-                                    .fillMaxWidth()
-                                    .padding(horizontal = 36.dp)
-                                    .navigationBarsPadding()
-                                    .padding(bottom = 20.dp),
-                                horizontalArrangement = Arrangement.spacedBy(12.dp)
+                                    .align(Alignment.TopEnd)
+                                    .windowInsetsPadding(
+                                        WindowInsets.systemBars.only(
+                                            WindowInsetsSides.Top
+                                        )
+                                    )
+                                    .padding(top = 6.dp, end = 16.dp)
                             ) {
-                                LiquidGlassTextButton(
-                                    text = if (webDavBackingUp) "备份中..." else "备份到云端",
-                                    onClick = { onWebDavBackup() },
+                                LiquidTopBarButton(
+                                    onClick = { onWebDavTestConnection() },
                                     backdrop = rightPaneBackdrop,
-                                    modifier = Modifier.weight(1f)
-                                )
-                                LiquidGlassTextButton(
-                                    text = if (webDavRestoring) "恢复中..." else "从云端恢复",
-                                    onClick = { onWebDavRestore() },
-                                    backdrop = rightPaneBackdrop,
-                                    modifier = Modifier.weight(1f)
+                                    icon = if (webDavConnected) MiuixIcons.Ok else MiuixIcons.Play,
+                                    contentDescription = if (webDavConnected) "已连接" else "测试连接",
+                                    iconTint = if (webDavConnected) Color(0xFF4CAF50) else Color.Unspecified,
+                                    iconOffset = if (!webDavConnected) DpOffset(
+                                        x = 2.dp,
+                                        y = 0.dp
+                                    ) else DpOffset.Zero,
+                                    backdropAlpha = rightMaskAlpha,
+                                    shadowAlpha = rightMaskAlpha,
                                 )
                             }
                         }
 
                         else -> {}
                     }
-                }
-                // 关于应用页内嵌且自绘顶栏糊层/遮罩，这里不再叠加设置页右栏顶部糊层
-                if (selected != TabletSettingsDest.About) {
-                    TabletPaneTopChrome(
-                        scrolledPx = rightScrollPx,
-                        backdrop = rightPaneBackdrop,
-                        modifier = Modifier.align(Alignment.TopStart),
-                        maskAlpha = rightMaskAlpha,
-                    )
-                }
 
-                // 右上角操作按钮：节假日「更新」、WebDAV「测试连接」。
-                // 与底部按钮同理采样右栏本地 backdrop（兄弟节点，记录内容不含按钮）。
-                // 作为 TabletPaneTopChrome 后的兄弟绘制，落在顶部糊层之上。
-                // 出现/消失只动玻璃材质（backdropAlpha/shadowAlpha），图标常驻。
-                if (liquidGlassBackdrop != null) when (selected) {
-                    TabletSettingsDest.Holiday -> {
+                    // 课表节数与时间：右栏叠编辑屏，从底部滑入/滑出（对齐 BlurBottomSheet 曲线时长，无透明度变化）
+                    if (editingTimeConfig != null) {
                         Box(
                             modifier = Modifier
-                                .align(Alignment.TopEnd)
-                                .windowInsetsPadding(WindowInsets.systemBars.only(WindowInsetsSides.Top))
-                                .padding(top = 6.dp, end = 16.dp)
+                                .fillMaxSize()
+                                .graphicsLayer {
+                                    translationY = timeEditorSlide.value * size.height
+                                }
                         ) {
-                            if (holidayLoading) {
-                                Box(
-                                    modifier = Modifier
-                                        .offset(x = (-6).dp, y = (-4).dp)
-                                        .size(40.dp),
-                                    contentAlignment = Alignment.Center
-                                ) {
-                                    CircularProgressIndicator(
-                                        modifier = Modifier.size(20.dp),
-                                        progress = null,
+                            editingTimeConfig?.let { config ->
+                                BoxWithConstraints(modifier = Modifier.fillMaxSize()) {
+                                    val editDensity = LocalDensity.current
+                                    TimeConfigEditScreen(
+                                        timeConfig = config,
+                                        onBack = {
+                                            uiScope.launch {
+                                                timeEditorSlide.animateTo(
+                                                    1f,
+                                                    animationSpec = tween(
+                                                        320,
+                                                        easing = CubicBezierEasing(
+                                                            0.34f,
+                                                            1f,
+                                                            0.3f,
+                                                            1f
+                                                        )
+                                                    )
+                                                )
+                                                editingTimeConfig = null
+                                                creatingTimeConfig = false
+                                            }
+                                            uiScope.launch {
+                                                delay(40.milliseconds) // 标题延迟 40ms 恢复
+                                                TabletSettingsUiState.timeEditorOpen = false
+                                            }
+                                        },
+                                        onSave = { savedConfig ->
+                                            if (creatingTimeConfig) {
+                                                val newId =
+                                                    courseRepository.addTimeConfig(savedConfig)
+                                                courseRepository.switchToTimeConfig(newId)
+                                            } else {
+                                                courseRepository.saveTimeConfig(savedConfig)
+                                                if (savedConfig.id ==
+                                                    courseRepository.getCurrentTimeConfigId()
+                                                ) {
+                                                    courseRepository.switchToTimeConfig(savedConfig.id)
+                                                }
+                                            }
+                                            timeConfigRefreshTrigger++
+                                            uiScope.launch {
+                                                timeEditorSlide.animateTo(
+                                                    1f,
+                                                    animationSpec = tween(
+                                                        320,
+                                                        easing = CubicBezierEasing(
+                                                            0.34f,
+                                                            1f,
+                                                            0.3f,
+                                                            1f
+                                                        )
+                                                    )
+                                                )
+                                                editingTimeConfig = null
+                                                creatingTimeConfig = false
+                                            }
+                                            uiScope.launch {
+                                                delay(40.milliseconds) // 标题延迟 40ms 恢复
+                                                TabletSettingsUiState.timeEditorOpen = false
+                                            }
+                                        },
+                                        screenWidth = with(editDensity) { maxWidth.toPx() },
+                                        screenHeight = with(editDensity) { maxHeight.toPx() },
+                                        liquidGlassBackdrop = rightPaneBackdrop,
                                     )
                                 }
-                            } else {
-                                LiquidTopBarButton(
-                                    onClick = { onHolidayUpdate() },
-                                    backdrop = rightPaneBackdrop,
-                                    icon = MiuixIcons.Normal.Update,
-                                    contentDescription = "更新",
-                                    iconSize = 28.dp,
-                                    backdropAlpha = rightMaskAlpha,
-                                    shadowAlpha = rightMaskAlpha,
-                                )
                             }
                         }
                     }
-
-                    TabletSettingsDest.WebDav -> {
-                        Box(
-                            modifier = Modifier
-                                .align(Alignment.TopEnd)
-                                .windowInsetsPadding(WindowInsets.systemBars.only(WindowInsetsSides.Top))
-                                .padding(top = 6.dp, end = 16.dp)
-                        ) {
-                            LiquidTopBarButton(
-                                onClick = { onWebDavTestConnection() },
-                                backdrop = rightPaneBackdrop,
-                                icon = if (webDavConnected) MiuixIcons.Ok else MiuixIcons.Play,
-                                contentDescription = if (webDavConnected) "已连接" else "测试连接",
-                                iconTint = if (webDavConnected) Color(0xFF4CAF50) else Color.Unspecified,
-                                iconOffset = if (!webDavConnected) DpOffset(x = 2.dp, y = 0.dp) else DpOffset.Zero,
-                                backdropAlpha = rightMaskAlpha,
-                                shadowAlpha = rightMaskAlpha,
-                            )
-                        }
-                    }
-
-                    else -> {}
-                }
-
-                // 课表节数与时间：右栏叠编辑屏，从底部滑入/滑出（对齐 BlurBottomSheet 曲线时长，无透明度变化）
-                if (editingTimeConfig != null) {
-                    Box(
-                        modifier = Modifier
-                            .fillMaxSize()
-                            .graphicsLayer {
-                                translationY = timeEditorSlide.value * size.height
-                            }
-                    ) {
-                        editingTimeConfig?.let { config ->
-                            BoxWithConstraints(modifier = Modifier.fillMaxSize()) {
-                                val editDensity = LocalDensity.current
-                                TimeConfigEditScreen(
-                                    timeConfig = config,
-                                    onBack = {
-                                        uiScope.launch {
-                                            timeEditorSlide.animateTo(
-                                                1f,
-                                                animationSpec = tween(
-                                                    320,
-                                                    easing = CubicBezierEasing(0.34f, 1f, 0.3f, 1f)
-                                                )
-                                            )
-                                            editingTimeConfig = null
-                                            creatingTimeConfig = false
-                                        }
-                                        uiScope.launch {
-                                            delay(40.milliseconds) // 标题延迟 40ms 恢复
-                                            TabletSettingsUiState.timeEditorOpen = false
-                                        }
-                                    },
-                                    onSave = { savedConfig ->
-                                        if (creatingTimeConfig) {
-                                            val newId = courseRepository.addTimeConfig(savedConfig)
-                                            courseRepository.switchToTimeConfig(newId)
-                                        } else {
-                                            courseRepository.saveTimeConfig(savedConfig)
-                                            if (savedConfig.id ==
-                                                courseRepository.getCurrentTimeConfigId()
-                                            ) {
-                                                courseRepository.switchToTimeConfig(savedConfig.id)
-                                            }
-                                        }
-                                        timeConfigRefreshTrigger++
-                                        uiScope.launch {
-                                            timeEditorSlide.animateTo(
-                                                1f,
-                                                animationSpec = tween(
-                                                    320,
-                                                    easing = CubicBezierEasing(0.34f, 1f, 0.3f, 1f)
-                                                )
-                                            )
-                                            editingTimeConfig = null
-                                            creatingTimeConfig = false
-                                        }
-                                        uiScope.launch {
-                                            delay(40.milliseconds) // 标题延迟 40ms 恢复
-                                            TabletSettingsUiState.timeEditorOpen = false
-                                        }
-                                    },
-                                    screenWidth = with(editDensity) { maxWidth.toPx() },
-                                    screenHeight = with(editDensity) { maxHeight.toPx() },
-                                    liquidGlassBackdrop = rightPaneBackdrop,
-                                )
-                            }
-                        }
-                    }
-                }
                 }
             }
         }
@@ -979,9 +1092,57 @@ fun TabletSettingsScreen(
                 .background(dividerColor)
         )
     }
+
+    // 进入排班模式确认
+    OverlayDialog(
+        title = "进入排班模式",
+        summary = "将切换到排班课表模式，可同时对比多个课表的排班情况。确定进入？",
+        show = showShiftModeConfirmDialog,
+        liquidGlassBackdrop = liquidGlassBackdrop,
+        onDismissRequest = { showShiftModeConfirmDialog = false },
+    ) {
+        Column(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalAlignment = Alignment.CenterHorizontally
+        ) {
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(top = 16.dp),
+                horizontalArrangement = Arrangement.spacedBy(12.dp)
+            ) {
+                TextButton(
+                    text = "取消",
+                    onClick = {
+                        hapticFeedback.performHapticFeedback(HapticFeedbackType.Confirm)
+                        showShiftModeConfirmDialog = false
+                    },
+                    modifier = Modifier.weight(1f)
+                )
+                TextButton(
+                    text = "确定",
+                    onClick = {
+                        hapticFeedback.performHapticFeedback(HapticFeedbackType.Confirm)
+                        showShiftModeConfirmDialog = false
+                        uiScope.launch {
+                            delay(100.milliseconds)
+                            onEnterShiftMode()
+                        }
+                    },
+                    colors = ButtonDefaults.textButtonColorsPrimary(),
+                    modifier = Modifier.weight(1f)
+                )
+            }
+        }
+    }
 }
 
-/** 左栏底部独立卡片：关于应用 / 捐赠支持 / 交流与反馈（不新建分类，仅拆成独立卡片） */
+/** 左栏单独卡片：课表导出（从「导入与导出」分类拆出） */
+private val StandaloneDests = listOf(
+    TabletSettingsDest.ScheduleExport,
+)
+
+/** 左栏「其他」分类下独立卡片：关于应用 / 捐赠支持 / 交流与反馈（不新建分类） */
 private val BottomMoreDests = listOf(
     TabletSettingsDest.About,
     TabletSettingsDest.Appreciate,
@@ -1008,8 +1169,8 @@ private fun TabletSemesterPane(
     viewModel: CourseViewModel,
     scheduleViewModel: ScheduleViewModel,
     settingsViewModel: SettingsViewModel,
+    shiftViewModel: ShiftViewModel,
     isShiftMode: Boolean,
-    onExitShiftMode: () -> Unit,
     liquidGlassBackdrop: com.kyant.backdrop.Backdrop?,
     scrollBehavior: com.haooz.chedule.ui.basic.SharedScrollBehavior? = null,
 ) {
@@ -1022,13 +1183,19 @@ private fun TabletSemesterPane(
     val isSemesterStarted by viewModel.isSemesterStarted.collectAsState()
     val classStartTime by viewModel.classStartTime.collectAsState()
     val scheduleNames by scheduleViewModel.scheduleNames.collectAsState()
+    val scheduleSummaries by scheduleViewModel.scheduleSummaries.collectAsState()
+    val shiftSelectedSchedules by shiftViewModel.shiftSelectedSchedules.collectAsState()
 
     var showStartDateDialog by remember { mutableStateOf(false) }
     var showCurrentWeekDialog by remember { mutableStateOf(false) }
     var showTotalWeeksDialog by remember { mutableStateOf(false) }
     var showNewSemesterDialog by remember { mutableStateOf(false) }
     var newSemesterName by remember { mutableStateOf("") }
-    val (tempYearInit, tempMonthInit, tempDayInit) = remember(classStartTime) { parseDate(classStartTime) }
+    val (tempYearInit, tempMonthInit, tempDayInit) = remember(classStartTime) {
+        parseDate(
+            classStartTime
+        )
+    }
     var tempYear by remember { mutableIntStateOf(tempYearInit) }
     var tempMonth by remember { mutableIntStateOf(tempMonthInit) }
     var tempDay by remember { mutableIntStateOf(tempDayInit) }
@@ -1133,50 +1300,61 @@ private fun TabletSemesterPane(
             }
         }
         if (isShiftMode) {
-            item {
-                SmallTitle(text = "排班", modifier = Modifier.offset(x = (-16).dp))
+            // 排班模式：选择要对比的课表
+            item(key = "shift_schedules") {
+                SmallTitle(
+                    text = "选择对比课表",
+                    modifier = Modifier.offset(x = (-16).dp)
+                )
                 Card(
                     cornerRadius = 20.dp,
                     modifier = Modifier.fillMaxWidth(),
                     insideMargin = PaddingValues(0.dp)
                 ) {
-                    Column(modifier = Modifier.padding(16.dp)) {
-                        Text(
-                            text = "排班模式已开启",
-                            style = MiuixTheme.textStyles.body1,
-                            color = MiuixTheme.colorScheme.onSurface
-                        )
-                        Spacer(Modifier.height(8.dp))
-                        TextButton(
-                            text = "退出排班模式",
-                            onClick = onExitShiftMode,
-                            modifier = Modifier.fillMaxWidth()
-                        )
+                    Column(modifier = Modifier.fillMaxWidth()) {
+                        scheduleNames.forEach { name ->
+                            CheckboxPreference(
+                                title = name,
+                                summary = scheduleSummaries[name] ?: "",
+                                checked = name in shiftSelectedSchedules,
+                                onCheckedChange = { checked ->
+                                    val newList = if (checked) {
+                                        shiftSelectedSchedules + name
+                                    } else {
+                                        shiftSelectedSchedules - name
+                                    }
+                                    shiftViewModel.setShiftSelectedSchedules(newList)
+                                },
+                                checkboxLocation = CheckboxLocation.End
+                            )
+                        }
                     }
                 }
             }
         }
-        // 开启新学期：始终在页面最底部，独立卡片
-        item(key = "new_semester") {
-            SmallTitle(
-                text = "其他操作",
-                modifier = Modifier.offset(x = (-16).dp)
-            )
-            Card(
-                cornerRadius = 20.dp,
-                modifier = Modifier.fillMaxWidth(),
-                insideMargin = PaddingValues(0.dp)
-            ) {
-                Column(modifier = Modifier.fillMaxWidth()) {
-                    ArrowPreference(
-                        title = "开启新学期",
-                        summary = "复用当前课表设置，创建空课程的新课表",
-                        onClick = {
-                            newSemesterName = ""
-                            showNewSemesterDialog = true
-                        },
-                        holdDownState = showNewSemesterDialog
-                    )
+        // 开启新学期：始终在页面最底部，独立卡片（排班模式不显示）
+        if (!isShiftMode) {
+            item(key = "new_semester") {
+                SmallTitle(
+                    text = "其他操作",
+                    modifier = Modifier.offset(x = (-16).dp)
+                )
+                Card(
+                    cornerRadius = 20.dp,
+                    modifier = Modifier.fillMaxWidth(),
+                    insideMargin = PaddingValues(0.dp)
+                ) {
+                    Column(modifier = Modifier.fillMaxWidth()) {
+                        ArrowPreference(
+                            title = "开启新学期",
+                            summary = "复用当前课表设置，创建空课程的新课表",
+                            onClick = {
+                                newSemesterName = ""
+                                showNewSemesterDialog = true
+                            },
+                            holdDownState = showNewSemesterDialog
+                        )
+                    }
                 }
             }
         }
@@ -1205,7 +1383,9 @@ private fun TabletSemesterPane(
                 requestFocus = showNewSemesterDialog
             )
             Row(
-                modifier = Modifier.fillMaxWidth().padding(top = 16.dp),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(top = 16.dp),
                 horizontalArrangement = Arrangement.spacedBy(12.dp)
             ) {
                 TextButton(
@@ -1259,7 +1439,8 @@ private fun TabletSemesterPane(
             modifier = Modifier.fillMaxWidth(),
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
-            val maxDaysInMonth = remember(tempYear, tempMonth) { getDaysInMonth(tempYear, tempMonth) }
+            val maxDaysInMonth =
+                remember(tempYear, tempMonth) { getDaysInMonth(tempYear, tempMonth) }
             LaunchedEffect(maxDaysInMonth) {
                 if (tempDay > maxDaysInMonth) tempDay = maxDaysInMonth
             }
@@ -1301,7 +1482,9 @@ private fun TabletSemesterPane(
                 )
             }
             Row(
-                modifier = Modifier.fillMaxWidth().padding(top = 12.dp),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(top = 12.dp),
                 horizontalArrangement = Arrangement.spacedBy(12.dp)
             ) {
                 TextButton(
@@ -1334,14 +1517,19 @@ private fun TabletSemesterPane(
         liquidGlassBackdrop = liquidGlassBackdrop,
         onDismissRequest = { showCurrentWeekDialog = false }
     ) {
-        Column(modifier = Modifier.fillMaxWidth(), horizontalAlignment = Alignment.CenterHorizontally) {
+        Column(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalAlignment = Alignment.CenterHorizontally
+        ) {
             NumberPicker(
                 value = tempCurrentWeek,
                 onValueChange = { tempCurrentWeek = it },
                 range = 1..totalWeeks.coerceAtLeast(1),
                 visibleItemCount = 3,
                 itemHeight = 60.dp,
-                modifier = Modifier.fillMaxWidth().padding(bottom = 20.dp)
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(bottom = 20.dp)
             )
             Row(
                 modifier = Modifier.fillMaxWidth(),
@@ -1376,14 +1564,19 @@ private fun TabletSemesterPane(
         liquidGlassBackdrop = liquidGlassBackdrop,
         onDismissRequest = { showTotalWeeksDialog = false }
     ) {
-        Column(modifier = Modifier.fillMaxWidth(), horizontalAlignment = Alignment.CenterHorizontally) {
+        Column(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalAlignment = Alignment.CenterHorizontally
+        ) {
             NumberPicker(
                 value = tempTotalWeeks,
                 onValueChange = { tempTotalWeeks = it },
                 range = 1..30,
                 visibleItemCount = 3,
                 itemHeight = 60.dp,
-                modifier = Modifier.fillMaxWidth().padding(bottom = 20.dp)
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(bottom = 20.dp)
             )
             Row(
                 modifier = Modifier.fillMaxWidth(),
@@ -1461,7 +1654,7 @@ private fun TabletHolidayPane(
         }
     }
     val latestUpdate by rememberUpdatedState(doUpdate)
-    LaunchedEffect(Unit) { onUpdateReady({ latestUpdate() }) }
+    LaunchedEffect(Unit) { onUpdateReady { latestUpdate() } }
     LaunchedEffect(loading) { onLoadingChange(loading) }
 
     HolidaySettingsScreen(

@@ -205,6 +205,7 @@ fun SettingsScreen(
             shiftViewModel = shiftViewModel,
             isShiftMode = isShiftMode,
             onExitShiftMode = onExitShiftMode,
+            onEnterShiftMode = onEnterShiftMode,
             liquidGlassBackdrop = liquidGlassBackdrop,
         )
         return
@@ -487,7 +488,6 @@ fun SettingsScreen(
                             ) {
                                 ArrowPreference(
                                     title = "课表导入",
-                                    summary = "AI文本、教务、文件、分享口令",
                                     holdDownState = ScheduleImportActivities.any { it in activeSecondaryActivities },
                                     onClick = {
                                         FeatureLog.import("open")
@@ -498,7 +498,6 @@ fun SettingsScreen(
                                 )
                                 ArrowPreference(
                                     title = "课表导出",
-                                    summary = "文件、口令分享",
                                     holdDownState = ScheduleExportActivities.any { it in activeSecondaryActivities },
                                     onClick = {
                                         FeatureLog.backup("open_export")
@@ -509,7 +508,6 @@ fun SettingsScreen(
                                 )
                                 ArrowPreference(
                                     title = "课表备份",
-                                    summary = "本地备份、WebDAV云备份",
                                     holdDownState = ScheduleBackupActivities.any { it in activeSecondaryActivities },
                                     onClick = {
                                         FeatureLog.backup("open_backup")
