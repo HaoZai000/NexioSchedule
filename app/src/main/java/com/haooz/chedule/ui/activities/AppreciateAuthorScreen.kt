@@ -142,22 +142,28 @@ fun AppreciateAuthorScreen(
                 verticalArrangement = Arrangement.spacedBy(12.dp)
             ) {
                 item {
-                    Card(
-                        cornerRadius = 20.dp,
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .aspectRatio(1f),
-                        insideMargin = PaddingValues(0.dp)
+                    // 平板端赞赏码卡片居中并占 0.8 宽
+                    Box(
+                        modifier = Modifier.fillMaxWidth(),
+                        contentAlignment = Alignment.Center
                     ) {
-                        Image(
-                            painter = painterResource(id = R.drawable.zanshangma),
-                            contentDescription = "赞赏码",
+                        Card(
+                            cornerRadius = 20.dp,
                             modifier = Modifier
-                                .fillMaxSize()
-                                .padding(14.dp)
-                                .clip(ContinuousRoundedRectangle(10.dp)),
-                            contentScale = ContentScale.Crop,
-                        )
+                                .fillMaxWidth(if (isTablet) 0.8f else 1f)
+                                .aspectRatio(1f),
+                            insideMargin = PaddingValues(0.dp)
+                        ) {
+                            Image(
+                                painter = painterResource(id = R.drawable.zanshangma),
+                                contentDescription = "赞赏码",
+                                modifier = Modifier
+                                    .fillMaxSize()
+                                    .padding(14.dp)
+                                    .clip(ContinuousRoundedRectangle(10.dp)),
+                                contentScale = ContentScale.Crop,
+                            )
+                        }
                     }
                 }
 

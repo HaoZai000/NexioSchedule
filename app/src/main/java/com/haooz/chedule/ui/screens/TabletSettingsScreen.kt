@@ -1,6 +1,8 @@
 package com.haooz.chedule.ui.screens
 
 import androidx.compose.animation.core.Animatable
+import androidx.compose.animation.core.CubicBezierEasing
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -10,6 +12,7 @@ import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.WindowInsetsSides
 import androidx.compose.foundation.layout.asPaddingValues
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
@@ -17,11 +20,12 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.offset
+import androidx.compose.foundation.layout.only
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.statusBars
-import androidx.compose.foundation.layout.statusBarsPadding
+import androidx.compose.foundation.layout.systemBars
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.material3.Text
@@ -138,6 +142,8 @@ enum class TabletSettingsDest(val title: String, val group: String) {
 /** 平板设置选中项：MainActivity 叠层读它画固定标题 */
 object TabletSettingsUiState {
     var selected by mutableStateOf(TabletSettingsDest.Semester)
+    /** 课表节数与时间的编辑屏是否打开：打开时叠层不画右栏标题，避免与编辑屏标题重合 */
+    var timeEditorOpen by mutableStateOf(false)
 }
 
 /**
@@ -149,7 +155,7 @@ object TabletSettingsUiState {
 fun TabletSettingsChromeOverlay() {
     val selected = TabletSettingsUiState.selected
     val density = LocalDensity.current
-    val statusBar = WindowInsets.statusBars.asPaddingValues().calculateTopPadding()
+    val statusBar = mainWindowTopInset()
     val collapsedH = com.haooz.chedule.ui.basic.CollapsibleTopAppBarDefaults.CollapsedHeight
     val dividerColor = if (com.haooz.chedule.ui.utils.isAppDarkTheme()) {
         androidx.compose.ui.graphics.Color.White.copy(alpha = 0.08f)
@@ -200,8 +206,8 @@ fun TabletSettingsChromeOverlay() {
             collapsedTitle("我的")
         }
 
-        // 关于应用内嵌自绘顶栏标题，设置页叠加层不再画它的右栏标题，避免双标题
-        if (selected != TabletSettingsDest.About) {
+        // 关于应用内嵌自绘顶栏标题 / 编辑屏打开时，设置页叠加层不再画右栏标题，避免重合
+        if (selected != TabletSettingsDest.About && !TabletSettingsUiState.timeEditorOpen) {
             Box(
                 modifier = Modifier
                     .align(Alignment.TopStart)
@@ -216,11 +222,18 @@ fun TabletSettingsChromeOverlay() {
     }
 }
 
-/** pad 设置左右栏顶部糊层高度：120.dp + 状态栏 */
+/**
+ * 当前窗口顶部系统内边距。对齐 CollapsibleTopAppBar：用 systemBars 仅取顶部，
+ * 分屏/自由窗口下 statusBars 顶部为 0，用 systemBars 才不会让内容贴顶。
+ */
+@Composable
+private fun mainWindowTopInset(): Dp =
+    WindowInsets.systemBars.only(WindowInsetsSides.Top).asPaddingValues().calculateTopPadding()
+
+/** pad 设置左右栏顶部糊层高度：120.dp + 顶部内边距 */
 private val TabletPaneBlurHeight: Dp
     @Composable get() {
-        val statusBar = WindowInsets.statusBars.asPaddingValues().calculateTopPadding()
-        return 80.dp + statusBar
+        return 80.dp + mainWindowTopInset()
     }
 
 /**
@@ -371,8 +384,7 @@ fun TabletSettingsScreen(
     val context = LocalContext.current
     val paneHorizontal = 20.dp
     // 顶栏折叠标题高度：左右内容都从这条线下方开始，避免被 MainActivity 叠层标题压住
-    val chromeTop =
-        WindowInsets.statusBars.asPaddingValues().calculateTopPadding() +
+    val chromeTop = mainWindowTopInset() +
             com.haooz.chedule.ui.basic.CollapsibleTopAppBarDefaults.CollapsedHeight +
             12.dp
 
@@ -391,6 +403,20 @@ fun TabletSettingsScreen(
     var onWebDavTestConnection by remember { mutableStateOf({}) }
     var holidayLoading by remember { mutableStateOf(false) }
     var onHolidayUpdate by remember { mutableStateOf({}) }
+    // 课表节数与时间：右栏叠编辑屏
+    val courseRepository = remember { com.haooz.chedule.data.CourseRepository(context) }
+    var editingTimeConfig by remember { mutableStateOf<com.haooz.chedule.data.TimeConfig?>(null) }
+    var creatingTimeConfig by remember { mutableStateOf(false) }
+    var timeConfigRefreshTrigger by remember { mutableIntStateOf(0) }
+    val uiScope = rememberCoroutineScope()
+    // 1 = 完全在右侧屏外，0 = 完全滑入；退出时先滑到 1 再清空配置，保证退场有内容
+    val timeEditorSlide = remember { Animatable(1f) }
+    // 切页时收起编辑屏，并恢复叠加层标题
+    LaunchedEffect(selected) {
+        editingTimeConfig = null
+        creatingTimeConfig = false
+        TabletSettingsUiState.timeEditorOpen = false
+    }
     val islandNotification by settingsViewModel.islandNotification.collectAsState()
     val islandSupported = remember { IslandNotificationHelper.isIslandSupported(context) }
     val islandEnabled = islandNotification && islandSupported
@@ -550,8 +576,40 @@ fun TabletSettingsScreen(
                             )
 
                             TabletSettingsDest.CourseTime -> CourseTimeSettingsScreen(
-                                onEditConfig = { _, _ -> },
-                                onCreateConfig = {},
+                                onEditConfig = { config, _ ->
+                                    // 从 repository 重读最新配置，避免使用缓存旧数据
+                                    editingTimeConfig =
+                                        courseRepository.getTimeConfig(config.id) ?: config
+                                    creatingTimeConfig = false
+                                    TabletSettingsUiState.timeEditorOpen = true
+                                    uiScope.launch {
+                                        timeEditorSlide.snapTo(1f)
+                                        timeEditorSlide.animateTo(
+                                            0f,
+                                            animationSpec = tween(
+                                                520,
+                                                easing = CubicBezierEasing(0.3f, 0.92f, 0.3f, 1f)
+                                            )
+                                        )
+                                    }
+                                },
+                                onCreateConfig = {
+                                    editingTimeConfig =
+                                        com.haooz.chedule.data.TimeConfig(name = "")
+                                    creatingTimeConfig = true
+                                    TabletSettingsUiState.timeEditorOpen = true
+                                    uiScope.launch {
+                                        timeEditorSlide.snapTo(1f)
+                                        timeEditorSlide.animateTo(
+                                            0f,
+                                            animationSpec = tween(
+                                                480,
+                                                easing = CubicBezierEasing(0.34f, 1.12f, 0.3f, 1f)
+                                            )
+                                        )
+                                    }
+                                },
+                                refreshTrigger = timeConfigRefreshTrigger,
                                 scrollBehavior = null,
                                 liquidGlassBackdrop = liquidGlassBackdrop,
                                 hideFab = true,
@@ -793,7 +851,7 @@ fun TabletSettingsScreen(
                         Box(
                             modifier = Modifier
                                 .align(Alignment.TopEnd)
-                                .statusBarsPadding()
+                                .windowInsetsPadding(WindowInsets.systemBars.only(WindowInsetsSides.Top))
                                 .padding(top = 6.dp, end = 16.dp)
                         ) {
                             if (holidayLoading) {
@@ -826,7 +884,7 @@ fun TabletSettingsScreen(
                         Box(
                             modifier = Modifier
                                 .align(Alignment.TopEnd)
-                                .statusBarsPadding()
+                                .windowInsetsPadding(WindowInsets.systemBars.only(WindowInsetsSides.Top))
                                 .padding(top = 6.dp, end = 16.dp)
                         ) {
                             LiquidTopBarButton(
@@ -843,6 +901,69 @@ fun TabletSettingsScreen(
                     }
 
                     else -> {}
+                }
+
+                // 课表节数与时间：右栏叠编辑屏，从底部滑入/滑出（对齐 BlurBottomSheet 曲线时长，无透明度变化）
+                if (editingTimeConfig != null) {
+                    Box(
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .graphicsLayer {
+                                translationY = timeEditorSlide.value * size.height
+                            }
+                    ) {
+                        editingTimeConfig?.let { config ->
+                            BoxWithConstraints(modifier = Modifier.fillMaxSize()) {
+                                val editDensity = androidx.compose.ui.platform.LocalDensity.current
+                                TimeConfigEditScreen(
+                                    timeConfig = config,
+                                    onBack = {
+                                        uiScope.launch {
+                                            timeEditorSlide.animateTo(
+                                                1f,
+                                                animationSpec = tween(
+                                                    320,
+                                                    easing = CubicBezierEasing(0.34f, 1f, 0.3f, 1f)
+                                                )
+                                            )
+                                            editingTimeConfig = null
+                                            creatingTimeConfig = false
+                                            TabletSettingsUiState.timeEditorOpen = false
+                                        }
+                                    },
+                                    onSave = { savedConfig ->
+                                        if (creatingTimeConfig) {
+                                            val newId = courseRepository.addTimeConfig(savedConfig)
+                                            courseRepository.switchToTimeConfig(newId)
+                                        } else {
+                                            courseRepository.saveTimeConfig(savedConfig)
+                                            if (savedConfig.id ==
+                                                courseRepository.getCurrentTimeConfigId()
+                                            ) {
+                                                courseRepository.switchToTimeConfig(savedConfig.id)
+                                            }
+                                        }
+                                        timeConfigRefreshTrigger++
+                                        uiScope.launch {
+                                            timeEditorSlide.animateTo(
+                                                1f,
+                                                animationSpec = tween(
+                                                    320,
+                                                    easing = CubicBezierEasing(0.34f, 1f, 0.3f, 1f)
+                                                )
+                                            )
+                                            editingTimeConfig = null
+                                            creatingTimeConfig = false
+                                            TabletSettingsUiState.timeEditorOpen = false
+                                        }
+                                    },
+                                    screenWidth = with(editDensity) { maxWidth.toPx() },
+                                    screenHeight = with(editDensity) { maxHeight.toPx() },
+                                    liquidGlassBackdrop = rightPaneBackdrop,
+                                )
+                            }
+                        }
+                    }
                 }
                 }
             }
@@ -908,8 +1029,7 @@ private fun TabletSemesterPane(
     var tempCurrentWeek by remember { mutableIntStateOf(currentWeek) }
     var tempTotalWeeks by remember { mutableIntStateOf(totalWeeks) }
 
-    val chromeTop =
-        WindowInsets.statusBars.asPaddingValues().calculateTopPadding() +
+    val chromeTop = mainWindowTopInset() +
             com.haooz.chedule.ui.basic.CollapsibleTopAppBarDefaults.CollapsedHeight +
             12.dp
 
