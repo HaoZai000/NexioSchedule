@@ -93,6 +93,7 @@ import com.haooz.chedule.viewmodel.ShiftViewModel
 import com.kyant.backdrop.backdrops.layerBackdrop
 import com.kyant.backdrop.backdrops.rememberLayerBackdrop
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import top.yukonga.miuix.kmp.anim.folmeSpring
@@ -114,6 +115,7 @@ import java.net.HttpURLConnection
 import java.net.URL
 import java.time.LocalDate
 import kotlin.math.abs
+import kotlin.time.Duration.Companion.milliseconds
 
 /**
  * 平板设置页目的地：原一级 + 原二级入口全部平铺在左栏；
@@ -154,34 +156,20 @@ object TabletSettingsUiState {
 @Composable
 fun TabletSettingsChromeOverlay() {
     val selected = TabletSettingsUiState.selected
-    val density = LocalDensity.current
     val statusBar = mainWindowTopInset()
     val collapsedH = com.haooz.chedule.ui.basic.CollapsibleTopAppBarDefaults.CollapsedHeight
-    val dividerColor = if (com.haooz.chedule.ui.utils.isAppDarkTheme()) {
-        androidx.compose.ui.graphics.Color.White.copy(alpha = 0.08f)
-    } else {
-        androidx.compose.ui.graphics.Color.Black.copy(alpha = 0.06f)
-    }
     val titleColor = MiuixTheme.colorScheme.onSurface
 
     BoxWithConstraints(
         modifier = Modifier
             .fillMaxSize()
-            .zIndex(24f)
+            // 只高于右栏面板内容(0)，但低于 OverlayDialog 弹窗(z>=1)，避免分割线盖到弹窗上
+            .zIndex(0.5f)
     ) {
         val sidePad = com.haooz.chedule.ui.components.tabletNavSideStartPadding()
         val contentWidth = maxWidth - sidePad
         val leftWidth = contentWidth * 0.42f
         val dividerX = sidePad + leftWidth
-
-        Box(
-            modifier = Modifier
-                .align(Alignment.TopStart)
-                .offset { IntOffset(with(density) { dividerX.toPx().toInt() }, 0) }
-                .width(1.dp)
-                .fillMaxHeight()
-                .background(dividerColor)
-        )
 
         // 折叠态标题：状态栏下 CollapsedHeight 内垂直居中
         val collapsedTitle: @Composable (String) -> Unit = { text ->
@@ -275,7 +263,7 @@ private fun TabletPaneTopChrome(
     modifier: Modifier = Modifier,
     maskAlpha: Float? = null,
 ) {
-    val resolvedMaskAlpha = if (maskAlpha != null) maskAlpha else rememberPaneMaskAlpha(scrolledPx)
+    val resolvedMaskAlpha = maskAlpha ?: rememberPaneMaskAlpha(scrolledPx)
     val maskHeight = TabletPaneBlurHeight
     val gradientColor = if (com.haooz.chedule.ui.utils.isAppDarkTheme()) Color.Black else Color.White
 
@@ -377,7 +365,6 @@ fun TabletSettingsScreen(
     isShiftMode: Boolean,
     onExitShiftMode: () -> Unit,
     liquidGlassBackdrop: com.kyant.backdrop.Backdrop? = null,
-    settingsScrollBehavior: com.haooz.chedule.ui.basic.SharedScrollBehavior? = null,
 ) {
     val selected = TabletSettingsUiState.selected
     val groups = remember { TabletSettingsDest.entries.groupBy { it.group } }
@@ -439,8 +426,17 @@ fun TabletSettingsScreen(
     val rightOverScroll = remember { OverScrollState() }
 
     BoxWithConstraints(modifier = Modifier.fillMaxSize()) {
+        val density = LocalDensity.current
         val leftWidth = maxWidth * 0.42f
         val rightWidth = maxWidth - leftWidth
+        // screen 层内容已位于导航栏之外（pager 已按 railPadding 前移），分界就在左栏宽度处
+        val dividerX = leftWidth
+        val dividerColor =
+            if (com.haooz.chedule.ui.utils.isAppDarkTheme()) {
+                Color.White.copy(alpha = 0.1f)
+            } else {
+                Color.Black.copy(alpha = 0.06f)
+            }
         val surfaceColor = MiuixTheme.colorScheme.surface
         val leftPaneBackdrop = rememberLayerBackdrop {
             drawRect(surfaceColor)
@@ -568,7 +564,6 @@ fun TabletSettingsScreen(
                                 viewModel = viewModel,
                                 scheduleViewModel = scheduleViewModel,
                                 settingsViewModel = settingsViewModel,
-                                shiftViewModel = shiftViewModel,
                                 isShiftMode = isShiftMode,
                                 onExitShiftMode = onExitShiftMode,
                                 liquidGlassBackdrop = liquidGlassBackdrop,
@@ -695,7 +690,7 @@ fun TabletSettingsScreen(
 
                             TabletSettingsDest.About -> {
                                 val aboutBackdrop =
-                                    com.kyant.backdrop.backdrops.rememberLayerBackdrop()
+                                    rememberLayerBackdrop()
                                 AboutScreen(onBack = {}, liquidGlassBackdrop = aboutBackdrop, embedded = true)
                             }
 
@@ -914,7 +909,7 @@ fun TabletSettingsScreen(
                     ) {
                         editingTimeConfig?.let { config ->
                             BoxWithConstraints(modifier = Modifier.fillMaxSize()) {
-                                val editDensity = androidx.compose.ui.platform.LocalDensity.current
+                                val editDensity = LocalDensity.current
                                 TimeConfigEditScreen(
                                     timeConfig = config,
                                     onBack = {
@@ -928,6 +923,9 @@ fun TabletSettingsScreen(
                                             )
                                             editingTimeConfig = null
                                             creatingTimeConfig = false
+                                        }
+                                        uiScope.launch {
+                                            delay(40.milliseconds) // 标题延迟 40ms 恢复
                                             TabletSettingsUiState.timeEditorOpen = false
                                         }
                                     },
@@ -954,6 +952,9 @@ fun TabletSettingsScreen(
                                             )
                                             editingTimeConfig = null
                                             creatingTimeConfig = false
+                                        }
+                                        uiScope.launch {
+                                            delay(40.milliseconds) // 标题延迟 40ms 恢复
                                             TabletSettingsUiState.timeEditorOpen = false
                                         }
                                     },
@@ -968,10 +969,17 @@ fun TabletSettingsScreen(
                 }
             }
         }
+        // 左右栏分割线：画在 screen 层、Row 之后——位于顶栏糊层之上不被模糊，且与弹窗同层可被覆盖
+        Box(
+            modifier = Modifier
+                .align(Alignment.TopStart)
+                .offset { IntOffset(with(density) { dividerX.toPx().toInt() }, 0) }
+                .width(1.dp)
+                .fillMaxHeight()
+                .background(dividerColor)
+        )
     }
 }
-
-private val Color_Black_08 = androidx.compose.ui.graphics.Color.Black.copy(alpha = 0.08f)
 
 /** 左栏底部独立卡片：关于应用 / 捐赠支持 / 交流与反馈（不新建分类，仅拆成独立卡片） */
 private val BottomMoreDests = listOf(
@@ -993,7 +1001,6 @@ private fun TabletLeftEntry(
         onClick = onSelect,
     )
 }
-private val Color_White_14 = androidx.compose.ui.graphics.Color.White.copy(alpha = 0.14f)
 
 /** 右栏：学期与周次 — 与手机设置页同等可编辑（日期/周数/新学期） */
 @Composable
@@ -1001,14 +1008,13 @@ private fun TabletSemesterPane(
     viewModel: CourseViewModel,
     scheduleViewModel: ScheduleViewModel,
     settingsViewModel: SettingsViewModel,
-    shiftViewModel: ShiftViewModel,
     isShiftMode: Boolean,
     onExitShiftMode: () -> Unit,
     liquidGlassBackdrop: com.kyant.backdrop.Backdrop?,
     scrollBehavior: com.haooz.chedule.ui.basic.SharedScrollBehavior? = null,
 ) {
     val context = LocalContext.current
-    val hapticFeedback = androidx.compose.ui.platform.LocalHapticFeedback.current
+    val hapticFeedback = LocalHapticFeedback.current
     val smartWeekend by settingsViewModel.smartWeekend.collectAsState()
     val showNonCurrentWeek by settingsViewModel.showNonCurrentWeek.collectAsState()
     val totalWeeks by viewModel.totalWeeks.collectAsState()
@@ -1417,7 +1423,7 @@ private fun TabletHolidayPane(
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
     val currentDate = remember { LocalDate.now() }
-    var year by remember { mutableStateOf(currentDate.year) }
+    var year by remember { mutableIntStateOf(currentDate.year) }
     var entries by remember { mutableStateOf(HolidayManager.load(context, year)) }
     var loading by remember { mutableStateOf(false) }
     val latestYear by rememberUpdatedState(year)
@@ -1439,7 +1445,7 @@ private fun TabletHolidayPane(
                 }.getOrDefault(emptyList())
                 withContext(Dispatchers.Main) {
                     HolidayManager.mergeApiEntries(context, targetYear, result)
-                    if (targetYear == latestYear) entries = HolidayManager.load(context, latestYear)
+                    entries = HolidayManager.load(context, latestYear)
                     loading = false
                     if (result.isNotEmpty()) {
                         // API 合并同样要重排提醒并刷小部件，不能只改本地 SP
