@@ -33,6 +33,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ColorFilter
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.input.nestedscroll.nestedScroll
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalHapticFeedback
@@ -46,8 +47,8 @@ import androidx.compose.ui.unit.sp
 import com.haooz.chedule.data.CourseRepository
 import com.haooz.chedule.data.HolidayManager
 import com.haooz.chedule.reminder.CourseReminderHelper
-import com.haooz.chedule.ui.basic.OverlayDropdownMenu
 import com.haooz.chedule.ui.basic.CollapsibleTopAppBarDefaults
+import com.haooz.chedule.ui.basic.OverlayDropdownMenu
 import com.haooz.chedule.ui.basic.SharedScrollBehavior
 import com.haooz.chedule.ui.basic.collapsibleTopInset
 import com.haooz.chedule.ui.utils.overScrollVertical
@@ -248,6 +249,8 @@ fun HolidaySettingsScreen(
     val listState = rememberLazyListState()
     val holidayEntries = entries.filter { it.type == HolidayManager.TYPE_HOLIDAY }
     val workswapEntries = entries.filter { it.type == HolidayManager.TYPE_WORKSWAP }
+    val isTablet = LocalConfiguration.current.screenWidthDp >= 600
+    val tabletHorizontalPadding = if (isTablet) 20.dp else 16.dp
 
     Scaffold(topBar = {}) { padding ->
         LazyColumn(
@@ -262,9 +265,9 @@ fun HolidaySettingsScreen(
                         ?: Modifier
                 ),
             contentPadding = PaddingValues(
-                16.dp,
+                tabletHorizontalPadding,
                 padding.calculateTopPadding() + CollapsibleTopAppBarDefaults.CollapsedHeight + 24.dp,
-                16.dp,
+                tabletHorizontalPadding,
                 60.dp,
             ),
             verticalArrangement = Arrangement.spacedBy(12.dp),

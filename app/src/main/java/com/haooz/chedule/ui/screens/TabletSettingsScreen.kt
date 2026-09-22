@@ -1,8 +1,6 @@
 package com.haooz.chedule.ui.screens
 
 import androidx.compose.animation.core.Animatable
-import androidx.compose.animation.core.animateFloatAsState
-import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -17,16 +15,18 @@ import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBars
+import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.material3.Text
-import androidx.activity.compose.LocalActivity
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -53,19 +53,19 @@ import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.Dp
+import androidx.compose.ui.unit.DpOffset
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.Velocity
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.zIndex
-import kotlin.math.abs
-import kotlin.math.roundToInt
 import com.haooz.chedule.data.HolidayManager
+import com.haooz.chedule.reminder.CourseReminderHelper
+import com.haooz.chedule.reminder.IslandNotificationHelper
 import com.haooz.chedule.ui.activities.AboutScreen
-import com.haooz.chedule.ui.activities.AppreciateAuthorScreen
 import com.haooz.chedule.ui.activities.AiImportScreen
+import com.haooz.chedule.ui.activities.AppreciateAuthorScreen
 import com.haooz.chedule.ui.activities.BackupAndMigrationScreen
-import com.haooz.chedule.ui.activities.ChangelogScreen
 import com.haooz.chedule.ui.activities.CommunicationScreen
 import com.haooz.chedule.ui.activities.CourseReminderScreen
 import com.haooz.chedule.ui.activities.CourseTimeSettingsScreen
@@ -76,27 +76,40 @@ import com.haooz.chedule.ui.activities.ScheduleDataManageMode
 import com.haooz.chedule.ui.activities.UpdateSettingsScreen
 import com.haooz.chedule.ui.activities.WebDavSettingsScreen
 import com.haooz.chedule.ui.activities.WidgetIntroScreen
+import com.haooz.chedule.ui.basic.LiquidGlassTextButton
+import com.haooz.chedule.ui.basic.LiquidTopBarButton
 import com.haooz.chedule.ui.basic.ProgressiveBlurTopBar
-import com.haooz.chedule.ui.basic.rememberSharedScrollBehavior
-import com.kyant.backdrop.backdrops.layerBackdrop
-import com.kyant.backdrop.backdrops.rememberLayerBackdrop
+import com.haooz.chedule.ui.utils.LocalOverScrollState
+import com.haooz.chedule.ui.utils.OverScrollState
 import com.haooz.chedule.ui.utils.overScrollVertical
 import com.haooz.chedule.viewmodel.CourseViewModel
 import com.haooz.chedule.viewmodel.ScheduleViewModel
 import com.haooz.chedule.viewmodel.SettingsViewModel
 import com.haooz.chedule.viewmodel.ShiftViewModel
-import kotlinx.coroutines.CoroutineScope
+import com.kyant.backdrop.backdrops.layerBackdrop
+import com.kyant.backdrop.backdrops.rememberLayerBackdrop
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
+import top.yukonga.miuix.kmp.anim.folmeSpring
+import top.yukonga.miuix.kmp.basic.ButtonDefaults
 import top.yukonga.miuix.kmp.basic.Card
+import top.yukonga.miuix.kmp.basic.CircularProgressIndicator
 import top.yukonga.miuix.kmp.basic.NumberPicker
 import top.yukonga.miuix.kmp.basic.SmallTitle
-import top.yukonga.miuix.kmp.basic.ButtonDefaults
 import top.yukonga.miuix.kmp.basic.TextButton
+import top.yukonga.miuix.kmp.icon.MiuixIcons
+import top.yukonga.miuix.kmp.icon.extended.Ok
+import top.yukonga.miuix.kmp.icon.extended.Play
+import top.yukonga.miuix.kmp.icon.extended.Update
 import top.yukonga.miuix.kmp.overlay.OverlayDialog
 import top.yukonga.miuix.kmp.preference.ArrowPreference
 import top.yukonga.miuix.kmp.preference.SwitchPreference
 import top.yukonga.miuix.kmp.theme.MiuixTheme
+import java.net.HttpURLConnection
+import java.net.URL
 import java.time.LocalDate
+import kotlin.math.abs
 
 /**
  * 平板设置页目的地：原一级 + 原二级入口全部平铺在左栏；
@@ -119,7 +132,6 @@ enum class TabletSettingsDest(val title: String, val group: String) {
     Update("更新设置", "其他"),
     About("关于应用", "其他"),
     Appreciate("捐赠支持", "其他"),
-    Changelog("更新日志", "其他"),
     Communication("交流与反馈", "其他"),
 }
 
@@ -188,15 +200,18 @@ fun TabletSettingsChromeOverlay() {
             collapsedTitle("我的")
         }
 
-        Box(
-            modifier = Modifier
-                .align(Alignment.TopStart)
-                .padding(start = dividerX, top = statusBar)
-                .width(maxWidth - dividerX)
-                .height(collapsedH),
-            contentAlignment = Alignment.Center
-        ) {
-            collapsedTitle(selected.title)
+        // 关于应用内嵌自绘顶栏标题，设置页叠加层不再画它的右栏标题，避免双标题
+        if (selected != TabletSettingsDest.About) {
+            Box(
+                modifier = Modifier
+                    .align(Alignment.TopStart)
+                    .padding(start = dividerX, top = statusBar)
+                    .width(maxWidth - dividerX)
+                    .height(collapsedH),
+                contentAlignment = Alignment.Center
+            ) {
+                collapsedTitle(selected.title)
+            }
         }
     }
 }
@@ -209,27 +224,45 @@ private val TabletPaneBlurHeight: Dp
     }
 
 /**
+ * 本栏顶部表面色遮罩 / 右上角按钮共用的 alpha，对齐 CollapsibleTopAppBar 手机实现：
+ * 滚动超阈值后 spring 淡入/淡出，不随滚动距离改变透明度。
+ */
+@Composable
+private fun rememberPaneMaskAlpha(scrolledPx: Float): Float {
+    val density = LocalDensity.current
+    val overScroll = LocalOverScrollState.current
+    val scrollThresholdPx = with(density) { 10.dp.toPx() }
+    val overscrollThresholdPx = with(density) { 4.dp.toPx() }
+    // 真实滚动或越界拉伸都算「顶部内容位移」：越界拉伸给出反馈，回弹静止时
+    // overScroll.offset 归零，遮罩随之淡出
+    val showMask =
+        scrolledPx > scrollThresholdPx || abs(overScroll.offset) > overscrollThresholdPx
+    val maskAnim = remember { Animatable(0f) }
+    LaunchedEffect(showMask) {
+        val spec =
+            if (showMask) folmeSpring(damping = 1.0f, response = 0.6f)
+            else folmeSpring<Float>(damping = 1.0f, response = 0.4f)
+        maskAnim.animateTo(
+            targetValue = if (showMask) 1f else 0f,
+            animationSpec = spec,
+        )
+    }
+    return maskAnim.value
+}
+
+/**
  * 本栏顶部：渐变模糊常驻；表面色遮罩仅在上滑后出现。
  * 糊层采样本栏本地 backdrop（兄弟节点），避免与全局层循环采样。
+ * maskAlpha 传入时直接复用（供右上角按钮与之同步），否则自行计算。
  */
 @Composable
 private fun TabletPaneTopChrome(
     scrolledPx: Float,
     backdrop: com.kyant.backdrop.Backdrop?,
     modifier: Modifier = Modifier,
+    maskAlpha: Float? = null,
 ) {
-    val density = LocalDensity.current
-    val thresholdPx = with(density) { 16.dp.toPx() }
-    // 过阈值后固定时长淡入/淡出，不随滚动距离改变透明度
-    val showMask = scrolledPx > thresholdPx
-    val maskAnim = remember { Animatable(0f) }
-    LaunchedEffect(showMask) {
-        maskAnim.animateTo(
-            targetValue = if (showMask) 1f else 0f,
-            animationSpec = tween(durationMillis = 500),
-        )
-    }
-    val maskAlpha = maskAnim.value
+    val resolvedMaskAlpha = if (maskAlpha != null) maskAlpha else rememberPaneMaskAlpha(scrolledPx)
     val maskHeight = TabletPaneBlurHeight
     val gradientColor = if (com.haooz.chedule.ui.utils.isAppDarkTheme()) Color.Black else Color.White
 
@@ -253,13 +286,14 @@ private fun TabletPaneTopChrome(
             modifier = Modifier
                 .fillMaxSize()
                 .zIndex(1f)
-                .graphicsLayer { alpha = maskAlpha }
+                .graphicsLayer { alpha = resolvedMaskAlpha }
                 .background(
                     Brush.verticalGradient(
-                        0f to gradientColor.copy(alpha = 0.88f),
-                        0.4f to gradientColor.copy(alpha = 0.62f),
-                        0.7f to gradientColor.copy(alpha = 0.38f),
-                        0.88f to gradientColor.copy(alpha = 0.16f),
+                        0f to gradientColor.copy(alpha = 0.85f),
+                        0.45f to gradientColor.copy(alpha = 0.55f),
+                        0.7f to gradientColor.copy(alpha = 0.32f),
+                        0.85f to gradientColor.copy(alpha = 0.14f),
+                        0.93f to gradientColor.copy(alpha = 0.05f),
                         1f to Color.Transparent,
                     )
                 )
@@ -270,24 +304,32 @@ private fun TabletPaneTopChrome(
 /** 只观察、不消费的滚动累计：正数表示内容已上滑；到顶/顶部回弹时清零 */
 @Composable
 private fun rememberPaneScrollTracker(
+    resetKey: Any?,
     onScrollPx: (Float) -> Unit,
 ): NestedScrollConnection {
     val currentOnScrollPx by rememberUpdatedState(onScrollPx)
-    val acc = remember { floatArrayOf(0f) }
-    return remember {
+    // 以 resetKey 作为 remember 键：切子页时重建连接并清零累计位移，
+    // 避免残留上一页滚动量导致新页遮罩触发时机提前/错乱
+    val acc = remember(resetKey) { floatArrayOf(0f) }
+    val overScroll = LocalOverScrollState.current
+    return remember(resetKey) {
         object : NestedScrollConnection {
             override fun onPostScroll(
                 consumed: Offset,
                 available: Offset,
                 source: NestedScrollSource,
             ): Offset {
-                when {
-                    consumed.y != 0f -> {
-                        acc[0] = (acc[0] - consumed.y).coerceAtLeast(0f)
-                    }
-                    // 列表已在顶部：继续下拉/回弹时未消费的向下位移 → 遮罩应收起
-                    available.y > 0f -> {
-                        acc[0] = 0f
+                // 越界拉伸（回弹）期间不累计真实滚动：不可滚动页上滑只触发回弹、
+                // 不产生真实位移，回弹后遮罩会残留，故拉伸期一律不写 acc
+                if (!overScroll.isOverScrollActive) {
+                    when {
+                        consumed.y != 0f -> {
+                            acc[0] = (acc[0] - consumed.y).coerceAtLeast(0f)
+                        }
+                        // 列表已在顶部：继续下拉/回弹时未消费的向下位移 → 遮罩应收起
+                        available.y > 0f -> {
+                            acc[0] = 0f
+                        }
                     }
                 }
                 currentOnScrollPx(acc[0])
@@ -339,6 +381,21 @@ fun TabletSettingsScreen(
     var rightScrollPx by remember { mutableFloatStateOf(0f) }
     LaunchedEffect(selected) { rightScrollPx = 0f }
 
+    // 手机端底部按钮画在各 Activity；pad 内嵌 Screen 时需要在右栏叠层补回
+    var showWidgetGuideDialog by remember { mutableStateOf(false) }
+    var webDavBackingUp by remember { mutableStateOf(false) }
+    var webDavRestoring by remember { mutableStateOf(false) }
+    var onWebDavBackup by remember { mutableStateOf({}) }
+    var onWebDavRestore by remember { mutableStateOf({}) }
+    var webDavConnected by remember { mutableStateOf(false) }
+    var onWebDavTestConnection by remember { mutableStateOf({}) }
+    var holidayLoading by remember { mutableStateOf(false) }
+    var onHolidayUpdate by remember { mutableStateOf({}) }
+    val islandNotification by settingsViewModel.islandNotification.collectAsState()
+    val islandSupported = remember { IslandNotificationHelper.isIslandSupported(context) }
+    val islandEnabled = islandNotification && islandSupported
+    val hapticFeedback = LocalHapticFeedback.current
+
     val leftListState = rememberLazyListState()
     LaunchedEffect(leftListState) {
         snapshotFlow {
@@ -352,7 +409,8 @@ fun TabletSettingsScreen(
                 leftListState.firstVisibleItemScrollOffset == 0
         }.collect { atTop -> if (atTop) leftScrollPx = 0f }
     }
-    val rightTrack = rememberPaneScrollTracker { rightScrollPx = it }
+    // 右栏专属 overscroll：与全局 CompositionLocal 分离，避免左右栏越界状态串扰
+    val rightOverScroll = remember { OverScrollState() }
 
     BoxWithConstraints(modifier = Modifier.fillMaxSize()) {
         val leftWidth = maxWidth * 0.42f
@@ -390,7 +448,7 @@ fun TabletSettingsScreen(
                             start = paneHorizontal,
                             top = chromeTop,
                             end = paneHorizontal,
-                            bottom = 120.dp,
+                            bottom = 60.dp,
                         ),
                         verticalArrangement = Arrangement.spacedBy(12.dp)
                     ) {
@@ -406,13 +464,13 @@ fun TabletSettingsScreen(
                                     insideMargin = PaddingValues(0.dp)
                                 ) {
                                     Column(modifier = Modifier.fillMaxWidth()) {
-                                        dests.forEach { dest ->
+                                        dests.filterNot { it in BottomMoreDests }.forEach { dest ->
                                             val jumpActivity =
                                                 dest == TabletSettingsDest.EducationalImport
-                                            ArrowPreference(
-                                                title = dest.title,
-                                                holdDownState = !jumpActivity && dest == selected,
-                                                onClick = {
+                                            TabletLeftEntry(
+                                                dest = dest,
+                                                isSelected = !jumpActivity && dest == selected,
+                                                onSelect = {
                                                     if (jumpActivity) {
                                                         context.startActivity(
                                                             android.content.Intent(
@@ -426,6 +484,24 @@ fun TabletSettingsScreen(
                                                 }
                                             )
                                         }
+                                    }
+                                }
+                            }
+                        }
+                        // 底部独立卡片：关于应用 / 捐赠支持 / 交流与反馈（不新建分类）
+                        item(key = "bottom_more") {
+                            Card(
+                                cornerRadius = 20.dp,
+                                modifier = Modifier.fillMaxWidth(),
+                                insideMargin = PaddingValues(0.dp)
+                            ) {
+                                Column(modifier = Modifier.fillMaxWidth()) {
+                                    BottomMoreDests.forEach { dest ->
+                                        TabletLeftEntry(
+                                            dest = dest,
+                                            isSelected = dest == selected,
+                                            onSelect = { TabletSettingsUiState.selected = dest }
+                                        )
                                     }
                                 }
                             }
@@ -446,6 +522,11 @@ fun TabletSettingsScreen(
                     .fillMaxHeight()
                     .background(surfaceColor)
             ) {
+                // 右栏独立 overscroll 作用域：子屏列表与遮罩/右上角按钮共用同一实例
+                CompositionLocalProvider(LocalOverScrollState provides rightOverScroll) {
+                    val rightTrack = rememberPaneScrollTracker(selected) { rightScrollPx = it }
+                    // 右上角按钮与右栏顶遮罩共用同一 alpha，真实滚动或越界拉伸时同步淡入
+                    val rightMaskAlpha = rememberPaneMaskAlpha(rightScrollPx)
                 Box(
                     modifier = Modifier
                         .fillMaxSize()
@@ -485,6 +566,8 @@ fun TabletSettingsScreen(
                             TabletSettingsDest.Holiday -> TabletHolidayPane(
                                 scrollBehavior = null,
                                 liquidGlassBackdrop = liquidGlassBackdrop,
+                                onUpdateReady = { onHolidayUpdate = it },
+                                onLoadingChange = { holidayLoading = it },
                             )
 
                             TabletSettingsDest.Widget -> WidgetIntroScreen(
@@ -530,6 +613,16 @@ fun TabletSettingsScreen(
 
                             TabletSettingsDest.WebDav -> WebDavSettingsScreen(
                                 scrollBehavior = null,
+                                onConnectedChange = { webDavConnected = it },
+                                onTestConnectionReady = { onWebDavTestConnection = it },
+                                onBackupRestoreReady = { backup, restore ->
+                                    onWebDavBackup = backup
+                                    onWebDavRestore = restore
+                                },
+                                onBusyStateChange = { b, r ->
+                                    webDavBackingUp = b
+                                    webDavRestoring = r
+                                },
                             )
 
                             TabletSettingsDest.Preference -> PreferenceSettingsScreen(
@@ -545,34 +638,240 @@ fun TabletSettingsScreen(
                             TabletSettingsDest.About -> {
                                 val aboutBackdrop =
                                     com.kyant.backdrop.backdrops.rememberLayerBackdrop()
-                                AboutScreen(onBack = {}, liquidGlassBackdrop = aboutBackdrop)
+                                AboutScreen(onBack = {}, liquidGlassBackdrop = aboutBackdrop, embedded = true)
                             }
 
                             TabletSettingsDest.Appreciate -> AppreciateAuthorScreen(
                                 scrollBehavior = null,
                             )
 
-                            TabletSettingsDest.Changelog -> ChangelogScreen(
-                                scrollBehavior = null,
-                            )
 
                             TabletSettingsDest.Communication -> CommunicationScreen(
                                 scrollBehavior = null,
                             )
                         }
                     }
+
+                    // 底部操作按钮：与手机 Activity 层同款。玻璃按钮必须采样右栏本地 backdrop（兄弟节点，
+                    // 记录内容不含按钮本身）；不能采样全局 liquidGlassBackdrop——按钮就在全局玻璃层内，
+                    // 采样自身会触发循环采样。弹窗在根部 PopupHost 渲染，仍可正常采样全局层。
+                    val glassBackdrop = liquidGlassBackdrop
+                    if (glassBackdrop != null) when (selected) {
+                        TabletSettingsDest.Reminder -> {
+                            Box(
+                                modifier = Modifier
+                                    .align(Alignment.BottomCenter)
+                                    .fillMaxWidth()
+                                    .padding(horizontal = 36.dp)
+                                    .navigationBarsPadding()
+                                    .padding(bottom = 20.dp)
+                            ) {
+                                LiquidGlassTextButton(
+                                    text = if (islandEnabled) "测试小米超级岛" else "测试实时活动",
+                                    onClick = {
+                                        com.haooz.chedule.ui.utils.FeatureLog.reminderFlow(
+                                            "test_notification",
+                                            if (islandEnabled) "island" else "live"
+                                        )
+                                        if (islandEnabled) {
+                                            IslandNotificationHelper.sendTestIslandNotification(context)
+                                            com.haooz.chedule.ui.utils.FeatureLog.reminderFlow("test_island_sent")
+                                            android.widget.Toast.makeText(
+                                                context,
+                                                "已发送超级岛测试通知",
+                                                android.widget.Toast.LENGTH_SHORT
+                                            ).show()
+                                        } else {
+                                            CourseReminderHelper.sendTestLiveNotification(context)
+                                            com.haooz.chedule.ui.utils.FeatureLog.reminderFlow("test_live_sent")
+                                            android.widget.Toast.makeText(
+                                                context,
+                                                "已发送实时活动测试通知",
+                                                android.widget.Toast.LENGTH_SHORT
+                                            ).show()
+                                        }
+                                    },
+                                    backdrop = rightPaneBackdrop,
+                                    modifier = Modifier.fillMaxWidth(),
+                                )
+                            }
+                        }
+
+                        TabletSettingsDest.Widget -> {
+                            Box(
+                                modifier = Modifier
+                                    .align(Alignment.BottomCenter)
+                                    .fillMaxWidth()
+                                    .padding(horizontal = 36.dp)
+                                    .navigationBarsPadding()
+                                    .padding(bottom = 20.dp)
+                            ) {
+                                LiquidGlassTextButton(
+                                    text = "添加到桌面",
+                                    onClick = {
+                                        hapticFeedback.performHapticFeedback(HapticFeedbackType.VirtualKey)
+                                        showWidgetGuideDialog = true
+                                    },
+                                    backdrop = rightPaneBackdrop,
+                                    modifier = Modifier.fillMaxWidth(),
+                                )
+                            }
+
+                            OverlayDialog(
+                                title = "添加桌面小部件",
+                                show = showWidgetGuideDialog,
+                                liquidGlassBackdrop = glassBackdrop,
+                                onDismissRequest = { showWidgetGuideDialog = false }
+                            ) {
+                                Column(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    horizontalAlignment = Alignment.CenterHorizontally
+                                ) {
+                                    Text(
+                                        text = "1. 长按桌面空白处\n2. 选择「全部应用」内的「安卓小部件」\n3. 找到「Nexio课程表」并添加",
+                                        fontSize = 14.sp,
+                                        lineHeight = 24.sp,
+                                        color = MiuixTheme.colorScheme.onSurfaceVariantActions
+                                    )
+                                    Spacer(modifier = Modifier.height(20.dp))
+                                    TextButton(
+                                        text = "我知道了",
+                                        onClick = {
+                                            hapticFeedback.performHapticFeedback(HapticFeedbackType.Confirm)
+                                            showWidgetGuideDialog = false
+                                        },
+                                        modifier = Modifier.fillMaxWidth()
+                                    )
+                                }
+                            }
+                        }
+
+                        TabletSettingsDest.WebDav -> {
+                            Row(
+                                modifier = Modifier
+                                    .align(Alignment.BottomCenter)
+                                    .fillMaxWidth()
+                                    .padding(horizontal = 36.dp)
+                                    .navigationBarsPadding()
+                                    .padding(bottom = 20.dp),
+                                horizontalArrangement = Arrangement.spacedBy(12.dp)
+                            ) {
+                                LiquidGlassTextButton(
+                                    text = if (webDavBackingUp) "备份中..." else "备份到云端",
+                                    onClick = { onWebDavBackup() },
+                                    backdrop = rightPaneBackdrop,
+                                    modifier = Modifier.weight(1f)
+                                )
+                                LiquidGlassTextButton(
+                                    text = if (webDavRestoring) "恢复中..." else "从云端恢复",
+                                    onClick = { onWebDavRestore() },
+                                    backdrop = rightPaneBackdrop,
+                                    modifier = Modifier.weight(1f)
+                                )
+                            }
+                        }
+
+                        else -> {}
+                    }
                 }
-                TabletPaneTopChrome(
-                    scrolledPx = rightScrollPx,
-                    backdrop = rightPaneBackdrop,
-                    modifier = Modifier.align(Alignment.TopStart),
-                )
+                // 关于应用页内嵌且自绘顶栏糊层/遮罩，这里不再叠加设置页右栏顶部糊层
+                if (selected != TabletSettingsDest.About) {
+                    TabletPaneTopChrome(
+                        scrolledPx = rightScrollPx,
+                        backdrop = rightPaneBackdrop,
+                        modifier = Modifier.align(Alignment.TopStart),
+                        maskAlpha = rightMaskAlpha,
+                    )
+                }
+
+                // 右上角操作按钮：节假日「更新」、WebDAV「测试连接」。
+                // 与底部按钮同理采样右栏本地 backdrop（兄弟节点，记录内容不含按钮）。
+                // 作为 TabletPaneTopChrome 后的兄弟绘制，落在顶部糊层之上。
+                // 出现/消失只动玻璃材质（backdropAlpha/shadowAlpha），图标常驻。
+                if (liquidGlassBackdrop != null) when (selected) {
+                    TabletSettingsDest.Holiday -> {
+                        Box(
+                            modifier = Modifier
+                                .align(Alignment.TopEnd)
+                                .statusBarsPadding()
+                                .padding(top = 6.dp, end = 16.dp)
+                        ) {
+                            if (holidayLoading) {
+                                Box(
+                                    modifier = Modifier
+                                        .offset(x = (-6).dp, y = (-4).dp)
+                                        .size(40.dp),
+                                    contentAlignment = Alignment.Center
+                                ) {
+                                    CircularProgressIndicator(
+                                        modifier = Modifier.size(20.dp),
+                                        progress = null,
+                                    )
+                                }
+                            } else {
+                                LiquidTopBarButton(
+                                    onClick = { onHolidayUpdate() },
+                                    backdrop = rightPaneBackdrop,
+                                    icon = MiuixIcons.Normal.Update,
+                                    contentDescription = "更新",
+                                    iconSize = 28.dp,
+                                    backdropAlpha = rightMaskAlpha,
+                                    shadowAlpha = rightMaskAlpha,
+                                )
+                            }
+                        }
+                    }
+
+                    TabletSettingsDest.WebDav -> {
+                        Box(
+                            modifier = Modifier
+                                .align(Alignment.TopEnd)
+                                .statusBarsPadding()
+                                .padding(top = 6.dp, end = 16.dp)
+                        ) {
+                            LiquidTopBarButton(
+                                onClick = { onWebDavTestConnection() },
+                                backdrop = rightPaneBackdrop,
+                                icon = if (webDavConnected) MiuixIcons.Ok else MiuixIcons.Play,
+                                contentDescription = if (webDavConnected) "已连接" else "测试连接",
+                                iconTint = if (webDavConnected) Color(0xFF4CAF50) else Color.Unspecified,
+                                iconOffset = if (!webDavConnected) DpOffset(x = 2.dp, y = 0.dp) else DpOffset.Zero,
+                                backdropAlpha = rightMaskAlpha,
+                                shadowAlpha = rightMaskAlpha,
+                            )
+                        }
+                    }
+
+                    else -> {}
+                }
+                }
             }
         }
     }
 }
 
 private val Color_Black_08 = androidx.compose.ui.graphics.Color.Black.copy(alpha = 0.08f)
+
+/** 左栏底部独立卡片：关于应用 / 捐赠支持 / 交流与反馈（不新建分类，仅拆成独立卡片） */
+private val BottomMoreDests = listOf(
+    TabletSettingsDest.About,
+    TabletSettingsDest.Appreciate,
+    TabletSettingsDest.Communication,
+)
+
+/** 左栏单个设置项：点击选中对应右栏内容 */
+@Composable
+private fun TabletLeftEntry(
+    dest: TabletSettingsDest,
+    isSelected: Boolean,
+    onSelect: () -> Unit,
+) {
+    ArrowPreference(
+        title = dest.title,
+        holdDownState = isSelected,
+        onClick = onSelect,
+    )
+}
 private val Color_White_14 = androidx.compose.ui.graphics.Color.White.copy(alpha = 0.14f)
 
 /** 右栏：学期与周次 — 与手机设置页同等可编辑（日期/周数/新学期） */
@@ -987,16 +1286,57 @@ private fun TabletSemesterPane(
     }
 }
 
-/** 右栏：节假日（状态由 HolidayManager 维护，不启 Activity） */
+/** 右栏：节假日（状态由 HolidayManager 维护，不启 Activity）。顶部「更新」联网拉取对齐手机 Activity。 */
 @Composable
 private fun TabletHolidayPane(
     scrollBehavior: com.haooz.chedule.ui.basic.SharedScrollBehavior?,
     liquidGlassBackdrop: com.kyant.backdrop.Backdrop?,
+    onUpdateReady: (() -> Unit) -> Unit = {},
+    onLoadingChange: (Boolean) -> Unit = {},
 ) {
     val context = LocalContext.current
+    val scope = rememberCoroutineScope()
     val currentDate = remember { LocalDate.now() }
     var year by remember { mutableStateOf(currentDate.year) }
     var entries by remember { mutableStateOf(HolidayManager.load(context, year)) }
+    var loading by remember { mutableStateOf(false) }
+    val latestYear by rememberUpdatedState(year)
+
+    val doUpdate = {
+        if (!loading) {
+            loading = true
+            scope.launch(Dispatchers.IO) {
+                val targetYear = latestYear
+                val result = runCatching {
+                    val conn = URL(
+                        "https://unpkg.com/holiday-calendar@1.3.0/data/CN/$targetYear.json"
+                    ).openConnection() as HttpURLConnection
+                    conn.connectTimeout = 10_000
+                    conn.readTimeout = 10_000
+                    val text = conn.inputStream.bufferedReader().use { it.readText() }
+                    conn.disconnect()
+                    HolidayManager.parseApiResponse(text)
+                }.getOrDefault(emptyList())
+                withContext(Dispatchers.Main) {
+                    HolidayManager.mergeApiEntries(context, targetYear, result)
+                    if (targetYear == latestYear) entries = HolidayManager.load(context, latestYear)
+                    loading = false
+                    if (result.isNotEmpty()) {
+                        // API 合并同样要重排提醒并刷小部件，不能只改本地 SP
+                        CourseReminderHelper.onHolidayDataChanged(context)
+                    }
+                    val message =
+                        if (result.isEmpty()) "获取失败或暂无数据" else "已更新 ${result.size} 条记录"
+                    android.widget.Toast.makeText(
+                        context, message, android.widget.Toast.LENGTH_SHORT
+                    ).show()
+                }
+            }
+        }
+    }
+    val latestUpdate by rememberUpdatedState(doUpdate)
+    LaunchedEffect(Unit) { onUpdateReady({ latestUpdate() }) }
+    LaunchedEffect(loading) { onLoadingChange(loading) }
 
     HolidaySettingsScreen(
         scrollBehavior = scrollBehavior,
