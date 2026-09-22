@@ -1773,15 +1773,16 @@ object CourseReminderHelper {
             return
         }
 
-        // 课中提醒：到点/进窗后切课中卡；已在课中则无需重推（系统 timer 自刷距下课）
-        // 课中开启时对账不再补「已上课」
+        // 课中提醒：仅 shouldShowInClassNow 为真（全程，或距下课已进窗）才切课中卡
+        // 已在课中则无需重推（系统 timer 自刷距下课）；课中开启时对账不补「已上课」
         if (inClassEnabled && now >= state.startMillis) {
             val alreadyInClass = IslandNotificationHelper.isInClassNotificationId(state.notificationId)
             val canShow = state.endMillis > now
             if (canShow) {
                 if (alreadyInClass) {
                     IslandNotificationHelper.updateInClassIslandIfNeeded(context, state, testMode)
-                } else if (shouldShowInClass || state.endMillis > state.startMillis) {
+                } else if (shouldShowInClass) {
+                    // 仅进窗后切课中；不可 || end>start，否则「距下课 N 分钟」被短路、上课即挂卡
                     IslandNotificationHelper.sendInClassIslandNotification(
                         context = context,
                         courseName = state.courseName,

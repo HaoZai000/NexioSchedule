@@ -972,7 +972,7 @@ object IslandNotificationHelper {
         kickWidgetRefresh(context)
     }
 
-    // 到点分流：开了课中提醒 → 只进课中卡，无「已上课」
+    // 到点分流：开了课中提醒且已进窗 → 课中卡；未进窗 → 收倒计时等对账，无「已上课」
     // 未开课中提醒 → 静态「已上课」15 秒
     fun onClassStart(
         context: Context,
@@ -993,8 +993,8 @@ object IslandNotificationHelper {
         if (inClassOn) {
             val showNow = endMillis > startMillis &&
                 CourseReminderHelper.shouldShowInClassNow(context, startMillis, endMillis)
-            if (showNow || endMillis > startMillis) {
-                // 课中开启：一律走课中卡（含距下课未进窗时也先挂上，倒计时由系统自刷）
+            if (showNow) {
+                // 已进「全程 / 距下课 N 分钟」窗口：切课中卡
                 sendInClassIslandNotification(
                     context = context,
                     courseName = courseName,
@@ -1006,7 +1006,8 @@ object IslandNotificationHelper {
                     testMode = effectiveTestMode
                 )
             } else {
-                // 无有效下课时间：只收倒计时，不发已上课
+                // 「距下课」未进窗或无有效下课时间：只收倒计时，不发已上课；
+                // 标记 switched 交给对账，进窗后再切课中（不可因 end>start 就提前挂卡）
                 val manager = context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
                 manager.cancel(countdownIdFor(notificationId))
                 IslandState.markSwitched(context, testMode = effectiveTestMode)
