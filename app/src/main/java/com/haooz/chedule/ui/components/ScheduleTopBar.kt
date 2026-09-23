@@ -83,6 +83,8 @@ internal fun ScheduleTopBar(
     scrollBehavior: SharedScrollBehavior? = null,
     showMorePopup: Boolean = false,
     buttonFractionParam: Animatable<Float, *>? = null,
+    blurResampleKey: Int = 0,
+    blurSampleTrack: Float = 0f,
 ) {
     if (!visible || liquidGlassBackdrop == null) return
 
@@ -109,8 +111,15 @@ internal fun ScheduleTopBar(
 
     val statusBarHeight = WindowInsets.statusBars.asPaddingValues().calculateTopPadding()
     val topBarHeight = if (statusBarHeight > 0.dp) 120.dp + statusBarHeight else 160.dp
+    // 平板侧栏占位：星期行与课表列一起避让
+    val railPad = if (navBarStyle == "rail") tabletNavSideStartPadding() else 0.dp
     // 组合期读 currentHeightPx 会拿到未测量的值，星期行会慢一帧就位；改布局期读
-    ProgressiveBlurTopBar(backdrop = liquidGlassBackdrop, height = topBarHeight) {
+    ProgressiveBlurTopBar(
+        backdrop = liquidGlassBackdrop,
+        height = topBarHeight,
+        resampleKey = blurResampleKey,
+        sampleTrack = blurSampleTrack,
+    ) {
         Box {
             CollapsibleTopAppBar(
                 title = if (navBarStyle == "rail") "" else titleText,
@@ -119,18 +128,8 @@ internal fun ScheduleTopBar(
                 modifier = Modifier.zIndex(1f),
                 gradientMaskHeight = CollapsedHeight + 110.dp,
                 scrollBehavior = scrollBehavior,
-                startAction = { _, _ ->
-                    if (navBarStyle == "rail") {
-                        Text(
-                            text = titleText,
-                            fontSize = 21.sp,
-                            fontWeight = FontWeight.Medium,
-                            color = MiuixTheme.colorScheme.onSurface,
-                            modifier = Modifier.padding(start = 12.dp)
-                        )
-                    }
-                    // 手机端左上角不再放「返回本周」，改为底栏上方悬浮液态玻璃按钮
-                },
+                // 平板左上角不放标题
+                startAction = null,
                 endAction = { backdropAlpha, shadowAlpha ->
                     Row(
                         horizontalArrangement = Arrangement.spacedBy(8.dp),
@@ -194,6 +193,7 @@ internal fun ScheduleTopBar(
                 isCurrentWeek = isCurrentWeek,
                 weekDates = weekDates,
                 isTablet = isTablet,
+                railStartPadding = railPad,
                 modifier = Modifier.dayOfWeekTopPadding(statusBarHeight, scrollBehavior)
             )
         }
@@ -207,12 +207,14 @@ private fun DayOfWeekRow(
     isCurrentWeek: Boolean,
     weekDates: List<LocalDate>,
     isTablet: Boolean,
+    railStartPadding: Dp = 0.dp,
     modifier: Modifier = Modifier
 ) {
     Row(
         modifier = modifier
             .fillMaxWidth()
             .height(40.dp)
+            .padding(start = railStartPadding)
             .then(
                 if (isTablet) Modifier.padding(horizontal = 24.dp) else Modifier.padding(end = 2.dp)
             )

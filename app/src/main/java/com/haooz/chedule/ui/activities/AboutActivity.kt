@@ -131,17 +131,18 @@ class AboutActivity : ComponentActivity() {
 
 @SuppressLint("LocalContextGetResourceValueCall", "ConfigurationScreenWidthHeight")
 @Composable
-private fun AboutScreen(onBack: () -> Unit, liquidGlassBackdrop: com.kyant.backdrop.backdrops.LayerBackdrop) {
+fun AboutScreen(
+    onBack: () -> Unit,
+    liquidGlassBackdrop: com.kyant.backdrop.backdrops.LayerBackdrop,
+    embedded: Boolean = false,
+) {
     val hapticFeedback = LocalHapticFeedback.current
     val scrollBehavior = rememberSharedScrollBehavior()
     val context = LocalContext.current
     val uriHandler = LocalUriHandler.current
     val isInDark = isAppDarkTheme()
     val isTablet = LocalConfiguration.current.screenWidthDp >= 600
-    val tabletHorizontalPadding = if (isTablet) {
-        val screenWidthDp = LocalConfiguration.current.screenWidthDp
-        ((screenWidthDp - 600).coerceIn(0, 600) / 600f * 128).dp
-    } else 0.dp
+    val tabletHorizontalPadding = 4.dp
 
     val packageInfo = remember {
         try {
@@ -242,6 +243,7 @@ private fun AboutScreen(onBack: () -> Unit, liquidGlassBackdrop: com.kyant.backd
 
     Scaffold(
         topBar = {
+            // 内嵌到 pad 设置页右栏时，About 仍自绘顶栏糊层/遮罩/标题，仅隐藏返回按钮
             ProgressiveBlurTopBar(
                 backdrop = liquidGlassBackdrop,
                 tintIntensity = scrollProgress * 0.2f,
@@ -255,7 +257,7 @@ private fun AboutScreen(onBack: () -> Unit, liquidGlassBackdrop: com.kyant.backd
                     modifier = Modifier,
                     scrollBehavior = scrollBehavior,
                     contentPadding = {},
-                    startAction = { backdropAlpha, shadowAlpha ->
+                    startAction = if (embedded) null else { backdropAlpha, shadowAlpha ->
                         LiquidTopBarButton(
                             onClick = { onBack() },
                             backdrop = liquidGlassBackdrop,
@@ -446,35 +448,39 @@ private fun AboutScreen(onBack: () -> Unit, liquidGlassBackdrop: com.kyant.backd
                             Column(
                                 modifier = Modifier.fillMaxWidth()
                             ) {
-                                ArrowPreference(
-                                    title = "交流与反馈",
-                                    onClick = {
-                                        val intent =
-                                            Intent(context, CommunicationActivity::class.java)
-                                        context.startActivity(intent)
-                                    }
-                                )
+                                if (!embedded) {
+                                    ArrowPreference(
+                                        title = "交流与反馈",
+                                        onClick = {
+                                            val intent =
+                                                Intent(context, CommunicationActivity::class.java)
+                                            context.startActivity(intent)
+                                        }
+                                    )
+                                }
                                 ArrowPreference(
                                     title = "项目仓库",
                                     onClick = {
                                         showRepoDialog = true
                                     }
                                 )
-                                ArrowPreference(
-                                    title = "捐赠支持",
-                                    endActions = {
-                                        Text(
-                                            text = "请作者喝杯咖啡",
-                                            fontSize = 14.sp,
-                                            color = MiuixTheme.colorScheme.onSurfaceVariantActions
-                                        )
-                                    },
-                                    onClick = {
-                                        val intent =
-                                            Intent(context, AppreciateAuthorActivity::class.java)
-                                        context.startActivity(intent)
-                                    }
-                                )
+                                if (!embedded) {
+                                    ArrowPreference(
+                                        title = "捐赠支持",
+                                        endActions = {
+                                            Text(
+                                                text = "请作者喝杯咖啡",
+                                                fontSize = 14.sp,
+                                                color = MiuixTheme.colorScheme.onSurfaceVariantActions
+                                            )
+                                        },
+                                        onClick = {
+                                            val intent =
+                                                Intent(context, AppreciateAuthorActivity::class.java)
+                                            context.startActivity(intent)
+                                        }
+                                    )
+                                }
                             }
                         }
                     }

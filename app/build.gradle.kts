@@ -83,11 +83,6 @@ dependencies {
     // ViewModel 与 Compose 集成
     implementation(libs.androidx.lifecycle.viewmodel.compose)
 
-    // ===== Activity 嵌入（大屏分屏）=====
-    // Jetpack WindowManager：Activity 嵌入核心库
-    implementation(libs.androidx.window)
-    // App Startup：自动初始化分屏规则
-    implementation(libs.androidx.startup.runtime)
     // AndroidX WebKit，桌面版视口必须在页面脚本前注入
     implementation(libs.androidx.webkit)
 
@@ -108,10 +103,7 @@ dependencies {
     // SearchBar 返回键处理
     implementation(libs.navigationevent.compose)
 
-    // ===== 形状库 =====
-    // 形状使用本地 fork 的 capsule 库（ContinuousRoundedRectangle / ContinuousCapsule）
-    // Backdrop 模糊背景已 fork 到本地源码，不再使用 jar 依赖
-    // 其编译的 AGSL 运行时需要 org.jetbrains 注解（org.intellij.lang.annotations.Language）
+    // 其编译的 AGSL 运行时需要 org.jetbrains 注解
     implementation("org.jetbrains:annotations:26.1.0")
     // Material Color（miuix theme 依赖）
     implementation(libs.materialKolor.utilities)

@@ -10,8 +10,10 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.statusBars
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.key
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.drawWithContent
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.RectangleShape
@@ -47,6 +49,10 @@ fun ProgressiveBlurTopBar(
     blurAlpha: Float = 1f,
     /** 底端透明淡出起点（0–1，相对糊层高度）。越小过渡越长。 */
     edgeFadeStart: Float = 0.88f,
+    /** 侧栏伸缩等导致采样源位移后自增，强制重建糊层采样 */
+    resampleKey: Int = 0,
+    /** 伸缩过程中的连续跟踪值；每帧变化时在 draw 阶段失效，避免采样停在旧偏移 */
+    sampleTrack: Float = 0f,
     content: @Composable BoxScope.() -> Unit
 ) {
     val density = LocalDensity.current
@@ -59,7 +65,7 @@ fun ProgressiveBlurTopBar(
 
     val blurShapeBlock: () -> androidx.compose.ui.graphics.Shape = remember { { RectangleShape } }
     // ShaderRegistry 按 key 共享 RuntimeShader；多顶栏同时挂载时必须各用独立 key，
-    val shaderKey = remember {
+    val shaderKey = remember(resampleKey) {
         "ProgressiveBlurRadial_${progressiveBlurShaderSeq.incrementAndGet()}"
     }
     val denoiseKey = remember(shaderKey) { "${shaderKey}_denoise" }
@@ -94,42 +100,55 @@ fun ProgressiveBlurTopBar(
         }
 
     Box(modifier = modifier) {
-        if (Build.VERSION.SDK_INT >= 33) {
-            Box(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(totalHeight)
-                    .graphicsLayer { alpha = blurAlpha }
-                    .drawBackdrop(
-                        backdrop = backdrop,
-                        shape = blurShapeBlock,
-                        effects = blurEffects,
-                        highlight = null,
-                        shadow = null,
-                        downsampleScale = 1f
-                    )
-            )
-        } else {
-            val gradientColor = MiuixTheme.colorScheme.surface
-            val endY = totalHeight.value * density.density
-            Box(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(totalHeight)
-                    .graphicsLayer { alpha = blurAlpha }
-                    .background(
-                        Brush.verticalGradient(
-                            colorStops = arrayOf(
-                                0.0f to gradientColor.copy(alpha = 0.9f),
-                                0.4f to gradientColor.copy(alpha = 0.82f),
-                                0.7f to gradientColor.copy(alpha = 0.6f),
-                                1.0f to gradientColor.copy(alpha = 0.0f)
-                            ),
-                            startY = 0f,
-                            endY = endY
+        // 只重建糊层，不 remount content
+        key(resampleKey) {
+            if (Build.VERSION.SDK_INT >= 33) {
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(totalHeight)
+                        .graphicsLayer { alpha = blurAlpha }
+                        .drawWithContent {
+                            @Suppress("UNUSED_EXPRESSION")
+                            sampleTrack
+                            drawContent()
+                        }
+                        .drawBackdrop(
+                            backdrop = backdrop,
+                            shape = blurShapeBlock,
+                            effects = blurEffects,
+                            highlight = null,
+                            shadow = null,
+                            downsampleScale = 1f
                         )
-                    )
-            )
+                )
+            } else {
+                val gradientColor = MiuixTheme.colorScheme.surface
+                val endY = totalHeight.value * density.density
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(totalHeight)
+                        .graphicsLayer { alpha = blurAlpha }
+                        .drawWithContent {
+                            @Suppress("UNUSED_EXPRESSION")
+                            sampleTrack
+                            drawContent()
+                        }
+                        .background(
+                            Brush.verticalGradient(
+                                colorStops = arrayOf(
+                                    0.0f to gradientColor.copy(alpha = 0.9f),
+                                    0.4f to gradientColor.copy(alpha = 0.82f),
+                                    0.7f to gradientColor.copy(alpha = 0.6f),
+                                    1.0f to gradientColor.copy(alpha = 0.0f)
+                                ),
+                                startY = 0f,
+                                endY = endY
+                            )
+                        )
+                )
+            }
         }
         content()
     }

@@ -369,9 +369,24 @@ private class OverscrollNode(
         if (!isAttached) return Offset.Zero
         val isActive = abs(offset) > offsetThreshold
         if (overScrollState.isOverScrollActive != isActive) overScrollState.isOverScrollActive = isActive
-        if (source != NestedScrollSource.UserInput) return dispatcher.dispatchPostScroll(consumed, available, source)
+        val parentConsumed = if (nestedScrollToParent) {
+            dispatcher.dispatchPostScroll(consumed, available, source)
+        } else {
+            Offset.Zero
+        }
+        if (source != NestedScrollSource.UserInput) {
+            // fling 过程中触边：列表 consumed≈0 时，available 就是触边剩余。
+            // 必须用列表给出的 available，不能减 parentConsumed——
+            // 平板主 VerticalPager 等父级可能先把速度吃掉，减完恒为 0，回弹就没了。
+            val edgeLeftover = if (isVertical) available.y else available.x
+            val consumedAxis = if (isVertical) consumed.y else consumed.x
+            if (abs(consumedAxis) < 1.5f && abs(edgeLeftover) > 0.5f) {
+                animationJob?.cancel()
+                applyDrag(edgeLeftover * 0.35f)
+            }
+            return parentConsumed
+        }
         animationJob?.cancel()
-        val parentConsumed = if (nestedScrollToParent) dispatcher.dispatchPostScroll(consumed, available, source) else Offset.Zero
         val realAvailable = available - parentConsumed
         val delta = if (isVertical) realAvailable.y else realAvailable.x
         applyDrag(delta)
@@ -401,8 +416,23 @@ private class OverscrollNode(
         animationJob?.cancel()
         val parentConsumed = if (nestedScrollToParent) dispatcher.dispatchPostFling(consumed, available) else Velocity.Zero
         val realAvailable = available - parentConsumed
-        val velocity = (if (isVertical) realAvailable.y else realAvailable.x) / 1.53333f
-        startSpringAnimation(velocity)
+        // 甩边预置/弹回用列表给出的 available，不依赖 parent 是否吞掉速度
+        val rawVelocity = (if (isVertical) available.y else available.x) / 1.53333f
+        val velocity = if (abs(offset) > offsetThreshold) {
+            (if (isVertical) realAvailable.y else realAvailable.x) / 1.53333f
+        } else {
+            rawVelocity
+        }
+        if (abs(offset) <= offsetThreshold && abs(rawVelocity) > 8f) {
+            val preset = (rawVelocity * 0.02f)
+                .coerceIn(-scrollRange * 0.05f, scrollRange * 0.05f)
+            if (abs(preset) > offsetThreshold) {
+                offset = preset
+                syncRawAccumulationFromOffset()
+                overScrollState.isOverScrollActive = true
+            }
+        }
+        startSpringAnimation(if (abs(offset) > offsetThreshold) rawVelocity else velocity)
         return parentConsumed + if (isVertical) Velocity(0f, velocity) else Velocity(velocity, 0f)
     }
 }

@@ -63,7 +63,6 @@
 - 液态玻璃（LiquidGlass）效果
 - 连续曲率圆角（Squircle）裁剪
 - 渐进模糊、边缘光效与平滑过渡动画
-- 平板分屏模式适配
 
 ## 预览界面
 
@@ -136,7 +135,6 @@ app/src/main/java/com/haooz/chedule/
 ├── reminder/                  // 课程提醒（闹钟 / 通知 / 岛区跳转 / 组件事件接收器）
 ├── widget/                    // 桌面小组件（课程预览 / 今日课程，含 4x7 与标准尺寸）
 ├── shizuku/                   // Shizuku 特权服务
-├── embedding/                 // 平板分屏适配（WindowInitializer）
 ```
 
 ## 技术栈

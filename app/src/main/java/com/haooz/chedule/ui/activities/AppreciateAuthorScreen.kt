@@ -11,6 +11,7 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -118,51 +119,50 @@ fun AppreciateAuthorScreen(
                 .fillMaxSize()
                 .layerBackdrop(backdrop)
         ) {
-
-                val listState = rememberLazyListState()
-                LaunchedEffect(listState) {
-                    snapshotFlow { listState.firstVisibleItemScrollOffset }
-                        .collect { offset -> listScrollY = offset }
-                }
-                LaunchedEffect(listState) {
-                    snapshotFlow { listState.canScrollForward to donations.size }
-                        .collect { (canScroll, _) ->
-                            if (donations.isNotEmpty() && !canScroll && hasMore) loadMore()
-                        }
-                }
-                LazyColumn(
-                    state = listState,
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .overScrollVertical()
-                        .scrollEndHaptic(
-                            hapticFeedbackType = androidx.compose.ui.hapticfeedback.HapticFeedbackType.TextHandleMove
-                        )
-                        .collapsibleTopInset(scrollBehavior)
-                        .then(
-                            scrollBehavior?.let { Modifier.nestedScroll(it.nestedScrollConnection) } ?: Modifier
-                        ),
-                    contentPadding = PaddingValues(
-                        start = tabletHorizontalPadding,
-                        end = tabletHorizontalPadding,
-                        top = paddingValues.calculateTopPadding() + CollapsibleTopAppBarDefaults.CollapsedHeight + 12.dp,
-                        bottom = 60.dp
+            // 单列滚动：赞赏码在上、领奖台与捐赠明细在下（pad 也不做页内左右分栏）
+            val listState = rememberLazyListState()
+            LaunchedEffect(listState) {
+                snapshotFlow { listState.firstVisibleItemScrollOffset }
+                    .collect { offset -> listScrollY = offset }
+            }
+            LaunchedEffect(listState) {
+                snapshotFlow { listState.canScrollForward to donations.size }
+                    .collect { (canScroll, _) ->
+                        if (donations.isNotEmpty() && !canScroll && hasMore) loadMore()
+                    }
+            }
+            LazyColumn(
+                state = listState,
+                modifier = Modifier
+                    .fillMaxSize()
+                    .overScrollVertical()
+                    .scrollEndHaptic(
+                        hapticFeedbackType = androidx.compose.ui.hapticfeedback.HapticFeedbackType.TextHandleMove
+                    )
+                    .collapsibleTopInset(scrollBehavior)
+                    .then(
+                        scrollBehavior?.let { Modifier.nestedScroll(it.nestedScrollConnection) } ?: Modifier
                     ),
-                    verticalArrangement = Arrangement.spacedBy(12.dp)
-                ) {
+                contentPadding = PaddingValues(
+                    start = tabletHorizontalPadding,
+                    end = tabletHorizontalPadding,
+                    top = paddingValues.calculateTopPadding() + CollapsibleTopAppBarDefaults.CollapsedHeight + 12.dp,
+                    bottom = 60.dp
+                ),
+                verticalArrangement = Arrangement.spacedBy(12.dp)
+            ) {
+                item {
+                    DonateQrCard(isTablet = isTablet)
+                }
+                item {
+                    PodiumStage(entries = podium)
+                }
+                if (donationList.isNotEmpty()) {
                     item {
-                        DonateQrCard()
-                    }
-                    item {
-                        PodiumStage(entries = podium)
-                    }
-                    if (donationList.isNotEmpty()) {
-                        item {
-                            DonationDetailSection(donationList = donationList)
-                        }
+                        DonationDetailSection(donationList = donationList)
                     }
                 }
-
+            }
         }
     }
 }
@@ -422,21 +422,29 @@ private fun DonorAvatar(item: AppreciationItem, size: androidx.compose.ui.unit.D
 }
 
 @Composable
-private fun DonateQrCard() {
-    Card(
-        cornerRadius = 20.dp,
+private fun DonateQrCard(isTablet: Boolean = false) {
+    // 平板端赞赏码卡片居中并占 0.8 宽，避免拉得过扁
+    Box(
         modifier = Modifier.fillMaxWidth(),
-        insideMargin = PaddingValues(0.dp)
+        contentAlignment = Alignment.Center
     ) {
-        Image(
-            painter = painterResource(id = R.drawable.zanshangma),
-            contentDescription = "赞赏码",
+        Card(
+            cornerRadius = 20.dp,
             modifier = Modifier
-                .fillMaxWidth()
-                .padding(14.dp)
-                .clip(ContinuousRoundedRectangle(12.dp)),
-            contentScale = ContentScale.Fit,
-        )
+                .fillMaxWidth(if (isTablet) 0.8f else 1f)
+                .aspectRatio(1f),
+            insideMargin = PaddingValues(0.dp)
+        ) {
+            Image(
+                painter = painterResource(id = R.drawable.zanshangma),
+                contentDescription = "赞赏码",
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(14.dp)
+                    .clip(ContinuousRoundedRectangle(12.dp)),
+                contentScale = ContentScale.Fit,
+            )
+        }
     }
 }
 
