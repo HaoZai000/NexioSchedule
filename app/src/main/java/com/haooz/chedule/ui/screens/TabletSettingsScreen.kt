@@ -52,6 +52,7 @@ import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.input.nestedscroll.NestedScrollConnection
 import androidx.compose.ui.input.nestedscroll.NestedScrollSource
 import androidx.compose.ui.input.nestedscroll.nestedScroll
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalHapticFeedback
@@ -82,6 +83,7 @@ import com.haooz.chedule.ui.activities.WebDavSettingsScreen
 import com.haooz.chedule.ui.activities.WidgetIntroScreen
 import com.haooz.chedule.ui.basic.LiquidGlassTextButton
 import com.haooz.chedule.ui.basic.LiquidTopBarButton
+import com.haooz.chedule.ui.components.tabletNavChromeTitleSlot
 import com.haooz.chedule.ui.basic.ProgressiveBlurTopBar
 import com.haooz.chedule.ui.basic.SharedScrollBehavior
 import com.haooz.chedule.ui.basic.rememberSharedScrollBehavior
@@ -118,7 +120,6 @@ import top.yukonga.miuix.kmp.theme.MiuixTheme
 import java.net.HttpURLConnection
 import java.net.URL
 import java.time.LocalDate
-import kotlin.math.abs
 import kotlin.time.Duration.Companion.milliseconds
 
 /**
@@ -164,6 +165,17 @@ fun TabletSettingsChromeOverlay() {
     val statusBar = mainWindowTopInset()
     val collapsedH = com.haooz.chedule.ui.basic.CollapsibleTopAppBarDefaults.CollapsedHeight
     val titleColor = MiuixTheme.colorScheme.onSurface
+    val density = LocalDensity.current
+    val screenWidthDp = LocalConfiguration.current.screenWidthDp
+    val statusBarPx = with(density) { statusBar.roundToPx() }
+    val collapsedHPx = with(density) { collapsedH.roundToPx() }
+    val collapsedTotalPx = with(density) {
+        (com.haooz.chedule.ui.components.TabletNavSideInset +
+            com.haooz.chedule.ui.components.TabletNavIconRailWidth).toPx()
+    }
+    val expandedWidthPx = with(density) {
+        (screenWidthDp.dp * com.haooz.chedule.ui.components.TabletNavSideWidthFraction).toPx()
+    }
 
     BoxWithConstraints(
         modifier = Modifier
@@ -171,10 +183,7 @@ fun TabletSettingsChromeOverlay() {
             // 只高于右栏面板内容(0)，但低于 OverlayDialog 弹窗(z>=1)，避免分割线盖到弹窗上
             .zIndex(0.5f)
     ) {
-        val sidePad = com.haooz.chedule.ui.components.tabletNavSideStartPadding()
-        val contentWidth = maxWidth - sidePad
-        val leftWidth = contentWidth * 0.42f
-        val dividerX = sidePad + leftWidth
+        val maxWPx = with(density) { maxWidth.toPx() }
 
         // 折叠态标题：状态栏下 CollapsedHeight 内垂直居中
         val collapsedTitle: @Composable (String) -> Unit = { text ->
@@ -191,9 +200,14 @@ fun TabletSettingsChromeOverlay() {
         Box(
             modifier = Modifier
                 .align(Alignment.TopStart)
-                .padding(start = sidePad, top = statusBar)
-                .width(leftWidth)
-                .height(collapsedH),
+                .tabletNavChromeTitleSlot(
+                    maxWPx = maxWPx,
+                    collapsedTotalPx = collapsedTotalPx,
+                    expandedWidthPx = expandedWidthPx,
+                    statusBarPx = statusBarPx,
+                    heightPx = collapsedHPx,
+                    isLeftColumn = true,
+                ),
             contentAlignment = Alignment.Center
         ) {
             collapsedTitle("我的")
@@ -204,9 +218,14 @@ fun TabletSettingsChromeOverlay() {
             Box(
                 modifier = Modifier
                     .align(Alignment.TopStart)
-                    .padding(start = dividerX, top = statusBar)
-                    .width(maxWidth - dividerX)
-                    .height(collapsedH),
+                    .tabletNavChromeTitleSlot(
+                        maxWPx = maxWPx,
+                        collapsedTotalPx = collapsedTotalPx,
+                        expandedWidthPx = expandedWidthPx,
+                        statusBarPx = statusBarPx,
+                        heightPx = collapsedHPx,
+                        isLeftColumn = false,
+                    ),
                 contentAlignment = Alignment.Center
             ) {
                 collapsedTitle(selected.title)
@@ -1614,7 +1633,7 @@ private fun TabletSemesterPane(
 /** 右栏：节假日（状态由 HolidayManager 维护，不启 Activity）。顶部「更新」联网拉取对齐手机 Activity。 */
 @Composable
 private fun TabletHolidayPane(
-    scrollBehavior: com.haooz.chedule.ui.basic.SharedScrollBehavior?,
+    scrollBehavior: SharedScrollBehavior?,
     liquidGlassBackdrop: com.kyant.backdrop.Backdrop?,
     onUpdateReady: (() -> Unit) -> Unit = {},
     onLoadingChange: (Boolean) -> Unit = {},

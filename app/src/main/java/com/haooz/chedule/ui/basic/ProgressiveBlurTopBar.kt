@@ -13,11 +13,16 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.key
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.drawWithContent
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.RectangleShape
+import androidx.compose.ui.graphics.drawscope.ContentDrawScope
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.node.DrawModifierNode
+import androidx.compose.ui.node.ModifierNodeElement
+import androidx.compose.ui.node.ObserverModifierNode
+import androidx.compose.ui.node.invalidateDraw
+import androidx.compose.ui.node.observeReads
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
@@ -28,6 +33,59 @@ import top.yukonga.miuix.kmp.theme.MiuixTheme
 import java.util.concurrent.atomic.AtomicInteger
 
 private val progressiveBlurShaderSeq = AtomicInteger(0)
+private val NoSampleTrack: () -> Float = { 0f }
+
+/**
+ * 读取任意状态并仅失效 draw，不进组合。
+ * 侧栏伸缩时顶栏糊层需要跟手重采样，但顶栏自身尺寸不变。
+ */
+internal fun Modifier.invalidateDrawOnState(read: () -> Unit): Modifier =
+    this then InvalidateDrawOnStateElement(read)
+
+internal fun Modifier.invalidateDrawOnSampleTrack(track: () -> Float): Modifier =
+    invalidateDrawOnState { track() }
+
+private class InvalidateDrawOnStateElement(
+    private val read: () -> Unit,
+) : ModifierNodeElement<InvalidateDrawOnStateNode>() {
+
+    override fun create(): InvalidateDrawOnStateNode = InvalidateDrawOnStateNode(read)
+
+    override fun update(node: InvalidateDrawOnStateNode) {
+        node.read = read
+        node.reobserve()
+    }
+
+    override fun equals(other: Any?): Boolean {
+        if (this === other) return true
+        if (other !is InvalidateDrawOnStateElement) return false
+        return read === other.read
+    }
+
+    override fun hashCode(): Int = read.hashCode()
+}
+
+private class InvalidateDrawOnStateNode(
+    var read: () -> Unit,
+) : DrawModifierNode, ObserverModifierNode, Modifier.Node() {
+
+    override fun onObservedReadsChanged() {
+        invalidateDraw()
+        reobserve()
+    }
+
+    fun reobserve() {
+        observeReads { read() }
+    }
+
+    override fun onAttach() {
+        reobserve()
+    }
+
+    override fun ContentDrawScope.draw() {
+        drawContent()
+    }
+}
 
 /**
  * 顶部栏渐进模糊：模糊半径随 Y 从顶部最大连续收到 0。
@@ -51,8 +109,11 @@ fun ProgressiveBlurTopBar(
     edgeFadeStart: Float = 0.88f,
     /** 侧栏伸缩等导致采样源位移后自增，强制重建糊层采样 */
     resampleKey: Int = 0,
-    /** 伸缩过程中的连续跟踪值；每帧变化时在 draw 阶段失效，避免采样停在旧偏移 */
-    sampleTrack: Float = 0f,
+    /**
+     * 伸缩过程中的连续跟踪值；draw 阶段调用并只失效 draw，不进组合。
+     * 传稳定 lambda（如 tabletNavExpandSampleTrack），避免参数每帧更新触发整树重组。
+     */
+    sampleTrack: () -> Float = NoSampleTrack,
     content: @Composable BoxScope.() -> Unit
 ) {
     val density = LocalDensity.current
@@ -108,11 +169,7 @@ fun ProgressiveBlurTopBar(
                         .fillMaxWidth()
                         .height(totalHeight)
                         .graphicsLayer { alpha = blurAlpha }
-                        .drawWithContent {
-                            @Suppress("UNUSED_EXPRESSION")
-                            sampleTrack
-                            drawContent()
-                        }
+                        .invalidateDrawOnSampleTrack(sampleTrack)
                         .drawBackdrop(
                             backdrop = backdrop,
                             shape = blurShapeBlock,
@@ -130,11 +187,7 @@ fun ProgressiveBlurTopBar(
                         .fillMaxWidth()
                         .height(totalHeight)
                         .graphicsLayer { alpha = blurAlpha }
-                        .drawWithContent {
-                            @Suppress("UNUSED_EXPRESSION")
-                            sampleTrack
-                            drawContent()
-                        }
+                        .invalidateDrawOnSampleTrack(sampleTrack)
                         .background(
                             Brush.verticalGradient(
                                 colorStops = arrayOf(

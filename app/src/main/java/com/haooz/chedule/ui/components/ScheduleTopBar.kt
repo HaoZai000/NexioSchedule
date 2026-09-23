@@ -84,7 +84,7 @@ internal fun ScheduleTopBar(
     showMorePopup: Boolean = false,
     buttonFractionParam: Animatable<Float, *>? = null,
     blurResampleKey: Int = 0,
-    blurSampleTrack: Float = 0f,
+    blurSampleTrack: () -> Float = { 0f },
 ) {
     if (!visible || liquidGlassBackdrop == null) return
 
@@ -111,8 +111,6 @@ internal fun ScheduleTopBar(
 
     val statusBarHeight = WindowInsets.statusBars.asPaddingValues().calculateTopPadding()
     val topBarHeight = if (statusBarHeight > 0.dp) 120.dp + statusBarHeight else 160.dp
-    // 平板侧栏占位：星期行与课表列一起避让
-    val railPad = if (navBarStyle == "rail") tabletNavSideStartPadding() else 0.dp
     // 组合期读 currentHeightPx 会拿到未测量的值，星期行会慢一帧就位；改布局期读
     ProgressiveBlurTopBar(
         backdrop = liquidGlassBackdrop,
@@ -193,7 +191,6 @@ internal fun ScheduleTopBar(
                 isCurrentWeek = isCurrentWeek,
                 weekDates = weekDates,
                 isTablet = isTablet,
-                railStartPadding = railPad,
                 modifier = Modifier.dayOfWeekTopPadding(statusBarHeight, scrollBehavior)
             )
         }
@@ -207,16 +204,21 @@ private fun DayOfWeekRow(
     isCurrentWeek: Boolean,
     weekDates: List<LocalDate>,
     isTablet: Boolean,
-    railStartPadding: Dp = 0.dp,
     modifier: Modifier = Modifier
 ) {
     Row(
         modifier = modifier
             .fillMaxWidth()
             .height(40.dp)
-            .padding(start = railStartPadding)
             .then(
-                if (isTablet) Modifier.padding(horizontal = 24.dp) else Modifier.padding(end = 2.dp)
+                if (isTablet) {
+                    // 侧栏避让放在原 padding(start=) 位置，避免撑高 dayOfWeekTopPadding
+                    Modifier
+                        .then(tabletNavRailStartPadding())
+                        .padding(horizontal = 24.dp)
+                } else {
+                    Modifier.padding(end = 2.dp)
+                }
             )
     ) {
         Spacer(modifier = Modifier.width(if (isTablet) 56.dp else 36.dp))

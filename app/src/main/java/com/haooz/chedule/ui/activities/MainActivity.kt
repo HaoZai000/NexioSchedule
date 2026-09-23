@@ -1194,19 +1194,7 @@ fun CourseScheduleApp() {
                 )
         )
     }
-    // 侧栏展开状态用全局对象；内容让位为静态 padding，避免进页/重组时入场动画
-    val railPaddingStart =
-        if (navBarStyle == "rail") {
-            com.haooz.chedule.ui.components.tabletNavSideStartPadding()
-        } else {
-            0.dp
-        }
-    val railExpandProgress =
-        if (navBarStyle == "rail") {
-            com.haooz.chedule.ui.components.rememberTabletNavExpandProgress()
-        } else {
-            0f
-        }
+    // 侧栏展开状态用全局对象；内容让位只在 layout 读进度，避免整树每帧重组
     // 侧栏伸缩后强制续录 + 顶栏糊层重采样：否则采样停在旧帧，切页才会恢复
     val railBlurResampleEpoch = remember { mutableIntStateOf(0) }
     val railForceRecordFrames = remember { intArrayOf(0) }
@@ -2528,20 +2516,16 @@ fun CourseScheduleApp() {
         val latestSwitchAnimForward by rememberUpdatedState(switchAnimForward)
         val latestShowSwitch by rememberUpdatedState(showSwitchSchedule)
         val latestDraggingCard by rememberUpdatedState(isDraggingCard)
-        val latestRailPad by rememberUpdatedState(railPaddingStart)
-        val latestRailExpand by rememberUpdatedState(railExpandProgress)
         val latestRailBlurEpoch by rememberUpdatedState(railBlurResampleEpoch.intValue)
         // 课表/今日/设置滚动时主内容像素在变，必须重录，否则顶栏/底栏玻璃冻结
         val liquidGlassMustRecord = remember(scheduleScrollState, todayListScrollInProgress, pagerState, todayPagerState, mainPagerState) {
-            var lastRailPad = Float.NaN
             var lastRailExpand = Float.NaN
             var lastBlurEpoch = -1
             {
-                val railPad = latestRailPad.value
-                val railMoving = railPad != lastRailPad
-                lastRailPad = railPad
-                val expandMoving = latestRailExpand != lastRailExpand
-                lastRailExpand = latestRailExpand
+                // 侧栏进度只在 draw 阶段读，不进组合
+                val expand = com.haooz.chedule.ui.components.TabletNavSideState.expandProgress.floatValue
+                val expandMoving = expand != lastRailExpand
+                lastRailExpand = expand
                 val epochBumped = latestRailBlurEpoch != lastBlurEpoch
                 lastBlurEpoch = latestRailBlurEpoch
                 val forceRail = railForceRecordFrames[0] > 0
@@ -2551,7 +2535,6 @@ fun CourseScheduleApp() {
                     pagerState.isScrollInProgress ||
                     todayPagerState.isScrollInProgress ||
                     mainPagerState.isScrollInProgress ||
-                    railMoving ||
                     expandMoving ||
                     forceRail ||
                     epochBumped ||
@@ -2822,7 +2805,7 @@ fun CourseScheduleApp() {
                                         showMorePopup = showMorePopup,
                                         buttonFractionParam = scheduleMoreButtonFraction,
                                         blurResampleKey = railBlurResampleEpoch.intValue,
-                                        blurSampleTrack = railExpandProgress,
+                                        blurSampleTrack = com.haooz.chedule.ui.components.tabletNavExpandSampleTrack,
                                     )
                                 }
                             }
@@ -2850,7 +2833,7 @@ fun CourseScheduleApp() {
                                         navBarStyle = navBarStyle,
                                         scrollBehavior = settingsScrollBehavior,
                                         blurResampleKey = railBlurResampleEpoch.intValue,
-                                        blurSampleTrack = railExpandProgress,
+                                        blurSampleTrack = com.haooz.chedule.ui.components.tabletNavExpandSampleTrack,
                                     )
                                 }
                             }
@@ -2884,7 +2867,7 @@ fun CourseScheduleApp() {
                                     visible = showTodayTitle,
                                     buttonFractionParam = todayMoreButtonFraction,
                                     blurResampleKey = railBlurResampleEpoch.intValue,
-                                    blurSampleTrack = railExpandProgress,
+                                    blurSampleTrack = com.haooz.chedule.ui.components.tabletNavExpandSampleTrack,
                                 )
                             }
                         }
@@ -3085,7 +3068,13 @@ fun CourseScheduleApp() {
                             Box(
                                 modifier = Modifier
                                     .fillMaxSize()
-                                    .padding(start = railPaddingStart)
+                                    .then(
+                                        if (navBarStyle == "rail") {
+                                            com.haooz.chedule.ui.components.tabletNavRailStartPadding()
+                                        } else {
+                                            Modifier
+                                        }
+                                    )
                             ) {
                             // 主 tab 仅由底栏/侧栏点击切换；关闭用户手势翻页。
                             // 平板（rail）竖向移动，手机横向移动。
@@ -5206,7 +5195,7 @@ private fun SettingsTopBar(
     navBarStyle: String,
     scrollBehavior: SharedScrollBehavior? = null,
     blurResampleKey: Int = 0,
-    blurSampleTrack: Float = 0f,
+    blurSampleTrack: () -> Float = { 0f },
 ) {
     if (liquidGlassBackdrop == null) return
     val isTablet = navBarStyle == "rail"
@@ -5255,7 +5244,7 @@ private fun TodayTopBar(
     visible: Boolean = true,
     buttonFractionParam: Animatable<Float, *>? = null,
     blurResampleKey: Int = 0,
-    blurSampleTrack: Float = 0f,
+    blurSampleTrack: () -> Float = { 0f },
 ) {
     if (liquidGlassBackdrop == null) return
     val isTabletLiquidGlass = navBarStyle == "rail"
