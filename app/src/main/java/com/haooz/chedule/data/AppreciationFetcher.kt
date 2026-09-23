@@ -16,6 +16,7 @@ data class AppreciationsPage(val items: List<AppreciationItem>, val hasMore: Boo
 object AppreciationFetcher {
     // 与公告/上报同源走明文 HTTP：HTTPS(443) 在该运营商网络下 TLS 握手被干扰（Connection reset），沿用 3000 直达后端
     private const val API_URL = "http://182.92.193.223:3000/api/appreciations"
+    private const val TOP_URL = "http://182.92.193.223:3000/api/appreciations/top"
     const val PAGE_SIZE = 10
 
     private val client = OkHttpClient.Builder()
@@ -55,6 +56,39 @@ object AppreciationFetcher {
                 }
             } catch (_: Exception) {
                 AppreciationsPage(emptyList(), false)
+            }
+        }
+
+    /** 拉取累计捐赠前三（云端已排除匿名）；网络异常返回空列表 */
+    suspend fun fetchTop(limit: Int = 3): List<AppreciationItem> =
+        withContext(Dispatchers.IO) {
+            try {
+                val url = TOP_URL.toHttpUrl().newBuilder()
+                    .addQueryParameter("limit", limit.toString())
+                    .build()
+                val resp = client.newCall(Request.Builder().url(url).build()).execute()
+                try {
+                    if (!resp.isSuccessful) return@withContext emptyList()
+                    val json = org.json.JSONObject(resp.body?.string() ?: return@withContext emptyList())
+                    val array = json.optJSONArray("records") ?: JSONArray()
+                    buildList {
+                        for (i in 0 until array.length()) {
+                            val obj = array.optJSONObject(i) ?: continue
+                            add(
+                                AppreciationItem(
+                                    nickname = obj.optString("nickname"),
+                                    amount = obj.optString("amount"),
+                                    time = obj.optString("time"),
+                                    remark = obj.optString("remark"),
+                                )
+                            )
+                        }
+                    }
+                } finally {
+                    resp.close()
+                }
+            } catch (_: Exception) {
+                emptyList()
             }
         }
 }
