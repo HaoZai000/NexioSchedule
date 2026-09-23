@@ -21,7 +21,6 @@ import androidx.compose.animation.core.CubicBezierEasing
 import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.Spring
 import androidx.compose.animation.core.animate
-import androidx.compose.animation.core.animateDpAsState
 import androidx.compose.animation.core.animateFloat
 import androidx.compose.animation.core.spring
 import androidx.compose.animation.core.tween
@@ -74,8 +73,11 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.blur
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.clipToBounds
+import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.draw.drawWithContent
 import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.TransformOrigin
@@ -2906,13 +2908,8 @@ fun CourseScheduleApp() {
                                 mustRecord = liquidGlassMustRecord
                             )
                         ) {
-                        Box(
-                            modifier = Modifier
-                                .fillMaxSize()
-                                .padding(start = railPaddingStart)
-                        ) {
-                            // 共享壁纸层：画在主 pager 之下。
-                            // 今日↔课程表：壁纸钉死不动；课程表→设置：壁纸随页向左平移。
+                        // 共享壁纸层：铺满全屏（含侧栏下），与 rail 让位无关，侧栏伸缩时像素不动。
+                            // 今日↔课程表：壁纸钉死不动；课程表→设置：壁纸随页平移，侧栏下用背景色盖住。
                             val sharedWallpaperBitmap =
                                 if (showCustomizePage && !isWindowCutoutActive) originalWallpaperBitmap
                                 else wallpaperBitmap
@@ -2943,6 +2940,15 @@ fun CourseScheduleApp() {
                                 }
                             }
                             if (showSharedWallpaperLayer && sharedWallpaperBitmap != null) {
+                                // 全屏垫背景色 + 裁切：壁纸切页平移时露出的空隙由背景色盖住（侧栏下始终有内容，不出漏）
+                                val wallpaperPadColor =
+                                    if (isAppDarkTheme()) Color(0xFF000000) else Color(0xFFF7F7F7)
+                                Box(
+                                    modifier = Modifier
+                                        .fillMaxSize()
+                                        .background(wallpaperPadColor)
+                                        .clipToBounds()
+                                ) {
                                 val sharedMinScale = remember(sharedWallpaperBitmap, screenWPx, screenHPx) {
                                     if (sharedWallpaperBitmap.width > 0 && sharedWallpaperBitmap.height > 0) {
                                         val fit = minOf(
@@ -3012,6 +3018,8 @@ fun CourseScheduleApp() {
                                             val s = maxOf(sharedWallpaperScale, sharedMinScale)
                                             scaleX = s
                                             scaleY = s
+                                            // 缩放/平移裁在自身 bounds 内，避免突出课程表页画进侧栏
+                                            clip = true
                                             val scrollPos = mainPagerState.currentPage +
                                                 mainPagerState.currentPageOffsetFraction
                                             // 今日/课程表区间内固定；越过课程表去设置时壁纸跟页
@@ -3019,7 +3027,7 @@ fun CourseScheduleApp() {
                                             val settingsShift =
                                                 if (scrollPos > schedulePageIndex) {
                                                     val span =
-                                                        if (navBarStyle == "rail") size.height else size.width
+                                                        if (navBarStyle == "rail") screenHPx else screenWPx
                                                     -(scrollPos - schedulePageIndex) * span
                                                 } else {
                                                     0f
@@ -3036,7 +3044,49 @@ fun CourseScheduleApp() {
                                     contentScale = ContentScale.Fit,
                                     colorFilter = sharedBrightnessFilter
                                 )
+                                }
                             }
+                            // 设置页不透明底：画在全屏父层（含侧栏），实色铺满。
+                            // 不能塞进 VerticalPager——pager 会裁切页面，drawBehind 负坐标画不出去。
+                            // 平移跟设置页同步，避免切回浅色课程表时侧栏下闪白。
+                            run {
+                                val settingsPageIndex = if (isShiftMode) 1 else 2
+                                // 锁定应用主题背景色，不随课程表页/壁纸锁色变化
+                                val settingsCoverTranslation by remember(mainPagerState, isShiftMode, navBarStyle) {
+                                    derivedStateOf {
+                                        val scrollPos = mainPagerState.currentPage +
+                                            mainPagerState.currentPageOffsetFraction
+                                        (settingsPageIndex - scrollPos)
+                                    }
+                                }
+                                val settingsCoverController = remember {
+                                    ThemeController(
+                                        if (appSettingDark) ColorSchemeMode.Dark else ColorSchemeMode.Light
+                                    )
+                                }
+                                settingsCoverController.colorSchemeMode =
+                                    if (appSettingDark) ColorSchemeMode.Dark else ColorSchemeMode.Light
+                                MiuixTheme(controller = settingsCoverController) {
+                                    Box(
+                                        modifier = Modifier
+                                            .fillMaxSize()
+                                            .graphicsLayer {
+                                                val t = settingsCoverTranslation
+                                                if (navBarStyle == "rail") {
+                                                    translationY = t * screenHPx
+                                                } else {
+                                                    translationX = t * screenWPx
+                                                }
+                                            }
+                                            .background(MiuixTheme.colorScheme.surface)
+                                    )
+                                }
+                            }
+                            Box(
+                                modifier = Modifier
+                                    .fillMaxSize()
+                                    .padding(start = railPaddingStart)
+                            ) {
                             // 主 tab 仅由底栏/侧栏点击切换；关闭用户手势翻页。
                             // 平板（rail）竖向移动，手机横向移动。
                             val mainPagerModifier = Modifier
@@ -3985,9 +4035,36 @@ fun CourseScheduleApp() {
                             modifier = Modifier.fillMaxSize().zIndex(22f),
                         )
                     }
-                    // 平板设置：标题与分界线画在顶栏模糊之上
-                    if (navBarStyle == "rail" && selectedTab == 2 && !isShiftMode) {
-                        com.haooz.chedule.ui.screens.TabletSettingsChromeOverlay()
+                    // 平板设置：标题与分界线画在顶栏模糊之上，跟设置页切页平移。
+                    // 主题锁定 appSettingDark：不随课程表/壁纸锁色瞬间切换。
+                    if (navBarStyle == "rail" && !isShiftMode) {
+                        val settingsChromePageIndex = 2
+                        val settingsChromeTranslation by remember(mainPagerState) {
+                            derivedStateOf {
+                                val scrollPos = mainPagerState.currentPage +
+                                    mainPagerState.currentPageOffsetFraction
+                                (settingsChromePageIndex - scrollPos)
+                            }
+                        }
+                        val settingsChromeController = remember {
+                            ThemeController(
+                                if (appSettingDark) ColorSchemeMode.Dark else ColorSchemeMode.Light
+                            )
+                        }
+                        settingsChromeController.colorSchemeMode =
+                            if (appSettingDark) ColorSchemeMode.Dark else ColorSchemeMode.Light
+                        MiuixTheme(controller = settingsChromeController) {
+                            Box(
+                                modifier = Modifier
+                                    .fillMaxSize()
+                                    .graphicsLayer {
+                                        translationY =
+                                            settingsChromeTranslation * screenHPx
+                                    }
+                            ) {
+                                com.haooz.chedule.ui.screens.TabletSettingsChromeOverlay()
+                            }
+                        }
                     }
                 }
             }
@@ -5133,25 +5210,35 @@ private fun SettingsTopBar(
 ) {
     if (liquidGlassBackdrop == null) return
     val isTablet = navBarStyle == "rail"
+    // 仅设置页顶栏锁应用主题，避免切页时渐变/糊层随课程表壁纸锁色跳变
+    val settingsBarDark = rememberAppSettingDark()
+    val settingsBarController = remember {
+        ThemeController(if (settingsBarDark) ColorSchemeMode.Dark else ColorSchemeMode.Light)
+    }
+    settingsBarController.colorSchemeMode =
+        if (settingsBarDark) ColorSchemeMode.Dark else ColorSchemeMode.Light
 
     // 平板设置：渐变画在 TabletSettingsScreen 内容层，这里不再叠全宽遮罩
-    ProgressiveBlurTopBar(
-        backdrop = liquidGlassBackdrop,
-        blurAlpha = if (isTablet) 0f else 1f,
-        resampleKey = blurResampleKey,
-        sampleTrack = blurSampleTrack,
-    ) {
-        CollapsibleTopAppBar(
-            // 平板设置：顶栏不再显示「我的」，标题由 MainActivity 叠层绘制
-            title = if (isTablet) "" else "我的",
-            largeTitle = if (isTablet) "" else "我的",
-            showLargeTitle = if (isTablet) false else null,
-            showSmallTitle = if (isTablet) true else null,
-            showGradientOverlay = !isTablet,
-            modifier = Modifier.zIndex(1f),
-            scrollBehavior = if (isTablet) null else scrollBehavior,
-            startAction = null,
-        )
+    MiuixTheme(controller = settingsBarController) {
+        ProgressiveBlurTopBar(
+            backdrop = liquidGlassBackdrop,
+            blurAlpha = if (isTablet) 0f else 1f,
+            resampleKey = blurResampleKey,
+            sampleTrack = blurSampleTrack,
+        ) {
+            CollapsibleTopAppBar(
+                // 平板设置：顶栏不再显示「我的」，标题由 MainActivity 叠层绘制
+                title = if (isTablet) "" else "我的",
+                largeTitle = if (isTablet) "" else "我的",
+                showLargeTitle = if (isTablet) false else null,
+                showSmallTitle = if (isTablet) true else null,
+                showGradientOverlay = !isTablet,
+                gradientColorOverride = if (settingsBarDark) Color.Black else Color.White,
+                modifier = Modifier.zIndex(1f),
+                scrollBehavior = if (isTablet) null else scrollBehavior,
+                startAction = null,
+            )
+        }
     }
 }
 

@@ -268,8 +268,9 @@ private fun TabletPaneTopChrome(
 ) {
     val resolvedMaskAlpha = maskAlpha ?: rememberPaneMaskAlpha(scrolledPx)
     val maskHeight = TabletPaneBlurHeight
+    // 锁应用主题，不随壁纸锁色/切页跳变
     val gradientColor =
-        if (com.haooz.chedule.ui.utils.isAppDarkTheme()) Color.Black else Color.White
+        if (com.haooz.chedule.ui.utils.rememberAppSettingDark()) Color.Black else Color.White
 
     Box(
         modifier = modifier
@@ -1272,7 +1273,7 @@ private fun TabletSemesterPane(
                         title = "本学期总周数",
                         endActions = {
                             Text(
-                                text = "第${totalWeeks}周",
+                                text = "共${totalWeeks}周",
                                 fontSize = 14.5.sp,
                                 color = MiuixTheme.colorScheme.onSurfaceVariantActions
                             )

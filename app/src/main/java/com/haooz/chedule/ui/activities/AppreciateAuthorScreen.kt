@@ -155,7 +155,7 @@ fun AppreciateAuthorScreen(
                     DonateQrCard(isTablet = isTablet)
                 }
                 item {
-                    PodiumStage(entries = podium)
+                    PodiumStage(entries = podium, isTablet = isTablet)
                 }
                 if (donationList.isNotEmpty()) {
                     item {
@@ -168,13 +168,13 @@ fun AppreciateAuthorScreen(
 }
 
 @Composable
-private fun PodiumStage(entries: List<AppreciationItem>) {
+private fun PodiumStage(entries: List<AppreciationItem>, isTablet: Boolean = false) {
     val isDark = isAppDarkTheme()
     val first = entries.getOrNull(0)
     val second = entries.getOrNull(1)
     val third = entries.getOrNull(2)
 
-    // 不包外框：舞台直接铺在页面上，只保留榜首光晕
+    // 三个排行全宽铺开（不用赞赏码的 0.8 宽）
     Box(
         modifier = Modifier
             .fillMaxWidth()
@@ -189,11 +189,12 @@ private fun PodiumStage(entries: List<AppreciationItem>) {
         contentAlignment = Alignment.BottomCenter
     ) {
         // 固定台座宽度，避免第三名列被 weight 挤压导致文字裁切
+        // 平板三列全宽均分，不套 0.8 宽
         Row(
             modifier = Modifier
                 .fillMaxWidth()
                 .padding(horizontal = 4.dp, vertical = 12.dp),
-            horizontalArrangement = Arrangement.Center,
+            horizontalArrangement = if (isTablet) Arrangement.SpaceEvenly else Arrangement.Center,
             verticalAlignment = Alignment.Bottom
         ) {
             if (second != null) {
@@ -201,13 +202,13 @@ private fun PodiumStage(entries: List<AppreciationItem>) {
             } else {
                 Spacer(modifier = Modifier.width(104.dp))
             }
-            Spacer(modifier = Modifier.width(10.dp))
+            if (!isTablet) Spacer(modifier = Modifier.width(10.dp))
             if (first != null) {
                 PodiumColumn(rank = 1, item = first, isDark = isDark)
             } else {
                 Spacer(modifier = Modifier.width(120.dp))
             }
-            Spacer(modifier = Modifier.width(10.dp))
+            if (!isTablet) Spacer(modifier = Modifier.width(10.dp))
             if (third != null) {
                 PodiumColumn(rank = 3, item = third, isDark = isDark)
             } else {

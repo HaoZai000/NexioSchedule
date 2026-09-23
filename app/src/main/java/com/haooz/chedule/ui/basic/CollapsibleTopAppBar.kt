@@ -349,6 +349,8 @@ fun CollapsibleTopAppBar(
     // 右侧自定义 Composable（接收 backdropAlpha、shadowAlpha 用于液态玻璃按钮动画）
     endAction: @Composable ((backdropAlpha: Float, shadowAlpha: Float) -> Unit)? = null,
     gradientMaskHeight: Dp = CollapsibleTopAppBarDefaults.CollapsedHeight + 60.dp,
+    /** 渐变遮罩色；null=随 isAppDarkTheme。设置页应传入锁应用主题的色 */
+    gradientColorOverride: Color? = null,
     // 暴露当前的 backdropAlpha/shadowAlpha，供外部组件（如搜索框）同步动画
     onAlphaChanged: (backdropAlpha: Float, shadowAlpha: Float) -> Unit = { _, _ -> },
 ) {
@@ -470,7 +472,9 @@ fun CollapsibleTopAppBar(
         }
         gradientAlpha.animateTo(target, spec)
     }
-    val gradientColor = if (isAppDarkTheme()) Color.Black else Color.White
+    // 默认随当前页主题（课程表/今日可跟壁纸锁色）；设置页由调用方传入锁应用主题的色
+    val gradientColor = gradientColorOverride
+        ?: if (isAppDarkTheme()) Color.Black else Color.White
 
     LaunchedEffect(backdropAlpha.value, shadowAlpha.value) {
         onAlphaChanged(backdropAlpha.value, shadowAlpha.value)

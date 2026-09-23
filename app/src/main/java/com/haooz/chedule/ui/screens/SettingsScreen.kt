@@ -8,6 +8,7 @@ import android.content.Intent
 import android.widget.Toast
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -220,7 +221,7 @@ fun SettingsScreen(
         ((screenWidthDp - 600).coerceIn(0, 600) / 600f * 112 + 16).dp
     } else 16.dp
 
-    Box(modifier = Modifier.fillMaxSize()) {
+    Box(modifier = Modifier.fillMaxSize().background(backgroundColor)) {
         Scaffold(
         topBar = {}
     ) { paddingValues ->
@@ -322,7 +323,7 @@ fun SettingsScreen(
                                 title = "本学期总周数",
                                 endActions = {
                                     Text(
-                                        text = "第${totalWeeks}周",
+                                        text = "共${totalWeeks}周",
                                         fontSize = 14.5.sp,
                                         color = MiuixTheme.colorScheme.onSurfaceVariantActions
                                     )
