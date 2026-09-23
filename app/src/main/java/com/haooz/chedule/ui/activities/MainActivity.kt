@@ -4021,6 +4021,32 @@ fun CourseScheduleApp() {
                             onSidebarExpandedChange = {
                                 com.haooz.chedule.ui.components.TabletNavSideState.expanded = it
                             },
+                            showBackToNow = !isShiftMode &&
+                                !showDetail &&
+                                !showCustomizePage &&
+                                !showSwitchSchedule &&
+                                !isWindowCutoutActive &&
+                                !shortcutMenuVisible &&
+                                !floatingCardVisible &&
+                                when (selectedTab) {
+                                    0 -> !todayIsToday
+                                    1 -> !isViewingCurrentWeek
+                                    else -> false
+                                },
+                            onBackToNow = {
+                                if (selectedTab == 0) {
+                                    scrollToTodayTrigger++
+                                } else {
+                                    coroutineScope.launch {
+                                        val targetPage =
+                                            (currentWeek - 1).coerceIn(
+                                                0,
+                                                (totalWeeks - 1).coerceAtLeast(0)
+                                            )
+                                        pagerState.animateScrollToPage(targetPage)
+                                    }
+                                }
+                            },
                             modifier = Modifier.fillMaxSize().zIndex(22f),
                         )
                     }
@@ -5284,26 +5310,11 @@ private fun TodayTopBar(
             endAction = { backdropAlpha, shadowAlpha ->
                 if (visible) {
                     if (isTabletLiquidGlass) {
+                        // 返回今日改由侧栏底部「今」按钮承担
                         Row(
                             horizontalArrangement = Arrangement.spacedBy(8.dp),
                             verticalAlignment = Alignment.CenterVertically
                         ) {
-                            AnimatedVisibility(
-                                visible = !isToday,
-                                enter = fadeIn(animationSpec = tween(180)),
-                                exit = fadeOut(animationSpec = tween(120))
-                            ) {
-                                LiquidTopBarButton(
-                                    onClick = onBackToToday,
-                                    backdrop = liquidGlassBackdrop,
-                                    icon = MiuixIcons.Medium.Reset,
-                                    contentDescription = "返回今天",
-                                    iconSize = 24.dp,
-                                    iconOffset = DpOffset(x = 0.dp, y = (-1).dp),
-                                    backdropAlpha = backdropAlpha,
-                                    shadowAlpha = shadowAlpha,
-                                )
-                            }
                             LiquidTopBarButton(
                                 onClick = onMoreClick,
                                 backdrop = liquidGlassBackdrop,

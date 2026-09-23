@@ -8,6 +8,9 @@ import android.view.WindowManager
 import androidx.compose.animation.core.Spring
 import androidx.compose.animation.core.animate
 import androidx.compose.animation.core.spring
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
@@ -15,6 +18,7 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.asPaddingValues
 import androidx.compose.foundation.layout.fillMaxHeight
@@ -386,6 +390,8 @@ fun TabletNavSideBar(
     selectedTab: Int,
     onTabSelected: (Int) -> Unit,
     isShiftMode: Boolean = false,
+    showBackToNow: Boolean = false,
+    onBackToNow: () -> Unit = {},
     modifier: Modifier = Modifier,
 ) {
     TabletNavExpandAnimator()
@@ -487,6 +493,32 @@ fun TabletNavSideBar(
                     )
                 }
             }
+
+            Spacer(modifier = Modifier.weight(1f))
+
+            // 底部居中「今」
+            Box(
+                modifier = Modifier.fillMaxWidth(),
+                contentAlignment = Alignment.Center,
+            ) {
+                if (backdrop != null) {
+                    // ColumnScope 内需显式走非扩展版
+                    androidx.compose.animation.AnimatedVisibility(
+                        visible = showBackToNow,
+                        enter = fadeIn(animationSpec = tween(180)),
+                        exit = fadeOut(animationSpec = tween(120)),
+                    ) {
+                        BackToNowFloatingButton(
+                            onClick = onBackToNow,
+                            backdrop = backdrop,
+                            label = "今",
+                            // 折叠紧凑防裁切，展开恢复饱满内边距
+                            adaptiveToSidebarExpand = true,
+                        )
+                    }
+                }
+            }
+            Spacer(modifier = Modifier.height(20.dp))
         }
     }
 }

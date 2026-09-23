@@ -9,7 +9,7 @@ import androidx.compose.ui.unit.dp
 /**
  * 应用材质质量档（应用偏好设置中可切换，默认最佳）。
  *
- * 最佳 / 均衡 / 性能 / 关闭 —— 供玻璃模糊、折射、边光等材质效果读取。
+ * 最佳 / 均衡 / 性能 —— 供玻璃模糊、折射、边光等材质效果读取。默认均衡。
  */
 object AppMaterialSettings {
 
@@ -19,22 +19,18 @@ object AppMaterialSettings {
     const val BEST = "best"
     const val BALANCED = "balanced"
     const val PERFORMANCE = "performance"
-    const val OFF = "off"
 
     val entries: List<Pair<String, String>> = listOf(
         BEST to "最佳",
         BALANCED to "均衡",
         PERFORMANCE to "性能",
-        OFF to "关闭",
     )
 
     /** 当前档位；组合期可读，写入走 [apply]。 */
-    var level: String by mutableStateOf(BEST)
+    var level: String by mutableStateOf(BALANCED)
 
     fun labelOf(level: String): String =
-        entries.firstOrNull { it.first == level }?.second ?: "最佳"
-
-    fun isOff(): Boolean = level == OFF
+        entries.firstOrNull { it.first == level }?.second ?: "均衡"
 
     /**
      * 按钮 / 低栏背景板折射。
@@ -43,8 +39,14 @@ object AppMaterialSettings {
     fun chromeLensEnabled(): Boolean = level == BEST
 
     /**
+     * 性能档：假渐进模糊（等值 blur + alpha 淡出）替代真渐进（AGSL 多重采样）。
+     * 最佳 / 均衡保留真模糊。
+     */
+    fun progressiveBlurUseFake(): Boolean = level == PERFORMANCE
+
+    /**
      * 性能档：高光描边降级为普通纯色描边（浅色白 / 深色灰，无模糊、SrcOver）。
-     * 最佳 / 均衡保留原高光；关闭档后续再定。
+     * 最佳 / 均衡保留原高光。
      */
     fun resolveEdgeLight(
         source: com.haooz.chedule.ui.effects.edgelight.EdgeLight,
@@ -66,12 +68,20 @@ object AppMaterialSettings {
     }
 
     fun apply(level: String) {
-        this.level = level
+        this.level = normalize(level)
     }
 
     /** 启动时从偏好载入到全局状态。 */
     fun load(context: Context) {
-        level = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
-            .getString(KEY_APP_MATERIAL, BEST) ?: BEST
+        level = normalize(
+            context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+                .getString(KEY_APP_MATERIAL, BALANCED) ?: BALANCED
+        )
+    }
+
+    /** 旧值 / 非法值落到均衡档。 */
+    private fun normalize(level: String): String = when (level) {
+        BEST, BALANCED, PERFORMANCE -> level
+        else -> BALANCED
     }
 }

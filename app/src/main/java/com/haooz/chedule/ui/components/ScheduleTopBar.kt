@@ -133,24 +133,7 @@ internal fun ScheduleTopBar(
                         horizontalArrangement = Arrangement.spacedBy(8.dp),
                         verticalAlignment = Alignment.CenterVertically
                     ) {
-                        if (navBarStyle == "rail") {
-                            AnimatedVisibility(
-                                visible = !isViewingCurrentWeek,
-                                enter = fadeIn(animationSpec = tween(180)),
-                                exit = fadeOut(animationSpec = tween(120))
-                            ) {
-                                LiquidTopBarButton(
-                                    onClick = onBackToCurrentWeek,
-                                    backdrop = liquidGlassBackdrop,
-                                    icon = MiuixIcons.Medium.Reset,
-                                    contentDescription = "返回本周",
-                                    iconOffset = DpOffset(x = 0.dp, y = (-1).dp),
-                                    iconSize = 24.dp,
-                                    backdropAlpha = backdropAlpha,
-                                    shadowAlpha = shadowAlpha
-                                )
-                            }
-                        }
+                        // 返回本周改由侧栏底部「今」按钮承担
                         if (!isShiftMode) {
                             LiquidTopBarButton(
                                 onClick = {

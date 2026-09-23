@@ -445,6 +445,8 @@ fun LiquidNavigationRail(
     isShiftMode: Boolean,
     modifier: Modifier = Modifier,
     onSidebarExpandedChange: ((Boolean) -> Unit)? = null,
+    showBackToNow: Boolean = false,
+    onBackToNow: () -> Unit = {},
 ) {
     var liquidSelectedTab by remember { mutableIntStateOf(selectedTab) }
     LaunchedEffect(selectedTab) { liquidSelectedTab = selectedTab }
@@ -457,6 +459,8 @@ fun LiquidNavigationRail(
         selectedTab = liquidSelectedTab,
         onTabSelected = onTabSelected,
         isShiftMode = isShiftMode,
+        showBackToNow = showBackToNow,
+        onBackToNow = onBackToNow,
         modifier = modifier,
     )
 }

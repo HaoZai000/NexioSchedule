@@ -13,6 +13,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.key
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.drawWithContent
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.RectangleShape
@@ -28,6 +29,7 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import com.kyant.backdrop.Backdrop
 import com.kyant.backdrop.drawBackdrop
+import com.kyant.backdrop.effects.blur
 import com.kyant.backdrop.effects.runtimeShaderEffect
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 import java.util.concurrent.atomic.AtomicInteger
@@ -95,7 +97,8 @@ private class InvalidateDrawOnStateNode(
  * downsampleScale = 1，避免默认 0.42 降采样在慢滑时跳格抖动。
  * Shader：黄金角递推、单次 hash；padding 区不上屏直接直通（AGSL 不支持 const 数组表）。
  *
- * API < 33 降级为表面色渐变遮罩。
+ * 性能档：假渐进模糊 = 等值 blur + alpha 渐变淡出（DstIn 遮罩），不跑 AGSL 多重采样。
+ * API < 33：仅表面色 alpha 渐变。
  */
 @Composable
 fun ProgressiveBlurTopBar(
@@ -117,6 +120,9 @@ fun ProgressiveBlurTopBar(
     content: @Composable BoxScope.() -> Unit
 ) {
     val density = LocalDensity.current
+    val materialLevel = com.haooz.chedule.ui.utils.AppMaterialSettings.level
+    val useFakeProgressiveBlur =
+        com.haooz.chedule.ui.utils.AppMaterialSettings.progressiveBlurUseFake()
     val totalHeight = if (height != Dp.Unspecified) {
         height
     } else {
@@ -162,8 +168,8 @@ fun ProgressiveBlurTopBar(
 
     Box(modifier = modifier) {
         // 只重建糊层，不 remount content
-        key(resampleKey) {
-            if (Build.VERSION.SDK_INT >= 33) {
+        key(resampleKey, materialLevel) {
+            if (Build.VERSION.SDK_INT >= 33 && !useFakeProgressiveBlur) {
                 Box(
                     modifier = Modifier
                         .fillMaxWidth()
@@ -177,6 +183,48 @@ fun ProgressiveBlurTopBar(
                             highlight = null,
                             shadow = null,
                             downsampleScale = 1f
+                        )
+                )
+            } else if (Build.VERSION.SDK_INT >= 33) {
+                // 性能档假渐进：等值 blur + alpha 渐变淡出，观感接近真渐进，成本低一截
+                val fadeBrush = remember(totalHeight, edgeFadeStart) {
+                    Brush.verticalGradient(
+                        colorStops = arrayOf(
+                            0.0f to Color.White,
+                            (edgeFadeStart * 0.55f).coerceIn(0.2f, 0.9f) to Color.White,
+                            edgeFadeStart.coerceIn(0.4f, 0.95f) to Color.White.copy(alpha = 0.45f),
+                            1.0f to Color.Transparent,
+                        ),
+                    )
+                }
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(totalHeight)
+                        .graphicsLayer {
+                            alpha = blurAlpha
+                            compositingStrategy =
+                                androidx.compose.ui.graphics.CompositingStrategy.Offscreen
+                            clip = true
+                        }
+                        .invalidateDrawOnSampleTrack(sampleTrack)
+                        .drawWithContent {
+                            drawContent()
+                            // 只淡出糊层自身，不盖到 content()
+                            drawRect(fadeBrush, blendMode = androidx.compose.ui.graphics.BlendMode.DstIn)
+                        }
+                        .drawBackdrop(
+                            backdrop = backdrop,
+                            shape = blurShapeBlock,
+                            effects = {
+                                blur(12f.dp.toPx())
+                            },
+                            highlight = null,
+                            shadow = null,
+                            downsampleScale = 1f,
+                            onDrawSurface = {
+                                drawRect(tintColor.copy(alpha = tintIntensity))
+                            },
                         )
                 )
             } else {
