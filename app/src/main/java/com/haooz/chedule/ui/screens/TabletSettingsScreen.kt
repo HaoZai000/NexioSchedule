@@ -83,6 +83,8 @@ import com.haooz.chedule.ui.activities.WidgetIntroScreen
 import com.haooz.chedule.ui.basic.LiquidGlassTextButton
 import com.haooz.chedule.ui.basic.LiquidTopBarButton
 import com.haooz.chedule.ui.basic.ProgressiveBlurTopBar
+import com.haooz.chedule.ui.basic.SharedScrollBehavior
+import com.haooz.chedule.ui.basic.rememberSharedScrollBehavior
 import com.haooz.chedule.ui.utils.LocalOverScrollState
 import com.haooz.chedule.ui.utils.OverScrollState
 import com.haooz.chedule.ui.utils.overScrollVertical
@@ -228,19 +230,20 @@ private val TabletPaneBlurHeight: Dp
     }
 
 /**
- * 本栏顶部表面色遮罩 / 右上角按钮共用的 alpha，对齐 CollapsibleTopAppBar 手机实现：
- * 滚动超阈值后 spring 淡入/淡出，不随滚动距离改变透明度。
+ * 本栏顶部表面色遮罩 / 右上角按钮共用的 alpha。
+ * 判定与手机 [com.haooz.chedule.ui.basic.CollapsibleTopAppBar] 的 showButtonShadow 完全一致：
+ * - contentOffset（手机 SharedScrollBehavior 约定，向下滚为负）超过 10dp
+ * - 或未滚动时的底部越界（offset < 0）
+ * 不吸收顶部橡皮筋；回弹只清越界，不把已滚动量抹掉。
  */
 @Composable
-private fun rememberPaneMaskAlpha(scrolledPx: Float): Float {
+private fun rememberPaneMaskAlpha(contentOffset: Float): Float {
     val density = LocalDensity.current
     val overScroll = LocalOverScrollState.current
     val scrollThresholdPx = with(density) { 10.dp.toPx() }
-    val overscrollThresholdPx = with(density) { 4.dp.toPx() }
-    // 真实滚动或越界拉伸都算「顶部内容位移」：越界拉伸给出反馈，回弹静止时
-    // overScroll.offset 归零，遮罩随之淡出
     val showMask =
-        scrolledPx > scrollThresholdPx || abs(overScroll.offset) > overscrollThresholdPx
+        contentOffset < -scrollThresholdPx ||
+            (contentOffset >= 0f && overScroll.offset < 0f)
     val maskAnim = remember { Animatable(0f) }
     LaunchedEffect(showMask) {
         val spec =
@@ -266,7 +269,8 @@ private fun TabletPaneTopChrome(
     modifier: Modifier = Modifier,
     maskAlpha: Float? = null,
 ) {
-    val resolvedMaskAlpha = maskAlpha ?: rememberPaneMaskAlpha(scrolledPx)
+    // scrolledPx 为正=已上滑；转成手机 contentOffset 约定（向下滚为负）
+    val resolvedMaskAlpha = maskAlpha ?: rememberPaneMaskAlpha(-scrolledPx)
     val maskHeight = TabletPaneBlurHeight
     // 锁应用主题，不随壁纸锁色/切页跳变
     val gradientColor =
@@ -307,52 +311,43 @@ private fun TabletPaneTopChrome(
     }
 }
 
-/** 只观察、不消费的滚动累计：正数表示内容已上滑；到顶/顶部回弹时清零 */
+/**
+ * 右栏滚动观察：直接复用手机 [SharedScrollBehavior] 的 contentOffset 累计
+ * （onPostScroll 无门闩 `contentOffset += consumed.y`，甩动/拖动同一路径）。
+ *
+ * 外面包一层代理：越界期间把 consumed.y 置零再交给委托，避免 OverScroll
+ * 把 available 回灌进 contentOffset（BlurBottomSheet 同款）。
+ */
 @Composable
 private fun rememberPaneScrollTracker(
     resetKey: Any?,
-    onScrollPx: (Float) -> Unit,
+    scrollBehavior: SharedScrollBehavior,
+    overScroll: OverScrollState,
 ): NestedScrollConnection {
-    val currentOnScrollPx by rememberUpdatedState(onScrollPx)
-    // 以 resetKey 作为 remember 键：切子页时重建连接并清零累计位移，
-    // 避免残留上一页滚动量导致新页遮罩触发时机提前/错乱
-    val acc = remember(resetKey) { floatArrayOf(0f) }
-    val overScroll = LocalOverScrollState.current
-    return remember(resetKey) {
+    return remember(resetKey, scrollBehavior, overScroll) {
+        val delegate = scrollBehavior.nestedScrollConnection
         object : NestedScrollConnection {
+            override fun onPreScroll(available: Offset, source: NestedScrollSource): Offset =
+                delegate.onPreScroll(available, source)
+
             override fun onPostScroll(
                 consumed: Offset,
                 available: Offset,
                 source: NestedScrollSource,
             ): Offset {
-                // 越界拉伸（回弹）期间不累计真实滚动：不可滚动页上滑只触发回弹、
-                // 不产生真实位移，回弹后遮罩会残留，故拉伸期一律不写 acc
-                if (!overScroll.isOverScrollActive) {
-                    when {
-                        consumed.y != 0f -> {
-                            acc[0] = (acc[0] - consumed.y).coerceAtLeast(0f)
-                        }
-                        // 列表已在顶部：继续下拉/回弹时未消费的向下位移 → 遮罩应收起
-                        available.y > 0f -> {
-                            acc[0] = 0f
-                        }
-                    }
-                }
-                currentOnScrollPx(acc[0])
-                return Offset.Zero
+                // offset != 0f 而非 isOverScrollActive：避开 0~1px 假阴性窗口
+                val safeConsumed =
+                    if (overScroll.offset != 0f) Offset.Zero else consumed
+                return delegate.onPostScroll(safeConsumed, available, source)
             }
+
+            override suspend fun onPreFling(available: Velocity): Velocity =
+                delegate.onPreFling(available)
 
             override suspend fun onPostFling(
                 consumed: Velocity,
                 available: Velocity,
-            ): Velocity {
-                // 朝列表顶部甩、还有剩余速度：归位后清零
-                if (available.y > 1f) {
-                    acc[0] = 0f
-                    currentOnScrollPx(0f)
-                }
-                return Velocity.Zero
-            }
+            ): Velocity = delegate.onPostFling(consumed, available)
         }
     }
 }
@@ -381,10 +376,8 @@ fun TabletSettingsScreen(
             com.haooz.chedule.ui.basic.CollapsibleTopAppBarDefaults.CollapsedHeight +
             12.dp
 
-    // 左栏滚动用列表状态驱动遮罩；右栏用只观察的 nestedScroll（不挂在列表上）
+    // 左栏滚动用列表状态驱动遮罩；右栏用 SharedScrollBehavior.contentOffset
     var leftScrollPx by remember { mutableFloatStateOf(0f) }
-    var rightScrollPx by remember { mutableFloatStateOf(0f) }
-    LaunchedEffect(selected) { rightScrollPx = 0f }
 
     // 手机端底部按钮画在各 Activity；pad 内嵌 Screen 时需要在右栏叠层补回
     var showWidgetGuideDialog by remember { mutableStateOf(false) }
@@ -618,9 +611,21 @@ fun TabletSettingsScreen(
             ) {
                 // 右栏独立 overscroll 作用域：子屏列表与遮罩/右上角按钮共用同一实例
                 CompositionLocalProvider(LocalOverScrollState provides rightOverScroll) {
-                    val rightTrack = rememberPaneScrollTracker(selected) { rightScrollPx = it }
-                    // 右上角按钮与右栏顶遮罩共用同一 alpha，真实滚动或越界拉伸时同步淡入
-                    val rightMaskAlpha = rememberPaneMaskAlpha(rightScrollPx)
+                    // 与手机同一套 contentOffset 累计（甩动也走 onPostScroll）
+                    val rightScrollBehavior = rememberSharedScrollBehavior()
+                    LaunchedEffect(rightScrollBehavior) {
+                        // pad 无大标题折叠栏：不消费滚动，只记 contentOffset
+                        rightScrollBehavior.state.heightOffsetLimit = -1f
+                    }
+                    LaunchedEffect(selected) {
+                        rightScrollBehavior.state.contentOffset = 0f
+                        rightScrollBehavior.state.heightOffset = 0f
+                    }
+                    val rightTrack =
+                        rememberPaneScrollTracker(selected, rightScrollBehavior, rightOverScroll)
+                    // 右上角按钮与右栏顶遮罩共用同一 alpha（contentOffset 向下滚为负）
+                    val rightMaskAlpha =
+                        rememberPaneMaskAlpha(rightScrollBehavior.state.contentOffset)
                     Box(
                         modifier = Modifier
                             .fillMaxSize()
@@ -922,7 +927,7 @@ fun TabletSettingsScreen(
                     // 关于应用页内嵌且自绘顶栏糊层/遮罩，这里不再叠加设置页右栏顶部糊层
                     if (selected != TabletSettingsDest.About) {
                         TabletPaneTopChrome(
-                            scrolledPx = rightScrollPx,
+                            scrolledPx = -rightScrollBehavior.state.contentOffset,
                             backdrop = rightPaneBackdrop,
                             modifier = Modifier.align(Alignment.TopStart),
                             maskAlpha = rightMaskAlpha,

@@ -452,10 +452,7 @@ fun TodayScreen(
 
 
     val isTablet = navBarStyle == "rail"
-    val tabletHorizontalPadding = if (isTablet) {
-        val screenWidthDp = LocalConfiguration.current.screenWidthDp
-        ((screenWidthDp - 600).coerceIn(0, 600) / 600f * 112 + 16).dp
-    } else 16.dp
+    val tabletHorizontalPadding = if (isTablet) 24.dp else 16.dp
 
     val todayRefraction = cardRefraction
     CompositionLocalProvider(LocalCardRefraction provides todayRefraction) {
