@@ -78,11 +78,13 @@ fun BackToNowFloatingButton(
     val buttonShape: Shape = ContinuousCapsule()
 
     val buttonShapeBlock: () -> Shape = remember { { buttonShape } }
-    val buttonEffects: com.kyant.backdrop.BackdropEffectScope.() -> Unit = remember {
+    val chromeLens = com.haooz.chedule.ui.utils.AppMaterialSettings.chromeLensEnabled()
+    val buttonEffects: com.kyant.backdrop.BackdropEffectScope.() -> Unit = remember(chromeLens) {
         {
             vibrancy()
             blur(4.dp.toPx())
-            lens(8f.dp.toPx(), 24f.dp.toPx())
+            // 均衡及以下关闭折射
+            if (chromeLens) lens(8f.dp.toPx(), 24f.dp.toPx())
         }
     }
     val buttonOnDrawSurface: androidx.compose.ui.graphics.drawscope.DrawScope.() -> Unit =

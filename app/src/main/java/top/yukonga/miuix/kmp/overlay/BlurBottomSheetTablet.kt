@@ -37,6 +37,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.drawscope.DrawScope
 import androidx.compose.ui.graphics.graphicsLayer
@@ -434,6 +435,28 @@ private fun BlurBottomSheetTabletContent(
                         ) {
                             Box(modifier = Modifier.fillMaxWidth().height(60.dp))
                         }
+                        // 滚动渐变遮罩：对齐 CollapsibleTopAppBar，随 showButtonShadow 淡入
+                        val gradientColor =
+                            if (sheetAppDark) Color.Black else Color.White
+                        Box(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .height(82.dp)
+                                .zIndex(1.5f)
+                                .graphicsLayer { alpha = shadowAlpha.value }
+                                .drawBehind {
+                                    drawRect(
+                                        brush = Brush.verticalGradient(
+                                            0f to gradientColor.copy(alpha = 0.85f),
+                                            0.45f to gradientColor.copy(alpha = 0.55f),
+                                            0.7f to gradientColor.copy(alpha = 0.32f),
+                                            0.85f to gradientColor.copy(alpha = 0.14f),
+                                            0.93f to gradientColor.copy(alpha = 0.05f),
+                                            1f to Color.Transparent
+                                        )
+                                    )
+                                }
+                        )
                     }
 
                     // 标题栏固定高度，保证有无操作按钮时标题都垂直居中于同一位置

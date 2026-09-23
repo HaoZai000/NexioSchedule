@@ -75,12 +75,14 @@ fun LiquidTopBarButton(
 
     // drawBackdrop 的 element 用引用比较 shape / effects / onDrawSurface
     // 若 lambda 每次都新建，节点就会每帧 update → invalidateDraw → 每帧重新录制采样层并重新跑一次
+    val chromeLens = com.haooz.chedule.ui.utils.AppMaterialSettings.chromeLensEnabled()
     val buttonShapeBlock: () -> androidx.compose.ui.graphics.Shape = remember { { CircleShape } }
-    val buttonEffects: com.kyant.backdrop.BackdropEffectScope.() -> Unit = remember {
+    val buttonEffects: com.kyant.backdrop.BackdropEffectScope.() -> Unit = remember(chromeLens) {
         {
             vibrancy()
             blur(4.dp.toPx())
-            lens(8f.dp.toPx(), 24f.dp.toPx())
+            // 均衡及以下关闭折射
+            if (chromeLens) lens(8f.dp.toPx(), 24f.dp.toPx())
         }
     }
     val buttonOnDrawSurface: androidx.compose.ui.graphics.drawscope.DrawScope.() -> Unit =

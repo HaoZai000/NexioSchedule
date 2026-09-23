@@ -130,6 +130,18 @@ fun PreferenceSettingsScreen(
             appPrefs.getBoolean(com.haooz.chedule.ui.theme.KEY_HAPTIC_FEEDBACK, true)
         )
     }
+    var appMaterialLevel by remember {
+        mutableStateOf(
+            appPrefs.getString(
+                com.haooz.chedule.ui.utils.AppMaterialSettings.KEY_APP_MATERIAL,
+                com.haooz.chedule.ui.utils.AppMaterialSettings.BEST
+            ) ?: com.haooz.chedule.ui.utils.AppMaterialSettings.BEST
+        )
+    }
+    // 启动时同步到全局，后续材质效果直接读 AppMaterialSettings.level
+    LaunchedEffect(Unit) {
+        com.haooz.chedule.ui.utils.AppMaterialSettings.apply(appMaterialLevel)
+    }
 
     val isTablet = LocalConfiguration.current.screenWidthDp >= 600
     val tabletHorizontalPadding = if (isTablet) 20.dp else 16.dp
@@ -300,6 +312,39 @@ fun PreferenceSettingsScreen(
                                 title = "默认首页",
                                 summary = "首次启动时默认显示的页面",
                                 entry = homepageEntry,
+                                collapseOnSelection = true,
+                                liquidGlassBackdrop = liquidGlassBackdrop,
+                                dropdownColors = liquidGlassDropdownColors,
+                            )
+
+                            val appMaterialEntry = DropdownEntry(
+                                items = com.haooz.chedule.ui.utils.AppMaterialSettings.entries
+                                    .map { (value, label) ->
+                                        DropdownItem(
+                                            text = label,
+                                            selected = appMaterialLevel == value,
+                                            onClick = {
+                                                com.haooz.chedule.ui.utils.FeatureLog.preference(
+                                                    "app_material=$value"
+                                                )
+                                                appMaterialLevel = value
+                                                com.haooz.chedule.ui.utils.AppMaterialSettings.apply(value)
+                                                appPrefs.edit {
+                                                    putString(
+                                                        com.haooz.chedule.ui.utils.AppMaterialSettings.KEY_APP_MATERIAL,
+                                                        value
+                                                    )
+                                                }
+                                            }
+                                        )
+                                    }
+                            )
+
+                            OverlayDropdownMenu(
+                                title = "应用材质",
+                                // summary 为空时自动显示当前选中档位
+                                summary = null,
+                                entry = appMaterialEntry,
                                 collapseOnSelection = true,
                                 liquidGlassBackdrop = liquidGlassBackdrop,
                                 dropdownColors = liquidGlassDropdownColors,

@@ -217,17 +217,22 @@ fun LiquidBottomTabs(
         }
 
         // 可见层：不缩放（源库只缩放下面的捕获层，滑块外的放大不可见）
+        val chromeLens = com.haooz.chedule.ui.utils.AppMaterialSettings.chromeLensEnabled()
+        val panelEffects: com.kyant.backdrop.BackdropEffectScope.() -> Unit = remember(chromeLens) {
+            {
+                vibrancy()
+                blur(8f.dp.toPx())
+                // 均衡及以下：低栏背景板关闭折射
+                if (chromeLens) lens(24f.dp.toPx(), 24f.dp.toPx())
+            }
+        }
         Row(
             Modifier
                 .graphicsLayer { translationX = panelOffset }
                 .drawBackdrop(
                     backdrop = backdrop,
                     shape = { ContinuousCapsule() },
-                    effects = {
-                        vibrancy()
-                        blur(8f.dp.toPx())
-                        lens(24f.dp.toPx(), 24f.dp.toPx())
-                    },
+                    effects = panelEffects,
                     highlight = null,
                     layerBlock = {
                         val progress = dampedDragAnimation.pressProgress
