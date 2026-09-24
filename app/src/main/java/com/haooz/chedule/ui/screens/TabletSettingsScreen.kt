@@ -458,7 +458,6 @@ fun TabletSettingsScreen(
             }
         val surfaceColor = MiuixTheme.colorScheme.surface
         val leftPaneBackdrop = rememberLayerBackdrop {
-            drawRect(surfaceColor)
             drawContent()
         }
         val rightPaneBackdrop = rememberLayerBackdrop {
@@ -472,7 +471,6 @@ fun TabletSettingsScreen(
                 modifier = Modifier
                     .width(leftWidth)
                     .fillMaxHeight()
-                    .background(surfaceColor)
             ) {
                 Box(
                     modifier = Modifier

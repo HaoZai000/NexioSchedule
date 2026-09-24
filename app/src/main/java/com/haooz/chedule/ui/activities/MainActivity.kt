@@ -74,10 +74,8 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.blur
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.clipToBounds
-import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.draw.drawWithContent
 import androidx.compose.ui.geometry.Offset
-import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.TransformOrigin
@@ -98,7 +96,6 @@ import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.state.ToggleableState
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.unit.DpOffset
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.unit.dp
@@ -174,7 +171,6 @@ import top.yukonga.miuix.kmp.icon.extended.Delete
 import top.yukonga.miuix.kmp.icon.extended.Edit
 import top.yukonga.miuix.kmp.icon.extended.More
 import top.yukonga.miuix.kmp.icon.extended.Paste
-import top.yukonga.miuix.kmp.icon.extended.Reset
 import top.yukonga.miuix.kmp.overlay.OverlayDialog
 import top.yukonga.miuix.kmp.squircle.addSquircleRect
 import top.yukonga.miuix.kmp.theme.ColorSchemeMode
@@ -3061,7 +3057,7 @@ fun CourseScheduleApp() {
                                                     translationX = t * screenWPx
                                                 }
                                             }
-                                            .background(MiuixTheme.colorScheme.surface)
+                                            
                                     )
                                 }
                             }
@@ -4006,7 +4002,7 @@ fun CourseScheduleApp() {
                                         if (todayPagerState.isScrollInProgress) todayPagerState.cancelScroll()
                                         if (pagerState.isScrollInProgress) pagerState.cancelScroll()
                                         if (mainPagerState.isScrollInProgress) mainPagerState.cancelScroll()
-                                        mainPagerState.animateMainTabTo(idx)
+                                        mainPagerState.scrollToPage(idx)
                                     } finally {
                                         mainTabProgrammatic = false
                                     }
