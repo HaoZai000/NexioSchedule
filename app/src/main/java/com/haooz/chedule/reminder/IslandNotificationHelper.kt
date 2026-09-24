@@ -471,14 +471,10 @@ object IslandNotificationHelper {
                 val actionInfo = JSONObject().apply {
                     put("actionTitle", "上课勿扰")
                     put("actionIntentType", 2)
-                    val action = if (testMode) {
-                        ClassDndReceiver.ACTION_TEST_TOGGLE
-                    } else {
-                        ClassDndReceiver.ACTION_TOGGLE
-                    }
+                    // 测试课已并入 isInClass，与真实课共用同一条按钮链路
                     put(
                         "actionIntent",
-                        "intent:#Intent;action=$action;" +
+                        "intent:#Intent;action=${ClassDndReceiver.ACTION_TOGGLE};" +
                             "component=${context.packageName}/.reminder.ClassDndReceiver;end"
                     )
                 }
@@ -897,6 +893,8 @@ object IslandNotificationHelper {
             testMode = true
         )
         kickWidgetRefresh(context)
+        // 测试课也要走「上课自动开启、下课自动关闭」，否则勿扰链路在测试里跑不到
+        ClassDndHelper.syncTestClassDndAlarms(context)
 
         val contentIntent = Intent(context, MainActivity::class.java).apply {
             flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP

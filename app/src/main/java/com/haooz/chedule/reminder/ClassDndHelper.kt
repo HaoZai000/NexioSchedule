@@ -3,6 +3,7 @@
 // - 课堂期间只观察：用户在课中手动改过就不再强行写回，也不销毁快照
 // - 下课/离开课堂时校验：系统状态仍等于本应用写入的值才还原快照；否则视为用户已接管，保留现状
 // - 用户在应用内关开关 / 切档位属于明确指令，无条件还原快照后再按新状态处理
+// - 通知 / 超级岛按钮属于手动接管：课堂外点了立刻生效并保持，进入课堂后转交课堂生命周期
 package com.haooz.chedule.reminder
 
 import android.app.AlarmManager
@@ -30,10 +31,18 @@ object ClassDndHelper {
     private const val KEY_ORIGINAL_FILTER = "dnd_original_interruption_filter"
     // 接管时系统实际呈现的值，用于下课判断「有没有被用户动过」
     private const val KEY_SET_STATE = "dnd_set_state"
+    // 用户从通知/超级岛按钮手动开启：不在课堂也保持，只有用户再点一次才还原
+    private const val KEY_MANUAL = "dnd_manual_by_user"
+    private const val KEY_MANUAL_AT = "dnd_manual_at"
+    // 手动接管的最长保留时间：跨日或超时就无条件还原，避免手机被遗忘在勿扰里
+    private const val MANUAL_HOLD_MAX_MS = 8 * 60 * 60 * 1000L
 
     // 与课程提醒闹钟的 10000 段错开
     private const val RC_DND_START_BASE = 30000
     private const val RC_DND_END_BASE = 40000
+    // 测试课（测试超级岛 / 测试实时活动）专属，不占用课程 id 段
+    private const val RC_DND_TEST_START = 39901
+    private const val RC_DND_TEST_END = 49901
 
     const val MODE_DND = 0
     const val MODE_SILENT = 1
@@ -169,6 +178,36 @@ object ClassDndHelper {
             remove(KEY_ORIGINAL_RINGER)
             remove(KEY_ORIGINAL_FILTER)
             remove(KEY_SET_STATE)
+            remove(KEY_MANUAL)
+            remove(KEY_MANUAL_AT)
+        }
+    }
+
+    /** 用户手动接管中：不在课堂也不自动还原；跨日或超时则视为遗留状态，无条件还原 */
+    private fun isManualHeld(context: Context): Boolean {
+        val p = prefs(context)
+        if (!p.getBoolean(KEY_MANUAL, false)) return false
+        val at = p.getLong(KEY_MANUAL_AT, 0L)
+        val expired = at <= 0L ||
+            System.currentTimeMillis() - at > MANUAL_HOLD_MAX_MS ||
+            !isSameDay(at, System.currentTimeMillis())
+        if (!expired) return true
+        Log.w(TAG, "Manual hold expired, restoring original state")
+        handBack(context, requireConsistency = false)
+        return false
+    }
+
+    private fun isSameDay(a: Long, b: Long): Boolean {
+        val ca = Calendar.getInstance().apply { timeInMillis = a }
+        val cb = Calendar.getInstance().apply { timeInMillis = b }
+        return ca.get(Calendar.YEAR) == cb.get(Calendar.YEAR) &&
+            ca.get(Calendar.DAY_OF_YEAR) == cb.get(Calendar.DAY_OF_YEAR)
+    }
+
+    private fun markManual(context: Context, held: Boolean) {
+        prefs(context).edit {
+            putBoolean(KEY_MANUAL, held)
+            putLong(KEY_MANUAL_AT, System.currentTimeMillis())
         }
     }
 
@@ -245,8 +284,33 @@ object ClassDndHelper {
         return masterEnabled && repository.getClassDndEnabled()
     }
 
+    /**
+     * 测试课（「测试小米超级岛」/「测试实时活动」）的课堂时间窗。
+     * 测试课不在真实课表，以前 isInClass 恒 false，勿扰链路在测试里根本跑不到；
+     * 现在把它并进来，测试也能验证「上课自动开启、下课自动关闭」。
+     * 两条通道二选一：实时活动写 countdown_state，超级岛写 IslandState。
+     */
+    private fun testClassWindow(context: Context): Pair<Long, Long>? {
+        val countdown = context.getSharedPreferences("countdown_state", Context.MODE_PRIVATE)
+        if (countdown.getBoolean("active", false) && countdown.getBoolean("test_mode", false)) {
+            val s = countdown.getLong("startMillis", 0L)
+            val e = countdown.getLong("endMillis", 0L)
+            if (s > 0L && e > s) return s to e
+        }
+        val island = IslandNotificationHelper.IslandState.snapshot(context, testMode = true)
+        if (island != null && island.startMillis > 0L && island.endMillis > island.startMillis) {
+            return island.startMillis to island.endMillis
+        }
+        return null
+    }
+
     // 判断是否在 [start, end) 课堂时间
     fun isInClass(context: Context): Boolean {
+        // 测试课按毫秒级窗口判断，真实课按分钟级节次判断
+        testClassWindow(context)?.let { (start, end) ->
+            val now = System.currentTimeMillis()
+            if (now >= start && now < end) return true
+        }
         val repository = CourseRepository(context)
         val now = Calendar.getInstance()
         val currentMinutes = now.get(Calendar.HOUR_OF_DAY) * 60 + now.get(Calendar.MINUTE)
@@ -266,6 +330,8 @@ object ClassDndHelper {
             return
         }
         if (!isInClass(context)) {
+            // 用户从通知 / 超级岛按钮手动开启的：不在课堂也保持，等用户再点一次才还原
+            if (isManualHeld(context)) return
             // 下课：系统状态还和本应用设置的一致才还原
             handBack(context, requireConsistency = true)
             return
@@ -278,6 +344,8 @@ object ClassDndHelper {
         }
 
         val p = prefs(context)
+        // 手动接管一旦进入课堂就转交课堂生命周期，下课才能自动还原
+        if (p.getBoolean(KEY_MANUAL, false)) p.edit { remove(KEY_MANUAL) }
         if (!p.getBoolean(KEY_APPLIED, false)) {
             takeOver(context)
             return
@@ -301,61 +369,57 @@ object ClassDndHelper {
         }
     }
 
-    // 切换后立刻对账：已上课则立即生效，否则等上课闹钟
+    /**
+     * 通知 / 超级岛「上课勿扰」按钮：点一下立刻生效，再点一下立刻还原。
+     * 旧实现只翻转「上课自动开启勿扰」开关，不在课堂时点了系统状态纹丝不动，
+     * 表现就是「Toast 说已开启，实际没开启」——而按钮文案承诺的是立即勿扰。
+     * 非课堂时段开启记为用户手动接管，applyCurrentState 不会自动把它还原掉。
+     */
     fun toggleFromNotification(context: Context) {
         val repository = CourseRepository(context)
+        if (!repository.getPreClassReminder() && !repository.getNextDayReminder()) {
+            Toast.makeText(context, "请先在「课程提醒」中开启课程提醒", Toast.LENGTH_LONG).show()
+            return
+        }
+
         val next = !repository.getClassDndEnabled()
         repository.setClassDndEnabled(next)
 
-        if (next) {
-            val mode = repository.getClassDndMode()
-            if ((mode == MODE_DND || mode == MODE_PRIORITY) && !isDndPermissionGranted(context)) {
-                Toast.makeText(context, "请先在「课程提醒」中授予勿扰权限", Toast.LENGTH_LONG).show()
-                return
-            }
-        }
-        Toast.makeText(
-            context,
-            if (next) "已开启上课勿扰，上课时自动免打扰" else "已关闭上课勿扰",
-            Toast.LENGTH_SHORT
-        ).show()
-
-        if (next) {
-            val alarmManager = context.getSystemService(Context.ALARM_SERVICE) as AlarmManager
-            scheduleClassDndAlarms(context, alarmManager)
-        }
-        applyCurrentState(context)
-    }
-
-    // 测试岛课程不在真实课表，isInClass 恒 false，走正常链路无法验证按钮；故立即开关
-    fun toggleDndNowForTest(context: Context) {
-        val mode = currentMode(context)
-        if ((mode == MODE_DND || mode == MODE_PRIORITY) && !isDndPermissionGranted(context)) {
-            Toast.makeText(context, "勿扰/优先模式需要先授予勿扰权限", Toast.LENGTH_LONG).show()
-            return
-        }
-        val p = prefs(context)
-        val applied = p.getBoolean(KEY_APPLIED, false)
-        if (applied && p.getInt(KEY_APPLIED_MODE, MODE_DND) == mode) {
+        if (!next) {
             handBack(context, requireConsistency = false)
-            Toast.makeText(context, "测试：已关闭", Toast.LENGTH_SHORT).show()
+            Toast.makeText(context, "已关闭上课勿扰", Toast.LENGTH_SHORT).show()
             return
         }
-        if (applied) {
-            // 档位换了：先卸掉旧档位再按新档位接管
-            applyOriginalSnapshot(context, p.getInt(KEY_APPLIED_MODE, MODE_DND))
-            clearSession(context)
+
+        val mode = repository.getClassDndMode()
+        if ((mode == MODE_DND || mode == MODE_PRIORITY) && !isDndPermissionGranted(context)) {
+            // 回滚开关：否则它停在开启态却永远不生效
+            repository.setClassDndEnabled(false)
+            Toast.makeText(context, "请先在「课程提醒」中授予勿扰权限", Toast.LENGTH_LONG).show()
+            return
         }
-        if (takeOver(context)) {
-            val label = when (mode) {
-                MODE_SILENT -> "测试：已开启静音（通知照弹，关铃声+振动）"
-                MODE_PRIORITY -> "测试：已开启优先（屏蔽普通通知，闹钟仍响）"
-                else -> "测试：已开启勿扰（完全屏蔽通知）"
-            }
-            Toast.makeText(context, label, Toast.LENGTH_SHORT).show()
-        } else {
-            Toast.makeText(context, "测试：开启失败", Toast.LENGTH_SHORT).show()
+
+        val inClass = isInClass(context)
+        // 已接管时先交还，避免上一次的快照被覆盖
+        if (isDndAppliedByApp(context)) handBack(context, requireConsistency = false)
+        if (!takeOver(context)) {
+            repository.setClassDndEnabled(false)
+            Toast.makeText(context, "开启失败，请检查勿扰权限", Toast.LENGTH_SHORT).show()
+            return
         }
+        // 课堂内交给课堂生命周期（下课自动恢复）；课堂外保持到用户再点一次
+        markManual(context, !inClass)
+
+        val alarmManager = context.getSystemService(Context.ALARM_SERVICE) as AlarmManager
+        scheduleClassDndAlarms(context, alarmManager)
+
+        val what = when (mode) {
+            MODE_SILENT -> "静音"
+            MODE_PRIORITY -> "勿扰模式"
+            else -> "勿扰"
+        }
+        val tail = if (inClass) "，下课自动恢复" else "，再次点击可关闭"
+        Toast.makeText(context, "已开启$what$tail", Toast.LENGTH_SHORT).show()
     }
 
     // 与课前提醒闹钟独立：只要总开关开着就按课表生效
@@ -387,6 +451,21 @@ object ClassDndHelper {
                 triggerAt = endMillis
             )
         }
+
+        // 测试课同样注册上课/下课闹钟：课前 70 秒、课中 120 秒的窗口
+        // 靠每分钟对账粒度太粗，必须走精确闹钟才能准时开、准时关
+        testClassWindow(context)?.let { (start, end) ->
+            scheduleOne(context, alarmManager, RC_DND_TEST_START, ClassDndReceiver.ACTION_CLASS_START, start)
+            scheduleOne(context, alarmManager, RC_DND_TEST_END, ClassDndReceiver.ACTION_CLASS_END, end)
+        }
+    }
+
+    /** 测试课启动后同步勿扰闹钟，让「上课自动开启 / 下课自动关闭」在测试里也能验证 */
+    fun syncTestClassDndAlarms(context: Context) {
+        if (!CourseRepository(context).getClassDndEnabled()) return
+        val alarmManager = context.getSystemService(Context.ALARM_SERVICE) as AlarmManager
+        scheduleClassDndAlarms(context, alarmManager)
+        applyCurrentState(context)
     }
 
     // 已过去的时间点不注册，避免 AlarmManager 立即触发一堆历史闹钟
@@ -432,6 +511,24 @@ object ClassDndHelper {
                 alarmManager.cancel(pendingIntent)
             }
         }
+        cancelOne(context, alarmManager, RC_DND_TEST_START, ClassDndReceiver.ACTION_CLASS_START)
+        cancelOne(context, alarmManager, RC_DND_TEST_END, ClassDndReceiver.ACTION_CLASS_END)
+    }
+
+    private fun cancelOne(
+        context: Context,
+        alarmManager: AlarmManager,
+        requestCode: Int,
+        action: String
+    ) {
+        val intent = Intent(context, ClassDndReceiver::class.java).apply { setAction(action) }
+        val pendingIntent = PendingIntent.getBroadcast(
+            context,
+            requestCode,
+            intent,
+            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+        )
+        alarmManager.cancel(pendingIntent)
     }
 
     private fun String.toMinutes(): Int? {

@@ -1170,6 +1170,7 @@ object CourseReminderHelper {
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
         )
         val dndIntent = Intent(context, ClassDndReceiver::class.java).apply {
+            // 测试课已并入 isInClass，与真实课共用同一条按钮链路
             action = ClassDndReceiver.ACTION_TOGGLE
         }
         val dndPendingIntent = PendingIntent.getBroadcast(
@@ -1290,6 +1291,7 @@ object CourseReminderHelper {
         )
 
         val dndIntent = Intent(context, ClassDndReceiver::class.java).apply {
+            // 测试课已并入 isInClass，与真实课共用同一条按钮链路
             action = ClassDndReceiver.ACTION_TOGGLE
         }
         val dndPendingIntent = PendingIntent.getBroadcast(
@@ -1422,6 +1424,8 @@ object CourseReminderHelper {
             endMillis = endMillis,
             testMode = true
         )
+        // 测试课也要走「上课自动开启、下课自动关闭」，否则勿扰链路在测试里跑不到
+        ClassDndHelper.syncTestClassDndAlarms(context)
     }
 
     // 每分钟由 WidgetRefreshReceiver 驱动；同 notifyId 重复 notify 无痕更新
@@ -1554,6 +1558,7 @@ object CourseReminderHelper {
         )
 
         val dndIntent = Intent(context, ClassDndReceiver::class.java).apply {
+            // 测试课已并入 isInClass，与真实课共用同一条按钮链路
             action = ClassDndReceiver.ACTION_TOGGLE
         }
         val dndPendingIntent = PendingIntent.getBroadcast(
