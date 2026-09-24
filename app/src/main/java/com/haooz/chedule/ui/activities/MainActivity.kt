@@ -41,6 +41,7 @@ import androidx.compose.foundation.layout.asPaddingValues
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.navigationBars
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
@@ -3625,6 +3626,8 @@ fun CourseScheduleApp() {
                             else -> false
                         }
                     val backToNowLabel = "今"
+                    val navBarBottomInset = WindowInsets.navigationBars.asPaddingValues().calculateBottomPadding()
+                    val bottomBarPadding = maxOf(28.dp, navBarBottomInset + 8.dp)
                     Box(modifier = Modifier.fillMaxSize()) {
                         // 对齐切换课表底栏：None 转场 + 手动 appear + graphicsLayer clip=false，
                         // 避免 AnimatedVisibility 收拢尺寸时把阴影裁掉
@@ -3634,7 +3637,8 @@ fun CourseScheduleApp() {
                             exit = ExitTransition.None,
                             modifier = Modifier
                                 .align(Alignment.BottomCenter)
-                                .padding(bottom = 92.dp)
+                                // Keep 8.dp gap above ScheduleBottomBar: bottomBarPadding + 56.dp (height) + 8.dp (gap)
+                                .padding(bottom = bottomBarPadding + 64.dp)
                                 .zIndex(20f)
                         ) {
                             val appear by transition.animateFloat(
