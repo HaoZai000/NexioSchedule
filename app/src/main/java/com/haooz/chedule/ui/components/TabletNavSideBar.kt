@@ -9,8 +9,10 @@ import androidx.compose.animation.core.Spring
 import androidx.compose.animation.core.animate
 import androidx.compose.animation.core.spring
 import androidx.compose.animation.core.tween
+import androidx.compose.animation.expandVertically
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
+import androidx.compose.animation.shrinkVertically
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
@@ -482,43 +484,84 @@ fun TabletNavSideBar(
                 verticalArrangement = Arrangement.spacedBy(0.dp),
             ) {
                 tabs.forEachIndexed { index, (label, icon) ->
-                    //「我的」与「课程管理」之间：分界线 + 「数据管理」小标题
-                    if (!isShiftMode && index == tabs.lastIndex) {
-                        Box(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(top = 14.dp, bottom = 12.dp, start= 10.dp, end= 10.dp)
-                                .height(0.8.dp)
-                                .background(
-                                    if (isLightTheme) Color.Black.copy(alpha = 0.08f)
-                                    else Color.White.copy(alpha = 0.12f)
+                    // 「数据管理」分组（分界线 + 小标题 + 课程管理）：
+                    // 折叠态只保留今日/课程表/设置；若「课程管理」正被选中则保留该项，
+                    // 并随分界线/标题收拢连贯上移贴近上方选项。
+                    val isDataGroup = !isShiftMode && index == tabs.lastIndex
+                    if (isDataGroup) {
+                        // 分界线 + 小标题：仅展开态显示。高度平滑收紧/放开，
+                        // 让下方「课程管理」条目连贯上移贴近上方选项，而不是整组一起飘。
+                        androidx.compose.animation.AnimatedVisibility(
+                            visible = TabletNavSideState.expanded,
+                            enter = fadeIn(animationSpec = tween(160)) +
+                                expandVertically(animationSpec = tween(220)),
+                            exit = fadeOut(animationSpec = tween(120)) +
+                                shrinkVertically(animationSpec = tween(200)),
+                        ) {
+                            Column(
+                                modifier = Modifier.fillMaxWidth(),
+                                verticalArrangement = Arrangement.spacedBy(0.dp),
+                            ) {
+                                Box(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .padding(
+                                            top = 14.dp,
+                                            bottom = 12.dp,
+                                            start = 10.dp,
+                                            end = 10.dp
+                                        )
+                                        .height(0.8.dp)
+                                        .background(
+                                            if (isLightTheme) Color.Black.copy(alpha = 0.08f)
+                                            else Color.White.copy(alpha = 0.12f)
+                                        )
                                 )
-                        )
-                        Text(
-                            text = "数据管理",
-                            fontSize = 13.4.sp,
-                            color = MiuixTheme.colorScheme.onSurfaceVariantSummary.copy(alpha = 0.6f),
-                            modifier = Modifier
-                                // 与条目图标同一条左缘
-                                .padding(start = 10.dp, top = 12.dp, bottom = 6.dp)
-                                // 折叠只淡出标题；分界线保留作分组提示
-                                .graphicsLayer {
-                                    alpha = TabletNavSideState.expandProgress.floatValue
-                                }
+                                Text(
+                                    text = "数据管理",
+                                    fontSize = 13.4.sp,
+                                    color = MiuixTheme.colorScheme.onSurfaceVariantSummary
+                                        .copy(alpha = 0.6f),
+                                    modifier = Modifier
+                                        // 与条目图标同一条左缘
+                                        .padding(start = 10.dp, top = 12.dp, bottom = 6.dp)
+                                )
+                            }
+                        }
+                        // 课程管理条目：折叠态下只有它自己被选中时才保留（不消失，
+                        // 随上方分界线/标题收拢而连贯上移）；未选中则淡出。
+                        androidx.compose.animation.AnimatedVisibility(
+                            visible = TabletNavSideState.expanded || index == selectedTab,
+                            enter = fadeIn(animationSpec = tween(160)),
+                            exit = fadeOut(animationSpec = tween(120)),
+                        ) {
+                            TabletNavSideItem(
+                                icon = icon,
+                                label = label,
+                                selected = index == selectedTab,
+                                textColor = textColor,
+                                selectedBg = selectedBg,
+                                showSelectedBg = true,
+                                showLabel = true,
+                                emphasized = index == selectedTab &&
+                                    TabletNavSideState.expanded,
+                                onClick = { onTabSelected(index) },
+                            )
+                        }
+                    } else {
+                        TabletNavSideItem(
+                            icon = icon,
+                            label = label,
+                            selected = index == selectedTab,
+                            textColor = textColor,
+                            selectedBg = selectedBg,
+                            showSelectedBg = true,
+                            showLabel = true,
+                            // 字重只跟布尔展开态，动画中途不触发文本重组
+                            emphasized = index == selectedTab && TabletNavSideState.expanded,
+                            onClick = { onTabSelected(index) },
                         )
                     }
-                    TabletNavSideItem(
-                        icon = icon,
-                        label = label,
-                        selected = index == selectedTab,
-                        textColor = textColor,
-                        selectedBg = selectedBg,
-                        showSelectedBg = true,
-                        showLabel = true,
-                        // 字重只跟布尔展开态，动画中途不触发文本重组
-                        emphasized = index == selectedTab && TabletNavSideState.expanded,
-                        onClick = { onTabSelected(index) },
-                    )
                 }
             }
 
