@@ -9,12 +9,12 @@ import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.combinedClickable
+import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
-import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.aspectRatio
@@ -37,6 +37,7 @@ import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
@@ -57,8 +58,6 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.haooz.chedule.data.Course
-import top.yukonga.miuix.kmp.basic.NativeMiuixTextField
-import top.yukonga.miuix.kmp.overlay.OverlayDialog
 import com.haooz.chedule.ui.basic.CollapsibleTopAppBarDefaults
 import com.haooz.chedule.ui.basic.SharedScrollBehavior
 import com.haooz.chedule.ui.basic.collapsibleTopInset
@@ -73,14 +72,16 @@ import top.yukonga.miuix.kmp.basic.Card
 import top.yukonga.miuix.kmp.basic.CardDefaults
 import top.yukonga.miuix.kmp.basic.ColorPalette
 import top.yukonga.miuix.kmp.basic.Icon
+import top.yukonga.miuix.kmp.basic.NativeMiuixTextField
 import top.yukonga.miuix.kmp.basic.Scaffold
 import top.yukonga.miuix.kmp.basic.TextButton
 import top.yukonga.miuix.kmp.blur.layerBackdrop
-import top.yukonga.miuix.kmp.squircle.squircleBorder
-import top.yukonga.miuix.kmp.squircle.squircleClip
 import top.yukonga.miuix.kmp.blur.rememberLayerBackdrop
 import top.yukonga.miuix.kmp.icon.MiuixIcons
 import top.yukonga.miuix.kmp.icon.extended.Add
+import top.yukonga.miuix.kmp.overlay.OverlayDialog
+import top.yukonga.miuix.kmp.squircle.squircleBorder
+import top.yukonga.miuix.kmp.squircle.squircleClip
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 import top.yukonga.miuix.kmp.utils.scrollEndHaptic
 import java.util.UUID
@@ -113,7 +114,15 @@ fun CourseManageScreen(
     deleteConfirmShow: Boolean = false,
     deleteConfirmCourses: List<Course> = emptyList(),
     onDeleteConfirmDismiss: () -> Unit = {},
-    liquidGlassBackdrop: com.kyant.backdrop.Backdrop? = null
+    liquidGlassBackdrop: com.kyant.backdrop.Backdrop? = null,
+    /** 内嵌（平板左栏）时由外部指定内容顶距，替代按整屏状态栏+折叠标题推算 */
+    contentTopPadding: androidx.compose.ui.unit.Dp? = null,
+    /** 内嵌时指定列数，替代平板固定 4 列 */
+    columnsOverride: Int? = null,
+    /** 列表纵向滚动量回调，供内嵌顶栏遮罩使用 */
+    onScrollYChanged: (Int) -> Unit = {},
+    /** 选中课程名：内嵌分栏时给对应卡片加一圈课程色描边 */
+    selectedCourseName: String? = null,
 ) {
     val hapticFeedback = LocalHapticFeedback.current
     val context = LocalContext.current
@@ -127,10 +136,7 @@ fun CourseManageScreen(
     }
     val isDark = isAppDarkTheme()
     val isTablet = LocalConfiguration.current.screenWidthDp >= 600
-    val tabletHorizontalPadding = if (isTablet) {
-        val screenWidthDp = LocalConfiguration.current.screenWidthDp
-        ((screenWidthDp - 600).coerceIn(0, 600) / 600f * 112 + 16).dp
-    } else 16.dp
+    val tabletHorizontalPadding = if (isTablet) 20.dp else 16.dp
 
     val dayNames = listOf("", "周一", "周二", "周三", "周四", "周五", "周六", "周日")
 
@@ -177,10 +183,12 @@ fun CourseManageScreen(
                     .layerBackdrop(backdrop)
             ) {
                 val gridState = rememberLazyStaggeredGridState()
+                val currentOnScrollYChanged by rememberUpdatedState(onScrollYChanged)
                 LaunchedEffect(gridState) {
                     snapshotFlow { gridState.firstVisibleItemScrollOffset }
                         .collect { offset ->
                             listScrollY = offset
+                            currentOnScrollYChanged(offset)
                         }
                 }
 
@@ -188,12 +196,16 @@ fun CourseManageScreen(
                     .groupBy { it.name }
                     .toSortedMap(compareBy { it })
 
+                val resolvedTopPadding = contentTopPadding
+                    ?: (paddingValues.calculateTopPadding() +
+                        CollapsibleTopAppBarDefaults.CollapsedHeight + 12.dp)
+
                 if (groupedCourses.isEmpty()) {
                     // 空状态
                     Column(
                         modifier = Modifier
                             .fillMaxSize()
-                            .padding(top = paddingValues.calculateTopPadding() + CollapsibleTopAppBarDefaults.CollapsedHeight + 12.dp),
+                            .padding(top = resolvedTopPadding),
                         horizontalAlignment = Alignment.CenterHorizontally,
                         verticalArrangement = Arrangement.Center
                     ) {
@@ -212,7 +224,7 @@ fun CourseManageScreen(
                     }
                 } else {
                     LazyVerticalStaggeredGrid(
-                        columns = StaggeredGridCells.Fixed(if (isTablet) 4 else 2),
+                        columns = StaggeredGridCells.Fixed(columnsOverride ?: if (isTablet) 4 else 2),
                         state = gridState,
                         modifier = Modifier.fillMaxSize()
                             .overScrollVertical()
@@ -225,7 +237,7 @@ fun CourseManageScreen(
                             ),
                         contentPadding = PaddingValues(
                             start = tabletHorizontalPadding,
-                            top = paddingValues.calculateTopPadding() + CollapsibleTopAppBarDefaults.CollapsedHeight + 12.dp,
+                            top = resolvedTopPadding,
                             end = tabletHorizontalPadding,
                             bottom = 60.dp
                         ),
@@ -291,6 +303,7 @@ fun CourseManageScreen(
                                     color = Color(representative.colorRes),
                                     daySectionInfo = daySectionInfo,
                                     isHidden = courseList.any { it.id in hiddenCourseIds },
+                                    isSelected = courseName == selectedCourseName,
                                     onClick = { left, top, width, height, snapshot ->
                                         onCourseClick(courseList, left, top, width, height, snapshot, Color(representative.colorRes), 0.15f)
                                     },
@@ -628,6 +641,7 @@ private fun CourseManageCard(
     cardAlpha: Float = 0.15f,
     daySectionInfo: String,
     isHidden: Boolean = false,
+    isSelected: Boolean = false,
     onClick: (left: Float, top: Float, width: Float, height: Float, snapshot: Bitmap?) -> Unit,
     onLongPress: (left: Float, top: Float, width: Float, height: Float) -> Unit = { _, _, _, _ -> }
 ) {
@@ -715,6 +729,14 @@ private fun CourseManageCard(
                 )
             }
         }
+    }
+    // 选中描边：matchParentSize 覆盖层，不参与测量，避免卡片尺寸变化导致列表重排
+    if (isSelected) {
+        Box(
+            modifier = Modifier
+                .matchParentSize()
+                .squircleBorder(width = 2.dp, color = color, cornerRadius = 16.dp)
+        )
     }
 }
 }

@@ -105,6 +105,7 @@ import top.yukonga.miuix.kmp.preference.ArrowPreference
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 import top.yukonga.miuix.kmp.utils.scrollEndHaptic
 import androidx.compose.ui.graphics.BlendMode as ComposeBlendMode
+import com.kyant.backdrop.Backdrop
 import com.kyant.backdrop.backdrops.layerBackdrop as liquidGlassLayerBackdrop
 
 class AboutActivity : ComponentActivity() {
@@ -135,7 +136,11 @@ fun AboutScreen(
     onBack: () -> Unit,
     liquidGlassBackdrop: com.kyant.backdrop.backdrops.LayerBackdrop,
     embedded: Boolean = false,
+    /** 弹窗的玻璃采样层：内嵌时传全屏层，使弹窗能采样到左侧内容 */
+    dialogBackdrop: Backdrop? = null,
 ) {
+    // 弹窗默认跟随自身玻璃层；内嵌时由外层指定全屏层
+    val dialogGlass: Backdrop = dialogBackdrop ?: liquidGlassBackdrop
     val hapticFeedback = LocalHapticFeedback.current
     val scrollBehavior = rememberSharedScrollBehavior()
     val context = LocalContext.current
@@ -1054,7 +1059,7 @@ fun AboutScreen(
         OverlayDialog(
             title = "项目仓库",
             show = showRepoDialog,
-            liquidGlassBackdrop = liquidGlassBackdrop,
+            liquidGlassBackdrop = dialogGlass,
             onDismissRequest = { showRepoDialog = false }
         ) {
             Column(

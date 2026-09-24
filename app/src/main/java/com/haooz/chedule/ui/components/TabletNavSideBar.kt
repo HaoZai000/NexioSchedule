@@ -69,6 +69,7 @@ import com.kyant.capsule.ContinuousCapsule
 import com.kyant.capsule.ContinuousRoundedRectangle
 import top.yukonga.miuix.kmp.icon.MiuixIcons
 import top.yukonga.miuix.kmp.icon.extended.Album
+import top.yukonga.miuix.kmp.icon.extended.Backup
 import top.yukonga.miuix.kmp.icon.extended.ContactsCircle
 import top.yukonga.miuix.kmp.icon.extended.Months
 import top.yukonga.miuix.kmp.icon.extended.Settings
@@ -424,6 +425,7 @@ fun TabletNavSideBar(
             "今日" to MiuixIcons.Album,
             "课程表" to MiuixIcons.Months,
             "我的" to MiuixIcons.ContactsCircle,
+            "课程管理" to MiuixIcons.Backup,
         )
     }
 

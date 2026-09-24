@@ -135,6 +135,7 @@ import com.haooz.chedule.ui.screens.MainScheduleScreen
 import com.haooz.chedule.ui.screens.ScheduleGridGeometry
 import com.haooz.chedule.ui.screens.SettingsScreen
 import com.haooz.chedule.ui.screens.ShiftScheduleScreen
+import com.haooz.chedule.ui.screens.TabletCourseManagePane
 import com.haooz.chedule.ui.screens.TodayScreen
 import com.haooz.chedule.ui.theme.CourseScheduleTheme
 import com.haooz.chedule.ui.utils.LocalForcedDarkTheme
@@ -1657,8 +1658,8 @@ fun CourseScheduleApp() {
 
     // 主 tab 平移容器：今日/课程表/设置（排班模式为排班/设置），仅点底栏 tab 驱动
     val mainPagerState = rememberPagerState(
-        initialPage = selectedTab.coerceIn(0, 2),
-        pageCount = { if (isShiftMode) 2 else 3 }
+        initialPage = selectedTab.coerceIn(0, 3),
+        pageCount = { if (isShiftMode) 2 else 4 }
     )
     // 程序化切 tab 期间为 true，避免 currentPage 在动画中途把 selectedTab 拉回去
     var mainTabProgrammatic by remember { mutableStateOf(false) }
@@ -1666,7 +1667,7 @@ fun CourseScheduleApp() {
     // 二级页侧栏点选主 tab（无转场回来后处理）
     LaunchedEffect(com.haooz.chedule.ui.components.TabletNavSideState.pendingMainTab) {
         val pending = com.haooz.chedule.ui.components.TabletNavSideState.pendingMainTab
-        if (pending in 0..2 && shiftModeInitialized) {
+        if (pending in 0..3 && shiftModeInitialized) {
             selectedTab = pending
             mainPagerState.scrollToPage(pending)
             com.haooz.chedule.ui.components.TabletNavSideState.pendingMainTab = -1
@@ -3543,6 +3544,13 @@ fun CourseScheduleApp() {
                                         )
                                             }
                                         }
+                                    }
+                                    3 -> {
+                                        TabletCourseManagePane(
+                                            viewModel = viewModel,
+                                            settingsViewModel = settingsViewModel,
+                                            liquidGlassBackdrop = liquidGlassBackdrop,
+                                        )
                                     }
                                 }
                             } else {

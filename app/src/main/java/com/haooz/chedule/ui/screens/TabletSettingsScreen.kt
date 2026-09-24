@@ -798,7 +798,9 @@ fun TabletSettingsScreen(
                                     AboutScreen(
                                         onBack = {},
                                         liquidGlassBackdrop = aboutBackdrop,
-                                        embedded = true
+                                        embedded = true,
+                                        // 弹窗采样全屏层，才能把左栏内容一起虚化
+                                        dialogBackdrop = liquidGlassBackdrop,
                                     )
                                 }
 
