@@ -74,6 +74,7 @@ import top.yukonga.miuix.kmp.icon.extended.ContactsCircle
 import top.yukonga.miuix.kmp.icon.extended.Months
 import top.yukonga.miuix.kmp.icon.extended.Settings
 import top.yukonga.miuix.kmp.icon.extended.Sidebar
+import top.yukonga.miuix.kmp.theme.MiuixTheme
 import kotlin.math.roundToInt
 
 /**
@@ -481,6 +482,31 @@ fun TabletNavSideBar(
                 verticalArrangement = Arrangement.spacedBy(0.dp),
             ) {
                 tabs.forEachIndexed { index, (label, icon) ->
+                    //「我的」与「课程管理」之间：分界线 + 「数据管理」小标题
+                    if (!isShiftMode && index == tabs.lastIndex) {
+                        Box(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(top = 14.dp, bottom = 12.dp, start= 10.dp, end= 10.dp)
+                                .height(0.8.dp)
+                                .background(
+                                    if (isLightTheme) Color.Black.copy(alpha = 0.08f)
+                                    else Color.White.copy(alpha = 0.12f)
+                                )
+                        )
+                        Text(
+                            text = "数据管理",
+                            fontSize = 13.4.sp,
+                            color = MiuixTheme.colorScheme.onSurfaceVariantSummary.copy(alpha = 0.6f),
+                            modifier = Modifier
+                                // 与条目图标同一条左缘
+                                .padding(start = 10.dp, top = 12.dp, bottom = 6.dp)
+                                // 折叠只淡出标题；分界线保留作分组提示
+                                .graphicsLayer {
+                                    alpha = TabletNavSideState.expandProgress.floatValue
+                                }
+                        )
+                    }
                     TabletNavSideItem(
                         icon = icon,
                         label = label,
