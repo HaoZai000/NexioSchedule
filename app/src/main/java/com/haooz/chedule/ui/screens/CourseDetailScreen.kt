@@ -3,7 +3,6 @@ package com.haooz.chedule.ui.screens
 
 import android.annotation.SuppressLint
 import android.graphics.Bitmap
-import androidx.activity.compose.BackHandler
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Image
@@ -49,6 +48,10 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.DpOffset
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.navigationevent.NavigationEventInfo
+import androidx.navigationevent.NavigationEventTransitionState
+import androidx.navigationevent.compose.NavigationBackHandler
+import androidx.navigationevent.compose.rememberNavigationEventState
 import com.haooz.chedule.data.Course
 import com.haooz.chedule.ui.basic.CollapsibleTopAppBar
 import com.haooz.chedule.ui.basic.LiquidTopBarButton
@@ -60,6 +63,7 @@ import com.haooz.chedule.ui.effects.motion.OobeQuadraticOutEasing
 import com.haooz.chedule.ui.effects.motion.OobeQuartOutEasing
 import com.haooz.chedule.ui.utils.blockTouchPassThrough
 import com.haooz.chedule.ui.utils.isAppDarkTheme
+import com.haooz.chedule.ui.utils.PredictiveBackSettings
 import com.haooz.chedule.ui.utils.overScrollVertical
 import com.kyant.backdrop.backdrops.rememberLayerBackdrop
 import com.kyant.capsule.ContinuousRoundedRectangle
@@ -89,7 +93,8 @@ private data class AnimState(
     val translationY: Float,
     val scale: Float,
     val clipBottom: Float,
-    val progress: Float
+    val progress: Float,
+    val gesture: Float
 )
 
 private class AnimClipShape(
@@ -100,13 +105,18 @@ private class AnimClipShape(
 ) : androidx.compose.ui.graphics.Shape {
     override fun createOutline(size: androidx.compose.ui.geometry.Size, layoutDirection: androidx.compose.ui.unit.LayoutDirection, density: androidx.compose.ui.unit.Density): androidx.compose.ui.graphics.Outline {
         val s = animState.value
-        // 动画结束后圆角归零
+        // 预测性返回：裁切圆角固定为屏幕圆角（并除以 scale 补偿缩放，视觉圆角恒定）；
+        // 其余按 morph 进度插值
         val radiusPx = when {
+            s.gesture > 0f -> screenCornerRadiusPx
             s.progress >= 1f -> 0f
             s.progress <= 0.7f -> startCornerRadiusPx + (screenCornerRadiusPx - startCornerRadiusPx) * (s.progress / 0.7f)
             else -> screenCornerRadiusPx
         }
-        val radiusDp = (radiusPx / s.scale / density.density).dp
+        // 补偿在"预测返回不补偿（×1）"与"正常 morph 除以 scale"之间按 gesture 平滑插值，
+        // 避免松手瞬间圆角跳变大
+        val compensate = (1f - s.gesture) / s.scale + s.gesture
+        val radiusDp = (radiusPx * compensate / density.density).dp
         return ContinuousRoundedRectangle(radiusDp).createOutline(
             androidx.compose.ui.geometry.Size(screenWidth, s.clipBottom),
             layoutDirection,
@@ -136,11 +146,9 @@ fun CourseDetailScreen(
     onBack: () -> Unit,
 ) {
     val courseName = courses.firstOrNull()?.name ?: ""
-    // 按周数正序排序，小周在最上
     val sortedCourses = remember(courses) { courses.sortedBy { it.startWeek } }
 
-    // 预计算周分组数据，避免在 LazyColumn 内重复计算
-    // 返回有序列表（周次升序），便于按索引定位并自动滚动
+    // 预计算周分组，有序列表便于按索引定位自动滚动
     val weekGroups = remember(sortedCourses) {
         val weekEntries = sortedCourses.flatMap { course ->
             val weeks = course.selectedWeeks.ifEmpty {
@@ -154,7 +162,7 @@ fun CourseDetailScreen(
             }
             weeks.map { week -> week to course }
         }
-        // 先按周次升序分组，组内再按星期几、起始节次排序，保证同一周内课程顺序正确
+        // 先按周次升序分组，组内再按星期几、起始节次排序
         weekEntries.groupBy { it.first }.toSortedMap().toList()
             .map { (week, entries) ->
                 week to entries.sortedWith(compareBy({ it.second.dayOfWeek }, { it.second.startSection }))
@@ -168,7 +176,7 @@ fun CourseDetailScreen(
         ((screenWidthDp - 600).coerceIn(0, 600) / 600f * 112 + 16).dp
     } else 16.dp
 
-    // 计算开学日期的周一
+    // 计算开学日期所在周的周一
     val startMonday = remember(classStartTime) {
         try {
             val startDate = java.time.LocalDate.parse(classStartTime.replace("/", "-"))
@@ -191,36 +199,101 @@ fun CourseDetailScreen(
     val transOpenMillis = if (isUpperHalf) 500 else 500
     val transExitMillis = if (isUpperHalf) 320 else 320
 
-    BackHandler {
-        onBackStart()
-        scope.launch {
-            coroutineScope {
-                launch {
-                    animProgress.animateTo(
-                        targetValue = 0f,
-                        animationSpec = tween(
-                            durationMillis = 350,
-                            easing = morphExitEase
-                        )
-                    )
-                }
-                launch {
-                    animTransY.animateTo(
-                        targetValue = 0f,
-                        animationSpec = tween(
-                            durationMillis = transExitMillis,
-                            easing = transExitEase
-                        )
-                    )
+    // 预测性返回：手势只驱动缩放位置 scaleProgress（1=全屏，0=卡片），
+    // 预测返回期间围绕屏幕中心缩放（translation=0），位移/裁切保持全屏不动；
+    // 取消回弹全屏、完成随关闭动画一起缩回卡片；
+    // 低版本 NavigationBackHandler 自动退化为立即播放完整退出动画
+    val navigationEventState = rememberNavigationEventState(currentInfo = NavigationEventInfo.None)
+    // 手势进度（0..1）：>0 表示预测性返回进行中，用于切换"中心缩放"
+    val gestureBackProgress = remember { Animatable(0f) }
+    val scaleProgress = remember { Animatable(0f) }
+    // 手势是否正在推进：进行中裁切完全跟随页面缩放，松手/取消后进入平滑过渡
+    var isGestureActive by remember { mutableStateOf(false) }
+
+    NavigationBackHandler(
+        state = navigationEventState,
+        isBackEnabled = true,
+        onBackCancelled = {
+            isGestureActive = false
+            scope.launch {
+                if (gestureBackProgress.value > 0f) {
+                    // 手势取消：缩放回弹恢复全屏
+                    gestureBackProgress.animateTo(0f, animationSpec = tween(180))
+                    scaleProgress.animateTo(1f, animationSpec = tween(180))
                 }
             }
-            onBack()
-        }
+        },
+        onBackCompleted = {
+            isGestureActive = false
+            onBackStart()
+            scope.launch {
+                coroutineScope {
+                    // 缩放中心从屏幕中心平滑过渡回左上角锚点（150ms），morph 位移随之接管
+                    launch { gestureBackProgress.animateTo(0f, animationSpec = tween(150)) }
+                    launch {
+                        scaleProgress.animateTo(
+                            targetValue = 0f,
+                            animationSpec = tween(
+                                durationMillis = 350,
+                                easing = morphExitEase
+                            )
+                        )
+                    }
+                    launch {
+                        animProgress.animateTo(
+                            targetValue = 0f,
+                            animationSpec = tween(
+                                durationMillis = 350,
+                                easing = morphExitEase
+                            )
+                        )
+                    }
+                    launch {
+                        animTransY.animateTo(
+                            targetValue = 0f,
+                            animationSpec = tween(
+                                durationMillis = transExitMillis,
+                                easing = transExitEase
+                            )
+                        )
+                    }
+                }
+                onBack()
+            }
+        },
+    )
+
+    // 逐帧收集返回手势进度（单独协程，避免手势期间每帧取消/重启 LaunchedEffect）；
+    // 手势只把缩放位置退到"卡片→全屏"范围的 75%，位移/裁切由 onBackCompleted 接管
+    LaunchedEffect(Unit) {
+        snapshotFlow { navigationEventState.transitionState }
+            .collect { transitionState ->
+                if (
+                    transitionState is NavigationEventTransitionState.InProgress &&
+                    transitionState.direction == NavigationEventTransitionState.TRANSITIONING_BACK
+                ) {
+                    // 预测性返回动画开关：关闭时不驱动跟随动画（返回仍被拦截，直接关闭）
+                    if (PredictiveBackSettings.enabled) {
+                        isGestureActive = true
+                        val progress = transitionState.latestEvent.progress
+                        gestureBackProgress.snapTo(progress)
+                        scaleProgress.snapTo(1f - progress * 2f)
+                    }
+                }
+            }
     }
 
     LaunchedEffect(Unit) {
-        // 等待首帧渲染完成后再开始动画
         delay(12.milliseconds)
+        launch {
+            scaleProgress.animateTo(
+                targetValue = 1f,
+                animationSpec = tween(
+                    durationMillis = 560,
+                    easing = morphOpenEase
+                )
+            )
+        }
         launch {
             animProgress.animateTo(
                 targetValue = 1f,
@@ -248,20 +321,28 @@ fun CourseDetailScreen(
             val bgAlpha = (p * 0.5f).coerceIn(0f, 0.5f)
             val snapAlpha = (1f - p * 3f).coerceIn(0f, 1f)
             val contAlpha = ((p - 0.1f) / 0.5f).coerceIn(0f, 1f)
-            val scale = cardWidth / screenWidth + (1f - cardWidth / screenWidth) * p
-            // 起点 = cardCenter, 终点 = screenCenter
+            // 预测性返回手势只驱动缩放位置 scaleProgress（1=全屏，0=卡片，手势可退到 -1 即 200% 行程），
+            // 位移与裁切保持全屏（p 不变）不随手势变化；coerceAtLeast 防止窄卡片时 scale 变负翻转
+            val scale = (cardWidth / screenWidth + (1f - cardWidth / screenWidth) * scaleProgress.value).coerceAtLeast(0.05f)
+            // 起点 = cardCenter, 终点 = screenCenter；ty 作为曲线参数，前快后慢
             val cardCenter = cardTop + cardHeight / 2f
             val screenCenter = screenHeight / 2f
-            // 抛物线插值因子：ty 落后于 p → 前快后慢的曲线
             val curveT = ty  // 直接用 ty 作为曲线参数
             val targetCenter = cardCenter + (screenCenter - cardCenter) * curveT
-            // 从 targetCenter 反推 translationY
-            val translationY = targetCenter - screenHeight / 2f * (1f - scale) - (cardHeight + (screenHeight - cardHeight) * p) / 2f
-            // translationX 保持不变
-            val translationX = cardLeft * (1f - p) - screenWidth / 2f * (1f - scale)
-            val rawClipBottom = cardHeight + (screenHeight - cardHeight) * p
+            // 正常 morph 缩放锚点为屏幕顶部居中：y 围绕顶部（原有补偿），x 围绕屏幕中轴
+            // （去掉左缘补偿，位移基于卡片原始左缘）；预测返回期间围绕屏幕中心缩放
+            val gesture = gestureBackProgress.value
+            val normalY = targetCenter - screenHeight / 2f * (1f - scale) - (cardHeight + (screenHeight - cardHeight) * p) / 2f
+            val normalX = (cardLeft - screenWidth / 2f * (1f - cardWidth / screenWidth)) * (1f - p)
+            val translationY = normalY * (1f - gesture)
+            val translationX = normalX * (1f - gesture)
+            // 手势推进期间裁切跟随"当前展开高度×缩放"（打开未完成时也连续，底部不瞬间归位）；
+            // 松手/取消过渡期按 gesture 平滑插值衔接 morph 的底部收缩动画
+            val morphClip = cardHeight + (screenHeight - cardHeight) * p
+            val predictiveClip = morphClip * scale
+            val rawClipBottom = if (isGestureActive) predictiveClip else predictiveClip * gesture + morphClip * (1f - gesture)
             val clipBottom = rawClipBottom / scale
-            AnimState(bgAlpha, snapAlpha, contAlpha, translationX, translationY, scale, clipBottom, p)
+            AnimState(bgAlpha, snapAlpha, contAlpha, translationX, translationY, scale, clipBottom, p, gesture)
         }
     }
 
@@ -332,6 +413,15 @@ fun CourseDetailScreen(
                                             scope.launch {
                                                 coroutineScope {
                                                     launch {
+                                                        scaleProgress.animateTo(
+                                                            targetValue = 0f,
+                                                            animationSpec = tween(
+                                                                durationMillis = 350,
+                                                                easing = morphExitEase
+                                                            )
+                                                        )
+                                                    }
+                                                    launch {
                                                         animProgress.animateTo(
                                                             targetValue = 0f,
                                                             animationSpec = tween(
@@ -377,8 +467,7 @@ fun CourseDetailScreen(
                                 )
                         ) {
                             val listState = rememberLazyListState()
-                            // 程序化滚动（进入时定位到来源周）不经过 nestedScroll，
-                            // 与 SchoolSelectionScreen 同款处理：监听 listState 同步 contentOffset 与标题栏收起/展开
+                            // 程序化滚动不走 nestedScroll：监听 listState 同步 contentOffset 与标题栏
                             var isProgrammaticScroll by remember { mutableStateOf(false) }
                             var lastCollapsed by remember { mutableStateOf(false) }
                             val scrollThresholdPx = with(density) { 10.dp.toPx() }
@@ -388,13 +477,12 @@ fun CourseDetailScreen(
                                 }.collect { (index, offset) ->
                                     val state = scrollBehavior.state
                                     val shouldCollapse = index > 0 || offset > scrollThresholdPx
-                                    // 同步 contentOffset 用于顶栏按钮材质/阴影
                                     if (shouldCollapse && state.contentOffset >= -scrollThresholdPx) {
                                         state.contentOffset = -scrollThresholdPx - 1f
                                     } else if (!shouldCollapse && state.contentOffset < 0f) {
                                         state.contentOffset = 0f
                                     }
-                                    // 仅程序化滚动时收起/展开标题栏，手动 fling 由 nestedScroll 处理避免冲突
+                                    // 仅程序化滚动时收起/展开标题栏，手动 fling 由 nestedScroll 处理
                                     if (isProgrammaticScroll && shouldCollapse != lastCollapsed) {
                                         lastCollapsed = shouldCollapse
                                         if (shouldCollapse) scrollBehavior.collapse() else scrollBehavior.expand()
@@ -415,9 +503,8 @@ fun CourseDetailScreen(
                                 }
                                 // 列表顶部留白（与下方 contentPadding 一致）
                                 val topContentPadding = paddingValues.calculateTopPadding() + topBarHeightDp - 82.dp
-                                // 顶栏高度随折叠变化，滚动过程中要读到最新值
                                 val latestTopPadding by rememberUpdatedState(topContentPadding)
-                                // 进入后连贯滚动到来源周所在分组；找不到该周时回退到最接近的一周
+                                // 进入后连贯滚动到来源周；找不到该周时回退到最接近的一周
                                 LaunchedEffect(weekGroups, targetWeek) {
                                     if (targetWeek <= 0 || weekGroups.isEmpty()) return@LaunchedEffect
                                     val exact = weekGroups.indexOfFirst { it.first == targetWeek }
@@ -434,10 +521,9 @@ fun CourseDetailScreen(
                                         best
                                     }
                                     if (index > 0) {
-                                        // 等入场形变/淡入基本完成再滚，避免用户在内容还没看清时就已经"瞬移"到位
+                                        // 等入场形变基本完成再滚，避免内容还没看清就已"瞬移"到位
                                         delay(400.milliseconds)
-                                        // 先立即收起标题栏，让 contentPadding 在整段滚动中保持稳定。
-                                        // 若边滚边弹簧收起，滚到位后高度才落定，会再二次校正位移，观感是两次跳动。
+                                        // 先立即收起标题栏，让 contentPadding 在整段滚动中保持稳定
                                         val barState = scrollBehavior.state
                                         val wasExpanded =
                                             barState.heightOffsetLimit < -1f &&
@@ -453,11 +539,9 @@ fun CourseDetailScreen(
                                             withFrameNanos { }
                                             withFrameNanos { }
                                         }
-                                        // 负偏移：让目标周标题停在顶栏下方，而不是被顶栏盖住
+                                        // 负偏移：让目标周标题停在顶栏下方
                                         val offsetPx = with(density) { -latestTopPadding.roundToPx() }
-                                        // 顶栏的收起/展开由上面的 listState 监听负责（程序化滚动不走 nestedScroll）
                                         isProgrammaticScroll = true
-                                        // 单次连贯滚动：远距离限速 + 近目标缓动，避免默认 spring 一闪而过
                                         listState.smoothScrollToItem(index, offsetPx)
                                         isProgrammaticScroll = false
                                     }
@@ -569,9 +653,8 @@ fun CourseDetailScreen(
 }
 
 /**
- * 进入详情页时的程序化定位滚动。
- * 默认 [LazyListState.animateScrollToItem] 对长距离会用 spring 一冲到底，观感像瞬移。
- * 这里改为：目标不可见时按视口比例快速推进，可见后按剩余距离比例缓动收敛。
+ * 程序化定位滚动：目标不可见时按视口比例快速推进，可见后按剩余距离比例缓动收敛。
+ * 默认 animateScrollToItem 对长距离用 spring 一冲到底，观感像瞬移。
  */
 private suspend fun LazyListState.smoothScrollToItem(
     index: Int,

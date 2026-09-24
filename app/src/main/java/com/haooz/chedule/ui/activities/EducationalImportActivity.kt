@@ -5,9 +5,7 @@ import android.annotation.SuppressLint
 import android.os.Bundle
 import android.util.Log
 import android.widget.Toast
-import androidx.activity.ComponentActivity
 import androidx.activity.SystemBarStyle
-import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -36,6 +34,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalHapticFeedback
@@ -57,7 +56,6 @@ import com.haooz.chedule.ui.basic.ProgressiveBlurTopBar
 import com.haooz.chedule.ui.basic.rememberSharedScrollBehavior
 import com.haooz.chedule.ui.screens.SchoolSelectionScreen
 import com.haooz.chedule.ui.screens.WebViewScreen
-import com.haooz.chedule.ui.theme.CourseScheduleTheme
 import com.haooz.chedule.ui.utils.applyThemeAwareSystemBars
 import com.haooz.chedule.viewmodel.CourseViewModel
 import com.haooz.chedule.viewmodel.ScheduleViewModel
@@ -85,6 +83,9 @@ import top.yukonga.miuix.kmp.icon.extended.Refresh
 import top.yukonga.miuix.kmp.icon.extended.Update
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 import com.kyant.backdrop.backdrops.layerBackdrop as liquidGlassLayerBackdrop
+import androidx.activity.ComponentActivity
+import androidx.activity.compose.setContent
+import com.haooz.chedule.ui.theme.CourseScheduleTheme
 
 class EducationalImportActivity : ComponentActivity() {
 
@@ -182,8 +183,9 @@ class EducationalImportActivity : ComponentActivity() {
         startUpdate(this)
         setContent {
             CourseScheduleTheme {
-                EducationalImportApp()
-            }
+            EducationalImportApp()
+        
+        }
         }
     }
 
@@ -228,6 +230,13 @@ class EducationalImportActivity : ComponentActivity() {
         var executeImportAction by remember { mutableStateOf<(() -> Unit)?>(null) }
         var toggleDesktopModeAction by remember { mutableStateOf<(() -> Unit)?>(null) }
         var webPageTitle by remember { mutableStateOf("加载中...") }
+        // 页面顶部取色：按亮度定顶栏标题/图标的黑白，不跟应用深浅色主题
+        var webTopColor by remember { mutableStateOf(Color.White) }
+        val webTopIsLight = remember(webTopColor) {
+            val lum = 0.299f * webTopColor.red + 0.587f * webTopColor.green + 0.114f * webTopColor.blue
+            lum >= 0.55f
+        }
+        val webBarContentColor = if (webTopIsLight) Color.Black else Color.White
         var reloadWebViewAction by remember { mutableStateOf<(() -> Unit)?>(null) }
         val webViewScrollBehavior = rememberSharedScrollBehavior()
 
@@ -462,11 +471,12 @@ class EducationalImportActivity : ComponentActivity() {
                                     val hasStartDate = prefs.getString("semester_start_date", null) != null
                                     val hasTotalWeeks = prefs.getInt("semester_total_weeks", -1) > 0
                                     if (hasStartDate || hasTotalWeeks) {
-                                        applyImportedScheduleConfig(courseViewModel)
+                                        applyImportedScheduleConfig(courseViewModel, scheduleViewModel)
                                     }
                                 },
                                 onPageTitleChanged = { webPageTitle = it },
                                 onDesktopModeChanged = { isDesktopMode = it },
+                                onTopColorChanged = { webTopColor = it },
                                 onAssetJsPathChanged = { currentAssetJsPath = it },
                                 onExecuteImportRef = { action -> executeImportAction = action },
                                 onToggleDesktopModeRef = { action -> toggleDesktopModeAction = action },
@@ -476,11 +486,16 @@ class EducationalImportActivity : ComponentActivity() {
                             ProgressiveBlurTopBar(
                                 backdrop = webContentBackdrop,
                                 height = blurHeight,
+                                // 教务页多为白底：默认 surface 暗色 tint 会在顶上压一层黑罩
+                                tintIntensity = 0f,
                             ) {
                                 CollapsibleTopAppBar(
                                     title = webPageTitle,
                                     showLargeTitle = false,
-                                    showShadow = true,
+                                    // 教务页自带顶栏空白区色条，不需要 AppBar 再叠黑白渐变遮罩
+                                    showShadow = false,
+                                    showGradientOverlay = false,
+                                    titleColor = webBarContentColor,
                                     modifier = Modifier,
                                     scrollBehavior = webViewScrollBehavior,
                                     contentPadding = {},
@@ -493,6 +508,7 @@ class EducationalImportActivity : ComponentActivity() {
                                             },
                                             backdrop = liquidGlassBackdrop,
                                             icon = MiuixIcons.Close,
+                                            iconTint = webBarContentColor.copy(alpha = 0.85f),
                                             contentDescription = "关闭",
                                             performHapticFeedback = false,
                                             iconSize = 22.dp,
@@ -508,6 +524,7 @@ class EducationalImportActivity : ComponentActivity() {
                                             },
                                             backdrop = liquidGlassBackdrop,
                                             icon = MiuixIcons.Refresh,
+                                            iconTint = webBarContentColor.copy(alpha = 0.85f),
                                             contentDescription = "刷新",
                                             performHapticFeedback = false,
                                             iconSize = 24.dp,
@@ -599,24 +616,50 @@ class EducationalImportActivity : ComponentActivity() {
     /**
      * 应用教务脚本通过 saveCourseConfig 传回的课表配置（开学时间、总周数）。
      * 与 applyPresetTimeSlots 一致，仅在导入完成时消费一次性标记，避免重复/旧数据覆盖。
+     * 开学日写入目标课表（可能非当前课表）；日期先规范化，防止被读路径重置成今天。
      */
-    private fun applyImportedScheduleConfig(courseViewModel: CourseViewModel) {
+    private fun applyImportedScheduleConfig(
+        courseViewModel: CourseViewModel,
+        scheduleViewModel: ScheduleViewModel,
+    ) {
         val prefs = getSharedPreferences("edu_import_prefs", MODE_PRIVATE)
-        val startDate = prefs.getString("semester_start_date", null)
+        val rawStart = prefs.getString("semester_start_date", null)
+        val startDate = CourseRepository.normalizeClassStartDate(rawStart)
         val totalWeeks = prefs.getInt("semester_total_weeks", -1)
+        val targetScheduleId = prefs.getString("target_schedule_id", null)
+        val isTargetCurrent = targetScheduleId.isNullOrEmpty() ||
+            targetScheduleId == scheduleViewModel.currentScheduleName.value
 
         var applied = false
-        if (!startDate.isNullOrBlank()) {
-            courseViewModel.setClassStartTime(startDate)
+        if (startDate != null) {
+            if (isTargetCurrent) {
+                courseViewModel.setClassStartTime(startDate)
+            } else if (!targetScheduleId.isNullOrEmpty()) {
+                // 只写目标课表存储，不 refreshEssentialData：当前 UI/提醒不应被非当前课表改动触发
+                CourseRepository.getInstance(this)
+                    .setClassStartTime(targetScheduleId, startDate)
+            }
             applied = true
+            Log.d("EduImport", "应用开学日: raw=$rawStart -> $startDate target=$targetScheduleId")
+        } else if (!rawStart.isNullOrBlank()) {
+            Log.w("EduImport", "开学日无法解析，已忽略: $rawStart")
         }
         if (totalWeeks > 0) {
-            courseViewModel.setTotalWeeks(totalWeeks)
+            if (isTargetCurrent) {
+                courseViewModel.setTotalWeeks(totalWeeks)
+            } else if (!targetScheduleId.isNullOrEmpty()) {
+                CourseRepository.getInstance(this)
+                    .setTotalWeeks(targetScheduleId, totalWeeks)
+            }
             applied = true
         }
         if (applied) {
-            prefs.edit { remove("semester_start_date"); remove("semester_total_weeks") }
-            Log.d("EduImport", "应用课表配置成功: 开学时间=$startDate, 总周数=$totalWeeks")
+            prefs.edit {
+                remove("semester_start_date")
+                remove("semester_total_weeks")
+                remove("target_schedule_id")
+            }
+            Log.d("EduImport", "应用课表配置成功: 开学时间=$startDate, 总周数=$totalWeeks, target=$targetScheduleId")
         }
     }
 }

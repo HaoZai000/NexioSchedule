@@ -39,6 +39,19 @@ class AndroidBridge(
     /** 当前导入的目标课表ID（由执行导入前选择课表时设置，空表示导入到当前课表） */
     private var importTableId: String? = null
 
+    /** 是否启用 POST 加头 + OkHttp 转发（默认 false：POST 走原生，避免 WAF 拒带 X-WebView-Post-Id 的请求） */
+    @Volatile
+    private var postForwardEnabled: Boolean = false
+
+    /** JS 读取：POST 是否走转发通道 */
+    @JavascriptInterface
+    fun isPostForwardEnabled(): Boolean = postForwardEnabled
+
+    /** App 侧按需开启（个别必须转发的学校/适配器） */
+    fun setPostForwardEnabled(enabled: Boolean) {
+        postForwardEnabled = enabled
+    }
+
     /** 设置导入的目标课表ID */
     fun setImportTableId(tableId: String?) {
         this.importTableId = tableId
@@ -164,6 +177,10 @@ class AndroidBridge(
                     return@post
                 }
 
+                // 目标课表与课程一并登记：后续 saveCourseConfig / apply 都以它为准
+                val prefs = context.getSharedPreferences("edu_import_prefs", Context.MODE_PRIVATE)
+                prefs.edit().putString("target_schedule_id", importTableId).apply()
+
                 // name/teacher/position/weeks 等非空字段：脚本缺键时 Gson 会置 null，这里兜默认值
                 @Suppress(
                     "USELESS_ELVIS",
@@ -216,9 +233,23 @@ class AndroidBridge(
                 Log.d(TAG, "课表配置解析成功: semesterStartDate=${config.semesterStartDate}, totalWeeks=${config.semesterTotalWeeks}")
 
                 val prefs = context.getSharedPreferences("edu_import_prefs", Context.MODE_PRIVATE)
+                val normalizedStart = com.haooz.chedule.data.CourseRepository
+                    .normalizeClassStartDate(config.semesterStartDate)
                 prefs.edit().apply {
-                    putString("semester_start_date", config.semesterStartDate)
-                    putInt("semester_total_weeks", config.semesterTotalWeeks)
+                    // 显式写/清：本次未传的字段不能残留上一次导入的值
+                    if (normalizedStart != null) {
+                        putString("semester_start_date", normalizedStart)
+                    } else {
+                        remove("semester_start_date")
+                    }
+                    if (config.semesterTotalWeeks > 0) {
+                        putInt("semester_total_weeks", config.semesterTotalWeeks)
+                    } else {
+                        remove("semester_total_weeks")
+                    }
+                    // 与课程同目标：作息未导入时也不能让开学日/周数落到别的课表
+                    // null 表示导入到当前课表（SharedPreferences putString(null) 即移除）
+                    putString("target_schedule_id", importTableId)
                     putInt("default_class_duration", config.defaultClassDuration)
                     putInt("default_break_duration", config.defaultBreakDuration)
                     putInt("first_day_of_week", config.firstDayOfWeek)

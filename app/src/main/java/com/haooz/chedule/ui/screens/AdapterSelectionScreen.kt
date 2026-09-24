@@ -37,6 +37,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.haooz.chedule.data.ExtractedShareTools
 import com.haooz.chedule.data.school.AdapterData
 import com.haooz.chedule.data.school.SchoolData
 import com.haooz.chedule.data.school.SchoolRepository
@@ -91,7 +92,9 @@ fun AdapterSelectionBottomSheet(
 
     val adapters = remember(currentSchool?.id) {
         val s = currentSchool ?: return@remember emptyList()
-        schoolRepository.getSchoolById(s.id)?.adapters ?: s.adapters
+        val raw = schoolRepository.getSchoolById(s.id)?.adapters ?: s.adapters
+        // WakeUp / 星链已提取到课表导入页，教务导入通用工具不再展示
+        raw.filter { it.adapterId !in ExtractedShareTools.ADAPTER_IDS }
     }
 
     var showUrlDialog by remember { mutableStateOf(false) }

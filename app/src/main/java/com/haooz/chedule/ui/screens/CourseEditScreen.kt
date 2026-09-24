@@ -3,7 +3,6 @@ package com.haooz.chedule.ui.screens
 
 import android.annotation.SuppressLint
 import android.graphics.Bitmap
-import androidx.activity.compose.BackHandler
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.animateFloatAsState
@@ -63,16 +62,20 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.DpOffset
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.navigationevent.NavigationEventInfo
+import androidx.navigationevent.NavigationEventTransitionState
+import androidx.navigationevent.compose.NavigationBackHandler
+import androidx.navigationevent.compose.rememberNavigationEventState
 import com.haooz.chedule.data.Course
 import com.haooz.chedule.ui.basic.CollapsibleTopAppBar
 import com.haooz.chedule.ui.basic.LiquidTopBarButton
-import top.yukonga.miuix.kmp.overlay.OverlayDialog
 import com.haooz.chedule.ui.basic.ProgressiveBlurTopBar
 import com.haooz.chedule.ui.basic.rememberSharedScrollBehavior
 import com.haooz.chedule.ui.effects.motion.OobeCubicOutEasing
 import com.haooz.chedule.ui.effects.motion.OobeFifthpowerOutEasing
 import com.haooz.chedule.ui.effects.motion.OobeQuadraticOutEasing
 import com.haooz.chedule.ui.effects.motion.OobeQuartOutEasing
+import com.haooz.chedule.ui.utils.PredictiveBackSettings
 import com.haooz.chedule.ui.utils.blockTouchPassThrough
 import com.haooz.chedule.ui.utils.isAppDarkTheme
 import com.haooz.chedule.ui.utils.overScrollVertical
@@ -89,18 +92,20 @@ import top.yukonga.miuix.kmp.basic.Icon
 import top.yukonga.miuix.kmp.basic.Scaffold
 import top.yukonga.miuix.kmp.basic.SmallTitle
 import top.yukonga.miuix.kmp.basic.TextButton
-import top.yukonga.miuix.kmp.squircle.squircleBorder
-import top.yukonga.miuix.kmp.squircle.squircleClip
 import top.yukonga.miuix.kmp.blur.layerBackdrop
 import top.yukonga.miuix.kmp.blur.rememberLayerBackdrop
 import top.yukonga.miuix.kmp.icon.MiuixIcons
 import top.yukonga.miuix.kmp.icon.extended.Add
 import top.yukonga.miuix.kmp.icon.extended.ChevronBackward
 import top.yukonga.miuix.kmp.icon.extended.Delete
+import top.yukonga.miuix.kmp.overlay.OverlayDialog
+import top.yukonga.miuix.kmp.squircle.squircleBorder
+import top.yukonga.miuix.kmp.squircle.squircleClip
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 import top.yukonga.miuix.kmp.utils.scrollEndHaptic
 import kotlin.time.Duration.Companion.milliseconds
 import androidx.compose.ui.graphics.Color as ComposeColor
+import com.kyant.backdrop.Backdrop
 import com.kyant.backdrop.backdrops.layerBackdrop as liquidGlassLayerBackdrop
 
 // ===================== Animation Foundation =====================
@@ -113,7 +118,8 @@ private data class EditAnimState(
     val translationY: Float,
     val scale: Float,
     val clipBottom: Float,
-    val progress: Float
+    val progress: Float,
+    val gesture: Float
 )
 
 private class EditAnimClipShape(
@@ -128,14 +134,18 @@ private class EditAnimClipShape(
         density: androidx.compose.ui.unit.Density
     ): androidx.compose.ui.graphics.Outline {
         val s = animState.value
-        // 动画过程中：从卡片圆角插值到屏幕圆角
-        // 动画结束瞬间：圆角归零
+        // 预测性返回：裁切圆角固定为屏幕圆角（不除以 scale，随页面缩放一起缩放）；
+        // 其余按 morph 进度插值
         val radiusPx = when {
+            s.gesture > 0f -> screenCornerRadiusPx
             s.progress >= 1f -> 0f
             s.progress <= 0.7f -> startCornerRadiusPx + (screenCornerRadiusPx - startCornerRadiusPx) * (s.progress / 0.7f)
             else -> screenCornerRadiusPx
         }
-        val radiusDp = (radiusPx / s.scale / density.density).dp
+        // 补偿在"预测返回不补偿（×1）"与"正常 morph 除以 scale"之间按 gesture 平滑插值，
+        // 避免松手瞬间圆角跳变大
+        val compensate = (1f - s.gesture) / s.scale + s.gesture
+        val radiusDp = (radiusPx * compensate / density.density).dp
         return ContinuousRoundedRectangle(radiusDp).createOutline(
             androidx.compose.ui.geometry.Size(screenWidth, s.clipBottom),
             layoutDirection,
@@ -154,12 +164,12 @@ data class CourseGroupKey(
     val startWeek: Int,
     val endWeek: Int,
     val selectedWeeks: List<Int> = emptyList(),
-    // 自定义时间的课程按实际起止时间区分分组，避免同名师不同时段的课程被误合并
+    // 自定义时间的课程按实际起止时间分组，避免同名师不同时段被误合并
     val isCustomTime: Boolean = false,
     val customStartTime: String? = null,
     val customEndTime: String? = null
 ) {
-    // 唯一标识：包含全部区分字段，避免同名不同时段的课程分组在 LazyStaggeredGrid 中 key 冲突
+    // 包含全部区分字段，避免 LazyStaggeredGrid key 冲突
     fun uniqueKey(): String = buildString {
         append(dayOfWeek).append('_')
         append(startSection).append('_')
@@ -204,9 +214,15 @@ fun CourseEditScreen(
     getOccupiedWeeks: (dayOfWeek: Int, startSection: Int, endSection: Int, excludeIds: List<String>, startTime: String?, endTime: String?) -> Set<Int> = { _, _, _, _, _, _ -> emptySet() },
     liquidGlassBackdrop: com.kyant.backdrop.backdrops.LayerBackdrop? = null,
     sectionTimes: Map<Int, String> = emptyMap(),
+    /** 平板右栏内嵌：不做展开/返回形变，也不拦截返回手势，直接以全尺寸静态呈现 */
+    embedded: Boolean = false,
+    /** 弹窗/底部抽屉的玻璃采样层：内嵌时传全屏层，使弹窗能采样到左栏内容 */
+    dialogBackdrop: Backdrop? = null,
 ) {
+    // 弹窗默认跟随自身玻璃层；内嵌时由外层指定全屏层
+    val dialogGlass: Backdrop? = dialogBackdrop ?: liquidGlassBackdrop
     val courseName = courses.firstOrNull()?.name ?: ""
-    // 课程颜色状态（所有同名课程共享，仅保存时生效）
+    // 所有同名课程共享颜色，仅保存时生效
     var selectedColor by remember {
         mutableLongStateOf(
             courses.firstOrNull()?.colorRes ?: Course.courseColors.first()
@@ -216,58 +232,129 @@ fun CourseEditScreen(
     var customColor by remember { mutableStateOf(Color(selectedColor)) }
 
     val isTablet = LocalConfiguration.current.screenWidthDp >= 600
-    val tabletHorizontalPadding = if (isTablet) {
-        val screenWidthDp = LocalConfiguration.current.screenWidthDp
-        ((screenWidthDp - 600).coerceIn(0, 600) / 600f * 112 + 16).dp
-    } else 16.dp
+    val tabletHorizontalPadding = if (isTablet) 20.dp else 16.dp
 
     val density = LocalDensity.current
-    val animProgress = remember { Animatable(0f) }
-    val animTransY = remember { Animatable(0f) }
+    // 内嵌时直接以全尺寸为初值，首帧即为静态终态
+    val animProgress = remember { Animatable(if (embedded) 1f else 0f) }
+    val animTransY = remember { Animatable(if (embedded) 1f else 0f) }
     val scope = rememberCoroutineScope()
     val hapticFeedback = LocalHapticFeedback.current
     val startCornerRadiusPx = 16f * density.density
     val morphOpenEase = OobeQuartOutEasing
     val morphExitEase = OobeCubicOutEasing
-    // translationY 独立曲线，时长根据起始卡片位置决定
     val isUpperHalf = cardTop < screenHeight / 2f
     val transOpenEase = OobeFifthpowerOutEasing
     val transExitEase = OobeQuadraticOutEasing
     val transOpenMillis = if (isUpperHalf) 500 else 500
     val transExitMillis = if (isUpperHalf) 320 else 320
 
-    // ---- Back navigation with exit animation ----
-    BackHandler {
-        onBackStart()
-        scope.launch {
-            coroutineScope {
-                launch {
-                    animProgress.animateTo(
-                        targetValue = 0f,
-                        animationSpec = tween(
-                            durationMillis = 350,
-                            easing = morphExitEase
-                        )
-                    )
+    // 预测性返回：手势只驱动缩放位置 scaleProgress（1=全屏，0=卡片，可退到 -1 即 200% 行程），
+    // 预测返回期间围绕屏幕中心缩放（translation=0），位移/裁切保持全屏不动；
+    // 取消回弹全屏、完成随关闭动画一起缩回卡片；
+    // 低版本 NavigationBackHandler 自动退化为立即播放完整退出动画
+    val navigationEventState = rememberNavigationEventState(currentInfo = NavigationEventInfo.None)
+    // 手势进度（0..1）：>0 表示预测性返回进行中，用于切换"中心缩放"
+    val gestureBackProgress = remember { Animatable(0f) }
+    val scaleProgress = remember { Animatable(if (embedded) 1f else 0f) }
+    // 手势是否正在推进：进行中裁切完全跟随页面缩放，松手/取消后进入平滑过渡
+    var isGestureActive by remember { mutableStateOf(false) }
+
+    // 内嵌（平板右栏）不拦截返回手势，也不播放进出形变
+    if (!embedded) {
+        NavigationBackHandler(
+            state = navigationEventState,
+            isBackEnabled = true,
+            onBackCancelled = {
+                isGestureActive = false
+                scope.launch {
+                    if (gestureBackProgress.value > 0f) {
+                        // 手势取消：缩放回弹恢复全屏
+                        gestureBackProgress.animateTo(0f, animationSpec = tween(180))
+                        scaleProgress.animateTo(1f, animationSpec = tween(180))
+                    }
                 }
-                launch {
-                    animTransY.animateTo(
-                        targetValue = 0f,
-                        animationSpec = tween(
-                            durationMillis = transExitMillis,
-                            easing = transExitEase
-                        )
-                    )
+            },
+            onBackCompleted = {
+                isGestureActive = false
+                onBackStart()
+                scope.launch {
+                    coroutineScope {
+                        // 缩放中心从屏幕中心平滑过渡回左上角锚点（150ms），morph 位移随之接管
+                        launch { gestureBackProgress.animateTo(0f, animationSpec = tween(150)) }
+                        launch {
+                            scaleProgress.animateTo(
+                                targetValue = 0f,
+                                animationSpec = tween(
+                                    durationMillis = 350,
+                                    easing = morphExitEase
+                                )
+                            )
+                        }
+                        launch {
+                            animProgress.animateTo(
+                                targetValue = 0f,
+                                animationSpec = tween(
+                                    durationMillis = 350,
+                                    easing = morphExitEase
+                                )
+                            )
+                        }
+                        launch {
+                            animTransY.animateTo(
+                                targetValue = 0f,
+                                animationSpec = tween(
+                                    durationMillis = transExitMillis,
+                                    easing = transExitEase
+                                )
+                            )
+                        }
+                    }
+                    onBack()
                 }
-            }
-            onBack()
-        }
+            },
+        )
     }
 
-    // ---- Enter animation ----
+    // 逐帧收集返回手势进度（单独协程，避免手势期间每帧取消/重启 LaunchedEffect）；
+    // 缩放跟随行程为"卡片→全屏"全程的 200%（滑到底 scaleProgress=-1），
+    // 松手后由 onBackCompleted 按正常关闭动画回到卡片（1 倍）
     LaunchedEffect(Unit) {
-        // 等待首帧渲染完成后再开始动画
+        snapshotFlow { navigationEventState.transitionState }
+            .collect { transitionState ->
+                if (
+                    transitionState is NavigationEventTransitionState.InProgress &&
+                    transitionState.direction == NavigationEventTransitionState.TRANSITIONING_BACK
+                ) {
+                    // 预测性返回动画开关：关闭时不驱动跟随动画（返回仍被拦截，直接关闭）
+                    if (PredictiveBackSettings.enabled) {
+                        isGestureActive = true
+                        val progress = transitionState.latestEvent.progress
+                        gestureBackProgress.snapTo(progress)
+                        scaleProgress.snapTo(1f - progress * 0.3f)
+                    }
+                }
+            }
+    }
+
+    LaunchedEffect(Unit) {
+        if (embedded) {
+            // 内嵌：直接到全尺寸静态态，不播放展开形变
+            scaleProgress.snapTo(1f)
+            animProgress.snapTo(1f)
+            animTransY.snapTo(1f)
+            return@LaunchedEffect
+        }
         delay(12.milliseconds)
+        launch {
+            scaleProgress.animateTo(
+                targetValue = 1f,
+                animationSpec = tween(
+                    durationMillis = 560,
+                    easing = morphOpenEase
+                )
+            )
+        }
         launch {
             animProgress.animateTo(
                 targetValue = 1f,
@@ -288,29 +375,35 @@ fun CourseEditScreen(
         }
     }
 
-    // ---- Derived animation state ----
-    // graphicsLayer.scale 同时缩放宽高，clipBottom 需要反向补偿
-    // 使得 scale * clipBottom 在 p=0 时等于 cardHeight
+    // graphicsLayer.scale 同时缩放宽高，clipBottom 需反向补偿使 p=0 时 scale*clipBottom == cardHeight
     val animState = remember {
         derivedStateOf {
             val p = animProgress.value
             val ty = animTransY.value
-            val bgAlpha = (p * 0.5f).coerceIn(0f, 0.5f)
+            val bgAlpha = if (embedded) 0f else (p * 0.5f).coerceIn(0f, 0.5f)
             val snapAlpha = (1f - p * 3f).coerceIn(0f, 1f)
             val contAlpha = ((p - 0.1f) / 0.5f).coerceIn(0f, 1f)
-            val scale = cardWidth / screenWidth + (1f - cardWidth / screenWidth) * p
-            // 起点 = cardCenter, 终点 = screenCenter
+            // 预测性返回手势只驱动缩放位置 scaleProgress（1=全屏，0=卡片，手势可退到 -1 即 200% 行程），
+            // 位移与裁切保持全屏（p 不变）不随手势变化；coerceAtLeast 防止窄卡片时 scale 变负翻转
+            val scale = (cardWidth / screenWidth + (1f - cardWidth / screenWidth) * scaleProgress.value).coerceAtLeast(0.05f)
+            // 起点 = cardCenter, 终点 = screenCenter；ty 作为曲线参数，前快后慢
             val cardCenter = cardTop + cardHeight / 2f
             val screenCenter = screenHeight / 2f
-            // 抛物线插值因子：ty 落后于 p → 前快后慢的曲线
             val curveT = ty  // 直接用 ty 作为曲线参数
             val targetCenter = cardCenter + (screenCenter - cardCenter) * curveT
-            // 从 targetCenter 反推 translationY
-            val translationY =
+            // 正常 morph 缩放锚点为屏幕顶部居中：y 围绕顶部（原有补偿），x 围绕屏幕中轴
+            // （去掉左缘补偿，位移基于卡片原始左缘）；预测返回期间围绕屏幕中心缩放
+            val gesture = gestureBackProgress.value
+            val normalY =
                 targetCenter - screenHeight / 2f * (1f - scale) - (cardHeight + (screenHeight - cardHeight) * p) / 2f
-            // translationX 保持不变
-            val translationX = cardLeft * (1f - p) - screenWidth / 2f * (1f - scale)
-            val rawClipBottom = cardHeight + (screenHeight - cardHeight) * p
+            val normalX = (cardLeft - screenWidth / 2f * (1f - cardWidth / screenWidth)) * (1f - p)
+            val translationY = normalY * (1f - gesture)
+            val translationX = normalX * (1f - gesture)
+            // 手势推进期间裁切跟随"当前展开高度×缩放"（打开未完成时也连续，底部不瞬间归位）；
+            // 松手/取消过渡期按 gesture 平滑插值衔接 morph 的底部收缩动画
+            val morphClip = cardHeight + (screenHeight - cardHeight) * p
+            val predictiveClip = morphClip * scale
+            val rawClipBottom = if (isGestureActive) predictiveClip else predictiveClip * gesture + morphClip * (1f - gesture)
             val clipBottom = rawClipBottom / scale
             EditAnimState(
                 bgAlpha,
@@ -320,7 +413,8 @@ fun CourseEditScreen(
                 translationY,
                 scale,
                 clipBottom,
-                p
+                p,
+                gesture
             )
         }
     }
@@ -335,15 +429,12 @@ fun CourseEditScreen(
     var listScrollY by remember { mutableIntStateOf(0) }
     val scrollBehavior = rememberSharedScrollBehavior()
 
-    // 删除动画状态
     var deletingGroupId by remember { mutableStateOf<String?>(null) }
     var showDeleteDialog by remember { mutableStateOf(false) }
     var pendingDeleteGroup by remember { mutableStateOf<CourseGroup?>(null) }
     var pendingDeleteCourseIds by remember { mutableStateOf<List<String>>(emptyList()) }
 
-    // 添加课程弹窗状态
     var showAddCourseSheet by remember { mutableStateOf(false) }
-    // 编辑课程弹窗状态
     var showEditCourseSheet by remember { mutableStateOf(false) }
     var editingGroup by remember { mutableStateOf<CourseGroup?>(null) }
     // 待添加课程（弹窗关闭后再添加，触发淡入动画）
@@ -353,21 +444,27 @@ fun CourseEditScreen(
     LaunchedEffect(deletingGroupId) {
         val courseIds = pendingDeleteCourseIds
         if (deletingGroupId != null && courseIds.isNotEmpty()) {
-            delay(300.milliseconds) // 等 shrinkVertically + fadeOut 动画完成
+            delay(300.milliseconds)
             courseIds.forEach { onDeleteCourse(it) }
             pendingDeleteCourseIds = emptyList()
             deletingGroupId = null
         }
     }
 
-    // 全部课程删除后自动退出编辑页
     var hasTriggeredAutoBack by remember { mutableStateOf(false) }
     LaunchedEffect(courses.size) {
-        if (courses.isEmpty() && !hasTriggeredAutoBack && animProgress.value > 0.5f) {
+        // 内嵌（平板右栏）不自动关闭，交由外层切换选中项
+        if (!embedded && courses.isEmpty() && !hasTriggeredAutoBack && animProgress.value > 0.5f) {
             hasTriggeredAutoBack = true
             delay(400.milliseconds)
             onBackStart()
             coroutineScope {
+                launch {
+                    scaleProgress.animateTo(
+                        targetValue = 0f,
+                        animationSpec = tween(350, easing = morphExitEase)
+                    )
+                }
                 launch {
                     animProgress.animateTo(
                         targetValue = 0f,
@@ -410,7 +507,6 @@ fun CourseEditScreen(
         }
     }
 
-    // ---- Morphing container (identical to CourseDetailScreen) ----
     Box(
         modifier = Modifier
             .fillMaxSize()
@@ -446,7 +542,6 @@ fun CourseEditScreen(
                 .background(MiuixTheme.colorScheme.surface)
                 .background(cardColor.copy(alpha = cardAlpha))
         ) {
-            // Card snapshot during morph (identical to CourseDetailScreen)
             if (cardSnapshot != null && s.snapshotAlpha > 0f) {
                 val imageBitmap = remember(cardSnapshot) { cardSnapshot.asImageBitmap() }
                 Image(
@@ -461,7 +556,6 @@ fun CourseEditScreen(
                 )
             }
 
-            // Content that fades in (identical to CourseDetailScreen)
             Box(
                 modifier = Modifier
                     .fillMaxSize()
@@ -479,12 +573,22 @@ fun CourseEditScreen(
                                 modifier = Modifier,
                                 scrollBehavior = scrollBehavior,
                                 contentPadding = {},
-                                startAction = { backdropAlpha, shadowAlpha ->
+                                startAction = if (embedded) null else {
+                                    { backdropAlpha, shadowAlpha ->
                                     LiquidTopBarButton(
                                         onClick = {
                                             onBackStart()
                                             scope.launch {
                                                 coroutineScope {
+                                                    launch {
+                                                        scaleProgress.animateTo(
+                                                            targetValue = 0f,
+                                                            animationSpec = tween(
+                                                                durationMillis = 350,
+                                                                easing = morphExitEase
+                                                            )
+                                                        )
+                                                    }
                                                     launch {
                                                         animProgress.animateTo(
                                                             targetValue = 0f,
@@ -516,6 +620,7 @@ fun CourseEditScreen(
                                         backdropAlpha = backdropAlpha,
                                         shadowAlpha = shadowAlpha,
                                     )
+                                    }
                                 },
                                 endAction = { backdropAlpha, shadowAlpha ->
                                     LiquidTopBarButton(
@@ -552,8 +657,7 @@ fun CourseEditScreen(
                                 contentColor = MiuixTheme.colorScheme.onSurface
                             )
                         ) {
-                            // Group courses by day/section/week configuration
-                            val courseGroups = remember(courses) {
+                        val courseGroups = remember(courses) {
                                 courses.groupBy { course ->
                                     CourseGroupKey(
                                         dayOfWeek = course.dayOfWeek,
@@ -584,9 +688,7 @@ fun CourseEditScreen(
                             }
                             LazyVerticalStaggeredGrid(
                                 state = gridState,
-                                columns = if (isTablet) StaggeredGridCells.Fixed(2) else StaggeredGridCells.Fixed(
-                                    1
-                                ),
+                                columns = StaggeredGridCells.Fixed(1),
                                 modifier = Modifier
                                     .fillMaxSize()
                                     .overScrollVertical()
@@ -603,10 +705,9 @@ fun CourseEditScreen(
                                 verticalItemSpacing = 12.dp,
                                 horizontalArrangement = Arrangement.spacedBy(24.dp)
                             ) {
-                                // 课程颜色选择器（与添加课程弹窗样式一致）
                                 item(key = "color_picker", span = StaggeredGridItemSpan.FullLine) {
                                     val allColors = remember { Course.courseColors }
-                                    val colorColumns = if (isTablet) allColors.size + 1 else 6
+                                    val colorColumns = 6
                                     val totalItems =
                                         remember(allColors) { allColors.size + 1 } // +1 for custom color button
                                     val colorRows = remember(
@@ -663,7 +764,7 @@ fun CourseEditScreen(
                                                                     },
                                                                 contentAlignment = Alignment.Center
                                                             ) {
-                                                                // 选中态：沿外圈绘制主题色描边，描边内侧留空，内部填课程色（保留原 alpha）
+                                                                // 选中态：外圈主题色描边，内部填课程色
                                                                 Box(
                                                                     modifier = Modifier
                                                                         .fillMaxSize()
@@ -684,7 +785,6 @@ fun CourseEditScreen(
                                                                 )
                                                             }
                                                         } else if (colorIndex == allColors.size) {
-                                                            // 自定义颜色按钮
                                                             val isCustomColor =
                                                                 selectedColor !in allColors
                                                             val hintColor =
@@ -710,7 +810,7 @@ fun CourseEditScreen(
                                                                     },
                                                                 contentAlignment = Alignment.Center
                                                             ) {
-                                                                // 选中态：沿外圈绘制主题色描边，描边内侧留空
+                                                                // 选中态：外圈主题色描边
                                                                 Box(
                                                                     modifier = Modifier
                                                                         .fillMaxSize()
@@ -798,7 +898,6 @@ fun CourseEditScreen(
                                                     showEditCourseSheet = true
                                                 }
                                             )
-                                            // 删除按钮
                                             Button(
                                                 modifier = Modifier
                                                     .fillMaxWidth()
@@ -837,11 +936,10 @@ fun CourseEditScreen(
                         }
                     }
 
-                    // 自定义颜色选择弹窗
                     OverlayDialog(
                         title = "选择颜色",
                         show = showColorDialog,
-                        liquidGlassBackdrop = liquidGlassBackdrop,
+                        liquidGlassBackdrop = dialogGlass,
                         onDismissRequest = { showColorDialog = false }
                     ) {
                         Column(
@@ -888,12 +986,11 @@ fun CourseEditScreen(
                         }
                     }
 
-                    // 删除确认弹窗
                     OverlayDialog(
                         title = "删除课程",
                         summary = "确定要删除课程「${pendingDeleteGroup?.courses?.firstOrNull()?.name ?: ""}」吗？\n此操作不可撤销。",
                         show = showDeleteDialog,
-                        liquidGlassBackdrop = liquidGlassBackdrop,
+                        liquidGlassBackdrop = dialogGlass,
                         onDismissRequest = { showDeleteDialog = false }
                     ) {
                         Row(
@@ -926,12 +1023,11 @@ fun CourseEditScreen(
                         }
                     }
 
-                    // 添加课程底部弹窗
                     AddEditCourseBottomSheet(
                         show = showAddCourseSheet,
                         courses = courses,
                         backdrop = backdrop,
-                        liquidGlassBackdrop = liquidGlassBackdrop,
+                        liquidGlassBackdrop = dialogGlass,
                         onDismissRequest = { showAddCourseSheet = false },
                         onConfirm = { newCourse ->
                             pendingAddCourse = newCourse
@@ -942,12 +1038,11 @@ fun CourseEditScreen(
                         sectionTimes = sectionTimes
                     )
 
-                    // 编辑课程底部弹窗
                     AddEditCourseBottomSheet(
                         show = showEditCourseSheet,
                         courses = editingGroup?.courses ?: emptyList(),
                         backdrop = backdrop,
-                        liquidGlassBackdrop = liquidGlassBackdrop,
+                        liquidGlassBackdrop = dialogGlass,
                         editCourse = editingGroup?.courses?.first(),
                         onDismissRequest = {
                             showEditCourseSheet = false

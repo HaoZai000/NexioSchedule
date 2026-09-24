@@ -13,7 +13,6 @@ import com.haooz.chedule.data.CourseRepository
 import com.haooz.chedule.reminder.CourseReminderHelper
 import java.util.Calendar
 
-/** Read-only API for today's, tomorrow's and display-resolved courses plus the widget state. */
 class TodayCoursesProvider : ContentProvider() {
 
     override fun onCreate(): Boolean = context != null
@@ -33,8 +32,13 @@ class TodayCoursesProvider : ContentProvider() {
 
         val appContext = requireNotNull(context)
         val repository = CourseRepository(appContext)
-        // 通过 uri query 参数标识 widget 规格（2x2），区分详情文案；缺省视为 4x2
+        // uri query 参数 size=2x2 区分详情文案；size=single 为单日程小组件专属截断；缺省 4x2
         val widgetSize = uri.getQueryParameter("size")
+        // loc_only=1|true 或 size=single：location 仅回地点（单日程）
+        val locOnly = widgetSize == "single" || when (uri.getQueryParameter("loc_only")?.lowercase()) {
+            "1", "true", "yes" -> true
+            else -> false
+        }
 
         return when (match) {
             TODAY_COURSES, TOMORROW_COURSES, DISPLAY_COURSES -> {
@@ -46,7 +50,11 @@ class TodayCoursesProvider : ContentProvider() {
                     else -> resolveState(appContext, repository).courses
                 }
                 MatrixCursor(columns.toTypedArray()).apply {
-                    courses.forEach { course -> newRow().also { row -> fillCourseRow(row, columns, course, repository, widgetSize) } }
+                    courses.forEach { course ->
+                        newRow().also { row ->
+                            fillCourseRow(row, columns, course, repository, widgetSize, locOnly)
+                        }
+                    }
                 }
             }
             else -> { // DISPLAY_STATE
@@ -95,18 +103,12 @@ class TodayCoursesProvider : ContentProvider() {
     private fun <T> unsupportedWrite(uri: Uri): T =
         throw UnsupportedOperationException("$uri is read-only")
 
-    /**
-     * 解析小组件要展示的状态与课程列表，与标准安卓小组件（TodayCourseWidgetProviderStandard）保持一致的
-     * “今日已上完 → 切到明日” 逻辑：
-     * 当开启了明日提醒、当前时间已过提醒时间、且今日课程已全部结束时，自动展示明日的课程。
-     */
+    // 与标准小组件一致：开了明日提醒且已过提醒时间、今日课全上完时自动切到明日。
+    // 接口（URI/列名）不变；内部课程解析与小部件/次日提醒同口径（含调休、节假日）。
     private fun resolveState(context: android.content.Context, repository: CourseRepository): DisplayState {
-        val all = repository.getAllCourses()
         val currentWeek = repository.getCurrentWeek()
-        val today = getTodayOfWeek()
-        val todayCourses = all
-            .filter { it.dayOfWeek == today && it.isActiveInWeek(currentWeek) }
-            .sortedBy { CourseReminderHelper.getCourseStartTime(it, repository).toMinutes() }
+        val todayResolution = CourseReminderHelper.resolveDaySchedule(context, forTomorrow = false)
+        val todayCourses = todayResolution.courses
 
         val calendar = Calendar.getInstance()
         val currentMinutes = calendar.get(Calendar.HOUR_OF_DAY) * 60 + calendar.get(Calendar.MINUTE)
@@ -119,21 +121,17 @@ class TodayCoursesProvider : ContentProvider() {
         } else true
         val showTomorrow = nextDayEnabled && currentMinutes >= reminderMinutes && todayFinished
 
-        val (targetDay, targetWeek) = if (showTomorrow) {
-            if (today == 7) 1 to (currentWeek + 1) else (today + 1) to currentWeek
+        val resolution = if (showTomorrow) {
+            CourseReminderHelper.resolveDaySchedule(context, forTomorrow = true)
         } else {
-            today to currentWeek
+            todayResolution
         }
-        val targetCourses = all
-            .filter { it.dayOfWeek == targetDay && it.isActiveInWeek(targetWeek) }
-            .sortedBy { CourseReminderHelper.getCourseStartTime(it, repository).toMinutes() }
 
-        // 与标准安卓小组件一致：显示"今天"时只保留 在课/未开始 的课程（隐藏已下课的）；
-        // 显示"明天"时展示明日全部课程。
+        // 今天只保留在课/未开始；明天展示全部
         val displayCourses = if (showTomorrow) {
-            targetCourses
+            resolution.courses
         } else {
-            targetCourses.filter { course ->
+            resolution.courses.filter { course ->
                 val endMinutes = CourseReminderHelper.getCourseEndTime(course, repository)?.toMinutes() ?: Int.MAX_VALUE
                 endMinutes > currentMinutes
             }
@@ -143,15 +141,17 @@ class TodayCoursesProvider : ContentProvider() {
         val lastWeekWithCourses = repository.getLastWeekWithCourses()
         val isHoliday = currentWeek > totalWeeks || (currentWeek >= 1 && currentWeek > lastWeekWithCourses)
 
-        val title = if (showTomorrow) "明天" else DAY_NAMES[targetDay - 1]
+        // 标题星期用日历日，不用调休映射日（周日补周二课时写「周日」而非「周二」）
+        val title = DAY_NAMES[(resolution.calendarDayOfWeek - 1).coerceIn(0, 6)]
         val weekText = when {
             isHoliday -> "放假中"
             currentWeek < 1 -> "未开始"
-            else -> "第${currentWeek}周"
+            else -> "第${resolution.displayWeek}周"
         }
         val emptyText = when {
             isHoliday -> "假期中，暂无课程"
             currentWeek < 1 -> "学期暂未开始"
+            resolution.isHolidayDate -> "假期中，暂无课程"
             showTomorrow -> "明日无课"
             todayCourses.isEmpty() -> "今日无课"
             else -> "今日课程已上完"
@@ -165,6 +165,7 @@ class TodayCoursesProvider : ContentProvider() {
         course: Course,
         repository: CourseRepository,
         size: String?,
+        locOnly: Boolean = false,
     ) {
         val calendar = Calendar.getInstance()
         val currentMinutes = calendar.get(Calendar.HOUR_OF_DAY) * 60 + calendar.get(Calendar.MINUTE)
@@ -176,38 +177,48 @@ class TodayCoursesProvider : ContentProvider() {
         val remaining = if (isNow == 1) endMinutes - currentMinutes else 0
         val sectionText = course.getSectionText()
         val startText = start.orEmpty()
-        // 详情文案按 widget 规格与课程类型区分（分隔符 "｜"，空段自动省略）：
-//   2x2：开始时间｜地点
-//   4x2 普通课：节次｜地点｜教师；自定义时间课/特殊课（无节次）：地点｜教师
-//   自定义时间课程不显示"第几节"
+        // 详情按规格区分：2x2=开始时间｜地点；4x2=节次｜地点｜教师；自定义时间课不显示节次
 val showSection = sectionText.isNotEmpty() && !course.hasValidCustomTime()
 val subText = when {
     size == "2x2" -> listOf(startText, course.classroom).filter { it.isNotEmpty() }.joinToString("｜")
     showSection -> listOf(sectionText, course.classroom, course.teacher).filter { it.isNotEmpty() }.joinToString("｜")
     else -> listOf(course.classroom, course.teacher).filter { it.isNotEmpty() }.joinToString("｜")
 }
-        // 2x2 三行详情：第2行"开始时间 - 结束时间"，第3行"地点｜教师"
+        // 2x2：行2时间范围，行3地点｜教师；loc_only/single 时第三行只回地点
         val timeRange = listOf(startText, end.orEmpty()).filter { it.isNotEmpty() }.joinToString(" - ")
-        val locationTeacher = listOf(course.classroom, course.teacher).filter { it.isNotEmpty() }.joinToString("｜")
-        // 根据 widget 规格对课程名/详情按容器宽度在 App 端做测量截断；
-        // 4x2 末上课宽度更大、上课时为右侧倒计时让位；2x2 对第1行(课程名)和第3行(地点｜教师)截断，第2行(时间范围)不截断
+        val locationRaw = if (locOnly) {
+            course.classroom
+        } else {
+            listOf(course.classroom, course.teacher).filter { it.isNotEmpty() }.joinToString("｜")
+        }
+        // App 端按容器宽度测量截断
+        // size=single：单日程 440 设计稿，名称 x=42 size=48，地点 x=92 size=38
+        // size=2x2：日程表卡片内 名称/地点｜教师
+        // 默认 4x2：上课时为右侧倒计时让位
+        val isSingle = size == "single"
         val isTwoByTwo = size == "2x2"
         val detailWidthPx = if (isNow == 1) 170f else 255f
-        val displayName = if (isTwoByTwo) {
-            truncateByPx(course.name, TWO_X_TWO_WIDTH, TWO_X_TWO_NAME_TEXT_SIZE)
-        } else {
-            truncateByPx(course.name, detailWidthPx, NAME_TEXT_SIZE)
+        val displayName = when {
+            isSingle -> truncateByPx(course.name, SINGLE_NAME_WIDTH, SINGLE_NAME_TEXT_SIZE)
+            isTwoByTwo -> truncateByPx(course.name, TWO_X_TWO_WIDTH, TWO_X_TWO_NAME_TEXT_SIZE)
+            else -> truncateByPx(course.name, detailWidthPx, NAME_TEXT_SIZE)
         }
         val displaySubText = if (isTwoByTwo) subText else truncateByPx(subText, detailWidthPx, SUB_TEXT_SIZE)
-        val displayLocationTeacher = if (isTwoByTwo) {
-            truncateByPx(locationTeacher, TWO_X_TWO_WIDTH, TWO_X_TWO_SUB_TEXT_SIZE)
+        val displayLocationTeacher = when {
+            isSingle -> truncateByPx(locationRaw, SINGLE_LOCATION_WIDTH, SINGLE_LOCATION_TEXT_SIZE)
+            isTwoByTwo -> truncateByPx(locationRaw, TWO_X_TWO_WIDTH, TWO_X_TWO_SUB_TEXT_SIZE)
+            else -> locationRaw
+        }
+        // classroom 列：单日程也按地点字号截断，保证 @course_classroom 不超长
+        val displayClassroom = if (isSingle) {
+            truncateByPx(course.classroom, SINGLE_LOCATION_WIDTH, SINGLE_LOCATION_TEXT_SIZE)
         } else {
-            locationTeacher
+            course.classroom
         }
         val values = mapOf<String, Any?>(
             COLUMN_ID to course.id,
             COLUMN_NAME to displayName,
-            COLUMN_CLASSROOM to course.classroom,
+            COLUMN_CLASSROOM to displayClassroom,
             COLUMN_TEACHER to course.teacher,
             COLUMN_START_SECTION to course.startSection,
             COLUMN_END_SECTION to course.endSection,
@@ -232,11 +243,7 @@ val subText = when {
         columns.forEach { column -> row.add(values[column]) }
     }
 
-    /**
-     * 按像素宽度对文本做测量截断（与 4x2 小部件字体/容器基准一致）：
-     * 采用与 widget 同款字体测量真实渲染宽度，超出部分裁剪并追加省略号"…"。
-     * 宽度、字号均为设计基准（sx=1）下的值，widget 渲染时整体等比缩放，效果一致。
-     */
+    // 用与 widget 同款字体/字号测量；宽度为 sx=1 设计基准，渲染时等比缩放
     private fun truncateByPx(text: String, maxWidthPx: Float, textSizePx: Float): String {
         if (text.isEmpty() || maxWidthPx <= 0f) return text
         val paint = Paint().apply {
@@ -265,7 +272,7 @@ val subText = when {
         return (calendar.get(Calendar.DAY_OF_WEEK) + 5) % 7 + 1
     }
 
-    /** "HH:mm" -> 分钟数，用于排序/比较；null/非法返回 Int.MAX_VALUE */
+    // null/非法返回 Int.MAX_VALUE 排到末尾
     private fun String?.toMinutes(): Int {
         if (this.isNullOrBlank()) return Int.MAX_VALUE
         val parts = this.split(":")
@@ -285,13 +292,18 @@ val subText = when {
 
     private companion object {
         const val AUTHORITY = "com.haooz.chedule.courses"
-        // 4x2 小部件课程名/详情设计基准字号（sx=1），用于 App 端测量截断
+        // sx=1 设计基准字号，用于 App 端测量截断
         const val NAME_TEXT_SIZE = 14f
         const val SUB_TEXT_SIZE = 12f
-        // 2x2 小部件容器宽与各行基准字号（绝对坐标 440×440），用于 App 端测量截断
+        // 2x2 绝对坐标 440×440 下的容器宽与字号
         const val TWO_X_TWO_WIDTH = 320f
         const val TWO_X_TWO_NAME_TEXT_SIZE = 38f
         const val TWO_X_TWO_SUB_TEXT_SIZE = 32f
+        // 单日程 440 设计稿：名称 x=42 size=48（可用约 360）；地点 x=92 size=38（可用约 320）
+        const val SINGLE_NAME_WIDTH = 360f
+        const val SINGLE_NAME_TEXT_SIZE = 48f
+        const val SINGLE_LOCATION_WIDTH = 320f
+        const val SINGLE_LOCATION_TEXT_SIZE = 38f
         const val PATH_TODAY = "today"
         const val PATH_TOMORROW = "tomorrow"
         const val PATH_DISPLAY = "display"

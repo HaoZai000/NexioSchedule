@@ -6,6 +6,7 @@ import android.content.Intent
 import android.graphics.Bitmap
 import android.graphics.Canvas
 import android.os.Bundle
+import android.widget.Toast
 import androidx.activity.ComponentActivity
 import androidx.activity.SystemBarStyle
 import androidx.activity.compose.setContent
@@ -39,11 +40,12 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -75,10 +77,15 @@ import com.haooz.chedule.ui.data.changelogData
 import com.haooz.chedule.ui.effects.background.BgEffectBackground
 import com.haooz.chedule.ui.effects.miuix.rememberBlurBackdrop
 import com.haooz.chedule.ui.theme.CourseScheduleTheme
+import com.haooz.chedule.ui.utils.CrashLogHelper
 import com.haooz.chedule.ui.utils.applyThemeAwareSystemBars
 import com.haooz.chedule.ui.utils.isAppDarkTheme
 import com.haooz.chedule.ui.utils.overScrollVertical
 import com.kyant.capsule.ContinuousRoundedRectangle
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
+import top.yukonga.miuix.kmp.basic.ButtonDefaults
 import top.yukonga.miuix.kmp.basic.Card
 import top.yukonga.miuix.kmp.basic.CardDefaults
 import top.yukonga.miuix.kmp.basic.Icon
@@ -98,11 +105,14 @@ import top.yukonga.miuix.kmp.preference.ArrowPreference
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 import top.yukonga.miuix.kmp.utils.scrollEndHaptic
 import androidx.compose.ui.graphics.BlendMode as ComposeBlendMode
+import com.kyant.backdrop.Backdrop
 import com.kyant.backdrop.backdrops.layerBackdrop as liquidGlassLayerBackdrop
 
 class AboutActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        // 设置页点击记的是 about/open，这里区分成 activity_open，免得日志里两条同名字分不清
+        com.haooz.chedule.ui.utils.FeatureLog.about("activity_open")
         enableEdgeToEdge(
             statusBarStyle = SystemBarStyle.light(
                 android.graphics.Color.TRANSPARENT,
@@ -113,26 +123,31 @@ class AboutActivity : ComponentActivity() {
         applyThemeAwareSystemBars()
         setContent {
             CourseScheduleTheme {
-                val liquidGlassBackdrop = com.kyant.backdrop.backdrops.rememberLayerBackdrop()
-                AboutScreen(onBack = { finish() }, liquidGlassBackdrop = liquidGlassBackdrop)
-            }
+            val liquidGlassBackdrop = com.kyant.backdrop.backdrops.rememberLayerBackdrop()
+            AboutScreen(onBack = { finish() }, liquidGlassBackdrop = liquidGlassBackdrop)
+        }
         }
     }
 }
 
 @SuppressLint("LocalContextGetResourceValueCall", "ConfigurationScreenWidthHeight")
 @Composable
-private fun AboutScreen(onBack: () -> Unit, liquidGlassBackdrop: com.kyant.backdrop.backdrops.LayerBackdrop) {
+fun AboutScreen(
+    onBack: () -> Unit,
+    liquidGlassBackdrop: com.kyant.backdrop.backdrops.LayerBackdrop,
+    embedded: Boolean = false,
+    /** 弹窗的玻璃采样层：内嵌时传全屏层，使弹窗能采样到左侧内容 */
+    dialogBackdrop: Backdrop? = null,
+) {
+    // 弹窗默认跟随自身玻璃层；内嵌时由外层指定全屏层
+    val dialogGlass: Backdrop = dialogBackdrop ?: liquidGlassBackdrop
     val hapticFeedback = LocalHapticFeedback.current
     val scrollBehavior = rememberSharedScrollBehavior()
     val context = LocalContext.current
     val uriHandler = LocalUriHandler.current
     val isInDark = isAppDarkTheme()
     val isTablet = LocalConfiguration.current.screenWidthDp >= 600
-    val tabletHorizontalPadding = if (isTablet) {
-        val screenWidthDp = LocalConfiguration.current.screenWidthDp
-        ((screenWidthDp - 600).coerceIn(0, 600) / 600f * 128).dp
-    } else 0.dp
+    val tabletHorizontalPadding = 4.dp
 
     val packageInfo = remember {
         try {
@@ -152,6 +167,35 @@ private fun AboutScreen(onBack: () -> Unit, liquidGlassBackdrop: com.kyant.backd
 
     val backdrop = rememberBlurBackdrop()
     val lazyListState = rememberLazyListState()
+    val uiScope = rememberCoroutineScope()
+    var recordingActive by remember { mutableStateOf(CrashLogHelper.isRecording) }
+    var canShareRecording by remember { mutableStateOf(CrashLogHelper.hasReadyRecording) }
+    var recordingElapsedSec by remember { mutableStateOf(0) }
+    var exportingCrashLog by remember { mutableStateOf(false) }
+
+    // 恢复上次被中断的录制：Application 启动已在后台做，这里兜底等待一次再读状态
+    LaunchedEffect(Unit) {
+        withContext(Dispatchers.IO) {
+            CrashLogHelper.ensureRecovered(context)
+        }
+        recordingActive = CrashLogHelper.isRecording
+        canShareRecording = CrashLogHelper.hasReadyRecording
+        recordingElapsedSec = (CrashLogHelper.recordingElapsedMs() / 1000L).toInt()
+    }
+
+    // 录制倒计时；到 30 分钟自动结束并点亮分享
+    LaunchedEffect(recordingActive) {
+        if (!recordingActive) return@LaunchedEffect
+        while (recordingActive) {
+            CrashLogHelper.ensureRecordingNotExpired()
+            recordingActive = CrashLogHelper.isRecording
+            canShareRecording = CrashLogHelper.hasReadyRecording
+            recordingElapsedSec = (CrashLogHelper.recordingElapsedMs() / 1000L).toInt()
+            if (!CrashLogHelper.isRecording) break
+            kotlinx.coroutines.delay(1000)
+        }
+        canShareRecording = CrashLogHelper.hasReadyRecording
+    }
 
     val scrollProgress by remember {
         derivedStateOf {
@@ -204,6 +248,7 @@ private fun AboutScreen(onBack: () -> Unit, liquidGlassBackdrop: com.kyant.backd
 
     Scaffold(
         topBar = {
+            // 内嵌到 pad 设置页右栏时，About 仍自绘顶栏糊层/遮罩/标题，仅隐藏返回按钮
             ProgressiveBlurTopBar(
                 backdrop = liquidGlassBackdrop,
                 tintIntensity = scrollProgress * 0.2f,
@@ -217,7 +262,7 @@ private fun AboutScreen(onBack: () -> Unit, liquidGlassBackdrop: com.kyant.backd
                     modifier = Modifier,
                     scrollBehavior = scrollBehavior,
                     contentPadding = {},
-                    startAction = { backdropAlpha, shadowAlpha ->
+                    startAction = if (embedded) null else { backdropAlpha, shadowAlpha ->
                         LiquidTopBarButton(
                             onClick = { onBack() },
                             backdrop = liquidGlassBackdrop,
@@ -408,35 +453,39 @@ private fun AboutScreen(onBack: () -> Unit, liquidGlassBackdrop: com.kyant.backd
                             Column(
                                 modifier = Modifier.fillMaxWidth()
                             ) {
-                                ArrowPreference(
-                                    title = "交流与反馈",
-                                    onClick = {
-                                        val intent =
-                                            Intent(context, CommunicationActivity::class.java)
-                                        context.startActivity(intent)
-                                    }
-                                )
+                                if (!embedded) {
+                                    ArrowPreference(
+                                        title = "交流与反馈",
+                                        onClick = {
+                                            val intent =
+                                                Intent(context, CommunicationActivity::class.java)
+                                            context.startActivity(intent)
+                                        }
+                                    )
+                                }
                                 ArrowPreference(
                                     title = "项目仓库",
                                     onClick = {
                                         showRepoDialog = true
                                     }
                                 )
-                                ArrowPreference(
-                                    title = "捐赠支持",
-                                    endActions = {
-                                        Text(
-                                            text = "请作者喝杯咖啡",
-                                            fontSize = 14.sp,
-                                            color = MiuixTheme.colorScheme.onSurfaceVariantActions
-                                        )
-                                    },
-                                    onClick = {
-                                        val intent =
-                                            Intent(context, AppreciateAuthorActivity::class.java)
-                                        context.startActivity(intent)
-                                    }
-                                )
+                                if (!embedded) {
+                                    ArrowPreference(
+                                        title = "捐赠支持",
+                                        endActions = {
+                                            Text(
+                                                text = "请作者喝杯咖啡",
+                                                fontSize = 14.sp,
+                                                color = MiuixTheme.colorScheme.onSurfaceVariantActions
+                                            )
+                                        },
+                                        onClick = {
+                                            val intent =
+                                                Intent(context, AppreciateAuthorActivity::class.java)
+                                            context.startActivity(intent)
+                                        }
+                                    )
+                                }
                             }
                         }
                     }
@@ -837,6 +886,138 @@ private fun AboutScreen(onBack: () -> Unit, liquidGlassBackdrop: com.kyant.backd
                                 }
                             }
 
+                            Spacer(modifier = Modifier.height(12.dp))
+                            Card(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(horizontal = 16.dp)
+                                    .then(
+                                        if (backdrop != null) {
+                                            Modifier.textureBlur(
+                                                backdrop = backdrop,
+                                                shape = ContinuousRoundedRectangle(20.dp),
+                                                blurRadius = 60f,
+                                                colors = BlurDefaults.blurColors(
+                                                    blendColors = cardBlend,
+                                                ),
+                                            )
+                                        } else {
+                                            Modifier
+                                        }
+                                    ),
+                                colors = CardDefaults.defaultColors(
+                                    if (backdrop != null) Color.Transparent else MiuixTheme.colorScheme.background,
+                                    Color.Transparent,
+                                ),
+                            ) {
+                                Column(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .padding(horizontal = 18.dp, vertical = 16.dp)
+                                ) {
+                                    Text(
+                                        text = "功能日志录制",
+                                        fontSize = 17.sp,
+                                        fontWeight = FontWeight.Medium,
+                                        color = MiuixTheme.colorScheme.onSurface
+                                    )
+                                    val remainSec =
+                                        ((CrashLogHelper.MAX_RECORD_MS / 1000L) - recordingElapsedSec)
+                                            .coerceAtLeast(0)
+                                    val mm = remainSec / 60
+                                    val ss = remainSec % 60
+                                    val statusText = when {
+                                        recordingActive ->
+                                            "录制中… 剩余 %d:%02d \n正在记入日志，崩溃/被杀自动结束".format(mm, ss)
+                                        canShareRecording ->
+                                            when (CrashLogHelper.readyReason) {
+                                                "crash" -> "已捕获崩溃日志，可分享给开发者"
+                                                "process_killed" -> "上次进程被杀，已自动结束录制，可分享"
+                                                "timeout_30min" -> "录制已达 30 分钟上限，可分享"
+                                                else -> "录制已结束，可分享给开发者"
+                                            }
+                                        else ->
+                                            "最长录制 30 分钟。开始后请复现问题，结束后点分享。日志仅存本机，需你主动分享才会离开设备"
+                                    }
+                                    Text(
+                                        text = statusText,
+                                        fontSize = 13.sp,
+                                        color = MiuixTheme.colorScheme.onSurfaceVariantActions,
+                                        modifier = Modifier.padding(top = 6.dp, bottom = 14.dp)
+                                    )
+                                    Row(
+                                        modifier = Modifier.fillMaxWidth(),
+                                        horizontalArrangement = Arrangement.spacedBy(12.dp)
+                                    ) {
+                                        TextButton(
+                                            text = if (recordingActive) "结束录制" else "开始录制",
+                                            onClick = {
+                                                hapticFeedback.performHapticFeedback(HapticFeedbackType.Confirm)
+                                                exportingCrashLog = true
+                                                uiScope.launch {
+                                                    val ok = withContext(Dispatchers.IO) {
+                                                        if (CrashLogHelper.isRecording) {
+                                                            CrashLogHelper.stopRecording(context, "manual")
+                                                        } else {
+                                                            CrashLogHelper.startRecording(context)
+                                                        }
+                                                    }
+                                                    exportingCrashLog = false
+                                                    recordingActive = CrashLogHelper.isRecording
+                                                    canShareRecording = CrashLogHelper.hasReadyRecording
+                                                    recordingElapsedSec =
+                                                        (CrashLogHelper.recordingElapsedMs() / 1000L).toInt()
+                                                    Toast.makeText(
+                                                        context,
+                                                        when {
+                                                            !ok && recordingActive -> "录制已在进行"
+                                                            ok && recordingActive -> "已开始录制，最长 30 分钟"
+                                                            ok && !recordingActive -> "录制已结束，可分享"
+                                                            else -> "操作失败，请重试"
+                                                        },
+                                                        Toast.LENGTH_SHORT
+                                                    ).show()
+                                                }
+                                            },
+                                            modifier = Modifier.weight(1f),
+                                            enabled = !exportingCrashLog,
+                                            colors = if (recordingActive) {
+                                                ButtonDefaults.textButtonColorsPrimary()
+                                            } else {
+                                                ButtonDefaults.textButtonColors()
+                                            }
+                                        )
+                                        TextButton(
+                                            text = "分享",
+                                            onClick = {
+                                                if (!canShareRecording) return@TextButton
+                                                hapticFeedback.performHapticFeedback(HapticFeedbackType.Confirm)
+                                                exportingCrashLog = true
+                                                uiScope.launch {
+                                                    val ok = withContext(Dispatchers.IO) {
+                                                        CrashLogHelper.shareReadyRecording(context)
+                                                    }
+                                                    exportingCrashLog = false
+                                                    Toast.makeText(
+                                                        context,
+                                                        if (ok) "已打开分享，请把日志发给开发者" else "分享失败，请重试",
+                                                        Toast.LENGTH_SHORT
+                                                    ).show()
+                                                }
+                                            },
+                                            modifier = Modifier.weight(1f),
+                                            enabled = canShareRecording && !exportingCrashLog,
+                                            colors = if (canShareRecording) {
+                                                ButtonDefaults.textButtonColorsPrimary()
+                                            } else {
+                                                ButtonDefaults.textButtonColors()
+                                            }
+                                        )
+                                    }
+                                }
+                            }
+
+                            Spacer(modifier = Modifier.height(12.dp))
                             Card(
                                 modifier = Modifier.fillMaxWidth(),
                                 colors = CardDefaults.defaultColors(
@@ -878,7 +1059,7 @@ private fun AboutScreen(onBack: () -> Unit, liquidGlassBackdrop: com.kyant.backd
         OverlayDialog(
             title = "项目仓库",
             show = showRepoDialog,
-            liquidGlassBackdrop = liquidGlassBackdrop,
+            liquidGlassBackdrop = dialogGlass,
             onDismissRequest = { showRepoDialog = false }
         ) {
             Column(

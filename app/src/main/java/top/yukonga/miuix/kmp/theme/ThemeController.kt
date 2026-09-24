@@ -10,6 +10,7 @@ import androidx.compose.runtime.Stable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.toArgb
@@ -223,7 +224,7 @@ class ThemeController(
     paletteStyle: ThemePaletteStyle = ThemePaletteStyle.TonalSpot,
     isDark: Boolean? = null,
 ) {
-    val colorSchemeMode: ColorSchemeMode by mutableStateOf(colorSchemeMode)
+    var colorSchemeMode: ColorSchemeMode by mutableStateOf(colorSchemeMode)
     val lightColors: Colors by mutableStateOf(lightColors)
     val darkColors: Colors by mutableStateOf(darkColors)
     val keyColor: Color? by mutableStateOf(keyColor)

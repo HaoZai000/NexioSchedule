@@ -45,6 +45,9 @@ data class AdapterData(
  */
 object SchoolIndexParser {
 
+    // 单字段最大字节数：损坏/篡改的 varint length 不得直接 ByteArray(length)
+    private const val MAX_FIELD_BYTES = 8 * 1024 * 1024
+
     // Wire types
     private const val WIRE_TYPE_VARINT = 0
     private const val WIRE_TYPE_64BIT = 1
@@ -158,6 +161,9 @@ object SchoolIndexParser {
     }
 
     private fun readBytes(input: InputStream, length: Int): ByteArray {
+        if (length < 0 || length > MAX_FIELD_BYTES) {
+            throw IllegalArgumentException("Invalid field length: $length")
+        }
         val buffer = ByteArray(length)
         var offset = 0
         while (offset < length) {

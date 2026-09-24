@@ -9,6 +9,13 @@
 -allowaccessmodification
 -optimizationpasses 3
 
+# --- 崩溃栈可读性：只停止改名，压缩与优化照常 ------------------
+# -dontobfuscate 只禁止重命名，R8 的 tree-shaking / 内联 / 类合并全部保留
+#想恢复混淆：把下面 -dontobfuscate 一行注释掉即可。
+-dontobfuscate
+# 保留真实文件名 + 行号，配合未混淆的类名，崩溃栈可直接读。
+-keepattributes SourceFile,LineNumberTable
+
 # --- Gson 序列化 ----------------------------------------------
 # Signature：TypeToken 靠它保留泛型签名，缺了会丢类型
 # *Annotation*：@SerializedName 靠它保留运行期注解
@@ -66,6 +73,17 @@
 -keep class com.haooz.chedule.data.school.SchoolIndexData { <fields>; }
 -keep class com.haooz.chedule.data.school.SchoolData { <fields>; }
 -keep class com.haooz.chedule.data.school.AdapterData { <fields>; }
+
+# --- WakeUp / 星链 口令导入（课表导入页）---
+# WakeUpHeadlessBridge：无界面 WebView 的 @JavascriptInterface，按方法名反射
+-keep class com.haooz.chedule.data.WakeUpHeadlessBridge { *; }
+# 嵌套 Gson 模型：字段名无 @SerializedName，必须 keep 字段
+-keep class com.haooz.chedule.data.WakeUpHeadlessBridge$* { <fields>; }
+# 星链 HTTP 响应等 Gson 模型（含 @SerializedName，仍 keep 字段更稳）
+-keep class com.haooz.chedule.data.ThirdPartyShareImporter$* { <fields>; }
+-keep class com.haooz.chedule.data.ThirdPartyCourse { <fields>; }
+-keep class com.haooz.chedule.data.ThirdPartySharePayload { <fields>; }
+-keep class com.haooz.chedule.data.ThirdPartyTimeSlot { <fields>; }
 
 # ============================================================
 # 已删除的死规则（匹配不到任何类，删除后 APK 字节数不变，仅作记录避免被"补"回来）：

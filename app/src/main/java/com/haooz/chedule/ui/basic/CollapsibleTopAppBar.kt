@@ -281,6 +281,44 @@ fun rememberSharedScrollBehavior(
     SharedScrollBehavior(state)
 }
 
+/**
+ * 让内容顶部让位给折叠顶栏，且**只在布局阶段读取** [SharedScrollBehavior.currentHeightPx]。
+ *
+ * `currentHeightPx` 在顶栏折叠动画期间逐帧变化（见 [CollapsibleTopAppBar] 测量期按
+ * collapsedFraction 做 lerp 上报）。无论是写成 `Modifier.padding(top = currentHeightPx.toDp())`，
+ * 还是塞进 LazyColumn 的 `contentPadding`，都是在**组合期**读这个状态 —— 顶栏每折叠一帧，
+ * 持有这个读取的整个页面就要重组一次；若页面里全是 ArrowPreference / SwitchPreference
+ * （MiUiX 标了 @NonRestartableComposable，参数不变也无法跳过），代价会被成倍放大。
+ *
+ * 用法：把顶部内边距固定为「状态栏高度 + [CollapsibleTopAppBarDefaults.CollapsedHeight]」，
+ * 展开态多出来的那部分交给本 Modifier 在布局阶段补齐。视觉结果与直接用实测高度做内边距一致
+ * —— 内容始终贴着顶栏下沿，顶栏完全折叠后内容仍可滚到顶栏下方 —— 但每帧只触发重新测量/摆放，
+ * 不再触发重组。
+ *
+ * 顶栏尚未上报高度（`currentHeightPx == 0f`）时按 0 处理，即先按折叠态摆放，测量完成后自行纠正。
+ */
+fun Modifier.collapsibleTopInset(scrollBehavior: SharedScrollBehavior?): Modifier =
+    layout { measurable, constraints ->
+        val collapsedPx = CollapsibleTopAppBarDefaults.CollapsedHeight.roundToPx()
+        val reportedPx = scrollBehavior?.currentHeightPx ?: 0f
+        val extraPx = if (reportedPx > 0f) {
+            (reportedPx.roundToInt() - collapsedPx).coerceAtLeast(0)
+        } else {
+            0
+        }
+        // 与 Modifier.padding(top = extraPx) 等价：上下界同时收窄，子项被要求填满时仍能正确填充
+        // （只收窄 maxHeight 会让 weight(1f) 之类的填充约束失配），自身总高度保持不变。
+        val placeable = measurable.measure(
+            constraints.copy(
+                minHeight = (constraints.minHeight - extraPx).coerceAtLeast(0),
+                maxHeight = (constraints.maxHeight - extraPx).coerceAtLeast(0),
+            )
+        )
+        layout(placeable.width, placeable.height + extraPx) {
+            placeable.place(0, extraPx)
+        }
+    }
+
 // ==================== Defaults ====================
 
 object CollapsibleTopAppBarDefaults {
@@ -302,6 +340,8 @@ fun CollapsibleTopAppBar(
     showSmallTitle: Boolean? = null,
     showShadow: Boolean? = null,
     showGradientOverlay: Boolean = true,
+    /** 标题色；默认随主题。WebView 页可按页面顶色传黑白 */
+    titleColor: Color = MiuixTheme.colorScheme.onSurface,
     scrollBehavior: SharedScrollBehavior? = null,
     contentPadding: (Dp) -> Unit = {},
     // 左侧自定义 Composable（接收 backdropAlpha、shadowAlpha 用于液态玻璃按钮动画）
@@ -309,6 +349,8 @@ fun CollapsibleTopAppBar(
     // 右侧自定义 Composable（接收 backdropAlpha、shadowAlpha 用于液态玻璃按钮动画）
     endAction: @Composable ((backdropAlpha: Float, shadowAlpha: Float) -> Unit)? = null,
     gradientMaskHeight: Dp = CollapsibleTopAppBarDefaults.CollapsedHeight + 60.dp,
+    /** 渐变遮罩色；null=随 isAppDarkTheme。设置页应传入锁应用主题的色 */
+    gradientColorOverride: Color? = null,
     // 暴露当前的 backdropAlpha/shadowAlpha，供外部组件（如搜索框）同步动画
     onAlphaChanged: (backdropAlpha: Float, shadowAlpha: Float) -> Unit = { _, _ -> },
 ) {
@@ -430,7 +472,9 @@ fun CollapsibleTopAppBar(
         }
         gradientAlpha.animateTo(target, spec)
     }
-    val gradientColor = if (isAppDarkTheme()) Color.Black else Color.White
+    // 默认随当前页主题（课程表/今日可跟壁纸锁色）；设置页由调用方传入锁应用主题的色
+    val gradientColor = gradientColorOverride
+        ?: if (isAppDarkTheme()) Color.Black else Color.White
 
     LaunchedEffect(backdropAlpha.value, shadowAlpha.value) {
         onAlphaChanged(backdropAlpha.value, shadowAlpha.value)
@@ -447,9 +491,12 @@ fun CollapsibleTopAppBar(
                     .drawBehind {
                         drawRect(
                             brush = Brush.verticalGradient(
-                                0f to gradientColor.copy(alpha = 0.8f),
-                                0.7f to gradientColor.copy(alpha = 0.4f),
-                                0.9f to gradientColor.copy(alpha = 0.15f),
+                                // 末端多档缓收：原先 0.9→0.15、1.0→0 最后一截太陡，会像一条硬边
+                                0f to gradientColor.copy(alpha = 0.85f),
+                                0.45f to gradientColor.copy(alpha = 0.55f),
+                                0.7f to gradientColor.copy(alpha = 0.32f),
+                                0.85f to gradientColor.copy(alpha = 0.14f),
+                                0.93f to gradientColor.copy(alpha = 0.05f),
                                 1f to Color.Transparent
                             )
                         )
@@ -481,7 +528,7 @@ fun CollapsibleTopAppBar(
                 ) {
                     Text(
                         text = title,
-                        color = MiuixTheme.colorScheme.onSurface,
+                        color = titleColor,
                         fontSize = 19.sp,
                         fontWeight = FontWeight.Medium,
                         overflow = TextOverflow.Ellipsis,

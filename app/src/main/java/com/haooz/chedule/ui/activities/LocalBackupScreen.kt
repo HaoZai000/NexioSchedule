@@ -54,8 +54,10 @@ import androidx.compose.ui.unit.sp
 import com.google.gson.Gson
 import com.google.gson.reflect.TypeToken
 import com.haooz.chedule.data.CourseRepository
-import top.yukonga.miuix.kmp.overlay.OverlayDialog
+import com.haooz.chedule.ui.basic.CollapsibleTopAppBarDefaults
+import com.haooz.chedule.ui.basic.OverlayDropdownMenu
 import com.haooz.chedule.ui.basic.SharedScrollBehavior
+import com.haooz.chedule.ui.basic.collapsibleTopInset
 import com.haooz.chedule.ui.utils.isAppDarkTheme
 import com.haooz.chedule.ui.utils.overScrollVertical
 import com.haooz.chedule.viewmodel.CourseViewModel
@@ -65,18 +67,16 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
-import top.yukonga.miuix.kmp.basic.Button
 import top.yukonga.miuix.kmp.basic.ButtonDefaults
 import top.yukonga.miuix.kmp.basic.Card
-import top.yukonga.miuix.kmp.basic.DropdownEntry
-import top.yukonga.miuix.kmp.basic.DropdownColors
 import top.yukonga.miuix.kmp.basic.DropdownDefaults
+import top.yukonga.miuix.kmp.basic.DropdownEntry
 import top.yukonga.miuix.kmp.basic.DropdownItem
 import top.yukonga.miuix.kmp.basic.Scaffold
 import top.yukonga.miuix.kmp.basic.SmallTitle
 import top.yukonga.miuix.kmp.basic.TextButton
+import top.yukonga.miuix.kmp.overlay.OverlayDialog
 import top.yukonga.miuix.kmp.preference.ArrowPreference
-import com.haooz.chedule.ui.basic.OverlayDropdownMenu
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 import top.yukonga.miuix.kmp.utils.scrollEndHaptic
 import java.io.File
@@ -280,8 +280,8 @@ fun LocalBackupScreen(
     var listScrollY by remember { mutableIntStateOf(0) }
     // 液态玻璃效果的透明下拉颜色
     val liquidGlassDropdownColors = DropdownDefaults.dropdownColors(
-        containerColor = androidx.compose.ui.graphics.Color.Transparent,
-        selectedContainerColor = androidx.compose.ui.graphics.Color.Transparent,
+        containerColor = Color.Transparent,
+        selectedContainerColor = Color.Transparent,
     )
 
     var backupMode by remember { mutableStateOf("all") }
@@ -408,10 +408,7 @@ fun LocalBackupScreen(
     }
 
     val isTablet = LocalConfiguration.current.screenWidthDp >= 600
-    val tabletHorizontalPadding = if (isTablet) {
-        val screenWidthDp = LocalConfiguration.current.screenWidthDp
-        ((screenWidthDp - 600).coerceIn(0, 600) / 600f * 112 + 16).dp
-    } else 16.dp
+    val tabletHorizontalPadding = 20.dp
 
     Scaffold(
         topBar = {}
@@ -421,22 +418,19 @@ fun LocalBackupScreen(
             snapshotFlow { listState.firstVisibleItemScrollOffset }
                 .collect { offset -> listScrollY = offset }
         }
-        val density = androidx.compose.ui.platform.LocalDensity.current
-        val topBarHeightDp = with(density) {
-            (scrollBehavior?.currentHeightPx ?: 0f).toDp()
-        }
         LazyColumn(
             state = listState,
             modifier = Modifier.fillMaxSize()
                 .overScrollVertical()
                 .scrollEndHaptic(hapticFeedbackType = HapticFeedbackType.TextHandleMove)
+                .collapsibleTopInset(scrollBehavior)
                 .then(
                     scrollBehavior?.let { Modifier.nestedScroll(it.nestedScrollConnection) } ?: Modifier
                 ),
             contentPadding = PaddingValues(
                 start = tabletHorizontalPadding,
                 end = tabletHorizontalPadding,
-                top = paddingValues.calculateTopPadding() + topBarHeightDp + 12.dp,
+                top = paddingValues.calculateTopPadding() + CollapsibleTopAppBarDefaults.CollapsedHeight + 24.dp,
                 bottom = 120.dp
             ),
         ) {

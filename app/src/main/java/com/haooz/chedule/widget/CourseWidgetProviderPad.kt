@@ -64,14 +64,8 @@ class CourseWidgetProviderPad : AppWidgetProvider() {
     ) {
         val repository = CourseRepository(context)
         val dark = WidgetTextSizes.isDark(context)
-        val views = RemoteViews(context.packageName, R.layout.widget_course_reminder_standard)
-        WidgetTextSizes.applyCourseReminderPad(views)
 
         val currentWeek = repository.getCurrentWeek()
-        // getTodayOfWeek/getTodayCourses 统一在 CourseReminderHelper（含 workSwap / 节假日 / 周次范围 / 排序），
-        // 这里不再保留私有副本。
-        val today = CourseReminderHelper.getTodayOfWeek()
-        val courses = repository.getAllCourses()
         val todayCourses = CourseReminderHelper.getTodayCourses(context)
 
         val calendar = Calendar.getInstance()
@@ -93,31 +87,23 @@ class CourseWidgetProviderPad : AppWidgetProvider() {
         val showTomorrow = isNextDayReminderEnabled && currentMinutes >= reminderMinutes && todayCoursesFinished
 
         val dayNames = listOf("周一", "周二", "周三", "周四", "周五", "周六", "周日")
-        val dayOfWeek: Int
-        val targetWeek: Int
-        if (showTomorrow) {
-            val tomorrow = today + 1
-            dayOfWeek = if (tomorrow > 7) 1 else tomorrow
-            targetWeek = if (tomorrow > 7) currentWeek + 1 else currentWeek
-        } else {
-            dayOfWeek = today
-            targetWeek = currentWeek
-        }
-
-        val targetCourses = courses.filter { it.dayOfWeek == dayOfWeek && it.isActiveInWeek(targetWeek) }
-            .sortedBy { getCourseStartTime(it, repository).toMinutes() }
+        // 今日/明日统一走 resolveDaySchedule：节假日空课、调休按映射查课
+        val resolution = CourseReminderHelper.resolveDaySchedule(context, forTomorrow = showTomorrow)
+        val targetWeek = resolution.displayWeek
+        val targetCourses = resolution.courses
 
         val totalWeeks = repository.getTotalWeeks()
         val lastWeekWithCourses = repository.getLastWeekWithCourses()
         val isHoliday = currentWeek > totalWeeks || (currentWeek >= 1 && currentWeek > lastWeekWithCourses)
         val prefix = if (showTomorrow) "明日课程" else "今天"
-        views.setTextViewText(R.id.widget_title, "$prefix / ${dayNames[dayOfWeek - 1]}")
+        // 标题用日历日：调休只影响「上哪套课」，预告仍应写真实的明天/今天
+        val titleDay = resolution.calendarDayOfWeek
+        val titleText = "$prefix / ${dayNames[titleDay - 1]}"
         val weekText = when {
             isHoliday -> "放假中"
             currentWeek < 1 -> "未开始"
-            else -> "第${currentWeek}周"
+            else -> "第${targetWeek}周"
         }
-        views.setTextViewText(R.id.widget_week, weekText)
 
         val displayCourses = if (showTomorrow) {
             targetCourses.take(2)
@@ -132,17 +118,34 @@ class CourseWidgetProviderPad : AppWidgetProvider() {
             }.take(2)
         }
 
-        if (displayCourses.isEmpty()) {
-            views.setViewVisibility(R.id.widget_course1, View.GONE)
-            views.setViewVisibility(R.id.widget_course2, View.GONE)
-            views.setViewVisibility(R.id.widget_empty, View.VISIBLE)
-            val emptyText = when {
+        val slotSig = displayCourses.joinToString("|") { c ->
+            val start = getCourseStartTime(c, repository) ?: ""
+            val end = getCourseEndTime(c, repository) ?: ""
+            val remaining = if (showTomorrow) null else getRemainingMinutes(start, end, currentMinutes)
+            "${c.id}:${c.name}:$start-$end:${c.colorRes}:${remaining ?: -1}:${buildCourseInfo(c)}"
+        }
+        val emptyText = if (displayCourses.isEmpty()) {
+            when {
                 isHoliday -> "假期中，暂无课程"
                 currentWeek < 1 -> "学期暂未开始"
+                resolution.isHolidayDate -> "假期中，暂无课程"
                 showTomorrow -> "明日无课"
                 todayCourses.isEmpty() -> "今日无课"
                 else -> "今日课程已上完"
             }
+        } else ""
+        val signature = "${dark}|${repository.getWidgetPaddingMode()}|$titleText|$weekText|$slotSig|$emptyText"
+        if (WidgetUpdateCache.shouldSkip("course_pad_$appWidgetId", signature)) return
+
+        val views = RemoteViews(context.packageName, R.layout.widget_course_reminder_standard)
+        WidgetTextSizes.applyCourseReminder(views)
+        views.setTextViewText(R.id.widget_title, titleText)
+        views.setTextViewText(R.id.widget_week, weekText)
+
+        if (displayCourses.isEmpty()) {
+            views.setViewVisibility(R.id.widget_course1, View.GONE)
+            views.setViewVisibility(R.id.widget_course2, View.GONE)
+            views.setViewVisibility(R.id.widget_empty, View.VISIBLE)
             views.setTextViewText(R.id.widget_empty_text, emptyText)
         } else {
             views.setViewVisibility(R.id.widget_empty, View.GONE)
@@ -222,6 +225,11 @@ class CourseWidgetProviderPad : AppWidgetProvider() {
         views.setOnClickPendingIntent(R.id.widget_empty, refreshPending)
 
         appWidgetManager.updateAppWidget(appWidgetId, views)
+    }
+
+    override fun onDeleted(context: Context, appWidgetIds: IntArray) {
+        super.onDeleted(context, appWidgetIds)
+        appWidgetIds.forEach { WidgetUpdateCache.invalidateWidget("course_pad_$it") }
     }
 
     private fun getRemainingMinutes(startTime: String, endTime: String, currentMinutes: Int): Int? {

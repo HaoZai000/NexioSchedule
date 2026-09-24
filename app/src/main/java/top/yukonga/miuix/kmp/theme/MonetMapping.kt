@@ -139,7 +139,7 @@ internal fun mapMd3RolesToMiuixColorsCommon(roles: MonetRoles, dark: Boolean): C
         onSurfaceSecondary = onSurfaceSecondaryOpaque,
         onSurfaceVariantSummary = roles.onSurfaceVariant,
         onSurfaceVariantActions = roles.onSurfaceVariant,
-        disabledOnSurface = roles.onSurface,
+        disabledOnSurface = ensureOpaqueOver(roles.onSurface.copy(alpha = 0.38f), baseSurface),
         surfaceContainer = roles.surfaceContainer,
         onSurfaceContainer = roles.onSurface,
         onSurfaceContainerVariant = roles.onSurfaceVariant,

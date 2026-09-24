@@ -55,6 +55,7 @@ import top.yukonga.miuix.kmp.basic.PopupPositionProvider
 import top.yukonga.miuix.kmp.basic.rememberListPopupLayoutInfo
 import top.yukonga.miuix.kmp.theme.LocalDismissState
 import top.yukonga.miuix.kmp.theme.MiuixTheme
+import com.haooz.chedule.ui.utils.PredictiveBackSettings
 
 internal val CascadingPopupCornerRadius = 16.dp
 
@@ -238,18 +239,21 @@ internal fun CascadingListPopupLayout(
                         transitionState is NavigationEventTransitionState.InProgress &&
                         transitionState.direction == NavigationEventTransitionState.TRANSITIONING_BACK
                     ) {
-                        val inv = 1f - transitionState.latestEvent.progress
-                        if (expandedItem != null) {
-                            // Preview secondary → primary collapse along the expand-tree.
-                            expandFraction.snapTo(inv)
-                            primaryScale.snapTo(1f + (PRIMARY_SHRUNK_SCALE - 1f) * inv)
-                            maskAlpha.snapTo(inv)
-                            arrowRotation.snapTo(arrowEndDeg * inv)
-                        } else {
-                            // Preview popup → spawn corner retreat along the entry tree.
-                            enterFraction.snapTo(inv)
-                            enterAlpha.snapTo(inv)
-                            dimProgress.snapTo(inv)
+                        // 预测性返回动画开关：关闭时不驱动跟随动画（返回仍被拦截，直接关闭）
+                        if (PredictiveBackSettings.enabled) {
+                            val inv = 1f - transitionState.latestEvent.progress
+                            if (expandedItem != null) {
+                                // Preview secondary → primary collapse along the expand-tree.
+                                expandFraction.snapTo(inv)
+                                primaryScale.snapTo(1f + (PRIMARY_SHRUNK_SCALE - 1f) * inv)
+                                maskAlpha.snapTo(inv)
+                                arrowRotation.snapTo(arrowEndDeg * inv)
+                            } else {
+                                // Preview popup → spawn corner retreat along the entry tree.
+                                enterFraction.snapTo(inv)
+                                enterAlpha.snapTo(inv)
+                                dimProgress.snapTo(inv)
+                            }
                         }
                     }
                 }

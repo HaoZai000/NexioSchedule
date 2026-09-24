@@ -48,8 +48,10 @@ import androidx.compose.ui.unit.sp
 import androidx.core.content.ContextCompat
 import androidx.core.content.edit
 import com.haooz.chedule.R
+import com.haooz.chedule.ui.basic.CollapsibleTopAppBarDefaults
 import com.haooz.chedule.ui.basic.OverlayDropdownMenu
 import com.haooz.chedule.ui.basic.SharedScrollBehavior
+import com.haooz.chedule.ui.basic.collapsibleTopInset
 import com.haooz.chedule.ui.screens.invalidateWeatherCache
 import com.haooz.chedule.ui.utils.overScrollVertical
 import com.haooz.chedule.viewmodel.SettingsViewModel
@@ -77,7 +79,12 @@ fun PreferenceSettingsScreen(
     val context = LocalContext.current
 
     val eduPrefs = remember { context.getSharedPreferences("edu_import_prefs", Context.MODE_PRIVATE) }
-    var repoUrl by remember { mutableStateOf(eduPrefs.getString("repo_url", "https://gitee.com/XingHeYuZhuan-gh/shiguang_warehouse") ?: "https://gitee.com/XingHeYuZhuan-gh/shiguang_warehouse") }
+    var repoUrl by remember {
+        mutableStateOf(
+            eduPrefs.getString("repo_url", "https://gitee.com/com_haooz_account/shiguang_warehouse")
+                ?: "https://gitee.com/com_haooz_account/shiguang_warehouse"
+        )
+    }
 
     val weatherPrefs = remember { context.getSharedPreferences("weather_prefs", Context.MODE_PRIVATE) }
     var weatherSource by remember { mutableStateOf(weatherPrefs.getString("weather_source", "caiyun") ?: "caiyun") }
@@ -112,7 +119,7 @@ fun PreferenceSettingsScreen(
     val islandNotification by settingsViewModel.islandNotification.collectAsState()
     val reminderPrefs = remember { context.getSharedPreferences("course_reminder_prefs", Context.MODE_PRIVATE) }
     var islandExpandGlowEnabled by remember {
-        mutableStateOf(reminderPrefs.getBoolean("island_expand_glow_enabled", true))
+        mutableStateOf(reminderPrefs.getBoolean("island_expand_glow_enabled", false))
     }
     val appPrefs = remember { context.getSharedPreferences("app_preferences", Context.MODE_PRIVATE) }
     var hideBackground by remember {
@@ -123,12 +130,21 @@ fun PreferenceSettingsScreen(
             appPrefs.getBoolean(com.haooz.chedule.ui.theme.KEY_HAPTIC_FEEDBACK, true)
         )
     }
+    var appMaterialLevel by remember {
+        mutableStateOf(
+            appPrefs.getString(
+                com.haooz.chedule.ui.utils.AppMaterialSettings.KEY_APP_MATERIAL,
+                com.haooz.chedule.ui.utils.AppMaterialSettings.BALANCED
+            ) ?: com.haooz.chedule.ui.utils.AppMaterialSettings.BALANCED
+        )
+    }
+    // 启动时同步到全局，后续材质效果直接读 AppMaterialSettings.level
+    LaunchedEffect(Unit) {
+        com.haooz.chedule.ui.utils.AppMaterialSettings.apply(appMaterialLevel)
+    }
 
     val isTablet = LocalConfiguration.current.screenWidthDp >= 600
-    val tabletHorizontalPadding = if (isTablet) {
-        val screenWidthDp = LocalConfiguration.current.screenWidthDp
-        ((screenWidthDp - 600).coerceIn(0, 600) / 600f * 112 + 16).dp
-    } else 16.dp
+    val tabletHorizontalPadding = if (isTablet) 20.dp else 16.dp
     val backdropColor = MiuixTheme.colorScheme.surface
     val backdrop = rememberLayerBackdrop {
         drawRect(backdropColor)
@@ -155,10 +171,6 @@ fun PreferenceSettingsScreen(
                         listScrollY = offset
                     }
             }
-            val density = androidx.compose.ui.platform.LocalDensity.current
-            val topBarHeightDp = with(density) {
-                (scrollBehavior?.currentHeightPx ?: 0f).toDp()
-            }
             LazyColumn(
                 state = listState,
                 modifier = Modifier
@@ -167,13 +179,14 @@ fun PreferenceSettingsScreen(
                     .scrollEndHaptic(
                         hapticFeedbackType = HapticFeedbackType.TextHandleMove
                     )
+                    .collapsibleTopInset(scrollBehavior)
                     .then(
                         scrollBehavior?.let { Modifier.nestedScroll(it.nestedScrollConnection) } ?: Modifier
                     ),
                 contentPadding = PaddingValues(
                     start = tabletHorizontalPadding,
                     end = tabletHorizontalPadding,
-                    top = paddingValues.calculateTopPadding() + topBarHeightDp,
+                    top = paddingValues.calculateTopPadding() + CollapsibleTopAppBarDefaults.CollapsedHeight,
                     bottom = 60.dp
                 ),
                 verticalArrangement = Arrangement.spacedBy(12.dp)
@@ -248,6 +261,37 @@ fun PreferenceSettingsScreen(
                                 checked = todayShowWallpaper,
                                 onCheckedChange = { settingsViewModel.setTodayShowWallpaper(it) }
                             )
+                            val appMaterialEntry = DropdownEntry(
+                                items = com.haooz.chedule.ui.utils.AppMaterialSettings.entries
+                                    .map { (value, label) ->
+                                        DropdownItem(
+                                            text = label,
+                                            selected = appMaterialLevel == value,
+                                            onClick = {
+                                                com.haooz.chedule.ui.utils.FeatureLog.preference(
+                                                    "app_material=$value"
+                                                )
+                                                appMaterialLevel = value
+                                                com.haooz.chedule.ui.utils.AppMaterialSettings.apply(value)
+                                                appPrefs.edit {
+                                                    putString(
+                                                        com.haooz.chedule.ui.utils.AppMaterialSettings.KEY_APP_MATERIAL,
+                                                        value
+                                                    )
+                                                }
+                                            }
+                                        )
+                                    }
+                            )
+                            OverlayDropdownMenu(
+                                title = "应用材质等级",
+                                // summary 为空时自动显示当前选中档位
+                                summary = null,
+                                entry = appMaterialEntry,
+                                collapseOnSelection = true,
+                                liquidGlassBackdrop = liquidGlassBackdrop,
+                                dropdownColors = liquidGlassDropdownColors,
+                            )
                             if (islandNotification) {
                                 SwitchPreference(
                                     title = "小米超级岛光效",
@@ -280,6 +324,7 @@ fun PreferenceSettingsScreen(
                                         text = "今日",
                                         selected = defaultHomepage == "今日",
                                         onClick = {
+                                            com.haooz.chedule.ui.utils.FeatureLog.preference("default_homepage=今日")
                                             settingsViewModel.setDefaultHomepage("今日")
                                         }
                                     ),
@@ -287,6 +332,7 @@ fun PreferenceSettingsScreen(
                                         text = "课程表",
                                         selected = defaultHomepage == "课程表",
                                         onClick = {
+                                            com.haooz.chedule.ui.utils.FeatureLog.preference("default_homepage=课程表")
                                             settingsViewModel.setDefaultHomepage("课程表")
                                         }
                                     ),
@@ -303,6 +349,29 @@ fun PreferenceSettingsScreen(
                             )
                         }
                         Column(modifier = Modifier.fillMaxWidth()) {
+                            var predictiveBackEnabled by remember {
+                                mutableStateOf(
+                                    appPrefs.getBoolean(
+                                        com.haooz.chedule.ui.utils.PredictiveBackSettings.KEY_PREDICTIVE_BACK_ANIMATION,
+                                        true
+                                    )
+                                )
+                            }
+                            SwitchPreference(
+                                title = "预测性返回动画",
+                                summary = "返回手势时页面跟随手指的动画效果",
+                                checked = predictiveBackEnabled,
+                                onCheckedChange = {
+                                    predictiveBackEnabled = it
+                                    com.haooz.chedule.ui.utils.PredictiveBackSettings.enabled = it
+                                    appPrefs.edit {
+                                        putBoolean(
+                                            com.haooz.chedule.ui.utils.PredictiveBackSettings.KEY_PREDICTIVE_BACK_ANIMATION,
+                                            it
+                                        )
+                                    }
+                                }
+                            )
                             SwitchPreference(
                                 title = "应用触感反馈",
                                 summary = "点击、滑动等操作产生的震动反馈",
@@ -344,6 +413,14 @@ fun PreferenceSettingsScreen(
                         Column(modifier = Modifier.fillMaxWidth()) {
                             val repoEntry = DropdownEntry(
                                 items = listOf(
+                                    DropdownItem(
+                                        text = "Fork源",
+                                        selected = repoUrl == "https://gitee.com/com_haooz_account/shiguang_warehouse",
+                                        onClick = {
+                                            repoUrl = "https://gitee.com/com_haooz_account/shiguang_warehouse"
+                                            eduPrefs.edit { putString("repo_url", repoUrl) }
+                                        }
+                                    ),
                                     DropdownItem(
                                         text = "GitHub",
                                         selected = repoUrl == "https://github.com/XingHeYuZhuan/shiguang_warehouse",

@@ -33,6 +33,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ColorFilter
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.input.nestedscroll.nestedScroll
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalHapticFeedback
@@ -46,8 +47,10 @@ import androidx.compose.ui.unit.sp
 import com.haooz.chedule.data.CourseRepository
 import com.haooz.chedule.data.HolidayManager
 import com.haooz.chedule.reminder.CourseReminderHelper
+import com.haooz.chedule.ui.basic.CollapsibleTopAppBarDefaults
 import com.haooz.chedule.ui.basic.OverlayDropdownMenu
 import com.haooz.chedule.ui.basic.SharedScrollBehavior
+import com.haooz.chedule.ui.basic.collapsibleTopInset
 import com.haooz.chedule.ui.utils.overScrollVertical
 import com.kyant.backdrop.Backdrop
 import com.kyant.capsule.ContinuousRoundedRectangle
@@ -163,7 +166,9 @@ fun HolidaySettingsScreen(
         endYear = end.year
         endMonth = end.monthValue
         endDay = end.dayOfMonth
-        followWeek = if (entry.type == HolidayManager.TYPE_WORKSWAP) {
+        followWeek = if (entry.type == HolidayManager.TYPE_WORKSWAP && entry.followWeek > 0) {
+            entry.followWeek.toString()
+        } else if (entry.type == HolidayManager.TYPE_WORKSWAP) {
             weekOfDate(startYear, startMonth, startDay)
         } else {
             "1"
@@ -194,14 +199,21 @@ fun HolidaySettingsScreen(
         }
         val week = followWeek.toIntOrNull()?.takeIf { it > 0 } ?: -1
         val weekday = followWeekday.toIntOrNull()?.takeIf { it in 1..7 } ?: -1
-        val all = HolidayManager.load(context, year).toMutableList()
+        // 按开始日期所属年份落库，避免 UI 选中年与日期年不一致时 workSwap 查不到
+        val entryYear = runCatching { LocalDate.parse(startDate).year }.getOrDefault(year)
+        fun isSameEntry(e: HolidayManager.Entry, old: HolidayManager.Entry): Boolean =
+            e.date == old.date && e.type == old.type && e.name == old.name
+
         editingEntry?.let { old ->
-            all.removeAll {
-                it.date == old.date &&
-                    it.type == old.type &&
-                    it.name == old.name
+            val oldYear = runCatching { LocalDate.parse(old.date).year }.getOrDefault(year)
+            if (oldYear != entryYear) {
+                val oldAll = HolidayManager.load(context, oldYear).toMutableList()
+                oldAll.removeAll { isSameEntry(it, old) }
+                HolidayManager.save(context, oldYear, oldAll)
             }
         }
+        val all = HolidayManager.load(context, entryYear).toMutableList()
+        editingEntry?.let { old -> all.removeAll { isSameEntry(it, old) } }
         all += HolidayManager.Entry(
             date = startDate,
             endDate = endDate,
@@ -211,25 +223,24 @@ fun HolidaySettingsScreen(
             followWeekday = if (isHoliday) -1 else weekday,
             custom = true,
         )
-        HolidayManager.save(context, year, all)
+        HolidayManager.save(context, entryYear, all)
         reload()
-        CourseReminderHelper.startReminderService(context)
+        CourseReminderHelper.onHolidayDataChanged(context)
         showDialog = false
         editingEntry = null
     }
 
     fun deleteEntry() {
-        val all = HolidayManager.load(context, year).toMutableList()
         editingEntry?.let { old ->
+            val oldYear = runCatching { LocalDate.parse(old.date).year }.getOrDefault(year)
+            val all = HolidayManager.load(context, oldYear).toMutableList()
             all.removeAll {
-                it.date == old.date &&
-                    it.type == old.type &&
-                    it.name == old.name
+                it.date == old.date && it.type == old.type && it.name == old.name
             }
+            HolidayManager.save(context, oldYear, all)
         }
-        HolidayManager.save(context, year, all)
         reload()
-        CourseReminderHelper.startReminderService(context)
+        CourseReminderHelper.onHolidayDataChanged(context)
         showDeleteConfirm = false
         showDialog = false
         editingEntry = null
@@ -238,25 +249,25 @@ fun HolidaySettingsScreen(
     val listState = rememberLazyListState()
     val holidayEntries = entries.filter { it.type == HolidayManager.TYPE_HOLIDAY }
     val workswapEntries = entries.filter { it.type == HolidayManager.TYPE_WORKSWAP }
+    val isTablet = LocalConfiguration.current.screenWidthDp >= 600
+    val tabletHorizontalPadding = if (isTablet) 20.dp else 16.dp
 
     Scaffold(topBar = {}) { padding ->
-        val topBarHeightDp = with(LocalDensity.current) {
-            (scrollBehavior?.currentHeightPx ?: 0f).toDp()
-        }
         LazyColumn(
             state = listState,
             modifier = Modifier
                 .fillMaxSize()
                 .overScrollVertical()
                 .scrollEndHaptic(hapticFeedbackType = HapticFeedbackType.TextHandleMove)
+                .collapsibleTopInset(scrollBehavior)
                 .then(
                     scrollBehavior?.let { Modifier.nestedScroll(it.nestedScrollConnection) }
                         ?: Modifier
                 ),
             contentPadding = PaddingValues(
-                16.dp,
-                padding.calculateTopPadding() + topBarHeightDp + 12.dp,
-                16.dp,
+                tabletHorizontalPadding,
+                padding.calculateTopPadding() + CollapsibleTopAppBarDefaults.CollapsedHeight + 24.dp,
+                tabletHorizontalPadding,
                 60.dp,
             ),
             verticalArrangement = Arrangement.spacedBy(12.dp),

@@ -3,6 +3,7 @@ package com.haooz.chedule.ui.components
 import android.annotation.SuppressLint
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.FastOutSlowInEasing
+import androidx.compose.animation.core.spring
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.gestures.awaitEachGesture
@@ -10,7 +11,6 @@ import androidx.compose.foundation.gestures.awaitFirstDown
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -25,6 +25,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.compositionLocalOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.key
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
@@ -56,15 +57,11 @@ import com.kyant.backdrop.effects.lens
 import com.kyant.capsule.ContinuousRoundedRectangle
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
-import top.yukonga.miuix.kmp.basic.Card
-import top.yukonga.miuix.kmp.basic.CardDefaults
-import top.yukonga.miuix.kmp.theme.MiuixTheme
-import top.yukonga.miuix.kmp.utils.PressFeedbackType
 import kotlin.math.hypot
 import kotlin.time.Duration.Companion.milliseconds
 import android.graphics.Color as AndroidColor
 
-/** 浮层落地冲击波：中心坐标 + 自增 token，触发周围课程卡涟漪 */
+/** 落地冲击波：中心坐标 + token，触发周围课程卡涟漪 */
 data class LandRippleSpec(
     val center: Offset = Offset.Zero,
     val token: Int = 0,
@@ -82,8 +79,10 @@ fun CourseCard(
     wallpaperBackdrop: Backdrop? = null,
     cardBlurRadius: Float = 0f,
     cardAlpha: Float = 0.15f,
+    /** 有壁纸时白/黑底不透明度（卡片不透明度） */
+    cardSurfaceAlpha: Float = 0.15f,
     cardHeightPerSection: Float = 54f,
-    // 自定义时间课程显式指定卡片高度（dp），null 时按节次数量计算
+    // 自定义时间课显式指定高度；null 时按节次数算
     customCardHeightDp: Float? = null,
     cardCornerRadius: Float = 10f,
     isTablet: Boolean = false,
@@ -95,8 +94,8 @@ fun CourseCard(
     cardRefraction: com.haooz.chedule.data.CardRefractionLevel = com.haooz.chedule.data.CardRefractionLevel.DEFAULT,
     isDragging: Boolean = false,
     disablePadding: Boolean = false,
-    // 滑动中标记（非 state 对象，读取不触发重组）：滑动期间卡片坐标逐帧变化，
-    // 而这份坐标只在长按拖拽时用得上，滑动中直接跳过每次回调里的 localToRoot 计算
+    isDark: Boolean = isAppDarkTheme(),
+    // 非 state：滑动中坐标每帧变，跳过 localToRoot；读取不触发重组
     gridScrollFlag: com.haooz.chedule.ui.screens.GridScrollFlag? = null,
     onClick: () -> Unit,
     onLongPressStart: (cardLeft: Float, cardTop: Float, width: Float, height: Float) -> Unit = { _, _, _, _ -> },
@@ -110,33 +109,43 @@ fun CourseCard(
     val cardHeight = (customCardHeightDp ?: (sectionCount * cardHeightPerSection)).dp
     val hasBlur = wallpaperBackdrop != null
     val effectiveCornerRadius = if (isTablet) (cardCornerRadius * 1.3f) else cardCornerRadius
-    val isDark = isAppDarkTheme()
     val scope = rememberCoroutineScope()
     val localDensity = LocalDensity.current
 
-    // 落地涟漪：全表覆盖，近处几乎立刻、远处按距离铺开先后
+    // 近处几乎立刻、远处按距离铺开；token=0（常态）不挂协程，降低新周页首帧组合成本
     val landRipple = LocalLandRipple.current
     val rippleScale = remember { Animatable(1f) }
     val cardBoundsPx = remember { FloatArray(4) }
-    LaunchedEffect(landRipple.token) {
-        if (landRipple.token == 0) return@LaunchedEffect
-        val cx = cardBoundsPx[0]
-        val cy = cardBoundsPx[1]
-        if (cx == 0f && cy == 0f) return@LaunchedEffect
-        val dist = hypot(cx - landRipple.center.x, cy - landRipple.center.y)
-        // 冲击点附近不延迟，往外再按距离拉开先后
-        val delayMs = if (dist < 90f) {
-            0L
-        } else {
-            ((dist - 90f) * 0.3f).toLong().coerceAtMost(400L)
+    // Sink：仅缩放反馈，不叠 indication 压暗；参数对齐 Miuix SinkFeedback(0.94, spring(0.8,600))
+    var sinkPressed by remember { mutableStateOf(false) }
+    val sinkScale = remember { Animatable(1f) }
+    LaunchedEffect(sinkPressed) {
+        sinkScale.animateTo(
+            targetValue = if (sinkPressed) 0.94f else 1f,
+            animationSpec = spring(dampingRatio = 0.8f, stiffness = 600f)
+        )
+    }
+    if (landRipple.token != 0) {
+        val lastRippleToken = remember { mutableIntStateOf(landRipple.token) }
+        LaunchedEffect(landRipple.token) {
+            if (landRipple.token == lastRippleToken.intValue) return@LaunchedEffect
+            lastRippleToken.intValue = landRipple.token
+            val cx = cardBoundsPx[0]
+            val cy = cardBoundsPx[1]
+            if (cx == 0f && cy == 0f) return@LaunchedEffect
+            val dist = hypot(cx - landRipple.center.x, cy - landRipple.center.y)
+            val delayMs = if (dist < 90f) {
+                0L
+            } else {
+                ((dist - 90f) * 0.3f).toLong().coerceAtMost(400L)
+            }
+            if (delayMs > 0) delay(delayMs.milliseconds)
+            rippleScale.animateTo(1.08f, tween(80, easing = FastOutSlowInEasing))
+            rippleScale.animateTo(1f, tween(320, easing = FastOutSlowInEasing))
         }
-        if (delayMs > 0) delay(delayMs)
-        rippleScale.animateTo(1.08f, tween(80, easing = FastOutSlowInEasing))
-        rippleScale.animateTo(1f, tween(320, easing = FastOutSlowInEasing))
     }
 
     val effectiveAlpha = if (hasBlur) cardAlpha * 1.6f else cardAlpha
-    // 假期课程与调休课程沿用非本周课程的灰色，不再使用课程自身颜色
     val cardColor = remember(course.colorRes, isCurrentWeek, isHoliday, effectiveAlpha) {
         if (isCurrentWeek && !isHoliday) {
             Color(course.colorRes).copy(alpha = effectiveAlpha)
@@ -145,7 +154,7 @@ fun CourseCard(
         }
     }
     val textColor = remember(course.colorRes, isCurrentWeek, isHoliday, hasBlur, isDark, cardTextColor) {
-        // 纯色模式仅作用于本周课程：文字统一为黑/白 0.74f；非本周/假期沿用原有灰色
+        // 纯色模式仅本周课：黑白 0.74f；非本周/假期沿用灰色
         if (isCurrentWeek && !isHoliday &&
             cardTextColor == com.haooz.chedule.data.CardTextColor.SOLID
         ) {
@@ -176,54 +185,41 @@ fun CourseCard(
 
     if (hasBlur) {
         key(effectiveCornerRadius) {
-            var isPressed by remember { mutableStateOf(false) }
-            val scale = remember { Animatable(1f) }
             val backdropShape = remember(effectiveCornerRadius) { ContinuousRoundedRectangle(effectiveCornerRadius.dp) }
             val blurPx = with(localDensity) { remember(cardBlurRadius) { cardBlurRadius.dp.toPx() } }
             val lensRadiusPx = with(localDensity) { remember(cardRefraction) { cardRefraction.lensRadiusDp.dp.toPx() } }
             val lensStrengthPx = with(localDensity) { remember(cardRefraction) { cardRefraction.lensStrengthDp.dp.toPx() } }
-            val overlayColor = remember(isDark) { if (isDark) Color.Black.copy(alpha = 0.15f) else Color.White.copy(alpha = 0.17f) }
+            // 白/黑底由「卡片不透明度」控制；课程色由「卡片着色程度」控制
+            val overlayColor = remember(isDark, cardSurfaceAlpha) {
+                if (isDark) Color.Black.copy(alpha = cardSurfaceAlpha.coerceIn(0f, 1f))
+                else Color.White.copy(alpha = cardSurfaceAlpha.coerceIn(0f, 1f))
+            }
             val isSharedBlur = wallpaperBackdrop is SharedBlurBackdrop
-            val backdropEffects: com.kyant.backdrop.BackdropEffectScope.() -> Unit = remember(isSharedBlur, blurPx, lensRadiusPx, lensStrengthPx, cardRefraction) {
-                {
-                    if (!isSharedBlur) {
-                        blur(blurPx)
-                    }
-                    if (cardRefraction != com.haooz.chedule.data.CardRefractionLevel.OFF) {
-                        lens(lensRadiusPx, lensStrengthPx)
+            val backdropEffects: com.kyant.backdrop.BackdropEffectScope.() -> Unit =
+                remember(isSharedBlur, blurPx, lensRadiusPx, lensStrengthPx, cardRefraction) {
+                    {
+                        if (!isSharedBlur) {
+                            blur(blurPx)
+                        }
+                        if (cardRefraction != com.haooz.chedule.data.CardRefractionLevel.OFF) {
+                            lens(lensRadiusPx, lensStrengthPx)
+                        }
                     }
                 }
-            }
-            // onDrawSurface 也是每次重组新建的 lambda。drawBackdrop 的 element 会因此判不等，
-            // 卡片每次重组都会重新录制壁纸层 + 重跑一次 GPU 模糊。把它固定下来。
+            // onDrawSurface 每次重组新建会令 drawBackdrop 判不等，每次重录壁纸层并重跑 GPU 模糊
             val onCardSurface: androidx.compose.ui.graphics.drawscope.DrawScope.() -> Unit =
                 remember(cardColor, overlayColor) {
                     {
-                        // 底色 + 反光覆盖层一并在此绘制，省去独立的 drawBehind 绘制节点
-                        drawRect(cardColor)
+                        // 白/黑底在下，课程色在上
                         drawRect(overlayColor)
+                        drawRect(cardColor)
                     }
                 }
-            // 描边用的 outline / Stroke / 颜色原本每帧重建（每张卡片每帧一次路径构建 + 分配）。
-            // 它们只依赖 (size, 圆角, layoutDirection, density)，缓存后逐帧直接复用。
             val outlineColor = remember(cardColor) { cardColor.copy(alpha = 0.05f) }
             val outlineStroke = remember(localDensity) {
                 androidx.compose.ui.graphics.drawscope.Stroke(with(localDensity) { 2.dp.toPx() })
             }
             val outlineCache = remember { OutlineCache() }
-            LaunchedEffect(isPressed) {
-                if (isPressed) {
-                    scale.animateTo(
-                        targetValue = 0.94f,
-                        animationSpec = tween(durationMillis = 100)
-                    )
-                } else {
-                    scale.animateTo(
-                        targetValue = 1f,
-                        animationSpec = tween(durationMillis = 180)
-                    )
-                }
-            }
 
             Box(
                 modifier = modifier
@@ -231,7 +227,7 @@ fun CourseCard(
                     .height(cardHeight)
                     .then(if (disablePadding) Modifier else Modifier.padding(horizontal = 2.dp, vertical = 2.dp))
                     .graphicsLayer {
-                        val s = scale.value * rippleScale.value
+                        val s = sinkScale.value * rippleScale.value
                         scaleX = s
                         scaleY = s
                         alpha = if (isDragging) 0f else 1f
@@ -251,11 +247,11 @@ fun CourseCard(
                         highlight = null,
                         shadow = null,
                         downsampleScale = 0.48f,
+                        viewport = com.kyant.backdrop.LocalBackdropViewport.current,
                         onDrawSurface = onCardSurface
                     )
                     .drawWithContent {
                         drawContent()
-                        // 同色描边替代 edgeLight，使用和课程卡片一样的 ContinuousRoundedRectangle
                         val radiusDp = effectiveCornerRadius.dp
                         if (outlineCache.width != size.width ||
                             outlineCache.height != size.height ||
@@ -279,7 +275,7 @@ fun CourseCard(
                         awaitEachGesture {
                             val down = awaitFirstDown(requireUnconsumed = false)
                             down.consume()
-                            isPressed = true
+                            sinkPressed = true
                             val downPosition = down.position
                             var isLongPress = false
                             var isDraggingCard = false
@@ -287,7 +283,7 @@ fun CourseCard(
                             val longPressJob = scope.launch {
                                 delay(320.milliseconds)
                                 isLongPress = true
-                                isPressed = false
+                                sinkPressed = false
                                 menuShown = true
                                 onLongPressStart(
                                     cardBoundsPx[0],
@@ -298,16 +294,14 @@ fun CourseCard(
                             }
                             try {
                                 while (true) {
-                                    // 菜单/拖拽状态：Main pass 拦截事件防止穿透；
-                                    // 否则：Final pass 让 HorizontalPager/verticalScroll 先在 Main pass 处理滑动。
-                                    // 关键：Main pass 顺序是「子→父」，若卡片在 Main pass 消费移动事件，
-                                    // 父级滚动容器的 touch slop 追踪会跳过已消费事件 → 滑动被吞、不跟手
+                                    // 菜单/拖拽用 Main pass 拦截穿透；否则 Final pass 让父级滚动先处理
+                                    // （Main 子→父，卡片消费移动会吞掉父级滑动）
                                     val pass = if (menuShown || isDraggingCard)
                                         PointerEventPass.Main else PointerEventPass.Final
                                     val event = awaitPointerEvent(pass)
                                     val pressed = event.changes.any { it.pressed }
                                     if (!pressed) {
-                                        isPressed = false
+                                        sinkPressed = false
                                         if (isDraggingCard) {
                                             if (menuShown) {
                                                 onDrag(0f, 0f)
@@ -332,22 +326,23 @@ fun CourseCard(
                                     val dy = currentPos.y - downPosition.y
                                     val dragDist = currentPos.minus(downPosition).getDistance()
 
-                                    // 水平滑动 → 释放手势给 HorizontalPager
+                                    // 水平滑动 → 释放给 HorizontalPager
                                     if (!isLongPress && !isDraggingCard && !menuShown
                                         && kotlin.math.abs(dx) > 5f * density
                                         && kotlin.math.abs(dx) > kotlin.math.abs(dy) * 1.2f
                                     ) {
-                                        isPressed = false
+                                        sinkPressed = false
                                         break
                                     }
 
                                     if (!isLongPress && dragDist > 8f * density) {
-                                        isPressed = false
+                                        sinkPressed = false
                                         event.changes.forEach { it.consume() }
                                         break
                                     }
                                     if (menuShown && !isDraggingCard) {
                                         isDraggingCard = true
+                                        sinkPressed = false
                                         onDragStart()
                                     }
                                     if (menuShown) {
@@ -371,22 +366,31 @@ fun CourseCard(
             ) {
                 CardContent(course, sectionCount, textColor, hasMultipleCourses,
                     isTablet, cardContentAlignment, cardHeight.value, cardHeightPerSection,
-                    isHoliday, isWorkSwap, isCurrentWeek, showClassroom, showTeacher, cardTextScale)
+                    isHoliday, isWorkSwap, isCurrentWeek, showClassroom, showTeacher, cardTextScale, isDark)
             }
         }
     } else {
+        // 无壁纸路径：手势已在外层 pointerInput 处理，不再套 Miuix Card
+        //（其 interactionSource/pressable/combinedClickable/squircle 每卡都是一笔首帧组合开销）
+        val cardShape = remember(effectiveCornerRadius) {
+            ContinuousRoundedRectangle(effectiveCornerRadius.dp)
+        }
         Box(
             modifier = modifier
                 .fillMaxWidth()
                 .height(cardHeight)
                 .then(if (disablePadding) Modifier else Modifier.padding(horizontal = 2.dp, vertical = 2.dp))
                 .graphicsLayer {
-                    scaleX = rippleScale.value
-                    scaleY = rippleScale.value
+                    val s = sinkScale.value * rippleScale.value
+                    scaleX = s
+                    scaleY = s
                     alpha = if (isDragging) 0f else 1f
+                    shape = cardShape
+                    clip = true
                 }
+                .background(cardColor, cardShape)
                 .onGloballyPositioned { coordinates ->
-                    // 上报卡片正中心的绝对坐标，与 hasBlur 分支保持一致
+                    // 与 hasBlur 分支一致：上报中心绝对坐标
                     val center = coordinates.localToRoot(Offset(coordinates.size.width / 2f, coordinates.size.height / 2f))
                     cardBoundsPx[0] = center.x
                     cardBoundsPx[1] = center.y
@@ -397,6 +401,7 @@ fun CourseCard(
                     awaitEachGesture {
                         val down = awaitFirstDown(requireUnconsumed = false)
                         down.consume()
+                        sinkPressed = true
                         val downPosition = down.position
                         var isLongPress = false
                         var isDraggingCard = false
@@ -404,6 +409,7 @@ fun CourseCard(
                             val longPressJob = scope.launch {
                                 delay(320.milliseconds)
                                 isLongPress = true
+                                sinkPressed = false
                                 menuShown = true
                                 onLongPressStart(
                                     cardBoundsPx[0],
@@ -414,13 +420,13 @@ fun CourseCard(
                             }
                         try {
                             while (true) {
-                                // 菜单/拖拽状态：Main pass 拦截事件防止穿透
-                                // 否则：Final pass 让 HorizontalPager 先处理水平滑动
+                                // 菜单/拖拽用 Main pass 拦截穿透；否则 Final pass 让父级先处理滑动
                                 val pass = if (menuShown || isDraggingCard)
                                     PointerEventPass.Main else PointerEventPass.Final
                                 val event = awaitPointerEvent(pass)
                                 val pressed = event.changes.any { it.pressed }
                                 if (!pressed) {
+                                    sinkPressed = false
                                     if (isDraggingCard) {
                                         if (menuShown) {
                                             onDrag(0f, 0f)
@@ -445,20 +451,23 @@ fun CourseCard(
                                 val dy = currentPos.y - downPosition.y
                                 val dragDist = currentPos.minus(downPosition).getDistance()
 
-                                // 水平滑动 → 释放手势给 HorizontalPager
+                                // 水平滑动 → 释放给 HorizontalPager
                                 if (!isLongPress && !isDraggingCard && !menuShown
                                     && kotlin.math.abs(dx) > 5f * density
                                     && kotlin.math.abs(dx) > kotlin.math.abs(dy) * 1.2f
                                 ) {
+                                    sinkPressed = false
                                     break
                                 }
 
                                 if (!isLongPress && dragDist > 8f * density) {
+                                    sinkPressed = false
                                     event.changes.forEach { it.consume() }
                                     break
                                 }
                                 if (menuShown && !isDraggingCard) {
                                     isDraggingCard = true
+                                    sinkPressed = false
                                     onDragStart()
                                 }
                                 if (menuShown) {
@@ -479,22 +488,9 @@ fun CourseCard(
                     }
                 }
         ) {
-            Card(
-                modifier = Modifier.fillMaxSize(),
-                cornerRadius = effectiveCornerRadius.dp,
-                insideMargin = PaddingValues(0.dp),
-                pressFeedbackType = PressFeedbackType.Sink,
-                showIndication = true,
-                colors = CardDefaults.defaultColors(
-                    color = cardColor,
-                    contentColor = MiuixTheme.colorScheme.onSurface
-                ),
-                onClick = {}
-            ) {
-                CardContent(course, sectionCount, textColor, hasMultipleCourses,
-                    isTablet, cardContentAlignment, cardHeight.value, cardHeightPerSection,
-                    isHoliday, isWorkSwap, isCurrentWeek, showClassroom, showTeacher, cardTextScale)
-            }
+            CardContent(course, sectionCount, textColor, hasMultipleCourses,
+                isTablet, cardContentAlignment, cardHeight.value, cardHeightPerSection,
+                isHoliday, isWorkSwap, isCurrentWeek, showClassroom, showTeacher, cardTextScale, isDark)
         }
     }
 }
@@ -504,7 +500,8 @@ private fun CardContent(course: Course, sectionCount: Int, textColor: Color, has
                         isTablet: Boolean = false, cardContentAlignment: com.haooz.chedule.data.CardContentAlignment = com.haooz.chedule.data.CardContentAlignment.CENTER_CENTER,
                         cardHeightDp: Float = 0f, cardHeightPerSection: Float = 54f,
                         isHoliday: Boolean = false, isWorkSwap: Boolean = false, isCurrentWeek: Boolean = true,
-                        showClassroom: Boolean = true, showTeacher: Boolean = true, cardTextScale: Float = 1f) {
+                        showClassroom: Boolean = true, showTeacher: Boolean = true, cardTextScale: Float = 1f,
+                        isDark: Boolean = isAppDarkTheme()) {
     val infoFontSize = 11.sp * cardTextScale.coerceIn(0.5f, 2.0f)
     val infoLineHeight = 12.sp * cardTextScale.coerceIn(0.5f, 2.0f)
     val courseNameFontSize = 12.7.sp * cardTextScale.coerceIn(0.5f, 2.0f)
@@ -513,7 +510,7 @@ private fun CardContent(course: Course, sectionCount: Int, textColor: Color, has
     val effectiveShowClassroom = showClassroom && course.classroom.isNotEmpty()
     val effectiveShowTeacher = showTeacher && course.teacher.isNotEmpty()
 
-    // 课程名称最多行数：卡片高度能放下几行就几行
+    // 卡片高度能放下几行就几行
     val density = LocalDensity.current
     val availableHeightDp = cardHeightDp - 16f
     val courseNameLineH = with(density) { courseNameLineHeight.toDp().value }
@@ -547,7 +544,6 @@ private fun CardContent(course: Course, sectionCount: Int, textColor: Color, has
             horizontalAlignment = horizontalAlignment,
             verticalArrangement = verticalArrangement
         ) {
-            // 课程名称：优先分配
             Text(
                 text = course.name,
                 fontWeight = FontWeight.Bold,
@@ -558,7 +554,6 @@ private fun CardContent(course: Course, sectionCount: Int, textColor: Color, has
                 maxLines = nameMaxLines,
                 overflow = TextOverflow.Ellipsis,
             )
-            // 教室：按剩余空间分配
             if (effectiveShowClassroom) {
                 Spacer(modifier = Modifier.height(2.dp))
                 Text(
@@ -570,7 +565,6 @@ private fun CardContent(course: Course, sectionCount: Int, textColor: Color, has
                     overflow = TextOverflow.Ellipsis,
                 )
             }
-            // 教师：按剩余空间分配
             if (effectiveShowTeacher) {
                 Spacer(modifier = Modifier.height(2.dp))
                 Text(
@@ -594,27 +588,25 @@ private fun CardContent(course: Course, sectionCount: Int, textColor: Color, has
             )
         }
 
-        // 假期“假”/调休“调”角标：固定在卡片右上角；“调”角标背景跟随课程颜色
         val badgeText = when {
             isHoliday -> "假"
             isWorkSwap -> "调"
             else -> null
         }
         if (badgeText != null) {
-            // 角标背景：本周被调课程→课程颜色；假期/非本周被调课程→灰色；alpha 统一降低避免过于抢眼
             val badgeBackground = if (isWorkSwap && isCurrentWeek) {
                 Color(course.colorRes).copy(alpha = 0.32f)
             } else {
-                if (isAppDarkTheme()) Color.White.copy(alpha = 0.1f) else Color.Black.copy(alpha = 0.08f)
+                if (isDark) Color.White.copy(alpha = 0.1f) else Color.Black.copy(alpha = 0.08f)
             }
             Text(
                 text = badgeText,
                 fontSize = 9.sp,
                 fontWeight = FontWeight.Medium,
                 color = if (isWorkSwap && isCurrentWeek) {
-                    if (isAppDarkTheme()) Color.White.copy(alpha = 0.8f) else Color.White
+                    if (isDark) Color.White.copy(alpha = 0.8f) else Color.White
                 } else {
-                    if (isAppDarkTheme()) Color.White.copy(alpha = 0.4f) else Color.Black.copy(alpha = 0.4f)},
+                    if (isDark) Color.White.copy(alpha = 0.4f) else Color.Black.copy(alpha = 0.4f)},
                 modifier = Modifier
                     .align(Alignment.TopEnd)
                     .padding(if (isTablet) 6.dp else 5.dp)
@@ -626,7 +618,6 @@ private fun CardContent(course: Course, sectionCount: Int, textColor: Color, has
         }
 
         if (course.hasValidCustomTime() && cardHeightDp >= 2 * cardHeightPerSection) {
-            // 顶部显示开始时间
             Text(
                 text = course.customStartTime ?: "",
                 fontSize = 8.sp,
@@ -639,7 +630,6 @@ private fun CardContent(course: Course, sectionCount: Int, textColor: Color, has
                     .padding(horizontal = 4.dp, vertical = 1.dp),
                 maxLines = 1
             )
-            // 底部显示结束时间
             Text(
                 text = course.customEndTime ?: "",
                 fontSize = 8.sp,
@@ -656,12 +646,7 @@ private fun CardContent(course: Course, sectionCount: Int, textColor: Color, has
     }
 }
 
-/**
- * 描边 outline 缓存：构建一次 ContinuousRoundedRectangle 的 outline 要走完整条超椭圆路径，
- * 原来每张卡片每帧都重建一次（滑动时约 40~80 张 × 2 页）。
- * 只在 (尺寸, 圆角, layoutDirection) 变化时重建，其余帧直接复用。
- */
-// 描边 outline 缓存：课程卡片与特殊课程长条共用（跨文件复用，故非 private）
+// 超椭圆 outline 构建昂贵，滑动时约 40~80 张×2 页；仅尺寸/圆角/layoutDirection 变时重建
 internal class OutlineCache {
     var width: Float = Float.NaN
     var height: Float = Float.NaN

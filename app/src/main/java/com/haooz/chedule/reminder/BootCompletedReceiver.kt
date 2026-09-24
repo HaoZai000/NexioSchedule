@@ -17,6 +17,9 @@ class BootCompletedReceiver : BroadcastReceiver() {
             Intent.ACTION_MY_PACKAGE_REPLACED,
             Intent.ACTION_TIME_CHANGED,
             Intent.ACTION_TIMEZONE_CHANGED -> {
+                // 重启 / 升级会重置系统勿扰与铃声状态，先丢掉过期的接管标记，
+                // 否则本节课剩余时间不会再进入勿扰
+                ClassDndHelper.dropStaleSessionAfterReboot(context)
                 // 任何上述情况都重置全部闹钟（含 widget refresh）。
                 // 关闭分支也会在 startReminderService 内把 widget 刷新链挂上，
                 // 覆盖"用小组件但不开提醒"的用户群体。

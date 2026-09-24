@@ -4,10 +4,8 @@ package com.haooz.chedule.ui.activities
 import android.annotation.SuppressLint
 import android.os.Bundle
 import android.widget.Toast
-import androidx.activity.ComponentActivity
 import androidx.activity.SystemBarStyle
 import androidx.activity.compose.BackHandler
-import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.EnterExitState
@@ -72,15 +70,18 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.haooz.chedule.data.CourseRepository
 import com.haooz.chedule.ui.basic.CollapsibleTopAppBar
+import com.haooz.chedule.ui.basic.CollapsibleTopAppBarDefaults
 import com.haooz.chedule.ui.basic.LiquidTopBarButton
 import com.haooz.chedule.ui.basic.ProgressiveBlurTopBar
+import com.haooz.chedule.ui.basic.collapsibleTopInset
 import com.haooz.chedule.ui.basic.rememberSharedScrollBehavior
 import com.haooz.chedule.ui.effects.edgelight.edgeLight
 import com.haooz.chedule.ui.effects.edgelight.rememberDefaultEdgeLight
-import com.haooz.chedule.ui.theme.CourseScheduleTheme
 import com.haooz.chedule.ui.utils.applyThemeAwareSystemBars
+import com.haooz.chedule.ui.utils.buildShareScheduleMap
 import com.haooz.chedule.ui.utils.isAppDarkTheme
 import com.haooz.chedule.ui.utils.overScrollVertical
+import com.haooz.chedule.ui.utils.performScheduleShare
 import com.kyant.backdrop.drawBackdrop
 import com.kyant.backdrop.effects.blur
 import com.kyant.backdrop.effects.lens
@@ -112,6 +113,9 @@ import top.yukonga.miuix.kmp.utils.scrollEndHaptic
 import kotlin.time.Duration.Companion.milliseconds
 import androidx.compose.ui.graphics.Color as ComposeColor
 import com.kyant.backdrop.backdrops.layerBackdrop as liquidGlassLayerBackdrop
+import androidx.activity.ComponentActivity
+import androidx.activity.compose.setContent
+import com.haooz.chedule.ui.theme.CourseScheduleTheme
 
 class SwitchScheduleActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -126,16 +130,16 @@ class SwitchScheduleActivity : ComponentActivity() {
         applyThemeAwareSystemBars()
         setContent {
             CourseScheduleTheme {
-                SwitchScheduleScreen(
-                    onBack = {
-                        setResult(RESULT_OK)
-                        finish()
-                    },
-                    onScheduleChanged = {
-                        setResult(RESULT_OK)
-                    }
-                )
-            }
+            SwitchScheduleScreen(
+                onBack = {
+                    setResult(RESULT_OK)
+                    finish()
+                },
+                onScheduleChanged = {
+                    setResult(RESULT_OK)
+                }
+            )
+        }
         }
     }
 }
@@ -200,6 +204,10 @@ fun SwitchScheduleScreen(
         )
     }
     LaunchedEffect(Unit) {
+        com.haooz.chedule.ui.utils.CrashLogHelper.trace(
+            "切换课表", "screen_compose",
+            "names=${scheduleNames.size} current=$currentScheduleId"
+        )
         if (initialCurrentScheduleId == null) {
             currentScheduleId = repository.getCurrentScheduleId()
         }
@@ -222,9 +230,23 @@ fun SwitchScheduleScreen(
     var showDeleteDialog by remember { mutableStateOf(false) }
     var deletingScheduleName by remember { mutableStateOf<String?>(null) }
     var firstCardBounds by remember { mutableStateOf<androidx.compose.ui.geometry.Rect?>(null) }
+    var isSharingSchedule by remember { mutableStateOf(false) }
+    var showShareConfirmDialog by remember { mutableStateOf(false) }
+    var shareConfirmScheduleName by remember { mutableStateOf<String?>(null) }
+
+    fun performShareSchedule(scheduleName: String) {
+        if (isSharingSchedule) return
+        performScheduleShare(
+            context = context,
+            scope = scope,
+            scheduleName = scheduleName,
+            onSharingChanged = { isSharingSchedule = it }
+        )
+    }
 
     val switchToCurrentSchedule = {
         val firstSchedule = scheduleNames.firstOrNull() ?: ""
+        com.haooz.chedule.ui.utils.CrashLogHelper.trace("切换课表", "select_current", firstSchedule)
         currentScheduleId = firstSchedule
         repository.switchToSchedule(firstSchedule)
         onScheduleChanged()
@@ -447,9 +469,23 @@ fun SwitchScheduleScreen(
                                 BottomBarItem(
                                     icon = MiuixIcons.Forward,
                                     label = "分享",
-                                    enabled = checkedCount == 1,
+                                    enabled = checkedCount == 1 && !isSharingSchedule,
                                     onClick = {
+                                        com.haooz.chedule.ui.utils.FeatureLog.switchSchedule("share_dialog")
                                         hapticFeedback.performHapticFeedback(HapticFeedbackType.KeyboardTap)
+                                        val selected = checkboxStates.entries.find { it.value }?.key
+                                        if (selected != null && !isSharingSchedule) {
+                                            if (buildShareScheduleMap(repository, selected) == null) {
+                                                Toast.makeText(
+                                                    context,
+                                                    "「$selected」课表为空，无法分享",
+                                                    Toast.LENGTH_SHORT
+                                                ).show()
+                                            } else {
+                                                shareConfirmScheduleName = selected
+                                                showShareConfirmDialog = true
+                                            }
+                                        }
                                     }
                                 )
                                 BottomBarItem(
@@ -510,9 +546,6 @@ fun SwitchScheduleScreen(
                 // 注意：这里不要再 collect firstVisibleItemScrollOffset 写 state ——
                 // 那会让整页在滚动时每像素重组一次（listScrollY 之前根本没被读取，纯属白烧）。
                 val listState = rememberLazyListState()
-                val topBarHeightDp = with(density) {
-                    scrollBehavior.currentHeightPx.toDp()
-                }
                 Card(
                     modifier = Modifier
                         .fillMaxSize()
@@ -531,11 +564,12 @@ fun SwitchScheduleScreen(
                             .scrollEndHaptic(
                                 hapticFeedbackType = HapticFeedbackType.TextHandleMove
                             )
+                            .collapsibleTopInset(scrollBehavior)
                             .nestedScroll(scrollBehavior.nestedScrollConnection),
                         contentPadding = PaddingValues(
                             start = tabletHorizontalPadding,
                             end = tabletHorizontalPadding,
-                            top = paddingValues.calculateTopPadding() + topBarHeightDp - 82.dp,
+                            top = paddingValues.calculateTopPadding() + CollapsibleTopAppBarDefaults.CollapsedHeight - 82.dp,
                             bottom = 60.dp
                         ),
                         verticalArrangement = Arrangement.spacedBy(12.dp)
@@ -715,6 +749,9 @@ fun SwitchScheduleScreen(
                                             ),
                                             pressFeedbackType = PressFeedbackType.None,
                                             onClick = {
+                                                com.haooz.chedule.ui.utils.CrashLogHelper.trace(
+                                                    "切换课表", "select_other", scheduleName
+                                                )
                                                 val names = scheduleNames.toMutableList()
                                                 names.remove(scheduleName)
                                                 names.add(0, scheduleName)
@@ -786,6 +823,48 @@ fun SwitchScheduleScreen(
             }
 
             OverlayDialog(
+                title = "分享课表",
+                summary = "将课表「${shareConfirmScheduleName.orEmpty()}」上传生成分享口令？\n口令 30 分钟内有效",
+                show = showShareConfirmDialog,
+                liquidGlassBackdrop = liquidGlassBackdrop,
+                onDismissRequest = {
+                    showShareConfirmDialog = false
+                    shareConfirmScheduleName = null
+                }
+            ) {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(top = 12.dp),
+                    horizontalArrangement = Arrangement.spacedBy(12.dp)
+                ) {
+                    TextButton(
+                        text = "取消",
+                        onClick = {
+                            hapticFeedback.performHapticFeedback(HapticFeedbackType.Confirm)
+                            showShareConfirmDialog = false
+                            shareConfirmScheduleName = null
+                        },
+                        modifier = Modifier.weight(1f)
+                    )
+                    TextButton(
+                        text = "确认分享",
+                        onClick = {
+                            hapticFeedback.performHapticFeedback(HapticFeedbackType.Confirm)
+                            val name = shareConfirmScheduleName
+                            showShareConfirmDialog = false
+                            shareConfirmScheduleName = null
+                            if (name != null) {
+                                performShareSchedule(name)
+                            }
+                        },
+                        colors = ButtonDefaults.textButtonColorsPrimary(),
+                        modifier = Modifier.weight(1f)
+                    )
+                }
+            }
+
+            OverlayDialog(
                 title = "新建课表",
                 show = showAddDialog,
                 liquidGlassBackdrop = liquidGlassBackdrop,
@@ -836,6 +915,7 @@ fun SwitchScheduleScreen(
                                 val name = newScheduleName
                                 showAddDialog = false
                                 newScheduleName = ""
+                                com.haooz.chedule.ui.utils.FeatureLog.switchSchedule("add", name)
                                 scheduleNames = repository.addSchedule(name)
                                 // 手动新建课表：自动新建默认专属时间配置（跟随课表名）
                                 repository.createDefaultTimeConfigForSchedule(name)
@@ -912,6 +992,7 @@ fun SwitchScheduleScreen(
                                 }
                                 val oldName = editingScheduleName
                                 val newName = editScheduleName
+                                com.haooz.chedule.ui.utils.FeatureLog.switchSchedule("rename", "$oldName->$newName")
                                 val wasChecked = checkboxStates[oldName] == true
                                 showEditDialog = false
                                 editScheduleName = ""
@@ -967,6 +1048,9 @@ fun SwitchScheduleScreen(
                             onClick = {
                                 hapticFeedback.performHapticFeedback(HapticFeedbackType.Confirm)
                                 val selectedNames = checkboxStates.filter { it.value }.keys.toList()
+                                com.haooz.chedule.ui.utils.FeatureLog.switchSchedule(
+                                    "delete", selectedNames.joinToString()
+                                )
                                 showDeleteDialog = false
                                 isEditMode = false
                                 editMode = ""

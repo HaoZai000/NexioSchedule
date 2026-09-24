@@ -1,5 +1,10 @@
+// RuntimeShader 仅在 isRuntimeShaderSupported()（API 33 存在性检测）为真时才被创建/使用，
+// 低版本流程不会执行到这里；自定义反射守卫 lint 无法识别，故整个文件豁免 NewApi。
+@file:SuppressLint("NewApi")
+
 package com.haooz.chedule.ui.effects.edgelight
 
+import android.annotation.SuppressLint
 import android.graphics.RuntimeShader
 import androidx.compose.foundation.shape.CornerBasedShape
 import androidx.compose.ui.geometry.Size

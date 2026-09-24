@@ -24,11 +24,6 @@ class ClassDndReceiver : BroadcastReceiver() {
         const val ACTION_CLASS_START = "com.haooz.chedule.ACTION_CLASS_DND_START"
         /** 下课：退出勿扰 */
         const val ACTION_CLASS_END = "com.haooz.chedule.ACTION_CLASS_DND_END"
-        /**
-         * 测试通知专用：立即开关系统勿扰，不依赖课表与开关状态。
-         * 仅由「测试小米超级岛」发出的通知携带，用于验证岛按钮到勿扰的链路是否可用。
-         */
-        const val ACTION_TEST_TOGGLE = "com.haooz.chedule.ACTION_CLASS_DND_TEST_TOGGLE"
     }
 
     override fun onReceive(context: Context, intent: Intent) {
@@ -36,10 +31,6 @@ class ClassDndReceiver : BroadcastReceiver() {
             ACTION_TOGGLE -> {
                 Log.d(TAG, "Toggle class DND from notification")
                 ClassDndHelper.toggleFromNotification(context)
-            }
-            ACTION_TEST_TOGGLE -> {
-                Log.d(TAG, "Test notification: toggle DND immediately")
-                ClassDndHelper.toggleDndNowForTest(context)
             }
             ACTION_CLASS_START, ACTION_CLASS_END -> {
                 Log.d(TAG, "Class ${if (intent.action == ACTION_CLASS_START) "start" else "end"} alarm, syncing DND state")

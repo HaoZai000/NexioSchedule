@@ -17,6 +17,12 @@ interface Backdrop {
      */
     val sharedSampledLayer: GraphicsLayer? get() = null
 
+    /**
+     * 源内容版本号。Backdrop 重新录制像素内容时递增；
+     * 采样侧可据此跳过「内容与偏移均未变」的重录。
+     */
+    val contentVersion: Int get() = 0
+
     fun DrawScope.drawBackdrop(
         density: Density,
         coordinates: LayoutCoordinates?,

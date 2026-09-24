@@ -45,6 +45,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.haooz.chedule.data.ExtractedShareTools
 import com.haooz.chedule.data.school.AdapterData
 import com.haooz.chedule.data.school.SchoolData
 import com.haooz.chedule.data.school.SchoolRepository
@@ -83,7 +84,11 @@ fun SchoolSelectionScreen(
         allSchools.filter { school ->
             val tabMatch = when (selectedTab) {
                 0 -> school.adapters.any { it.category == AdapterData.CATEGORY_BACHELOR || it.category == AdapterData.CATEGORY_POSTGRADUATE }
-                1 -> school.adapters.any { it.category == AdapterData.CATEGORY_GENERAL_TOOL }
+                // WakeUp / 星链已提取到课表导入页，通用工具页不再展示
+                1 -> school.adapters.any {
+                    it.category == AdapterData.CATEGORY_GENERAL_TOOL &&
+                        it.adapterId !in ExtractedShareTools.ADAPTER_IDS
+                }
                 else -> false
             }
             val searchMatch = query.isEmpty() ||

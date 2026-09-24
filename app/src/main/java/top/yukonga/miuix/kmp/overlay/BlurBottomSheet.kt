@@ -2,7 +2,6 @@
 package top.yukonga.miuix.kmp.overlay
 
 import android.os.Build
-import androidx.activity.compose.BackHandler
 import androidx.compose.animation.EnterTransition
 import androidx.compose.animation.ExitTransition
 import androidx.compose.animation.core.Animatable
@@ -46,12 +45,14 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.rememberUpdatedState
+import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.drawscope.DrawScope
 import androidx.compose.ui.graphics.graphicsLayer
@@ -78,6 +79,7 @@ import com.haooz.chedule.ui.effects.edgelight.rememberDefaultEdgeLight
 import com.haooz.chedule.ui.utils.LocalForcedDarkTheme
 import com.haooz.chedule.ui.utils.LocalOverScrollState
 import com.haooz.chedule.ui.utils.OverScrollState
+import com.haooz.chedule.ui.utils.PredictiveBackSettings
 import com.haooz.chedule.ui.utils.rememberAppSettingDark
 import com.kyant.backdrop.Backdrop
 import com.kyant.backdrop.backdrops.layerBackdrop
@@ -94,6 +96,10 @@ import top.yukonga.miuix.kmp.theme.ColorSchemeMode
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 import top.yukonga.miuix.kmp.theme.ThemeController
 import top.yukonga.miuix.kmp.utils.MiuixPopupUtils.Companion.DialogLayout
+import androidx.navigationevent.NavigationEventInfo
+import androidx.navigationevent.NavigationEventTransitionState
+import androidx.navigationevent.compose.NavigationBackHandler
+import androidx.navigationevent.compose.rememberNavigationEventState
 import kotlin.math.abs
 
 /**
@@ -193,11 +199,6 @@ fun BlurBottomSheet(
     // 但它的 value 在组合期被 LaunchedEffect 的 key 读取 → 弹窗挂载后的写入会让本组合作用域
     // （进而整个弹窗内容）在打开动画头几帧重组一次。现在直接由内容层回调。
 
-    // 返回手势放在 DialogLayout 外面，确保组合时立即生效
-    BackHandler(enabled = show) {
-        onDismissRequest()
-    }
-
     DialogLayout(
         visible = visibleState,
         enableWindowDim = false,
@@ -264,6 +265,10 @@ private fun BlurBottomSheetContent(
     val windowInfo = LocalWindowInfo.current
     val sheetHeightPx = remember { mutableIntStateOf(0) }
     val imeInsets = WindowInsets.ime
+    // 预测性返回：返回手势进度实时驱动 sheet 下滑（API 33+），取消回弹、完成关闭；
+    // 低版本 NavigationBackHandler 自动退化为立即关闭
+    val navigationEventState = rememberNavigationEventState(currentInfo = NavigationEventInfo.None)
+    val backProgress = remember { Animatable(0f) }
 
     val isDark = MiuixTheme.colorScheme.background.luminance() < 0.5f
     val sheetBgColor = sheetBackgroundColor ?: if (isDark) Color(0xFF1E1E1E) else Color(0xFFF2F2F2)
@@ -283,6 +288,7 @@ private fun BlurBottomSheetContent(
             dragOffsetY.floatValue = 0f
             settleOffsetY.stop()
             settleOffsetY.snapTo(0f)
+            backProgress.snapTo(0f)
             if (skipEnterAnimation) {
                 animationProgress.snapTo(1f)
             } else {
@@ -311,11 +317,44 @@ private fun BlurBottomSheetContent(
     // ModifierNodeElement 每帧 update → invalidateDraw → 每帧重新录制壁纸层并重新做一次 GPU 模糊。
     // 这是弹窗进入掉帧的主要来源：绘制期读取只会让「遮罩这一个节点」重绘，不触发重组。
     val dimModifier = if (dimBackground) {
-        Modifier.drawBehind { drawRect(Color.Black.copy(alpha = 0.2f * animationProgress.value)) }
+        Modifier.drawBehind {
+            drawRect(Color.Black.copy(alpha = 0.2f * animationProgress.value * (1f - backProgress.value)))
+        }
     } else Modifier
 
     // 外层 lambda 身份不稳定时不要拿它当 pointerInput key，否则每次重组都会重启手势协程
     val currentOnDismissRequest by rememberUpdatedState(onDismissRequest)
+    val coroutineScope = rememberCoroutineScope()
+
+    // 返回手势处理：手势进行中 progress 驱动 sheet 下滑，取消回弹，完成直接关闭
+    NavigationBackHandler(
+        state = navigationEventState,
+        isBackEnabled = show,
+        onBackCancelled = {
+            coroutineScope.launch {
+                backProgress.animateTo(0f, animationSpec = tween(150))
+            }
+        },
+        onBackCompleted = {
+            currentOnDismissRequest()
+        },
+    )
+
+    // 逐帧收集返回手势进度（单独协程，避免手势期间每帧取消/重启 LaunchedEffect）
+    LaunchedEffect(Unit) {
+        snapshotFlow { navigationEventState.transitionState }
+            .collect { transitionState ->
+                if (
+                    transitionState is NavigationEventTransitionState.InProgress &&
+                    transitionState.direction == NavigationEventTransitionState.TRANSITIONING_BACK
+                ) {
+                    // 预测性返回动画开关：关闭时不驱动跟随动画（返回仍被拦截，直接关闭）
+                    if (PredictiveBackSettings.enabled) {
+                        backProgress.snapTo(transitionState.latestEvent.progress)
+                    }
+                }
+            }
+    }
 
     Box(
         modifier = Modifier
@@ -332,7 +371,8 @@ private fun BlurBottomSheetContent(
                 val progress = animationProgress.value
                 val currentHeight = sheetHeightPx.intValue.toFloat()
                 val baseOffset = if (currentHeight > 0) currentHeight else windowHeightPx
-                translationY = baseOffset * (1f - progress) + dragOffsetY.floatValue + settleOffsetY.value
+                // backProgress：返回手势把 sheet 向下推出屏幕
+                translationY = baseOffset * (1f - progress) + dragOffsetY.floatValue + settleOffsetY.value + backProgress.value * currentHeight
             }
 
         val sheetOffsetDpValue = if (sheetOffsetDp != Dp.Unspecified) sheetOffsetDp else 200.dp
@@ -543,6 +583,29 @@ private fun BlurBottomSheetContent(
                         ) {
                             Box(modifier = Modifier.fillMaxWidth().height(60.dp))
                         }
+                        // 滚动渐变遮罩：对齐 CollapsibleTopAppBar，随 showButtonShadow 淡入
+                        //（与 shadowAlpha 同一条动画），压住顶栏下滚过的内容
+                        val gradientColor =
+                            if (sheetAppDark) Color.Black else Color.White
+                        Box(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .height(84.dp)
+                                .zIndex(1.5f)
+                                .graphicsLayer { alpha = shadowAlpha.value }
+                                .drawBehind {
+                                    drawRect(
+                                        brush = Brush.verticalGradient(
+                                            0f to gradientColor.copy(alpha = 0.85f),
+                                            0.45f to gradientColor.copy(alpha = 0.55f),
+                                            0.7f to gradientColor.copy(alpha = 0.32f),
+                                            0.85f to gradientColor.copy(alpha = 0.14f),
+                                            0.93f to gradientColor.copy(alpha = 0.05f),
+                                            1f to Color.Transparent
+                                        )
+                                    )
+                                }
+                        )
                     }
 
                     // 标题栏（zIndex 提升到顶层，消费触摸事件）

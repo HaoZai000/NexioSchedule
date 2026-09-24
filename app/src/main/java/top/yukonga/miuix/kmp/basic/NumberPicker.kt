@@ -347,8 +347,10 @@ object NumberPickerDefaults {
     fun colors(
         selectedTextColor: Color = MiuixTheme.colorScheme.onSurface,
         unselectedTextColor: Color = MiuixTheme.colorScheme.onSurfaceSecondary,
-        disabledSelectedTextColor: Color = MiuixTheme.colorScheme.disabledOnSecondary,
-        disabledUnselectedTextColor: Color = MiuixTheme.colorScheme.disabledOnSecondary,
+        // 滚轮文字画在弹窗/卡片表面上，禁用色必须用 surface 系 token；
+        // disabledOnSecondary 是「禁用次级底上的文字」，浅色几乎纯白、深色叠透明后会直接消失
+        disabledSelectedTextColor: Color = MiuixTheme.colorScheme.disabledOnSurface,
+        disabledUnselectedTextColor: Color = MiuixTheme.colorScheme.disabledOnSurface,
     ): NumberPickerColors = remember(
         selectedTextColor,
         unselectedTextColor,

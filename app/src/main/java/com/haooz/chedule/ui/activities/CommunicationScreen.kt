@@ -18,11 +18,12 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.platform.LocalConfiguration
-import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.ui.unit.dp
+import com.haooz.chedule.ui.basic.CollapsibleTopAppBarDefaults
 import com.haooz.chedule.ui.basic.SharedScrollBehavior
+import com.haooz.chedule.ui.basic.collapsibleTopInset
 import com.haooz.chedule.ui.utils.overScrollVertical
 import top.yukonga.miuix.kmp.basic.Card
 import top.yukonga.miuix.kmp.basic.Scaffold
@@ -43,10 +44,7 @@ fun CommunicationScreen(
         drawContent()
     }
     val isTablet = LocalConfiguration.current.screenWidthDp >= 600
-    val tabletHorizontalPadding = if (isTablet) {
-        val screenWidthDp = LocalConfiguration.current.screenWidthDp
-        ((screenWidthDp - 600).coerceIn(0, 600) / 600f * 112 + 16).dp
-    } else 16.dp
+    val tabletHorizontalPadding = if (isTablet) 20.dp else 16.dp
 
     Scaffold(
         topBar = {}
@@ -71,15 +69,12 @@ fun CommunicationScreen(
                 "https://pd.qq.com/s/g4n2qm2sx?b=9"
             val tableUrl =
                 "https://docs.qq.com/sheet/DSUV2dWxLa09XQXRZ?tab=BB08J2&scode="
-            val density = LocalDensity.current
-            val topBarHeightDp = with(density) {
-                (scrollBehavior?.currentHeightPx ?: 0f).toDp()
-            }
             LazyColumn(
                 state = listState,
                 modifier = Modifier
                     .fillMaxSize()
                     .overScrollVertical()
+                    .collapsibleTopInset(scrollBehavior)
                     .then(
                         scrollBehavior?.let { Modifier.nestedScroll(it.nestedScrollConnection) }
                             ?: Modifier
@@ -87,7 +82,7 @@ fun CommunicationScreen(
                 contentPadding = PaddingValues(
                     start = tabletHorizontalPadding,
                     end = tabletHorizontalPadding,
-                    top = paddingValues.calculateTopPadding() + topBarHeightDp,
+                    top = paddingValues.calculateTopPadding() + CollapsibleTopAppBarDefaults.CollapsedHeight,
                     bottom = 60.dp
                 ),
                 verticalArrangement = Arrangement.spacedBy(12.dp)

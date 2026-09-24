@@ -3,8 +3,10 @@ package com.haooz.chedule.ui.components
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.EaseOut
 import androidx.compose.animation.core.spring
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.awaitEachGesture
 import androidx.compose.foundation.gestures.awaitFirstDown
+import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
@@ -19,8 +21,10 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBars
 import androidx.compose.foundation.layout.width
+import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
@@ -30,6 +34,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.snapshotFlow
 import androidx.compose.runtime.staticCompositionLocalOf
@@ -165,9 +170,8 @@ fun LiquidBottomTabs(
         val isLtr = LocalLayoutDirection.current == LayoutDirection.Ltr
         val ltrSign = if (isLtr) 1f else -1f
         val animationScope = rememberCoroutineScope()
-        var currentIndex by remember(selectedTabIndex) {
-            mutableIntStateOf(selectedTabIndex())
-        }
+        // 不能用 selectedTabIndex lambda 做 remember key：每次重组都是新实例，currentIndex 会被冲掉导致点 tab 无效
+        var currentIndex by remember { mutableIntStateOf(selectedTabIndex()) }
         val dampedDragAnimation = remember(animationScope) {
             DampedDragAnimation(
                 animationScope = animationScope,
@@ -181,10 +185,13 @@ fun LiquidBottomTabs(
                 onDrag = { _, _ -> }
             )
         }
-        LaunchedEffect(selectedTabIndex) {
-            snapshotFlow { selectedTabIndex() }
+        val latestSelectedTabIndex by rememberUpdatedState(selectedTabIndex)
+        LaunchedEffect(dampedDragAnimation) {
+            snapshotFlow { latestSelectedTabIndex() }
                 .collectLatest { index ->
-                    currentIndex = index
+                    if (index != currentIndex) {
+                        currentIndex = index
+                    }
                 }
         }
         LaunchedEffect(dampedDragAnimation) {
@@ -210,17 +217,22 @@ fun LiquidBottomTabs(
         }
 
         // 可见层：不缩放（源库只缩放下面的捕获层，滑块外的放大不可见）
+        val chromeLens = com.haooz.chedule.ui.utils.AppMaterialSettings.chromeLensEnabled()
+        val panelEffects: com.kyant.backdrop.BackdropEffectScope.() -> Unit = remember(chromeLens) {
+            {
+                vibrancy()
+                blur(8f.dp.toPx())
+                // 均衡及以下：低栏背景板关闭折射
+                if (chromeLens) lens(24f.dp.toPx(), 24f.dp.toPx())
+            }
+        }
         Row(
             Modifier
                 .graphicsLayer { translationX = panelOffset }
                 .drawBackdrop(
                     backdrop = backdrop,
                     shape = { ContinuousCapsule() },
-                    effects = {
-                        vibrancy()
-                        blur(8f.dp.toPx())
-                        lens(24f.dp.toPx(), 24f.dp.toPx())
-                    },
+                    effects = panelEffects,
                     highlight = null,
                     layerBlock = {
                         val progress = dampedDragAnimation.pressProgress
@@ -383,6 +395,8 @@ fun LiquidBottomTabs(
                                 currentIndex = target
                                 dampedDragAnimation.animateToValue(target.toFloat())
                                 dampedDragAnimation.release()
+                                // 立即通知宿主切页，不等 snapshotFlow 下一拍，减少底栏与 pager 错帧
+                                onTabSelected(target)
                                 animationScope.launch {
                                     offsetAnimation.animateTo(0f, spring(1f, 300f, 0.5f))
                                 }
@@ -419,57 +433,34 @@ fun LiquidBottomTabs(
     }
 }
 
+/**
+ * pad 主导航：只保留侧边态（展开=图标+文字，折叠=仅图标）。
+ * 不再使用顶部胶囊；折叠按钮为 Miuix Sidebar 图标。
+ */
 @Composable
 fun LiquidNavigationRail(
     selectedTab: Int,
     onTabSelected: (Int) -> Unit,
     backdrop: Backdrop,
     isShiftMode: Boolean,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    onSidebarExpandedChange: ((Boolean) -> Unit)? = null,
+    showBackToNow: Boolean = false,
+    onBackToNow: () -> Unit = {},
 ) {
     var liquidSelectedTab by remember { mutableIntStateOf(selectedTab) }
     LaunchedEffect(selectedTab) { liquidSelectedTab = selectedTab }
 
-    val statusBarPadding = WindowInsets.statusBars.asPaddingValues().calculateTopPadding()
-    val topPadding = if (statusBarPadding > 0.dp) statusBarPadding else 36.dp
-    val isDark = !isAppDarkTheme()
-    val textColor = if (isDark) Color.Black.copy(alpha = 0.8f) else Color.White.copy(alpha = 0.8f)
+    val sidebarExpanded = TabletNavSideState.expanded
+    LaunchedEffect(sidebarExpanded) { onSidebarExpandedChange?.invoke(sidebarExpanded) }
 
-    Box(
-        modifier = modifier.fillMaxSize(),
-        contentAlignment = Alignment.TopCenter
-    ) {
-        LiquidBottomTabs(
-            selectedTabIndex = { liquidSelectedTab },
-            onTabSelected = { onTabSelected(it) },
-            backdrop = backdrop,
-            tabsCount = if (!isShiftMode) 3 else 2,
-            modifier = Modifier
-                .padding(top = topPadding + 4.dp)
-                .width(if (isShiftMode) 160.dp else 240.dp)
-                .height(42.dp),
-            containerHeight = 400.dp,
-            highlightHeight = 34.dp,
-            selectorHeight = 34.dp
-        ) {
-            if (!isShiftMode) {
-                LiquidBottomTab(index = 0) {
-                    Text("今日", fontSize = 15.sp, fontWeight = FontWeight.Medium, color = textColor)
-                }
-                LiquidBottomTab(index = 1) {
-                    Text("课程表", fontSize = 15.sp, fontWeight = FontWeight.Medium, color = textColor)
-                }
-                LiquidBottomTab(index = 2) {
-                    Text("我的", fontSize = 15.sp, fontWeight = FontWeight.Medium, color = textColor)
-                }
-            } else {
-                LiquidBottomTab(index = 0) {
-                    Text("排班课表", fontSize = 15.sp, fontWeight = FontWeight.Medium, color = textColor)
-                }
-                LiquidBottomTab(index = 1) {
-                    Text("设置", fontSize = 15.sp, fontWeight = FontWeight.Medium, color = textColor)
-                }
-            }
-        }
-    }
+    TabletNavSideBar(
+        backdrop = backdrop,
+        selectedTab = liquidSelectedTab,
+        onTabSelected = onTabSelected,
+        isShiftMode = isShiftMode,
+        showBackToNow = showBackToNow,
+        onBackToNow = onBackToNow,
+        modifier = modifier,
+    )
 }

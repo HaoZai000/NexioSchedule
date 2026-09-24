@@ -1,4 +1,3 @@
-/** 主题工具类 - 管理深色模式切换和状态栏样式 */
 package com.haooz.chedule.ui.utils
 
 import android.app.Activity
@@ -15,20 +14,16 @@ import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.ui.platform.LocalContext
 import com.haooz.chedule.data.ThemeMode
 
-/**
- * 壁纸强制深色模式覆盖：非 null 时，isAppDarkTheme() 直接返回该值，
- * 用于今日页/课程表页有壁纸时按壁纸亮暗锁定主题。
- */
+// 壁纸强制主题：非 null 时 isAppDarkTheme 直接用该值，今日页/课程表页按壁纸亮暗锁定
 val LocalForcedDarkTheme = staticCompositionLocalOf<Boolean?> { null }
 
 @Composable
 fun isAppDarkTheme(): Boolean {
-    // 若当前组合有壁纸并强制了主题，优先使用该结果
     LocalForcedDarkTheme.current?.let { return it }
     return rememberAppSettingDark()
 }
 
-/** 读取应用设置（theme_mode，系统/浅色/深色）对应的深浅色，不经过壁纸强制覆盖 */
+// 不经过壁纸强制覆盖，只读 theme_mode
 @Composable
 fun rememberAppSettingDark(): Boolean {
     val context = LocalContext.current
@@ -54,8 +49,7 @@ fun rememberAppSettingDark(): Boolean {
     }
 }
 
-/** 读取课表外观"默认主题"下拉的档位（跟随壁纸/跟随应用/浅色模式/深色模式），默认跟随壁纸。
- *  仅决定今日页/课程表页的主题，与全局主题开关（theme_mode）相互隔离，不影响其它任何页面。 */
+// 仅影响今日页/课程表页，与全局 theme_mode 隔离
 @Composable
 fun rememberScheduleThemeMode(): ThemeMode {
     val context = LocalContext.current
@@ -95,12 +89,12 @@ fun Activity.applyThemeAwareSystemBars() {
             nightMode == Configuration.UI_MODE_NIGHT_YES
         }
     }
-    // 状态栏跟随应用设置，导航栏始终跟随应用设置（theme_mode），不受壁纸强制主题影响
+    // 状态栏与导航栏均跟随应用设置，不受壁纸强制主题影响
     applyThemeAwareSystemBars(isDark)
     applyNavigationBarIsDark(isDark)
 }
 
-/** 按显式深色值仅刷新状态栏外观（用于壁纸强制锁定主题的场景，导航栏仍跟随应用设置） */
+// 按显式深色值刷新状态栏；导航栏仍跟随应用设置
 fun Activity.applyThemeAwareSystemBars(isDark: Boolean) {
     window.decorView.post {
         window.insetsController?.setSystemBarsAppearance(
@@ -110,7 +104,7 @@ fun Activity.applyThemeAwareSystemBars(isDark: Boolean) {
     }
 }
 
-/** 导航栏图标外观：始终跟随应用设置（theme_mode），不随壁纸强制主题变化 */
+// 导航栏图标始终跟随 theme_mode，不随壁纸强制主题变化
 fun Activity.applyNavigationBarIsDark(isDark: Boolean) {
     window.decorView.post {
         window.insetsController?.setSystemBarsAppearance(

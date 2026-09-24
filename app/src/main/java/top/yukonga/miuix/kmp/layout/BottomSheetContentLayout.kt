@@ -84,6 +84,7 @@ import top.yukonga.miuix.kmp.overlay.OverlayBottomSheet
 import top.yukonga.miuix.kmp.squircle.squircleSurface
 import top.yukonga.miuix.kmp.theme.LocalDismissState
 import top.yukonga.miuix.kmp.theme.MiuixTheme
+import com.haooz.chedule.ui.utils.PredictiveBackSettings
 import top.yukonga.miuix.kmp.window.WindowBottomSheet
 import kotlin.coroutines.cancellation.CancellationException
 import kotlin.math.abs
@@ -227,11 +228,14 @@ internal fun BottomSheetContentLayout(
                         transitionState is NavigationEventTransitionState.InProgress &&
                         transitionState.direction == NavigationEventTransitionState.TRANSITIONING_BACK
                     ) {
-                        val maxOffset = if (sheetHeightPx.intValue > 0) sheetHeightPx.intValue.toFloat() else 500f
-                        val offset = transitionState.latestEvent.progress * maxOffset
-                        val finalOffset = if (!allowDismiss) offset * 0.1f else offset
-                        dragSnapChannel.trySend(finalOffset)
-                        if (allowDismiss) dimAlpha.floatValue = 1f - transitionState.latestEvent.progress
+                        // 预测性返回动画开关：关闭时不驱动跟随动画（返回仍被拦截，直接关闭）
+                        if (PredictiveBackSettings.enabled) {
+                            val maxOffset = if (sheetHeightPx.intValue > 0) sheetHeightPx.intValue.toFloat() else 500f
+                            val offset = transitionState.latestEvent.progress * maxOffset
+                            val finalOffset = if (!allowDismiss) offset * 0.1f else offset
+                            dragSnapChannel.trySend(finalOffset)
+                            if (allowDismiss) dimAlpha.floatValue = 1f - transitionState.latestEvent.progress
+                        }
                     }
                 }
         }

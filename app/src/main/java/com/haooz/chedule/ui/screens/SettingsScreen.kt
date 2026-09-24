@@ -1,4 +1,3 @@
-/** 设置页面 - 应用全局设置 */
 package com.haooz.chedule.ui.screens
 
 import android.annotation.SuppressLint
@@ -9,12 +8,12 @@ import android.content.Intent
 import android.widget.Toast
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -31,6 +30,7 @@ import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
@@ -39,7 +39,6 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.platform.LocalConfiguration
-import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -53,7 +52,10 @@ import com.haooz.chedule.ui.activities.HolidaySettingsActivity
 import com.haooz.chedule.ui.activities.PreferenceSettingsActivity
 import com.haooz.chedule.ui.activities.UpdateSettingsActivity
 import com.haooz.chedule.ui.activities.WidgetIntroActivity
+import com.haooz.chedule.ui.basic.CollapsibleTopAppBarDefaults
 import com.haooz.chedule.ui.basic.SharedScrollBehavior
+import com.haooz.chedule.ui.basic.collapsibleTopInset
+import com.haooz.chedule.ui.utils.FeatureLog
 import com.haooz.chedule.ui.utils.isAppDarkTheme
 import com.haooz.chedule.ui.utils.overScrollVertical
 import com.haooz.chedule.viewmodel.CourseViewModel
@@ -85,10 +87,8 @@ import java.util.UUID
 import kotlin.time.Duration.Companion.milliseconds
 import androidx.compose.ui.graphics.Color as ComposeColor
 
-/**
- * 解析日期字符串 "YYYY/MM/DD" 为年、月、日
- */
-private fun parseDate(dateStr: String): Triple<Int, Int, Int> {
+// 解析失败时回退到今天，避免弹窗初值出现非法日期
+internal fun parseDate(dateStr: String): Triple<Int, Int, Int> {
     return try {
         val parts = dateStr.split("/")
         Triple(parts[0].toInt(), parts[1].toInt(), parts[2].toInt())
@@ -98,10 +98,7 @@ private fun parseDate(dateStr: String): Triple<Int, Int, Int> {
     }
 }
 
-/**
- * 获取指定年月的天数
- */
-private fun getDaysInMonth(year: Int, month: Int): Int {
+internal fun getDaysInMonth(year: Int, month: Int): Int {
     return try {
         LocalDate.of(year, month, 1).lengthOfMonth()
     } catch (_: Exception) {
@@ -109,9 +106,34 @@ private fun getDaysInMonth(year: Int, month: Int): Int {
     }
 }
 
-/**
- * 设置页面
- */
+// 顶栏折叠期间会逐帧重组，提到顶层避免组合期每帧新建 Set
+// 含二级入口 + 从该入口打开的三级页：栈上任一命中即压暗，与三级联动
+private val ScheduleImportActivities = setOf(
+    "ScheduleImportActivity",
+    "BackupAndMigrationActivity",
+    "AiImportActivity",
+    "EducationalImportActivity",
+)
+
+private val ScheduleExportActivities = setOf(
+    "ScheduleExportActivity",
+    "BackupAndMigrationActivity",
+)
+
+private val ScheduleBackupActivities = setOf(
+    "ScheduleBackupActivity",
+    "BackupAndMigrationActivity",
+    "LocalBackupActivity",
+    "WebDavSettingsActivity",
+)
+
+// 同 About 系页面
+private val AboutActivities = setOf(
+    "AboutActivity",
+    "AppreciateAuthorActivity",
+    "ChangelogActivity",
+)
+
 @SuppressLint("ConfigurationScreenWidthHeight")
 @Composable
 fun SettingsScreen(
@@ -125,7 +147,8 @@ fun SettingsScreen(
     navBarStyle: String = "standard",
     onScrollYChanged: (Int) -> Unit = {},
     settingsScrollBehavior: SharedScrollBehavior? = null,
-    activeSecondaryActivity: String? = null,
+    /** 当前打开的二级/三级 Activity 类名集合，用于设置项压暗与导航栈联动 */
+    activeSecondaryActivities: Set<String> = emptySet(),
     liquidGlassBackdrop: com.kyant.backdrop.Backdrop? = null,
 ) {
     val totalWeeks by viewModel.totalWeeks.collectAsState()
@@ -135,6 +158,8 @@ fun SettingsScreen(
     val smartWeekend by settingsViewModel.smartWeekend.collectAsState()
     val showNonCurrentWeek by settingsViewModel.showNonCurrentWeek.collectAsState()
     val scheduleNames by scheduleViewModel.scheduleNames.collectAsState()
+    // 不可在 forEach 内 collectAsState：remember 槽位会随课表增删错位
+    val scheduleSummaries by scheduleViewModel.scheduleSummaries.collectAsState()
     val shiftSelectedSchedules by shiftViewModel.shiftSelectedSchedules.collectAsState()
     val context = androidx.compose.ui.platform.LocalContext.current
     val hapticFeedback = LocalHapticFeedback.current
@@ -155,18 +180,16 @@ fun SettingsScreen(
         viewModel.reloadCourses()
     }
 
-    // 解析开始日期
-    val (tempYearInit, tempMonthInit, tempDayInit) = parseDate(classStartTime)
+    val (tempYearInit, tempMonthInit, tempDayInit) = remember(classStartTime) {
+        parseDate(classStartTime)
+    }
 
-    // 弹窗状态
     var showCurrentWeekDialog by remember { mutableStateOf(false) }
     var showTotalWeeksDialog by remember { mutableStateOf(false) }
     var showStartDateDialog by remember { mutableStateOf(false) }
 
-    // 教务导入仓库源设置
     val coroutineScope = rememberCoroutineScope()
 
-    // 临时选择状态
     var tempCurrentWeek by remember { mutableIntStateOf(currentWeek) }
     var tempTotalWeeks by remember { mutableIntStateOf(totalWeeks) }
     var tempYear by remember { mutableIntStateOf(tempYearInit) }
@@ -174,6 +197,20 @@ fun SettingsScreen(
     var tempDay by remember { mutableIntStateOf(tempDayInit) }
 
     val backgroundColor = MiuixTheme.colorScheme.surface
+    // 平板：设置页左右两栏，原地静态切换，不跳 Activity
+    if (navBarStyle == "rail") {
+        TabletSettingsScreen(
+            viewModel = viewModel,
+            scheduleViewModel = scheduleViewModel,
+            settingsViewModel = settingsViewModel,
+            shiftViewModel = shiftViewModel,
+            isShiftMode = isShiftMode,
+            onExitShiftMode = onExitShiftMode,
+            onEnterShiftMode = onEnterShiftMode,
+            liquidGlassBackdrop = liquidGlassBackdrop,
+        )
+        return
+    }
     val backdrop = rememberLayerBackdrop {
         drawRect(backgroundColor)
         drawContent()
@@ -183,10 +220,8 @@ fun SettingsScreen(
         val screenWidthDp = LocalConfiguration.current.screenWidthDp
         ((screenWidthDp - 600).coerceIn(0, 600) / 600f * 112 + 16).dp
     } else 16.dp
-    val density = LocalDensity.current
-    val topBarHeightDp = with(density) { (settingsScrollBehavior?.currentHeightPx ?: 0f).toDp() }
 
-    Box(modifier = Modifier.fillMaxSize()) {
+    Box(modifier = Modifier.fillMaxSize().background(backgroundColor)) {
         Scaffold(
         topBar = {}
     ) { paddingValues ->
@@ -196,36 +231,45 @@ fun SettingsScreen(
                 .layerBackdrop(backdrop)
         ) {
             val listState = rememberLazyListState()
+            // rememberUpdatedState：LaunchedEffect 只依赖 listState，避免持旧闭包
+            val currentOnScrollYChanged by rememberUpdatedState(onScrollYChanged)
             LaunchedEffect(listState) {
                 snapshotFlow { listState.firstVisibleItemScrollOffset }
                     .collect { offset ->
-                        onScrollYChanged(offset)
+                        currentOnScrollYChanged(offset)
                     }
+            }
+            // 折叠高度在布局阶段补齐，避免组合期读 currentHeightPx 导致动画每帧重组
+            val scrollBehaviorModifier = remember(settingsScrollBehavior) {
+                settingsScrollBehavior?.let {
+                    Modifier
+                        .collapsibleTopInset(it)
+                        .nestedScroll(it.nestedScrollConnection)
+                } ?: Modifier
             }
             LazyColumn(
                 state = listState,
                 modifier = Modifier
+                    .then(scrollBehaviorModifier)
                     .fillMaxSize()
                     .overScrollVertical()
                     .scrollEndHaptic(
                         hapticFeedbackType = HapticFeedbackType.TextHandleMove
-                    ).then(
-                        settingsScrollBehavior?.let { Modifier.nestedScroll(it.nestedScrollConnection) } ?: Modifier
                     ),
                 contentPadding = PaddingValues(
                     start = tabletHorizontalPadding,
-                    top = paddingValues.calculateTopPadding() + topBarHeightDp,
+                    top = paddingValues.calculateTopPadding() +
+                        CollapsibleTopAppBarDefaults.CollapsedHeight,
                     end = tabletHorizontalPadding,
                     bottom = 120.dp
                 ),
                 verticalArrangement = Arrangement.spacedBy(12.dp)
             ) {
-                item {
+                item(key = "basic") {
                     SmallTitle(
                         text = "基本设置",
                         modifier = Modifier.offset(x = (-16).dp)
                     )
-                    // 基本设置卡片
                     Card(
                         cornerRadius = 20.dp,
                         modifier = Modifier.fillMaxWidth(),
@@ -244,6 +288,7 @@ fun SettingsScreen(
                                     )
                                 },
                                 onClick = {
+                                    FeatureLog.t("设置", "start_date_dialog")
                                     val (y, m, d) = parseDate(classStartTime)
                                     tempYear = y
                                     tempMonth = m
@@ -253,7 +298,6 @@ fun SettingsScreen(
                                 holdDownState = showStartDateDialog
                             )
 
-                            // 当前周数
                             ArrowPreference(
                                 title = "当前周数",
                                 endActions = {
@@ -268,30 +312,30 @@ fun SettingsScreen(
                                     )
                                 },
                                 onClick = {
+                                    FeatureLog.t("设置", "current_week_dialog")
                                     tempCurrentWeek = currentWeek.coerceAtMost(totalWeeks)
                                     showCurrentWeekDialog = true
                                 },
                                 holdDownState = showCurrentWeekDialog
                             )
 
-                            // 本学期总周数
                             ArrowPreference(
                                 title = "本学期总周数",
                                 endActions = {
                                     Text(
-                                        text = "第${totalWeeks}周",
+                                        text = "共${totalWeeks}周",
                                         fontSize = 14.5.sp,
                                         color = MiuixTheme.colorScheme.onSurfaceVariantActions
                                     )
                                 },
                                 onClick = {
+                                    FeatureLog.t("设置", "total_weeks_dialog")
                                     tempTotalWeeks = totalWeeks
                                     showTotalWeeksDialog = true
                                 },
                                 holdDownState = showTotalWeeksDialog
                             )
 
-                            // 智能显示周末开关
                             SwitchPreference(
                                 title = "智能显示周末",
                                 summary = "开启后隐藏无课的周六日",
@@ -299,7 +343,6 @@ fun SettingsScreen(
                                 onCheckedChange = { settingsViewModel.setSmartWeekend(it) }
                             )
 
-                            // 显示非本周课程开关
                             if (!isShiftMode) {
                                 SwitchPreference(
                                     title = "显示非本周课程",
@@ -308,12 +351,12 @@ fun SettingsScreen(
                                 )
                             }
 
-                            // 课表时间设置（包含节数设置）
                             ArrowPreference(
                                 title = "课表节数与时间",
                                 summary = "管理不同课表的节数与课程时间",
-                                holdDownState = activeSecondaryActivity == "CourseTimeSettingsActivity",
+                                holdDownState = "CourseTimeSettingsActivity" in activeSecondaryActivities,
                                 onClick = {
+                                    FeatureLog.timeConfig("open")
                                     val intent =
                                         Intent(context, CourseTimeSettingsActivity::class.java)
                                     courseTimeSettingsLauncher.launch(intent)
@@ -323,9 +366,8 @@ fun SettingsScreen(
                     }
                 }
 
-                // 特色功能分类
                 if (!isShiftMode) {
-                    item {
+                    item(key = "features") {
                         SmallTitle(
                             text = "特色功能",
                             modifier = Modifier.offset(x = (-16).dp)
@@ -341,35 +383,42 @@ fun SettingsScreen(
                                 ArrowPreference(
                                     title = "课程提醒",
                                     summary = "课前提醒、次日课程提醒",
-                                    holdDownState = activeSecondaryActivity == "CourseReminderActivity",
+                                    holdDownState = "CourseReminderActivity" in activeSecondaryActivities,
                                     onClick = {
+                                        FeatureLog.reminder("open")
                                         val intent = Intent(context, CourseReminderActivity::class.java)
                                         reminderSettingsLauncher.launch(intent)
                                     }
                                 )
                                 ArrowPreference(
                                     title = "节假日与调休",
-                                    holdDownState = activeSecondaryActivity == "HolidaySettingsActivity",
+                                    holdDownState = "HolidaySettingsActivity" in activeSecondaryActivities,
                                     onClick = {
+                                        FeatureLog.holiday("open")
                                         context.startActivity(Intent(context, HolidaySettingsActivity::class.java))
                                     }
                                 )
                                 ArrowPreference(
                                     title = "桌面小部件",
-                                    holdDownState = activeSecondaryActivity == "WidgetIntroActivity",
+                                    holdDownState = "WidgetIntroActivity" in activeSecondaryActivities,
                                     onClick = {
+                                        FeatureLog.widget("open")
                                         val intent = Intent(context, WidgetIntroActivity::class.java)
                                         context.startActivity(intent)
                                     }
+                                )
+                                ArrowPreference(
+                                    title = "排班模式",
+                                    summary = "同时对比多个课表的排班情况",
+                                    onClick = { showShiftModeConfirmDialog = true }
                                 )
                             }
                         }
                     }
                 }
 
-                // 排班模式设置（仅在排班模式下显示）
                 if (isShiftMode) {
-                    item {
+                    item(key = "shift_schedules") {
                         SmallTitle(
                             text = "选择对比课表",
                             modifier = Modifier.offset(x = (-16).dp)
@@ -381,10 +430,9 @@ fun SettingsScreen(
                         ) {
                             Column(modifier = Modifier.fillMaxWidth()) {
                                 scheduleNames.forEach { name ->
-                                    val summary = scheduleViewModel.scheduleSummaries.collectAsState().value[name] ?: ""
                                     CheckboxPreference(
                                         title = name,
-                                        summary = summary,
+                                        summary = scheduleSummaries[name] ?: "",
                                         checked = name in shiftSelectedSchedules,
                                         onCheckedChange = { checked ->
                                             val newList = if (checked) {
@@ -401,7 +449,7 @@ fun SettingsScreen(
                         }
                     }
 
-                    item {
+                    item(key = "shift_exit") {
                         top.yukonga.miuix.kmp.basic.Button(
                             modifier = Modifier
                                 .fillMaxWidth()
@@ -425,9 +473,8 @@ fun SettingsScreen(
                     }
                 }
 
-                // 导入导出分类
                 if (!isShiftMode) {
-                    item {
+                    item(key = "data_manage") {
                         SmallTitle(
                             text = "数据管理",
                             modifier = Modifier.offset(x = (-16).dp)
@@ -441,43 +488,33 @@ fun SettingsScreen(
                                 modifier = Modifier.fillMaxWidth()
                             ) {
                                 ArrowPreference(
-                                    title = "AI文本导入",
-                                    holdDownState = activeSecondaryActivity == "AiImportActivity",
+                                    title = "课表导入",
+                                    holdDownState = ScheduleImportActivities.any { it in activeSecondaryActivities },
                                     onClick = {
-                                        val intent = Intent(context, com.haooz.chedule.ui.activities.AiImportActivity::class.java)
-                                        context.startActivity(intent)
+                                        FeatureLog.import("open")
+                                        context.startActivity(
+                                            com.haooz.chedule.ui.activities.BackupAndMigrationActivity.importIntent(context)
+                                        )
                                     }
                                 )
                                 ArrowPreference(
-                                    title = "教务系统导入",
-                                    holdDownState = activeSecondaryActivity == "EducationalImportActivity",
+                                    title = "课表导出",
+                                    holdDownState = ScheduleExportActivities.any { it in activeSecondaryActivities },
                                     onClick = {
-                                        val intent = Intent(context, com.haooz.chedule.ui.activities.EducationalImportActivity::class.java)
-                                        context.startActivity(intent)
+                                        FeatureLog.backup("open_export")
+                                        context.startActivity(
+                                            com.haooz.chedule.ui.activities.BackupAndMigrationActivity.exportIntent(context)
+                                        )
                                     }
                                 )
-                            }
-                        }
-                        Spacer(modifier = Modifier.height(12.dp))
-                        Card(
-                            cornerRadius = 20.dp,
-                            modifier = Modifier.fillMaxWidth(),
-                            insideMargin = PaddingValues(0.dp)
-                        ) {
-                            Column(
-                                modifier = Modifier.fillMaxWidth()
-                            ) {
                                 ArrowPreference(
-                                    title = "备份与迁移",
-                                    summary = "课表导入导出与备份",
-                                    holdDownState = activeSecondaryActivity in setOf(
-                                        "BackupAndMigrationActivity",
-                                        "LocalBackupActivity",
-                                        "WebDavSettingsActivity"
-                                    ),
+                                    title = "课表备份",
+                                    holdDownState = ScheduleBackupActivities.any { it in activeSecondaryActivities },
                                     onClick = {
-                                        val intent = Intent(context, com.haooz.chedule.ui.activities.BackupAndMigrationActivity::class.java)
-                                        context.startActivity(intent)
+                                        FeatureLog.backup("open_backup")
+                                        context.startActivity(
+                                            com.haooz.chedule.ui.activities.BackupAndMigrationActivity.backupIntent(context)
+                                        )
                                     }
                                 )
                             }
@@ -485,9 +522,8 @@ fun SettingsScreen(
                     }
                 }
 
-                // 其他分类
                 if (!isShiftMode) {
-                    item {
+                    item(key = "others_title") {
                         SmallTitle(
                             text = "其他",
                             modifier = Modifier.offset(x = (-16).dp)
@@ -504,6 +540,7 @@ fun SettingsScreen(
                                     title = "开启新学期",
                                     summary = "复用当前课表设置，创建空课程的新课表",
                                     onClick = {
+                                        FeatureLog.t("设置", "new_semester_dialog")
                                         newSemesterName = ""
                                         showNewSemesterDialog = true
                                     }
@@ -511,7 +548,7 @@ fun SettingsScreen(
                             }
                         }
                     }
-                    item {
+                    item(key = "others_prefs") {
                         Card(
                             cornerRadius = 20.dp,
                             modifier = Modifier.fillMaxWidth(),
@@ -522,28 +559,29 @@ fun SettingsScreen(
                             ) {
                                 ArrowPreference(
                                     title = "应用偏好设置",
-                                    holdDownState = activeSecondaryActivity == "PreferenceSettingsActivity",
+                                    // 只在偏好设置页仍在栈上时压暗；
+                                    // 单独打开更新设置时不应连带压暗本项
+                                    holdDownState = "PreferenceSettingsActivity" in activeSecondaryActivities,
                                     onClick = {
+                                        FeatureLog.preference("open")
                                         val intent = Intent(context, PreferenceSettingsActivity::class.java)
                                         context.startActivity(intent)
                                     }
                                 )
                                 ArrowPreference(
                                     title = "更新设置",
-                                    holdDownState = activeSecondaryActivity == "UpdateSettingsActivity",
+                                    holdDownState = "UpdateSettingsActivity" in activeSecondaryActivities,
                                     onClick = {
+                                        FeatureLog.update("open")
                                         val intent = Intent(context, UpdateSettingsActivity::class.java)
                                         context.startActivity(intent)
                                     }
                                 )
                                 ArrowPreference(
                                     title = "关于应用",
-                                    holdDownState = activeSecondaryActivity in setOf(
-                                        "AboutActivity",
-                                        "AppreciateAuthorActivity",
-                                        "ChangelogActivity"
-                                    ),
+                                    holdDownState = AboutActivities.any { it in activeSecondaryActivities },
                                     onClick = {
+                                        FeatureLog.about("open")
                                         val intent = Intent(context, AboutActivity::class.java)
                                         context.startActivity(intent)
                                     }
@@ -555,7 +593,6 @@ fun SettingsScreen(
             }
         }
 
-        // 排班模式确认弹窗
         OverlayDialog(
             title = "进入排班模式",
             summary = "将切换到排班课表模式，可同时对比多个课表的排班情况。确定进入？",
@@ -599,7 +636,6 @@ fun SettingsScreen(
             }
         }
 
-        // 开启新学期弹窗
         OverlayDialog(
             title = "开启新学期",
             summary = "将复用当前课表的所有设置数据，创建一个清空课程的新课表",
@@ -659,7 +695,6 @@ fun SettingsScreen(
             }
         }
 
-        // 开始上课日期弹窗
         OverlayDialog(
             title = "开始上课日期",
             show = showStartDateDialog,
@@ -670,11 +705,9 @@ fun SettingsScreen(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalAlignment = Alignment.CenterHorizontally
             ) {
-                // 计算当前月份的天数
                 val maxDaysInMonth = remember(tempYear, tempMonth) {
                     getDaysInMonth(tempYear, tempMonth)
                 }
-                // 如果当前日期超过该月最大天数，自动调整
                 LaunchedEffect(maxDaysInMonth) {
                     if (tempDay > maxDaysInMonth) {
                         tempDay = maxDaysInMonth
@@ -746,7 +779,6 @@ fun SettingsScreen(
             }
         }
 
-        // 当前周次弹窗
         OverlayDialog(
             title = "选择当前周次",
             show = showCurrentWeekDialog,
@@ -793,7 +825,6 @@ fun SettingsScreen(
             }
         }
 
-        // 总周数弹窗
         OverlayDialog(
             title = "选择学期总周数",
             show = showTotalWeeksDialog,
@@ -839,17 +870,12 @@ fun SettingsScreen(
                 }
             }
         }
-
-        // AI 文本导入已迁移至独立页面 AiImportActivity
     }
 
     }
 }
 
-/**
- * 解析课表数据（JSON格式）
- * 返回 Triple: (是否成功, 消息, 解析出的数据用于后续处理)
- */
+// 解析成功时返回 data，供后续 applyScheduleData 写入
 internal fun parseFullScheduleJson(text: String): Triple<Boolean, String, Map<String, Any>?> {
     try {
         val gson = com.google.gson.Gson()
@@ -857,7 +883,7 @@ internal fun parseFullScheduleJson(text: String): Triple<Boolean, String, Map<St
         val data: Map<String, Any> = gson.fromJson(text, type)
 
         if (data.containsKey("settings") || data.containsKey("courses")) {
-            // 检测拾光课程表格式：有 "courses" + "config" (而非 "settings")
+            // 拾光格式：有 courses + config（无 settings）
             if (data.containsKey("config") && data.containsKey("courses") && !data.containsKey("settings")) {
                 return parseShiguangScheduleJson(data)
             }
@@ -870,10 +896,7 @@ internal fun parseFullScheduleJson(text: String): Triple<Boolean, String, Map<St
     }
 }
 
-/**
- * 解析拾光课程表 JSON 格式
- * 结构: { courses: [...], timeSlots: [...], config: {...} }
- */
+// 拾光格式 { courses, timeSlots, config } → 内部通用课表 map
 private fun parseShiguangScheduleJson(data: Map<String, Any>): Triple<Boolean, String, Map<String, Any>?> {
     try {
         @Suppress("UNCHECKED_CAST")
@@ -882,7 +905,6 @@ private fun parseShiguangScheduleJson(data: Map<String, Any>): Triple<Boolean, S
             return Triple(false, "未找到课程数据", null)
         }
 
-        // 转换课程格式
         val courses = mutableListOf<Map<String, Any>>()
         for (sg in shiguangCourses) {
             val name = sg["name"] as? String ?: continue
@@ -909,7 +931,6 @@ private fun parseShiguangScheduleJson(data: Map<String, Any>): Triple<Boolean, S
             ))
         }
 
-        // 转换配置格式
         @Suppress("UNCHECKED_CAST")
         val config = data["config"] as? Map<String, Any>
         val settings = mutableMapOf<String, Any>()
@@ -919,7 +940,6 @@ private fun parseShiguangScheduleJson(data: Map<String, Any>): Triple<Boolean, S
             (config["firstDayOfWeek"] as? Number)?.toInt()?.let { settings["first_day_of_week"] = it }
         }
 
-        // 转换 timeSlots 格式
         @Suppress("UNCHECKED_CAST")
         val timeSlots = data["timeSlots"] as? List<Map<String, Any>>
         val times = mutableMapOf<String, Any>()
@@ -934,7 +954,6 @@ private fun parseShiguangScheduleJson(data: Map<String, Any>): Triple<Boolean, S
                 val endTime = slot["endTime"] as? String ?: continue
                 val timeStr = "$startTime-$endTime"
 
-                // 按节次分组：1-6上午，7-12下午，13+晚上
                 when {
                     number <= 6 -> morningTimes[number.toString()] = timeStr
                     number <= 12 -> afternoonTimes[(number - 6).toString()] = timeStr
@@ -960,12 +979,9 @@ private fun parseShiguangScheduleJson(data: Map<String, Any>): Triple<Boolean, S
     }
 }
 
-/**
- * 将解析出的数据应用到新课表
- */
 internal fun parseIcsFile(text: String): Triple<Boolean, String, Map<String, Any>?> {
     return try {
-        // 按课程名称+星期+节次 分组，合并同一课程的不同周次
+        // 同名课在同星期同时段时合并周次
         val courseGroups = mutableMapOf<String, MutableList<Map<String, Any>>>()
         val lines = text.lines()
 
@@ -984,7 +1000,7 @@ internal fun parseIcsFile(text: String): Triple<Boolean, String, Map<String, Any
                     if (currentEvent.isNotEmpty()) {
                         val parsed = parseIcsEvent(currentEvent)
                         if (parsed != null) {
-                            // 合并键：课程名+星期+开始时间+教室+教师，确保不同地点的同名课程不被合并
+                            // 键含教室/教师，避免不同地点的同名课被误合并
                             val mergeKey = "${parsed["name"]}_${parsed["dayOfWeek"]}_${parsed["startTotalMinutes"]}_${parsed["classroom"]}_${parsed["teacher"]}"
                             courseGroups.getOrPut(mergeKey) { mutableListOf() }.add(parsed)
                         }
@@ -995,7 +1011,6 @@ internal fun parseIcsFile(text: String): Triple<Boolean, String, Map<String, Any
                     if (colonIndex > 0) {
                         var key = trimmed.substring(0, colonIndex)
                         val value = trimmed.substring(colonIndex + 1)
-                        // 移除 ;TZID=xxx 等后缀
                         key = key.substringBefore(';')
                         currentEvent[key] = value
                     }
@@ -1007,12 +1022,10 @@ internal fun parseIcsFile(text: String): Triple<Boolean, String, Map<String, Any
             return Triple(false, "未找到课程事件", null)
         }
 
-        // 合并同一课程的不同周次（使用 List<List<String>> 替代 Pair 以避免序列化问题）
+        // List<List<String>> 承载日期对，避免 Pair 序列化问题
         val mergedCourses = mutableListOf<Map<String, Any>>()
         for ((_, courseEvents) in courseGroups) {
             val firstEvent = courseEvents.first()
-            // 收集所有事件的日期对，用于后续计算周次
-            // 使用 List<List<String>> 格式：[[startDate, untilDate], ...]
             val datePairs = mutableListOf<List<String>>()
             for (event in courseEvents) {
                 val sd = event["startDate"] as? String
@@ -1042,44 +1055,37 @@ private fun parseIcsEvent(event: Map<String, String>): Map<String, Any>? {
     val dtstart = event["DTSTART"] ?: return null
     val dtend = event["DTEND"] ?: return null
 
-    // 提取日期和时间部分
-    // 支持格式: YYYYMMDDTHHMMSS, YYYYMMDDTHHMMSSZ, YYYYMMDD (全天事件)
+    // ICS: YYYYMMDDTHHMMSS[.Z]，全天事件仅 YYYYMMDD
     val startRaw = dtstart.substringAfter(":")
     val endRaw = dtend.substringAfter(":")
 
-    // 检查是否为全天事件 (VALUE=DATE 格式，只有日期没有时间)
     val isAllDay = startRaw.length == 8 && !startRaw.contains('T')
 
     val startDateStr = startRaw.take(8)
     val startTimeStr = if (isAllDay) "080000" else startRaw.drop(9).take(6)
     val endTimeStr = if (isAllDay) "090000" else endRaw.drop(9).take(6)
 
-    // 解析日期
     val startYear = startDateStr.substring(0, 4).toIntOrNull() ?: return null
     val startMonth = startDateStr.substring(4, 6).toIntOrNull() ?: return null
     val startDay = startDateStr.substring(6, 8).toIntOrNull() ?: return null
 
-    // 解析时间
     val startHour = startTimeStr.substring(0, 2).toIntOrNull() ?: 8
     val startMinute = startTimeStr.substring(2, 4).toIntOrNull() ?: 0
     val endHour = endTimeStr.substring(0, 2).toIntOrNull() ?: (startHour + 1)
     val endMinute = endTimeStr.substring(2, 4).toIntOrNull() ?: 0
 
-    // 返回原始时间(分钟)，节次映射由 applyScheduleData 使用用户配置完成
+    // 只返回分钟数，节次映射由 applyScheduleData 用用户配置完成
     val startTotalMinutes = startHour * 60 + startMinute
     val endTotalMinutes = endHour * 60 + endMinute
 
-    // 计算星期几 (1=周一, 7=周日)
     val startDate = LocalDate.of(startYear, startMonth, startDay)
     val dayOfWeek = startDate.dayOfWeek.value
 
-    // 解析 RRULE 获取周次信息
     val rrule = event["RRULE"] ?: ""
     var untilStr = ""
     var countStr = ""
     var byDayStr = ""
 
-    // 解析 RRULE 的各个部分
     for (part in rrule.split(";")) {
         when {
             part.startsWith("UNTIL=") -> untilStr = part.substringAfter("UNTIL=").take(8)
@@ -1088,7 +1094,6 @@ private fun parseIcsEvent(event: Map<String, String>): Map<String, Any>? {
         }
     }
 
-    // 如果有 BYDAY 但与当前事件的星期不匹配，跳过该事件
     if (byDayStr.isNotEmpty()) {
         val dayMap = mapOf("MO" to 1, "TU" to 2, "WE" to 3, "TH" to 4, "FR" to 5, "SA" to 6, "SU" to 7)
         val byDays = byDayStr.split(",").mapNotNull { dayMap[it.trim()] }
@@ -1097,22 +1102,19 @@ private fun parseIcsEvent(event: Map<String, String>): Map<String, Any>? {
         }
     }
 
-    // 解析教室和老师 (格式: "教室 老师" 或 "教室" 或 " 老师")
+    // LOCATION 约定：前导空格=仅教师；尾随/无空格=仅教室；中间空格分隔两者
     val classroom: String
     val teacher: String
     when {
         location.startsWith(" ") -> {
-            // 开头有空格：只有老师，没有地点 例如 " 测试老师"
             classroom = ""
             teacher = location.trim()
         }
         location.trimEnd().endsWith(" ") || !location.contains(" ") -> {
-            // 结尾有空格或无空格：只有地点 例如 "测试地点 " 或 "测试地点"
             classroom = location.trim()
             teacher = ""
         }
         else -> {
-            // 有空格分隔：地点 老师 例如 "安201 花爱阳"
             val spaceIndex = location.indexOf(' ')
             classroom = location.substring(0, spaceIndex).trim()
             teacher = location.substring(spaceIndex + 1).trim()
@@ -1143,21 +1145,17 @@ internal fun applyScheduleData(
     data: Map<String, Any>
 ): Pair<Boolean, String> {
     try {
-        // 重名校验
         if (scheduleName in scheduleViewModel.scheduleNames.value) {
             return Pair(false, "课表「$scheduleName」已存在")
         }
-        // 创建新课表
         scheduleViewModel.addSchedule(scheduleName)
 
-        // 保存课程数据到新课表
         @Suppress("UNCHECKED_CAST")
         val coursesData = data["courses"] as? List<Map<String, Any>>
         val courses = mutableListOf<Course>()
         val courseNameColorMap = mutableMapOf<String, Long>()
         var colorIndex = 0
 
-        // 获取开学日期用于ICS周次计算
         val classStartTime = viewModel.classStartTime.value
         val defaultClassStartDate = try {
             LocalDate.parse(classStartTime.replace("/", "-"))
@@ -1166,7 +1164,7 @@ internal fun applyScheduleData(
             today.minusDays((today.dayOfWeek.value - 1).toLong()).minusWeeks(16)
         }
 
-        // 从ICS数据推算开学日期：找到最早课程的 startDate，取其所在周的周一
+        // ICS 无开学日设置时，用最早课程所在周的周一反推
         var icsClassStartDate: LocalDate? = null
         coursesData?.forEach { courseMap ->
             val startDateStr = courseMap["startDate"] as? String
@@ -1179,7 +1177,6 @@ internal fun applyScheduleData(
                     )
                 } catch (_: Exception) { null }
                 if (date != null) {
-                    // 取该日期所在周的周一
                     val monday = date.minusDays((date.dayOfWeek.value - 1).toLong())
                     if (icsClassStartDate == null || monday.isBefore(icsClassStartDate)) {
                         icsClassStartDate = monday
@@ -1189,12 +1186,9 @@ internal fun applyScheduleData(
         }
         val classStartDate = icsClassStartDate ?: defaultClassStartDate
 
-        // 找到开学日期所在周的周一，作为周次计算的基准日
         val classStartMonday = classStartDate.minusDays((classStartDate.dayOfWeek.value - 1).toLong())
 
-        // 获取用户的时间配置，用于将时间映射到节次
         val userSectionTimes = settingsViewModel.sectionTimes.value
-        // 构建时间 -> 节次的映射：遍历每个节次的时间范围，检查课程开始时间是否落在该范围内
         fun findSectionByTime(startMinutes: Int, endMinutes: Int): Pair<Int, Int>? {
             var foundStart: Int? = null
             var foundEnd: Int? = null
@@ -1206,11 +1200,10 @@ internal fun applyScheduleData(
                 if (rangeStartParts.size != 2 || rangeEndParts.size != 2) continue
                 val rangeStart = (rangeStartParts[0].toIntOrNull() ?: continue) * 60 + (rangeStartParts[1].toIntOrNull() ?: continue)
                 val rangeEnd = (rangeEndParts[0].toIntOrNull() ?: continue) * 60 + (rangeEndParts[1].toIntOrNull() ?: continue)
-                // 课程开始时间落在该节次的时间范围内
                 if (startMinutes in rangeStart until rangeEnd) {
                     foundStart = section
                 }
-                // 课程结束时间落在该节次的时间范围内（或刚好在结束时间）
+                // 结束时间允许落在节次末尾
                 if (endMinutes in (rangeStart + 1)..rangeEnd) {
                     foundEnd = section
                 }
@@ -1218,7 +1211,7 @@ internal fun applyScheduleData(
             if (foundStart != null && foundEnd != null) {
                 return Pair(foundStart, foundEnd)
             }
-            // 回退：如果找不到精确匹配，使用开始时间找最近的节次
+            // 无精确匹配时退回起始节次
             if (foundStart != null) {
                 return Pair(foundStart, foundStart)
             }
@@ -1233,7 +1226,7 @@ internal fun applyScheduleData(
             @Suppress("UNCHECKED_CAST")
             var selectedWeeks = (courseMap["selectedWeeks"] as? List<Number>)?.map { it.toInt() } ?: emptyList()
 
-            // 映射节次：优先用 startSection/endSection（JSON导出格式），其次用时间映射（ICS格式）
+            // JSON 导出有 startSection；ICS 需按时间映射节次
             val directStartSection = (courseMap["startSection"] as? Number)?.toInt()
             val directEndSection = (courseMap["endSection"] as? Number)?.toInt()
             val sectionPair = if (directStartSection != null && directEndSection != null) {
@@ -1246,11 +1239,9 @@ internal fun applyScheduleData(
                 } else null
             }
 
-            // 如果无法映射节次，跳过该课程
             if (sectionPair == null) return@forEach
             val (startSection, endSection) = sectionPair
 
-            // ICS格式：根据datePairs计算所有事件的周次
             if (selectedWeeks.isEmpty()) {
                 @Suppress("UNCHECKED_CAST")
                 val datePairs = courseMap["datePairs"] as? List<List<String>>
@@ -1270,7 +1261,6 @@ internal fun applyScheduleData(
                             } catch (_: Exception) { null }
 
                             if (courseStartDate != null) {
-                                // 从开学周的周一开始计算周次
                                 val courseMonday = courseStartDate.minusDays((courseStartDate.dayOfWeek.value - 1).toLong())
                                 val startWeek = ChronoUnit.WEEKS.between(classStartMonday, courseMonday).toInt() + 1
 
@@ -1302,7 +1292,6 @@ internal fun applyScheduleData(
                 }
             }
 
-            // 处理 COUNT 格式的 RRULE：根据 COUNT 和 startDate 计算结束周
             if (selectedWeeks.isEmpty()) {
                 val countStr = courseMap["count"] as? String
                 val startDateStr = courseMap["startDate"] as? String
@@ -1353,17 +1342,14 @@ internal fun applyScheduleData(
             }
         }
 
-        // 保存课程到新课表
         scheduleViewModel.saveCoursesToSchedule(scheduleName, courses)
 
-        // 刷新摘要，确保切换课表页面显示正确的课程数
+        // 先刷摘要再继续，否则切换页课程数会短暂错
         scheduleViewModel.refreshScheduleList()
 
-        // 保存设置到新课表
         @Suppress("UNCHECKED_CAST")
         val settings = data["settings"] as? Map<String, Any>
 
-        // 导入时间配置：创建新的 TimeConfig 并绑定给新课表
         @Suppress("UNCHECKED_CAST")
         val times = data["times"] as? Map<String, Any>
         val importedMorningSections = (settings?.get("morning_sections") as? Number)?.toInt()
@@ -1371,7 +1357,6 @@ internal fun applyScheduleData(
         val importedEveningSections = (settings?.get("evening_sections") as? Number)?.toInt()
 
         if (importedMorningSections != null || importedAfternoonSections != null || importedEveningSections != null || times != null) {
-            // 构建 sectionTimes
             val sectionTimesMap = mutableMapOf<String, String>()
             if (times != null) {
                 @Suppress("UNCHECKED_CAST")
@@ -1395,7 +1380,6 @@ internal fun applyScheduleData(
             val newConfigId = scheduleViewModel.addTimeConfig(newConfig)
             scheduleViewModel.setScheduleTimeConfigId(scheduleName, newConfigId)
         } else {
-            // 没有导入时间配置，使用当前课表的时间配置
             val currentScheduleTimeConfigId = scheduleViewModel.getCurrentScheduleTimeConfigId()
             if (currentScheduleTimeConfigId != 0L) {
                 scheduleViewModel.setScheduleTimeConfigId(scheduleName, currentScheduleTimeConfigId)
@@ -1403,7 +1387,6 @@ internal fun applyScheduleData(
         }
 
         if (settings != null) {
-            // 切换到新课表来保存设置
             scheduleViewModel.switchToSchedule(scheduleName)
 
             (settings["class_start_time"] as? String)?.let { viewModel.setClassStartTime(it) }
@@ -1411,7 +1394,6 @@ internal fun applyScheduleData(
             (settings["smart_weekend"] as? Boolean)?.let {
                 settingsViewModel.setSmartWeekend(it)
             }
-            // 兼容旧格式
             @Suppress("UNCHECKED_CAST")
             (settings["show_weekend_days"] as? List<Number>)?.let {
                 if (it.isNotEmpty()) settingsViewModel.setSmartWeekend(true)
@@ -1423,7 +1405,6 @@ internal fun applyScheduleData(
             (settings["afternoon_sections"] as? Number)?.toInt()?.let { settingsViewModel.setAfternoonSections(it) }
             (settings["evening_sections"] as? Number)?.toInt()?.let { settingsViewModel.setEveningSections(it) }
 
-            // 保存课程时间
             @Suppress("UNCHECKED_CAST")
             val times = data["times"] as? Map<String, Any>
             if (times != null) {
@@ -1450,7 +1431,6 @@ internal fun applyScheduleData(
             }
         }
 
-        // 重新加载课程和刷新设置，确保 UI 立即更新
         viewModel.reloadCourses()
         settingsViewModel.refreshSettings()
         scheduleViewModel.refreshScheduleList()
@@ -1461,7 +1441,6 @@ internal fun applyScheduleData(
     }
 }
 
-/** 从 Context 链中查找 Activity */
 private fun Context.findActivity(): Activity? {
     var ctx: Context? = this
     while (ctx is ContextWrapper) {

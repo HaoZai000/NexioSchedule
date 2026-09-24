@@ -3,8 +3,6 @@ package com.haooz.chedule.ui.activities
 
 import android.annotation.SuppressLint
 import android.content.Context
-import android.content.Intent
-import android.net.Uri
 import android.widget.Toast
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -41,11 +39,13 @@ import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import androidx.core.content.FileProvider
 import androidx.core.content.edit
-import com.haooz.chedule.shizuku.ShizukuManager
+import com.haooz.chedule.ui.basic.CollapsibleTopAppBarDefaults
 import com.haooz.chedule.ui.basic.OverlayDropdownMenu
 import com.haooz.chedule.ui.basic.SharedScrollBehavior
+import com.haooz.chedule.ui.basic.collapsibleTopInset
+import com.haooz.chedule.ui.utils.UpdateChecker
+import com.haooz.chedule.ui.utils.UpdateInstaller
 import com.haooz.chedule.ui.utils.isAppDarkTheme
 import com.haooz.chedule.ui.utils.overScrollVertical
 import kotlinx.coroutines.Dispatchers
@@ -69,9 +69,6 @@ import top.yukonga.miuix.kmp.preference.SwitchPreference
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 import top.yukonga.miuix.kmp.utils.scrollEndHaptic
 import java.io.File
-import java.io.FileOutputStream
-import java.net.HttpURLConnection
-import java.net.URL
 import androidx.compose.ui.graphics.Color as ComposeColor
 
 private data class GiteeRelease(
@@ -83,115 +80,18 @@ private data class GiteeRelease(
     val createdAt: String
 )
 
-private fun isNewerVersion(remote: String, local: String): Boolean {
-    fun parseSegments(v: String): List<Int> {
-        return v.split(".").flatMap { part ->
-            val betaIdx = part.indexOf("beta")
-            if (betaIdx >= 0) {
-                val num = part.substring(0, betaIdx).toIntOrNull() ?: 0
-                val betaNum = part.substring(betaIdx + 4).toIntOrNull() ?: 0
-                listOf(num, betaNum)
-            } else {
-                listOf(part.toIntOrNull() ?: 0)
-            }
-        }
-    }
-    val remoteParts = parseSegments(remote)
-    val localParts = parseSegments(local)
-    val maxSize = maxOf(remoteParts.size, localParts.size)
-    for (i in 0 until maxSize) {
-        val r = remoteParts.getOrElse(i) { 0 }
-        val l = localParts.getOrElse(i) { 0 }
-        if (r > l) return true
-        if (r < l) return false
-    }
-    return false
-}
-
 private fun checkForUpdate(
     context: Context,
     source: String = "gitee",
     channel: String = "stable"
 ): Pair<Boolean, GiteeRelease?> {
-    return try {
-        val client = okhttp3.OkHttpClient.Builder()
-            .connectTimeout(10, java.util.concurrent.TimeUnit.SECONDS)
-            .readTimeout(10, java.util.concurrent.TimeUnit.SECONDS)
-            .build()
-
-        val baseUrl = if (source == "github") {
-            "https://api.github.com/repos/HaoZai000/NexioSchedule/releases"
-        } else {
-            "https://gitee.com/api/v5/repos/com_haooz_account/hyper_schedule/releases"
+    val (hasUpdate, release) = UpdateChecker.checkForUpdate(context, source, channel)
+    return Pair(
+        hasUpdate,
+        release?.let {
+            GiteeRelease(it.tagName, it.name, it.body, it.htmlUrl, it.apkUrl, it.createdAt)
         }
-        val url = "$baseUrl?page=1&per_page=10&direction=desc&t=${System.currentTimeMillis()}"
-        val request = okhttp3.Request.Builder().url(url).apply {
-            if (source == "github") {
-                header("Accept", "application/vnd.github.v3+json")
-            }
-        }.build()
-        val response = client.newCall(request).execute()
-
-        if (!response.isSuccessful) {
-            android.util.Log.e("UpdateCheck", "HTTP ${response.code}")
-            return Pair(false, null)
-        }
-
-        val responseBody = response.body?.string() ?: return Pair(false, null)
-        android.util.Log.d("UpdateCheck", "响应长度: ${responseBody.length}")
-
-        val arr = com.google.gson.JsonParser.parseString(responseBody).asJsonArray
-        var best: com.google.gson.JsonObject? = null
-        var bestVer = ""
-        for (i in 0 until arr.size()) {
-            val release = arr[i].asJsonObject
-            if (channel == "stable") {
-                val isPre = release.get("prerelease")?.asBoolean ?: false
-                if (isPre) continue
-            }
-            val tag = release.get("tag_name")?.asString ?: continue
-            val ver = tag.removePrefix("v")
-            if (best == null || isNewerVersion(ver, bestVer)) {
-                best = release
-                bestVer = ver
-            }
-        }
-        val json = best
-        if (json == null) return Pair(false, null)
-
-        val tagName = json.get("tag_name")?.asString ?: ""
-        val name = json.get("name")?.asString ?: ""
-        val body = json.get("body")?.asString ?: ""
-        val htmlUrl = json.get("html_url")?.asString ?: ""
-        val createdAt = json.get("created_at")?.asString ?: ""
-
-        val assets = json.getAsJsonArray("assets")
-        var apkUrl = ""
-        if (assets != null) {
-            for (i in 0 until assets.size()) {
-                val a = assets[i].asJsonObject
-                val assetName = a.get("name")?.asString ?: ""
-                if (assetName.endsWith(".apk")) {
-                    apkUrl = a.get("browser_download_url")?.asString ?: ""
-                    break
-                }
-            }
-        }
-
-        val currentVersion = try {
-            context.packageManager.getPackageInfo(context.packageName, 0).versionName ?: ""
-        } catch (_: Exception) {
-            ""
-        }
-
-        val tagVersion = tagName.removePrefix("v")
-        val appVersion = currentVersion.removePrefix("v")
-        val hasUpdate = isNewerVersion(tagVersion, appVersion)
-        Pair(hasUpdate, GiteeRelease(tagName, name, body, htmlUrl, apkUrl, createdAt))
-    } catch (e: Exception) {
-        android.util.Log.e("UpdateCheck", "检查更新失败", e)
-        Pair(false, null)
-    }
+    )
 }
 
 @SuppressLint("ConfigurationScreenWidthHeight")
@@ -315,10 +215,7 @@ fun UpdateSettingsScreen(
         drawContent()
     }
     val isTablet = LocalConfiguration.current.screenWidthDp >= 600
-    val tabletHorizontalPadding = if (isTablet) {
-        val screenWidthDp = LocalConfiguration.current.screenWidthDp
-        ((screenWidthDp - 600).coerceIn(0, 600) / 600f * 112 + 16).dp
-    } else 16.dp
+    val tabletHorizontalPadding = if (isTablet) 20.dp else 16.dp
 
     Scaffold(
         topBar = {}
@@ -335,10 +232,6 @@ fun UpdateSettingsScreen(
                         listScrollY = offset
                     }
             }
-            val density = androidx.compose.ui.platform.LocalDensity.current
-            val topBarHeightDp = with(density) {
-                (scrollBehavior?.currentHeightPx ?: 0f).toDp()
-            }
             LazyColumn(
                 state = listState,
                 modifier = Modifier
@@ -347,6 +240,7 @@ fun UpdateSettingsScreen(
                     .scrollEndHaptic(
                         hapticFeedbackType = HapticFeedbackType.TextHandleMove
                     )
+                    .collapsibleTopInset(scrollBehavior)
                     .then(
                         scrollBehavior?.let { Modifier.nestedScroll(it.nestedScrollConnection) }
                             ?: Modifier
@@ -354,7 +248,7 @@ fun UpdateSettingsScreen(
                 contentPadding = PaddingValues(
                     start = tabletHorizontalPadding,
                     end = tabletHorizontalPadding,
-                    top = paddingValues.calculateTopPadding() + topBarHeightDp + 12.dp,
+                    top = paddingValues.calculateTopPadding() + CollapsibleTopAppBarDefaults.CollapsedHeight + 12.dp,
                     bottom = 60.dp
                 ),
                 verticalArrangement = Arrangement.spacedBy(12.dp)
@@ -421,12 +315,9 @@ fun UpdateSettingsScreen(
                                 onClick = {
                                     hapticFeedback.performHapticFeedback(HapticFeedbackType.VirtualKey)
                                     if (hasUpdate && latestRelease != null) {
-                                        val apkFile = File(
-                                            context.filesDir,
-                                            "update-${latestRelease!!.tagName}.apk"
-                                        )
-                                        if (apkFile.exists() && apkFile.length() > 0) {
-                                            downloadedFile = apkFile
+                                        val tag = latestRelease!!.tagName
+                                        if (UpdateInstaller.hasValidApk(context, tag)) {
+                                            downloadedFile = UpdateInstaller.apkFile(context, tag)
                                             downloadComplete = true
                                             downloadProgress = 1f
                                         } else {
@@ -463,12 +354,9 @@ fun UpdateSettingsScreen(
                                                         .putString("latest_body", release.body)
                                                         .putString("latest_date", release.createdAt)
                                                 }
-                                                val apkFile = File(
-                                                    context.filesDir,
-                                                    "update-${release.tagName}.apk"
-                                                )
-                                                if (apkFile.exists() && apkFile.length() > 0) {
-                                                    downloadedFile = apkFile
+                                                val tag = release.tagName
+                                                if (UpdateInstaller.hasValidApk(context, tag)) {
+                                                    downloadedFile = UpdateInstaller.apkFile(context, tag)
                                                     downloadComplete = true
                                                     downloadProgress = 1f
                                                 } else {
@@ -667,41 +555,17 @@ fun UpdateSettingsScreen(
                                 onClick = {
                                     hapticFeedback.performHapticFeedback(HapticFeedbackType.Confirm)
                                     val file = downloadedFile ?: return@Button
-                                    if (ShizukuManager.isShizukuRunning() &&
-                                        ShizukuManager.checkSelfPermission()
-                                    ) {
-                                        // 有 Shizuku 权限 → ADB 式静默安装
-                                        isInstalling = true
-                                        coroutineScope.launch {
-                                            val (ok, message) = withContext(Dispatchers.IO) {
-                                                ShizukuManager.silentInstallApk(file.absolutePath)
-                                            }
-                                            if (ok) {
-                                                isInstalling = false
+                                    UpdateInstaller.installApk(
+                                        context = context,
+                                        file = file,
+                                        onInstallingChanged = { isInstalling = it },
+                                        onFinished = {
+                                            if (!isInstalling) {
                                                 downloadComplete = false
                                                 showDownloadDialog = false
-                                                Toast.makeText(
-                                                    context,
-                                                    message,
-                                                    Toast.LENGTH_SHORT
-                                                ).show()
-                                            } else {
-                                                // 静默安装失败 → 回退系统安装器
-                                                isInstalling = false
-                                                Toast.makeText(
-                                                    context,
-                                                    "静默安装失败，已改用系统安装器",
-                                                    Toast.LENGTH_SHORT
-                                                ).show()
-                                                isInstalling = true
-                                                installApk(context, file)
                                             }
                                         }
-                                    } else {
-                                        // 无 Shizuku → 系统安装器
-                                        isInstalling = true
-                                        installApk(context, file)
-                                    }
+                                    )
                                 },
                                 colors = ButtonDefaults.buttonColorsPrimary()
                             ) {
@@ -719,64 +583,30 @@ fun UpdateSettingsScreen(
                                     hapticFeedback.performHapticFeedback(HapticFeedbackType.Confirm)
                                     isDownloading = true; downloadProgress = 0f; downloadComplete =
                                     false
+                                    val tag = latestRelease?.tagName ?: return@Button
+                                    val apkUrl = latestRelease?.apkUrl
+                                    if (apkUrl.isNullOrBlank()) {
+                                        Toast.makeText(context, "未找到下载链接", Toast.LENGTH_SHORT).show()
+                                        isDownloading = false
+                                        showDownloadDialog = false
+                                        return@Button
+                                    }
                                     coroutineScope.launch {
-                                        withContext(Dispatchers.IO) {
-                                            try {
-                                                val apkUrl = latestRelease?.apkUrl
-                                                if (apkUrl.isNullOrBlank()) {
-                                                    withContext(Dispatchers.Main) {
-                                                        Toast.makeText(
-                                                            context,
-                                                            "未找到下载链接",
-                                                            Toast.LENGTH_SHORT
-                                                        ).show(); isDownloading =
-                                                        false; showDownloadDialog = false
-                                                    }
-                                                    return@withContext
-                                                }
-                                                val url = URL(apkUrl)
-                                                val connection =
-                                                    url.openConnection() as HttpURLConnection
-                                                connection.connectTimeout =
-                                                    30000; connection.readTimeout =
-                                                    30000; connection.connect()
-                                                val fileSize = connection.contentLength.toLong()
-                                                val fileName =
-                                                    "update-${latestRelease?.tagName}.apk"
-                                                val file = File(context.filesDir, fileName)
-                                                connection.inputStream.use { input ->
-                                                    FileOutputStream(file).use { output ->
-                                                        val buffer = ByteArray(8192)
-                                                        var bytesRead: Int
-                                                        var totalRead = 0L
-                                                        while (input.read(buffer)
-                                                                .also { bytesRead = it } != -1
-                                                        ) {
-                                                            output.write(
-                                                                buffer,
-                                                                0,
-                                                                bytesRead
-                                                            ); totalRead += bytesRead
-                                                            if (fileSize > 0) downloadProgress =
-                                                                (totalRead.toFloat() / fileSize).coerceIn(
-                                                                    0f,
-                                                                    1f
-                                                                )
-                                                        }
-                                                    }
-                                                }
-                                                downloadedFile = file; downloadComplete =
-                                                    true; isDownloading = false
-                                            } catch (e: Exception) {
-                                                withContext(Dispatchers.Main) {
-                                                    Toast.makeText(
-                                                        context,
-                                                        "下载失败: ${e.message}",
-                                                        Toast.LENGTH_SHORT
-                                                    ).show(); isDownloading =
-                                                    false; showDownloadDialog = false
-                                                }
+                                        try {
+                                            val file = UpdateInstaller.downloadApk(context, apkUrl, tag) { p ->
+                                                downloadProgress = p
                                             }
+                                            downloadedFile = file
+                                            downloadComplete = true
+                                            isDownloading = false
+                                        } catch (e: Exception) {
+                                            Toast.makeText(
+                                                context,
+                                                "下载失败: ${e.message}",
+                                                Toast.LENGTH_SHORT
+                                            ).show()
+                                            isDownloading = false
+                                            showDownloadDialog = false
                                         }
                                     }
                                 },
@@ -806,21 +636,6 @@ fun UpdateSettingsScreen(
                 }
             }
         }
-    }
-}
-
-private fun installApk(context: Context, file: File) {
-    try {
-        val uri: Uri =
-            FileProvider.getUriForFile(context, "${context.packageName}.fileprovider", file)
-        val intent = Intent(Intent.ACTION_VIEW).apply {
-            setDataAndType(uri, "application/vnd.android.package-archive")
-            addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-            addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
-        }
-        context.startActivity(intent)
-    } catch (e: Exception) {
-        Toast.makeText(context, "安装失败: ${e.message}", Toast.LENGTH_SHORT).show()
     }
 }
 

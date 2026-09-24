@@ -32,12 +32,28 @@ class WebViewRequestInterceptor {
             .followSslRedirects(false)
             .build()
 
+        // JS 注册了但请求未发出时 body 会残留；封顶并允许页面销毁时清空
+        private const val MAX_POST_REGISTRY = 32
+
         private val postBodyRegistry = java.util.Collections.synchronizedMap(
             mutableMapOf<String, RegisteredPostData>()
         )
 
         fun registerPostData(id: String, body: String, contentType: String) {
-            postBodyRegistry[id] = RegisteredPostData(body, contentType)
+            synchronized(postBodyRegistry) {
+                if (postBodyRegistry.size >= MAX_POST_REGISTRY) {
+                    val iterator = postBodyRegistry.entries.iterator()
+                    while (postBodyRegistry.size >= MAX_POST_REGISTRY && iterator.hasNext()) {
+                        iterator.next()
+                        iterator.remove()
+                    }
+                }
+                postBodyRegistry[id] = RegisteredPostData(body, contentType)
+            }
+        }
+
+        fun clearPostData() {
+            postBodyRegistry.clear()
         }
 
         private data class RegisteredPostData(val body: String, val contentType: String)
@@ -47,14 +63,18 @@ class WebViewRequestInterceptor {
 
     /**
      * 拦截 WebView 请求
-     * @param isDesktopMode 仅在电脑模式开启时执行拦截
+     *
+     * 无条件消费 JS 补丁注册的 POST Body：补丁对"非 GET + 字符串 body"的请求一律加
+     * X-WebView-Post-Id 头并注册请求体，该头只有这里能消费并剔除。若不转发，WebView
+     * 会把该头原样发往真实服务器，被目标 WAF 直接拒掉（如福信教务登录 POST）。
+     * 普通 GET / 未注册 POST 一律放行，交回 WebView 原生处理，保证 Referer/Origin 等属性。
+     *
      * @param userAgent WebView 当前用户代理，转发时原样带上，避免目标站 WAF 把 okhttp 默认 UA 判为自动化而拦截
      */
-    fun intercept(request: WebResourceRequest, isDesktopMode: Boolean, userAgent: String? = null): WebResourceResponse? {
+    fun intercept(request: WebResourceRequest, userAgent: String? = null): WebResourceResponse? {
         val rawUrl = request.url.toString()
 
         if (!rawUrl.startsWith("http")) return null
-        if (!isDesktopMode) return null
 
         // 检查注册的 POST Body ID
         val requestIdHeader = request.requestHeaders["X-WebView-Post-Id"]

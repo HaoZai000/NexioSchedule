@@ -25,7 +25,6 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
-import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -36,7 +35,6 @@ import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
@@ -44,8 +42,10 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.haooz.chedule.R
 import com.haooz.chedule.data.CourseRepository
+import com.haooz.chedule.ui.basic.CollapsibleTopAppBarDefaults
 import com.haooz.chedule.ui.basic.OverlayDropdownMenu
 import com.haooz.chedule.ui.basic.SharedScrollBehavior
+import com.haooz.chedule.ui.basic.collapsibleTopInset
 import com.haooz.chedule.ui.utils.isAppDarkTheme
 import com.haooz.chedule.ui.utils.overScrollVertical
 import com.haooz.chedule.widget.CourseWidgetProviderStandard
@@ -55,10 +55,8 @@ import top.yukonga.miuix.kmp.basic.DropdownDefaults
 import top.yukonga.miuix.kmp.basic.DropdownEntry
 import top.yukonga.miuix.kmp.basic.DropdownItem
 import top.yukonga.miuix.kmp.basic.Scaffold
-import top.yukonga.miuix.kmp.basic.TextButton
 import top.yukonga.miuix.kmp.blur.layerBackdrop
 import top.yukonga.miuix.kmp.blur.rememberLayerBackdrop
-import top.yukonga.miuix.kmp.overlay.OverlayDialog
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 import androidx.compose.ui.graphics.Color as ComposeColor
 
@@ -69,12 +67,8 @@ fun WidgetIntroScreen(
     liquidGlassBackdrop: com.kyant.backdrop.Backdrop? = null,
 ) {
     val hapticFeedback = LocalHapticFeedback.current
-    var showGuideDialog by remember { mutableStateOf(false) }
     val isTablet = LocalConfiguration.current.screenWidthDp >= 600
-    val tabletHorizontalPadding = if (isTablet) {
-        val screenWidthDp = LocalConfiguration.current.screenWidthDp
-        ((screenWidthDp - 600).coerceIn(0, 600) / 600f * 112 + 16).dp
-    } else 16.dp
+    val tabletHorizontalPadding = 20.dp
     val backdropColor = MiuixTheme.colorScheme.surface
     val backdrop = rememberLayerBackdrop {
         drawRect(backdropColor)
@@ -89,23 +83,20 @@ fun WidgetIntroScreen(
                 .fillMaxSize()
                 .layerBackdrop(backdrop)
         ) {
-            val density = LocalDensity.current
-            val topBarHeightDp = with(density) {
-                (scrollBehavior?.currentHeightPx ?: 0f).toDp()
-            }
 
             Column(
                 modifier = Modifier
                     .fillMaxSize()
                     .padding(horizontal = tabletHorizontalPadding)
                     .overScrollVertical()
+                    .collapsibleTopInset(scrollBehavior)
                     .then(
                         scrollBehavior?.let { Modifier.nestedScroll(it.nestedScrollConnection) } ?: Modifier
                     )
                     .verticalScroll(rememberScrollState()),
                 horizontalAlignment = Alignment.CenterHorizontally
             ) {
-                Spacer(modifier = Modifier.height(paddingValues.calculateTopPadding() + topBarHeightDp + 12.dp))
+                Spacer(modifier = Modifier.height(paddingValues.calculateTopPadding() + CollapsibleTopAppBarDefaults.CollapsedHeight + 24.dp))
 
                 val pagerState = rememberPagerState(pageCount = { 2 })
 
@@ -168,73 +159,15 @@ fun WidgetIntroScreen(
                         hapticFeedback.performHapticFeedback(HapticFeedbackType.VirtualKey)
                         paddingMode = mode
                         repository.setWidgetPaddingMode(mode)
-                        TodayCourseWidgetProviderStandard.updateAllWidgets(context)
-                        CourseWidgetProviderStandard.updateAllWidgets(context)
+                        com.haooz.chedule.widget.WidgetUpdateCache.clear()
+                        com.haooz.chedule.widget.WidgetUpdateCache.updateInstalledWidgets(context)
                     }
                 )
 
                 Spacer(modifier = Modifier.height(120.dp))
             }
 
-            // 底部渐变遮罩
-            Box(
-                modifier = Modifier
-                    .align(Alignment.BottomCenter)
-                    .fillMaxWidth()
-                    .height(120.dp)
-                    .background(
-                        brush = androidx.compose.ui.graphics.Brush.verticalGradient(
-                            colorStops = arrayOf(
-                                0.0f to ComposeColor.Transparent,
-                                0.15f to MiuixTheme.colorScheme.surface.copy(alpha = 0.5f),
-                                0.5f to MiuixTheme.colorScheme.surface.copy(alpha = 0.85f),
-                                1.0f to MiuixTheme.colorScheme.surface
-                            )
-                        )
-                    )
-            )
-
-            // 添加到桌面按钮 - 固定在底部
-            TextButton(
-                text = "添加到桌面",
-                onClick = {
-                    hapticFeedback.performHapticFeedback(HapticFeedbackType.VirtualKey)
-                    showGuideDialog = true
-                },
-                colors = top.yukonga.miuix.kmp.basic.ButtonDefaults.textButtonColorsPrimary(),
-                modifier = Modifier
-                    .align(Alignment.BottomCenter)
-                    .fillMaxWidth()
-                    .padding(start = tabletHorizontalPadding + 16.dp, end = tabletHorizontalPadding + 16.dp, bottom = 48.dp)
-            )
-
-            OverlayDialog(
-                title = "添加桌面小部件",
-                show = showGuideDialog,
-                liquidGlassBackdrop = liquidGlassBackdrop,
-                onDismissRequest = { showGuideDialog = false }
-            ) {
-                Column(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalAlignment = Alignment.CenterHorizontally
-                ) {
-                    Text(
-                        text = "1. 长按桌面空白处\n2. 选择「全部应用」内的「安卓小部件」\n3. 找到「Nexio课程表」并添加",
-                        fontSize = 14.sp,
-                        lineHeight = 24.sp,
-                        color = MiuixTheme.colorScheme.onSurfaceVariantActions
-                    )
-                    Spacer(modifier = Modifier.height(20.dp))
-                    TextButton(
-                        text = "我知道了",
-                        onClick = {
-                            hapticFeedback.performHapticFeedback(HapticFeedbackType.Confirm)
-                            showGuideDialog = false
-                        },
-                        modifier = Modifier.fillMaxWidth()
-                    )
-                }
-            }
+            // 底部「添加到桌面」已上提到 WidgetIntroActivity
         }
     }
 }

@@ -1,11 +1,12 @@
-/** 主课程表页面 - 显示周视图课程表 */
 package com.haooz.chedule.ui.screens
 
 import android.annotation.SuppressLint
 import android.widget.Toast
+import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.CubicBezierEasing
 import androidx.compose.animation.core.animate
 import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.spring
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -15,6 +16,7 @@ import androidx.compose.foundation.gestures.calculatePan
 import androidx.compose.foundation.gestures.calculateZoom
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
@@ -27,6 +29,7 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.statusBars
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.pager.HorizontalPager
 import androidx.compose.foundation.pager.PagerState
 import androidx.compose.foundation.rememberScrollState
@@ -52,11 +55,16 @@ import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.drawBehind
+import androidx.compose.ui.geometry.CornerRadius
+import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Rect
+import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.asComposeRenderEffect
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.input.pointer.pointerInput
@@ -64,6 +72,8 @@ import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.layout.layout
 import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.layout.positionInRoot
+import androidx.compose.ui.layout.positionInWindow
+import androidx.compose.ui.unit.Constraints
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
@@ -86,6 +96,7 @@ import com.haooz.chedule.ui.effects.edgelight.edgeLight
 import com.haooz.chedule.ui.effects.edgelight.rememberCourseCardEdgeLight
 import com.haooz.chedule.ui.utils.isAppDarkTheme
 import com.haooz.chedule.ui.utils.overScrollVertical
+import com.haooz.chedule.ui.utils.pagerAxisTakeoverGesture
 import com.haooz.chedule.viewmodel.CourseViewModel
 import com.haooz.chedule.viewmodel.SettingsViewModel
 import com.kyant.backdrop.backdrops.SharedBlurBackdrop
@@ -112,35 +123,39 @@ import top.yukonga.miuix.kmp.theme.MiuixTheme
 import top.yukonga.miuix.kmp.utils.PressFeedbackType
 import top.yukonga.miuix.kmp.utils.scrollEndHaptic
 import java.time.LocalDate
+import kotlin.math.roundToInt
 import kotlin.time.Duration.Companion.milliseconds
 import com.kyant.backdrop.backdrops.layerBackdrop as kyantLayerBackdrop
 import com.kyant.backdrop.backdrops.rememberLayerBackdrop as rememberKyantLayerBackdrop
 
-/**
- * 课程卡片位置缓存（不入 Compose State）：点击课程详情页时需要卡片在 root 中的位置，
- * 改用普通 holder 而不是 mutableStateOf，避免 onGloballyPositioned 每次写入都触发卡片作用域重组。
- */
+// 普通 holder 而非 state：避免 onGloballyPositioned 每次写入触发卡片重组
 private class CardBoundsHolder {
     var rect: Rect? = null
 }
 
-/**
- * 课表网格几何信息，供拖拽调课时落点检测使用。
- * - dayBounds: dayOfWeek(1-7) -> [leftX, rightX, topY]（root px）
- * - sectionHeightPx: 每节高度（root px）
- * - morningSections/afternoonSections/eveningSections: 上午/下午/晚上的节次数
- * - showBreakDividers: 是否有午休/晚休分界带（24dp）
- */
-/**
- * 课表是否正在横向翻页/纵向滚动的标记。
- *
- * 刻意**不用** snapshot state：课程卡片每帧都会回调 onGloballyPositioned，
- * 滑动期间那份坐标（拖拽落点检测用）根本用不上，可以直接跳过。
- * 若用 state 传递，滑动开始/结束会带着几十张卡片一起重组，反而更卡。
- * 用普通对象 + snapshotFlow 写入，卡片侧只读取、不订阅，零重组。
- */
+// 刻意不用 snapshot state：滑动中坐标用不上，state 会带着几十张卡一起重组
 class GridScrollFlag {
     var scrolling: Boolean = false
+}
+
+private fun expandEntryByDate(
+    entry: HolidayManager.Entry,
+    put: (String, HolidayManager.Entry) -> Unit
+) {
+    if (entry.endDate.isBlank()) {
+        put(entry.date, entry)
+    } else {
+        runCatching {
+            var d = LocalDate.parse(entry.date)
+            val end = LocalDate.parse(entry.endDate)
+            while (!d.isAfter(end)) {
+                put(d.toString(), entry)
+                d = d.plusDays(1)
+            }
+        }.onFailure {
+            put(entry.date, entry)
+        }
+    }
 }
 
 data class ScheduleGridGeometry(
@@ -162,8 +177,18 @@ fun MainScheduleScreen(
     draggingCourseIds: Set<String> = emptySet(),
     onCourseClick: (courses: List<Course>, cardLeft: Float, cardTop: Float, cardWidth: Float, cardHeight: Float, snapshot: android.graphics.Bitmap?, courseIdToHide: String, targetWeek: Int) -> Unit = { _, _, _, _, _, _, _, _ -> },
     onPopupStateChange: (Boolean) -> Unit = {},
-    // 空白格长按：星期 + 节次 + 格子中心X/顶部Y/宽/高（Root 绝对坐标 px）
-    onEmptyLongPress: (day: Int, section: Int, centerX: Float, cellTopY: Float, width: Float, height: Float) -> Unit = { _, _, _, _, _, _ -> },
+    // 空白格长按：返回 Root 绝对坐标供上层定位快捷菜单
+    onEmptyLongPress: (
+        day: Int,
+        section: Int,
+        centerX: Float,
+        cellTopY: Float,
+        width: Float,
+        height: Float,
+        // 调课日：添加课程默认落到 followWeekday / followWeek；非调课与 day 相同
+        addDay: Int,
+        addWeek: Int,
+    ) -> Unit = { _, _, _, _, _, _, _, _ -> },
     onCourseLongPress: (course: Course, cardLeft: Float, cardTop: Float, width: Float, height: Float, backdrop: com.kyant.backdrop.Backdrop?, currentWeek: Int) -> Unit = { _, _, _, _, _, _, _ -> },
     onCourseDragStart: (courseId: String) -> Unit = { _ -> },
     onCourseDrag: (courseId: String, offsetX: Float, offsetY: Float) -> Unit = { _, _, _ -> },
@@ -172,6 +197,10 @@ fun MainScheduleScreen(
     wallpaperBitmap: android.graphics.Bitmap? = null,
     wallpaperOffset: androidx.compose.ui.geometry.Offset = androidx.compose.ui.geometry.Offset.Zero,
     wallpaperScale: Float = 1f,
+    // true：壁纸由主 pager 后共享层绘制，本页透明叠上，切 tab 时不随页平移
+    useSharedWallpaper: Boolean = false,
+    // 共享壁纸层 backdrop，供卡片玻璃采样（useSharedWallpaper 时必传 LayerBackdrop）
+    sharedWallpaperBackdrop: com.kyant.backdrop.backdrops.LayerBackdrop? = null,
     isWallpaperEditing: Boolean = false,
     onWallpaperOffsetChange: (androidx.compose.ui.geometry.Offset) -> Unit = {},
     onWallpaperScaleChange: (Float) -> Unit = {},
@@ -179,19 +208,20 @@ fun MainScheduleScreen(
     liquidGlassBackdrop: com.kyant.backdrop.Backdrop? = null,
     // 拖拽落点高亮：Pair(dayOfWeek, sectionRange)，sectionRange 为落点覆盖的节次区间
     dropHighlight: Pair<Int, IntRange>? = null,
-    // 调课后需要淡入放大的课程ID集合
+    // 落点遮罩出现动画的起点（通常是源课格），避免首次直接闪现在落点
+    dropHighlightOrigin: Pair<Int, IntRange>? = null,
     onGridGeometryChange: (ScheduleGridGeometry) -> Unit = {},
     scheduleScrollBehavior: SharedScrollBehavior? = null,
-    paddingValues: PaddingValues = androidx.compose.foundation.layout.PaddingValues(),
-    // Activity 层提升的状态，return@Scaffold 不会销毁
+    // Activity 层提升，return@Scaffold 不会销毁
     externalScrollState: androidx.compose.foundation.ScrollState = rememberScrollState(),
-    externalShowCourseDetail: androidx.compose.runtime.MutableState<Boolean> = mutableStateOf(false),
-    externalSelectedCourse: androidx.compose.runtime.MutableState<Course?> = mutableStateOf(null),
-    externalSelectedCourses: androidx.compose.runtime.MutableState<List<Course>> = mutableStateOf(emptyList()),
+    externalShowCourseDetail: MutableState<Boolean> = mutableStateOf(false),
+    externalSelectedCourse: MutableState<Course?> = mutableStateOf(null),
+    externalSelectedCourses: MutableState<List<Course>> = mutableStateOf(emptyList()),
 ) {
-    // 解构外观配置（接口按 AppearanceConfig 打包，内部仍按原字段使用）
+    // 解构外观配置
     val cardBlurRadius = appearance.cardBlurRadius
     val cardAlpha = appearance.cardAlpha
+    val cardSurfaceAlpha = appearance.cardSurfaceAlpha
     val cardHeightPerSection = appearance.cardHeight
     val cardCornerRadius = appearance.cardCornerRadius
     val wallpaperBrightness = appearance.wallpaperBrightness
@@ -217,40 +247,43 @@ fun MainScheduleScreen(
     val sectionTimes by settingsViewModel.sectionTimes.collectAsState()
     val sectionNames by settingsViewModel.sectionNames.collectAsState()
     val specialBlocks by settingsViewModel.specialBlocks.collectAsState()
-    // ---- 特殊课程内部「星期子块」的编辑状态 ----
-    // 一个特殊课程时间段内可划分多个不重叠的星期区间（如周一~周二"画黑板报"）。
-    // 状态提升到页面顶层：弹窗在顶层作用域渲染，点击横带只写这些状态。
+    // 状态提升到页面顶层：弹窗在顶层作用域渲染，点击横带只写这些状态
     var showSpecialItemDialog by remember { mutableStateOf(false) }
     var specialItemEditingBlockId by remember { mutableLongStateOf(0L) }
     var specialItemEditingId by remember { mutableLongStateOf(-1L) } // -1 表示新增
     var specialItemName by remember { mutableStateOf("") }
-    // 选中的星期集合（支持不连续点选；保存时自动合并为连续区间：{1,3,4} → 1 一块、34 一块）
+    // 支持不连续点选，保存时自动合并为连续区间
     var specialItemSelectedDays by remember { mutableStateOf(setOf<Int>()) }
     val hapticFeedback = LocalHapticFeedback.current
     val configuration = LocalConfiguration.current
     val isTablet = configuration.screenWidthDp >= 600
     val density = LocalDensity.current
+    // 沉浸式：滚动视口不避开底栏。底部留白写进滚动 layout 高度，避免被测量链裁掉
+    val scheduleEndSpacer = 175.dp
     val screenWidthPx = with(density) { configuration.screenWidthDp.dp.toPx() }
     val screenHeightPx = with(density) { configuration.screenHeightDp.dp.toPx() }
     val scrollState = externalScrollState
-    // 横向翻页/纵向滚动进行中标记：用于跳过滑动期间的网格几何逐帧上报
-    val isGridScrolling = pagerState.isScrollInProgress || scrollState.isScrollInProgress
-    // 同一标记的非 state 版本，供课程卡片在 onGloballyPositioned 里读取（避免重组）
+    // 非 state 版本：卡片 onGloballyPositioned 读取不触发重组
     val gridScrollFlag = remember { GridScrollFlag() }
-    LaunchedEffect(Unit) {
-        snapshotFlow { isGridScrolling }.collect { gridScrollFlag.scrolling = it }
+    // 供停滑后冲刷 dayBounds 版本号；仅滑动起停各写一次
+    val scheduleScrollInProgress = remember { mutableStateOf(false) }
+    LaunchedEffect(pagerState, scrollState) {
+        // 必须直接读 ScrollState：捕获 composition 期 Boolean 后 snapshotFlow 不会再观测变化
+        snapshotFlow {
+            pagerState.isScrollInProgress || scrollState.isScrollInProgress
+        }.collect {
+            gridScrollFlag.scrolling = it
+            scheduleScrollInProgress.value = it
+        }
     }
-    // 课程表内容的顶部偏移：由课程表顶栏自身几何纯计算（切页不变）。
-    // 不再使用 Scaffold 实测的 paddingValues：它随「当前显示哪个 tab 的顶栏」变化，
-    // 切页时会让课程表内容整体位移一次，而玻璃模糊的采样层滞后一帧，就会看到顶部慢一帧就位。
-    // 详见 scheduleContentTopPadding() 的注释。
+    // 横纵双轴手势：横向由 pagerAxisTakeoverGesture 接管，纵向仍归页内 verticalScroll
+    val latestIsWallpaperEditing by rememberUpdatedState(isWallpaperEditing)
+    val latestDraggingCourseIds by rememberUpdatedState(draggingCourseIds)
+    // 由顶栏自身几何纯计算（切页不变），避免 paddingValues 随 tab 变化导致位移
     val statusBarHeight = WindowInsets.statusBars.asPaddingValues().calculateTopPadding()
     val contentTopPaddingDp = remember(statusBarHeight) { scheduleContentTopPadding(statusBarHeight) }
 
-    // 计算壁纸最小缩放比例（填满短边，确保不露出底部背景）
-    // ContentScale.Fit 的基础缩放 = min(screenW/bitmapW, screenH/bitmapH)
-    // 要覆盖屏幕需要最终缩放 = max(screenW/bitmapW, screenH/bitmapH)
-    // 所以 wallpaperScale 的最小值 = max / min
+    // 填满短边不露底；最小缩放 = cover/fit
     val minWallpaperScale = remember(wallpaperBitmap, screenWidthPx, screenHeightPx) {
         if (wallpaperBitmap != null && wallpaperBitmap.width > 0 && wallpaperBitmap.height > 0) {
             val fitScale = minOf(screenWidthPx / wallpaperBitmap.width, screenHeightPx / wallpaperBitmap.height)
@@ -260,17 +293,14 @@ fun MainScheduleScreen(
     }
 
     var showCourseDetail by externalShowCourseDetail
-    // 弹窗内部 backdrop 一律在弹窗作用域内读 LocalSheetContentBackdrop，
-    // 不再提升到本页 State（弹窗挂载后回写它会让整页在弹窗进入动画期间重跑一次组合）
+    // backdrop 在弹窗作用域读 LocalSheetContentBackdrop，不提升到本页 State
     var selectedCourse by externalSelectedCourse
     var selectedCourses by externalSelectedCourses
     var pendingDay by remember { mutableIntStateOf(-1) }
     var pendingSection by remember { mutableIntStateOf(-1) }
     var viewingWeek by remember { mutableIntStateOf(currentWeek) }
 
-    // 弹窗内容逐卡 reveal 是否跳过：记录本组合周期首次组合时弹窗是否已打开。
-    // CourseDetailScreen 打开期间本页被 return@Scaffold 摘除，返回重建时 showCourseDetail 仍为 true，
-    // 此时内容 reveal 应跳过（已展示过），避免重播；真正新开(show false→true)时不变 → 照常播放。
+    // 从详情页返回重建时弹窗已打开，跳过 reveal 重播
     var skipSheetReveal by remember { mutableStateOf(showCourseDetail) }
     LaunchedEffect(showCourseDetail) {
         if (!showCourseDetail) {
@@ -280,7 +310,7 @@ fun MainScheduleScreen(
 
     LaunchedEffect(showAddDialog) {
         if (showAddDialog && pendingDay != -1) {
-            kotlinx.coroutines.delay(300.milliseconds)
+            delay(300.milliseconds)
             pendingDay = -1
             pendingSection = -1
         }
@@ -288,7 +318,6 @@ fun MainScheduleScreen(
 
     val totalSections = morningSections + afternoonSections + eveningSections
 
-    // 含特殊课程块的网格几何（用于午休/晚休分界带定位；列内几何由 SectionColumn/DayColumn 各自计算）
     val specialGrid = remember(
         totalSections, morningSections, afternoonSections, eveningSections,
         specialBlocks, sectionTimes, cardHeightPerSection, showBreakDividers
@@ -304,40 +333,51 @@ fun MainScheduleScreen(
         )
     }
 
-    // 计算当前节次：根据当前时间和节次时间配置，判断当前处于第几节课
-    // 仅当 sectionTimes/totalSections 变化时才重新计算（顶层一次 remember，结果所有 page 共享读取）
-    val currentSection = remember(sectionTimes, totalSections) {
-        // 用 LocalTime.now() 替代 Calendar.getInstance()：LocalTime 是 immutable value class，
-        // 避免 Calendar 每次构造 MutableDateTime + TimeZone 解析的开销
-        val now = java.time.LocalTime.now()
-        val currentMinutes = now.hour * 60 + now.minute
-        var result = -1
-        for (section in 1..totalSections) {
-            val timeStr = sectionTimes[section] ?: ""
-            if (timeStr.isEmpty()) continue
-            val parts = timeStr.split("-")
-            if (parts.size != 2) continue
-            val startParts = parts[0].split(":")
-            val endParts = parts[1].split(":")
-            if (startParts.size != 2 || endParts.size != 2) continue
-            val startMinutes = (startParts[0].toIntOrNull() ?: 0) * 60 + (startParts[1].toIntOrNull() ?: 0)
-            val endMinutes = (endParts[0].toIntOrNull() ?: 0) * 60 + (endParts[1].toIntOrNull() ?: 0)
-            if (currentMinutes in startMinutes until endMinutes) {
-                result = section
-                break
+    // 睡到下一次节次边界再重算，避免长时间停留后高亮过期
+    var currentSection by remember { mutableIntStateOf(-1) }
+    LaunchedEffect(sectionTimes, totalSections) {
+        while (true) {
+            val now = java.time.LocalTime.now()
+            val currentMinutes = now.hour * 60 + now.minute
+            var result = -1
+            var nextTransition = Int.MAX_VALUE
+            for (section in 1..totalSections) {
+                val timeStr = sectionTimes[section] ?: ""
+                if (timeStr.isEmpty()) continue
+                val parts = timeStr.split("-")
+                if (parts.size != 2) continue
+                val startParts = parts[0].split(":")
+                val endParts = parts[1].split(":")
+                if (startParts.size != 2 || endParts.size != 2) continue
+                val startMinutes = (startParts[0].toIntOrNull() ?: 0) * 60 + (startParts[1].toIntOrNull() ?: 0)
+                val endMinutes = (endParts[0].toIntOrNull() ?: 0) * 60 + (endParts[1].toIntOrNull() ?: 0)
+                if (currentMinutes in startMinutes until endMinutes) {
+                    result = section
+                }
+                if (endMinutes > currentMinutes && endMinutes < nextTransition) {
+                    nextTransition = endMinutes
+                }
+                if (startMinutes > currentMinutes && startMinutes < nextTransition) {
+                    nextTransition = startMinutes
+                }
             }
+            if (currentSection != result) currentSection = result
+            val sleepMinutes = if (nextTransition == Int.MAX_VALUE) {
+                1
+            } else {
+                (nextTransition - currentMinutes).coerceIn(1, 60)
+            }
+            delay((sleepMinutes * 60_000L).milliseconds)
         }
-        result
     }
 
-    // 用 snapshotFlow 观察翻页，避免 LaunchedEffect(pagerState.currentPage) 导致整个页面重组
+    // snapshotFlow 避免 LaunchedEffect(currentPage) 整页重组
     LaunchedEffect(Unit) {
         snapshotFlow { pagerState.currentPage }.collect { page ->
             viewingWeek = page + 1
         }
     }
 
-    // 预计算每天的课程，避免在 HorizontalPager 内部重复过滤
     val allDays = (1..7).toList()
     val coursesByDay = remember(courses) {
         allDays.associateWith { dayOfWeek ->
@@ -347,7 +387,6 @@ fun MainScheduleScreen(
     }
 
     val scheduleContext = LocalContext.current
-    // 开学周的周一，用于把 (周次, 星期) 换算成具体日期
     val semesterStartMonday = remember(scheduleContext, dataVersion) {
         val start = runCatching {
             LocalDate.parse(
@@ -357,8 +396,10 @@ fun MainScheduleScreen(
         start.minusDays((start.dayOfWeek.value - 1).toLong())
     }
 
-    // 一次性加载课表覆盖年份的假期/调休数据，避免逐日重复解析
-    val holidayVersion = HolidayManager.getVersion(scheduleContext)
+    // 记忆化版本号：假期编辑返回 bump dataVersion 时才重读 SP
+    val holidayVersion = remember(scheduleContext, dataVersion) {
+        HolidayManager.getVersion(scheduleContext)
+    }
     val holidayEntries = remember(
         scheduleContext, dataVersion, holidayVersion, semesterStartMonday, totalWeeks
     ) {
@@ -367,39 +408,34 @@ fun MainScheduleScreen(
             HolidayManager.load(scheduleContext, year)
         }
     }
-    // 假期索引：日期字符串 -> Entry。课程表每次重组 7 天 × N 条 entries 的 firstOrNull{ matches } 是 O(7*N) 线性扫描，
-    // 切页瞬间首帧成本相当大（两个 page 同时计算、且仅 beyondViewportPageCount=1 触发），改成 O(1) HashMap 查找。
-    // 跨日期范围的条目（endDate 非空）展开成每个中间日期映射到同一条目，避免拆分多天时丢匹配。
+
+    // O(1) 查表替代线性扫；跨日期条目展开；与调休索引分开避免同日互相覆盖
     val holidayIndex: Map<String, HolidayManager.Entry> = remember(holidayEntries) {
         if (holidayEntries.isEmpty()) emptyMap()
         else HashMap<String, HolidayManager.Entry>(holidayEntries.size * 3).apply {
             holidayEntries.forEach { entry ->
-                if (entry.endDate.isBlank()) {
-                    put(entry.date, entry)
-                } else {
-                    runCatching {
-                        var d = LocalDate.parse(entry.date)
-                        val end = LocalDate.parse(entry.endDate)
-                        while (!d.isAfter(end)) {
-                            put(d.toString(), entry)
-                            d = d.plusDays(1)
-                        }
-                    }.onFailure {
-                        // 解析失败回退到单点
-                        put(entry.date, entry)
-                    }
+                if (entry.type == HolidayManager.TYPE_HOLIDAY) {
+                    expandEntryByDate(entry) { date, e -> put(date, e) }
+                }
+            }
+        }
+    }
+    // O(1) 查表替代线性扫
+    val workswapIndex: Map<String, HolidayManager.Entry> = remember(holidayEntries) {
+        if (holidayEntries.isEmpty()) emptyMap()
+        else HashMap<String, HolidayManager.Entry>(holidayEntries.size * 3).apply {
+            holidayEntries.forEach { entry ->
+                if (entry.type == HolidayManager.TYPE_WORKSWAP) {
+                    expandEntryByDate(entry) { date, e -> put(date, e) }
                 }
             }
         }
     }
 
-    // 预计算每周要显示的天数（含周末）。原 getWeekendDaysForWeek(week) 每次换周/重组都会跑：
-    // 智能模式下调用 repository.hasCoursesOnDayInWeek(6/7, week)，每次 O(courses) 扫描 + 调休日的 SP+JSON 解析。
-    // 切页瞬间两个 page 同时算（beyondViewportPageCount=1），每页 1-3ms 重复浪费。这里一次性算齐全部 weeks，
-    // 切页时 O(1) 查表；依赖任一上游输入变更（courses/dataVersion/holidayVersion/smartWeekend/totalWeeks）才重算。
+    // 一次算齐全部周，切页 O(1) 查表；智能周末下避免每次换周扫 courses+SP
     val weekendDaysByWeek: Map<Int, Set<Int>> = remember(
         courses, dataVersion, holidayVersion, smartWeekend, totalWeeks,
-        semesterStartMonday, holidayIndex
+        semesterStartMonday, workswapIndex
     ) {
         if (!smartWeekend) {
             (1..totalWeeks).associateWith { setOf(6, 7) }
@@ -410,11 +446,9 @@ fun MainScheduleScreen(
                 val satDate = mondayOfWeek.plusDays(5).toString()
                 val sunDate = mondayOfWeek.plusDays(6).toString()
                 val satActive = courses.any { it.dayOfWeek == 6 && it.isActiveInWeek(week) } ||
-                    (holidayIndex[satDate]?.takeIf { it.type == HolidayManager.TYPE_WORKSWAP }
-                        ?.followWeekday?.let { it in 1..7 } == true)
+                    (workswapIndex[satDate]?.followWeekday?.let { it in 1..7 } == true)
                 val sunActive = courses.any { it.dayOfWeek == 7 && it.isActiveInWeek(week) } ||
-                    (holidayIndex[sunDate]?.takeIf { it.type == HolidayManager.TYPE_WORKSWAP }
-                        ?.followWeekday?.let { it in 1..7 } == true)
+                    (workswapIndex[sunDate]?.followWeekday?.let { it in 1..7 } == true)
                 result[week] = buildSet {
                     if (satActive) add(6)
                     if (sunActive) add(7)
@@ -424,13 +458,50 @@ fun MainScheduleScreen(
         }
     }
 
-    // 按需缓存：仅在 pager 内部访问时计算，不在顶层读取 pagerState.currentPage
-    // 值：dayOfWeek -> (displayWeek, 该日课程)，displayWeek 为调休映射后的显示周次
-    @Suppress("RedundantInitializer")
-    val filteredCoursesCache = remember(
-        coursesByDay, showNonCurrentWeek, dataVersion, holidayVersion
+    // 数据变化时一次算齐全部周：换周组合只查表，避免新页首帧在 composition 里扫课程/调休
+    /** page -> dayOfWeek -> Triple(显示星期, 显示周次, 课程)；调课日显示 follow 星期/周次 */
+    val weekFilteredCourses: Map<Int, Map<Int, Triple<Int, Int, List<Course>>>> = remember(
+        coursesByDay, showNonCurrentWeek, dataVersion, holidayVersion,
+        workswapIndex, semesterStartMonday, totalWeeks
     ) {
-        mutableMapOf<Int, Map<Int, Pair<Int, List<Course>>>>()
+        if (totalWeeks <= 0) emptyMap()
+        else HashMap<Int, Map<Int, Triple<Int, Int, List<Course>>>>(totalWeeks).apply {
+            for (page in 0 until totalWeeks) {
+                val weekForPage = page + 1
+                put(page, allDays.associateWith { dayOfWeek ->
+                    val dateForDay = semesterStartMonday
+                        .plusWeeks((weekForPage - 1).toLong())
+                        .plusDays((dayOfWeek - 1).toLong())
+                    val swapForDay = workswapIndex[dateForDay.toString()]
+                    val displayDay = swapForDay?.followWeekday?.takeIf { it in 1..7 } ?: dayOfWeek
+                    val displayWeek = swapForDay?.followWeek?.takeIf { it > 0 } ?: weekForPage
+                    val dayCourses = coursesByDay[displayDay] ?: emptyList()
+                    val filtered = if (showNonCurrentWeek) dayCourses
+                    else dayCourses.filter { it.isActiveInWeek(displayWeek) }
+                    Triple(displayDay, displayWeek, filtered)
+                })
+            }
+        }
+    }
+    // page -> dayOfWeek -> (isHoliday, isWorkSwap)，同样预计算
+    val weekDayFlags: Map<Int, Map<Int, Pair<Boolean, Boolean>>> = remember(
+        semesterStartMonday, holidayIndex, workswapIndex, totalWeeks
+    ) {
+        if (totalWeeks <= 0) emptyMap()
+        else HashMap<Int, Map<Int, Pair<Boolean, Boolean>>>(totalWeeks).apply {
+            for (page in 0 until totalWeeks) {
+                val weekForPage = page + 1
+                put(page, allDays.associateWith { dayOfWeek ->
+                    val dateForDay = semesterStartMonday
+                        .plusWeeks((weekForPage - 1).toLong())
+                        .plusDays((dayOfWeek - 1).toLong())
+                    val isHoliday = holidayIndex[dateForDay.toString()] != null
+                    val isWorkSwap = workswapIndex[dateForDay.toString()]
+                        ?.followWeekday?.takeIf { it in 1..7 } != null
+                    isHoliday to isWorkSwap
+                })
+            }
+        }
     }
 
     @Suppress("RedundantInitializer")
@@ -441,31 +512,49 @@ fun MainScheduleScreen(
         }
     }
 
-    // 壁纸 LayerBackdrop：捕获壁纸内容供课程卡片 textureBlur 使用
-    val wallpaperBackdropColor = if (isAppDarkTheme()) Color(0xFF000000) else Color(0xFFF7F7F7)
+    // 顶层读一次主题，避免每列/分界带各自挂 prefs 监听
+    val scheduleIsDark = isAppDarkTheme()
+    val wallpaperBackdropColor = if (scheduleIsDark) Color(0xFF000000) else Color(0xFFF7F7F7)
 
-    // Kyant Backdrop：供课程卡片 drawBackdrop 使用
-    // 添加 wallpaperBitmap 作为 key，当壁纸变化时强制重建 backdrop，确保重新录制壁纸内容
-    val courseCardBackdrop = key(wallpaperBitmap) {
-        rememberKyantLayerBackdrop {
-            drawRect(wallpaperBackdropColor)
-            drawContent()
+    // onDraw 必须稳定：每次新建会换掉 LayerBackdrop 实例，SharedBlur 与全部课卡采样跟着重建
+    val wallpaperBackColorState = rememberUpdatedState(wallpaperBackdropColor)
+    val wallpaperOnDraw: androidx.compose.ui.graphics.drawscope.ContentDrawScope.() -> Unit =
+        remember {
+            {
+                drawRect(wallpaperBackColorState.value)
+                drawContent()
+            }
         }
+
+    // key 含 wallpaperBitmap：壁纸变化时强制重建并重录
+    // 共享壁纸时直接用主层 backdrop，卡片才能采到真实壁纸像素
+    val localCourseCardBackdrop = key(wallpaperBitmap) {
+        rememberKyantLayerBackdrop(onDraw = wallpaperOnDraw)
+    }
+    val courseCardBackdrop: com.kyant.backdrop.backdrops.LayerBackdrop =
+        if (useSharedWallpaper && sharedWallpaperBackdrop != null) sharedWallpaperBackdrop
+        else localCourseCardBackdrop
+
+    // 仅壁纸路径需要共享模糊层
+    val sharedBlurManager = if (wallpaperBitmap != null) {
+        remember(courseCardBackdrop) { SharedBlurBackdrop(courseCardBackdrop) }
+    } else null
+    // blur=0 也走共享层：省掉每卡独立重录；滚动 LOD 时可直接 blit 共享采样
+    val hasSharedBlur = sharedBlurManager != null && isRenderEffectSupported()
+    val activeCardBackdrop: com.kyant.backdrop.Backdrop? = when {
+        wallpaperBitmap == null -> null
+        hasSharedBlur -> sharedBlurManager
+        else -> courseCardBackdrop
     }
 
-    // 共享模糊 Backdrop：预渲染壁纸到降采样+模糊层，所有卡片共享
-    // 添加 courseCardBackdrop 作为依赖，当 backdrop 重建时同步重建
-    val sharedBlurManager = remember(courseCardBackdrop) { SharedBlurBackdrop(courseCardBackdrop) }
-    val hasSharedBlur = wallpaperBitmap != null && isRenderEffectSupported() && cardBlurRadius > 0f
-
-    DisposableEffect(Unit) {
-        onDispose { sharedBlurManager.release() }
+    DisposableEffect(sharedBlurManager) {
+        onDispose { sharedBlurManager?.release() }
     }
 
-    // 壁纸层内容指纹：这些量不变时，壁纸层录制结果与上一帧逐像素相同，
-    // 可以整段跳过「壁纸 backdrop 录制」和「共享模糊层降采样+模糊」——
-    // 左右滑动课表时壁纸是静止的，原来每帧都要白跑这两趟全屏合成。
-    // 必须覆盖所有能改变壁纸层内容的因素，否则会用到过期采样。
+    // 非 state：滚动不触发重组
+    val scheduleViewport = remember { com.kyant.backdrop.BackdropViewport() }
+
+    // 这些量不变时跳过壁纸录制与共享模糊；必须覆盖所有影响壁纸层内容的因素
     val wallpaperRecordKey = listOf(
         wallpaperBitmap,
         maxOf(wallpaperScale, minWallpaperScale),
@@ -476,13 +565,19 @@ fun MainScheduleScreen(
         wallpaperBackdropColor
     )
 
+    androidx.compose.runtime.CompositionLocalProvider(
+        com.kyant.backdrop.LocalBackdropViewport provides scheduleViewport
+    ) {
     Box(modifier = Modifier.fillMaxSize()) {
-        // 壁纸背景
         if (wallpaperBitmap != null) {
             Box(
                 modifier = Modifier
                     .fillMaxSize()
-                    .kyantLayerBackdrop(courseCardBackdrop, wallpaperRecordKey)
+                    .then(
+                        // 共享层已录制；本页不再录，避免用透明内容覆盖共享 backdrop
+                        if (useSharedWallpaper) Modifier
+                        else Modifier.kyantLayerBackdrop(courseCardBackdrop, wallpaperRecordKey)
+                    )
             ) {
                 val brightnessFilter = remember(wallpaperBrightness) {
                     if (wallpaperBrightness != 0f) {
@@ -519,6 +614,8 @@ fun MainScheduleScreen(
                             val effectiveScale = maxOf(wallpaperScale, minWallpaperScale)
                             scaleX = effectiveScale
                             scaleY = effectiveScale
+                            // 共享层负责显示；这里只录 backdrop，保持不可见
+                            alpha = if (useSharedWallpaper) 0f else 1f
                             translationX = wallpaperOffset.x
                             translationY = wallpaperOffset.y
                             renderEffect = wallpaperBlurEffect
@@ -536,7 +633,7 @@ fun MainScheduleScreen(
             )
         }
 
-        // 不可见预渲染 Box：将壁纸录制到降采样+模糊层，供所有课程卡片共享采样
+        // 不可见预渲染：壁纸录制到降采样+模糊层，供所有课卡共享采样
         if (hasSharedBlur) {
             Box(
                 modifier = Modifier
@@ -550,7 +647,7 @@ fun MainScheduleScreen(
             )
         }
 
-        // 用于手势回调中读取最新值，避免 pointerInput(Unit) 捕获陈旧状态
+        // rememberUpdatedState：pointerInput(Unit) 读到最新值，避免捕获陈旧状态
         val latestWallpaperScale by rememberUpdatedState(wallpaperScale)
         val latestWallpaperOffset by rememberUpdatedState(wallpaperOffset)
         val latestOnScaleChange by rememberUpdatedState(onWallpaperScaleChange)
@@ -560,7 +657,7 @@ fun MainScheduleScreen(
         val latestScreenWidthPx by rememberUpdatedState(screenWidthPx)
         val latestScreenHeightPx by rememberUpdatedState(screenHeightPx)
 
-        // 手势结束后触发缩放回弹动画（指针输入作用域内无法调用 animate，需通过状态触发）
+        // 指针作用域内无法直接 animate，经状态触发回弹
         var bounceBackTrigger by remember { mutableIntStateOf(0) }
         var gestureEndScale by remember { mutableFloatStateOf(1f) }
         LaunchedEffect(bounceBackTrigger) {
@@ -578,16 +675,21 @@ fun MainScheduleScreen(
             }
         }
 
-// Pager 预取策略：Compose foundation 1.12 已移除 prefetchPolicy 公开 API，
-    // 但内部仍然在 scroll 期间触发 prefetch（见 PagerState.prefetchingEnabled）。
-    // beyondViewportPageCount=1 让 next page 进入 composition+layout 范围，next-next page 由内部 prefetcher 接管。
-    // next page 的 first composition（50-100ms 量级）发生在 beyond viewport 时，
-    // 当用户切到此页时 already measured，水平滑动掉帧缓解。
+// beyondViewportPageCount=2：邻近 2 周提前 composition，快滑跨周时目标页多半已就绪
     HorizontalPager(
         state = pagerState,
-        modifier = Modifier.fillMaxSize(),
-        beyondViewportPageCount = 1,
-        userScrollEnabled = !isWallpaperEditing
+        modifier = Modifier
+            .fillMaxSize()
+            // 横竖主导手势（与今日页共用）：横向接管 pager，纵向仍归页内滚动
+            .pagerAxisTakeoverGesture(
+                pagerState = pagerState,
+                blockGesture = {
+                    latestIsWallpaperEditing || latestDraggingCourseIds.isNotEmpty()
+                },
+            ),
+        beyondViewportPageCount = 2,
+        // 横向触摸改由 pagerAxisTakeoverGesture 驱动；纵滑主导时交给 verticalScroll
+        userScrollEnabled = false
     ) { page ->
             val week = page + 1
 
@@ -600,56 +702,56 @@ fun MainScheduleScreen(
                         if (scheduleScrollBehavior != null) Modifier.nestedScroll(scheduleScrollBehavior.nestedScrollConnection)
                         else Modifier
                     )
+                    // overScroll 必须在 verticalScroll 外侧，作为滚动容器的 parent 才能收到 fling
                     .overScrollVertical()
                     .scrollEndHaptic(
                         hapticFeedbackType = HapticFeedbackType.TextHandleMove
                     )
+                    .onGloballyPositioned { coordinates ->
+                        val pos = coordinates.positionInWindow()
+                        scheduleViewport.topPx = pos.y
+                        scheduleViewport.bottomPx = pos.y + coordinates.size.height
+                    }
                     .verticalScroll(scrollState)
-                    // 布局阶段读取顶栏高度：顶栏折叠动画逐帧变化时只触发本节点重新测量/摆放，
-                    // 避免在组合期读取 currentHeightPx 导致整个课程表页面逐帧重组。
-                    // 滚动内容高度约束为无限，子树约束恒定，折叠期间子树不会重复测量。
-                    // 顶部偏移只依赖课程表顶栏自身的固有高度（纯计算、切页不变），
-                    // 不再依赖实测的 paddingValues / currentHeightPx，避免切 tab 时内容位移。
+                    // 底部留白直接计入滚动内容高度；强制无界测量，避免 fillMaxSize/测量链把内容压回视口高
                     .layout { measurable, constraints ->
                         val topPad = contentTopPaddingDp.roundToPx().coerceAtLeast(0)
-                        val bottomPad = 140.dp.roundToPx()
-                        val placeable = measurable.measure(constraints)
+                        val bottomPad = scheduleEndSpacer.roundToPx().coerceAtLeast(0)
+                        val placeable = measurable.measure(
+                            constraints.copy(
+                                minHeight = 0,
+                                maxHeight = Constraints.Infinity
+                            )
+                        )
                         layout(placeable.width, placeable.height + topPad + bottomPad) {
                             placeable.place(0, topPad)
                         }
                     }
             ) {
                 Box(modifier = Modifier.fillMaxWidth()) {
-                    // 收集每列在 root 中的 x 区间与顶部 y，供拖拽落点检测使用
                     val dayBoundsArray = remember { arrayOfNulls<FloatArray>(8) }
                     var lastDayBoundsVersion by remember { mutableIntStateOf(0) }
-                    val scrollingState = rememberUpdatedState(isGridScrolling)
-                    // 滑动结束后冲刷一次几何信息（滑动过程中的逐帧坐标变化已跳过上报）
-                    LaunchedEffect(isGridScrolling) {
-                        if (!isGridScrolling) lastDayBoundsVersion++
+                    val isScheduleScrolling by scheduleScrollInProgress
+                    LaunchedEffect(isScheduleScrolling) {
+                        // 停滑后冲刷：滑动中 onGloballyPositioned 只写数组不递增版本号
+                        if (!isScheduleScrolling) lastDayBoundsVersion++
                     }
-                    // 按周计算要显示的天数范围（智能周末模式下，不同周可能显示不同天数）
-                    // 调休补班日由 weekendDaysByWeek 顶层的 holidayIndex 感知，视为"有课"显示
-                    // 提升到 Row 之外：特殊课程横带要按同一套列宽切分内部星期子块
+                    // 提升到 Row 之外：特殊横带按同一套列宽切分内部星期子块
                     val pageDayRange = remember(weekendDaysByWeek, week) {
                         (1..5).toList() + (weekendDaysByWeek[week] ?: emptySet()).filter { it in 6..7 }
                     }
-                    // 特殊课程：横贯整个课表的横色带（覆盖周一到周日所有星期列）。
-                    // 作为 Row 下层的背景条带，起止时间由左侧时间列（SectionColumn）标注。
+                    // 特殊课程横带：作为 Row 下层背景条带，起止时间由左侧时间列标注
                     specialGrid.specialBands.forEach { band ->
-                        // 该横带内已划分的星期子块
                         val bandItems = remember(specialBlocks, band.blockId) {
                             specialBlocks.firstOrNull { it.id == band.blockId }?.safeItems ?: emptyList()
                         }
-                        // 只在周一到周日课表列范围内渲染横带，不覆盖左侧时间轴列；
-                        // 起止时间由图例时间列（SectionColumn 的 SpecialTimeLabel）单独显示
+                        // 只覆盖周一~周日列，不盖左侧时间轴
                         Box(
                             modifier = Modifier
                                 .fillMaxWidth()
                                 .height(band.height.dp)
                                 .offset(y = band.top.dp)
-                                // end 与下方 Row 的 end padding 保持一致，
-                                // 使横带内部子块能与 DayColumn 星期列逐列对齐
+                                // end 与下方 Row 的 end padding 一致，子块才能与 DayColumn 逐列对齐
                                 .padding(
                                     start = (if (isTablet) 24.dp else 0.dp) + (if (isTablet) 56.dp else 36.dp),
                                     end = if (isTablet) 24.dp else 2.dp
@@ -658,20 +760,34 @@ fun MainScheduleScreen(
                             SpecialBandOverlay(
                                 name = band.name,
                                 hasBlur = wallpaperBitmap != null,
-                                isDark = isAppDarkTheme(),
+                                isDark = scheduleIsDark,
                                 cardCornerRadius = cardCornerRadius,
                                 cardBlurRadius = cardBlurRadius,
                                 cardAlpha = cardAlpha,
+                                cardSurfaceAlpha = cardSurfaceAlpha,
                                 cardRefraction = cardRefraction,
                                 isTablet = isTablet,
-                                wallpaperBackdrop = if (wallpaperBitmap != null) {
-                                    if (hasSharedBlur) sharedBlurManager else courseCardBackdrop
-                                } else null,
+                                wallpaperBackdrop = activeCardBackdrop,
                                 items = bandItems,
                                 dayRange = pageDayRange
                             )
                         }
                     }
+
+                    // 调课落点示意：跨列/节连续位移，出现从源格滑入，消失仅透明度
+                    AnimatedDropTargetMask(
+                        dropHighlight = dropHighlight,
+                        dropHighlightOrigin = dropHighlightOrigin,
+                        pageDayRange = pageDayRange,
+                        grid = specialGrid,
+                        cardHeightPerSection = cardHeightPerSection,
+                        cardCornerRadius = cardCornerRadius,
+                        isTablet = isTablet,
+                        isDark = scheduleIsDark,
+                        hasWallpaper = wallpaperBitmap != null,
+                        wallpaperBackdrop = activeCardBackdrop,
+                        cardBlurRadius = cardBlurRadius,
+                    )
 
                     Row(
                         modifier = Modifier
@@ -688,80 +804,71 @@ fun MainScheduleScreen(
                             sectionTimes = sectionTimes,
                             sectionNames = sectionNames,
                             specialBlocks = specialBlocks,
+                            grid = specialGrid,
                             cardHeightPerSection = cardHeightPerSection,
                             showBreakDividers = showBreakDividers,
                             currentSection = if (week == currentWeek) currentSection else -1,
                             isTablet = isTablet,
-                            hasWallpaper = wallpaperBitmap != null
+                            hasWallpaper = wallpaperBitmap != null,
+                            isDark = scheduleIsDark
                         )
 
-                        // pageDayRange 已提升到 Row 之外（特殊课程横带需要同一套列宽）
-
                         pageDayRange.forEach { dayOfWeek ->
-                            // 按需计算并缓存：仅在访问时计算，不在顶层读取 pagerState.currentPage
-                            // 调休日返回映射后的 displayWeek，使该日课程按映射周次判断“本周”，避免显示成灰色
-                            val (displayWeekForDay, filteredDayCourses) = filteredCoursesCache.getOrPut(page) {
-                                val weekForPage = page + 1
-                                allDays.associateWith { dayOfWeek ->
-                                    val dateForDay = semesterStartMonday
-                                        .plusWeeks((weekForPage - 1).toLong())
-                                        .plusDays((dayOfWeek - 1).toLong())
-                                    // 调休日按被调星期/周次展示对应课程；仅已配置补班课的条目才生效（未配置时保持原课表）
-                                    val swapForDay = holidayEntries.firstOrNull {
-                                        it.type == HolidayManager.TYPE_WORKSWAP && it.matches(dateForDay.toString())
-                                    }
-                                    val swapConfigured = swapForDay?.followWeekday?.takeIf { it in 1..7 } != null
-                                    val displayDay = swapForDay?.followWeekday?.takeIf { it in 1..7 } ?: dayOfWeek
-                                    val displayWeek = swapForDay?.followWeek?.takeIf { it > 0 } ?: weekForPage
-                                    val dayCourses = coursesByDay[displayDay] ?: emptyList()
-                                    // 调休日整天替换：显示被调那天的完整课表（含非本周课程），不再按周次过滤
-                                    val courses = if (showNonCurrentWeek || swapConfigured) dayCourses
-                                    else dayCourses.filter { it.isActiveInWeek(displayWeek) }
-                                    displayWeek to courses
-                                }
-                            }.getOrElse(dayOfWeek) { week to emptyList() }
-                            val dateForDay = semesterStartMonday
-                                .plusWeeks((week - 1).toLong())
-                                .plusDays((dayOfWeek - 1).toLong())
-                            val isHoliday = holidayIndex[dateForDay.toString()]?.type == HolidayManager.TYPE_HOLIDAY
-                            // 仅已配置补班课的调休日才标记"调"，未配置（待配置补班）时按普通课表显示
-                            val isWorkSwap = holidayIndex[dateForDay.toString()]
-                                ?.takeIf { it.type == HolidayManager.TYPE_WORKSWAP }
-                                ?.followWeekday?.takeIf { it in 1..7 } != null
+                            val (displayDayForCol, displayWeekForDay, filteredDayCourses) =
+                                weekFilteredCourses[page]?.get(dayOfWeek)
+                                    ?: Triple(dayOfWeek, week, emptyList())
+                            val dayFlags = weekDayFlags[page]?.get(dayOfWeek) ?: (false to false)
+                            val isHoliday = dayFlags.first
+                            val isWorkSwap = dayFlags.second
+                            // 调课日空白格添加：落到 follow 星期/周（周五课调到周二 → 点周二默认周五）
+                            val addDayForCol = if (isWorkSwap) displayDayForCol else dayOfWeek
+                            val addWeekForCol = if (isWorkSwap) displayWeekForDay else -1
                             val stableOnCourseClick: (Course) -> Unit =
                                 remember(page, dayOfWeek, week, displayWeekForDay) {
                                     { course ->
-                                        // 调休日整天替换后：用课程归属星期（被调那天的星期）+ 映射周次查询槽位，
-                                        // 避免弹出“没调课前的”原始课程
+                                        // 调休日用被调星期+映射周次查槽位，避免弹出原始课程
                                         val coursesAtSlot = viewModel.getCoursesAtSlot(
                                             displayWeekForDay,
                                             course.dayOfWeek,
                                             course.startSection,
                                             course.endSection
                                         )
-                                        // 选中点击的课程（若在槽位列表中），避免选到节次更靠前的旧课程
                                         selectedCourses = coursesAtSlot
                                         selectedCourse = coursesAtSlot.find { it.id == course.id } ?: course
                                         showCourseDetail = true
                                         onPopupStateChange(true)
                                     }
                                 }
-                            val stableOnEmptyClick: (Int) -> Unit = remember(dayOfWeek) {
-                                { section -> viewModel.showAddDialog(dayOfWeek, section) }
-                            }
+                            val stableOnEmptyClick: (Int) -> Unit =
+                                remember(dayOfWeek, addDayForCol, addWeekForCol) {
+                                    { section ->
+                                        val defaultWeeks =
+                                            if (addWeekForCol > 0) setOf(addWeekForCol) else emptySet()
+                                        viewModel.showAddDialog(addDayForCol, section, null, defaultWeeks)
+                                    }
+                                }
                             val stableOnEmptyLongPress: (Int, Float, Float, Float, Float) -> Unit =
-                                remember(dayOfWeek, onEmptyLongPress) {
+                                remember(dayOfWeek, addDayForCol, addWeekForCol, onEmptyLongPress) {
                                     { section, centerX, cellTopY, width, height ->
-                                        // 长按进入菜单时清掉 pending 添加卡，避免两层交互叠加
+                                        // 长按进菜单时清掉 pending，避免两层交互叠加
                                         pendingDay = -1
                                         pendingSection = -1
-                                        onEmptyLongPress(dayOfWeek, section, centerX, cellTopY, width, height)
+                                        onEmptyLongPress(
+                                            dayOfWeek,
+                                            section,
+                                            centerX,
+                                            cellTopY,
+                                            width,
+                                            height,
+                                            addDayForCol,
+                                            addWeekForCol,
+                                        )
                                     }
                                 }
                             val stableOnCourseLongPress: (Course, Float, Float, Float, Float, com.kyant.backdrop.Backdrop?, Int) -> Unit =
                                 remember(page, dayOfWeek) {
                                     { course, left, top, width, height, _, cWeek ->
-                                        val backdrop = if (hasSharedBlur) sharedBlurManager else courseCardBackdrop
+                                        val backdrop = activeCardBackdrop ?: courseCardBackdrop
                                         onCourseLongPress(course, left, top, width, height, backdrop, cWeek)
                                     }
                                 }
@@ -777,17 +884,17 @@ fun MainScheduleScreen(
                                 eveningSections = eveningSections,
                                 sectionTimes = sectionTimes,
                                 specialBlocks = specialBlocks,
+                                grid = specialGrid,
                                 currentWeek = displayWeekForDay,
                                 isHoliday = isHoliday,
                                 isWorkSwap = isWorkSwap,
                                 pendingDay = pendingDay,
                                 pendingSection = pendingSection,
                                 onPendingChange = onPendingChange,
-                                wallpaperBackdrop = if (wallpaperBitmap != null) {
-                                    if (hasSharedBlur) sharedBlurManager else courseCardBackdrop
-                                } else null,
+                                wallpaperBackdrop = activeCardBackdrop,
                                 cardBlurRadius = cardBlurRadius,
                                 cardAlpha = cardAlpha,
+                                cardSurfaceAlpha = cardSurfaceAlpha,
                                 cardHeightPerSection = cardHeightPerSection,
                                 cardCornerRadius = cardCornerRadius,
                                 showBreakDividers = showBreakDividers,
@@ -805,32 +912,29 @@ fun MainScheduleScreen(
                                 onCourseDragEnd = onCourseDragEnd,
                                 onCourseMenuDismiss = onCourseMenuDismiss,
                                 dropHighlightSections = if (dropHighlight?.first == dayOfWeek) dropHighlight.second else null,
+                                isDark = scheduleIsDark,
                                 modifier = Modifier
                                     .weight(1f)
                                     .onGloballyPositioned { coordinates ->
                                         val pos = coordinates.positionInRoot()
                                         val w = coordinates.size.width.toFloat()
                                         val arr = dayBoundsArray[dayOfWeek]
-                                        // 滑动期间坐标逐帧变化：只更新数组（普通字段），跳过版本号递增，
-                                        // 避免逐帧状态写入触发本页与 MainActivity 层逐帧重组；
-                                        // 滑动停止后由上面的 LaunchedEffect 统一冲刷上报
+                                        // 滑动中只写数组不递增版本号，避免逐帧重组；停后由 LaunchedEffect 冲刷
                                         if (arr == null) {
                                             dayBoundsArray[dayOfWeek] = floatArrayOf(pos.x, pos.x + w, pos.y)
-                                            if (!scrollingState.value) lastDayBoundsVersion++
+                                            if (!gridScrollFlag.scrolling) lastDayBoundsVersion++
                                         } else if (arr[0] != pos.x || arr[1] != pos.x + w || arr[2] != pos.y) {
                                             arr[0] = pos.x
                                             arr[1] = pos.x + w
                                             arr[2] = pos.y
-                                            if (!scrollingState.value) lastDayBoundsVersion++
+                                            if (!gridScrollFlag.scrolling) lastDayBoundsVersion++
                                         }
                                     }
                             )
                         }
                     }
 
-                    // 特殊课程横带的点击交互层：必须渲染在 Row **之上**。
-                    // DayColumn 的「空节次交互层」是 fillMaxHeight + pointerInput，会消费整个列高上的点击，
-                    // 横带视觉层留在下层（避免遮挡自定义时间课程），点击由本层在上层接管。
+                    // 点击层必须在 Row 之上：空节次层会消费整列点击
                     specialGrid.specialBands.forEach { band ->
                         val bandItems = remember(specialBlocks, band.blockId) {
                             specialBlocks.firstOrNull { it.id == band.blockId }?.safeItems ?: emptyList()
@@ -856,7 +960,6 @@ fun MainScheduleScreen(
                                     showSpecialItemDialog = true
                                 },
                                 onEmptyClick = { day ->
-                                    // 空白格只在未填满时出现，因此填满后天然无法再添加
                                     specialItemEditingBlockId = band.blockId
                                     specialItemEditingId = -1L
                                     specialItemName = ""
@@ -867,8 +970,7 @@ fun MainScheduleScreen(
                         }
                     }
 
-                    // 网格布局完成后上报几何信息（仅当前页上报，避免 beyondViewportPageCount 缓存页覆盖当前页数据）
-                    // 仅在几何参数实际变化时才触发回调，避免每次重组分配新对象
+                    // 仅当前页上报；几何实际变化时才触发回调，避免每次重组分配新对象
                     val sectionHeightPx = with(density) { cardHeightPerSection.dp.toPx() }
                     val prevBoundsVersion = remember { mutableIntStateOf(lastDayBoundsVersion) }
                     val prevSectionHeight = remember { mutableFloatStateOf(sectionHeightPx) }
@@ -919,30 +1021,35 @@ fun MainScheduleScreen(
                     if (showBreakDividers) {
                     val dividerShape = ContinuousRoundedRectangle(12.dp)
                     val dividerHorizontalPadding = if (isTablet) 24.dp else 4.dp
-                    val dividerIsDark = isAppDarkTheme()
+                    val dividerIsDark = scheduleIsDark
                     val dividerDensity = LocalDensity.current
-                    // 与课程卡片一致的液态玻璃参数
                     val dividerBlurPx = with(dividerDensity) { remember(cardBlurRadius) { cardBlurRadius.dp.toPx() } }
-                    // 分界带折射档位跟随卡片折射：关闭时无透镜，其余档位按卡片映射取值
                     val dividerLensRadiusPx = with(dividerDensity) { remember(cardRefraction) { (cardRefraction.lensRadiusDp * 0.67f).dp.toPx() } }
                     val dividerLensStrengthPx = with(dividerDensity) { remember(cardRefraction) { (cardRefraction.lensStrengthDp * 1f).dp.toPx() } }
                     val hasWallpaperDivider = wallpaperBitmap != null
-                    // 无壁纸时用纯色背景；有壁纸时底色透明，由 drawBackdrop 绘制玻璃层
                     val dividerBaseColor = if (hasWallpaperDivider) Color.Transparent else if (dividerIsDark) Color(0xFF121212) else Color(0xFFF0F0F0)
-                    // 玻璃底色与反光覆盖层（同 CourseCard 的液态玻璃观感）
-                    val dividerGlassColor = if (dividerIsDark) Color(0xFF323232).copy(alpha = 0.64f) else Color.White.copy(alpha = 0.5f)
-                    val dividerOverlayColor = if (dividerIsDark) Color(0xFF323232).copy(alpha = 0.12f) else Color.White.copy(alpha = 0.1f)
+                    // 15% 锚定当前视觉；百分比映射到 0..1（仅作用于有壁纸玻璃表面）
+                    val dividerSurfaceAlphaAt15 = if (dividerIsDark) 0.64f else 0.50f
                     val dividerBlurShape = remember { ContinuousRoundedRectangle(12.dp) }
                     val dividerEdgeLightShape = remember { ContinuousRoundedRectangle(12.dp) }
 
                     @Composable
                     fun BreakDivider(offsetY: Int, text: String) {
-                        // 跟随“卡片不透明度”：以默认 0.15 为基准等比缩放分界带可见度，保持默认观感不变。
-                        // 因子基于原始 cardAlpha（不带模糊 1.6 系数），确保默认时因子恒为 1
-                        val dividerAlphaFactor = cardAlpha / 0.15f
-                        val dividerFgBase = dividerBaseColor.copy(alpha = (dividerBaseColor.alpha * dividerAlphaFactor).coerceIn(0f, 1f))
-                        val dividerFgGlass = dividerGlassColor.copy(alpha = (dividerGlassColor.alpha * dividerAlphaFactor).coerceIn(0f, 1f))
-                        val dividerFgOverlay = dividerOverlayColor.copy(alpha = (dividerOverlayColor.alpha * dividerAlphaFactor).coerceIn(0f, 1f))
+                        // 0%→0，15%→当前，100%→1；两段线性映射（仅作用于有壁纸玻璃表面）
+                        val p = cardSurfaceAlpha.coerceIn(0f, 1f)
+                        val surfaceAlpha = if (p <= 0.15f) {
+                            (p / 0.15f) * dividerSurfaceAlphaAt15
+                        } else {
+                            dividerSurfaceAlphaAt15 +
+                                ((p - 0.15f) / 0.85f) * (1f - dividerSurfaceAlphaAt15)
+                        }
+                        // 无壁纸底色保持实色，不随「卡片不透明度」变化
+                        val dividerFgBase = dividerBaseColor
+                        val dividerFgSurface = if (dividerIsDark) {
+                            Color(0xFF323232).copy(alpha = surfaceAlpha)
+                        } else {
+                            Color.White.copy(alpha = surfaceAlpha)
+                        }
                         Box(
                             modifier = Modifier.fillMaxWidth().offset(y = offsetY.dp)
                                 .height(24.dp)
@@ -951,15 +1058,16 @@ fun MainScheduleScreen(
                                 .background(dividerFgBase, dividerShape)
                                 .then(
                                     if (hasWallpaperDivider) {
-                                        val dividerBackdrop = if (hasSharedBlur) sharedBlurManager else courseCardBackdrop
-                                        val dividerEffects: com.kyant.backdrop.BackdropEffectScope.() -> Unit = remember(dividerBackdrop, dividerBlurPx, dividerLensRadiusPx, dividerLensStrengthPx) {
-                                            {
-                                                if (dividerBackdrop !is SharedBlurBackdrop) {
-                                                    blur(dividerBlurPx)
+                                        val dividerBackdrop = activeCardBackdrop ?: courseCardBackdrop
+                                        val dividerEffects: com.kyant.backdrop.BackdropEffectScope.() -> Unit =
+                                            remember(dividerBackdrop, dividerBlurPx, dividerLensRadiusPx, dividerLensStrengthPx) {
+                                                {
+                                                    if (dividerBackdrop !is SharedBlurBackdrop) {
+                                                        blur(dividerBlurPx)
+                                                    }
+                                                    lens(dividerLensRadiusPx, dividerLensStrengthPx)
                                                 }
-                                                lens(dividerLensRadiusPx, dividerLensStrengthPx)
                                             }
-                                        }
                                         Modifier.drawBackdrop(
                                             backdrop = dividerBackdrop,
                                             shape = { dividerBlurShape },
@@ -967,9 +1075,11 @@ fun MainScheduleScreen(
                                             highlight = null,
                                             shadow = null,
                                             downsampleScale = 0.48f,
-                                            onDrawSurface = {
-                                                drawRect(dividerFgGlass)
-                                                drawRect(dividerFgOverlay)
+                                            viewport = com.kyant.backdrop.LocalBackdropViewport.current,
+                                            onDrawSurface = remember(dividerFgSurface) {
+                                                {
+                                                    drawRect(dividerFgSurface)
+                                                }
                                             }
                                         ).edgeLight(shape = dividerEdgeLightShape, edgeLight = rememberCourseCardEdgeLight())
                                     } else Modifier
@@ -989,7 +1099,6 @@ fun MainScheduleScreen(
                 }
             }
 
-            // 编辑模式透明手势遮罩层（最顶层，拦截触摸）
             if (isWallpaperEditing && wallpaperBitmap != null) {
                 Box(
                     modifier = Modifier
@@ -1005,7 +1114,6 @@ fun MainScheduleScreen(
                                     val zoom = event.calculateZoom()
                                     val pan = event.calculatePan()
                                     gestureScale *= zoom
-                                    // 低于最小缩放时逐渐增大阻力，越缩越难
                                     val newScale = if (gestureScale < latestMinWallpaperScale) {
                                         val diff = gestureScale - latestMinWallpaperScale
                                         latestMinWallpaperScale + diff * 0.3f
@@ -1013,7 +1121,6 @@ fun MainScheduleScreen(
                                         gestureScale
                                     }
                                     lastDisplayScale = newScale
-                                    // 计算合法偏移范围
                                     val bmp = latestWallpaperBitmap
                                     if (bmp != null && bmp.width > 0 && bmp.height > 0) {
                                         val fitScale = minOf(latestScreenWidthPx / bmp.width, latestScreenHeightPx / bmp.height)
@@ -1035,7 +1142,6 @@ fun MainScheduleScreen(
                                     }
                                     event.changes.forEach { it.consume() }
                                 } while (event.changes.any { it.pressed })
-                                // 手势结束，记录最终显示缩放并标记需要回弹
                                 gestureEndScale = lastDisplayScale
                                 bounceBackTrigger++
                             }
@@ -1052,9 +1158,9 @@ fun MainScheduleScreen(
                     hapticFeedback.performHapticFeedback(HapticFeedbackType.Confirm)
                     val course = selectedCourse ?: selectedCourses.firstOrNull()
                     showCourseDetail = false
-                    // 先关闭详情弹窗，等关闭动画完成后再打开添加课程弹窗
+                    // 等关闭动画后再开添加弹窗
                     scope.launch {
-                        delay(100)
+                        delay(100.milliseconds)
                         if (course != null) {
                             viewModel.showAddDialog(
                                 course.dayOfWeek,
@@ -1091,9 +1197,7 @@ fun MainScheduleScreen(
                             }
                     )
                 }
-            // 进入动画：逐卡 reveal。所有卡始终参与布局（占位），仅通过 graphicsLayer 做透明/位移/缩放，
-            // 避免 AnimatedVisibility 移除节点导致 wrapContentHeight 高度逐帧变化而弹窗闪烁。
-            // skipReveal 可选跳过：返回 CourseDetailScreen 后 MainScheduleScreen 重建时弹窗内容不应重播入场。
+            // 始终参与布局，用 graphicsLayer 做透明/位移，避免移除节点导致弹窗高度闪烁
             var revealCount by remember { mutableIntStateOf(0) }
             LaunchedEffect(coursesToShow.size) {
                 if (skipSheetReveal) {
@@ -1101,14 +1205,15 @@ fun MainScheduleScreen(
                     return@LaunchedEffect
                 }
                 revealCount = 0
-                delay(120)
+                delay(120.milliseconds)
                 for (i in 1..coursesToShow.size) {
                     revealCount = i
-                    delay(56)
+                    delay(56.milliseconds)
                 }
             }
             Column(
                 modifier = Modifier
+                    // overScroll 在 verticalScroll 外侧
                     .overScrollVertical()
                     .scrollEndHaptic(
                         hapticFeedbackType = HapticFeedbackType.TextHandleMove
@@ -1133,12 +1238,9 @@ fun MainScheduleScreen(
                     }
                     val isCurrentWeekCourse = course.isActiveInWeek(viewingWeek)
                     val isHidden = course.id in hiddenCourseIds
-                    // 用普通 holder 保存位置：之前用 mutableStateOf 每次 onGloballyPositioned
-                    // 都会触发卡片作用域重组；这里不写 State，仅在点击时读取 holder，完全零重组。
-                    // key 用 course.id：列表重排时 holder 仍属于同一门课，避免错位。
+                    // 普通 holder 零重组；key 用 course.id 防列表重排错位
                     val cardBoundsHolder = remember(course.id) { CardBoundsHolder() }
-                    // 逐卡入场进度；动画结束后（revealCount=size 且非隐藏）去掉离屏层，避免长期为可见卡建层。
-                    // 恢复场景(skipSheetReveal)直接静止全显：shown 恒 1，不播 220ms 淡入。
+                    // 动画结束后去掉离屏层；skipSheetReveal 时直接全显不播淡入
                     val appear by animateFloatAsState(
                         targetValue = if (index < revealCount) 1f else 0f,
                         animationSpec = tween(220),
@@ -1168,7 +1270,7 @@ fun MainScheduleScreen(
                                 val position =
                                     coordinates.localToRoot(androidx.compose.ui.geometry.Offset.Zero)
                                 val size = coordinates.size
-                                cardBoundsHolder.rect = androidx.compose.ui.geometry.Rect(
+                                cardBoundsHolder.rect = Rect(
                                     left = position.x,
                                     top = position.y,
                                     right = position.x + size.width,
@@ -1183,9 +1285,8 @@ fun MainScheduleScreen(
                             contentColor = MiuixTheme.colorScheme.onSurface
                         ),
                         onClick = {
-                            // Open course detail page with all courses of the same name
                             val coursesForDetail = courses.filter { it.name == course.name }
-                            // 详情页据此自动滚动到对应周：本周有课用当前查看周，否则回退到离当前查看周最近的上课周
+                            // 本周有课用当前查看周，否则回退到最近上课周
                             val targetWeek = if (course.isActiveInWeek(viewingWeek)) viewingWeek
                             else if (viewingWeek < course.startWeek) course.startWeek
                             else course.endWeek
@@ -1230,9 +1331,9 @@ fun MainScheduleScreen(
                                     .clickable {
                                         showCourseDetail = false
                                         onPopupStateChange(false)
-                                        // 先关闭详情弹窗，等关闭动画完成后再打开编辑课程弹窗
+                                        // 等关闭动画后再开编辑弹窗
                                         scope.launch {
-                                            delay(100)
+                                            delay(100.milliseconds)
                                             viewModel.showEditDialog(course)
                                         }
                                     }
@@ -1253,10 +1354,7 @@ fun MainScheduleScreen(
                 Spacer(modifier = Modifier.height(if (isTablet) 0.dp else 260.dp))
             }
         }
-        // 把弹窗整块抽到子 Composable：把 MutableState 对象本身传进去，在子作用域里 `var show by showState` 读。
-        // 之前 showCourseDetail 是在页面顶层作用域读取的（用于 sheet 的 show 参数），点卡片那一帧
-        // 会让整个 HorizontalPager / 所有 DayColumn / 所有课程卡随之重组，正好压在弹窗进入动画的头两帧，
-        // 是掉帧的关键来源之一。
+        // show 状态下沉到子作用域：顶层读会在点卡片那帧重组整页，压在弹窗动画头两帧
         CourseDetailSheet(
             showState = externalShowCourseDetail,
             isTablet = isTablet,
@@ -1269,9 +1367,8 @@ fun MainScheduleScreen(
             content = detailContent,
         )
 
-        // 特殊课程内部「星期子块」的添加/编辑弹窗
         val editingBlock = specialBlocks.firstOrNull { it.id == specialItemEditingBlockId }
-        // 计算已被占用的星期（编辑时排除自己，否则无法取消自己占用的格子）
+        // 编辑时排除自己，否则无法取消自己占用的格子
         val occupiedDays = (editingBlock?.safeItems ?: emptyList())
             .filter { it.id != specialItemEditingId }
             .flatMap { it.startDay..it.endDay }
@@ -1307,10 +1404,8 @@ fun MainScheduleScreen(
                             Toast.makeText(scheduleContext, "请选择至少一个星期", Toast.LENGTH_SHORT).show()
                         }
                         else -> {
-                            // 把点选的不连续星期合并成连续区间
-                            // 例 {1,3,4} → [(1,1), (3,4)]，保存后自动生成两个子块
+                            // 不连续点选合并为连续区间，如 {1,3,4} → 两个子块
                             val ranges = mergeConsecutiveDays(selected)
-                            // 编辑时先移除旧子块，再按新区间追加；新增时直接追加
                             val base = block.safeItems.filter { it.id != specialItemEditingId }
                             val newItems = ranges.map { (s, e) ->
                                 com.haooz.chedule.data.SpecialItem(
@@ -1346,18 +1441,13 @@ fun MainScheduleScreen(
             }
         )
     }
+    } // CompositionLocalProvider
 }
 
-/** 特殊课程子块弹窗里周一~周日的格子标签 */
+/** 弹窗里周一~周日的格子标签 */
 private val SPECIAL_WEEK_LABELS = arrayOf("一", "二", "三", "四", "五", "六", "日")
 
-/**
- * 特殊课程内部「星期子块」的添加/编辑弹窗。
- *
- * 交互：填写名称 + 点选多个星期格子（可点 1、3、4 这样的不连续组合）。
- * 保存时自动把点选的不连续星期合并为连续区间，如 {1,3,4} → 周一一个子块、周三~周四一个子块。
- * 已被同横带内其他子块占用的星期格子会**置灰不可点**，避免重叠。
- */
+// 已被同横带其他子块占用的星期置灰不可点，避免重叠
 @Composable
 private fun SpecialItemEditDialog(
     show: Boolean,
@@ -1392,7 +1482,7 @@ private fun SpecialItemEditDialog(
                 modifier = Modifier.fillMaxWidth(),
                 requestFocus = show
             )
-            // 实时展示选中的星期集合，按连续区间分组显示：{1,3,4} → "周一 / 周三~周四"
+            // 按连续区间分组显示：{1,3,4} → "周一 / 周三~周四"
             val rangesLabel = if (selectedDays.isEmpty()) {
                 "点选下方星期（不连续可分段保存）"
             } else {
@@ -1439,15 +1529,7 @@ private fun SpecialItemEditDialog(
     }
 }
 
-/**
- * 周一~周日格子多选器。
- *
- * 三种状态：
- * - **已选中**（[selectedDays] 内）：主色高亮，可再次点击取消。
- * - **已被占用**（[occupiedDays] 内，且不在 [selectedDays]）：置灰 + 不可点击。
- *   编辑自身时占用方应排除自己对应的格子，否则无法取消自己占用的格子。
- * - **可点**：正常背景色，点击 toggle 入选中集合。
- */
+// 已占用置灰不可点；编辑自身时占用方应排除自己对应格子
 @Composable
 private fun WeekDayRangeSelector(
     selectedDays: Set<Int>,
@@ -1481,7 +1563,6 @@ private fun WeekDayRangeSelector(
                     style = MiuixTheme.textStyles.body2,
                     color = when {
                         selected -> Color.White
-                        // 占用时与背景同色化，呈现明显的"不可选"观感
                         occupied -> MiuixTheme.colorScheme.onSurface.copy(alpha = 0.25f)
                         else -> MiuixTheme.colorScheme.onSurface
                     }
@@ -1491,10 +1572,7 @@ private fun WeekDayRangeSelector(
     }
 }
 
-/**
- * 把点选的星期集合按连续区间合并：{1,3,4} → [(1,1), (3,4)]。
- * 输入应为已排序的星期列表，输出每个区间为 (start, end)。
- */
+// {1,3,4} → [(1,1), (3,4)]；输入需已排序
 private fun mergeConsecutiveDays(sortedDays: List<Int>): List<Pair<Int, Int>> {
     if (sortedDays.isEmpty()) return emptyList()
     val ranges = mutableListOf<Pair<Int, Int>>()
@@ -1513,10 +1591,7 @@ private fun mergeConsecutiveDays(sortedDays: List<Int>): List<Pair<Int, Int>> {
     return ranges
 }
 
-/**
- * 课程详情弹窗封装（手机/平板分别走 BlurBottomSheet / BlurBottomSheetTablet）。
- * 把 show 状态的读取下沉到子作用域，避免页面顶层因 sheet 开关而重组。
- */
+// show 状态读取下沉到子作用域，避免页面顶层因 sheet 开关而重组
 @Composable
 private fun CourseDetailSheet(
     showState: MutableState<Boolean>,
@@ -1527,7 +1602,7 @@ private fun CourseDetailSheet(
     content: @Composable () -> Unit,
 ) {
     var show by showState
-    // 重建时如果弹窗已打开，跳过进入动画；弹窗关闭后重置，避免后续打开始终无动画
+    // 重建时若已打开则跳过进入动画；关闭后重置
     var skipSheetEnterAnimation by remember { mutableStateOf(show) }
     LaunchedEffect(show) {
         if (!show) {
@@ -1557,5 +1632,182 @@ private fun CourseDetailSheet(
             skipEnterAnimation = skipSheetEnterAnimation,
             content = content,
         )
+    }
+}
+
+private data class DropMaskBox(
+    val left: Float,
+    val top: Float,
+    val width: Float,
+    val height: Float,
+)
+
+/**
+ * 调课落点示意遮罩：拖动换格时弹簧连续位移；出现从上方轻微落入，消失淡出。
+ * 放在 DayColumn 之前，保证卡片画在遮罩之上。
+ */
+@Composable
+private fun AnimatedDropTargetMask(
+    dropHighlight: Pair<Int, IntRange>?,
+    dropHighlightOrigin: Pair<Int, IntRange>?,
+    pageDayRange: List<Int>,
+    grid: com.haooz.chedule.ui.components.SpecialGridLayout,
+    cardHeightPerSection: Float,
+    cardCornerRadius: Float,
+    isTablet: Boolean,
+    isDark: Boolean,
+    hasWallpaper: Boolean,
+    wallpaperBackdrop: com.kyant.backdrop.Backdrop?,
+    cardBlurRadius: Float,
+) {
+    val density = LocalDensity.current
+    val left = remember { Animatable(0f) }
+    val top = remember { Animatable(0f) }
+    val width = remember { Animatable(0f) }
+    val height = remember { Animatable(0f) }
+    val alpha = remember { Animatable(0f) }
+    val lastTarget = remember { mutableStateOf<DropMaskBox?>(null) }
+
+    BoxWithConstraints(
+        modifier = Modifier
+            .fillMaxWidth()
+            .height(grid.totalHeight.dp)
+    ) {
+        val sectionW = with(density) { (if (isTablet) 56 else 36).dp.toPx() }
+        val padStart = with(density) { (if (isTablet) 24 else 0).dp.toPx() }
+        val padEnd = with(density) { (if (isTablet) 24 else 2).dp.toPx() }
+        val padH = with(density) { 2.dp.toPx() }
+        val padV = with(density) { 2.dp.toPx() }
+        val maxW = constraints.maxWidth.toFloat()
+        val dayCount = pageDayRange.size.coerceAtLeast(1)
+        val dayW = ((maxW - padStart - sectionW - padEnd) / dayCount).coerceAtLeast(0f)
+        val dayAreaLeft = padStart + sectionW
+        val cornerPx = with(density) { cardCornerRadius.dp.toPx() }
+
+        val boxOf: (Pair<Int, IntRange>?) -> DropMaskBox? = remember(
+            pageDayRange, grid, cardHeightPerSection, dayW, dayAreaLeft, density, padH, padV
+        ) {
+            { hl ->
+                if (hl == null) {
+                    null
+                } else {
+                    val dayIndex = pageDayRange.indexOf(hl.first)
+                    if (dayIndex < 0) {
+                        null
+                    } else {
+                        // 用 sectionTop 差值算高度：跨午休/晚修时计入分界缝与特殊块挤占
+                        val first = hl.second.first
+                        val last = hl.second.last
+                        val topDp = grid.sectionTop[first] ?: 0f
+                        val bottomDp = (grid.sectionTop[last] ?: topDp) + cardHeightPerSection
+                        val hDp = (bottomDp - topDp).coerceAtLeast(cardHeightPerSection)
+                        DropMaskBox(
+                            left = dayAreaLeft + dayIndex * dayW + padH,
+                            top = with(density) { topDp.dp.toPx() } + padV,
+                            width = (dayW - padH * 2).coerceAtLeast(0f),
+                            height = (with(density) { hDp.dp.toPx() } - padV * 2).coerceAtLeast(0f),
+                        )
+                    }
+                }
+            }
+        }
+        val targetBox = remember(dropHighlight, boxOf) { boxOf(dropHighlight) }
+        val originBox = remember(dropHighlightOrigin, boxOf) { boxOf(dropHighlightOrigin) }
+
+        LaunchedEffect(targetBox) {
+            if (targetBox == null) {
+                // 带出：仅透明度
+                alpha.animateTo(0f, tween(durationMillis = 180, easing = CubicBezierEasing(0.4f, 0f, 1f, 1f)))
+                lastTarget.value = null
+            } else {
+                val prev = lastTarget.value
+                val wasVisible = alpha.value > 0.05f && prev != null
+                val spec = spring<Float>(dampingRatio = 0.95f, stiffness = 800f)
+                if (!wasVisible) {
+                    // 出现：从源课格连续滑入落点（无源时在落点淡入），避免闪现
+                    val from = originBox ?: targetBox
+                    left.snapTo(from.left)
+                    top.snapTo(from.top)
+                    width.snapTo(from.width)
+                    height.snapTo(from.height)
+                    alpha.snapTo(0f)
+                    launch {
+                        alpha.animateTo(1f, tween(durationMillis = 180, easing = CubicBezierEasing(0.2f, 0.8f, 0.2f, 1f)))
+                    }
+                    if (from != targetBox) {
+                        launch { left.animateTo(targetBox.left, spec) }
+                        launch { top.animateTo(targetBox.top, spec) }
+                        launch { width.animateTo(targetBox.width, spec) }
+                        launch { height.animateTo(targetBox.height, spec) }
+                    }
+                } else {
+                    // 目标变化：位置/尺寸弹簧连贯移动
+                    launch { left.animateTo(targetBox.left, spec) }
+                    launch { width.animateTo(targetBox.width, spec) }
+                    launch { height.animateTo(targetBox.height, spec) }
+                    launch { top.animateTo(targetBox.top, spec) }
+                    if (alpha.value < 1f) {
+                        launch { alpha.animateTo(1f, tween(durationMillis = 180)) }
+                    }
+                }
+                lastTarget.value = targetBox
+            }
+        }
+
+        val hasWallpaperMask = hasWallpaper && wallpaperBackdrop != null
+        val solidColor = Color(0xFF9E9E9E).copy(alpha = if (isDark) 0.13f else 0.15f)
+        val glassSurface = if (isDark) Color(0xFF242424).copy(alpha = 0.64f) else Color(0xFFF0F0F0).copy(alpha = 0.5f)
+        val blurPx = with(density) { remember(cardBlurRadius) { cardBlurRadius.dp.toPx() } }
+        val maskShape = remember(cardCornerRadius) { ContinuousRoundedRectangle(cardCornerRadius.dp) }
+
+        if (hasWallpaperMask) {
+            // 壁纸玻璃表面：offset+layout 跟动画几何，alpha 走 graphicsLayer
+            Box(
+                modifier = Modifier
+                    .offset {
+                        IntOffset(
+                            left.value.roundToInt(),
+                            top.value.roundToInt()
+                        )
+                    }
+                    .layout { measurable, _ ->
+                        val w = width.value.roundToInt().coerceAtLeast(0)
+                        val h = height.value.roundToInt().coerceAtLeast(0)
+                        val placeable = measurable.measure(Constraints.fixed(w, h))
+                        layout(w, h) {
+                            placeable.place(0, 0)
+                        }
+                    }
+                    .graphicsLayer { this.alpha = alpha.value }
+                    .drawBackdrop(
+                        backdrop = wallpaperBackdrop!!,
+                        shape = { maskShape },
+                        effects = {
+                            if (wallpaperBackdrop !is SharedBlurBackdrop) blur(blurPx)
+                        },
+                        highlight = null,
+                        shadow = null,
+                        downsampleScale = 0.48f,
+                        onDrawSurface = { drawRect(glassSurface) }
+                    )
+            )
+        } else {
+            // 纯色路径：drawBehind 读 Animatable，位移/尺寸/透明度均不触发重组
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(grid.totalHeight.dp)
+                    .drawBehind {
+                        val a = alpha.value
+                        if (a <= 0.01f) return@drawBehind
+                        drawRoundRect(
+                            color = solidColor.copy(alpha = solidColor.alpha * a),
+                            topLeft = Offset(left.value, top.value),
+                            size = Size(width.value, height.value),
+                            cornerRadius = CornerRadius(cornerPx),
+                        )
+                    }
+            )
+        }
     }
 }

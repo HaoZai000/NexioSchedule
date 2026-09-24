@@ -4,7 +4,6 @@ package com.haooz.chedule.ui.screens
 import android.annotation.SuppressLint
 import android.graphics.Bitmap
 import android.widget.Toast
-import androidx.activity.compose.BackHandler
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.animateDpAsState
@@ -35,7 +34,6 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.State
 import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -68,6 +66,10 @@ import androidx.compose.ui.unit.Density
 import androidx.compose.ui.unit.LayoutDirection
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.navigationevent.NavigationEventInfo
+import androidx.navigationevent.NavigationEventTransitionState
+import androidx.navigationevent.compose.NavigationBackHandler
+import androidx.navigationevent.compose.rememberNavigationEventState
 import com.haooz.chedule.data.Course
 import com.haooz.chedule.data.CourseRepository
 import com.haooz.chedule.data.SpecialBlock
@@ -80,6 +82,7 @@ import com.haooz.chedule.ui.effects.motion.OobeCubicOutEasing
 import com.haooz.chedule.ui.effects.motion.OobeFifthpowerOutEasing
 import com.haooz.chedule.ui.effects.motion.OobeQuadraticOutEasing
 import com.haooz.chedule.ui.effects.motion.OobeQuartOutEasing
+import com.haooz.chedule.ui.utils.PredictiveBackSettings
 import com.haooz.chedule.ui.utils.isAppDarkTheme
 import com.haooz.chedule.ui.utils.overScrollVertical
 import com.kyant.backdrop.backdrops.LayerBackdrop
@@ -121,7 +124,8 @@ private data class ConfigAnimState(
     val translationY: Float,
     val scale: Float,
     val clipBottom: Float,
-    val progress: Float
+    val progress: Float,
+    val gesture: Float
 )
 
 private class ConfigAnimClipShape(
@@ -136,12 +140,18 @@ private class ConfigAnimClipShape(
         density: Density
     ): Outline {
         val s = animState.value
+        // 预测性返回：裁切圆角固定为屏幕圆角（不除以 scale，随页面缩放一起缩放）；
+        // 其余按 morph 进度插值
         val radiusPx = when {
+            s.gesture > 0f -> screenCornerRadiusPx
             s.progress >= 1f -> 0f
             s.progress <= 0.7f -> startCornerRadiusPx + (screenCornerRadiusPx - startCornerRadiusPx) * (s.progress / 0.7f)
             else -> screenCornerRadiusPx
         }
-        val radiusDp = (radiusPx / s.scale / density.density).dp
+        // 补偿在"预测返回不补偿（×1）"与"正常 morph 除以 scale"之间按 gesture 平滑插值，
+        // 避免松手瞬间圆角跳变大
+        val compensate = (1f - s.gesture) / s.scale + s.gesture
+        val radiusDp = (radiusPx * compensate / density.density).dp
         return ContinuousRoundedRectangle(radiusDp).createOutline(
             Size(screenWidth, s.clipBottom),
             layoutDirection,
@@ -178,10 +188,7 @@ private fun parseTimeHm(time: String): Pair<Int, Int> {
 private fun specialBlockSummary(block: SpecialBlock): String
 = "${block.startTime}-${block.endTime}"
 
-/**
- * 解析 "HH:mm" 为分钟数；解析失败时返回 Int.MAX_VALUE，
- * 使无法解析的条目在排序时落在末尾，避免破坏整体顺序。
- */
+// 解析失败返回 Int.MAX_VALUE，使无法解析的条目排序时落在末尾
 private fun parseTimeToMinutesForSort(time: String): Int {
     return try {
         val parts = time.split(":")
@@ -191,11 +198,7 @@ private fun parseTimeToMinutesForSort(time: String): Int {
     }
 }
 
-/**
- * 按开始时间（其次结束时间、再次名称）对特殊时段块列表排序。
- * 修复：特殊课程列表此前按用户插入顺序展示（如先加"午休"再加"午餐"会出现错乱），
- * 改为按时间先后正确排列。
- */
+// 按开始时间（其次结束时间、再次名称）排序，避免插入顺序导致"午休排在午餐之前"等错乱
 private fun sortSpecialBlocksByTime(blocks: List<SpecialBlock>): List<SpecialBlock> {
     return blocks.sortedWith(
         compareBy<SpecialBlock> { parseTimeToMinutesForSort(it.startTime) }
@@ -231,16 +234,13 @@ fun TimeConfigEditScreen(
     val scrollBehavior = rememberSharedScrollBehavior()
     var listScrollY by remember { mutableIntStateOf(0) }
 
-    // 配置名称
     val screenTitle = if (isFabCreation) "添加时间配置" else "编辑时间配置"
     var configName by remember { mutableStateOf(timeConfig.name) }
 
-    // 节数配置
     var morningSections by remember { mutableIntStateOf(timeConfig.morningSections) }
     var afternoonSections by remember { mutableIntStateOf(timeConfig.afternoonSections) }
     var eveningSections by remember { mutableIntStateOf(timeConfig.eveningSections) }
 
-    // 快捷设置
     var quickTimeEnabled by remember { mutableStateOf(timeConfig.quickTimeEnabled) }
     var classDuration by remember { mutableIntStateOf(timeConfig.classDuration) }
     var shortBreak by remember { mutableIntStateOf(timeConfig.shortBreak) }
@@ -260,7 +260,6 @@ fun TimeConfigEditScreen(
 
     // 节次时间
 
-    // 快捷设置弹窗状态
     var showQuickItemDialog by remember { mutableStateOf(false) }
     var quickEditType by remember { mutableStateOf("") }
     var quickTempValue by remember { mutableIntStateOf(0) }
@@ -268,7 +267,6 @@ fun TimeConfigEditScreen(
     var quickTempHour by remember { mutableIntStateOf(0) }
     var quickTempMinute by remember { mutableIntStateOf(0) }
 
-    // 节次时间编辑弹窗状态
     var showTimeDialog by remember { mutableStateOf(false) }
     var editingSection by remember { mutableIntStateOf(1) }
     var editingPeriod by remember { mutableStateOf("morning") }
@@ -277,23 +275,19 @@ fun TimeConfigEditScreen(
     var tempEndHour by remember { mutableIntStateOf(8) }
     var tempEndMinute by remember { mutableIntStateOf(45) }
 
-    // 节数设置弹窗状态
     var showSectionCountDialog by remember { mutableStateOf(false) }
 
-    // 特殊时段块弹窗状态
     var specialBlocks by remember { mutableStateOf(sortSpecialBlocksByTime(timeConfig.specialBlocks)) }
     var showSpecialDialog by remember { mutableStateOf(false) }
-    var editingSpecialIndex by remember { mutableIntStateOf(-1) } // -1 表示新增
+    var editingSpecialIndex by remember { mutableIntStateOf(-1) }
     var tempSpecialName by remember { mutableStateOf("") }
     var tempSpecialStartHour by remember { mutableIntStateOf(8) }
     var tempSpecialStartMinute by remember { mutableIntStateOf(0) }
     var tempSpecialEndHour by remember { mutableIntStateOf(8) }
     var tempSpecialEndMinute by remember { mutableIntStateOf(40) }
 
-    // 删除特殊时段确认弹窗状态
     var showSpecialDeleteConfirm by remember { mutableStateOf(false) }
 
-    // 时间重叠检查弹窗状态
     var showOverlapDialog by remember { mutableStateOf(false) }
     var overlapMessage by remember { mutableStateOf("") }
 
@@ -312,46 +306,122 @@ fun TimeConfigEditScreen(
     val transExitMillis = if (isUpperHalf) 320 else 320
     val hasCardBounds = cardWidth > 0f && cardHeight > 0f && screenWidth > 0f
 
-    // 动画过程中阻止返回
     var animating by remember { mutableStateOf(false) }
 
-    BackHandler {
-        if (animating) return@BackHandler
-        if (showSectionCountDialog || showTimeDialog || showQuickItemDialog) return@BackHandler
-        keyboardController?.hide()
-        focusManager.clearFocus()
-        if (!hasCardBounds) {
-            onBackStart()
-            onBack()
-            return@BackHandler
-        }
-        animating = true
-        onBackStart()
-        scope.launch {
-            coroutineScope {
-                launch {
-                    animProgress.animateTo(
-                        targetValue = 0f,
-                        animationSpec = tween(durationMillis = 350, easing = morphExitEase)
-                    )
-                }
-                launch {
-                    animTransY.animateTo(
-                        targetValue = 0f,
-                        animationSpec = tween(
-                            durationMillis = transExitMillis,
-                            easing = transExitEase
-                        )
-                    )
+    // 预测性返回：手势只驱动缩放位置 scaleProgress（1=全屏，0=卡片，可退到 -1 即 200% 行程），
+    // 预测返回期间围绕屏幕中心缩放（translation=0），位移/裁切保持全屏不动；
+    // 取消回弹全屏、完成随关闭动画一起缩回卡片；
+    // 低版本 NavigationBackHandler 自动退化为立即播放完整退出动画
+    val navigationEventState = rememberNavigationEventState(currentInfo = NavigationEventInfo.None)
+    // 手势进度（0..1）：>0 表示预测性返回进行中，用于切换"中心缩放"
+    val gestureBackProgress = remember { Animatable(0f) }
+    val scaleProgress = remember { Animatable(0f) }
+    // 手势是否正在推进：进行中裁切完全跟随页面缩放，松手/取消后进入平滑过渡
+    var isGestureActive by remember { mutableStateOf(false) }
+
+    NavigationBackHandler(
+        state = navigationEventState,
+        isBackEnabled = true,
+        onBackCancelled = {
+            isGestureActive = false
+            scope.launch {
+                if (gestureBackProgress.value > 0f) {
+                    // 手势取消：缩放回弹恢复全屏
+                    gestureBackProgress.animateTo(0f, animationSpec = tween(180))
+                    scaleProgress.animateTo(1f, animationSpec = tween(180))
                 }
             }
-            onBack()
-        }
+        },
+        onBackCompleted = {
+            when {
+                animating -> Unit
+                showSectionCountDialog || showTimeDialog || showQuickItemDialog -> {
+                    // 对话框打开时：手势回弹恢复页面，不关闭
+                    isGestureActive = false
+                    scope.launch {
+                        coroutineScope {
+                            launch { gestureBackProgress.animateTo(0f, animationSpec = tween(180)) }
+                            launch { scaleProgress.animateTo(1f, animationSpec = tween(180)) }
+                        }
+                    }
+                }
+                !hasCardBounds -> {
+                    onBackStart()
+                    onBack()
+                }
+                else -> {
+                    isGestureActive = false
+                    keyboardController?.hide()
+                    focusManager.clearFocus()
+                    animating = true
+                    onBackStart()
+                    scope.launch {
+                        coroutineScope {
+                            // 缩放中心从屏幕中心平滑过渡回左上角锚点（150ms），morph 位移随之接管
+                            launch { gestureBackProgress.animateTo(0f, animationSpec = tween(150)) }
+                            launch {
+                                scaleProgress.animateTo(
+                                    targetValue = 0f,
+                                    animationSpec = tween(durationMillis = 350, easing = morphExitEase)
+                                )
+                            }
+                            launch {
+                                animProgress.animateTo(
+                                    targetValue = 0f,
+                                    animationSpec = tween(durationMillis = 350, easing = morphExitEase)
+                                )
+                            }
+                            launch {
+                                animTransY.animateTo(
+                                    targetValue = 0f,
+                                    animationSpec = tween(
+                                        durationMillis = transExitMillis,
+                                        easing = transExitEase
+                                    )
+                                )
+                            }
+                        }
+                        onBack()
+                    }
+                }
+            }
+        },
+    )
+
+    // 逐帧收集返回手势进度（单独协程，避免手势期间每帧取消/重启 LaunchedEffect）；
+    // 缩放跟随行程为"卡片→全屏"全程的 200%（滑到底 scaleProgress=-1），
+    // 松手后由 onBackCompleted 按正常关闭动画回到卡片（1 倍）
+    LaunchedEffect(Unit) {
+        snapshotFlow { navigationEventState.transitionState }
+            .collect { transitionState ->
+                if (
+                    transitionState is NavigationEventTransitionState.InProgress &&
+                    transitionState.direction == NavigationEventTransitionState.TRANSITIONING_BACK
+                ) {
+                    // 关闭动画进行中或无卡片边界时不驱动页面变形
+                    if (!animating && hasCardBounds) {
+                        // 预测性返回动画开关：关闭时不驱动跟随动画（返回仍被拦截，直接关闭）
+                        if (PredictiveBackSettings.enabled) {
+                            isGestureActive = true
+                            val progress = transitionState.latestEvent.progress
+                            gestureBackProgress.snapTo(progress)
+                            // 添加时间配置（右下角加号进入）退出时行程 20%，编辑模式为 200%
+                            scaleProgress.snapTo(1f - progress * if (isFabCreation) 0.2f else 2f)
+                        }
+                    }
+                }
+            }
     }
 
     LaunchedEffect(Unit) {
         if (hasCardBounds) {
             delay(12.milliseconds)
+            launch {
+                scaleProgress.animateTo(
+                    targetValue = 1f,
+                    animationSpec = tween(durationMillis = 560, easing = morphOpenEase)
+                )
+            }
             launch {
                 animProgress.animateTo(
                     targetValue = 1f,
@@ -370,26 +440,37 @@ fun TimeConfigEditScreen(
     val animState = remember {
         derivedStateOf {
             if (!hasCardBounds) {
-                ConfigAnimState(0f, 0f, 1f, 0f, 0f, 1f, screenHeight, 1f)
+                ConfigAnimState(0f, 0f, 1f, 0f, 0f, 1f, screenHeight, 1f, 0f)
             } else {
                 val p = animProgress.value
                 val ty = animTransY.value
                 val bgAlpha = (p * 0.5f).coerceIn(0f, 0.5f)
                 val snapAlpha = (1f - p * 3f).coerceIn(0f, 1f)
                 val contAlpha = ((p - 0.1f) / 0.5f).coerceIn(0f, 1f)
-                val scale = cardWidth / screenWidth + (1f - cardWidth / screenWidth) * p
+                // 预测性返回手势只驱动缩放位置 scaleProgress（1=全屏，0=卡片，手势可退到 -1 即 200% 行程），
+                // 位移与裁切保持全屏（p 不变）不随手势变化；coerceAtLeast 防止窄卡片时 scale 变负翻转
+                val scale = (cardWidth / screenWidth + (1f - cardWidth / screenWidth) * scaleProgress.value).coerceAtLeast(0.05f)
 
-                val translationX = (cardLeft + cardWidth / 2f - screenWidth / 2f) * (1f - p)
+                // 预测返回期间围绕屏幕中心缩放（gesture=1 时 translation=0），
+                // 松手后 gesture 平滑归 0，translation 平滑过渡回正常 morph（卡片中心位移）
+                val gesture = gestureBackProgress.value
+                val normalX = (cardLeft + cardWidth / 2f - screenWidth / 2f) * (1f - p)
+                val translationX = normalX * (1f - gesture)
 
                 // ★ 可见区域中心 Y 直接沿抛物线插值，不再依赖 p 和 ty 的时间差
                 val cardCenterY = cardTop + cardHeight / 2f
                 val screenCenterY = screenHeight / 2f
                 val targetCenterY = cardCenterY + (screenCenterY - cardCenterY) * ty
-                val translationY = targetCenterY - screenHeight / 2f * (1f - scale) - (cardHeight + (screenHeight - cardHeight) * p) / 2f
+                val normalY = targetCenterY - screenHeight / 2f * (1f - scale) - (cardHeight + (screenHeight - cardHeight) * p) / 2f
+                val translationY = normalY * (1f - gesture)
 
-                val rawClipBottom = cardHeight + (screenHeight - cardHeight) * p
+                // 手势推进期间裁切跟随"当前展开高度×缩放"（打开未完成时也连续，底部不瞬间归位）；
+                // 松手/取消过渡期按 gesture 平滑插值衔接 morph 的底部收缩动画
+                val morphClip = cardHeight + (screenHeight - cardHeight) * p
+                val predictiveClip = morphClip * scale
+                val rawClipBottom = if (isGestureActive) predictiveClip else predictiveClip * gesture + morphClip * (1f - gesture)
                 val clipBottom = rawClipBottom / scale
-                ConfigAnimState(bgAlpha, snapAlpha, contAlpha, translationX, translationY, scale, clipBottom, p)
+                ConfigAnimState(bgAlpha, snapAlpha, contAlpha, translationX, translationY, scale, clipBottom, p, gesture)
             }
         }
     }
@@ -408,6 +489,12 @@ fun TimeConfigEditScreen(
         onBackStart()
         scope.launch {
             coroutineScope {
+                launch {
+                    scaleProgress.animateTo(
+                        targetValue = 0f,
+                        animationSpec = tween(durationMillis = 350, easing = morphExitEase)
+                    )
+                }
                 launch {
                     animProgress.animateTo(
                         targetValue = 0f,
@@ -431,16 +518,15 @@ fun TimeConfigEditScreen(
 
     val minuteValues = listOf(0, 5, 10, 15, 20, 25, 30, 35, 40, 45, 50, 55)
 
-    // 节次时间（从已保存的配置读取，只有点击"应用"按钮时才重新计算）
+    // 节次时间（从已保存配置读取，只有点"应用"时才重新计算）
     var morningTimes by remember { mutableStateOf(timeConfig.getPeriodTimes("morning")) }
     var afternoonTimes by remember { mutableStateOf(timeConfig.getPeriodTimes("afternoon")) }
     var eveningTimes by remember { mutableStateOf(timeConfig.getPeriodTimes("evening")) }
 
-    // 自定义节次名称（key 同 sectionTimes，如 "morning_1" -> "早自习"）
+    // key 同 sectionTimes，如 "morning_1" -> "早自习"
     var sectionNames by remember { mutableStateOf(timeConfig.sectionNames) }
     var tempSectionName by remember { mutableStateOf("") }
 
-    // 获取节次显示名称：有自定义名称时显示"第N节 名称"，否则显示"第N节"
     fun getSectionTitle(period: String, relSection: Int): String {
         val key = "${period}_$relSection"
         val abs = when (period) {
@@ -453,7 +539,7 @@ fun TimeConfigEditScreen(
         return if (name != null) "第${abs}节 $name" else "第${abs}节"
     }
 
-    // 检查时间重叠（仅检查当前节数范围内的节次）
+    // 仅检查当前节数范围内的节次
     fun checkTimeOverlap(): String? {
         data class TimeRange(val start: Int, val end: Int, val label: String)
 
@@ -526,12 +612,8 @@ fun TimeConfigEditScreen(
     val isDark = isAppDarkTheme()
     val isLiquidGlass = liquidGlassBackdrop != null
     val isTablet = LocalConfiguration.current.screenWidthDp >= 600
-    val tabletHorizontalPadding = if (isTablet) {
-        val screenWidthDp = LocalConfiguration.current.screenWidthDp
-        ((screenWidthDp - 600).coerceIn(0, 600) / 600f * 112 + 16).dp
-    } else 16.dp
+    val tabletHorizontalPadding = if (isTablet) 20.dp else 16.dp
 
-    // Morph动画背景遮罩 + 裁剪容器
     val s = animState.value
     val clipShape = remember {
         ConfigAnimClipShape(
@@ -568,7 +650,6 @@ fun TimeConfigEditScreen(
                     else MiuixTheme.colorScheme.background
                 )
         ) {
-            // 卡片快照 (morph动画期间显示)
             if (cardSnapshot != null && s.snapshotAlpha > 0f) {
                 val imageBitmap = remember(cardSnapshot) { cardSnapshot.asImageBitmap() }
                 Image(
@@ -748,7 +829,6 @@ fun TimeConfigEditScreen(
                                 ),
                                 verticalArrangement = Arrangement.spacedBy(12.dp)
                             ) {
-                                // 配置名称
                                 item(key = "config_name") {
                                     SmallTitle(
                                         text = "配置名称",
@@ -763,7 +843,6 @@ fun TimeConfigEditScreen(
                                     )
                                 }
 
-                                // 课表节数设置
                                 item(key = "section_count") {
                                     SmallTitle(
                                         text = "节次与时间",
@@ -791,7 +870,6 @@ fun TimeConfigEditScreen(
                                     }
                                 }
 
-                                // 快捷设置
                                 item(key = "quick_settings") {
                                     val bottomEndRadius by animateDpAsState(
                                         if (quickTimeEnabled) 32.dp else 20.dp,
@@ -839,7 +917,6 @@ fun TimeConfigEditScreen(
                                                 exit = shrinkVertically()
                                             ) {
                                                 Column(modifier = Modifier.fillMaxWidth()) {
-                                                    // 每节课时长
                                                     ArrowPreference(
                                                         title = "每节课时长",
                                                         endActions = {
@@ -857,7 +934,6 @@ fun TimeConfigEditScreen(
                                                         },
                                                         holdDownState = showQuickItemDialog && quickEditType == "duration"
                                                     )
-                                                    // 课间休息
                                                     ArrowPreference(
                                                         title = "课间休息",
                                                         endActions = {
@@ -874,7 +950,6 @@ fun TimeConfigEditScreen(
                                                         },
                                                         holdDownState = showQuickItemDialog && quickEditType == "short_break"
                                                     )
-                                                    // 大课间休息开关
                                                     Row(
                                                         modifier = Modifier.fillMaxWidth()
                                                             .clickable {
@@ -960,7 +1035,6 @@ fun TimeConfigEditScreen(
                                                             )
                                                         }
                                                     }
-                                                    // 开始时间
                                                     ArrowPreference(
                                                         title = "上午开始时间",
                                                         endActions = {
@@ -1027,7 +1101,6 @@ fun TimeConfigEditScreen(
                                                         },
                                                         holdDownState = showQuickItemDialog && quickEditType == "start_evening"
                                                     )
-                                                    // 应用按钮
                                                     TextButton(
                                                         text = "应用",
                                                         onClick = {
@@ -1118,7 +1191,7 @@ fun TimeConfigEditScreen(
                                                     }
                                                 )
                                             } else {
-                                                // 始终按开始时间排序展示，避免特殊课程出现"午休排在午餐之前"等错乱
+                                                // 始终按开始时间排序展示
                                                 sortSpecialBlocksByTime(specialBlocks).forEachIndexed { index, block ->
                                                     ArrowPreference(
                                                         title = if (block.name.isNotBlank()) block.name else "特殊课程",
@@ -1145,7 +1218,6 @@ fun TimeConfigEditScreen(
                                         }
                                     }
                                 }
-                                // 上午
                                 item(key = "morning") {
                                     SmallTitle(
                                         text = "上午",
@@ -1187,7 +1259,6 @@ fun TimeConfigEditScreen(
                                     }
                                 }
 
-                                // 下午
                                 item(key = "afternoon") {
                                     SmallTitle(
                                         text = "下午",
@@ -1229,7 +1300,6 @@ fun TimeConfigEditScreen(
                                     }
                                 }
 
-                                // 晚上
                                 item(key = "evening") {
                                     SmallTitle(
                                         text = "晚上",
@@ -1273,7 +1343,6 @@ fun TimeConfigEditScreen(
                             }
                         }
 
-                        // 快捷设置单项弹窗
                         OverlayDialog(
                             title = when (quickEditType) {
                                 "duration" -> "每节课时长"
@@ -1358,7 +1427,7 @@ fun TimeConfigEditScreen(
                                             textStyle = MiuixTheme.textStyles.title2,
                                             modifier = Modifier.weight(1f)
                                         )
-                                        val breakOptions = listOf(5, 10, 15, 20, 25, 30)
+                                        val breakOptions = listOf(5, 10, 15, 20, 25, 30, 35, 40, 45, 50, 55, 60)
                                         val breakIndex =
                                             breakOptions.indexOf(quickTempValue).coerceAtLeast(0)
                                         NumberPicker(
@@ -1462,7 +1531,6 @@ fun TimeConfigEditScreen(
                             }
                         }
 
-                        // 节数设置弹窗 - 三个选择器并排显示
                         OverlayDialog(
                             title = "课表节数设置",
                             show = showSectionCountDialog,
@@ -1477,7 +1545,6 @@ fun TimeConfigEditScreen(
                                     modifier = Modifier.fillMaxWidth(),
                                     horizontalArrangement = Arrangement.SpaceEvenly
                                 ) {
-                                    // 上午节数
                                     Column(
                                         horizontalAlignment = Alignment.CenterHorizontally,
                                         modifier = Modifier.weight(1f)
@@ -1497,7 +1564,6 @@ fun TimeConfigEditScreen(
                                         )
                                     }
 
-                                    // 下午节数
                                     Column(
                                         horizontalAlignment = Alignment.CenterHorizontally,
                                         modifier = Modifier.weight(1f)
@@ -1517,7 +1583,6 @@ fun TimeConfigEditScreen(
                                         )
                                     }
 
-                                    // 晚上节数
                                     Column(
                                         horizontalAlignment = Alignment.CenterHorizontally,
                                         modifier = Modifier.weight(1f)
@@ -1563,7 +1628,6 @@ fun TimeConfigEditScreen(
                             }
                         }
 
-                        // 特殊课程编辑弹窗
                         OverlayDialog(
                             title = if (editingSpecialIndex == -1) "添加特殊课程" else "编辑特殊课程",
                             summary = null,
@@ -1586,7 +1650,6 @@ fun TimeConfigEditScreen(
                                     singleLine = true,
                                     modifier = Modifier.fillMaxWidth()
                                 )
-                                // 起止时间（与"第×节时间设置"弹窗一致的循环滚动样式）
                                 Row(
                                     modifier = Modifier.fillMaxWidth().padding(top = 4.dp),
                                     verticalAlignment = Alignment.CenterVertically,
@@ -1688,7 +1751,6 @@ fun TimeConfigEditScreen(
                                                 name = tempSpecialName,
                                                 startTime = startStr,
                                                 endTime = endStr,
-                                                // 编辑时保留内部按星期划分的子块，避免编辑名称/时间后丢失
                                                 items = if (editingSpecialIndex == -1) null else specialBlocks[editingSpecialIndex].items
                                             )
                                             val updated = specialBlocks.toMutableList()
@@ -1697,7 +1759,7 @@ fun TimeConfigEditScreen(
                                             } else {
                                                 updated[editingSpecialIndex] = block
                                             }
-                                            // 保持列表按时间排序，避免"午休排在午餐之前"等错乱
+                                            // 保持列表按时间排序
                                             specialBlocks = sortSpecialBlocksByTime(updated)
                                             showSpecialDialog = false
                                         },
@@ -1706,7 +1768,7 @@ fun TimeConfigEditScreen(
                                     )
                                 }
                             }
-                            // 右上角删除按钮（与调休页面弹窗一致）
+                            // 右上角删除按钮
                             if (editingSpecialIndex != -1) {
                                 Box(
                                     modifier = Modifier
@@ -1734,7 +1796,6 @@ fun TimeConfigEditScreen(
                             }
                         }
 
-                        // 删除特殊课程确认弹窗
                         OverlayDialog(
                             title = "删除特殊课程",
                             summary = "确定要删除这条特殊课程吗？\n此操作不可撤销。",
@@ -1772,7 +1833,6 @@ fun TimeConfigEditScreen(
                             }
                         }
 
-                        // 节次时间编辑弹窗
                         OverlayDialog(
                             title = when (editingPeriod) {
                                 "morning" -> "第${editingSection}节时间设置"
@@ -1922,7 +1982,6 @@ fun TimeConfigEditScreen(
                                                     tempEndMinute
                                                 )
                                             }"
-                                            // 直接更新对应的时段时间
                                             when (editingPeriod) {
                                                 "morning" -> {
                                                     morningTimes = morningTimes.toMutableMap()
@@ -1939,7 +1998,7 @@ fun TimeConfigEditScreen(
                                                         .apply { put(editingSection, newTimeStr) }
                                                 }
                                             }
-                                            // 保存自定义节次名称（为空则恢复默认"第N节"）
+                                            // 空名称则恢复默认"第N节"
                                             val nameKey = "${editingPeriod}_${editingSection}"
                                             val trimmedName = tempSectionName.trim()
                                             sectionNames = sectionNames.toMutableMap().apply {
@@ -1954,7 +2013,6 @@ fun TimeConfigEditScreen(
                                 }
                             }
                         }
-                        // 时间重叠提示弹窗
                         OverlayDialog(
                             title = "时间重叠",
                             show = showOverlapDialog,

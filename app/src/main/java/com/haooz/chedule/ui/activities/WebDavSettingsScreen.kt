@@ -2,7 +2,6 @@
 package com.haooz.chedule.ui.activities
 
 import android.annotation.SuppressLint
-import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -26,16 +25,15 @@ import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
@@ -44,22 +42,22 @@ import androidx.compose.ui.unit.sp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.haooz.chedule.data.SyncManager
 import com.haooz.chedule.data.WebDavManager
-import top.yukonga.miuix.kmp.basic.NativeTextField
+import com.haooz.chedule.ui.basic.CollapsibleTopAppBarDefaults
 import com.haooz.chedule.ui.basic.SharedScrollBehavior
+import com.haooz.chedule.ui.basic.collapsibleTopInset
+import com.haooz.chedule.ui.utils.overScrollVertical
 import com.haooz.chedule.viewmodel.CourseViewModel
 import com.haooz.chedule.viewmodel.ScheduleViewModel
 import com.haooz.chedule.viewmodel.SettingsViewModel
 import kotlinx.coroutines.launch
-import top.yukonga.miuix.kmp.basic.ButtonDefaults
 import top.yukonga.miuix.kmp.basic.Card
 import top.yukonga.miuix.kmp.basic.CardDefaults
+import top.yukonga.miuix.kmp.basic.NativeTextField
 import top.yukonga.miuix.kmp.basic.Scaffold
 import top.yukonga.miuix.kmp.basic.SmallTitle
-import top.yukonga.miuix.kmp.basic.TextButton
 import top.yukonga.miuix.kmp.blur.layerBackdrop
 import top.yukonga.miuix.kmp.blur.rememberLayerBackdrop
 import top.yukonga.miuix.kmp.theme.MiuixTheme
-import com.haooz.chedule.ui.utils.overScrollVertical
 import top.yukonga.miuix.kmp.utils.scrollEndHaptic
 import androidx.compose.ui.graphics.Color as ComposeColor
 
@@ -68,10 +66,11 @@ import androidx.compose.ui.graphics.Color as ComposeColor
 fun WebDavSettingsScreen(
     scrollBehavior: SharedScrollBehavior? = null,
     onConnectedChange: (Boolean) -> Unit = {},
-    onTestConnectionReady: (() -> Unit) -> Unit = {}
+    onTestConnectionReady: (() -> Unit) -> Unit = {},
+    onBackupRestoreReady: (onBackup: () -> Unit, onRestore: () -> Unit) -> Unit = { _, _ -> },
+    onBusyStateChange: (backingUp: Boolean, restoring: Boolean) -> Unit = { _, _ -> }
 ) {
     val context = LocalContext.current
-    val hapticFeedback = LocalHapticFeedback.current
     val webDavManager = remember { WebDavManager(context) }
     val coroutineScope = rememberCoroutineScope()
     var listScrollY by remember { mutableIntStateOf(0) }
@@ -104,6 +103,9 @@ fun WebDavSettingsScreen(
     LaunchedEffect(connected) {
         onConnectedChange(connected)
     }
+    LaunchedEffect(backingUp, restoring) {
+        onBusyStateChange(backingUp, restoring)
+    }
 
     var lastSyncTimeMs by remember { mutableLongStateOf(webDavManager.lastSyncTime) }
     val lastSyncText = remember(lastSyncTimeMs) {
@@ -115,6 +117,39 @@ fun WebDavSettingsScreen(
 
     val syncManager = remember { SyncManager.getInstance(context) }
     val syncState by syncManager.syncState.collectAsState()
+
+    val doBackup = {
+        if (!backingUp && !restoring) {
+            backingUp = true
+            statusText = "正在备份..."
+            statusIsError = false
+            coroutineScope.launch {
+                webDavManager.serverUrl = serverUrl
+                webDavManager.username = username
+                webDavManager.password = password
+                syncManager.backupNow()
+            }
+        }
+    }
+    val doRestore = {
+        if (!backingUp && !restoring) {
+            restoring = true
+            statusText = "正在恢复..."
+            statusIsError = false
+            coroutineScope.launch {
+                webDavManager.serverUrl = serverUrl
+                webDavManager.username = username
+                webDavManager.password = password
+                syncManager.restoreNow()
+            }
+        }
+    }
+    val latestDoBackup by rememberUpdatedState(doBackup)
+    val latestDoRestore by rememberUpdatedState(doRestore)
+    LaunchedEffect(Unit) {
+        onBackupRestoreReady({ latestDoBackup() }, { latestDoRestore() })
+    }
+
     LaunchedEffect(syncState) {
         when (val state = syncState) {
             is SyncManager.SyncOperationState.BackupSuccess -> {
@@ -153,10 +188,7 @@ fun WebDavSettingsScreen(
         drawContent()
     }
     val isTablet = LocalConfiguration.current.screenWidthDp >= 600
-    val tabletHorizontalPadding = if (isTablet) {
-        val screenWidthDp = LocalConfiguration.current.screenWidthDp
-        ((screenWidthDp - 600).coerceIn(0, 600) / 600f * 112 + 16).dp
-    } else 16.dp
+    val tabletHorizontalPadding = 20.dp
 
     val doTestConnection = {
         if (!testing) {
@@ -200,10 +232,6 @@ fun WebDavSettingsScreen(
                         listScrollY = offset
                     }
             }
-            val density = androidx.compose.ui.platform.LocalDensity.current
-            val topBarHeightDp = with(density) {
-                (scrollBehavior?.currentHeightPx ?: 0f).toDp()
-            }
             LazyColumn(
                 state = listState,
                 modifier = Modifier.fillMaxSize()
@@ -211,13 +239,14 @@ fun WebDavSettingsScreen(
                     .scrollEndHaptic(
                         hapticFeedbackType = HapticFeedbackType.TextHandleMove
                     )
+                    .collapsibleTopInset(scrollBehavior)
                     .then(
                         scrollBehavior?.let { Modifier.nestedScroll(it.nestedScrollConnection) } ?: Modifier
                     ),
                 contentPadding = PaddingValues(
                     start = tabletHorizontalPadding,
                     end = tabletHorizontalPadding,
-                    top = paddingValues.calculateTopPadding() + topBarHeightDp,
+                    top = paddingValues.calculateTopPadding() + CollapsibleTopAppBarDefaults.CollapsedHeight + 12.dp,
                     bottom = 120.dp
                 ),
                 verticalArrangement = Arrangement.spacedBy(12.dp)
@@ -396,74 +425,7 @@ fun WebDavSettingsScreen(
                 }
             }
 
-            // 底部渐变遮罩
-            Box(
-                modifier = Modifier
-                    .align(Alignment.BottomCenter)
-                    .fillMaxWidth()
-                    .height(120.dp)
-                    .background(
-                        brush = Brush.verticalGradient(
-                            colorStops = arrayOf(
-                                0.0f to ComposeColor.Transparent,
-                                0.15f to backdropColor.copy(alpha = 0.5f),
-                                0.5f to backdropColor.copy(alpha = 0.85f),
-                                1.0f to backdropColor
-                            )
-                        )
-                    )
-            )
-
-            // 底部两个按钮：备份 + 恢复
-            Row(
-                modifier = Modifier
-                    .align(Alignment.BottomCenter)
-                    .fillMaxWidth()
-                    .padding(start = tabletHorizontalPadding + 8.dp, end = tabletHorizontalPadding + 8.dp, bottom = 48.dp),
-                horizontalArrangement = Arrangement.spacedBy(12.dp)
-            ) {
-                // 备份按钮
-                TextButton(
-                    text = if (backingUp) "备份中..." else "备份到云端",
-                    onClick = {
-                        hapticFeedback.performHapticFeedback(HapticFeedbackType.Confirm)
-                        if (!backingUp && !restoring) {
-                            backingUp = true
-                            statusText = "正在备份..."
-                            statusIsError = false
-                            coroutineScope.launch {
-                                webDavManager.serverUrl = serverUrl
-                                webDavManager.username = username
-                                webDavManager.password = password
-                                syncManager.backupNow()
-                            }
-                        }
-                    },
-                    colors = ButtonDefaults.textButtonColorsPrimary(),
-                    modifier = Modifier.weight(1f)
-                )
-
-                // 恢复按钮
-                TextButton(
-                    text = if (restoring) "恢复中..." else "从云端恢复",
-                    onClick = {
-                        hapticFeedback.performHapticFeedback(HapticFeedbackType.Confirm)
-                        if (!backingUp && !restoring) {
-                            restoring = true
-                            statusText = "正在恢复..."
-                            statusIsError = false
-                            coroutineScope.launch {
-                                webDavManager.serverUrl = serverUrl
-                                webDavManager.username = username
-                                webDavManager.password = password
-                                syncManager.restoreNow()
-                            }
-                        }
-                    },
-                    colors = ButtonDefaults.textButtonColorsPrimary(),
-                    modifier = Modifier.weight(1f)
-                )
-            }
+            // 底部备份/恢复按钮已上提到 WebDavSettingsActivity
         }
     }
 }

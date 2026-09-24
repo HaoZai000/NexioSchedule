@@ -74,6 +74,7 @@ import top.yukonga.miuix.kmp.anim.folmeSpring
 import top.yukonga.miuix.kmp.basic.Text
 import top.yukonga.miuix.kmp.theme.LocalDismissState
 import top.yukonga.miuix.kmp.theme.MiuixTheme
+import com.haooz.chedule.ui.utils.PredictiveBackSettings
 
 @Suppress("ktlint:compose:modifier-not-used-at-root")
 @Composable
@@ -181,9 +182,12 @@ internal fun DialogContentLayout(
                         transitionState is NavigationEventTransitionState.InProgress &&
                         transitionState.direction == NavigationEventTransitionState.TRANSITIONING_BACK
                     ) {
+                    // 预测性返回动画开关：关闭时不驱动跟随动画（返回仍被拦截，直接关闭）
+                    if (PredictiveBackSettings.enabled) {
                         val progress = transitionState.latestEvent.progress
                         backProgress.snapTo(progress)
                         dimAlpha.floatValue = 1f - progress
+                    }
                     }
                 }
         }

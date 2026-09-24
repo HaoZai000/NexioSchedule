@@ -2,16 +2,10 @@
 package com.haooz.chedule.ui.activities
 
 import android.os.Bundle
-import androidx.activity.ComponentActivity
 import androidx.activity.SystemBarStyle
-import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableFloatStateOf
-import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.DpOffset
 import androidx.compose.ui.unit.dp
@@ -19,7 +13,6 @@ import com.haooz.chedule.ui.basic.CollapsibleTopAppBar
 import com.haooz.chedule.ui.basic.LiquidTopBarButton
 import com.haooz.chedule.ui.basic.ProgressiveBlurTopBar
 import com.haooz.chedule.ui.basic.rememberSharedScrollBehavior
-import com.haooz.chedule.ui.theme.CourseScheduleTheme
 import com.haooz.chedule.ui.utils.applyThemeAwareSystemBars
 import top.yukonga.miuix.kmp.basic.Scaffold
 import top.yukonga.miuix.kmp.blur.layerBackdrop
@@ -28,6 +21,9 @@ import top.yukonga.miuix.kmp.icon.MiuixIcons
 import top.yukonga.miuix.kmp.icon.extended.ChevronBackward
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 import com.kyant.backdrop.backdrops.layerBackdrop as liquidGlassLayerBackdrop
+import androidx.activity.ComponentActivity
+import androidx.activity.compose.setContent
+import com.haooz.chedule.ui.theme.CourseScheduleTheme
 
 class AiImportActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -42,7 +38,7 @@ class AiImportActivity : ComponentActivity() {
         applyThemeAwareSystemBars()
         setContent {
             CourseScheduleTheme {
-                val backgroundColor = MiuixTheme.colorScheme.surface
+            val backgroundColor = MiuixTheme.colorScheme.surface
                 val backdrop = rememberLayerBackdrop {
                     drawRect(backgroundColor)
                     drawContent()
@@ -97,7 +93,7 @@ class AiImportActivity : ComponentActivity() {
                         }
                     }
                 }
-            }
+        }
         }
     }
 }

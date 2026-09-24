@@ -37,31 +37,6 @@ fun ShiftDayColumn(
         }
     }
 
-    data class MergedGroup(
-        val startSection: Int,
-        val endSection: Int,
-        val items: List<Pair<String, Course>>
-    )
-
-    val groups = mutableListOf<MergedGroup>()
-    val used = mutableSetOf<Int>()
-
-    for (i in allCourses.indices) {
-        if (i in used) continue
-        val (name, course) = allCourses[i]
-        val sameRange = mutableListOf(name to course)
-        for (j in i + 1 until allCourses.size) {
-            if (j in used) continue
-            val (name2, course2) = allCourses[j]
-            if (course2.startSection == course.startSection && course2.endSection == course.endSection) {
-                sameRange.add(name2 to course2)
-                used.add(j)
-            }
-        }
-        used.add(i)
-        groups.add(MergedGroup(course.startSection, course.endSection, sameRange))
-    }
-
     fun sectionToY(section: Int): Float {
         return when {
             section <= morningSections -> (section - 1) * cardHeightPerSection
@@ -121,35 +96,67 @@ fun ShiftDayColumn(
             }
         }
 
-        for (group in groups) {
-            // 跨分界线的课程拆分为多段，避免午休/晚休栏穿过卡片中间
-            val lunchBreak = morningSections
-            val dinnerBreak = morningSections + afternoonSections
-            val segments = mutableListOf<Pair<Int, Int>>()
-            var segStart = group.startSection
-            while (segStart <= group.endSection) {
-                var segEnd = group.endSection
-                if (lunchBreak in segStart..<segEnd) segEnd = lunchBreak
-                if (dinnerBreak in segStart..<segEnd) segEnd = dinnerBreak
-                segments.add(segStart to segEnd)
-                segStart = segEnd + 1
-            }
+        // 按课表实际节次边界拆段（不是固定每 2 节一组）：
+        // · 有 1-1、1-2、1-3 三门课 → 边界在 1|2|3 → 拆成 1+1+1
+        // · 有 1-2 和 1-3 两门课     → 边界在 1|2…3 → 拆成 2+1
+        // · 只有一门 1-4             → 不拆，整段一张卡
+        // 午休/晚休边界强制切开，空段不渲染；同段多门课聚合成一张卡。
+        val totalSections = morningSections + afternoonSections + eveningSections
+        val bandStarts = listOfNotNull(
+            1.takeIf { morningSections > 0 },
+            (morningSections + 1).takeIf { afternoonSections > 0 },
+            (morningSections + afternoonSections + 1).takeIf { eveningSections > 0 }
+        )
 
-            segments.forEach { (segStartSection, segEndSection) ->
-                val span = segEndSection - segStartSection + 1
-                val cardHeight = span * cardHeightPerSection
-                val y = sectionToY(segStartSection)
-                ShiftCell(
-                    courses = group.items,
-                    isTablet = isTablet,
-                    cardCornerRadius = cardCornerRadius,
-                    onClick = { onSlotClick(dayOfWeek, group.startSection, group.items) },
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .height(cardHeight.dp)
-                        .offset(y = y.dp)
-                )
+        val cuts = sortedSetOf(1)
+        for ((_, course) in allCourses) {
+            val s = course.startSection
+            val e = course.endSection
+            if (s in 1..totalSections) cuts.add(s)
+            if (e + 1 in 1..totalSections) cuts.add(e + 1)
+        }
+        // 分段起点不能跨过上午/下午/晚上分界
+        for (bandStart in bandStarts) {
+            if (bandStart in 1..totalSections) cuts.add(bandStart)
+        }
+
+        data class BlockSlot(
+            val startSection: Int,
+            val endSection: Int,
+            val items: List<Pair<String, Course>>
+        )
+
+        val cutList = cuts.toList()
+        val blockSlots = buildList {
+            for (i in cutList.indices) {
+                val segStart = cutList[i]
+                val segEnd = (cutList.getOrNull(i + 1) ?: (totalSections + 1)) - 1
+                if (segStart > segEnd || segStart > totalSections) continue
+                val end = minOf(segEnd, totalSections)
+                // 段不得跨时段分界（cuts 已含 bandStart，这里再兜底）
+                if (bandStarts.any { it > segStart && it <= end }) continue
+                val items = allCourses.filter { (_, course) ->
+                    course.startSection <= end && course.endSection >= segStart
+                }
+                if (items.isEmpty()) continue
+                add(BlockSlot(segStart, end, items))
             }
+        }
+
+        blockSlots.forEach { slot ->
+            val span = slot.endSection - slot.startSection + 1
+            val cardHeight = span * cardHeightPerSection
+            val y = sectionToY(slot.startSection)
+            ShiftCell(
+                courses = slot.items.distinctBy { it.first },
+                isTablet = isTablet,
+                cardCornerRadius = cardCornerRadius,
+                onClick = { onSlotClick(dayOfWeek, slot.startSection, slot.items) },
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(cardHeight.dp)
+                    .offset(y = y.dp)
+            )
         }
     }
 }

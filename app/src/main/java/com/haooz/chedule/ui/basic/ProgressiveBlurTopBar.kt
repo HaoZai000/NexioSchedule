@@ -10,22 +10,84 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.statusBars
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.key
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.drawWithContent
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.RectangleShape
+import androidx.compose.ui.graphics.drawscope.ContentDrawScope
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.node.DrawModifierNode
+import androidx.compose.ui.node.ModifierNodeElement
+import androidx.compose.ui.node.ObserverModifierNode
+import androidx.compose.ui.node.invalidateDraw
+import androidx.compose.ui.node.observeReads
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import com.kyant.backdrop.Backdrop
 import com.kyant.backdrop.drawBackdrop
+import com.kyant.backdrop.effects.blur
 import com.kyant.backdrop.effects.runtimeShaderEffect
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 import java.util.concurrent.atomic.AtomicInteger
 
 private val progressiveBlurShaderSeq = AtomicInteger(0)
+private val NoSampleTrack: () -> Float = { 0f }
+
+/**
+ * 读取任意状态并仅失效 draw，不进组合。
+ * 侧栏伸缩时顶栏糊层需要跟手重采样，但顶栏自身尺寸不变。
+ */
+internal fun Modifier.invalidateDrawOnState(read: () -> Unit): Modifier =
+    this then InvalidateDrawOnStateElement(read)
+
+internal fun Modifier.invalidateDrawOnSampleTrack(track: () -> Float): Modifier =
+    invalidateDrawOnState { track() }
+
+private class InvalidateDrawOnStateElement(
+    private val read: () -> Unit,
+) : ModifierNodeElement<InvalidateDrawOnStateNode>() {
+
+    override fun create(): InvalidateDrawOnStateNode = InvalidateDrawOnStateNode(read)
+
+    override fun update(node: InvalidateDrawOnStateNode) {
+        node.read = read
+        node.reobserve()
+    }
+
+    override fun equals(other: Any?): Boolean {
+        if (this === other) return true
+        if (other !is InvalidateDrawOnStateElement) return false
+        return read === other.read
+    }
+
+    override fun hashCode(): Int = read.hashCode()
+}
+
+private class InvalidateDrawOnStateNode(
+    var read: () -> Unit,
+) : DrawModifierNode, ObserverModifierNode, Modifier.Node() {
+
+    override fun onObservedReadsChanged() {
+        invalidateDraw()
+        reobserve()
+    }
+
+    fun reobserve() {
+        observeReads { read() }
+    }
+
+    override fun onAttach() {
+        reobserve()
+    }
+
+    override fun ContentDrawScope.draw() {
+        drawContent()
+    }
+}
 
 /**
  * 顶部栏渐进模糊：模糊半径随 Y 从顶部最大连续收到 0。
@@ -35,7 +97,8 @@ private val progressiveBlurShaderSeq = AtomicInteger(0)
  * downsampleScale = 1，避免默认 0.42 降采样在慢滑时跳格抖动。
  * Shader：黄金角递推、单次 hash；padding 区不上屏直接直通（AGSL 不支持 const 数组表）。
  *
- * API < 33 降级为表面色渐变遮罩。
+ * 性能档：假渐进模糊 = 等值 blur + alpha 渐变淡出（DstIn 遮罩），不跑 AGSL 多重采样。
+ * API < 33：仅表面色 alpha 渐变。
  */
 @Composable
 fun ProgressiveBlurTopBar(
@@ -47,9 +110,19 @@ fun ProgressiveBlurTopBar(
     blurAlpha: Float = 1f,
     /** 底端透明淡出起点（0–1，相对糊层高度）。越小过渡越长。 */
     edgeFadeStart: Float = 0.88f,
+    /** 侧栏伸缩等导致采样源位移后自增，强制重建糊层采样 */
+    resampleKey: Int = 0,
+    /**
+     * 伸缩过程中的连续跟踪值；draw 阶段调用并只失效 draw，不进组合。
+     * 传稳定 lambda（如 tabletNavExpandSampleTrack），避免参数每帧更新触发整树重组。
+     */
+    sampleTrack: () -> Float = NoSampleTrack,
     content: @Composable BoxScope.() -> Unit
 ) {
     val density = LocalDensity.current
+    val materialLevel = com.haooz.chedule.ui.utils.AppMaterialSettings.level
+    val useFakeProgressiveBlur =
+        com.haooz.chedule.ui.utils.AppMaterialSettings.progressiveBlurUseFake()
     val totalHeight = if (height != Dp.Unspecified) {
         height
     } else {
@@ -59,7 +132,7 @@ fun ProgressiveBlurTopBar(
 
     val blurShapeBlock: () -> androidx.compose.ui.graphics.Shape = remember { { RectangleShape } }
     // ShaderRegistry 按 key 共享 RuntimeShader；多顶栏同时挂载时必须各用独立 key，
-    val shaderKey = remember {
+    val shaderKey = remember(resampleKey) {
         "ProgressiveBlurRadial_${progressiveBlurShaderSeq.incrementAndGet()}"
     }
     val denoiseKey = remember(shaderKey) { "${shaderKey}_denoise" }
@@ -94,42 +167,89 @@ fun ProgressiveBlurTopBar(
         }
 
     Box(modifier = modifier) {
-        if (Build.VERSION.SDK_INT >= 33) {
-            Box(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(totalHeight)
-                    .graphicsLayer { alpha = blurAlpha }
-                    .drawBackdrop(
-                        backdrop = backdrop,
-                        shape = blurShapeBlock,
-                        effects = blurEffects,
-                        highlight = null,
-                        shadow = null,
-                        downsampleScale = 1f
-                    )
-            )
-        } else {
-            val gradientColor = MiuixTheme.colorScheme.surface
-            val endY = totalHeight.value * density.density
-            Box(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(totalHeight)
-                    .graphicsLayer { alpha = blurAlpha }
-                    .background(
-                        Brush.verticalGradient(
-                            colorStops = arrayOf(
-                                0.0f to gradientColor.copy(alpha = 0.9f),
-                                0.4f to gradientColor.copy(alpha = 0.82f),
-                                0.7f to gradientColor.copy(alpha = 0.6f),
-                                1.0f to gradientColor.copy(alpha = 0.0f)
-                            ),
-                            startY = 0f,
-                            endY = endY
+        // 只重建糊层，不 remount content
+        key(resampleKey, materialLevel) {
+            if (Build.VERSION.SDK_INT >= 33 && !useFakeProgressiveBlur) {
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(totalHeight)
+                        .graphicsLayer { alpha = blurAlpha }
+                        .invalidateDrawOnSampleTrack(sampleTrack)
+                        .drawBackdrop(
+                            backdrop = backdrop,
+                            shape = blurShapeBlock,
+                            effects = blurEffects,
+                            highlight = null,
+                            shadow = null,
+                            downsampleScale = 1f
                         )
+                )
+            } else if (Build.VERSION.SDK_INT >= 33) {
+                // 性能档假渐进：等值 blur + alpha 渐变淡出，观感接近真渐进，成本低一截
+                val fadeBrush = remember(totalHeight, edgeFadeStart) {
+                    Brush.verticalGradient(
+                        colorStops = arrayOf(
+                            0.0f to Color.White,
+                            (edgeFadeStart * 0.55f).coerceIn(0.2f, 0.9f) to Color.White,
+                            edgeFadeStart.coerceIn(0.4f, 0.95f) to Color.White.copy(alpha = 0.45f),
+                            1.0f to Color.Transparent,
+                        ),
                     )
-            )
+                }
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(totalHeight)
+                        .graphicsLayer {
+                            alpha = blurAlpha
+                            compositingStrategy =
+                                androidx.compose.ui.graphics.CompositingStrategy.Offscreen
+                            clip = true
+                        }
+                        .invalidateDrawOnSampleTrack(sampleTrack)
+                        .drawWithContent {
+                            drawContent()
+                            // 只淡出糊层自身，不盖到 content()
+                            drawRect(fadeBrush, blendMode = androidx.compose.ui.graphics.BlendMode.DstIn)
+                        }
+                        .drawBackdrop(
+                            backdrop = backdrop,
+                            shape = blurShapeBlock,
+                            effects = {
+                                blur(12f.dp.toPx())
+                            },
+                            highlight = null,
+                            shadow = null,
+                            downsampleScale = 1f,
+                            onDrawSurface = {
+                                drawRect(tintColor.copy(alpha = tintIntensity))
+                            },
+                        )
+                )
+            } else {
+                val gradientColor = MiuixTheme.colorScheme.surface
+                val endY = totalHeight.value * density.density
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(totalHeight)
+                        .graphicsLayer { alpha = blurAlpha }
+                        .invalidateDrawOnSampleTrack(sampleTrack)
+                        .background(
+                            Brush.verticalGradient(
+                                colorStops = arrayOf(
+                                    0.0f to gradientColor.copy(alpha = 0.9f),
+                                    0.4f to gradientColor.copy(alpha = 0.82f),
+                                    0.7f to gradientColor.copy(alpha = 0.6f),
+                                    1.0f to gradientColor.copy(alpha = 0.0f)
+                                ),
+                                startY = 0f,
+                                endY = endY
+                            )
+                        )
+                )
+            }
         }
         content()
     }
