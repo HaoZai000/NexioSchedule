@@ -2,8 +2,11 @@ package com.haooz.chedule.ui.components
 
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.asPaddingValues
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.navigationBars
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.material3.Text
@@ -39,11 +42,13 @@ internal fun ScheduleBottomBar(
 
     val onSelect: (Int) -> Unit = { idx -> onTabSelected(idx) }
     val iconTint = MiuixTheme.colorScheme.onSurfaceContainer.copy(alpha = 0.8f)
+    val navBarBottomInset = WindowInsets.navigationBars.asPaddingValues().calculateBottomPadding()
+    val bottomPadding = maxOf(28.dp, navBarBottomInset + 8.dp)
 
     Box(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(bottom = 28.dp),
+            .padding(bottom = bottomPadding),
         contentAlignment = Alignment.Center
     ) {
         if (isShiftMode) {
