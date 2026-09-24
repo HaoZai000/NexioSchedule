@@ -521,8 +521,9 @@ fun CourseReminderScreen(
                             val selectMode: (Int) -> Unit = { mode ->
                                 rlog("dnd_mode_select", "mode=$mode")
                                 settingsViewModel.setClassDndMode(mode)
-                                // DND / PRIORITY 两档生效需要勿扰权限；未授权时引导用户授权
-                                if ((mode == 0 || mode == 2) && !ClassDndHelper.isDndPermissionGranted(context)) {
+                                // 三个档位都要「免打扰访问权限」：静音档走 setRingerMode，
+                                // Android N 起同样被判定为切换勿扰，未授权会直接抛异常
+                                if (!ClassDndHelper.isDndPermissionGranted(context)) {
                                     rlog("dnd_mode_permission_needed", "mode=$mode")
                                     Toast.makeText(context, "该档位需要勿扰权限，已为你打开授权页", Toast.LENGTH_SHORT).show()
                                     dndPermissionLauncher.launch(
@@ -537,21 +538,21 @@ fun CourseReminderScreen(
                                     items = listOf(
                                         DropdownItem(
                                             text = "完全勿扰 (DND)",
-                                            summary = "关闭所有铃声、音量",
-                                            selected = classDndMode == 0,
-                                            onClick = { selectMode(0) }
+                                            summary = "屏蔽全部通知与铃声",
+                                            selected = classDndMode == ClassDndHelper.MODE_DND,
+                                            onClick = { selectMode(ClassDndHelper.MODE_DND) }
                                         ),
                                         DropdownItem(
                                             text = "静音模式 (SILENT)",
-                                            summary = "打开系统静音",
-                                            selected = classDndMode == 1,
-                                            onClick = { selectMode(1) }
+                                            summary = "关闭铃声与振动",
+                                            selected = classDndMode == ClassDndHelper.MODE_SILENT,
+                                            onClick = { selectMode(ClassDndHelper.MODE_SILENT) }
                                         ),
                                         DropdownItem(
                                             text = "勿扰模式 (PRIORITY)",
-                                            summary = "打开勿扰模式",
-                                            selected = classDndMode == 2,
-                                            onClick = { selectMode(2) }
+                                            summary = "只放行优先通知",
+                                            selected = classDndMode == ClassDndHelper.MODE_PRIORITY,
+                                            onClick = { selectMode(ClassDndHelper.MODE_PRIORITY) }
                                         )
                                     )
                                 )

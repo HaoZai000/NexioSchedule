@@ -11,6 +11,7 @@ import android.app.NotificationManager
 import android.app.PendingIntent
 import android.content.Context
 import android.content.Intent
+import android.content.SharedPreferences
 import android.media.AudioManager
 import android.util.Log
 import android.widget.Toast
@@ -44,6 +45,12 @@ object ClassDndHelper {
     private const val RC_DND_TEST_START = 39901
     private const val RC_DND_TEST_END = 49901
 
+    private const val DAY_MS = 24 * 60 * 60 * 1000L
+
+    // 闹钟登记表：课程删除/换课表后 id 变化，只按当前课程取消会留下孤儿闹钟
+    private const val PREF_ALARM_REGISTRY = "reminder_alarm_registry"
+    private const val KEY_DND_RCS = "class_dnd_rcs"
+
     const val MODE_DND = 0
     const val MODE_SILENT = 1
     const val MODE_PRIORITY = 2
@@ -69,6 +76,15 @@ object ClassDndHelper {
             false
         }
     }
+
+    /**
+     * 三个档位其实都要「免打扰访问权限」：
+     * - DND / PRIORITY 走 setInterruptionFilter，M 起受限
+     * - SILENT 走 setRingerMode(RINGER_MODE_SILENT)，N 起同样被判定为「切换勿扰」而受限，
+     *   未授权时直接抛 SecurityException（minSdk 31，无需版本分支）
+     * 以前只对前两档做检查，默认档位 SILENT 被漏掉 —— 未授权时每分钟重试、全程静默失败。
+     */
+    private fun canWriteState(context: Context): Boolean = isDndPermissionGranted(context)
 
     // 只看本应用是否登记接管，不受用户手动改系统的影响
     fun isDndAppliedByApp(context: Context): Boolean {
@@ -139,36 +155,47 @@ object ClassDndHelper {
      * 把系统状态还原到接管前的快照值。
      * 缺少对应快照时不动系统；DND/PRIORITY 没有权限时无法写回，同样跳过。
      */
-    private fun applyOriginalSnapshot(context: Context, mode: Int) {
+    /** 还原到接管前的快照值；返回是否真的写回成功（缺快照或无权限时 false） */
+    private fun applyOriginalSnapshot(context: Context, mode: Int): Boolean {
         val p = prefs(context)
         when (mode) {
             MODE_SILENT -> {
-                if (!p.contains(KEY_ORIGINAL_RINGER)) return
+                if (!p.contains(KEY_ORIGINAL_RINGER)) return false
+                // 从静音切回正常同样属于「切换勿扰」，未授权会抛 SecurityException
+                if (!canWriteState(context)) {
+                    Log.w(TAG, "Skip restoring ringer: policy access revoked")
+                    return false
+                }
                 val original = p.getInt(KEY_ORIGINAL_RINGER, AudioManager.RINGER_MODE_NORMAL)
-                try {
+                return try {
                     audioManager(context).ringerMode = original
+                    true
                 } catch (e: Exception) {
                     Log.e(TAG, "Failed to restore ringerMode to $original", e)
+                    false
                 }
             }
             MODE_DND, MODE_PRIORITY -> {
-                if (!p.contains(KEY_ORIGINAL_FILTER)) return
-                if (!isDndPermissionGranted(context)) {
+                if (!p.contains(KEY_ORIGINAL_FILTER)) return false
+                if (!canWriteState(context)) {
                     Log.w(TAG, "Skip restoring filter: policy access revoked")
-                    return
+                    return false
                 }
                 // 还原快照而非粗暴 ALL，用户可能原本就开着 PRIORITY/ALARMS
                 val original = p.getInt(
                     KEY_ORIGINAL_FILTER,
                     NotificationManager.INTERRUPTION_FILTER_ALL
                 )
-                try {
+                return try {
                     notificationManager(context).setInterruptionFilter(original)
+                    true
                 } catch (e: Exception) {
                     Log.e(TAG, "Failed to restore filter to $original", e)
+                    false
                 }
             }
         }
+        return false
     }
 
     private fun clearSession(context: Context) {
@@ -224,15 +251,23 @@ object ClassDndHelper {
     /** 进入课堂：快照原状态后写入一次目标状态，返回是否接管成功 */
     private fun takeOver(context: Context): Boolean {
         val mode = currentMode(context)
-        if ((mode == MODE_DND || mode == MODE_PRIORITY) && !isDndPermissionGranted(context)) {
-            Log.w(TAG, "takeOver skipped: mode=$mode requires policy access")
+        if (!canWriteState(context)) {
+            Log.w(TAG, "takeOver skipped: mode=$mode requires notification policy access")
             return false
         }
+        val before = readCurrentState(context, mode)
         snapshotOriginal(context)
         if (!writeState(context, mode)) return false
 
-        // 记录写入后系统实际呈现的值，用来在下课判断用户有没有动过
         val accepted = readCurrentState(context, mode) ?: targetState(mode)
+        // 写入前后毫无变化、又不等于目标值 → 系统拒绝了这次写入（权限被回收 / ROM 拦截）。
+        // 不判失败的话后面会当它已生效，还拿这个错值当下课校验基准，表现就是全程没反应。
+        if (before != null && accepted == before && accepted != targetState(mode)) {
+            Log.w(TAG, "takeOver rejected by system: mode=$mode state=$accepted target=${targetState(mode)}")
+            return false
+        }
+
+        // 记录写入后系统实际呈现的值，用来在下课判断用户有没有动过
         prefs(context).edit {
             putBoolean(KEY_APPLIED, true)
             putInt(KEY_APPLIED_MODE, mode)
@@ -251,13 +286,13 @@ object ClassDndHelper {
     private fun handBack(context: Context, requireConsistency: Boolean) {
         val p = prefs(context)
         if (!p.getBoolean(KEY_APPLIED, false)) {
-            clearSession(context)
+            // 没有会话就别每分钟提交一遍 SP
+            if (hasSessionData(p)) clearSession(context)
             return
         }
         val mode = p.getInt(KEY_APPLIED_MODE, MODE_DND)
 
         if (requireConsistency) {
-            val expected = appliedState(context, mode)
             val current = readCurrentState(context, mode)
             if (current == null) {
                 // 读不到就不还原，避免覆盖用户手动设置
@@ -265,17 +300,34 @@ object ClassDndHelper {
                 clearSession(context)
                 return
             }
-            if (current != expected) {
+            // 基准放宽：读回值可能因 ROM 同步延迟失真，目标值同样算「没被用户动过」
+            val expected = appliedState(context, mode)
+            if (current != expected && current != targetState(mode)) {
                 Log.d(TAG, "handBack skipped: user owns state now ($current != $expected)")
                 clearSession(context)
                 return
             }
         }
 
-        applyOriginalSnapshot(context, mode)
+        val hasSnapshot = if (mode == MODE_SILENT) {
+            p.contains(KEY_ORIGINAL_RINGER)
+        } else {
+            p.contains(KEY_ORIGINAL_FILTER)
+        }
+        // 有快照却写不回去（多半是权限被回收）：保留会话等权限恢复，别把快照丢掉，
+        // 否则手机就再也没有自动退出勿扰的机会了。没有快照则没什么可还原，正常收尾。
+        if (hasSnapshot && !applyOriginalSnapshot(context, mode)) {
+            Log.w(TAG, "handBack deferred: keep session until state can be restored")
+            return
+        }
         Log.d(TAG, "handBack restored original state mode=$mode")
         clearSession(context)
     }
+
+    private fun hasSessionData(p: SharedPreferences): Boolean =
+        p.contains(KEY_APPLIED_MODE) || p.contains(KEY_ORIGINAL_RINGER) ||
+            p.contains(KEY_ORIGINAL_FILTER) || p.contains(KEY_SET_STATE) ||
+            p.contains(KEY_MANUAL) || p.contains(KEY_MANUAL_AT)
 
     // 受课程提醒总开关约束
     private fun isFeatureAvailable(context: Context): Boolean {
@@ -317,7 +369,12 @@ object ClassDndHelper {
         for (course in CourseReminderHelper.getTodayCourses(context)) {
             val start = CourseReminderHelper.getCourseStartTime(course, repository)?.toMinutes() ?: continue
             val end = CourseReminderHelper.getCourseEndTime(course, repository)?.toMinutes() ?: continue
-            if (currentMinutes >= start && currentMinutes < end) return true
+            if (start <= end) {
+                if (currentMinutes >= start && currentMinutes < end) return true
+            } else {
+                // 跨零点的课（如 23:00-01:00）
+                if (currentMinutes >= start || currentMinutes < end) return true
+            }
         }
         return false
     }
@@ -337,8 +394,8 @@ object ClassDndHelper {
             return
         }
         val mode = currentMode(context)
-        if ((mode == MODE_DND || mode == MODE_PRIORITY) && !isDndPermissionGranted(context)) {
-            // 没权限时不强行开启，也不静默切到 SILENT
+        if (!canWriteState(context)) {
+            // 三个档位未授权时都会抛 SecurityException，这里既不强行开启也不静默降级
             handBack(context, requireConsistency = false)
             return
         }
@@ -391,13 +448,13 @@ object ClassDndHelper {
             return
         }
 
-        val mode = repository.getClassDndMode()
-        if ((mode == MODE_DND || mode == MODE_PRIORITY) && !isDndPermissionGranted(context)) {
+        if (!canWriteState(context)) {
             // 回滚开关：否则它停在开启态却永远不生效
             repository.setClassDndEnabled(false)
             Toast.makeText(context, "请先在「课程提醒」中授予勿扰权限", Toast.LENGTH_LONG).show()
             return
         }
+        val mode = repository.getClassDndMode()
 
         val inClass = isInClass(context)
         // 已接管时先交还，避免上一次的快照被覆盖
@@ -426,30 +483,31 @@ object ClassDndHelper {
     fun scheduleClassDndAlarms(context: Context, alarmManager: AlarmManager) {
         cancelClassDndAlarms(context, alarmManager)
         val repository = CourseRepository(context)
-        if (!repository.getClassDndEnabled()) return
+        if (!repository.getClassDndEnabled()) {
+            // 已经取消干净，登记表同步清空，否则下次会拿着过期 rc 空转
+            writeRcSet(context, emptySet())
+            return
+        }
 
+        val rcs = mutableSetOf<Int>()
         for (course in CourseReminderHelper.getTodayCourses(context)) {
             // 与岛/课前提醒共用时间戳，避免两边上课时刻错开
             val startMillis = CourseReminderHelper.parseTimeToTodayMillis(
                 CourseReminderHelper.getCourseStartTime(course, repository)
             )
-            val endMillis = CourseReminderHelper.parseTimeToTodayMillis(
+            val parsedEnd = CourseReminderHelper.parseTimeToTodayMillis(
                 CourseReminderHelper.getCourseEndTime(course, repository)
             )
-            if (startMillis <= 0L || endMillis <= startMillis) continue
+            if (startMillis <= 0L || parsedEnd <= 0L) continue
+            // 跨零点的课（如 23:00-01:00）下课点落在次日
+            val endMillis = if (parsedEnd <= startMillis) parsedEnd + DAY_MS else parsedEnd
 
-            scheduleOne(
-                context, alarmManager,
-                requestCode = RC_DND_START_BASE + course.id.hashCode(),
-                action = ClassDndReceiver.ACTION_CLASS_START,
-                triggerAt = startMillis
-            )
-            scheduleOne(
-                context, alarmManager,
-                requestCode = RC_DND_END_BASE + course.id.hashCode(),
-                action = ClassDndReceiver.ACTION_CLASS_END,
-                triggerAt = endMillis
-            )
+            val startRc = RC_DND_START_BASE + course.id.hashCode()
+            val endRc = RC_DND_END_BASE + course.id.hashCode()
+            scheduleOne(context, alarmManager, startRc, ClassDndReceiver.ACTION_CLASS_START, startMillis)
+            scheduleOne(context, alarmManager, endRc, ClassDndReceiver.ACTION_CLASS_END, endMillis)
+            rcs += startRc
+            rcs += endRc
         }
 
         // 测试课同样注册上课/下课闹钟：课前 70 秒、课中 120 秒的窗口
@@ -457,7 +515,10 @@ object ClassDndHelper {
         testClassWindow(context)?.let { (start, end) ->
             scheduleOne(context, alarmManager, RC_DND_TEST_START, ClassDndReceiver.ACTION_CLASS_START, start)
             scheduleOne(context, alarmManager, RC_DND_TEST_END, ClassDndReceiver.ACTION_CLASS_END, end)
+            rcs += RC_DND_TEST_START
+            rcs += RC_DND_TEST_END
         }
+        writeRcSet(context, rcs)
     }
 
     /** 测试课启动后同步勿扰闹钟，让「上课自动开启 / 下课自动关闭」在测试里也能验证 */
@@ -466,6 +527,18 @@ object ClassDndHelper {
         val alarmManager = context.getSystemService(Context.ALARM_SERVICE) as AlarmManager
         scheduleClassDndAlarms(context, alarmManager)
         applyCurrentState(context)
+    }
+
+    /**
+     * 重启 / 应用升级后调用：系统状态已被重置，而 KEY_APPLIED 还留在 SP 里。
+     * 不清掉的话 applyCurrentState 会因为「已接管」只观察不动作，
+     * 本节课剩余时间就再也不会进入勿扰（scheduleOne 又会跳过已过去的上课点）。
+     * 只清标记、不还原——系统已经恢复正常，还原快照没有意义。
+     */
+    fun dropStaleSessionAfterReboot(context: Context) {
+        if (!isDndAppliedByApp(context)) return
+        Log.w(TAG, "Drop stale DND session after reboot/update")
+        clearSession(context)
     }
 
     // 已过去的时间点不注册，避免 AlarmManager 立即触发一堆历史闹钟
@@ -492,24 +565,33 @@ object ClassDndHelper {
             " rc=$requestCode")
     }
 
+    private fun readRcSet(context: Context): Set<Int> =
+        (context.getSharedPreferences(PREF_ALARM_REGISTRY, Context.MODE_PRIVATE)
+            .getStringSet(KEY_DND_RCS, emptySet()) ?: emptySet())
+            .mapNotNull { it.toIntOrNull() }.toSet()
+
+    private fun writeRcSet(context: Context, rcs: Set<Int>) {
+        context.getSharedPreferences(PREF_ALARM_REGISTRY, Context.MODE_PRIVATE).edit {
+            putStringSet(KEY_DND_RCS, rcs.map { it.toString() }.toSet())
+        }
+    }
+
+    /**
+     * 取消全部上课勿扰闹钟。
+     * 先按登记表取消（覆盖已删除 / 已换 id 的课程），再按当前课程兜底，
+     * 最后清登记表；只按当前课程取消会留下孤儿闹钟。
+     */
     fun cancelClassDndAlarms(context: Context, alarmManager: AlarmManager) {
-        val allCourses = CourseRepository(context).getAllCourses()
-        for (course in allCourses) {
+        for (rc in readRcSet(context)) {
+            cancelOne(context, alarmManager, rc, ClassDndReceiver.ACTION_CLASS_START)
+            cancelOne(context, alarmManager, rc, ClassDndReceiver.ACTION_CLASS_END)
+        }
+        writeRcSet(context, emptySet())
+
+        for (course in CourseRepository(context).getAllCourses()) {
             val id = course.id.hashCode()
-            for ((requestCode, action) in listOf(
-                RC_DND_START_BASE + id to ClassDndReceiver.ACTION_CLASS_START,
-                RC_DND_END_BASE + id to ClassDndReceiver.ACTION_CLASS_END
-            )) {
-                // action 必须与 scheduleOne 一致，否则 PendingIntent 身份不符、cancel 静默失效
-                val intent = Intent(context, ClassDndReceiver::class.java).apply { setAction(action) }
-                val pendingIntent = PendingIntent.getBroadcast(
-                    context,
-                    requestCode,
-                    intent,
-                    PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
-                )
-                alarmManager.cancel(pendingIntent)
-            }
+            cancelOne(context, alarmManager, RC_DND_START_BASE + id, ClassDndReceiver.ACTION_CLASS_START)
+            cancelOne(context, alarmManager, RC_DND_END_BASE + id, ClassDndReceiver.ACTION_CLASS_END)
         }
         cancelOne(context, alarmManager, RC_DND_TEST_START, ClassDndReceiver.ACTION_CLASS_START)
         cancelOne(context, alarmManager, RC_DND_TEST_END, ClassDndReceiver.ACTION_CLASS_END)
