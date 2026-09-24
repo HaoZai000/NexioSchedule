@@ -9,10 +9,8 @@ import androidx.compose.animation.core.Spring
 import androidx.compose.animation.core.animate
 import androidx.compose.animation.core.spring
 import androidx.compose.animation.core.tween
-import androidx.compose.animation.expandVertically
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
-import androidx.compose.animation.shrinkVertically
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
@@ -49,6 +47,7 @@ import androidx.compose.ui.layout.LayoutModifier
 import androidx.compose.ui.layout.Measurable
 import androidx.compose.ui.layout.MeasureResult
 import androidx.compose.ui.layout.MeasureScope
+import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
@@ -435,6 +434,9 @@ fun TabletNavSideBar(
     // 左缘间距恒定：不贴边，折叠只改遮罩宽度，栏体不平移
     val panelStartInset = TabletNavSideInset
 
+    // 「数据管理」区块实测高度：用作下方条目的反向平移量，使其折叠后紧贴上方选项
+    var dataGroupHeightPx by remember { mutableFloatStateOf(0f) }
+
     Box(modifier = modifier.fillMaxSize()) {
         Column(
             modifier = Modifier
@@ -489,51 +491,53 @@ fun TabletNavSideBar(
                     // 并随分界线/标题收拢连贯上移贴近上方选项。
                     val isDataGroup = !isShiftMode && index == tabs.lastIndex
                     if (isDataGroup) {
-                        // 分界线 + 小标题：仅展开态显示。高度平滑收紧/放开，
-                        // 让下方「课程管理」条目连贯上移贴近上方选项，而不是整组一起飘。
-                        androidx.compose.animation.AnimatedVisibility(
-                            visible = TabletNavSideState.expanded,
-                            enter = fadeIn(animationSpec = tween(160)) +
-                                expandVertically(animationSpec = tween(220)),
-                            exit = fadeOut(animationSpec = tween(120)) +
-                                shrinkVertically(animationSpec = tween(200)),
+                        // 分界线 + 小标题：折叠全程只做淡入淡出，并且始终占着自己的高度
+                        Column(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .graphicsLayer {
+                                    alpha = TabletNavSideState.expandProgress.floatValue
+                                }
+                                .onGloballyPositioned {
+                                    dataGroupHeightPx = it.size.height.toFloat()
+                                },
+                            verticalArrangement = Arrangement.spacedBy(0.dp),
                         ) {
-                            Column(
-                                modifier = Modifier.fillMaxWidth(),
-                                verticalArrangement = Arrangement.spacedBy(0.dp),
-                            ) {
-                                Box(
-                                    modifier = Modifier
-                                        .fillMaxWidth()
-                                        .padding(
-                                            top = 14.dp,
-                                            bottom = 12.dp,
-                                            start = 10.dp,
-                                            end = 10.dp
-                                        )
-                                        .height(0.8.dp)
-                                        .background(
-                                            if (isLightTheme) Color.Black.copy(alpha = 0.08f)
-                                            else Color.White.copy(alpha = 0.12f)
-                                        )
-                                )
-                                Text(
-                                    text = "数据管理",
-                                    fontSize = 13.4.sp,
-                                    color = MiuixTheme.colorScheme.onSurfaceVariantSummary
-                                        .copy(alpha = 0.6f),
-                                    modifier = Modifier
-                                        // 与条目图标同一条左缘
-                                        .padding(start = 10.dp, top = 12.dp, bottom = 6.dp)
-                                )
-                            }
+                            Box(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(
+                                        top = 14.dp,
+                                        bottom = 12.dp,
+                                        start = 10.dp,
+                                        end = 10.dp
+                                    )
+                                    .height(0.8.dp)
+                                    .background(
+                                        if (isLightTheme) Color.Black.copy(alpha = 0.08f)
+                                        else Color.White.copy(alpha = 0.12f)
+                                    )
+                            )
+                            Text(
+                                text = "数据管理",
+                                fontSize = 13.4.sp,
+                                color = MiuixTheme.colorScheme.onSurfaceVariantSummary
+                                    .copy(alpha = 0.6f),
+                                modifier = Modifier
+                                    // 与条目图标同一条左缘
+                                    .padding(start = 10.dp, top = 12.dp, bottom = 6.dp)
+                            )
                         }
-                        // 课程管理条目：折叠态下只有它自己被选中时才保留（不消失，
-                        // 随上方分界线/标题收拢而连贯上移）；未选中则淡出。
-                        androidx.compose.animation.AnimatedVisibility(
-                            visible = TabletNavSideState.expanded || index == selectedTab,
-                            enter = fadeIn(animationSpec = tween(160)),
-                            exit = fadeOut(animationSpec = tween(120)),
+                        // 课程管理条目：选中时用反向平移补掉上方留白——展开时在原位
+                        Box(
+                            modifier = Modifier.graphicsLayer {
+                                val p = TabletNavSideState.expandProgress.floatValue
+                                // 仅选中项在折叠时上移到「我的」下方；未选中不位移，只原地淡出
+                                translationY =
+                                    if (index == selectedTab) -(1f - p) * dataGroupHeightPx
+                                    else 0f
+                                alpha = if (index == selectedTab) 1f else p
+                            }
                         ) {
                             TabletNavSideItem(
                                 icon = icon,
@@ -545,7 +549,12 @@ fun TabletNavSideBar(
                                 showLabel = true,
                                 emphasized = index == selectedTab &&
                                     TabletNavSideState.expanded,
-                                onClick = { onTabSelected(index) },
+                                // 折叠且未选中时不可见，同时也不应响应点击
+                                onClick = {
+                                    if (TabletNavSideState.expanded || index == selectedTab) {
+                                        onTabSelected(index)
+                                    }
+                                },
                             )
                         }
                     } else {
