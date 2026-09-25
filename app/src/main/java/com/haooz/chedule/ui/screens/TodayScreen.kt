@@ -53,6 +53,10 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.haooz.chedule.data.CardRefractionLevel
 import com.haooz.chedule.data.Course
+import com.haooz.chedule.data.CourseRepository
+import com.haooz.chedule.data.CourseScheduleDateBounds
+import com.haooz.chedule.data.HolidayCountdown
+import com.haooz.chedule.data.HolidayManager
 import com.haooz.chedule.ui.basic.CollapsibleTopAppBarDefaults
 import com.haooz.chedule.ui.basic.SharedScrollBehavior
 import com.haooz.chedule.ui.basic.collapsibleTopInset
@@ -83,6 +87,7 @@ import top.yukonga.miuix.kmp.overlay.OverlayDialog
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 import top.yukonga.miuix.kmp.utils.scrollEndHaptic
 import java.time.LocalDate
+import java.time.LocalDateTime
 import java.time.LocalTime
 import java.time.format.DateTimeFormatter
 import java.time.temporal.ChronoUnit
@@ -93,6 +98,11 @@ import com.kyant.backdrop.backdrops.rememberLayerBackdrop as rememberKyantLayerB
 // 有壁纸 backdrop 才走毛玻璃半透明路径，与模糊半径无关（blur=0 仍采样壁纸）
 private val TIME_FORMATTER = DateTimeFormatter.ofPattern("HH:mm")
 private val DATE_FORMATTER = DateTimeFormatter.ofPattern("yyyy年M月d日")
+
+private fun localDateTimeAt(epochMillis: Long): LocalDateTime =
+    java.time.Instant.ofEpochMilli(epochMillis)
+        .atZone(java.time.ZoneId.systemDefault())
+        .toLocalDateTime()
 
 // 由 BlurCard 统一应用折射档位
 val LocalCardRefraction = staticCompositionLocalOf { CardRefractionLevel.DEFAULT }
@@ -359,12 +369,14 @@ fun TodayScreen(
 ) {
     val courses by viewModel.courses.collectAsState()
     val classStartTime by viewModel.classStartTime.collectAsState()
+    val totalWeeks by viewModel.totalWeeks.collectAsState()
     val dataVersion by viewModel.dataVersion.collectAsState()
     val sectionTimes by settingsViewModel.sectionTimes.collectAsState()
     val morningSections by settingsViewModel.morningSections.collectAsState()
     val afternoonSections by settingsViewModel.afternoonSections.collectAsState()
     val smartWeekend by settingsViewModel.smartWeekend.collectAsState()
     val todayShowWallpaper by settingsViewModel.todayShowWallpaper.collectAsState()
+    val holidayDataRevision by HolidayManager.dataRevision.collectAsState()
 
     val density = LocalDensity.current
     val configuration = LocalConfiguration.current
@@ -380,8 +392,12 @@ fun TodayScreen(
     }
 
     val MAX_DATE_OFFSET = 1000
+    var currentLocalDateTime by remember {
+        mutableStateOf(localDateTimeAt(System.currentTimeMillis()))
+    }
+    val currentLocalDate = currentLocalDateTime.toLocalDate()
     val initialDaysOffset = pagerState.currentPage - MAX_DATE_OFFSET
-    val initialDate = LocalDate.now().plusDays(initialDaysOffset.toLong())
+    val initialDate = currentLocalDate.plusDays(initialDaysOffset.toLong())
     var selectedDate by remember { mutableStateOf(initialDate) }
     var isToday by remember { mutableStateOf(initialDaysOffset == 0) }
     val scope = rememberCoroutineScope()
@@ -408,17 +424,31 @@ fun TodayScreen(
         }
     }
 
-    LaunchedEffect(pagerState.currentPage) {
-        val daysOffset = pagerState.currentPage - MAX_DATE_OFFSET
-        val newDate = LocalDate.now().plusDays(daysOffset.toLong())
-        if (newDate != selectedDate) {
-            selectedDate = newDate
-            val nowToday = daysOffset == 0
-            isToday = nowToday
-            onSelectedDateChanged(nowToday)
+    LaunchedEffect(pagerState.currentPage, holidayDataTick) {
+        var lastReportedDate: LocalDate? = null
+        while (true) {
+            val sampledAtMillis = System.currentTimeMillis()
+            val sampledNow = localDateTimeAt(sampledAtMillis)
+            val today = sampledNow.toLocalDate()
+            currentLocalDateTime = sampledNow
+            val daysOffset = pagerState.currentPage - MAX_DATE_OFFSET
+            val newDate = today.plusDays(daysOffset.toLong())
+            if (newDate != lastReportedDate) {
+                val dateChanged = newDate != selectedDate
+                val nowToday = daysOffset == 0
+                val shouldReportSelectedDate =
+                    dateChanged || isToday != nowToday || lastReportedDate == null
+                if (dateChanged) selectedDate = newDate
+                if (shouldReportSelectedDate) {
+                    isToday = nowToday
+                    onSelectedDateChanged(nowToday)
+                }
+                onSelectedDayChanged(newDate.dayOfWeek.value)
+                lastReportedDate = newDate
+            }
+
+            delay(HolidayCountdown.millisUntilNextMinute(sampledAtMillis))
         }
-        val newDayOfWeek = newDate.dayOfWeek.value.let { if (it == 7) 7 else it }
-        onSelectedDayChanged(newDayOfWeek)
     }
 
     // 横向 pager 各日期页必须各自持有 LazyListState：共用 externalListState 时，
@@ -550,14 +580,22 @@ fun TodayScreen(
                         }
                     }
                 }
-                val pageDate = LocalDate.now().plusDays((page - MAX_DATE_OFFSET).toLong())
-                // 节假日/调休保存不 bump dataVersion；用 resume/版本 tick 重读，避免 remember 缓存旧映射
-                val holidayVersion = remember(dataVersion, classStartTime, holidayDataTick) {
-                    com.haooz.chedule.data.HolidayManager.getVersion(appContext)
+                val pageDate = currentLocalDate.plusDays((page - MAX_DATE_OFFSET).toLong())
+                val isPageToday = pageDate == currentLocalDate
+                val countdownNow = currentLocalDateTime
+                // Minute ticks and the resume tick both reread in-app holiday changes.
+                val holidayVersion = remember(
+                    dataVersion,
+                    classStartTime,
+                    holidayDataTick,
+                    holidayDataRevision,
+                    countdownNow,
+                ) {
+                    HolidayManager.getVersion(appContext)
                 }
                 // 与课前提醒/小部件同口径：节假日空课，调休按 followWeek/followWeekday 映射
                 val pageResolution = remember(
-                    pageDate, courses, dataVersion, holidayVersion, classStartTime
+                    pageDate, courses, dataVersion, holidayVersion, classStartTime, totalWeeks
                 ) {
                     com.haooz.chedule.reminder.CourseReminderHelper.resolveDaySchedule(appContext, pageDate)
                 }
@@ -582,10 +620,102 @@ fun TodayScreen(
                 val afternoonCourses = pageCourses.filter { coursePeriods[it] == Course.PERIOD_AFTERNOON }
                 val eveningCourses = pageCourses.filter { coursePeriods[it] == Course.PERIOD_EVENING }
 
-                val isPageToday = pageDate == LocalDate.now()
+                val holidayCountdownSnapshot = remember(
+                    isPageToday,
+                    countdownNow.toLocalDate(),
+                    holidayVersion,
+                    dataVersion,
+                    classStartTime,
+                    sectionTimes,
+                    courses,
+                    smartWeekend,
+                    totalWeeks,
+                ) {
+                    if (!isPageToday) {
+                        null
+                    } else {
+                        val registeredEntriesByYear = HolidayManager.loadAllByYear(appContext)
+                        val holidayPeriods = HolidayCountdown.holidayPeriodsFromStoredEntries(
+                            registeredEntriesByYear
+                        )
+                        val regularCourseDays = courses.asSequence()
+                            .map { it.dayOfWeek }
+                            .filter { it in 1..7 }
+                            .toSet()
+                        val repository = CourseRepository(appContext)
+                        val courseDateBoundsResult = runCatching {
+                            val semesterStartDate = LocalDate.parse(
+                                repository.getClassStartTime().replace('/', '-')
+                            )
+                            CourseScheduleDateBounds.calculate(
+                                today = countdownNow.toLocalDate(),
+                                semesterStartDate = semesterStartDate,
+                                currentWeek = repository.getCurrentWeek(),
+                                totalWeeks = totalWeeks,
+                                lastWeekWithCourses = repository.getLastWeekWithCourses(),
+                                courses = courses,
+                                workSwapEntries = registeredEntriesByYear.values.asSequence()
+                                    .flatten()
+                                    .filter { it.type == HolidayManager.TYPE_WORKSWAP }
+                                    .toList(),
+                            )
+                        }
+
+                        HolidayCountdown.createSnapshotWithCourseBoundsResult(
+                            today = countdownNow.toLocalDate(),
+                            holidays = holidayPeriods,
+                            courseDateBounds = courseDateBoundsResult,
+                            lastClassEndAt = { date ->
+                                val entriesForDate = HolidayManager.entriesForDate(
+                                    registeredEntriesByYear,
+                                    date,
+                                )
+                                val hasPotentialCourse = date.dayOfWeek.value in regularCourseDays ||
+                                    entriesForDate.any { entry ->
+                                        entry.type == HolidayManager.TYPE_WORKSWAP &&
+                                            entry.matches(date.toString()) &&
+                                            entry.followWeekday in regularCourseDays
+                                    }
+                                if (!hasPotentialCourse) {
+                                    null
+                                } else {
+                                    val resolution = com.haooz.chedule.reminder.CourseReminderHelper
+                                        .resolveDaySchedule(
+                                            appContext,
+                                            date,
+                                            repository,
+                                            registeredEntriesByYear,
+                                        )
+                                    val dayRange = (1..5).toSet() +
+                                        settingsViewModel.getWeekendDaysForWeek(resolution.displayWeek)
+                                            .filter { it in 6..7 }
+                                    val effectiveCourses = when {
+                                        resolution.isHolidayDate -> emptyList()
+                                        resolution.isWorkSwap || resolution.displayDayOfWeek in dayRange ->
+                                            resolution.courses
+                                        else -> emptyList()
+                                    }
+
+                                    effectiveCourses.mapNotNull { course ->
+                                        course.getEffectiveEndTime(sectionTimes)?.let { endTime ->
+                                            runCatching { LocalTime.parse(endTime, TIME_FORMATTER) }
+                                                .getOrNull()
+                                        }
+                                    }.maxOrNull()
+                                }
+                            },
+                        )
+                    }
+                }
+                val holidayCountdownText = remember(holidayCountdownSnapshot, countdownNow) {
+                    holidayCountdownSnapshot?.let {
+                        HolidayCountdown.message(it, countdownNow)
+                    }
+                }
 
                 val tomorrowCourses = remember(
-                    isPageToday, pageDate, courses, dataVersion, holidayVersion, classStartTime
+                    isPageToday, pageDate, courses, dataVersion, holidayVersion, classStartTime,
+                    totalWeeks
                 ) {
                     if (!isPageToday) emptyList()
                     else com.haooz.chedule.reminder.CourseReminderHelper
@@ -615,13 +745,22 @@ fun TodayScreen(
                                 // 布局期补展开高度，避免组合期读 currentHeightPx
                                 .collapsibleTopInset(settingsScrollBehavior)
                         ) {
-                            Text(
-                                text = dateText,
-                                fontSize = 22.sp,
-                                fontWeight = FontWeight.SemiBold,
-                                color = MiuixTheme.colorScheme.onSurface,
-                                modifier = Modifier.padding(start = 16.dp, top = 8.dp)
-                            )
+                            Column(modifier = Modifier.padding(start = 16.dp, top = 8.dp)) {
+                                Text(
+                                    text = dateText,
+                                    fontSize = 22.sp,
+                                    fontWeight = FontWeight.SemiBold,
+                                    color = MiuixTheme.colorScheme.onSurface,
+                                )
+                                if (isPageToday && holidayCountdownText != null) {
+                                    Text(
+                                        text = holidayCountdownText,
+                                        fontSize = 14.sp,
+                                        color = MiuixTheme.colorScheme.onSurface.copy(alpha = 0.4f),
+                                        modifier = Modifier.padding(top = 2.dp),
+                                    )
+                                }
+                            }
                             Spacer(modifier = Modifier.height(12.dp))
                             QuoteCard(
                                 isPageToday = isPageToday,
@@ -694,15 +833,26 @@ fun TodayScreen(
                         verticalArrangement = Arrangement.spacedBy(12.dp)
                     ) {
                         item {
-                            Text(
-                                text = dateText,
-                                fontSize = 22.sp,
-                                fontWeight = FontWeight.SemiBold,
-                                color = MiuixTheme.colorScheme.onSurface,
+                            Column(
                                 modifier = Modifier
                                     .offset(x = (-15).dp)
                                     .padding(start = 28.dp, top = 8.dp)
-                            )
+                            ) {
+                                Text(
+                                    text = dateText,
+                                    fontSize = 22.sp,
+                                    fontWeight = FontWeight.SemiBold,
+                                    color = MiuixTheme.colorScheme.onSurface,
+                                )
+                                if (isPageToday && holidayCountdownText != null) {
+                                    Text(
+                                        text = holidayCountdownText,
+                                        fontSize = 14.sp,
+                                        color = MiuixTheme.colorScheme.onSurface.copy(alpha = 0.4f),
+                                        modifier = Modifier.padding(top = 2.dp),
+                                    )
+                                }
+                            }
                         }
                         item {
                             QuoteCard(
@@ -1616,4 +1766,3 @@ private fun CourseItemWithClick(
         }
     }
 }
-

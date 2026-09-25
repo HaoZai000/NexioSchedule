@@ -14,11 +14,11 @@ import androidx.core.content.edit
 import com.haooz.chedule.R
 import com.haooz.chedule.data.Course
 import com.haooz.chedule.data.CourseRepository
+import com.haooz.chedule.data.CourseScheduleDateBounds
 import com.haooz.chedule.data.HolidayManager
 import com.haooz.chedule.ui.activities.MainActivity
 import com.haooz.chedule.widget.WidgetUpdateCache
 import java.time.LocalDate
-import java.time.temporal.ChronoUnit
 import java.util.Calendar
 
 object CourseReminderHelper {
@@ -887,14 +887,17 @@ object CourseReminderHelper {
     )
 
     /** 由开学日推目标日期所在日历课表周；仅作相对偏移，不直接当「当前周」 */
-    fun calendarWeekForDate(repository: CourseRepository, date: LocalDate): Int {
+    fun calendarWeekForDate(repository: CourseRepository, date: LocalDate): Int =
+        calendarWeekLongForDate(repository, date)
+            .coerceIn(Int.MIN_VALUE.toLong(), Int.MAX_VALUE.toLong())
+            .toInt()
+
+    private fun calendarWeekLongForDate(repository: CourseRepository, date: LocalDate): Long {
         return try {
             val start = LocalDate.parse(repository.getClassStartTime().replace("/", "-"))
-            val startMonday = start.minusDays((start.dayOfWeek.value - 1).toLong())
-            val daysBetween = ChronoUnit.DAYS.between(startMonday, date)
-            daysBetween.floorDiv(7).toInt() + 1
+            CourseScheduleDateBounds.calendarWeekForDate(start, date)
         } catch (_: Exception) {
-            repository.getCurrentWeek()
+            repository.getCurrentWeek().toLong()
         }
     }
 
@@ -906,8 +909,11 @@ object CourseReminderHelper {
      */
     fun alignedStoredWeekForDate(repository: CourseRepository, date: LocalDate): Int {
         val today = LocalDate.now()
-        val delta = calendarWeekForDate(repository, date) - calendarWeekForDate(repository, today)
-        return repository.getCurrentWeek() + delta
+        val delta = calendarWeekLongForDate(repository, date) -
+            calendarWeekLongForDate(repository, today)
+        return (repository.getCurrentWeek().toLong() + delta)
+            .coerceIn(Int.MIN_VALUE.toLong(), Int.MAX_VALUE.toLong())
+            .toInt()
     }
 
     fun resolveDaySchedule(context: Context, forTomorrow: Boolean): DayScheduleResolution {
@@ -915,11 +921,30 @@ object CourseReminderHelper {
         return resolveDaySchedule(context, if (forTomorrow) today.plusDays(1) else today)
     }
 
-    fun resolveDaySchedule(context: Context, date: LocalDate): DayScheduleResolution {
-        val repository = CourseRepository(context)
+    fun resolveDaySchedule(context: Context, date: LocalDate): DayScheduleResolution =
+        resolveDaySchedule(context, date, CourseRepository(context))
+
+    /** Same day resolution with a reusable repository for multi-date calculations. */
+    fun resolveDaySchedule(
+        context: Context,
+        date: LocalDate,
+        repository: CourseRepository,
+    ): DayScheduleResolution = resolveDaySchedule(context, date, repository, null)
+
+    /** Same day resolution with cached entries indexed by year for multi-date calculations. */
+    fun resolveDaySchedule(
+        context: Context,
+        date: LocalDate,
+        repository: CourseRepository,
+        holidayEntriesByYear: Map<Int, List<HolidayManager.Entry>>?,
+    ): DayScheduleResolution {
         val calendarDay = date.dayOfWeek.value
-        val isHolidayDate = HolidayManager.isHoliday(context, date)
-        val targetEntry = HolidayManager.workSwap(context, date)
+        val holidayEntries = HolidayManager.entriesForDate(
+            holidayEntriesByYear ?: HolidayManager.loadAllByYear(context),
+            date,
+        )
+        val isHolidayDate = holidayEntries.any { it.type == HolidayManager.TYPE_HOLIDAY }
+        val targetEntry = holidayEntries.firstOrNull { it.type == HolidayManager.TYPE_WORKSWAP }
         val isWorkSwap = targetEntry?.followWeekday?.let { it in 1..7 } == true
         val displayDay = targetEntry?.followWeekday?.takeIf { it in 1..7 } ?: calendarDay
         // 未配置映射：用「存储当前周 + 日历偏移」，与主课表手动调周一致，且不受今日调休 followWeek 污染
