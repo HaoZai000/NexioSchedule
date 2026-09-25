@@ -1135,6 +1135,7 @@ fun CourseScheduleApp() {
     val totalSections = morningSections + afternoonSections + eveningSections
     val activity = LocalActivity.current as? MainActivity
     val resumeCount = activity?.resumeCount ?: 0
+    val holidayDataRevision by com.haooz.chedule.data.HolidayManager.dataRevision.collectAsState()
     // 只在「返回」时刷新；冷启动首次 onResume 时 ViewModel 刚加载完，再全量刷会拖慢首屏
     LaunchedEffect(resumeCount) {
         if (resumeCount > 1) {
@@ -1151,7 +1152,7 @@ fun CourseScheduleApp() {
             com.haooz.chedule.data.HolidayManager.getVersion(context)
         )
     }
-    LaunchedEffect(resumeCount) {
+    LaunchedEffect(resumeCount, holidayDataRevision) {
         val holidayV = com.haooz.chedule.data.HolidayManager.getVersion(context)
         if (holidayV != seenHolidayVersion) {
             seenHolidayVersion = holidayV
@@ -1635,7 +1636,7 @@ fun CourseScheduleApp() {
     val currentDayOfWeek = (calendar.get(Calendar.DAY_OF_WEEK) + 5) % 7 + 1
     val smartWeekend by settingsViewModel.smartWeekend.collectAsState()
     // 节假日/调休保存后需能重算跳周；resume 时刷新版本号
-    val holidayVersion = remember(resumeCount, context) {
+    val holidayVersion = remember(resumeCount, holidayDataRevision, context) {
         com.haooz.chedule.data.HolidayManager.getVersion(context)
     }
 

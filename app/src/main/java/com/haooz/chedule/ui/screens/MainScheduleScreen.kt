@@ -82,7 +82,6 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.haooz.chedule.data.Course
-import com.haooz.chedule.data.CourseRepository
 import com.haooz.chedule.data.HolidayManager
 import com.haooz.chedule.ui.basic.LiquidTopBarButton
 import com.haooz.chedule.ui.basic.SharedScrollBehavior
@@ -136,26 +135,6 @@ private class CardBoundsHolder {
 // 刻意不用 snapshot state：滑动中坐标用不上，state 会带着几十张卡一起重组
 class GridScrollFlag {
     var scrolling: Boolean = false
-}
-
-private fun expandEntryByDate(
-    entry: HolidayManager.Entry,
-    put: (String, HolidayManager.Entry) -> Unit
-) {
-    if (entry.endDate.isBlank()) {
-        put(entry.date, entry)
-    } else {
-        runCatching {
-            var d = LocalDate.parse(entry.date)
-            val end = LocalDate.parse(entry.endDate)
-            while (!d.isAfter(end)) {
-                put(d.toString(), entry)
-                d = d.plusDays(1)
-            }
-        }.onFailure {
-            put(entry.date, entry)
-        }
-    }
 }
 
 data class ScheduleGridGeometry(
@@ -237,7 +216,9 @@ fun MainScheduleScreen(
     val courses by viewModel.courses.collectAsState()
     val currentWeek by viewModel.currentWeek.collectAsState()
     val totalWeeks by viewModel.totalWeeks.collectAsState()
+    val classStartTime by viewModel.classStartTime.collectAsState()
     val dataVersion by viewModel.dataVersion.collectAsState()
+    val holidayDataRevision by HolidayManager.dataRevision.collectAsState()
     val showAddDialog by viewModel.showAddDialog.collectAsState()
     val showNonCurrentWeek by settingsViewModel.showNonCurrentWeek.collectAsState()
     val smartWeekend by settingsViewModel.smartWeekend.collectAsState()
@@ -387,49 +368,43 @@ fun MainScheduleScreen(
     }
 
     val scheduleContext = LocalContext.current
-    val semesterStartMonday = remember(scheduleContext, dataVersion) {
+    val semesterStartMonday = remember(scheduleContext, dataVersion, classStartTime) {
         val start = runCatching {
-            LocalDate.parse(
-                CourseRepository.getInstance(scheduleContext).getClassStartTime().replace("/", "-")
-            )
+            LocalDate.parse(classStartTime.replace("/", "-"))
         }.getOrNull() ?: LocalDate.now()
         start.minusDays((start.dayOfWeek.value - 1).toLong())
     }
+    val semesterLastDate = semesterStartMonday.plusWeeks((totalWeeks - 1).toLong()).plusDays(6)
 
     // 记忆化版本号：假期编辑返回 bump dataVersion 时才重读 SP
-    val holidayVersion = remember(scheduleContext, dataVersion) {
+    val holidayVersion = remember(scheduleContext, dataVersion, holidayDataRevision) {
         HolidayManager.getVersion(scheduleContext)
     }
-    val holidayEntries = remember(
-        scheduleContext, dataVersion, holidayVersion, semesterStartMonday, totalWeeks
+    val holidayEntriesByDate = remember(
+        scheduleContext,
+        dataVersion,
+        holidayDataRevision,
+        holidayVersion,
+        semesterStartMonday,
+        semesterLastDate,
     ) {
-        val lastDate = semesterStartMonday.plusWeeks((totalWeeks - 1).toLong()).plusDays(6)
-        (semesterStartMonday.year..lastDate.year).flatMap { year ->
-            HolidayManager.load(scheduleContext, year)
-        }
+        HolidayManager.entriesByDateRange(
+            HolidayManager.loadAllByYear(scheduleContext),
+            semesterStartMonday,
+            semesterLastDate,
+        )
     }
 
-    // O(1) 查表替代线性扫；跨日期条目展开；与调休索引分开避免同日互相覆盖
-    val holidayIndex: Map<String, HolidayManager.Entry> = remember(holidayEntries) {
-        if (holidayEntries.isEmpty()) emptyMap()
-        else HashMap<String, HolidayManager.Entry>(holidayEntries.size * 3).apply {
-            holidayEntries.forEach { entry ->
-                if (entry.type == HolidayManager.TYPE_HOLIDAY) {
-                    expandEntryByDate(entry) { date, e -> put(date, e) }
-                }
-            }
-        }
+    // 日期索引复用提醒解析的同日/同类型优先级，并且只查询当前学期可见日期
+    val holidayIndex: Map<String, HolidayManager.Entry> = remember(holidayEntriesByDate) {
+        holidayEntriesByDate.mapNotNull { (date, entries) ->
+            entries.firstOrNull { it.type == HolidayManager.TYPE_HOLIDAY }?.let { date to it }
+        }.toMap()
     }
-    // O(1) 查表替代线性扫
-    val workswapIndex: Map<String, HolidayManager.Entry> = remember(holidayEntries) {
-        if (holidayEntries.isEmpty()) emptyMap()
-        else HashMap<String, HolidayManager.Entry>(holidayEntries.size * 3).apply {
-            holidayEntries.forEach { entry ->
-                if (entry.type == HolidayManager.TYPE_WORKSWAP) {
-                    expandEntryByDate(entry) { date, e -> put(date, e) }
-                }
-            }
-        }
+    val workswapIndex: Map<String, HolidayManager.Entry> = remember(holidayEntriesByDate) {
+        holidayEntriesByDate.mapNotNull { (date, entries) ->
+            entries.firstOrNull { it.type == HolidayManager.TYPE_WORKSWAP }?.let { date to it }
+        }.toMap()
     }
 
     // 一次算齐全部周，切页 O(1) 查表；智能周末下避免每次换周扫 courses+SP

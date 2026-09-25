@@ -1664,15 +1664,19 @@ private fun TabletHolidayPane(
                     HolidayManager.parseApiResponse(text)
                 }.getOrDefault(emptyList())
                 withContext(Dispatchers.Main) {
-                    HolidayManager.mergeApiEntries(context, targetYear, result)
+                    val merged = HolidayManager.mergeApiEntries(context, targetYear, result)
                     entries = HolidayManager.load(context, latestYear)
                     loading = false
-                    if (result.isNotEmpty()) {
+                    if (merged && result.isNotEmpty()) {
                         // API 合并同样要重排提醒并刷小部件，不能只改本地 SP
                         CourseReminderHelper.onHolidayDataChanged(context)
                     }
                     val message =
-                        if (result.isEmpty()) "获取失败或暂无数据" else "已更新 ${result.size} 条记录"
+                        when {
+                            result.isEmpty() -> "获取失败或暂无数据"
+                            !merged -> "本地数据异常，更新未保存"
+                            else -> "已更新 ${result.size} 条记录"
+                        }
                     android.widget.Toast.makeText(
                         context, message, android.widget.Toast.LENGTH_SHORT
                     ).show()

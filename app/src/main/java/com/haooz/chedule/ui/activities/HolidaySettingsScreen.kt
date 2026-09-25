@@ -110,6 +110,7 @@ fun HolidaySettingsScreen(
     var showDeleteConfirm by remember { mutableStateOf(false) }
     var dialogType by remember { mutableIntStateOf(HolidayManager.TYPE_HOLIDAY) }
     var editingEntry by remember { mutableStateOf<HolidayManager.Entry?>(null) }
+    var editingEntryStorageYear by remember { mutableIntStateOf(year) }
     var name by remember { mutableStateOf("") }
     var startYear by remember { mutableIntStateOf(year) }
     var startMonth by remember { mutableIntStateOf(1) }
@@ -136,6 +137,7 @@ fun HolidaySettingsScreen(
     fun startAdding(type: Int) {
         dialogType = type
         editingEntry = null
+        editingEntryStorageYear = year
         name = ""
         startYear = year
         startMonth = 1
@@ -159,6 +161,7 @@ fun HolidaySettingsScreen(
             ?: start
         dialogType = entry.type
         editingEntry = entry
+        editingEntryStorageYear = year
         name = entry.name
         startYear = start.year
         startMonth = start.monthValue
@@ -201,20 +204,12 @@ fun HolidaySettingsScreen(
         val weekday = followWeekday.toIntOrNull()?.takeIf { it in 1..7 } ?: -1
         // 按开始日期所属年份落库，避免 UI 选中年与日期年不一致时 workSwap 查不到
         val entryYear = runCatching { LocalDate.parse(startDate).year }.getOrDefault(year)
-        fun isSameEntry(e: HolidayManager.Entry, old: HolidayManager.Entry): Boolean =
-            e.date == old.date && e.type == old.type && e.name == old.name
-
-        editingEntry?.let { old ->
-            val oldYear = runCatching { LocalDate.parse(old.date).year }.getOrDefault(year)
-            if (oldYear != entryYear) {
-                val oldAll = HolidayManager.load(context, oldYear).toMutableList()
-                oldAll.removeAll { isSameEntry(it, old) }
-                HolidayManager.save(context, oldYear, oldAll)
-            }
+        val oldYear = editingEntry?.let { editingEntryStorageYear }
+        val affectedYears = buildSet {
+            add(entryYear)
+            oldYear?.let(::add)
         }
-        val all = HolidayManager.load(context, entryYear).toMutableList()
-        editingEntry?.let { old -> all.removeAll { isSameEntry(it, old) } }
-        all += HolidayManager.Entry(
+        val newEntry = HolidayManager.Entry(
             date = startDate,
             endDate = endDate,
             name = name.ifBlank { if (isHoliday) "节假日" else "调休工作日" },
@@ -223,7 +218,24 @@ fun HolidaySettingsScreen(
             followWeekday = if (isHoliday) -1 else weekday,
             custom = true,
         )
-        HolidayManager.save(context, entryYear, all)
+        val saved = HolidayManager.updateEntries(context, affectedYears) { current ->
+            val updated = current.mapValues { it.value.toMutableList() }.toMutableMap()
+            editingEntry?.let { old ->
+                updated[oldYear!!] = HolidayManager.withoutEntry(updated.getValue(oldYear), old)
+                    .toMutableList()
+            }
+            val all = updated.getValue(entryYear)
+            if (dialogType == HolidayManager.TYPE_WORKSWAP) {
+                updated[entryYear] = HolidayManager.withoutCustomWorkSwapsOnDate(all, startDate)
+                    .toMutableList()
+            }
+            updated.getValue(entryYear).add(newEntry)
+            updated.mapValues { (_, entries) -> entries.toList() }
+        }
+        if (!saved) {
+            Toast.makeText(context, "节假日数据无法读取，未覆盖原数据", Toast.LENGTH_LONG).show()
+            return
+        }
         reload()
         CourseReminderHelper.onHolidayDataChanged(context)
         showDialog = false
@@ -231,13 +243,16 @@ fun HolidaySettingsScreen(
     }
 
     fun deleteEntry() {
-        editingEntry?.let { old ->
-            val oldYear = runCatching { LocalDate.parse(old.date).year }.getOrDefault(year)
-            val all = HolidayManager.load(context, oldYear).toMutableList()
-            all.removeAll {
-                it.date == old.date && it.type == old.type && it.name == old.name
+        val deleted = editingEntry?.let { old ->
+            val oldYear = editingEntryStorageYear
+            HolidayManager.updateEntries(context, setOf(oldYear)) { current ->
+                val retained = HolidayManager.withoutEntry(current.getValue(oldYear), old)
+                current + (oldYear to retained)
             }
-            HolidayManager.save(context, oldYear, all)
+        } ?: true
+        if (!deleted) {
+            Toast.makeText(context, "节假日数据无法读取，未删除原数据", Toast.LENGTH_LONG).show()
+            return
         }
         reload()
         CourseReminderHelper.onHolidayDataChanged(context)
