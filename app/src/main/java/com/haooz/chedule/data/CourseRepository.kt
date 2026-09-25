@@ -890,6 +890,12 @@ class CourseRepository private constructor(context: Context) {
         return config.getPeriodTimes(period)
     }
 
+    /** All configured section times, with afternoon and evening keys using global section numbers. */
+    fun getCurrentSectionTimes(): Map<Int, String> {
+        val sectionCount = getMorningSections() + getAfternoonSections() + getEveningSections()
+        return getGlobalSectionTimes().filterKeys { it in 1..sectionCount }
+    }
+
     fun savePeriodTimes(period: String, times: Map<Int, String>) {
         savePeriodTimes(period, times, getCurrentScheduleId())
     }
@@ -2204,12 +2210,20 @@ class CourseRepository private constructor(context: Context) {
                 }
             }
         }
-        result[HolidayManager.BACKUP_KEY] = HolidayManager.exportBackupEntries(appContext)
+        result.putAll(HolidayManager.exportBackupData(appContext))
         return result
     }
 
     fun importAllPreferences(data: Map<String, Any>) {
-        val holidayEntries = HolidayManager.decodeBackupEntries(data)
+        withValidatedHolidayBackup(data) { holidayBackup ->
+            restoreAllPreferences(data, holidayBackup)
+        }
+    }
+
+    private fun restoreAllPreferences(
+        data: Map<String, Any>,
+        holidayBackup: HolidayManager.BackupData,
+    ) {
         prefs.edit {
             for ((key) in prefs.all) {
                 if (key.startsWith(SCHEDULE_KEY_PREFIX) || key.startsWith(TIME_CONFIG_PREFIX) ||
@@ -2226,7 +2240,9 @@ class CourseRepository private constructor(context: Context) {
             remove(KEY_DEFAULT_HOMEPAGE)
 
             for ((key, value) in data) {
-                if (key == HolidayManager.BACKUP_KEY) continue
+                if (key == HolidayManager.BACKUP_KEY ||
+                    key == HolidayManager.BACKUP_EXCLUSION_KEY
+                ) continue
                 when (value) {
                     is String -> putString(key, value)
                     is Boolean -> putBoolean(key, value)
@@ -2254,7 +2270,7 @@ class CourseRepository private constructor(context: Context) {
                 }
             }
         }
-        HolidayManager.restoreBackupEntries(appContext, holidayEntries)
+        HolidayManager.restoreBackupData(appContext, holidayBackup)
         invalidateAllCaches()
         dispatchCourseChanged("restore", "")
     }
@@ -2378,4 +2394,12 @@ class CourseRepository private constructor(context: Context) {
 
         dispatchCourseChanged("restore", "")
     }
+}
+
+internal fun <T> withValidatedHolidayBackup(
+    data: Map<String, Any>,
+    restore: (HolidayManager.BackupData) -> T,
+): T {
+    val holidayBackup = HolidayManager.decodeBackupData(data)
+    return restore(holidayBackup)
 }

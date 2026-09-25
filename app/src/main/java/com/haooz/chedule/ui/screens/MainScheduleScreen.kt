@@ -83,6 +83,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.haooz.chedule.data.Course
 import com.haooz.chedule.data.HolidayManager
+import com.haooz.chedule.data.HolidayCourseExclusion
 import com.haooz.chedule.ui.basic.LiquidTopBarButton
 import com.haooz.chedule.ui.basic.SharedScrollBehavior
 import com.haooz.chedule.ui.components.DayColumn
@@ -380,19 +381,27 @@ fun MainScheduleScreen(
     val holidayVersion = remember(scheduleContext, dataVersion, holidayDataRevision) {
         HolidayManager.getVersion(scheduleContext)
     }
-    val holidayEntriesByDate = remember(
+    val holidayEntriesByYear = remember(
         scheduleContext,
         dataVersion,
         holidayDataRevision,
         holidayVersion,
+    ) {
+        HolidayManager.loadAllByYear(scheduleContext)
+    }
+    val holidayEntriesByDate = remember(
+        holidayEntriesByYear,
         semesterStartMonday,
         semesterLastDate,
     ) {
         HolidayManager.entriesByDateRange(
-            HolidayManager.loadAllByYear(scheduleContext),
-            semesterStartMonday,
-            semesterLastDate,
+            holidayEntriesByYear,
+            semesterStartMonday.minusDays(1),
+            semesterLastDate.plusDays(1),
         )
+    }
+    val holidayEndCourseExclusion = remember(scheduleContext, holidayVersion) {
+        HolidayManager.loadEndCourseExclusion(scheduleContext)
     }
 
     // 日期索引复用提醒解析的同日/同类型优先级，并且只查询当前学期可见日期
@@ -455,6 +464,57 @@ fun MainScheduleScreen(
                     else dayCourses.filter { it.isActiveInWeek(displayWeek) }
                     Triple(displayDay, displayWeek, filtered)
                 })
+            }
+        }
+    }
+    val weekHolidayExemptCourseIds: Map<Int, Map<Int, Set<String>>> = remember(
+        coursesByDay,
+        weekFilteredCourses,
+        holidayEntriesByYear,
+        holidayEndCourseExclusion,
+        workswapIndex,
+        sectionTimes,
+        totalSections,
+        showNonCurrentWeek,
+        semesterStartMonday,
+        totalWeeks,
+    ) {
+        if (totalWeeks <= 0 || !holidayEndCourseExclusion.enabled) {
+            emptyMap()
+        } else {
+            HashMap<Int, Map<Int, Set<String>>>(totalWeeks).apply {
+                for (page in 0 until totalWeeks) {
+                    val weekForPage = page + 1
+                    put(page, allDays.associateWith { dayOfWeek ->
+                        val dateForDay = semesterStartMonday
+                            .plusWeeks((weekForPage - 1).toLong())
+                            .plusDays((dayOfWeek - 1).toLong())
+                        if (!HolidayCourseExclusion.isEnabledOnDate(
+                                holidayEntriesByYear,
+                                dateForDay,
+                                holidayEndCourseExclusion,
+                            )
+                        ) {
+                            emptySet()
+                        } else {
+                            val swapForDay = workswapIndex[dateForDay.toString()]
+                            val displayWeek = swapForDay?.followWeek?.takeIf { it > 0 } ?: weekForPage
+                            (weekFilteredCourses[page]?.get(dayOfWeek)?.third ?: emptyList())
+                                .asSequence()
+                                .filter { it.isActiveInWeek(displayWeek) }
+                                .filter {
+                                    HolidayCourseExclusion.matchesCourse(
+                                        it,
+                                        holidayEndCourseExclusion,
+                                        sectionTimes,
+                                        totalSections,
+                                    )
+                                }
+                                .map { it.id }
+                                .toSet()
+                        }
+                    })
+                }
             }
         }
     }
@@ -795,6 +855,8 @@ fun MainScheduleScreen(
                             val dayFlags = weekDayFlags[page]?.get(dayOfWeek) ?: (false to false)
                             val isHoliday = dayFlags.first
                             val isWorkSwap = dayFlags.second
+                            val holidayExemptCourseIds =
+                                weekHolidayExemptCourseIds[page]?.get(dayOfWeek).orEmpty()
                             // 调课日空白格添加：落到 follow 星期/周（周五课调到周二 → 点周二默认周五）
                             val addDayForCol = if (isWorkSwap) displayDayForCol else dayOfWeek
                             val addWeekForCol = if (isWorkSwap) displayWeekForDay else -1
@@ -862,6 +924,7 @@ fun MainScheduleScreen(
                                 grid = specialGrid,
                                 currentWeek = displayWeekForDay,
                                 isHoliday = isHoliday,
+                                holidayExemptCourseIds = holidayExemptCourseIds,
                                 isWorkSwap = isWorkSwap,
                                 pendingDay = pendingDay,
                                 pendingSection = pendingSection,

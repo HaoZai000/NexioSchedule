@@ -15,6 +15,8 @@ import com.haooz.chedule.R
 import com.haooz.chedule.data.Course
 import com.haooz.chedule.data.CourseRepository
 import com.haooz.chedule.data.CourseScheduleDateBounds
+import com.haooz.chedule.data.HolidayCourseExclusion
+import com.haooz.chedule.data.HolidayEndCourseExclusion
 import com.haooz.chedule.data.HolidayManager
 import com.haooz.chedule.ui.activities.MainActivity
 import com.haooz.chedule.widget.WidgetUpdateCache
@@ -261,6 +263,17 @@ object CourseReminderHelper {
         val minute = parts[1].trim().toIntOrNull() ?: return -1L
         if (hour !in 0..23 || minute !in 0..59) return -1L
         return todayMillis(hour, minute)
+    }
+
+    internal fun hasSameLocalMinute(time: String?, timestampMillis: Long): Boolean {
+        if (time.isNullOrBlank()) return false
+        val parts = time.trim().split(":")
+        if (parts.size != 2) return false
+        val hour = parts[0].trim().toIntOrNull() ?: return false
+        val minute = parts[1].trim().toIntOrNull() ?: return false
+        if (hour !in 0..23 || minute !in 0..59) return false
+        val expected = Calendar.getInstance().apply { timeInMillis = timestampMillis }
+        return hour == expected.get(Calendar.HOUR_OF_DAY) && minute == expected.get(Calendar.MINUTE)
     }
 
     // 向上取整，保证文案与系统倒计时剩余秒数一致
@@ -870,7 +883,7 @@ object CourseReminderHelper {
 
     /**
      * 小组件/ContentProvider/今日页/次日提醒共用的某日课表解析。
-     * 节假日空课；调休按 followWeekday/followWeek 映射；无映射时按日历周次查课。
+     * 节假日默认空课，末日例外只返回命中课程；调休按 followWeekday/followWeek 映射。
      */
     data class DayScheduleResolution(
         val courses: List<Course>,
@@ -884,6 +897,8 @@ object CourseReminderHelper {
         val isHolidayDate: Boolean,
         /** 目标日是否配置了调休映射 */
         val isWorkSwap: Boolean,
+        /** 目标日是节假日末日，且配置启用了节次课程排除 */
+        val isHolidayEndCourseExclusionActive: Boolean = false,
     )
 
     /** 由开学日推目标日期所在日历课表周；仅作相对偏移，不直接当「当前周」 */
@@ -939,59 +954,152 @@ object CourseReminderHelper {
         holidayEntriesByYear: Map<Int, List<HolidayManager.Entry>>?,
     ): DayScheduleResolution {
         val calendarDay = date.dayOfWeek.value
-        val holidayEntries = HolidayManager.entriesForDate(
-            holidayEntriesByYear ?: HolidayManager.loadAllByYear(context),
-            date,
-        )
-        val isHolidayDate = holidayEntries.any { it.type == HolidayManager.TYPE_HOLIDAY }
+        val entriesByYear = holidayEntriesByYear ?: HolidayManager.loadAllByYear(context)
+        val holidayEntries = HolidayManager.entriesForDate(entriesByYear, date)
         val targetEntry = holidayEntries.firstOrNull { it.type == HolidayManager.TYPE_WORKSWAP }
         val isWorkSwap = targetEntry?.followWeekday?.let { it in 1..7 } == true
         val displayDay = targetEntry?.followWeekday?.takeIf { it in 1..7 } ?: calendarDay
         // 未配置映射：用「存储当前周 + 日历偏移」，与主课表手动调周一致，且不受今日调休 followWeek 污染
         val displayWeek = targetEntry?.followWeek?.takeIf { it > 0 }
             ?: alignedStoredWeekForDate(repository, date)
-
-        if (isHolidayDate) {
-            return DayScheduleResolution(
-                courses = emptyList(),
-                displayDayOfWeek = displayDay,
-                displayWeek = displayWeek,
-                calendarDayOfWeek = calendarDay,
-                isHolidayDate = true,
-                isWorkSwap = isWorkSwap,
-            )
-        }
-
-        val totalWeeks = repository.getTotalWeeks()
-        val lastWeekWithCourses = repository.getLastWeekWithCourses()
-        if (displayWeek < 1 || displayWeek > totalWeeks || displayWeek > lastWeekWithCourses) {
-            return DayScheduleResolution(
-                courses = emptyList(),
-                displayDayOfWeek = displayDay,
-                displayWeek = displayWeek,
-                calendarDayOfWeek = calendarDay,
-                isHolidayDate = false,
-                isWorkSwap = isWorkSwap,
-            )
-        }
-
-        val courses = repository.getAllCourses()
-            .filter { it.dayOfWeek == displayDay && it.isActiveInWeek(displayWeek) }
-            .sortedBy { getCourseStartTime(it, repository).toMinutes() }
-        return DayScheduleResolution(
-            courses = courses,
+        val exclusion = HolidayManager.loadEndCourseExclusion(context)
+        return resolveDaySchedule(
+            date = date,
+            entriesByYear = entriesByYear,
+            exclusion = exclusion,
             displayDayOfWeek = displayDay,
             displayWeek = displayWeek,
             calendarDayOfWeek = calendarDay,
-            isHolidayDate = false,
             isWorkSwap = isWorkSwap,
+            candidates = {
+                val totalWeeks = repository.getTotalWeeks()
+                val lastWeekWithCourses = repository.getLastWeekWithCourses()
+                if (displayWeek < 1 || displayWeek > totalWeeks || displayWeek > lastWeekWithCourses) {
+                    emptyList()
+                } else {
+                    repository.getAllCourses()
+                        .filter { it.dayOfWeek == displayDay && it.isActiveInWeek(displayWeek) }
+                        .sortedBy { getCourseStartTime(it, repository).toMinutes() }
+                }
+            },
+            sectionTimes = repository::getCurrentSectionTimes,
+            sectionCount = {
+                repository.getMorningSections() +
+                    repository.getAfternoonSections() + repository.getEveningSections()
+            },
+        )
+    }
+
+    internal fun resolveDaySchedule(
+        date: LocalDate,
+        entriesByYear: Map<Int, List<HolidayManager.Entry>>,
+        exclusion: HolidayEndCourseExclusion,
+        displayDayOfWeek: Int,
+        displayWeek: Int,
+        calendarDayOfWeek: Int,
+        isWorkSwap: Boolean,
+        candidates: () -> List<Course>,
+        sectionTimes: () -> Map<Int, String>,
+        sectionCount: () -> Int,
+    ): DayScheduleResolution {
+        val dayResolution = HolidayCourseExclusion.resolveDayCourses(
+            entriesByYear = entriesByYear,
+            date = date,
+            exclusion = exclusion,
+            candidates = candidates,
+            sectionTimes = sectionTimes,
+            sectionCount = sectionCount,
+        )
+        return DayScheduleResolution(
+            courses = dayResolution.courses,
+            displayDayOfWeek = displayDayOfWeek,
+            displayWeek = displayWeek,
+            calendarDayOfWeek = calendarDayOfWeek,
+            isHolidayDate = dayResolution.isHolidayDate,
+            isWorkSwap = isWorkSwap,
+            isHolidayEndCourseExclusionActive = dayResolution.isHolidayEndCourseExclusionActive,
         )
     }
 
     /** 节假日/调休数据变更后：重排提醒并立即刷新已放置的小部件 */
     fun onHolidayDataChanged(context: Context) {
         startReminderService(context)
+        reconcileActiveHolidayCourse(context)
+        ClassDndHelper.applyCurrentState(context)
         WidgetUpdateCache.updateInstalledWidgets(context)
+    }
+
+    /** Remove a real ongoing course notification when holiday changes no longer resolve it for today. */
+    private fun reconcileActiveHolidayCourse(context: Context) {
+        val now = System.currentTimeMillis()
+        val repository = CourseRepository(context)
+        val countdownPrefs = context.getSharedPreferences("countdown_state", Context.MODE_PRIVATE)
+        val countdownStart = countdownPrefs.getLong("startMillis", 0L)
+        val countdownEnd = countdownPrefs.getLong("endMillis", 0L)
+        val countdownIsReal = !countdownPrefs.getBoolean("test_mode", false)
+        if (countdownIsReal && countdownEnd > now && (countdownStart > 0L)) {
+            val stillScheduled = isResolvedCourse(
+                context = context,
+                repository = repository,
+                startMillis = countdownStart,
+                endMillis = countdownEnd,
+                courseName = countdownPrefs.getString("courseName", "") ?: "",
+                classroom = countdownPrefs.getString("classroom", "") ?: "",
+                section = countdownPrefs.getString("section", "") ?: "",
+            )
+            if (!stillScheduled) {
+                val manager = context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
+                manager.cancel(LIVE_COUNTDOWN_ID)
+                manager.cancel(LIVE_STARTED_ID)
+                manager.cancel(LIVE_IN_CLASS_ID)
+                countdownPrefs.edit {
+                    putBoolean("active", false)
+                        .putBoolean("in_class_active", false)
+                        .remove("last_displayed_minutes")
+                        .remove("last_in_class_minutes")
+                        .remove("last_in_class_progress")
+                }
+            }
+        }
+
+        val islandState = IslandNotificationHelper.IslandState.snapshot(context, testMode = false)
+        if (islandState != null && islandState.endMillis > now && !isResolvedCourse(
+                context = context,
+                repository = repository,
+                startMillis = islandState.startMillis,
+                endMillis = islandState.endMillis,
+                courseName = islandState.courseName,
+                classroom = islandState.classroom,
+                section = islandState.section,
+            )
+        ) {
+            IslandNotificationHelper.cancelIslandState(context, islandState.notificationId)
+            IslandNotificationHelper.IslandState.clear(context, testMode = false)
+        }
+    }
+
+    private fun isResolvedCourse(
+        context: Context,
+        repository: CourseRepository,
+        startMillis: Long,
+        endMillis: Long,
+        courseName: String,
+        classroom: String,
+        section: String,
+    ): Boolean {
+        val date = runCatching {
+            java.time.Instant.ofEpochMilli(startMillis)
+                .atZone(java.time.ZoneId.systemDefault())
+                .toLocalDate()
+        }.getOrNull() ?: return false
+        val resolution = resolveDaySchedule(context, date, repository)
+        return resolution.courses.any { course ->
+            course.name == courseName &&
+                course.classroom == classroom &&
+                course.getTimeDisplayText() == section &&
+                hasSameLocalMinute(getCourseStartTime(course, repository), startMillis) &&
+                hasSameLocalMinute(getCourseEndTime(course, repository), endMillis)
+        }
     }
 
     fun getTomorrowCourses(context: Context): List<Course> =

@@ -21,6 +21,7 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
@@ -75,6 +76,7 @@ import top.yukonga.miuix.kmp.layout.liquidDropdownPositionProvider
 import top.yukonga.miuix.kmp.overlay.OverlayDialog
 import top.yukonga.miuix.kmp.overlay.OverlayListPopup
 import top.yukonga.miuix.kmp.preference.ArrowPreference
+import top.yukonga.miuix.kmp.preference.SwitchPreference
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 import top.yukonga.miuix.kmp.utils.scrollEndHaptic
 import java.time.LocalDate
@@ -105,6 +107,18 @@ fun HolidaySettingsScreen(
 ) {
     val context = LocalContext.current
     val haptic = LocalHapticFeedback.current
+    val holidayDataRevision by HolidayManager.dataRevision.collectAsState()
+    val repository = remember(context) { CourseRepository.getInstance(context) }
+    val currentScheduleId = repository.getCurrentScheduleId()
+    val configuredSectionCount = repository.getMorningSections(currentScheduleId) +
+        repository.getAfternoonSections(currentScheduleId) +
+        repository.getEveningSections(currentScheduleId)
+    val endCourseExclusion = remember(context, holidayDataRevision) {
+        HolidayManager.loadEndCourseExclusion(context)
+    }
+    var showSectionRangeDialog by remember { mutableStateOf(false) }
+    var pendingStartSection by remember { mutableIntStateOf(1) }
+    var pendingEndSection by remember { mutableIntStateOf(1) }
     // 编辑弹窗
     var showDialog by remember { mutableStateOf(false) }
     var showDeleteConfirm by remember { mutableStateOf(false) }
@@ -332,6 +346,45 @@ fun HolidaySettingsScreen(
                     onAdd = { startAdding(HolidayManager.TYPE_WORKSWAP) },
                 )
             }
+
+            item {
+                SectionTitleRow(
+                    text = "节假日末期课程排除",
+                    description = "• 假期最后一天的某几节课可能需要正常上课\n• 可以将节假日最后一天的某几节课程排除在休假情况以外",
+                    liquidGlassBackdrop = liquidGlassBackdrop,
+                )
+                Card(
+                    cornerRadius = 20.dp,
+                    modifier = Modifier.fillMaxWidth(),
+                    insideMargin = PaddingValues(0.dp),
+                ) {
+                    SwitchPreference(
+                        title = "开启节次排除",
+                        checked = endCourseExclusion.enabled,
+                        onCheckedChange = { enabled ->
+                            val updated = endCourseExclusion.copy(enabled = enabled)
+                            if (HolidayManager.saveEndCourseExclusion(context, updated)) {
+                                CourseReminderHelper.onHolidayDataChanged(context)
+                            }
+                        },
+                    )
+                    ArrowPreference(
+                        title = "节次范围",
+                        summary = "第${endCourseExclusion.startSection}–${endCourseExclusion.endSection}节",
+                        onClick = {
+                            if (configuredSectionCount <= 0) {
+                                Toast.makeText(context, "当前课表尚未配置节次", Toast.LENGTH_SHORT).show()
+                            } else {
+                                val maxSection = configuredSectionCount
+                                pendingStartSection = endCourseExclusion.startSection.coerceIn(1, maxSection)
+                                pendingEndSection = endCourseExclusion.endSection
+                                    .coerceIn(pendingStartSection, maxSection)
+                                showSectionRangeDialog = true
+                            }
+                        },
+                    )
+                }
+            }
         }
     }
 
@@ -406,6 +459,35 @@ fun HolidaySettingsScreen(
             )
         }
     }
+
+    SectionRangeDialog(
+        show = showSectionRangeDialog,
+        liquidGlassBackdrop = liquidGlassBackdrop,
+        sectionCount = configuredSectionCount,
+        startSection = pendingStartSection,
+        endSection = pendingEndSection,
+        onStartSectionChange = { start ->
+            pendingStartSection = start
+            if (pendingEndSection < start) pendingEndSection = start
+        },
+        onEndSectionChange = { pendingEndSection = it },
+        onDismiss = { showSectionRangeDialog = false },
+        onSave = {
+            val rangeFitsCurrentSchedule = configuredSectionCount > 0 &&
+                pendingStartSection in 1..configuredSectionCount &&
+                pendingEndSection in pendingStartSection..configuredSectionCount
+            val updated = endCourseExclusion.copy(
+                startSection = pendingStartSection,
+                endSection = pendingEndSection,
+            )
+            if (rangeFitsCurrentSchedule && HolidayManager.saveEndCourseExclusion(context, updated)) {
+                CourseReminderHelper.onHolidayDataChanged(context)
+                showSectionRangeDialog = false
+            } else {
+                Toast.makeText(context, "当前课表节次范围已变化，请重新选择", Toast.LENGTH_SHORT).show()
+            }
+        },
+    )
 }
 
 // ---------- 区块标题（含功能说明） ----------
@@ -472,6 +554,103 @@ private fun SectionTitleRow(
             description = description,
             liquidGlassBackdrop = liquidGlassBackdrop,
         )
+    }
+}
+
+@Composable
+private fun SectionRangeDialog(
+    show: Boolean,
+    liquidGlassBackdrop: Backdrop?,
+    sectionCount: Int,
+    startSection: Int,
+    endSection: Int,
+    onStartSectionChange: (Int) -> Unit,
+    onEndSectionChange: (Int) -> Unit,
+    onDismiss: () -> Unit,
+    onSave: () -> Unit,
+) {
+    val haptic = LocalHapticFeedback.current
+    OverlayDialog(
+        title = "选择上课节次",
+        show = show,
+        liquidGlassBackdrop = liquidGlassBackdrop,
+        onDismissRequest = onDismiss,
+    ) {
+        Column(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalAlignment = Alignment.CenterHorizontally,
+        ) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceEvenly,
+            ) {
+                Column(
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    modifier = Modifier.weight(1f),
+                ) {
+                    Text(
+                        text = "开始",
+                        style = MiuixTheme.textStyles.footnote1,
+                        color = MiuixTheme.colorScheme.onSurfaceVariantActions,
+                        modifier = Modifier.padding(top = 4.dp, bottom = 12.dp),
+                    )
+                    NumberPicker(
+                        value = startSection.coerceIn(1, sectionCount.coerceAtLeast(1)),
+                        onValueChange = onStartSectionChange,
+                        range = 1..sectionCount.coerceAtLeast(1),
+                        visibleItemCount = 3,
+                        itemHeight = 50.dp,
+                    )
+                }
+                Column(
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    modifier = Modifier.weight(1f),
+                ) {
+                    Text(
+                        text = "结束",
+                        style = MiuixTheme.textStyles.footnote1,
+                        color = MiuixTheme.colorScheme.onSurfaceVariantActions,
+                        modifier = Modifier.padding(top = 4.dp, bottom = 12.dp),
+                    )
+                    NumberPicker(
+                        value = endSection.coerceIn(
+                            startSection.coerceIn(1, sectionCount.coerceAtLeast(1)),
+                            sectionCount.coerceAtLeast(1),
+                        ),
+                        onValueChange = onEndSectionChange,
+                        range = startSection.coerceIn(1, sectionCount.coerceAtLeast(1))..
+                            sectionCount.coerceAtLeast(1),
+                        visibleItemCount = 3,
+                        itemHeight = 50.dp,
+                    )
+                }
+            }
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(top = 16.dp),
+                horizontalArrangement = Arrangement.spacedBy(12.dp),
+            ) {
+                TextButton(
+                    text = "取消",
+                    onClick = {
+                        haptic.performHapticFeedback(HapticFeedbackType.Confirm)
+                        onDismiss()
+                    },
+                    modifier = Modifier.weight(1f),
+                )
+                TextButton(
+                    text = "确定",
+                    onClick = {
+                        haptic.performHapticFeedback(HapticFeedbackType.Confirm)
+                        onSave()
+                    },
+                    enabled = sectionCount > 0,
+                    colors = ButtonDefaults.textButtonColorsPrimary(),
+                    modifier = Modifier.weight(1f),
+                )
+            }
+        }
     }
 }
 

@@ -593,7 +593,7 @@ fun TodayScreen(
                 ) {
                     HolidayManager.getVersion(appContext)
                 }
-                // 与课前提醒/小部件同口径：节假日空课，调休按 followWeek/followWeekday 映射
+                // 与课前提醒/小部件同口径：节假日末日例外仅保留命中课程，调休按映射查课
                 val pageResolution = remember(
                     pageDate, courses, dataVersion, holidayVersion, classStartTime, totalWeeks
                 ) {
@@ -604,9 +604,10 @@ fun TodayScreen(
                     val dayRange =
                         (1..5).toList() + settingsViewModel.getWeekendDaysForWeek(displayWeek)
                             .filter { it in 6..7 }
-                    // 节假日直接空课；调休补班即使落在智能周末隐藏的周六日也显示
+                    // 节假日仅在未启用末日课程例外时清空；调休补班允许覆盖智能周末隐藏
                     when {
-                        pageResolution.isHolidayDate -> emptyList()
+                        pageResolution.isHolidayDate &&
+                            !pageResolution.isHolidayEndCourseExclusionActive -> emptyList()
                         pageResolution.isWorkSwap || pageResolution.displayDayOfWeek in dayRange ->
                             pageResolution.courses
                         else -> emptyList()
@@ -690,7 +691,8 @@ fun TodayScreen(
                                         settingsViewModel.getWeekendDaysForWeek(resolution.displayWeek)
                                             .filter { it in 6..7 }
                                     val effectiveCourses = when {
-                                        resolution.isHolidayDate -> emptyList()
+                                        resolution.isHolidayDate &&
+                                            !resolution.isHolidayEndCourseExclusionActive -> emptyList()
                                         resolution.isWorkSwap || resolution.displayDayOfWeek in dayRange ->
                                             resolution.courses
                                         else -> emptyList()

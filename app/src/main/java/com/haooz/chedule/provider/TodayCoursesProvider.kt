@@ -104,7 +104,7 @@ class TodayCoursesProvider : ContentProvider() {
         throw UnsupportedOperationException("$uri is read-only")
 
     // 与标准小组件一致：开了明日提醒且已过提醒时间、今日课全上完时自动切到明日。
-    // 接口（URI/列名）不变；内部课程解析与小部件/次日提醒同口径（含调休、节假日）。
+    // 接口（URI/列名）不变；内部课程解析与小部件/次日提醒同口径（含调休、节假日末日例外）。
     private fun resolveState(context: android.content.Context, repository: CourseRepository): DisplayState {
         val currentWeek = repository.getCurrentWeek()
         val todayResolution = CourseReminderHelper.resolveDaySchedule(context, forTomorrow = false)

@@ -83,7 +83,7 @@ class TodayCourseWidgetProviderStandard : AppWidgetProvider() {
         val showTomorrow = isNextDayReminderEnabled && currentMinutes >= reminderMinutes && todayCoursesFinished
 
         val dayNames = listOf("周一", "周二", "周三", "周四", "周五", "周六", "周日")
-        // 今日/明日统一走 resolveDaySchedule：节假日空课、调休按映射查课
+        // 今日/明日统一走 resolveDaySchedule：节假日末日例外按节次保留课程、调休按映射查课
         val resolution = CourseReminderHelper.resolveDaySchedule(context, forTomorrow = showTomorrow)
         val targetWeek = resolution.displayWeek
         val targetCourses = resolution.courses
