@@ -2204,10 +2204,12 @@ class CourseRepository private constructor(context: Context) {
                 }
             }
         }
+        result[HolidayManager.BACKUP_KEY] = HolidayManager.exportBackupEntries(appContext)
         return result
     }
 
     fun importAllPreferences(data: Map<String, Any>) {
+        val holidayEntries = HolidayManager.decodeBackupEntries(data)
         prefs.edit {
             for ((key) in prefs.all) {
                 if (key.startsWith(SCHEDULE_KEY_PREFIX) || key.startsWith(TIME_CONFIG_PREFIX) ||
@@ -2224,6 +2226,7 @@ class CourseRepository private constructor(context: Context) {
             remove(KEY_DEFAULT_HOMEPAGE)
 
             for ((key, value) in data) {
+                if (key == HolidayManager.BACKUP_KEY) continue
                 when (value) {
                     is String -> putString(key, value)
                     is Boolean -> putBoolean(key, value)
@@ -2251,6 +2254,7 @@ class CourseRepository private constructor(context: Context) {
                 }
             }
         }
+        HolidayManager.restoreBackupEntries(appContext, holidayEntries)
         invalidateAllCaches()
         dispatchCourseChanged("restore", "")
     }

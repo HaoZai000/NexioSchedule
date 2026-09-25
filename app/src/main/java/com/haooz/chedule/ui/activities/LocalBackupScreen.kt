@@ -54,6 +54,7 @@ import androidx.compose.ui.unit.sp
 import com.google.gson.Gson
 import com.google.gson.reflect.TypeToken
 import com.haooz.chedule.data.CourseRepository
+import com.haooz.chedule.reminder.CourseReminderHelper
 import com.haooz.chedule.ui.basic.CollapsibleTopAppBarDefaults
 import com.haooz.chedule.ui.basic.OverlayDropdownMenu
 import com.haooz.chedule.ui.basic.SharedScrollBehavior
@@ -377,7 +378,10 @@ fun LocalBackupScreen(
                             repository.importSingleSchedule(name, payload.courses, payload.timeConfig)
                         }
 
-                        is BackupPayload.Full -> repository.importAllPreferences(payload.data)
+                        is BackupPayload.Full -> {
+                            repository.importAllPreferences(payload.data)
+                            CourseReminderHelper.onHolidayDataChanged(context)
+                        }
                     }
                     // 等加载完成再提示成功，否则会先弹 Toast 再刷出数据
                     courseViewModel.reloadCourses().join()

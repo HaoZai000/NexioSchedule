@@ -1,6 +1,7 @@
 package com.haooz.chedule.data
 
 import android.content.Context
+import android.content.SharedPreferences
 import androidx.core.content.edit
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -13,6 +14,7 @@ object HolidayManager {
     private const val PREFS = "holiday_settings"
     private const val KEY_PREFIX = "entries_"
     private const val KEY_VERSION = "version"
+    internal const val BACKUP_KEY = "holiday_entries"
     private val _dataRevision = MutableStateFlow(0L)
     val dataRevision = _dataRevision.asStateFlow()
     const val TYPE_HOLIDAY = 0
@@ -70,6 +72,51 @@ object HolidayManager {
         val preferences = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
         val years = storedEntryYears(preferences.all.keys)
         return years.associateWith { load(context, it) }
+    }
+
+    /** Preserve each year's stored JSON, including custom mappings and cross-year ranges. */
+    @Synchronized
+    fun exportBackupEntries(context: Context): Map<String, String> =
+        exportBackupEntries(context.getSharedPreferences(PREFS, Context.MODE_PRIVATE))
+
+    internal fun exportBackupEntries(preferences: SharedPreferences): Map<String, String> =
+        backupEntries(preferences.all)
+
+    internal fun backupEntries(stored: Map<String, *>): Map<String, String> =
+        stored.mapNotNull { (key, value) ->
+            if (key.startsWith(KEY_PREFIX) && key.removePrefix(KEY_PREFIX).toIntOrNull() != null &&
+                value is String) key to value else null
+        }.toMap()
+
+    /** A missing field in a legacy full backup represents an empty holiday configuration. */
+    internal fun decodeBackupEntries(backup: Map<String, Any?>): Map<String, String> {
+        if (BACKUP_KEY !in backup) return emptyMap()
+        val value = backup[BACKUP_KEY]
+        require(value is Map<*, *>) { "Invalid holiday backup data" }
+        return value.entries.associate { (key, raw) ->
+            require(key is String && key.startsWith(KEY_PREFIX) &&
+                key.removePrefix(KEY_PREFIX).toIntOrNull() != null && raw is String) {
+                "Invalid holiday backup entry"
+            }
+            key to raw
+        }
+    }
+
+    /** Replace only holiday entries; do not roll back the runtime revision on restore. */
+    @Synchronized
+    fun restoreBackupEntries(context: Context, entries: Map<String, String>) {
+        restoreBackupEntries(context.getSharedPreferences(PREFS, Context.MODE_PRIVATE), entries)
+    }
+
+    internal fun restoreBackupEntries(preferences: SharedPreferences, entries: Map<String, String>) {
+        val previousVersion = preferences.getLong(KEY_VERSION, 0L)
+        val newVersion = maxOf(System.currentTimeMillis(), previousVersion + 1L)
+        preferences.edit {
+            preferences.all.keys.filter { it.startsWith(KEY_PREFIX) }.forEach(::remove)
+            entries.forEach { (key, raw) -> putString(key, raw) }
+            putLong(KEY_VERSION, newVersion)
+        }
+        _dataRevision.value = newVersion
     }
 
     internal fun storedEntryYears(preferenceKeys: Set<String>): List<Int> =

@@ -207,6 +207,7 @@ class WebDavManager(private val context: Context) {
                         }
 
                         repository.importAllPreferences(data)
+                        com.haooz.chedule.reminder.CourseReminderHelper.onHolidayDataChanged(context)
                         lastSyncTime = System.currentTimeMillis()
                         Log.d(TAG, "Restore succeeded from ${latest.backupTime}")
                         RestoreResult.Success(latest.backupTime)
