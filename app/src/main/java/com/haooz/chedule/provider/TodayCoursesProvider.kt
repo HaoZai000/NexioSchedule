@@ -44,15 +44,17 @@ class TodayCoursesProvider : ContentProvider() {
             TODAY_COURSES, TOMORROW_COURSES, DISPLAY_COURSES -> {
                 val columns = projection?.toList() ?: COURSE_COLUMNS
                 require(columns.all { it in COURSE_COLUMNS }) { "Unsupported column requested: $columns" }
+                val displayState = if (match == DISPLAY_COURSES) resolveState(appContext, repository) else null
                 val courses = when (match) {
                     TODAY_COURSES -> CourseReminderHelper.getTodayCourses(appContext)
                     TOMORROW_COURSES -> CourseReminderHelper.getTomorrowCourses(appContext)
-                    else -> resolveState(appContext, repository).courses
+                    else -> displayState!!.courses
                 }
                 MatrixCursor(columns.toTypedArray()).apply {
                     courses.forEach { course ->
                         newRow().also { row ->
-                            fillCourseRow(row, columns, course, repository, widgetSize, locOnly)
+                            fillCourseRow(row, columns, course, repository, widgetSize, locOnly,
+                                match == TOMORROW_COURSES || displayState?.showTomorrow == 1)
                         }
                     }
                 }
@@ -106,7 +108,7 @@ class TodayCoursesProvider : ContentProvider() {
     // 与标准小组件一致：开了明日提醒且已过提醒时间、今日课全上完时自动切到明日。
     // 接口（URI/列名）不变；内部课程解析与小部件/次日提醒同口径（含调休、节假日末日例外）。
     private fun resolveState(context: android.content.Context, repository: CourseRepository): DisplayState {
-        val currentWeek = repository.getCurrentWeek()
+        val currentWeek = repository.getLiveTeachingWeek()
         val todayResolution = CourseReminderHelper.resolveDaySchedule(context, forTomorrow = false)
         val todayCourses = todayResolution.courses
 
@@ -116,7 +118,7 @@ class TodayCoursesProvider : ContentProvider() {
         val reminderMinutes = repository.getNextDayReminderHour() * 60 + repository.getNextDayReminderMinute()
 
         val todayFinished = if (todayCourses.isNotEmpty()) {
-            val lastEnd = CourseReminderHelper.getCourseEndTime(todayCourses.maxByOrNull { it.endSection }!!, repository)
+            val lastEnd = CourseReminderHelper.getLatestCourseEndTime(todayCourses, repository)
             lastEnd?.let { it.toMinutes() <= currentMinutes } ?: true
         } else true
         val showTomorrow = nextDayEnabled && currentMinutes >= reminderMinutes && todayFinished
@@ -166,6 +168,7 @@ class TodayCoursesProvider : ContentProvider() {
         repository: CourseRepository,
         size: String?,
         locOnly: Boolean = false,
+        isTomorrow: Boolean = false,
     ) {
         val calendar = Calendar.getInstance()
         val currentMinutes = calendar.get(Calendar.HOUR_OF_DAY) * 60 + calendar.get(Calendar.MINUTE)
@@ -173,7 +176,7 @@ class TodayCoursesProvider : ContentProvider() {
         val end = CourseReminderHelper.getCourseEndTime(course, repository)
         val startMinutes = start?.toMinutes() ?: -1
         val endMinutes = end?.toMinutes() ?: -1
-        val isNow = if (startMinutes < endMinutes && currentMinutes in startMinutes until endMinutes) 1 else 0
+        val isNow = if (!isTomorrow && startMinutes < endMinutes && currentMinutes in startMinutes until endMinutes) 1 else 0
         val remaining = if (isNow == 1) endMinutes - currentMinutes else 0
         val sectionText = course.getSectionText()
         val startText = start.orEmpty()

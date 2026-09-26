@@ -61,7 +61,7 @@ class TodayCourseWidgetProviderStandard : AppWidgetProvider() {
         val repository = CourseRepository(context)
         val dark = WidgetTextSizes.isDark(context)
 
-        val currentWeek = repository.getCurrentWeek()
+        val currentWeek = repository.getLiveTeachingWeek()
         val todayCourses = CourseReminderHelper.getTodayCourses(context)
 
         val calendar = Calendar.getInstance()
@@ -70,8 +70,7 @@ class TodayCourseWidgetProviderStandard : AppWidgetProvider() {
         val isNextDayReminderEnabled = repository.getNextDayReminder()
         val reminderMinutes = repository.getNextDayReminderHour() * 60 + repository.getNextDayReminderMinute()
         val todayCoursesFinished = if (todayCourses.isNotEmpty()) {
-            val lastCourse = todayCourses.maxByOrNull { it.endSection }
-            val lastEndTime = lastCourse?.let { getCourseEndTime(it, repository) }
+            val lastEndTime = CourseReminderHelper.getLatestCourseEndTime(todayCourses, repository)
             if (lastEndTime != null) {
                 val parts = lastEndTime.split(":")
                 if (parts.size == 2) {

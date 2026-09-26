@@ -44,6 +44,8 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.haooz.chedule.data.Course
+import com.haooz.chedule.data.CourseRepository
+import com.haooz.chedule.data.TeachingWeekReorganization
 import com.haooz.chedule.data.TimeConfig
 import com.haooz.chedule.ui.activities.AboutActivity
 import com.haooz.chedule.ui.activities.CourseReminderActivity
@@ -56,6 +58,11 @@ import com.haooz.chedule.ui.basic.CollapsibleTopAppBarDefaults
 import com.haooz.chedule.ui.basic.SharedScrollBehavior
 import com.haooz.chedule.ui.basic.collapsibleTopInset
 import com.haooz.chedule.ui.utils.FeatureLog
+import com.haooz.chedule.ui.utils.parseShareCourseWeekModel
+import com.haooz.chedule.ui.utils.parseShareCourses
+import com.haooz.chedule.ui.utils.parseShareSelectedWeeks
+import com.haooz.chedule.ui.utils.parseShareSettings
+import com.haooz.chedule.ui.utils.parseShareTotalWeeks
 import com.haooz.chedule.ui.utils.isAppDarkTheme
 import com.haooz.chedule.ui.utils.overScrollVertical
 import com.haooz.chedule.viewmodel.CourseViewModel
@@ -882,6 +889,10 @@ internal fun parseFullScheduleJson(text: String): Triple<Boolean, String, Map<St
         val type = object : com.google.gson.reflect.TypeToken<Map<String, Any>>() {}.type
         val data: Map<String, Any> = gson.fromJson(text, type)
 
+        if (data.containsKey("semester_settings") || data.containsKey("teaching_week_reorganizations")) {
+            return Triple(false, "这是本地单课表备份，请使用本地备份恢复入口", null)
+        }
+
         if (data.containsKey("settings") || data.containsKey("courses")) {
             // 拾光格式：有 courses + config（无 settings）
             if (data.containsKey("config") && data.containsKey("courses") && !data.containsKey("settings")) {
@@ -1148,10 +1159,31 @@ internal fun applyScheduleData(
         if (scheduleName in scheduleViewModel.scheduleNames.value) {
             return Pair(false, "课表「$scheduleName」已存在")
         }
-        scheduleViewModel.addSchedule(scheduleName)
 
-        @Suppress("UNCHECKED_CAST")
-        val coursesData = data["courses"] as? List<Map<String, Any>>
+        val settings = parseShareSettings(data)
+        val reorganizationFieldPresent = settings?.containsKey("teaching_week_reorganizations") == true
+        if (reorganizationFieldPresent) {
+            val importedStartDate = settings["class_start_time"] as? String
+            require(CourseRepository.normalizeClassStartDate(importedStartDate) != null) {
+                "包含教学周重组的分享课表必须有有效开学日期"
+            }
+        }
+        val importTotalWeeks = parseShareTotalWeeks(settings)
+        val importedReorganizations = TeachingWeekReorganization.fromBackupValue(
+            value = settings?.get("teaching_week_reorganizations"),
+            present = reorganizationFieldPresent,
+            totalWeeks = importTotalWeeks,
+            preserveOutOfRangeRules = true,
+        )
+        val coursesData = parseShareCourses(data)
+        // Keep stored course selections intact when the source semester was shortened later.
+        val courseWeekHorizon = CourseRepository.MAX_TOTAL_WEEKS
+        val shareCourseWeekModels = coursesData.map {
+            parseShareCourseWeekModel(it, maxWeeks = courseWeekHorizon)
+        }
+        val selectedWeeksByCourse = coursesData.map {
+            parseShareSelectedWeeks(it, maxWeeks = courseWeekHorizon)
+        }
         val courses = mutableListOf<Course>()
         val courseNameColorMap = mutableMapOf<String, Long>()
         var colorIndex = 0
@@ -1166,7 +1198,7 @@ internal fun applyScheduleData(
 
         // ICS 无开学日设置时，用最早课程所在周的周一反推
         var icsClassStartDate: LocalDate? = null
-        coursesData?.forEach { courseMap ->
+        coursesData.forEach { courseMap ->
             val startDateStr = courseMap["startDate"] as? String
             if (startDateStr != null && startDateStr.length == 8) {
                 val date = try {
@@ -1218,13 +1250,14 @@ internal fun applyScheduleData(
             return null
         }
 
-        coursesData?.forEach { courseMap ->
-            val name = courseMap["name"] as? String ?: return@forEach
+        coursesData.forEachIndexed { courseIndex, courseMap ->
+            val name = courseMap["name"] as? String ?: return@forEachIndexed
             val classroom = courseMap["classroom"] as? String ?: ""
             val teacher = courseMap["teacher"] as? String ?: ""
-            val dayOfWeek = (courseMap["dayOfWeek"] as? Number)?.toInt() ?: return@forEach
-            @Suppress("UNCHECKED_CAST")
-            var selectedWeeks = (courseMap["selectedWeeks"] as? List<Number>)?.map { it.toInt() } ?: emptyList()
+            val dayOfWeek = (courseMap["dayOfWeek"] as? Number)?.toInt() ?: return@forEachIndexed
+            var selectedWeeks = selectedWeeksByCourse[courseIndex]
+            val explicitWeekModel = shareCourseWeekModels[courseIndex]
+            val hasExplicitWeekModel = explicitWeekModel != null
 
             // JSON 导出有 startSection；ICS 需按时间映射节次
             val directStartSection = (courseMap["startSection"] as? Number)?.toInt()
@@ -1239,10 +1272,10 @@ internal fun applyScheduleData(
                 } else null
             }
 
-            if (sectionPair == null) return@forEach
+            if (sectionPair == null) return@forEachIndexed
             val (startSection, endSection) = sectionPair
 
-            if (selectedWeeks.isEmpty()) {
+            if (selectedWeeks.isEmpty() && !hasExplicitWeekModel) {
                 @Suppress("UNCHECKED_CAST")
                 val datePairs = courseMap["datePairs"] as? List<List<String>>
                 if (!datePairs.isNullOrEmpty()) {
@@ -1292,7 +1325,7 @@ internal fun applyScheduleData(
                 }
             }
 
-            if (selectedWeeks.isEmpty()) {
+            if (selectedWeeks.isEmpty() && !hasExplicitWeekModel) {
                 val countStr = courseMap["count"] as? String
                 val startDateStr = courseMap["startDate"] as? String
                 if (!countStr.isNullOrEmpty() && !startDateStr.isNullOrEmpty() && startDateStr.length == 8) {
@@ -1314,7 +1347,7 @@ internal fun applyScheduleData(
                 }
             }
 
-            if (selectedWeeks.isNotEmpty()) {
+            if (selectedWeeks.isNotEmpty() || hasExplicitWeekModel) {
                 val colorRes = courseNameColorMap.getOrPut(name) {
                     val color = Course.courseColors[colorIndex % Course.courseColors.size]
                     colorIndex++
@@ -1332,9 +1365,9 @@ internal fun applyScheduleData(
                         isCustomTime = (courseMap["isCustomTime"] as? Boolean) ?: false,
                         customStartTime = courseMap["customStartTime"] as? String,
                         customEndTime = courseMap["customEndTime"] as? String,
-                        startWeek = selectedWeeks.min(),
-                        endWeek = selectedWeeks.max(),
-                        weekType = Course.WEEK_TYPE_ALL,
+                        startWeek = explicitWeekModel?.startWeek ?: selectedWeeks.min(),
+                        endWeek = explicitWeekModel?.endWeek ?: selectedWeeks.max(),
+                        weekType = explicitWeekModel?.weekType ?: Course.WEEK_TYPE_ALL,
                         selectedWeeks = selectedWeeks,
                         colorRes = colorRes
                     )
@@ -1342,13 +1375,14 @@ internal fun applyScheduleData(
             }
         }
 
+        require(courses.size == coursesData.size) {
+            "分享课表中的课程数据无法完整导入"
+        }
+        scheduleViewModel.addSchedule(scheduleName)
         scheduleViewModel.saveCoursesToSchedule(scheduleName, courses)
 
         // 先刷摘要再继续，否则切换页课程数会短暂错
         scheduleViewModel.refreshScheduleList()
-
-        @Suppress("UNCHECKED_CAST")
-        val settings = data["settings"] as? Map<String, Any>
 
         @Suppress("UNCHECKED_CAST")
         val times = data["times"] as? Map<String, Any>
@@ -1391,6 +1425,15 @@ internal fun applyScheduleData(
 
             (settings["class_start_time"] as? String)?.let { viewModel.setClassStartTime(it) }
             (settings["total_weeks"] as? Number)?.toInt()?.let { viewModel.setTotalWeeks(it) }
+            if (reorganizationFieldPresent && !CourseRepository.getInstance(context)
+                    .setTeachingWeekReorganizations(
+                        rules = importedReorganizations,
+                        scheduleId = scheduleName,
+                        preserveOutOfRangeRules = true,
+                    )
+            ) {
+                throw IllegalArgumentException("教学周重组规则与课表总周数冲突")
+            }
             (settings["smart_weekend"] as? Boolean)?.let {
                 settingsViewModel.setSmartWeekend(it)
             }

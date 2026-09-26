@@ -82,8 +82,11 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.haooz.chedule.data.Course
+import com.haooz.chedule.data.CourseRepository
 import com.haooz.chedule.data.HolidayManager
 import com.haooz.chedule.data.HolidayCourseExclusion
+import com.haooz.chedule.data.TeachingWeekReorganization
+import com.haooz.chedule.reminder.CourseReminderHelper
 import com.haooz.chedule.ui.basic.LiquidTopBarButton
 import com.haooz.chedule.ui.basic.SharedScrollBehavior
 import com.haooz.chedule.ui.components.DayColumn
@@ -369,13 +372,41 @@ fun MainScheduleScreen(
     }
 
     val scheduleContext = LocalContext.current
-    val semesterStartMonday = remember(scheduleContext, dataVersion, classStartTime) {
-        val start = runCatching {
+    val scheduleRepository = remember(scheduleContext) {
+        CourseRepository.getInstance(scheduleContext)
+    }
+    val currentScheduleId = remember(scheduleRepository, dataVersion) {
+        scheduleRepository.getCurrentScheduleId()
+    }
+    val semesterStartDate = remember(scheduleContext, dataVersion, classStartTime) {
+        runCatching {
             LocalDate.parse(classStartTime.replace("/", "-"))
         }.getOrNull() ?: LocalDate.now()
-        start.minusDays((start.dayOfWeek.value - 1).toLong())
     }
-    val semesterLastDate = semesterStartMonday.plusWeeks((totalWeeks - 1).toLong()).plusDays(6)
+    val semesterStartMonday = semesterStartDate.minusDays((semesterStartDate.dayOfWeek.value - 1).toLong())
+    val teachingWeekReorganizations = remember(
+        scheduleRepository,
+        currentScheduleId,
+        dataVersion,
+        classStartTime,
+    ) {
+        scheduleRepository.getTeachingWeekReorganizations(currentScheduleId)
+    }
+    val dateForTeachingPosition: (Int, Int) -> LocalDate? = remember(
+        semesterStartDate,
+        teachingWeekReorganizations,
+    ) {
+        { teachingWeek, weekday ->
+            TeachingWeekReorganization.dateForPosition(
+                semesterStartDate,
+                teachingWeek,
+                weekday,
+                teachingWeekReorganizations,
+            )
+        }
+    }
+    val semesterLastDate = dateForTeachingPosition(totalWeeks, 7)
+        ?: semesterStartMonday.plusWeeks((totalWeeks - 1).toLong()).plusDays(6)
 
     // 记忆化版本号：假期编辑返回 bump dataVersion 时才重读 SP
     val holidayVersion = remember(scheduleContext, dataVersion, holidayDataRevision) {
@@ -419,20 +450,30 @@ fun MainScheduleScreen(
     // 一次算齐全部周，切页 O(1) 查表；智能周末下避免每次换周扫 courses+SP
     val weekendDaysByWeek: Map<Int, Set<Int>> = remember(
         courses, dataVersion, holidayVersion, smartWeekend, totalWeeks,
-        semesterStartMonday, workswapIndex
+        semesterStartMonday, workswapIndex, teachingWeekReorganizations,
+        holidayEntriesByYear, currentScheduleId,
     ) {
         if (!smartWeekend) {
             (1..totalWeeks).associateWith { setOf(6, 7) }
         } else {
-            val result = HashMap<Int, Set<Int>>(totalWeeks * 2)
+            val result = HashMap<Int, Set<Int>>()
             for (week in 1..totalWeeks) {
-                val mondayOfWeek = semesterStartMonday.plusWeeks((week - 1).toLong())
-                val satDate = mondayOfWeek.plusDays(5).toString()
-                val sunDate = mondayOfWeek.plusDays(6).toString()
+                if (teachingWeekReorganizations.isNotEmpty()) {
+                    result[week] = CourseReminderHelper.effectiveWeekendDays(
+                        semesterStartDate, week, teachingWeekReorganizations,
+                    ) { date ->
+                        CourseReminderHelper.resolveDaySchedule(
+                            scheduleContext, date, scheduleRepository, holidayEntriesByYear,
+                        ).courses.isNotEmpty()
+                    }
+                    continue
+                }
+                val satDate = dateForTeachingPosition(week, 6)?.toString()
+                val sunDate = dateForTeachingPosition(week, 7)?.toString()
                 val satActive = courses.any { it.dayOfWeek == 6 && it.isActiveInWeek(week) } ||
-                    (workswapIndex[satDate]?.followWeekday?.let { it in 1..7 } == true)
+                    (satDate?.let { workswapIndex[it]?.followWeekday?.let { day -> day in 1..7 } } == true)
                 val sunActive = courses.any { it.dayOfWeek == 7 && it.isActiveInWeek(week) } ||
-                    (workswapIndex[sunDate]?.followWeekday?.let { it in 1..7 } == true)
+                    (sunDate?.let { workswapIndex[it]?.followWeekday?.let { day -> day in 1..7 } } == true)
                 result[week] = buildSet {
                     if (satActive) add(6)
                     if (sunActive) add(7)
@@ -446,16 +487,15 @@ fun MainScheduleScreen(
     /** page -> dayOfWeek -> Triple(显示星期, 显示周次, 课程)；调课日显示 follow 星期/周次 */
     val weekFilteredCourses: Map<Int, Map<Int, Triple<Int, Int, List<Course>>>> = remember(
         coursesByDay, showNonCurrentWeek, dataVersion, holidayVersion,
-        workswapIndex, semesterStartMonday, totalWeeks
+        workswapIndex, semesterStartMonday, totalWeeks, teachingWeekReorganizations
     ) {
         if (totalWeeks <= 0) emptyMap()
         else HashMap<Int, Map<Int, Triple<Int, Int, List<Course>>>>(totalWeeks).apply {
             for (page in 0 until totalWeeks) {
                 val weekForPage = page + 1
                 put(page, allDays.associateWith { dayOfWeek ->
-                    val dateForDay = semesterStartMonday
-                        .plusWeeks((weekForPage - 1).toLong())
-                        .plusDays((dayOfWeek - 1).toLong())
+                    val dateForDay = dateForTeachingPosition(weekForPage, dayOfWeek)
+                        ?: return@associateWith Triple(dayOfWeek, weekForPage, emptyList())
                     val swapForDay = workswapIndex[dateForDay.toString()]
                     val displayDay = swapForDay?.followWeekday?.takeIf { it in 1..7 } ?: dayOfWeek
                     val displayWeek = swapForDay?.followWeek?.takeIf { it > 0 } ?: weekForPage
@@ -478,6 +518,7 @@ fun MainScheduleScreen(
         showNonCurrentWeek,
         semesterStartMonday,
         totalWeeks,
+        teachingWeekReorganizations,
     ) {
         if (totalWeeks <= 0 || !holidayEndCourseExclusion.enabled) {
             emptyMap()
@@ -486,9 +527,8 @@ fun MainScheduleScreen(
                 for (page in 0 until totalWeeks) {
                     val weekForPage = page + 1
                     put(page, allDays.associateWith { dayOfWeek ->
-                        val dateForDay = semesterStartMonday
-                            .plusWeeks((weekForPage - 1).toLong())
-                            .plusDays((dayOfWeek - 1).toLong())
+                        val dateForDay = dateForTeachingPosition(weekForPage, dayOfWeek)
+                            ?: return@associateWith emptySet()
                         if (!HolidayCourseExclusion.isEnabledOnDate(
                                 holidayEntriesByYear,
                                 dateForDay,
@@ -520,16 +560,15 @@ fun MainScheduleScreen(
     }
     // page -> dayOfWeek -> (isHoliday, isWorkSwap)，同样预计算
     val weekDayFlags: Map<Int, Map<Int, Pair<Boolean, Boolean>>> = remember(
-        semesterStartMonday, holidayIndex, workswapIndex, totalWeeks
+        semesterStartMonday, holidayIndex, workswapIndex, totalWeeks, teachingWeekReorganizations
     ) {
         if (totalWeeks <= 0) emptyMap()
         else HashMap<Int, Map<Int, Pair<Boolean, Boolean>>>(totalWeeks).apply {
             for (page in 0 until totalWeeks) {
                 val weekForPage = page + 1
                 put(page, allDays.associateWith { dayOfWeek ->
-                    val dateForDay = semesterStartMonday
-                        .plusWeeks((weekForPage - 1).toLong())
-                        .plusDays((dayOfWeek - 1).toLong())
+                    val dateForDay = dateForTeachingPosition(weekForPage, dayOfWeek)
+                        ?: return@associateWith (false to false)
                     val isHoliday = holidayIndex[dateForDay.toString()] != null
                     val isWorkSwap = workswapIndex[dateForDay.toString()]
                         ?.followWeekday?.takeIf { it in 1..7 } != null

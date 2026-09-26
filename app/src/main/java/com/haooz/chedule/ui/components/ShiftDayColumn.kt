@@ -11,6 +11,19 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import com.haooz.chedule.data.Course
+import com.haooz.chedule.data.TeachingWeekPosition
+
+internal fun shiftCoursesOnDate(
+    allScheduleCourses: Map<String, List<Course>>,
+    schedulePositions: Map<String, TeachingWeekPosition>,
+): List<Pair<String, Course>> = allScheduleCourses.flatMap { (name, courses) ->
+    val position = schedulePositions[name]
+    if (position == null || position.weekday == null || position.isReorganizationPause ||
+        position.week !in 1L..Int.MAX_VALUE.toLong()
+    ) emptyList() else courses.filter { course ->
+        course.dayOfWeek == position.weekday && course.isActiveInWeek(position.week.toInt())
+    }.map { name to it }
+}
 
 @Composable
 fun ShiftDayColumn(
@@ -19,7 +32,7 @@ fun ShiftDayColumn(
     morningSections: Int,
     afternoonSections: Int,
     eveningSections: Int,
-    currentWeek: Int,
+    schedulePositions: Map<String, TeachingWeekPosition>,
     onSlotClick: (dayOfWeek: Int, startSection: Int, courses: List<Pair<String, Course>>) -> Unit = { _, _, _ -> },
     cardHeightPerSection: Float = 54f,
     isTablet: Boolean = false,
@@ -28,14 +41,7 @@ fun ShiftDayColumn(
 ) {
     val totalHeight = ((morningSections + afternoonSections + eveningSections) * cardHeightPerSection + 24 * 2).toInt()
 
-    val allCourses = mutableListOf<Pair<String, Course>>()
-    for ((name, courses) in allScheduleCourses) {
-        for (c in courses) {
-            if (c.dayOfWeek == dayOfWeek && c.isActiveInWeek(currentWeek)) {
-                allCourses.add(name to c)
-            }
-        }
-    }
+    val allCourses = shiftCoursesOnDate(allScheduleCourses, schedulePositions)
 
     fun sectionToY(section: Int): Float {
         return when {

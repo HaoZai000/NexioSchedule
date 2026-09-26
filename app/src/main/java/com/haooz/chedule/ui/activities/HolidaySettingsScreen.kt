@@ -3,6 +3,7 @@ package com.haooz.chedule.ui.activities
 import android.content.Context
 import android.widget.Toast
 import androidx.compose.foundation.Image
+import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
@@ -32,6 +33,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ColorFilter
+import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.platform.LocalConfiguration
@@ -47,6 +49,8 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.haooz.chedule.data.CourseRepository
 import com.haooz.chedule.data.HolidayManager
+import com.haooz.chedule.data.TeachingWeekReorganization
+import com.haooz.chedule.data.TeachingWeekReorganizationRule
 import com.haooz.chedule.reminder.CourseReminderHelper
 import com.haooz.chedule.ui.basic.CollapsibleTopAppBarDefaults
 import com.haooz.chedule.ui.basic.OverlayDropdownMenu
@@ -77,10 +81,10 @@ import top.yukonga.miuix.kmp.overlay.OverlayDialog
 import top.yukonga.miuix.kmp.overlay.OverlayListPopup
 import top.yukonga.miuix.kmp.preference.ArrowPreference
 import top.yukonga.miuix.kmp.preference.SwitchPreference
+import top.yukonga.miuix.kmp.squircle.squircleClip
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 import top.yukonga.miuix.kmp.utils.scrollEndHaptic
 import java.time.LocalDate
-import java.time.temporal.ChronoUnit
 
 private val YEAR_RANGE = 2024..2035
 private val WEEKDAYS = listOf(
@@ -104,12 +108,22 @@ fun HolidaySettingsScreen(
     entries: List<HolidayManager.Entry>,
     onYearChange: (Int) -> Unit,
     reload: () -> Unit,
+    onTeachingWeekReorganizationsChanged: () -> Unit = {},
 ) {
     val context = LocalContext.current
     val haptic = LocalHapticFeedback.current
     val holidayDataRevision by HolidayManager.dataRevision.collectAsState()
     val repository = remember(context) { CourseRepository.getInstance(context) }
     val currentScheduleId = repository.getCurrentScheduleId()
+    val currentTotalWeeks = repository.getTotalWeeks(currentScheduleId)
+    val semesterStartDate = remember(currentScheduleId) {
+        runCatching {
+            LocalDate.parse(repository.getClassStartTime(currentScheduleId).replace("/", "-"))
+        }.getOrElse { LocalDate.now() }
+    }
+    var teachingWeekReorganizations by remember(currentScheduleId) {
+        mutableStateOf(repository.getTeachingWeekReorganizations(currentScheduleId))
+    }
     val configuredSectionCount = repository.getMorningSections(currentScheduleId) +
         repository.getAfternoonSections(currentScheduleId) +
         repository.getEveningSections(currentScheduleId)
@@ -133,19 +147,132 @@ fun HolidaySettingsScreen(
     var endMonth by remember { mutableIntStateOf(1) }
     var endDay by remember { mutableIntStateOf(1) }
     var followWeek by remember { mutableStateOf("1") }
+    var followWeekManuallySelected by remember { mutableStateOf(false) }
     var followWeekday by remember { mutableStateOf("1") }
+    var showTeachingWeekRuleDialog by remember { mutableStateOf(false) }
+    var showTeachingWeekPicker by remember { mutableStateOf(false) }
+    var showTeachingWeekDeleteConfirm by remember { mutableStateOf(false) }
+    var editingTeachingWeekRuleIndex by remember { mutableIntStateOf(-1) }
+    var editingWeekPickerHalf by remember { mutableIntStateOf(1) }
+    var pendingOriginalWeek by remember { mutableIntStateOf(1) }
+    var firstOriginalWeek by remember { mutableIntStateOf(4) }
+    var secondOriginalWeek by remember { mutableIntStateOf(5) }
+    var firstEndWeekday by remember { mutableIntStateOf(3) }
 
     // 根据开始日期计算其对应课表的默认周次
     fun weekOfDate(year: Int, month: Int, day: Int): String {
-        val classStartTime = CourseRepository.getInstance(context).getClassStartTime()
         return try {
-            val start = LocalDate.parse(classStartTime.replace("/", "-"))
-            val startMonday = start.minusDays((start.dayOfWeek.value - 1).toLong())
             val date = LocalDate.of(year, month, day)
-            ChronoUnit.DAYS.between(startMonday, date).floorDiv(7).toInt() + 1
+            TeachingWeekReorganization.mapDate(
+                semesterStartDate,
+                date,
+                teachingWeekReorganizations,
+            ).week.coerceIn(1L, currentTotalWeeks.toLong()).toInt()
         } catch (_: Exception) {
             1
         }.toString()
+    }
+
+    fun originalWeekDate(week: Int, weekday: Int): LocalDate? =
+        TeachingWeekReorganization.dateForPosition(
+            semesterStartDate,
+            week,
+            weekday,
+            emptyList(),
+        )
+
+    fun formatDateRange(week: Int, startDay: Int, endDay: Int): String {
+        val first = originalWeekDate(week, startDay) ?: return "日期超出范围"
+        val last = originalWeekDate(week, endDay) ?: return "日期超出范围"
+        return "${formatTeachingDate(first)}–${formatTeachingDate(last)}"
+    }
+
+    fun draftTeachingWeekRule() = TeachingWeekReorganizationRule(
+        firstOriginalWeek = firstOriginalWeek,
+        firstStartWeekday = 1,
+        firstEndWeekday = firstEndWeekday,
+        secondOriginalWeek = secondOriginalWeek,
+        secondStartWeekday = firstEndWeekday + 1,
+        secondEndWeekday = 7,
+    )
+
+    fun startAddingTeachingWeekRule() {
+        editingTeachingWeekRuleIndex = -1
+        val selected = TeachingWeekReorganization.firstAvailableStartingWeek(
+            currentTotalWeeks,
+            teachingWeekReorganizations,
+        ) ?: run {
+            Toast.makeText(context, "当前课表没有可用的原始周次可重组", Toast.LENGTH_SHORT).show()
+            return
+        }
+        firstOriginalWeek = selected
+        secondOriginalWeek = selected + 1
+        firstEndWeekday = 3
+        showTeachingWeekRuleDialog = true
+    }
+
+    fun startEditingTeachingWeekRule(index: Int) {
+        val rule = teachingWeekReorganizations.getOrNull(index) ?: return
+        editingTeachingWeekRuleIndex = index
+        firstOriginalWeek = rule.firstOriginalWeek
+        secondOriginalWeek = rule.secondOriginalWeek
+        firstEndWeekday = rule.firstEndWeekday
+        showTeachingWeekRuleDialog = true
+    }
+
+    fun openOriginalWeekPicker(half: Int) {
+        editingWeekPickerHalf = half
+        pendingOriginalWeek = if (half == 1) firstOriginalWeek else secondOriginalWeek
+        showTeachingWeekPicker = true
+    }
+
+    fun saveTeachingWeekRule() {
+        val proposed = draftTeachingWeekRule()
+        val updated = teachingWeekReorganizations.toMutableList().apply {
+            if (editingTeachingWeekRuleIndex in indices) removeAt(editingTeachingWeekRuleIndex)
+            add(proposed)
+        }.sortedBy { it.firstOriginalWeek }
+        val error = TeachingWeekReorganization.validationErrorForRuleChange(
+            updatedRules = updated,
+            existingRules = teachingWeekReorganizations,
+            changedRule = proposed,
+            totalWeeks = currentTotalWeeks,
+        )
+        if (error != null) {
+            Toast.makeText(context, error, Toast.LENGTH_SHORT).show()
+            return
+        }
+        if (!repository.setTeachingWeekReorganizations(
+                rules = updated,
+                scheduleId = currentScheduleId,
+                allowExistingOutOfRangeRules = true,
+                changedRule = proposed,
+            )
+        ) {
+            Toast.makeText(context, "保存失败，现有规则未更改", Toast.LENGTH_SHORT).show()
+            return
+        }
+        teachingWeekReorganizations = updated
+        showTeachingWeekRuleDialog = false
+        showTeachingWeekDeleteConfirm = false
+        onTeachingWeekReorganizationsChanged()
+        CourseReminderHelper.onHolidayDataChanged(context)
+    }
+
+    fun deleteTeachingWeekRule() {
+        val rule = teachingWeekReorganizations.getOrNull(editingTeachingWeekRuleIndex) ?: return
+        if (!repository.removeTeachingWeekReorganization(rule, currentScheduleId)) {
+            Toast.makeText(context, "删除失败，现有规则未更改", Toast.LENGTH_SHORT).show()
+            return
+        }
+        val updated = teachingWeekReorganizations.toMutableList().apply {
+            removeAt(editingTeachingWeekRuleIndex)
+        }
+        teachingWeekReorganizations = updated
+        showTeachingWeekDeleteConfirm = false
+        showTeachingWeekRuleDialog = false
+        onTeachingWeekReorganizationsChanged()
+        CourseReminderHelper.onHolidayDataChanged(context)
     }
 
     fun startAdding(type: Int) {
@@ -165,6 +292,7 @@ fun HolidaySettingsScreen(
             "1"
         }
         followWeekday = "1"
+        followWeekManuallySelected = false
         showDialog = true
     }
 
@@ -195,6 +323,7 @@ fun HolidaySettingsScreen(
         } else {
             "1"
         }
+        followWeekManuallySelected = entry.followWeek > 0
         showDialog = true
     }
 
@@ -216,6 +345,10 @@ fun HolidaySettingsScreen(
         }
         val week = followWeek.toIntOrNull()?.takeIf { it > 0 } ?: -1
         val weekday = followWeekday.toIntOrNull()?.takeIf { it in 1..7 } ?: -1
+        if (!isHoliday && (week !in 1..currentTotalWeeks || weekday !in 1..7)) {
+            Toast.makeText(context, "请明确选择有效的跟随周次和星期", Toast.LENGTH_SHORT).show()
+            return
+        }
         // 按开始日期所属年份落库，避免 UI 选中年与日期年不一致时 workSwap 查不到
         val entryYear = runCatching { LocalDate.parse(startDate).year }.getOrDefault(year)
         val oldYear = editingEntry?.let { editingEntryStorageYear }
@@ -280,6 +413,46 @@ fun HolidaySettingsScreen(
     val workswapEntries = entries.filter { it.type == HolidayManager.TYPE_WORKSWAP }
     val isTablet = LocalConfiguration.current.screenWidthDp >= 600
     val tabletHorizontalPadding = if (isTablet) 20.dp else 16.dp
+
+    val draftRuleForPreview = draftTeachingWeekRule()
+    val rulesAfterDraft = teachingWeekReorganizations.toMutableList().apply {
+        if (editingTeachingWeekRuleIndex in indices) removeAt(editingTeachingWeekRuleIndex)
+        add(draftRuleForPreview)
+    }.sortedBy { it.firstOriginalWeek }
+    val draftValidationError = TeachingWeekReorganization.validationErrorForRuleChange(
+        updatedRules = rulesAfterDraft,
+        existingRules = teachingWeekReorganizations,
+        changedRule = draftRuleForPreview,
+        totalWeeks = currentTotalWeeks,
+    )
+    val firstPartStartDate = originalWeekDate(firstOriginalWeek, 1)
+    val firstPartEndDate = originalWeekDate(firstOriginalWeek, firstEndWeekday)
+    val secondPartStartDate = originalWeekDate(secondOriginalWeek, firstEndWeekday + 1)
+    val secondPartEndDate = originalWeekDate(secondOriginalWeek, 7)
+    val pauseStartDate = firstPartEndDate?.plusDays(1)
+    val pauseEndDate = secondPartStartDate?.minusDays(1)
+    val currentFirstPartWeek = firstPartStartDate?.let {
+        TeachingWeekReorganization.mapDate(semesterStartDate, it, teachingWeekReorganizations)
+    }
+    val currentSecondPartWeek = secondPartStartDate?.let {
+        TeachingWeekReorganization.mapDate(semesterStartDate, it, teachingWeekReorganizations)
+    }
+    val savedFirstPartWeek = if (draftValidationError == null) firstPartStartDate?.let {
+        TeachingWeekReorganization.mapDate(semesterStartDate, it, rulesAfterDraft).week
+    } else null
+    val savedSecondPartWeek = if (draftValidationError == null) secondPartStartDate?.let {
+        TeachingWeekReorganization.mapDate(semesterStartDate, it, rulesAfterDraft).week
+    } else null
+    val weekPickerRules = teachingWeekReorganizations.toMutableList().apply {
+        if (editingTeachingWeekRuleIndex in indices) removeAt(editingTeachingWeekRuleIndex)
+    }
+    val weekPickerMax = maxOf(
+        TeachingWeekReorganization.maxOriginalWeek(currentTotalWeeks, weekPickerRules),
+        firstOriginalWeek,
+        secondOriginalWeek,
+        pendingOriginalWeek,
+    )
+    val weekPickerDateSummary = formatDateRange(pendingOriginalWeek, 1, 7)
 
     Scaffold(topBar = {}) { padding ->
         LazyColumn(
@@ -349,6 +522,61 @@ fun HolidaySettingsScreen(
 
             item {
                 SectionTitleRow(
+                    text = "教学周重组",
+                    description = "• 长假可能带来教学周的重组，并引发后续教学周的顺延更改\n• 可在此进行教学周重组，后续教学周将重新分配计算",
+                    liquidGlassBackdrop = liquidGlassBackdrop,
+                )
+                if (teachingWeekReorganizations.isNotEmpty()) {
+                    Card(
+                        cornerRadius = 20.dp,
+                        modifier = Modifier.fillMaxWidth(),
+                        insideMargin = PaddingValues(0.dp),
+                    ) {
+                        Column {
+                            teachingWeekReorganizations.forEachIndexed { index, rule ->
+                                val firstRange = formatDateRange(
+                                    rule.firstOriginalWeek,
+                                    rule.firstStartWeekday,
+                                    rule.firstEndWeekday,
+                                )
+                                val secondRange = formatDateRange(
+                                    rule.secondOriginalWeek,
+                                    rule.secondStartWeekday,
+                                    rule.secondEndWeekday,
+                                )
+                                val targetWeek = originalWeekDate(rule.firstOriginalWeek, 1)?.let {
+                                    TeachingWeekReorganization.mapDate(
+                                        semesterStartDate,
+                                        it,
+                                        teachingWeekReorganizations,
+                                    ).week
+                                }
+                                ArrowPreference(
+                                    title = "重组规则 ${index + 1}",
+                                    summary = "原始第${rule.firstOriginalWeek}周 $firstRange + " +
+                                        "原始第${rule.secondOriginalWeek}周 $secondRange → " +
+                                        (targetWeek?.let { "教学第${it}周" } ?: "日期超出范围"),
+                                    onClick = { startEditingTeachingWeekRule(index) },
+                                )
+                            }
+                        }
+                    }
+                    Spacer(modifier = Modifier.fillMaxWidth().height(12.dp))
+                }
+                Card(
+                    cornerRadius = 20.dp,
+                    modifier = Modifier.fillMaxWidth(),
+                    insideMargin = PaddingValues(0.dp),
+                ) {
+                    ArrowPreference(
+                        title = "添加教学周重组规则",
+                        onClick = { startAddingTeachingWeekRule() },
+                    )
+                }
+            }
+
+            item {
+                SectionTitleRow(
                     text = "节假日末期课程排除",
                     description = "• 假期最后一天的某几节课可能需要正常上课\n• 可以将节假日最后一天的某几节课程排除在休假情况以外",
                     liquidGlassBackdrop = liquidGlassBackdrop,
@@ -410,9 +638,18 @@ fun HolidaySettingsScreen(
         startYear = startYear,
         startMonth = startMonth,
         startDay = startDay,
-        onStartYearChange = { startYear = it },
-        onStartMonthChange = { startMonth = it },
-        onStartDayChange = { startDay = it },
+        onStartYearChange = {
+            startYear = it
+            if (dialogType == HolidayManager.TYPE_WORKSWAP && !followWeekManuallySelected) followWeek = weekOfDate(startYear, startMonth, startDay)
+        },
+        onStartMonthChange = {
+            startMonth = it
+            if (dialogType == HolidayManager.TYPE_WORKSWAP && !followWeekManuallySelected) followWeek = weekOfDate(startYear, startMonth, startDay)
+        },
+        onStartDayChange = {
+            startDay = it
+            if (dialogType == HolidayManager.TYPE_WORKSWAP && !followWeekManuallySelected) followWeek = weekOfDate(startYear, startMonth, startDay)
+        },
         endYear = endYear,
         endMonth = endMonth,
         endDay = endDay,
@@ -421,7 +658,7 @@ fun HolidaySettingsScreen(
         onEndDayChange = { endDay = it },
         followWeek = followWeek,
         followWeekday = followWeekday,
-        onFollowWeekChange = { followWeek = it },
+        onFollowWeekChange = { followWeek = it; followWeekManuallySelected = true },
         onFollowWeekdayChange = { followWeekday = it },
         liquidGlassBackdrop = liquidGlassBackdrop,
         canDelete = editingEntry != null,
@@ -488,6 +725,332 @@ fun HolidaySettingsScreen(
             }
         },
     )
+
+    TeachingWeekRuleEditDialog(
+        show = showTeachingWeekRuleDialog,
+        isEditing = editingTeachingWeekRuleIndex >= 0,
+        firstWeek = firstOriginalWeek,
+        firstWeekSummary = "原始第${firstOriginalWeek}周 · ${formatDateRange(firstOriginalWeek, 1, 7)}",
+        secondWeek = secondOriginalWeek,
+        secondWeekSummary = "原始第${secondOriginalWeek}周 · ${formatDateRange(secondOriginalWeek, 1, 7)}",
+        firstEndWeekday = firstEndWeekday,
+        onFirstEndWeekdayChange = { firstEndWeekday = it.coerceIn(1, 6) },
+        onSecondStartWeekdayChange = { firstEndWeekday = (it - 1).coerceIn(1, 6) },
+        onPickFirstWeek = { openOriginalWeekPicker(1) },
+        onPickSecondWeek = { openOriginalWeekPicker(2) },
+        previewLines = buildList {
+            if (firstPartStartDate != null && firstPartEndDate != null) {
+                add("上半段：${formatTeachingDate(firstPartStartDate)}–${formatTeachingDate(firstPartEndDate)}")
+            }
+            if (secondPartStartDate != null && secondPartEndDate != null) {
+                add("下半段：${formatTeachingDate(secondPartStartDate)}–${formatTeachingDate(secondPartEndDate)}")
+            }
+            if (currentFirstPartWeek != null && currentSecondPartWeek != null) {
+                fun label(position: com.haooz.chedule.data.TeachingWeekPosition): String =
+                    if (position.isReorganizationPause) "暂停（无常规教学周位置）" else "第${position.week}周"
+                add("当前教学周：上半段${label(currentFirstPartWeek)}，下半段${label(currentSecondPartWeek)}")
+            }
+            if (savedFirstPartWeek != null && savedSecondPartWeek != null) {
+                add("保存后：两段均归入教学第${savedFirstPartWeek}周")
+            }
+            if (pauseStartDate != null && pauseEndDate != null && !pauseEndDate.isBefore(pauseStartDate)) {
+                add("暂停日期：${formatTeachingDate(pauseStartDate)}–${formatTeachingDate(pauseEndDate)}（常规课程暂停）")
+            }
+            add("此后教学周将重新分配，顺延${(secondOriginalWeek - firstOriginalWeek).coerceAtLeast(0)}周")
+            draftValidationError?.let { add("无法保存：$it") }
+        },
+        validationError = draftValidationError,
+        onDelete = { showTeachingWeekDeleteConfirm = true },
+        onDismiss = { showTeachingWeekRuleDialog = false },
+        onSave = { saveTeachingWeekRule() },
+    )
+
+    TeachingWeekNumberPickerDialog(
+        show = showTeachingWeekPicker,
+        value = pendingOriginalWeek,
+        maxWeek = weekPickerMax,
+        dateRangeSummary = weekPickerDateSummary,
+        onValueChange = { pendingOriginalWeek = it },
+        onDismiss = { showTeachingWeekPicker = false },
+        onConfirm = {
+            if (editingWeekPickerHalf == 1) firstOriginalWeek = pendingOriginalWeek
+            else secondOriginalWeek = pendingOriginalWeek
+            showTeachingWeekPicker = false
+        },
+    )
+
+    OverlayDialog(
+        title = "删除教学周重组规则",
+        summary = "删除后，受影响的后续教学周会重新计算。确定删除这条规则吗？",
+        show = showTeachingWeekDeleteConfirm,
+        liquidGlassBackdrop = liquidGlassBackdrop,
+        onDismissRequest = { showTeachingWeekDeleteConfirm = false },
+    ) {
+        Row(
+            modifier = Modifier.fillMaxWidth().padding(top = 16.dp),
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+        ) {
+            TextButton(
+                "取消",
+                { showTeachingWeekDeleteConfirm = false },
+                modifier = Modifier.weight(1f),
+            )
+            TextButton(
+                "删除",
+                { deleteTeachingWeekRule() },
+                textColor = Color(0xFFF44336),
+                modifier = Modifier.weight(1f),
+            )
+        }
+    }
+}
+
+private fun formatTeachingDate(date: LocalDate): String =
+    "${date.year}/${date.monthValue.toString().padStart(2, '0')}/${date.dayOfMonth.toString().padStart(2, '0')}"
+
+@Composable
+private fun TeachingWeekRuleEditDialog(
+    show: Boolean,
+    isEditing: Boolean,
+    firstWeek: Int,
+    firstWeekSummary: String,
+    secondWeek: Int,
+    secondWeekSummary: String,
+    firstEndWeekday: Int,
+    onFirstEndWeekdayChange: (Int) -> Unit,
+    onSecondStartWeekdayChange: (Int) -> Unit,
+    onPickFirstWeek: () -> Unit,
+    onPickSecondWeek: () -> Unit,
+    previewLines: List<String>,
+    validationError: String?,
+    onDelete: () -> Unit,
+    onDismiss: () -> Unit,
+    onSave: () -> Unit,
+) {
+    val hapticFeedback = LocalHapticFeedback.current
+    OverlayDialog(
+        title = if (isEditing) "编辑教学周重组规则" else "添加教学周重组规则",
+        summary = null,
+        show = show,
+        liquidGlassBackdrop = null,
+        onDismissRequest = onDismiss,
+    ) {
+        Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            Card(
+                cornerRadius = 20.dp,
+                modifier = Modifier.fillMaxWidth(),
+                insideMargin = PaddingValues(0.dp),
+            ) {
+                Column {
+                    ArrowPreference(
+                        title = "上半段周次",
+                        summary = firstWeekSummary,
+                        onClick = onPickFirstWeek,
+                    )
+                    TeachingWeekdayRangeSelector(
+                        title = "上半段星期",
+                        selectedStart = 1,
+                        selectedEnd = firstEndWeekday,
+                        selectableDays = 1..6,
+                        onDayClick = onFirstEndWeekdayChange,
+                    )
+                }
+            }
+            Card(
+                cornerRadius = 20.dp,
+                modifier = Modifier.fillMaxWidth(),
+                insideMargin = PaddingValues(0.dp),
+            ) {
+                Column {
+                    ArrowPreference(
+                        title = "下半段周次",
+                        summary = secondWeekSummary,
+                        onClick = onPickSecondWeek,
+                    )
+                    TeachingWeekdayRangeSelector(
+                        title = "下半段星期",
+                        selectedStart = firstEndWeekday + 1,
+                        selectedEnd = 7,
+                        selectableDays = 2..7,
+                        onDayClick = onSecondStartWeekdayChange,
+                    )
+                }
+            }
+            Column(
+                modifier = Modifier.fillMaxWidth().padding(horizontal = 4.dp),
+                verticalArrangement = Arrangement.spacedBy(3.dp),
+            ) {
+                previewLines.forEach { line ->
+                    Text(
+                        text = line,
+                        fontSize = 13.sp,
+                        color = if (line.startsWith("无法保存：")) Color(0xFFF44336)
+                            else MiuixTheme.colorScheme.onSurfaceVariantSummary,
+                    )
+                }
+            }
+            Row(
+                modifier = Modifier.fillMaxWidth().padding(top = 4.dp),
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+            ) {
+                if (isEditing) {
+                    TextButton(
+                        "删除",
+                        {
+                            hapticFeedback.performHapticFeedback(HapticFeedbackType.Confirm)
+                            onDelete()
+                        },
+                        textColor = Color(0xFFF44336),
+                        modifier = Modifier.weight(1f),
+                    )
+                }
+                TextButton(
+                    "取消",
+                    {
+                        hapticFeedback.performHapticFeedback(HapticFeedbackType.Confirm)
+                        onDismiss()
+                    },
+                    modifier = Modifier.weight(1f),
+                )
+                TextButton(
+                    "保存",
+                    {
+                        hapticFeedback.performHapticFeedback(HapticFeedbackType.Confirm)
+                        onSave()
+                    },
+                    enabled = validationError == null,
+                    colors = ButtonDefaults.textButtonColorsPrimary(),
+                    modifier = Modifier.weight(1f),
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun TeachingWeekdayRangeSelector(
+    title: String,
+    selectedStart: Int,
+    selectedEnd: Int,
+    selectableDays: IntRange,
+    onDayClick: (Int) -> Unit,
+) {
+    val isDark = MiuixTheme.colorScheme.background.luminance() < 0.5f
+    Column(
+        modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 12.dp),
+        verticalArrangement = Arrangement.spacedBy(8.dp),
+    ) {
+        Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+            Text(
+                text = title,
+                fontSize = 17.sp,
+                fontWeight = FontWeight.Medium,
+                color = MiuixTheme.colorScheme.onSurface,
+                modifier = Modifier.weight(1f),
+            )
+            Text(
+                text = "连续范围",
+                fontSize = 13.sp,
+                color = MiuixTheme.colorScheme.onSurfaceVariantSummary,
+            )
+        }
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(6.dp),
+        ) {
+            for (day in 1..7) {
+                val enabled = day in selectableDays
+                val selected = day in selectedStart..selectedEnd
+                val backgroundColor = when {
+                    selected -> MiuixTheme.colorScheme.primary
+                    !enabled -> if (isDark) Color(0xFF292929) else Color(0xFFE7E7E7)
+                    isDark -> Color(0xFF363636)
+                    else -> Color(0xFFF2F2F2)
+                }
+                val textColor = when {
+                    selected -> Color.White
+                    enabled -> MiuixTheme.colorScheme.onSurfaceVariantSummary
+                    else -> MiuixTheme.colorScheme.onSurfaceVariantSummary.copy(alpha = 0.4f)
+                }
+                Box(
+                    modifier = Modifier
+                        .weight(1f)
+                        .height(32.dp)
+                        .squircleClip(10.dp)
+                        .background(backgroundColor)
+                        .clickable(
+                            enabled = enabled,
+                            interactionSource = null,
+                            indication = null,
+                            onClick = { onDayClick(day) },
+                        ),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    Text(
+                        text = WEEKDAYS[day - 1].removePrefix("星期"),
+                        fontSize = 14.sp,
+                        color = textColor,
+                    )
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun TeachingWeekNumberPickerDialog(
+    show: Boolean,
+    value: Int,
+    maxWeek: Int,
+    dateRangeSummary: String,
+    onValueChange: (Int) -> Unit,
+    onDismiss: () -> Unit,
+    onConfirm: () -> Unit,
+) {
+    val hapticFeedback = LocalHapticFeedback.current
+    OverlayDialog(
+        title = "选择原始周",
+        summary = null,
+        show = show,
+        liquidGlassBackdrop = null,
+        onDismissRequest = onDismiss,
+    ) {
+        Column(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalAlignment = Alignment.CenterHorizontally,
+        ) {
+            NumberPicker(
+                value = value.coerceIn(1, maxWeek),
+                onValueChange = onValueChange,
+                range = 1..maxWeek,
+                visibleItemCount = 3,
+                itemHeight = 50.dp,
+                textStyle = pickerTextStyle(),
+                label = { "原始第${it}周" },
+                modifier = Modifier.fillMaxWidth(),
+            )
+            Text(
+                text = dateRangeSummary,
+                fontSize = 14.sp,
+                color = MiuixTheme.colorScheme.onSurfaceVariantSummary,
+            )
+            Row(
+                modifier = Modifier.fillMaxWidth().padding(top = 16.dp),
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+            ) {
+                TextButton("取消", onDismiss, modifier = Modifier.weight(1f))
+                TextButton(
+                    "确定",
+                    {
+                        hapticFeedback.performHapticFeedback(HapticFeedbackType.Confirm)
+                        onConfirm()
+                    },
+                    colors = ButtonDefaults.textButtonColorsPrimary(),
+                    modifier = Modifier.weight(1f),
+                )
+            }
+        }
+    }
 }
 
 // ---------- 区块标题（含功能说明） ----------
@@ -786,14 +1349,7 @@ private fun followDate(
     val week = followWeek.toIntOrNull() ?: return null
     val weekday = followWeekday.toIntOrNull() ?: return null
     if (week < 1 || weekday !in 1..7) return null
-    val classStartTime = CourseRepository.getInstance(context).getClassStartTime()
-    return try {
-        val start = LocalDate.parse(classStartTime.replace("/", "-"))
-        val startMonday = start.minusDays((start.dayOfWeek.value - 1).toLong())
-        startMonday.plusDays((week - 1) * 7L + (weekday - 1))
-    } catch (_: Exception) {
-        null
-    }
+    return CourseRepository.getInstance(context).dateForTeachingWeekDay(week, weekday)
 }
 
 private fun entrySummary(entry: HolidayManager.Entry): String {

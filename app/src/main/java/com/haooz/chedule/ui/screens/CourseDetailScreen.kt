@@ -139,6 +139,7 @@ fun CourseDetailScreen(
     cardSnapshot: Bitmap?,
     sectionTimes: Map<Int, String>,
     classStartTime: String,
+    teachingWeekReorganizations: List<com.haooz.chedule.data.TeachingWeekReorganizationRule>,
     // 点击来源所在的周次（今日页=当前浏览日期所在周，bottomsheet=当前查看周），
     // 进入后自动滚动到对应周分组；<=0 表示不滚动。
     targetWeek: Int = 0,
@@ -176,11 +177,9 @@ fun CourseDetailScreen(
         ((screenWidthDp - 600).coerceIn(0, 600) / 600f * 112 + 16).dp
     } else 16.dp
 
-    // 计算开学日期所在周的周一
-    val startMonday = remember(classStartTime) {
+    val semesterStartDate = remember(classStartTime) {
         try {
-            val startDate = java.time.LocalDate.parse(classStartTime.replace("/", "-"))
-            startDate.minusDays((startDate.dayOfWeek.value - 1).toLong())
+            java.time.LocalDate.parse(classStartTime.replace("/", "-"))
         } catch (_: Exception) {
             java.time.LocalDate.now()
         }
@@ -591,7 +590,9 @@ fun CourseDetailScreen(
                                                                 7 -> "周日"
                                                                 else -> "未知"
                                                             }
-                                                            val courseDate = startMonday.plusDays((week - 1).toLong() * 7 + (course.dayOfWeek - 1).toLong())
+                                                            val courseDate = com.haooz.chedule.data.TeachingWeekReorganization.dateForPosition(
+                                                                semesterStartDate, week, course.dayOfWeek, teachingWeekReorganizations,
+                                                            ) ?: return@forEachIndexed
                                                             val dateStr = courseDate.format(DATE_FORMATTER)
                                                             val sectionText = course.getTimeDisplayText()
                                                             val timeStart = sectionTimes[course.startSection]?.split("-")?.firstOrNull() ?: ""

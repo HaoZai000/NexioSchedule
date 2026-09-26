@@ -39,6 +39,8 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.haooz.chedule.data.Course
+import com.haooz.chedule.data.CourseRepository
+import com.haooz.chedule.data.TeachingWeekPosition
 import com.haooz.chedule.ui.basic.SharedScrollBehavior
 import com.haooz.chedule.ui.components.SectionColumn
 import com.haooz.chedule.ui.components.ShiftDayColumn
@@ -54,12 +56,19 @@ import top.yukonga.miuix.kmp.theme.MiuixTheme
 import top.yukonga.miuix.kmp.utils.PressFeedbackType
 import top.yukonga.miuix.kmp.utils.scrollEndHaptic
 
+internal data class ShiftSchedulePageDayRangeKey(
+    val week: Int,
+    val smartWeekend: Boolean,
+    val scheduleDataVersion: Int,
+)
+
 @SuppressLint("ConfigurationScreenWidthHeight")
 @Composable
 fun ShiftScheduleScreen(
     shiftViewModel: ShiftViewModel,
     settingsViewModel: com.haooz.chedule.viewmodel.SettingsViewModel,
     pagerState: androidx.compose.foundation.pager.PagerState,
+    scheduleDataVersion: Int = 0,
     cardHeightPerSection: Float = 54f,
     liquidGlassBackdrop: com.kyant.backdrop.Backdrop? = null,
     scheduleScrollBehavior: SharedScrollBehavior? = null,
@@ -67,6 +76,12 @@ fun ShiftScheduleScreen(
     val shiftScheduleCourses by shiftViewModel.shiftScheduleCourses.collectAsState()
     val shiftScheduleSections by shiftViewModel.shiftScheduleSections.collectAsState()
     val context = LocalContext.current
+    val repository = remember(context) { CourseRepository.getInstance(context) }
+    val hasReorganizedComparison = remember(shiftScheduleCourses.keys, scheduleDataVersion) {
+        (shiftScheduleCourses.keys + repository.getCurrentScheduleId()).any { name ->
+            repository.getTeachingWeekReorganizations(name).isNotEmpty()
+        }
+    }
     val activity = context as? ComponentActivity as? com.haooz.chedule.ui.activities.MainActivity
     val isInFreeformWindow = activity?.isInFreeformWindow == true
     val isDark = isAppDarkTheme()
@@ -142,18 +157,32 @@ fun ShiftScheduleScreen(
                         isTablet = isTablet
                     )
 
-                    val pageDayRange = remember(week, smartWeekend) {
+                    val pageDayRange = remember(
+                        ShiftSchedulePageDayRangeKey(week, smartWeekend, scheduleDataVersion),
+                    ) {
                         (1..5).toList() + settingsViewModel.getWeekendDaysForWeek(week).filter { it in 6..7 }
                     }
 
                     pageDayRange.forEach { dayOfWeek ->
+                        val actualDate = remember(week, dayOfWeek, scheduleDataVersion) {
+                            repository.dateForTeachingWeekDay(week, dayOfWeek)
+                        }
+                        val schedulePositions = remember(actualDate, shiftScheduleCourses, scheduleDataVersion, hasReorganizedComparison) {
+                            if (!hasReorganizedComparison) {
+                                shiftScheduleCourses.keys.associateWith { TeachingWeekPosition(week.toLong(), dayOfWeek) }
+                            } else actualDate?.let { date ->
+                                shiftScheduleCourses.keys.associateWith { name ->
+                                    repository.teachingWeekPositionForDate(date, name)
+                                }
+                            }.orEmpty()
+                        }
                         ShiftDayColumn(
                             dayOfWeek = dayOfWeek,
                             allScheduleCourses = shiftScheduleCourses,
                             morningSections = maxMorning,
                             afternoonSections = maxAfternoon,
                             eveningSections = maxEvening,
-                            currentWeek = week,
+                            schedulePositions = schedulePositions,
                             onSlotClick = { _, _, courses ->
                                 hapticFeedback.performHapticFeedback(HapticFeedbackType.Confirm)
                                 detailCourses = courses

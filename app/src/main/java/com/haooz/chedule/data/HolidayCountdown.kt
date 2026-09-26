@@ -68,7 +68,9 @@ object HolidayCountdown {
                 .filter { it.isBefore(nextHoliday.startDate) }
                 .distinct()
                 .sortedDescending()) {
-            if (validHolidays.any { !date.isBefore(it.startDate) && !date.isAfter(it.endDate) }) {
+            if (validHolidays.any {
+                !date.isBefore(it.startDate) && !date.isAfter(it.endDate) && date != it.endDate
+            }) {
                 continue
             }
             val endTime = lastClassEndAt(date) ?: continue
@@ -99,6 +101,11 @@ object HolidayCountdown {
                     !candidateDate.isBefore(it.startDate) && !candidateDate.isAfter(it.endDate)
                 }
                 if (holiday != null) {
+                    if (candidateDate == holiday.endDate) {
+                        lastClassEndAt(candidateDate)?.let { endTime ->
+                            return Snapshot.BeforeHoliday(candidateDate.atTime(endTime))
+                        }
+                    }
                     if (holiday.startDate == LocalDate.MIN) break
                     searchLimit = holiday.startDate.minusDays(1)
                     continue
@@ -120,6 +127,11 @@ object HolidayCountdown {
                     !searchDate.isBefore(it.startDate) && !searchDate.isAfter(it.endDate)
                 }
                 if (holiday != null) {
+                    if (searchDate == holiday.endDate) {
+                        lastClassEndAt(searchDate)?.let { endTime ->
+                            return Snapshot.BeforeHoliday(searchDate.atTime(endTime))
+                        }
+                    }
                     if (holiday.startDate == LocalDate.MIN ||
                         holiday.startDate.isBefore(earliestPossibleCourseDate)
                     ) break

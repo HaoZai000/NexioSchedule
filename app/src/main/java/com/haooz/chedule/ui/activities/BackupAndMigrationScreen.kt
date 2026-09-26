@@ -37,6 +37,12 @@ import androidx.compose.ui.unit.dp
 import com.google.gson.GsonBuilder
 import com.haooz.chedule.data.Course
 import com.haooz.chedule.data.CourseRepository
+import com.haooz.chedule.data.HolidayCourseExclusion
+import com.haooz.chedule.data.HolidayEndCourseExclusion
+import com.haooz.chedule.data.HolidayManager
+import com.haooz.chedule.data.TeachingWeekReorganization
+import com.haooz.chedule.data.TeachingWeekReorganizationRule
+import com.haooz.chedule.reminder.CourseReminderHelper
 import com.haooz.chedule.data.ShareCodeApi
 import com.haooz.chedule.data.ThirdPartyShareImporter
 import com.haooz.chedule.data.ThirdPartySharePayload
@@ -50,6 +56,7 @@ import com.haooz.chedule.ui.screens.applyScheduleData
 import com.haooz.chedule.ui.screens.parseFullScheduleJson
 import com.haooz.chedule.ui.screens.parseIcsFile
 import com.haooz.chedule.ui.utils.overScrollVertical
+import com.haooz.chedule.ui.utils.buildShareScheduleMap
 import com.haooz.chedule.ui.utils.performScheduleShare
 import com.haooz.chedule.viewmodel.CourseViewModel
 import com.haooz.chedule.viewmodel.ScheduleViewModel
@@ -70,6 +77,7 @@ import top.yukonga.miuix.kmp.preference.ArrowPreference
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 import top.yukonga.miuix.kmp.utils.scrollEndHaptic
 import java.text.SimpleDateFormat
+import java.time.LocalDate
 import java.util.Calendar
 import java.util.Date
 import java.util.Locale
@@ -502,8 +510,7 @@ fun BackupAndMigrationScreen(
                                 title = "JSON 格式导出",
                                 summary = "导出课表为JSON格式",
                                 onClick = {
-                                    val json = buildExportJson(courseViewModel,
-                                        settingsViewModel, selectedExportSchedule)
+                                    val json = buildExportJson(courseViewModel, selectedExportSchedule)
                                     if (json != null) {
                                         pendingExportJson = json
                                         jsonExportLauncher.launch("${selectedExportSchedule}.json")
@@ -1011,54 +1018,69 @@ private fun applyThirdPartySharePayload(
 
 private fun buildExportJson(
     viewModel: CourseViewModel,
-    settingsViewModel: SettingsViewModel,
     scheduleName: String
 ): String? {
     val repository = CourseRepository(viewModel.getApplication())
-    val courses = repository.getCoursesForSchedule(scheduleName)
-    if (courses.isEmpty()) {
+    val data = buildShareScheduleMap(repository, scheduleName)
+    if (data == null) {
         Toast.makeText(viewModel.getApplication(), "「$scheduleName」课表为空，无法导出", Toast.LENGTH_SHORT).show()
         return null
     }
-
-    val data = mapOf(
-        "schedule_name" to scheduleName,
-        "settings" to mapOf(
-            "class_start_time" to viewModel.classStartTime.value,
-            "current_week" to viewModel.currentWeek.value,
-            "total_weeks" to viewModel.totalWeeks.value,
-            "smart_weekend" to settingsViewModel.smartWeekend.value,
-            "show_non_current_week" to settingsViewModel.showNonCurrentWeek.value,
-            "morning_sections" to settingsViewModel.morningSections.value,
-            "afternoon_sections" to settingsViewModel.afternoonSections.value,
-            "evening_sections" to settingsViewModel.eveningSections.value
-        ),
-        "times" to mapOf(
-            "morning" to settingsViewModel.getMorningTimes().mapKeys { it.key.toString() },
-            "afternoon" to settingsViewModel.getAfternoonTimes().mapKeys { it.key.toString() },
-            "evening" to settingsViewModel.getEveningTimes().mapKeys { it.key.toString() },
-            "section_names" to repository.getCurrentTimeConfig().sectionNames
-        ),
-        "courses" to courses.map { course ->
-            mapOf(
-                "name" to course.name,
-                "classroom" to course.classroom,
-                "teacher" to course.teacher,
-                "dayOfWeek" to course.dayOfWeek,
-                "startSection" to course.startSection,
-                "endSection" to course.endSection,
-                "isCustomTime" to course.isCustomTime,
-                "customStartTime" to course.customStartTime,
-                "customEndTime" to course.customEndTime,
-                "selectedWeeks" to (course.selectedWeeks.ifEmpty {
-                    (course.startWeek..course.endWeek).toList()
-                }).sorted()
-            )
-        }
-    )
-
     return GsonBuilder().setPrettyPrinting().create().toJson(data)
 }
+
+internal fun icsDatesForCourse(
+    course: Course,
+    semesterStartDate: LocalDate,
+    rules: List<TeachingWeekReorganizationRule>,
+): List<Pair<Int, LocalDate>> {
+    val weeks = course.selectedWeeks.ifEmpty { (course.startWeek..course.endWeek).toList() }
+    return weeks.asSequence().filter { course.isActiveInWeek(it) }.mapNotNull { week ->
+        TeachingWeekReorganization.dateForPosition(semesterStartDate, week, course.dayOfWeek, rules)
+            ?.let { week to it }
+    }.toList()
+}
+
+internal fun icsEffectiveDatesForCourse(
+    course: Course,
+    semesterStartDate: LocalDate,
+    rules: List<TeachingWeekReorganizationRule>,
+    entriesByYear: Map<Int, List<HolidayManager.Entry>>,
+    exclusion: HolidayEndCourseExclusion,
+    sectionTimes: Map<Int, String>,
+    sectionCount: Int,
+    totalWeeks: Int,
+    lastWeekWithCourses: Int,
+): List<Pair<Int, LocalDate>> {
+    val candidates = (icsDatesForCourse(course, semesterStartDate, rules).map { it.second } +
+        entriesByYear.values.flatten().asSequence()
+            .filter { it.type == HolidayManager.TYPE_WORKSWAP }
+            .mapNotNull { runCatching { LocalDate.parse(it.date) }.getOrNull() }
+            .toList()).distinct().sorted()
+    return candidates.mapNotNull { date ->
+        val position = TeachingWeekReorganization.mapDate(semesterStartDate, date, rules)
+        val swap = HolidayManager.entriesForDate(entriesByYear, date)
+            .firstOrNull { it.type == HolidayManager.TYPE_WORKSWAP }
+        val weekday = swap?.followWeekday?.takeIf { it in 1..7 } ?: position.weekday
+        val week = (swap?.followWeek?.takeIf { it > 0 }?.toLong() ?: position.week)
+            .takeIf { it in 1L..Int.MAX_VALUE.toLong() }?.toInt() ?: return@mapNotNull null
+        val allowed = CourseReminderHelper.canResolveCourseCandidates(
+            position, swap, week, totalWeeks, lastWeekWithCourses,
+        ) && weekday == course.dayOfWeek && course.isActiveInWeek(week)
+        val resolution = HolidayCourseExclusion.resolveDayCourses(
+            entriesByYear = entriesByYear,
+            date = date,
+            exclusion = exclusion,
+            candidates = { if (allowed) listOf(course) else emptyList() },
+            sectionTimes = { sectionTimes },
+            sectionCount = { sectionCount },
+        )
+        (week to date).takeIf { resolution.courses.isNotEmpty() }
+    }
+}
+
+internal fun icsEventUid(courseId: String, teachingWeek: Int, date: LocalDate): String =
+    "$courseId-$teachingWeek-${date.toString().replace("-", "")}@nexio-schedule"
 
 private fun buildExportIcs(
     viewModel: CourseViewModel,
@@ -1072,7 +1094,16 @@ private fun buildExportIcs(
         return null
     }
 
-    val classStartTime = viewModel.classStartTime.value
+    val sectionTimes = repository.getSectionTimes(scheduleName)
+    val semesterStartDate = LocalDate.parse(repository.getClassStartTime(scheduleName).replace('/', '-'))
+    val rules = repository.getTeachingWeekReorganizations(scheduleName)
+    val holidayEntries = HolidayManager.loadAllByYear(viewModel.getApplication<android.app.Application>())
+    val holidayExclusion = HolidayManager.loadEndCourseExclusion(viewModel.getApplication<android.app.Application>())
+    val sectionCount = repository.getMorningSections(scheduleName) +
+        repository.getAfternoonSections(scheduleName) + repository.getEveningSections(scheduleName)
+    val lastWeekWithCourses = courses.maxOfOrNull {
+        it.selectedWeeks.maxOrNull() ?: it.endWeek
+    } ?: 0
     val dtStartSdf = SimpleDateFormat("yyyyMMdd'T'HHmmss", Locale.getDefault())
 
     return buildString {
@@ -1083,12 +1114,6 @@ private fun buildExportIcs(
         appendLine("METHOD:PUBLISH")
 
         for (course in courses) {
-            val weeks = course.selectedWeeks.ifEmpty {
-                (course.startWeek..course.endWeek).toList()
-            }
-            if (weeks.isEmpty()) continue
-
-            val sectionTimes = settingsViewModel.sectionTimes.value
             val startSectionTime = course.getEffectiveStartTime(sectionTimes) ?: continue
             val endSectionTime = course.getEffectiveEndTime(sectionTimes) ?: continue
 
@@ -1097,30 +1122,15 @@ private fun buildExportIcs(
             val endHour = endSectionTime.substringAfter("-").substringBefore(":").toIntOrNull() ?: 9
             val endMinute = endSectionTime.substringAfter("-").substringAfter(":").toIntOrNull() ?: 0
 
-            // 解析开学日期
-            val dateStr = classStartTime.replace("/", "-")
-            val parts = dateStr.split("-")
-            if (parts.size < 3) continue
-            val semYear = parts[0].toIntOrNull() ?: 2025
-            val semMonth = (parts[1].toIntOrNull() ?: 9) - 1
-            val semDay = parts[2].toIntOrNull() ?: 1
-
-            // 找到开学日期所在周的周一（第1周的起始日）
-            val semCal = Calendar.getInstance()
-            semCal.set(semYear, semMonth, semDay, 0, 0, 0)
-            semCal.set(Calendar.MILLISECOND, 0)
-            val semDayOfWeek = semCal.get(Calendar.DAY_OF_WEEK) // Sunday=1, Monday=2, ...
-            val daysToMonday = (semDayOfWeek - Calendar.MONDAY + 7) % 7
-            val week1Monday = semCal.clone() as Calendar
-            week1Monday.add(Calendar.DAY_OF_MONTH, -daysToMonday)
-
             // 为每个周次生成独立的 VEVENT（避免非连续周的 RRULE 问题）
-            for (week in weeks) {
-                // 目标日期 = 第1周周一 + (week-1)周 + 课程星期偏移
-                val targetDate = week1Monday.clone() as Calendar
-                targetDate.add(Calendar.WEEK_OF_YEAR, week - 1)
-                // course.dayOfWeek: 1=周一, 7=周日 → Calendar: Monday=2, Sunday=1
-                targetDate.set(Calendar.DAY_OF_WEEK, course.dayOfWeek + 1)
+            for ((week, actualDate) in icsEffectiveDatesForCourse(
+                course, semesterStartDate, rules, holidayEntries, holidayExclusion,
+                sectionTimes, sectionCount, repository.getTotalWeeks(scheduleName), lastWeekWithCourses,
+            )) {
+                val targetDate = Calendar.getInstance().apply {
+                    clear()
+                    set(actualDate.year, actualDate.monthValue - 1, actualDate.dayOfMonth)
+                }
 
                 targetDate.set(Calendar.HOUR_OF_DAY, startHour)
                 targetDate.set(Calendar.MINUTE, startMinute)
@@ -1131,7 +1141,7 @@ private fun buildExportIcs(
                 targetDate.set(Calendar.MINUTE, endMinute)
                 val eventEnd = targetDate.time
 
-                val uid = "${course.id}-${week}@nexio-schedule"
+                val uid = icsEventUid(course.id, week, actualDate)
 
                 appendLine("BEGIN:VEVENT")
                 appendLine("UID:$uid")

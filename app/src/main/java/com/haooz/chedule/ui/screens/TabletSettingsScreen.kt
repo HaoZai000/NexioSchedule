@@ -727,6 +727,8 @@ fun TabletSettingsScreen(
                                     liquidGlassBackdrop = liquidGlassBackdrop,
                                     onUpdateReady = { onHolidayUpdate = it },
                                     onLoadingChange = { holidayLoading = it },
+                                    onTeachingWeekReorganizationsChanged =
+                                        viewModel::refreshTeachingWeekReorganizations,
                                 )
 
                                 TabletSettingsDest.Widget -> WidgetIntroScreen(
@@ -1639,6 +1641,7 @@ private fun TabletHolidayPane(
     liquidGlassBackdrop: com.kyant.backdrop.Backdrop?,
     onUpdateReady: (() -> Unit) -> Unit = {},
     onLoadingChange: (Boolean) -> Unit = {},
+    onTeachingWeekReorganizationsChanged: () -> Unit = {},
 ) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
@@ -1698,5 +1701,6 @@ private fun TabletHolidayPane(
             entries = HolidayManager.load(context, y)
         },
         reload = { entries = HolidayManager.load(context, year) },
+        onTeachingWeekReorganizationsChanged = onTeachingWeekReorganizationsChanged,
     )
 }

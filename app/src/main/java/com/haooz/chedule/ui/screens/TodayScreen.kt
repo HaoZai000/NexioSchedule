@@ -651,7 +651,7 @@ fun TodayScreen(
                             CourseScheduleDateBounds.calculate(
                                 today = countdownNow.toLocalDate(),
                                 semesterStartDate = semesterStartDate,
-                                currentWeek = repository.getCurrentWeek(),
+                                currentWeek = repository.getLiveTeachingWeek(countdownNow.toLocalDate()),
                                 totalWeeks = totalWeeks,
                                 lastWeekWithCourses = repository.getLastWeekWithCourses(),
                                 courses = courses,
@@ -659,6 +659,7 @@ fun TodayScreen(
                                     .flatten()
                                     .filter { it.type == HolidayManager.TYPE_WORKSWAP }
                                     .toList(),
+                                teachingWeekReorganizations = repository.getTeachingWeekReorganizations(),
                             )
                         }
 

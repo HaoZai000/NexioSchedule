@@ -1635,13 +1635,18 @@ fun CourseScheduleApp() {
     val calendar = Calendar.getInstance()
     val currentDayOfWeek = (calendar.get(Calendar.DAY_OF_WEEK) + 5) % 7 + 1
     val smartWeekend by settingsViewModel.smartWeekend.collectAsState()
+    val dataVersion by viewModel.dataVersion.collectAsState()
+    val teachingWeekRepository = remember(context) { com.haooz.chedule.data.CourseRepository.getInstance(context) }
+    val teachingWeekRules = remember(teachingWeekRepository, dataVersion, classStartTime) {
+        teachingWeekRepository.getTeachingWeekReorganizations()
+    }
     // 节假日/调休保存后需能重算跳周；resume 时刷新版本号
     val holidayVersion = remember(resumeCount, holidayDataRevision, context) {
         com.haooz.chedule.data.HolidayManager.getVersion(context)
     }
 
     val basePage = (currentWeek - 1).coerceIn(0, (totalWeeks - 1).coerceAtLeast(0))
-    val autoAdvancePage = remember(currentWeek, totalWeeks, currentDayOfWeek, smartWeekend, holidayVersion) {
+    val autoAdvancePage = remember(currentWeek, totalWeeks, currentDayOfWeek, smartWeekend, holidayVersion, dataVersion, teachingWeekRules) {
         if (settingsViewModel.shouldAdvanceToNextWeek(currentDayOfWeek, currentWeek)) {
             (basePage + 1).coerceIn(0, (totalWeeks - 1).coerceAtLeast(0))
         } else basePage
@@ -1684,14 +1689,15 @@ fun CourseScheduleApp() {
         shiftModeInitialized = true
     }
 
-    LaunchedEffect(currentWeek, totalWeeks, smartWeekend, holidayVersion) {
-        val base = (currentWeek - 1).coerceIn(0, (totalWeeks - 1).coerceAtLeast(0))
-        val target = if (settingsViewModel.shouldAdvanceToNextWeek(currentDayOfWeek, currentWeek)) {
-            (base + 1).coerceIn(0, (totalWeeks - 1).coerceAtLeast(0))
-        } else base
-        if (pagerState.currentPage != target) {
-            pagerState.scrollToPage(target)
+    var lastAutoPage by remember { mutableIntStateOf(autoAdvancePage) }
+    var lastAutoWeek by remember { mutableIntStateOf(currentWeek) }
+    LaunchedEffect(currentWeek, totalWeeks, autoAdvancePage) {
+        // A rule edit must recalculate the default, but must not pull a manually browsed page back.
+        if (currentWeek != lastAutoWeek || pagerState.currentPage == lastAutoPage) {
+            if (pagerState.currentPage != autoAdvancePage) pagerState.scrollToPage(autoAdvancePage)
         }
+        lastAutoWeek = currentWeek
+        lastAutoPage = autoAdvancePage
     }
 
     var todaySelectedDayOfWeek by remember { mutableIntStateOf(currentDayOfWeek) }
@@ -1700,19 +1706,18 @@ fun CourseScheduleApp() {
 
     val currentViewingWeek = pagerState.currentPage + 1
     val courses by viewModel.courses.collectAsState()
-    val dataVersion by viewModel.dataVersion.collectAsState()
     // dataVersion + courses 引用都进 key：调课 size 可能不变，只靠 size 会让智能周末星期行停在旧值
     val dayRange = remember(currentViewingWeek, smartWeekend, courses, dataVersion) {
         (1..5).toList() + settingsViewModel.getWeekendDaysForWeek(currentViewingWeek)
             .filter { it in 6..7 }
     }
     val viewingIsHoliday = viewModel.isWeekHoliday(currentViewingWeek)
-    val weekDates = remember(currentViewingWeek, classStartTime) {
+    val weekDates = remember(currentViewingWeek, classStartTime, teachingWeekRules) {
         try {
             val startDate = LocalDate.parse(classStartTime.replace("/", "-"))
-            val startMonday = startDate.minusDays((startDate.dayOfWeek.value - 1).toLong())
-            val weekMonday = startMonday.plusDays((currentViewingWeek - 1).toLong() * 7)
-            (0..6).map { dayOffset -> weekMonday.plusDays(dayOffset.toLong()) }
+            com.haooz.chedule.data.TeachingWeekReorganization.datesForTeachingWeek(
+                startDate, currentViewingWeek, teachingWeekRules,
+            )
         } catch (_: Exception) {
             emptyList()
         }
@@ -2759,6 +2764,7 @@ fun CourseScheduleApp() {
                                         currentDayOfWeek = currentDayOfWeek,
                                         isCurrentWeek = pagerState.currentPage + 1 == currentWeek && currentWeek in 1..totalWeeks,
                                         weekDates = weekDates,
+                                        isReorganized = teachingWeekRules.isNotEmpty(),
                                         onBackToCurrentWeek = {
                                             coroutineScope.launch {
                                                 val targetPage =
@@ -3561,6 +3567,7 @@ fun CourseScheduleApp() {
                                         shiftViewModel = shiftViewModel,
                                         settingsViewModel = settingsViewModel,
                                         pagerState = pagerState,
+                                        scheduleDataVersion = dataVersion,
                                         cardHeightPerSection = currentAppearance().cardHeight,
                                         liquidGlassBackdrop = liquidGlassBackdrop,
                                         scheduleScrollBehavior = scheduleScrollBehavior,
@@ -4826,6 +4833,7 @@ fun CourseScheduleApp() {
                 cardSnapshot = detailSnapshot,
                 sectionTimes = sectionTimes,
                 classStartTime = classStartTime,
+                teachingWeekReorganizations = teachingWeekRules,
                 targetWeek = detailTargetWeek,
                 onBackStart = {
                     coroutineScope.launch {

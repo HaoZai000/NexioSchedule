@@ -10,6 +10,21 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.launch
+import java.time.LocalDate
+
+internal fun shouldAdvanceForReorganizedWeekend(
+    today: LocalDate,
+    semesterStartDate: LocalDate?,
+    rules: List<com.haooz.chedule.data.TeachingWeekReorganizationRule>,
+    hasCoursesToday: () -> Boolean,
+): Boolean {
+    if (today.dayOfWeek.value !in 6..7) return false
+    if (semesterStartDate != null &&
+        com.haooz.chedule.data.TeachingWeekReorganization
+            .hasFutureTeachingWeekDates(semesterStartDate, today, rules)
+    ) return false
+    return !hasCoursesToday()
+}
 
 class SettingsViewModel(application: Application) : AndroidViewModel(application) {
 
@@ -20,6 +35,18 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
 
     fun getWeekendDaysForWeek(week: Int): Set<Int> {
         return if (_smartWeekend.value) {
+            val rules = repository.getTeachingWeekReorganizations()
+            if (rules.isNotEmpty()) {
+                val start = runCatching {
+                    java.time.LocalDate.parse(repository.getClassStartTime().replace('/', '-'))
+                }.getOrNull() ?: return emptySet()
+                return com.haooz.chedule.reminder.CourseReminderHelper.effectiveWeekendDays(
+                    start, week, rules,
+                ) { date ->
+                    com.haooz.chedule.reminder.CourseReminderHelper
+                        .resolveDaySchedule(getApplication(), date, repository).courses.isNotEmpty()
+                }
+            }
             buildSet {
                 if (repository.hasCoursesOnDayInWeek(6, week)) add(6)
                 if (repository.hasCoursesOnDayInWeek(7, week)) add(7)
@@ -37,6 +64,18 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
     fun shouldAdvanceToNextWeek(todayDayOfWeek: Int, week: Int): Boolean {
         if (!_smartWeekend.value) return false
         if (todayDayOfWeek !in 6..7) return false
+        val rules = repository.getTeachingWeekReorganizations()
+        if (rules.isNotEmpty()) {
+            val today = LocalDate.now()
+            val start = runCatching {
+                LocalDate.parse(repository.getClassStartTime().replace('/', '-'))
+            }.getOrNull()
+            // Holiday filtering and an explicit work-swap are both defined on the real date.
+            return shouldAdvanceForReorganizedWeekend(today, start, rules) {
+                com.haooz.chedule.reminder.CourseReminderHelper
+                    .resolveDaySchedule(getApplication(), today, repository).courses.isNotEmpty()
+            }
+        }
         return !repository.hasDisplayableCoursesOnDay(todayDayOfWeek, week)
     }
 

@@ -26,18 +26,38 @@ object CourseScheduleDateBounds {
         lastWeekWithCourses: Int,
         courses: List<Course>,
         workSwapEntries: List<HolidayManager.Entry>,
+        teachingWeekReorganizations: List<TeachingWeekReorganizationRule> = emptyList(),
     ): Bounds? {
         val lastAllowedWeek = minOf(totalWeeks, lastWeekWithCourses)
         if (lastAllowedWeek <= 0) return null
 
+        val rules = teachingWeekReorganizations.takeIf {
+            TeachingWeekReorganization.validationError(it, Int.MAX_VALUE) == null
+        }.orEmpty()
         val semesterStartMonday = runCatching {
             semesterStartDate.minusDays((semesterStartDate.dayOfWeek.value - 1).toLong())
         }.getOrNull() ?: return null
-        val weekOffset = calendarWeekForDate(semesterStartDate, today) - currentWeek.toLong()
-        val regularCoursePatterns = courses.mapNotNull { course ->
-            if (course.selectedWeeks.isNotEmpty() || course.dayOfWeek !in 1..7) return@mapNotNull null
-            val weeks = activeWeekRange(course, lastAllowedWeek) ?: return@mapNotNull null
-            courseDatePattern(course, weeks, weekOffset, semesterStartMonday)
+        val todayPosition = TeachingWeekReorganization.mapDate(semesterStartDate, today, rules)
+        val weekOffset = todayPosition.week - currentWeek.toLong()
+        val regularCoursePatterns = mutableListOf<CourseDatePattern>()
+        val reorganizationCourseDates = mutableListOf<LocalDate>()
+        courses.forEach { course ->
+            if (course.selectedWeeks.isNotEmpty() || course.dayOfWeek !in 1..7) return@forEach
+            val weeks = activeWeekRange(course, lastAllowedWeek) ?: return@forEach
+            if (rules.isEmpty()) {
+                courseDatePattern(course, weeks, weekOffset, semesterStartMonday)
+                    ?.let(regularCoursePatterns::add)
+            } else {
+                val reorganized = courseDatesAcrossReorganizations(
+                    course = course,
+                    activeWeeks = weeks,
+                    weekOffset = weekOffset,
+                    semesterStartMonday = semesterStartMonday,
+                    rules = rules,
+                )
+                regularCoursePatterns += reorganized.patterns
+                reorganizationCourseDates += reorganized.specialDates
+            }
         }
 
         val selectedCourseDates = courses.asSequence()
@@ -46,15 +66,17 @@ object CourseScheduleDateBounds {
                 course.selectedWeeks.asSequence()
                     .filter { it in 1..lastAllowedWeek && course.isActiveInWeek(it) }
                     .mapNotNull { week ->
-                        val calendarWeek = week.toLong() + weekOffset
-                        runCatching {
-                            semesterStartMonday.plusWeeks(calendarWeek - 1L)
-                                .plusDays((course.dayOfWeek - 1).toLong())
-                        }.getOrNull()
+                        TeachingWeekReorganization.dateForPosition(
+                            semesterStartDate = semesterStartDate,
+                            teachingWeek = week.toLong() + weekOffset,
+                            weekday = course.dayOfWeek,
+                            rules = rules,
+                        )
                     }
             }
             .toList()
 
+        val todayPositionForAlignment = TeachingWeekReorganization.mapDate(semesterStartDate, today, rules)
         val workSwapDates = workSwapEntries.asSequence()
             .filter { it.type == HolidayManager.TYPE_WORKSWAP }
             .mapNotNull { entry ->
@@ -66,12 +88,14 @@ object CourseScheduleDateBounds {
                 // Work-swap mappings are single-date overrides. Keep them as exact candidates
                 // rather than stretching the regular schedule scan over an arbitrary date gap.
                 if (lastDate != firstDate) return@mapNotNull null
+                val datePosition = TeachingWeekReorganization.mapDate(semesterStartDate, firstDate, rules)
+                val explicitPauseMapping = entry.followWeek > 0 && entry.followWeekday in 1..7
+                if (datePosition.isReorganizationPause && !explicitPauseMapping) return@mapNotNull null
                 val displayWeek = entry.followWeek.takeIf { it > 0 }?.toLong()
-                    ?: currentWeek.toLong() + calendarWeekForDate(semesterStartDate, firstDate) -
-                        calendarWeekForDate(semesterStartDate, today)
+                    ?: currentWeek.toLong() + datePosition.week - todayPositionForAlignment.week
                 if (displayWeek !in 1L..lastAllowedWeek.toLong()) return@mapNotNull null
                 val displayDay = entry.followWeekday.takeIf { it in 1..7 }
-                    ?: firstDate.dayOfWeek.value
+                    ?: datePosition.weekday ?: firstDate.dayOfWeek.value
                 if (courses.any {
                         it.dayOfWeek == displayDay && it.isActiveInWeek(displayWeek.toInt())
                     }
@@ -84,7 +108,7 @@ object CourseScheduleDateBounds {
             .distinct()
             .toList()
 
-        val additionalCourseDates = (selectedCourseDates + workSwapDates).distinct()
+        val additionalCourseDates = (selectedCourseDates + workSwapDates + reorganizationCourseDates).distinct()
         val possibleCourseDates = buildList {
             regularCoursePatterns.forEach { pattern ->
                 add(pattern.firstDate)
@@ -137,6 +161,106 @@ object CourseScheduleDateBounds {
             stepDays = stepDays,
         )
     }.getOrNull()
+
+    private data class ReorganizedCourseDates(
+        val patterns: List<CourseDatePattern>,
+        val specialDates: List<LocalDate>,
+    )
+
+    /** Split regular 7/14-day patterns at merged teaching weeks; those weeks are exact candidates. */
+    private fun courseDatesAcrossReorganizations(
+        course: Course,
+        activeWeeks: IntRange,
+        weekOffset: Long,
+        semesterStartMonday: LocalDate,
+        rules: List<TeachingWeekReorganizationRule>,
+    ): ReorganizedCourseDates {
+        val stepWeeks = if (
+            course.weekType == Course.WEEK_TYPE_ODD || course.weekType == Course.WEEK_TYPE_EVEN
+        ) 2L else 1L
+        val firstEffectiveWeek = activeWeeks.first.toLong() + weekOffset
+        val lastEffectiveWeek = activeWeeks.last.toLong() + weekOffset
+        val specialWeeks = TeachingWeekReorganization.teachingWeeksForRules(rules)
+            .filter { it in firstEffectiveWeek..lastEffectiveWeek }
+        val patterns = mutableListOf<CourseDatePattern>()
+        val specialDates = mutableListOf<LocalDate>()
+        var segmentStart = firstEffectiveWeek
+        for (specialWeek in specialWeeks) {
+            if (specialWeek > segmentStart) {
+                normalPatternForEffectiveRange(
+                    course, activeWeeks, segmentStart, specialWeek - 1L, weekOffset,
+                    stepWeeks, semesterStartMonday, rules,
+                )?.let(patterns::add)
+            }
+            val sourceWeek = specialWeek - weekOffset
+            if (sourceWeek in Int.MIN_VALUE.toLong()..Int.MAX_VALUE.toLong() &&
+                course.isActiveInWeek(sourceWeek.toInt())
+            ) {
+                TeachingWeekReorganization.dateForPosition(
+                    semesterStartDate = semesterStartMonday,
+                    teachingWeek = specialWeek,
+                    weekday = course.dayOfWeek,
+                    rules = rules,
+                )?.let(specialDates::add)
+            }
+            segmentStart = specialWeek + 1L
+        }
+        if (segmentStart <= lastEffectiveWeek) {
+            normalPatternForEffectiveRange(
+                course, activeWeeks, segmentStart, lastEffectiveWeek, weekOffset,
+                stepWeeks, semesterStartMonday, rules,
+            )?.let(patterns::add)
+        }
+        return ReorganizedCourseDates(patterns, specialDates)
+    }
+
+    private fun normalPatternForEffectiveRange(
+        course: Course,
+        activeWeeks: IntRange,
+        effectiveStart: Long,
+        effectiveEnd: Long,
+        weekOffset: Long,
+        stepWeeks: Long,
+        semesterStartMonday: LocalDate,
+        rules: List<TeachingWeekReorganizationRule>,
+    ): CourseDatePattern? {
+        if (effectiveEnd < effectiveStart) return null
+        val sourceStart = effectiveStart - weekOffset
+        val sourceEnd = effectiveEnd - weekOffset
+        val firstIndex = ceilDiv(sourceStart - activeWeeks.first.toLong(), stepWeeks).coerceAtLeast(0L)
+        val occurrenceCount = (activeWeeks.last.toLong() - activeWeeks.first.toLong()) / stepWeeks
+        val lastIndex = (sourceEnd - activeWeeks.first.toLong()).floorDiv(stepWeeks)
+            .coerceAtMost(occurrenceCount)
+        if (firstIndex > lastIndex) return null
+
+        val firstEffective = activeWeeks.first.toLong() + firstIndex * stepWeeks + weekOffset
+        val lastEffective = activeWeeks.first.toLong() + lastIndex * stepWeeks + weekOffset
+        val firstCalendarWeek = TeachingWeekReorganization
+            .originalWeekForTeachingWeek(firstEffective, rules) ?: return null
+        if (TeachingWeekReorganization.originalWeekForTeachingWeek(lastEffective, rules) == null) return null
+        val firstEpochDay = semesterStartMonday.toEpochDay() +
+            (firstCalendarWeek - 1L) * 7L + (course.dayOfWeek - 1).toLong()
+        val stepDays = stepWeeks * 7L
+        val patternOccurrenceCount = (lastEffective - firstEffective) / stepWeeks
+        val lastEpochDay = firstEpochDay + patternOccurrenceCount * stepDays
+        val minEpochDay = LocalDate.MIN.toEpochDay()
+        val maxEpochDay = LocalDate.MAX.toEpochDay()
+        val firstOccurrence = if (firstEpochDay < minEpochDay) {
+            ceilDivPositive(minEpochDay - firstEpochDay, stepDays)
+        } else 0L
+        val lastOccurrence = if (lastEpochDay > maxEpochDay) {
+            (maxEpochDay - firstEpochDay).floorDiv(stepDays)
+        } else patternOccurrenceCount
+        if (firstOccurrence > lastOccurrence) return null
+
+        return CourseDatePattern(
+            firstDate = LocalDate.ofEpochDay(firstEpochDay + firstOccurrence * stepDays),
+            lastDate = LocalDate.ofEpochDay(firstEpochDay + lastOccurrence * stepDays),
+            stepDays = stepDays,
+        )
+    }
+
+    private fun ceilDiv(value: Long, divisor: Long): Long = -Math.floorDiv(-value, divisor)
 
     private fun ceilDivPositive(value: Long, divisor: Long): Long =
         value / divisor + if (value % divisor == 0L) 0L else 1L
