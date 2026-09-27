@@ -1348,6 +1348,34 @@ class CourseRepository private constructor(context: Context) {
         return names
     }
 
+    /**
+     * 从文件夹原始数据里去掉（或改名）某个课表引用，并落盘。
+     * 不能用 getScheduleFolders() 做判断：它读时已按当前 names 剔除刚删的名字，
+     * 缓存冷时条件恒为 false，幽灵引用会一直留在 prefs 并被备份导出。
+     */
+    private fun rewriteScheduleNameInFolders(oldName: String, newName: String?) {
+        val json = prefs.getString(KEY_SCHEDULE_FOLDERS, null) ?: return
+        val folders = try {
+            val type = object : TypeToken<List<ScheduleFolder>>() {}.type
+            gson.fromJson<List<ScheduleFolder>>(json, type) ?: emptyList()
+        } catch (_: Exception) {
+            return
+        }
+        if (folders.none { oldName in it.schedules }) return
+        saveScheduleFolders(
+            folders.map { folder ->
+                if (oldName !in folder.schedules) folder
+                else folder.copy(
+                    schedules = folder.schedules.map { if (it == oldName) newName else it }
+                        .filterNotNull()
+                )
+            }
+        )
+    }
+
+    private fun removeScheduleNameFromFolders(name: String) =
+        rewriteScheduleNameInFolders(name, newName = null)
+
     fun deleteSchedule(name: String): List<String> {
         val names = getScheduleNames().toMutableList()
         names.remove(name)
@@ -1357,10 +1385,7 @@ class CourseRepository private constructor(context: Context) {
         }
         saveScheduleNames(names)
         // 课表没了，文件夹里的引用必须同步清掉，否则会留下幽灵条目
-        val folders = getScheduleFolders()
-        if (folders.any { name in it.schedules }) {
-            saveScheduleFolders(folders.map { it.copy(schedules = it.schedules - name) })
-        }
+        removeScheduleNameFromFolders(name)
         val prefix = "$SCHEDULE_KEY_PREFIX${name}_"
         prefs.edit {
             for (key in prefs.all.keys) {
@@ -1392,6 +1417,8 @@ class CourseRepository private constructor(context: Context) {
             }
             names[index] = newName
             saveScheduleNames(names)
+            // 文件夹里的旧名跟着改，否则会留下幽灵条目且新名跑到根目录
+            rewriteScheduleNameInFolders(oldName, newName)
             // 迁移 schedule_{old}_* → schedule_{new}_*
             val oldPrefix = "$SCHEDULE_KEY_PREFIX${oldName}_"
             val newPrefix = "$SCHEDULE_KEY_PREFIX${newName}_"
@@ -2374,6 +2401,8 @@ class CourseRepository private constructor(context: Context) {
                 }
             }
         }
+        // 文件夹用清洗后的结果导出：历史坏数据里的幽灵课表名不应进备份
+        result[KEY_SCHEDULE_FOLDERS] = gson.toJson(getScheduleFolders())
         return result
     }
 
