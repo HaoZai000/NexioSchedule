@@ -11,6 +11,7 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
@@ -121,6 +122,7 @@ fun BlurBottomSheetTablet(
     liquidGlassBackdrop: Backdrop? = null,
     onSheetContentBackdropCreated: ((Backdrop?) -> Unit)? = null,
     skipEnterAnimation: Boolean = false,
+    enableContentHeightSnap: Boolean = false,
     content: @Composable () -> Unit,
 ) {
     val visibleState = remember { mutableStateOf(show) }
@@ -145,6 +147,7 @@ fun BlurBottomSheetTablet(
             show = show,
             visibleState = visibleState,
             title = title,
+            enableContentHeightSnap = enableContentHeightSnap,
             blurRadius = blurRadius,
             dimBackground = dimBackground,
             sheetMaxWidth = sheetMaxWidth,
@@ -182,6 +185,7 @@ private fun BlurBottomSheetTabletContent(
     liquidGlassBackdrop: Backdrop? = null,
     onSheetContentBackdropCreated: ((Backdrop?) -> Unit)? = null,
     skipEnterAnimation: Boolean = false,
+    enableContentHeightSnap: Boolean = false,
     content: @Composable () -> Unit,
 ) {
     // 弹窗始终跟随应用主题，不受壁纸强制主题影响
@@ -200,6 +204,10 @@ private fun BlurBottomSheetTabletContent(
     // 低版本 NavigationBackHandler 自动退化为立即关闭
     val navigationEventState = rememberNavigationEventState(currentInfo = NavigationEventInfo.None)
     val backProgress = remember { Animatable(0f) }
+    val detentState = remember { BlurBottomSheetDetentState() }
+    val isDetentExpanded by remember(detentState) {
+        derivedStateOf { detentState.expansionFraction > 0.001f }
+    }
 
     val isDark = MiuixTheme.colorScheme.background.luminance() < 0.5f
     val sheetBgColor = sheetBackgroundColor ?: if (isDark) Color(0xFF1E1E1E) else Color(0xFFF2F2F2)
@@ -207,6 +215,7 @@ private fun BlurBottomSheetTabletContent(
     // 显示/隐藏动画（同时驱动弹窗位移与遮罩透明度，确保二者完全同步）
     LaunchedEffect(show) {
         if (show) {
+            if (enableContentHeightSnap) detentState.reset()
             backProgress.snapTo(0f)
             if (skipEnterAnimation) {
                 animationProgress.snapTo(1f)
@@ -291,7 +300,8 @@ private fun BlurBottomSheetTabletContent(
             .graphicsLayer {
                 val progress = animationProgress.value
                 // 从屏幕底部滑入；backProgress 为返回手势把 sheet 向下推出屏幕
-                translationY = windowHeightPx * (1f - progress) + backProgress.value * windowHeightPx
+                translationY = windowHeightPx * (1f - progress) + backProgress.value * windowHeightPx +
+                    if (enableContentHeightSnap) detentState.dismissOffsetPx else 0f
             }
 
         Box(
@@ -299,12 +309,21 @@ private fun BlurBottomSheetTabletContent(
                 .width(sheetMaxWidth)
                 .fillMaxWidth()
                 .heightIn(max = if (sheetMaxHeight != Dp.Unspecified) sheetMaxHeight else windowInfo.containerDpSize.height * 0.8f)
-                .then(if (fillMaxHeight) Modifier.fillMaxHeightModifier() else Modifier)
+                .then(
+                    when {
+                        enableContentHeightSnap -> Modifier.blurBottomSheetDetentHeight(detentState)
+                        fillMaxHeight -> Modifier.fillMaxHeightModifier()
+                        else -> Modifier
+                    },
+                )
                 .then(if (isBottomAligned) Modifier.padding(bottom = 20.dp) else Modifier)
                 .clip(sheetShape)
                 // 弹窗本体不做壁纸玻璃模糊，纯实色
                 .edgeLight(shape = sheetShape, edgeLight = rememberDefaultEdgeLight())
                 .background(sheetBgColor)
+                .onGloballyPositioned { coordinates ->
+                    if (enableContentHeightSnap) detentState.updateCollapsedHeight(coordinates.size.height)
+                }
                 .pointerInput(Unit) {
                     // 消费弹窗空白处的点击，防止事件穿透到背景层触发关闭
                     detectTapGestures(onTap = {})
@@ -406,12 +425,35 @@ private fun BlurBottomSheetTabletContent(
                     LocalSheetTopBarMaterial provides topBarMaterial,
                     LocalSheetContentBackdrop provides
                             if (sheetBackdropMounted) sheetContentBackdrop else placeholderBackdrop,
+                    LocalBlurBottomSheetContentExpanded provides
+                        (enableContentHeightSnap && isDetentExpanded),
                 ) {
+                    if (enableContentHeightSnap) {
+                        BlurBottomSheetDragHandle(
+                            enabled = true,
+                            onDrag = detentState::dragBy,
+                            onDragStarted = { detentState.beginDrag() },
+                            onDragStopped = { velocity ->
+                                detentState.settle(
+                                    velocityY = velocity,
+                                    velocityThresholdPx = with(density) { 800.dp.toPx() },
+                                    dismissThresholdPx = with(density) { 150.dp.toPx() },
+                                    onDismiss = currentOnDismissRequest,
+                                )
+                            },
+                        )
+                    }
                     // 内容区域（layerBackdrop 捕获「底色+内容」）
                     Box(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .wrapContentHeight()
+                            .then(
+                                if (enableContentHeightSnap && isDetentExpanded) {
+                                    Modifier.fillMaxHeight()
+                                } else {
+                                    Modifier.wrapContentHeight()
+                                },
+                            )
                             .nestedScroll(proxyConnection)
                             .then(
                                 if (sheetBackdropMounted) {

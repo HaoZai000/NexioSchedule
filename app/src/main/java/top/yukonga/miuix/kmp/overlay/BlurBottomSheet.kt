@@ -12,7 +12,6 @@ import androidx.compose.animation.core.spring
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.gestures.Orientation
-import androidx.compose.foundation.gestures.awaitFirstDown
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.gestures.draggable
 import androidx.compose.foundation.gestures.rememberDraggableState
@@ -28,7 +27,6 @@ import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.wrapContentHeight
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
@@ -186,6 +184,7 @@ fun BlurBottomSheet(
     endAction: @Composable (() -> Unit)? = null,
     onSheetContentBackdropCreated: ((Backdrop?) -> Unit)? = null,
     skipEnterAnimation: Boolean = false,
+    enableContentHeightSnap: Boolean = false,
     content: @Composable () -> Unit,
 ) {
     val visibleState = remember { mutableStateOf(show) }
@@ -211,6 +210,7 @@ fun BlurBottomSheet(
             show = show,
             visibleState = visibleState,
             title = title,
+            enableContentHeightSnap = enableContentHeightSnap,
             liquidGlassBackdrop = liquidGlassBackdrop,
             blurRadius = blurRadius,
             dimBackground = dimBackground,
@@ -247,6 +247,7 @@ private fun BlurBottomSheetContent(
     endAction: @Composable (() -> Unit)? = null,
     onSheetContentBackdropCreated: ((Backdrop?) -> Unit)? = null,
     skipEnterAnimation: Boolean = false,
+    enableContentHeightSnap: Boolean = false,
     content: @Composable () -> Unit,
 ) {
     // 弹窗始终跟随应用主题，不受壁纸强制主题影响
@@ -269,6 +270,10 @@ private fun BlurBottomSheetContent(
     // 低版本 NavigationBackHandler 自动退化为立即关闭
     val navigationEventState = rememberNavigationEventState(currentInfo = NavigationEventInfo.None)
     val backProgress = remember { Animatable(0f) }
+    val detentState = remember { BlurBottomSheetDetentState() }
+    val isDetentExpanded by remember(detentState) {
+        derivedStateOf { detentState.expansionFraction > 0.001f }
+    }
 
     val isDark = MiuixTheme.colorScheme.background.luminance() < 0.5f
     val sheetBgColor = sheetBackgroundColor ?: if (isDark) Color(0xFF1E1E1E) else Color(0xFFF2F2F2)
@@ -285,6 +290,7 @@ private fun BlurBottomSheetContent(
     // 显示/隐藏动画（同时驱动弹窗位移与遮罩透明度，确保二者完全同步）
     LaunchedEffect(show) {
         if (show) {
+            if (enableContentHeightSnap) detentState.reset()
             dragOffsetY.floatValue = 0f
             settleOffsetY.stop()
             settleOffsetY.snapTo(0f)
@@ -372,7 +378,9 @@ private fun BlurBottomSheetContent(
                 val currentHeight = sheetHeightPx.intValue.toFloat()
                 val baseOffset = if (currentHeight > 0) currentHeight else windowHeightPx
                 // backProgress：返回手势把 sheet 向下推出屏幕
-                translationY = baseOffset * (1f - progress) + dragOffsetY.floatValue + settleOffsetY.value + backProgress.value * currentHeight
+                translationY = baseOffset * (1f - progress) + dragOffsetY.floatValue + settleOffsetY.value +
+                    backProgress.value * currentHeight +
+                    if (enableContentHeightSnap) detentState.dismissOffsetPx else 0f
             }
 
         val sheetOffsetDpValue = if (sheetOffsetDp != Dp.Unspecified) sheetOffsetDp else 200.dp
@@ -386,13 +394,20 @@ private fun BlurBottomSheetContent(
                     else Modifier.fillMaxWidth()
                 )
                 .heightIn(max = windowInfo.containerDpSize.height)
-                .then(if (fillMaxHeight) Modifier.fillMaxHeight() else Modifier)
+                .then(
+                    when {
+                        enableContentHeightSnap -> Modifier.blurBottomSheetDetentHeight(detentState)
+                        fillMaxHeight -> Modifier.fillMaxHeight()
+                        else -> Modifier
+                    },
+                )
                 .onGloballyPositioned { coordinates ->
                     if (imeInsets.getBottom(density) == 0) {
                         val newHeight = coordinates.size.height
                         if (sheetHeightPx.intValue != newHeight) {
                             sheetHeightPx.intValue = newHeight
                         }
+                        if (enableContentHeightSnap) detentState.updateCollapsedHeight(newHeight)
                     }
                 }
                 .imePadding()
@@ -410,7 +425,7 @@ private fun BlurBottomSheetContent(
                         true
                     }
                 }
-                .draggable(
+                .then(if (enableContentHeightSnap) Modifier else Modifier.draggable(
                     orientation = Orientation.Vertical,
                     state = rememberDraggableState { dragAmount ->
                         // 直接写 floatState，不再为每个指针事件起一个协程（拖拽时一秒上百次分配）
@@ -451,7 +466,7 @@ private fun BlurBottomSheetContent(
                             )
                         }
                     },
-                ),
+                )),
             content = {
                 // === 顶栏机制（迁移自 CollapsibleTopAppBar，小标题模式）===
                 val topBarState = rememberCollapsibleTopAppBarState()
@@ -551,15 +566,38 @@ private fun BlurBottomSheetContent(
                     LocalSheetTopBarMaterial provides topBarMaterial,
                     LocalSheetContentBackdrop provides
                             if (sheetBackdropMounted) sheetContentBackdrop else placeholderBackdrop,
+                    LocalBlurBottomSheetContentExpanded provides
+                        (enableContentHeightSnap && isDetentExpanded),
                 ) {
-                    // 拖拽手柄（仅按下放大动画）
-                    DragHandleArea()
+                    BlurBottomSheetDragHandle(
+                        enabled = enableContentHeightSnap,
+                        onDrag = detentState::dragBy,
+                        onDragStarted = {
+                            if (enableContentHeightSnap) detentState.beginDrag()
+                        },
+                        onDragStopped = { velocity ->
+                            if (enableContentHeightSnap) {
+                                detentState.settle(
+                                    velocityY = velocity,
+                                    velocityThresholdPx = velocityThresholdPx,
+                                    dismissThresholdPx = dismissThresholdPx,
+                                    onDismiss = currentOnDismissRequest,
+                                )
+                            }
+                        },
+                    )
 
                     // 内容区域（layerBackdrop 捕获「底色+内容」）
                     Box(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .wrapContentHeight()
+                            .then(
+                                if (enableContentHeightSnap && isDetentExpanded) {
+                                    Modifier.fillMaxHeight()
+                                } else {
+                                    Modifier.wrapContentHeight()
+                                },
+                            )
                             .nestedScroll(proxyConnection)
                             .then(
                                 if (sheetBackdropMounted) {
@@ -645,57 +683,4 @@ private fun BlurBottomSheetContent(
 
 private fun Color.luminance(): Float {
     return 0.299f * red + 0.587f * green + 0.114f * blue
-}
-
-/**
- * Miuix 风格的拖拽手柄：按下时放大。
- */
-@Composable
-private fun DragHandleArea() {
-    val pressScale = remember { Animatable(1f) }
-    val pressWidth = remember { Animatable(45f) }
-    val coroutineScope = rememberCoroutineScope()
-
-    Box(
-        modifier = Modifier
-            .fillMaxWidth()
-            .height(22.dp)
-            .zIndex(2f)
-            .pointerInput(Unit) {
-                awaitPointerEventScope {
-                    while (true) {
-                        awaitFirstDown(requireUnconsumed = false)
-                        coroutineScope.launch {
-                            launch { pressScale.animateTo(1.15f, tween(100)) }
-                            launch { pressWidth.animateTo(55f, tween(100)) }
-                        }
-                        // 等待松手
-                        waitForUpOrCancellation()
-                        coroutineScope.launch {
-                            launch { pressScale.animateTo(1f, tween(150)) }
-                            launch { pressWidth.animateTo(45f, tween(150)) }
-                        }
-                    }
-                }
-            },
-        contentAlignment = Alignment.Center,
-    ) {
-        Box(
-            modifier = Modifier
-                .width(pressWidth.value.dp)
-                .height(4.dp)
-                .graphicsLayer {
-                    scaleY = pressScale.value
-                }
-                .clip(RoundedCornerShape(2.dp))
-                .background(MiuixTheme.colorScheme.onSurfaceVariantSummary.copy(alpha = 0.2f)),
-        )
-    }
-}
-
-private suspend fun androidx.compose.ui.input.pointer.AwaitPointerEventScope.waitForUpOrCancellation() {
-    while (true) {
-        val event = awaitPointerEvent()
-        if (event.changes.none { it.pressed }) break
-    }
 }

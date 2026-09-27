@@ -5,6 +5,7 @@ import android.widget.Toast
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.gestures.detectHorizontalDragGestures
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -12,21 +13,29 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.asPaddingValues
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.statusBars
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.material3.Icon
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -36,6 +45,7 @@ import androidx.compose.ui.graphics.ColorFilter
 import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.input.nestedscroll.nestedScroll
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
@@ -53,14 +63,17 @@ import com.haooz.chedule.data.TeachingWeekReorganization
 import com.haooz.chedule.data.TeachingWeekReorganizationRule
 import com.haooz.chedule.reminder.CourseReminderHelper
 import com.haooz.chedule.ui.basic.CollapsibleTopAppBarDefaults
+import com.haooz.chedule.ui.basic.LiquidTopBarButton
 import com.haooz.chedule.ui.basic.OverlayDropdownMenu
 import com.haooz.chedule.ui.basic.SharedScrollBehavior
 import com.haooz.chedule.ui.basic.collapsibleTopInset
 import com.haooz.chedule.ui.utils.overScrollVertical
 import com.kyant.backdrop.Backdrop
 import com.kyant.capsule.ContinuousRoundedRectangle
+import top.yukonga.miuix.kmp.basic.Button
 import top.yukonga.miuix.kmp.basic.ButtonDefaults
 import top.yukonga.miuix.kmp.basic.Card
+import top.yukonga.miuix.kmp.basic.CardDefaults
 import top.yukonga.miuix.kmp.basic.DropdownDefaults
 import top.yukonga.miuix.kmp.basic.DropdownEntry
 import top.yukonga.miuix.kmp.basic.DropdownItem
@@ -74,9 +87,16 @@ import top.yukonga.miuix.kmp.basic.SmallTitle
 import top.yukonga.miuix.kmp.basic.Text
 import top.yukonga.miuix.kmp.basic.TextButton
 import top.yukonga.miuix.kmp.icon.MiuixIcons
+import top.yukonga.miuix.kmp.icon.extended.Close
 import top.yukonga.miuix.kmp.icon.extended.Delete
 import top.yukonga.miuix.kmp.icon.extended.Info
+import top.yukonga.miuix.kmp.icon.extended.Ok
 import top.yukonga.miuix.kmp.layout.liquidDropdownPositionProvider
+import top.yukonga.miuix.kmp.overlay.BlurBottomSheet
+import top.yukonga.miuix.kmp.overlay.BlurBottomSheetTablet
+import top.yukonga.miuix.kmp.overlay.LocalBlurBottomSheetContentExpanded
+import top.yukonga.miuix.kmp.overlay.LocalSheetContentBackdrop
+import top.yukonga.miuix.kmp.overlay.LocalSheetTopBarMaterial
 import top.yukonga.miuix.kmp.overlay.OverlayDialog
 import top.yukonga.miuix.kmp.overlay.OverlayListPopup
 import top.yukonga.miuix.kmp.preference.ArrowPreference
@@ -85,6 +105,7 @@ import top.yukonga.miuix.kmp.squircle.squircleClip
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 import top.yukonga.miuix.kmp.utils.scrollEndHaptic
 import java.time.LocalDate
+import kotlin.math.floor
 
 private val YEAR_RANGE = 2024..2035
 private val WEEKDAYS = listOf(
@@ -828,18 +849,55 @@ private fun TeachingWeekRuleEditDialog(
     onSave: () -> Unit,
 ) {
     val hapticFeedback = LocalHapticFeedback.current
-    OverlayDialog(
-        title = if (isEditing) "编辑教学周重组规则" else "添加教学周重组规则",
-        summary = null,
-        show = show,
-        liquidGlassBackdrop = null,
-        onDismissRequest = onDismiss,
-    ) {
+    val isTablet = LocalConfiguration.current.screenWidthDp >= 600
+    val statusBarsPadding = WindowInsets.statusBars.asPaddingValues().calculateTopPadding()
+    val isDark = MiuixTheme.colorScheme.background.luminance() < 0.5f
+    val sheetBackgroundColor = if (isDark) Color(0xFF1E1E1E) else Color(0xFFF2F2F2)
+    val startAction: @Composable () -> Unit = {
+        val material = LocalSheetTopBarMaterial.current
+        LiquidTopBarButton(
+            onClick = {
+                onDismiss()
+            },
+            backdrop = LocalSheetContentBackdrop.current!!,
+            icon = MiuixIcons.Normal.Close,
+            contentDescription = "取消",
+            modifier = Modifier.padding(start = if (isTablet) 16.dp else 18.dp),
+            iconSize = 24.dp,
+            backdropAlpha = material.backdropAlpha,
+            shadowAlpha = material.shadowAlpha,
+        )
+    }
+    val endAction: @Composable () -> Unit = {
+        val material = LocalSheetTopBarMaterial.current
+        LiquidTopBarButton(
+            onClick = {
+                if (validationError == null) {
+                    onSave()
+                }
+            },
+            backdrop = LocalSheetContentBackdrop.current!!,
+            icon = MiuixIcons.Ok,
+            contentDescription = if (validationError == null) "保存" else "无法保存",
+            modifier = Modifier.padding(end = if (isTablet) 16.dp else 18.dp),
+            iconSize = 25.dp,
+            iconTint = if (validationError == null) Color.Unspecified
+                else MiuixTheme.colorScheme.onSurfaceVariantSummary.copy(alpha = 0.45f),
+            enabled = validationError == null,
+            backdropAlpha = material.backdropAlpha,
+            shadowAlpha = material.shadowAlpha,
+        )
+    }
+    val sheetContent: @Composable () -> Unit = {
         Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
             Card(
                 cornerRadius = 20.dp,
                 modifier = Modifier.fillMaxWidth(),
                 insideMargin = PaddingValues(0.dp),
+                colors = CardDefaults.defaultColors(
+                    color = if (isDark) Color(0xFF303030) else Color(0xFFFFFFFF),
+                    contentColor = MiuixTheme.colorScheme.onSurface,
+                ),
             ) {
                 Column {
                     ArrowPreference(
@@ -860,6 +918,10 @@ private fun TeachingWeekRuleEditDialog(
                 cornerRadius = 20.dp,
                 modifier = Modifier.fillMaxWidth(),
                 insideMargin = PaddingValues(0.dp),
+                colors = CardDefaults.defaultColors(
+                    color = if (isDark) Color(0xFF303030) else Color(0xFFFFFFFF),
+                    contentColor = MiuixTheme.colorScheme.onSurface,
+                ),
             ) {
                 Column {
                     ArrowPreference(
@@ -889,39 +951,95 @@ private fun TeachingWeekRuleEditDialog(
                     )
                 }
             }
-            Row(
-                modifier = Modifier.fillMaxWidth().padding(top = 4.dp),
-                horizontalArrangement = Arrangement.spacedBy(8.dp),
-            ) {
-                if (isEditing) {
-                    TextButton(
+            if (isEditing) {
+                Button(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(50.dp),
+                    onClick = {
+                        hapticFeedback.performHapticFeedback(HapticFeedbackType.Confirm)
+                        onDelete()
+                    },
+                    colors = ButtonDefaults.buttonColors(
+                        color = if (isDark) Color.White.copy(alpha = 0.1f)
+                        else Color.Black.copy(alpha = 0.06f),
+                    ),
+                ) {
+                    Icon(
+                        imageVector = MiuixIcons.Delete,
+                        contentDescription = null,
+                        modifier = Modifier.size(20.dp),
+                        tint = Color(0xFFF44336),
+                    )
+                    Spacer(modifier = Modifier.width(4.dp))
+                    Text(
                         "删除",
-                        {
-                            hapticFeedback.performHapticFeedback(HapticFeedbackType.Confirm)
-                            onDelete()
-                        },
-                        textColor = Color(0xFFF44336),
-                        modifier = Modifier.weight(1f),
+                        fontSize = 17.sp,
+                        fontWeight = FontWeight.Medium,
+                        color = Color(0xFFF44336),
                     )
                 }
-                TextButton(
-                    "取消",
-                    {
-                        hapticFeedback.performHapticFeedback(HapticFeedbackType.Confirm)
-                        onDismiss()
-                    },
-                    modifier = Modifier.weight(1f),
-                )
-                TextButton(
-                    "保存",
-                    {
-                        hapticFeedback.performHapticFeedback(HapticFeedbackType.Confirm)
-                        onSave()
-                    },
-                    enabled = validationError == null,
-                    colors = ButtonDefaults.textButtonColorsPrimary(),
-                    modifier = Modifier.weight(1f),
-                )
+            }
+        }
+    }
+
+    if (isTablet) {
+        BlurBottomSheetTablet(
+            show = show,
+            title = if (isEditing) "编辑教学周重组规则" else "添加教学周重组规则",
+            dimBackground = true,
+            enableContentHeightSnap = true,
+            sheetBackgroundColor = sheetBackgroundColor,
+            sheetBackgroundAlpha = 1f,
+            liquidGlassBackdrop = null,
+            onDismissRequest = onDismiss,
+            startAction = startAction,
+            endAction = endAction,
+        ) {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .then(
+                        if (LocalBlurBottomSheetContentExpanded.current) Modifier.fillMaxHeight()
+                        else Modifier,
+                    )
+                    .verticalScroll(rememberScrollState())
+                    .padding(horizontal = 16.dp),
+                verticalArrangement = Arrangement.spacedBy(12.dp),
+            ) {
+                Spacer(modifier = Modifier.height(56.dp))
+                sheetContent()
+                Spacer(modifier = Modifier.height(8.dp))
+            }
+        }
+    } else {
+        BlurBottomSheet(
+            show = show,
+            title = if (isEditing) "编辑教学周重组规则" else "添加教学周重组规则",
+            dimBackground = true,
+            enableContentHeightSnap = true,
+            sheetBackgroundColor = sheetBackgroundColor,
+            sheetBackgroundAlpha = 1f,
+            liquidGlassBackdrop = null,
+            sheetOffsetDp = statusBarsPadding + 5.dp,
+            onDismissRequest = onDismiss,
+            startAction = startAction,
+            endAction = endAction,
+        ) {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .then(
+                        if (LocalBlurBottomSheetContentExpanded.current) Modifier.fillMaxHeight()
+                        else Modifier,
+                    )
+                    .verticalScroll(rememberScrollState())
+                    .padding(horizontal = 16.dp),
+                verticalArrangement = Arrangement.spacedBy(12.dp),
+            ) {
+                Spacer(modifier = Modifier.height(58.dp))
+                sheetContent()
+                Spacer(modifier = Modifier.height(statusBarsPadding + 65.dp))
             }
         }
     }
@@ -936,6 +1054,9 @@ private fun TeachingWeekdayRangeSelector(
     onDayClick: (Int) -> Unit,
 ) {
     val isDark = MiuixTheme.colorScheme.background.luminance() < 0.5f
+    val daySpacing = 6.dp
+    val daySpacingPx = with(LocalDensity.current) { daySpacing.toPx() }
+    val currentOnDayClick = rememberUpdatedState(onDayClick)
     Column(
         modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 12.dp),
         verticalArrangement = Arrangement.spacedBy(8.dp),
@@ -955,18 +1076,30 @@ private fun TeachingWeekdayRangeSelector(
             )
         }
         Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.spacedBy(6.dp),
+            modifier = Modifier
+                .fillMaxWidth()
+                .pointerInput(selectableDays, daySpacingPx) {
+                    fun selectDayAt(x: Float) {
+                        teachingWeekdayAtDragPosition(
+                            xPx = x,
+                            rowWidthPx = size.width.toFloat(),
+                            spacingPx = daySpacingPx,
+                            selectableDays = selectableDays,
+                        )?.let(currentOnDayClick.value)
+                    }
+
+                    detectHorizontalDragGestures(
+                        onDragStart = { selectDayAt(it.x) },
+                        onHorizontalDrag = { change, _ -> selectDayAt(change.position.x) },
+                    )
+                },
+            horizontalArrangement = Arrangement.spacedBy(daySpacing),
         ) {
             for (day in 1..7) {
                 val enabled = day in selectableDays
                 val selected = day in selectedStart..selectedEnd
-                val backgroundColor = when {
-                    selected -> MiuixTheme.colorScheme.primary
-                    !enabled -> if (isDark) Color(0xFF292929) else Color(0xFFE7E7E7)
-                    isDark -> Color(0xFF363636)
-                    else -> Color(0xFFF2F2F2)
-                }
+                val backgroundColor = if (selected) MiuixTheme.colorScheme.primary
+                    else if (isDark) Color(0xFF363636) else Color(0xFFF2F2F2)
                 val textColor = when {
                     selected -> Color.White
                     enabled -> MiuixTheme.colorScheme.onSurfaceVariantSummary
@@ -995,6 +1128,22 @@ private fun TeachingWeekdayRangeSelector(
             }
         }
     }
+}
+
+internal fun teachingWeekdayAtDragPosition(
+    xPx: Float,
+    rowWidthPx: Float,
+    spacingPx: Float,
+    selectableDays: IntRange,
+): Int? {
+    if (rowWidthPx <= 0f || spacingPx < 0f || xPx < 0f || xPx >= rowWidthPx) return null
+
+    val cellWidthPx = (rowWidthPx - spacingPx * 6) / 7f
+    if (cellWidthPx <= 0f) return null
+
+    val cellStepPx = cellWidthPx + spacingPx
+    val day = floor((xPx + spacingPx / 2f) / cellStepPx).toInt() + 1
+    return day.takeIf { it in 1..7 && it in selectableDays }
 }
 
 @Composable
