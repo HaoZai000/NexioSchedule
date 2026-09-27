@@ -27,6 +27,8 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Icon
 import androidx.compose.runtime.Composable
@@ -452,18 +454,23 @@ fun HolidaySettingsScreen(
     val secondPartEndDate = originalWeekDate(secondOriginalWeek, 7)
     val pauseStartDate = firstPartEndDate?.plusDays(1)
     val pauseEndDate = secondPartStartDate?.minusDays(1)
-    val currentFirstPartWeek = firstPartStartDate?.let {
-        TeachingWeekReorganization.mapDate(semesterStartDate, it, teachingWeekReorganizations)
-    }
-    val currentSecondPartWeek = secondPartStartDate?.let {
-        TeachingWeekReorganization.mapDate(semesterStartDate, it, teachingWeekReorganizations)
-    }
     val savedFirstPartWeek = if (draftValidationError == null) firstPartStartDate?.let {
         TeachingWeekReorganization.mapDate(semesterStartDate, it, rulesAfterDraft).week
     } else null
     val savedSecondPartWeek = if (draftValidationError == null) secondPartStartDate?.let {
         TeachingWeekReorganization.mapDate(semesterStartDate, it, rulesAfterDraft).week
     } else null
+    val teachingWeekRulePreview = buildTeachingWeekRulePreview(
+        firstPartStartDate = firstPartStartDate,
+        firstPartEndDate = firstPartEndDate,
+        pauseStartDate = pauseStartDate,
+        pauseEndDate = pauseEndDate,
+        secondPartStartDate = secondPartStartDate,
+        secondPartEndDate = secondPartEndDate,
+        savedFirstPartWeek = savedFirstPartWeek,
+        savedSecondPartWeek = savedSecondPartWeek,
+        shiftedWeeks = (secondOriginalWeek - firstOriginalWeek).coerceAtLeast(0),
+    )
     val weekPickerRules = teachingWeekReorganizations.toMutableList().apply {
         if (editingTeachingWeekRuleIndex in indices) removeAt(editingTeachingWeekRuleIndex)
     }
@@ -759,27 +766,7 @@ fun HolidaySettingsScreen(
         onSecondStartWeekdayChange = { firstEndWeekday = (it - 1).coerceIn(1, 6) },
         onPickFirstWeek = { openOriginalWeekPicker(1) },
         onPickSecondWeek = { openOriginalWeekPicker(2) },
-        previewLines = buildList {
-            if (firstPartStartDate != null && firstPartEndDate != null) {
-                add("上半段：${formatTeachingDate(firstPartStartDate)}–${formatTeachingDate(firstPartEndDate)}")
-            }
-            if (secondPartStartDate != null && secondPartEndDate != null) {
-                add("下半段：${formatTeachingDate(secondPartStartDate)}–${formatTeachingDate(secondPartEndDate)}")
-            }
-            if (currentFirstPartWeek != null && currentSecondPartWeek != null) {
-                fun label(position: com.haooz.chedule.data.TeachingWeekPosition): String =
-                    if (position.isReorganizationPause) "暂停（无常规教学周位置）" else "第${position.week}周"
-                add("当前教学周：上半段${label(currentFirstPartWeek)}，下半段${label(currentSecondPartWeek)}")
-            }
-            if (savedFirstPartWeek != null && savedSecondPartWeek != null) {
-                add("保存后：两段均归入教学第${savedFirstPartWeek}周")
-            }
-            if (pauseStartDate != null && pauseEndDate != null && !pauseEndDate.isBefore(pauseStartDate)) {
-                add("暂停日期：${formatTeachingDate(pauseStartDate)}–${formatTeachingDate(pauseEndDate)}（常规课程暂停）")
-            }
-            add("此后教学周将重新分配，顺延${(secondOriginalWeek - firstOriginalWeek).coerceAtLeast(0)}周")
-            draftValidationError?.let { add("无法保存：$it") }
-        },
+        preview = teachingWeekRulePreview,
         validationError = draftValidationError,
         onDelete = { showTeachingWeekDeleteConfirm = true },
         onDismiss = { showTeachingWeekRuleDialog = false },
@@ -829,6 +816,69 @@ fun HolidaySettingsScreen(
 private fun formatTeachingDate(date: LocalDate): String =
     "${date.year}/${date.monthValue.toString().padStart(2, '0')}/${date.dayOfMonth.toString().padStart(2, '0')}"
 
+internal data class TeachingWeekRulePreview(
+    val firstPartDateRange: String?,
+    val pauseDateRange: String?,
+    val secondPartDateRange: String?,
+    val savedFirstPartWeek: String?,
+    val savedSecondPartWeek: String?,
+    val shiftedWeeks: Int,
+)
+
+internal fun buildTeachingWeekRulePreview(
+    firstPartStartDate: LocalDate?,
+    firstPartEndDate: LocalDate?,
+    pauseStartDate: LocalDate?,
+    pauseEndDate: LocalDate?,
+    secondPartStartDate: LocalDate?,
+    secondPartEndDate: LocalDate?,
+    savedFirstPartWeek: Long?,
+    savedSecondPartWeek: Long?,
+    shiftedWeeks: Int,
+): TeachingWeekRulePreview = TeachingWeekRulePreview(
+    firstPartDateRange = formatTeachingDateRange(firstPartStartDate, firstPartEndDate),
+    pauseDateRange = formatTeachingDateRange(pauseStartDate, pauseEndDate),
+    secondPartDateRange = formatTeachingDateRange(secondPartStartDate, secondPartEndDate),
+    savedFirstPartWeek = savedFirstPartWeek?.let { "第${it}周" },
+    savedSecondPartWeek = savedSecondPartWeek?.let { "第${it}周" },
+    shiftedWeeks = shiftedWeeks.coerceAtLeast(0),
+)
+
+private fun formatTeachingDateRange(startDate: LocalDate?, endDate: LocalDate?): String? {
+    if (startDate == null || endDate == null || endDate.isBefore(startDate)) return null
+    val endLabel = if (startDate.year == endDate.year) {
+        "${endDate.monthValue.toString().padStart(2, '0')}/${endDate.dayOfMonth.toString().padStart(2, '0')}"
+    } else {
+        formatTeachingDate(endDate)
+    }
+    return "${formatTeachingDate(startDate)}–$endLabel"
+}
+
+internal data class TeachingWeekRuleOutcomeLabels(
+    val mergeLabel: String?,
+    val shiftLabel: String,
+) {
+    val summaryLabel: String
+        get() = listOfNotNull(mergeLabel, shiftLabel).joinToString(" · ")
+}
+
+internal fun teachingWeekRuleOutcomeLabels(
+    savedFirstPartWeek: String?,
+    savedSecondPartWeek: String?,
+    shiftedWeeks: Int,
+): TeachingWeekRuleOutcomeLabels {
+    val mergedWeek = savedFirstPartWeek?.takeIf { it == savedSecondPartWeek }
+    val shiftLabel = if (shiftedWeeks > 0) {
+        "后续顺延 +${shiftedWeeks}周"
+    } else {
+        "后续不变"
+    }
+    return TeachingWeekRuleOutcomeLabels(
+        mergeLabel = mergedWeek?.let { "合并为$it" },
+        shiftLabel = shiftLabel,
+    )
+}
+
 @Composable
 private fun TeachingWeekRuleEditDialog(
     show: Boolean,
@@ -842,7 +892,7 @@ private fun TeachingWeekRuleEditDialog(
     onSecondStartWeekdayChange: (Int) -> Unit,
     onPickFirstWeek: () -> Unit,
     onPickSecondWeek: () -> Unit,
-    previewLines: List<String>,
+    preview: TeachingWeekRulePreview,
     validationError: String?,
     onDelete: () -> Unit,
     onDismiss: () -> Unit,
@@ -938,19 +988,13 @@ private fun TeachingWeekRuleEditDialog(
                     )
                 }
             }
-            Column(
-                modifier = Modifier.fillMaxWidth().padding(horizontal = 4.dp),
-                verticalArrangement = Arrangement.spacedBy(3.dp),
-            ) {
-                previewLines.forEach { line ->
-                    Text(
-                        text = line,
-                        fontSize = 13.sp,
-                        color = if (line.startsWith("无法保存：")) Color(0xFFF44336)
-                            else MiuixTheme.colorScheme.onSurfaceVariantSummary,
-                    )
-                }
-            }
+            TeachingWeekRulePreviewCard(
+                firstWeek = firstWeek,
+                secondWeek = secondWeek,
+                preview = preview,
+                validationError = validationError,
+                isDark = isDark,
+            )
             if (isEditing) {
                 Button(
                     modifier = Modifier
@@ -1042,6 +1086,156 @@ private fun TeachingWeekRuleEditDialog(
                 Spacer(modifier = Modifier.height(statusBarsPadding + 65.dp))
             }
         }
+    }
+}
+
+@Composable
+private fun TeachingWeekRulePreviewCard(
+    firstWeek: Int,
+    secondWeek: Int,
+    preview: TeachingWeekRulePreview,
+    validationError: String?,
+    isDark: Boolean,
+) {
+    val primaryColor = MiuixTheme.colorScheme.primary
+    val dividerColor = MiuixTheme.colorScheme.outline.copy(alpha = 0.35f)
+    val outcomeLabels = teachingWeekRuleOutcomeLabels(
+        savedFirstPartWeek = preview.savedFirstPartWeek,
+        savedSecondPartWeek = preview.savedSecondPartWeek,
+        shiftedWeeks = preview.shiftedWeeks,
+    )
+
+    Card(
+        cornerRadius = 20.dp,
+        modifier = Modifier.fillMaxWidth(),
+        insideMargin = PaddingValues(0.dp),
+        colors = CardDefaults.defaultColors(
+            color = if (isDark) Color(0xFF303030) else Color(0xFFFFFFFF),
+            contentColor = MiuixTheme.colorScheme.onSurface,
+        ),
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 16.dp, vertical = 14.dp),
+            verticalArrangement = Arrangement.spacedBy(10.dp),
+        ) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text(
+                    text = "重组预览",
+                    fontSize = 16.sp,
+                    fontWeight = FontWeight.SemiBold,
+                    color = MiuixTheme.colorScheme.onSurface,
+                )
+                Spacer(modifier = Modifier.weight(1f))
+                Text(
+                    text = outcomeLabels.summaryLabel,
+                    modifier = Modifier
+                        .clip(RoundedCornerShape(14.dp))
+                        .background(primaryColor.copy(alpha = 0.12f))
+                        .padding(horizontal = 10.dp, vertical = 6.dp),
+                    fontSize = 12.sp,
+                    fontWeight = FontWeight.Medium,
+                    color = primaryColor,
+                    maxLines = 1,
+                )
+            }
+
+            Column {
+                TeachingWeekRuleTimelineItem(
+                    title = "上半段 · 原第${firstWeek}周",
+                    dateRange = preview.firstPartDateRange ?: "日期不可用",
+                    markerColor = primaryColor,
+                    connectorColor = dividerColor,
+                    hasConnector = true,
+                )
+                preview.pauseDateRange?.let { dateRange ->
+                    TeachingWeekRuleTimelineItem(
+                        title = "课程暂停",
+                        dateRange = dateRange,
+                        markerColor = MiuixTheme.colorScheme.onSurfaceVariantSummary.copy(alpha = 0.7f),
+                        connectorColor = dividerColor,
+                        hasConnector = true,
+                    )
+                }
+                TeachingWeekRuleTimelineItem(
+                    title = "下半段 · 原第${secondWeek}周",
+                    dateRange = preview.secondPartDateRange ?: "日期不可用",
+                    markerColor = MiuixTheme.colorScheme.secondaryVariant,
+                    connectorColor = dividerColor,
+                    hasConnector = false,
+                )
+            }
+
+            validationError?.let { error ->
+                Text(
+                    text = "无法保存：$error",
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clip(RoundedCornerShape(12.dp))
+                        .background(Color(0xFFF44336).copy(alpha = 0.1f))
+                        .padding(horizontal = 10.dp, vertical = 8.dp),
+                    fontSize = 13.sp,
+                    color = Color(0xFFF44336),
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun TeachingWeekRuleTimelineItem(
+    title: String,
+    dateRange: String,
+    markerColor: Color,
+    connectorColor: Color,
+    hasConnector: Boolean,
+) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .height(24.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Box(
+            modifier = Modifier
+                .width(8.dp)
+                .height(24.dp),
+        ) {
+            if (hasConnector) {
+                Box(
+                    modifier = Modifier
+                        .align(Alignment.Center)
+                        .offset(y = 12.dp)
+                        .width(1.dp)
+                        .height(16.dp)
+                        .background(connectorColor),
+                )
+            }
+            Box(
+                modifier = Modifier
+                    .align(Alignment.Center)
+                    .size(8.dp)
+                    .clip(CircleShape)
+                    .background(markerColor),
+            )
+        }
+        Spacer(modifier = Modifier.width(10.dp))
+        Text(
+            text = title,
+            modifier = Modifier.weight(1f),
+            fontSize = 13.sp,
+            fontWeight = FontWeight.Medium,
+            color = MiuixTheme.colorScheme.onSurface,
+            maxLines = 1,
+        )
+        Spacer(modifier = Modifier.width(8.dp))
+        Text(
+            text = dateRange,
+            fontSize = 12.sp,
+            color = MiuixTheme.colorScheme.onSurfaceVariantSummary,
+            maxLines = 1,
+        )
     }
 }
 
