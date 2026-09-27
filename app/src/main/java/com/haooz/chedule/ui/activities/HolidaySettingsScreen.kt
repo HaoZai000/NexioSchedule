@@ -1056,6 +1056,7 @@ private fun TeachingWeekdayRangeSelector(
     val isDark = MiuixTheme.colorScheme.background.luminance() < 0.5f
     val daySpacing = 6.dp
     val daySpacingPx = with(LocalDensity.current) { daySpacing.toPx() }
+    val haptics = LocalHapticFeedback.current
     val currentOnDayClick = rememberUpdatedState(onDayClick)
     Column(
         modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 12.dp),
@@ -1079,18 +1080,31 @@ private fun TeachingWeekdayRangeSelector(
             modifier = Modifier
                 .fillMaxWidth()
                 .pointerInput(selectableDays, daySpacingPx) {
-                    fun selectDayAt(x: Float) {
-                        teachingWeekdayAtDragPosition(
+                    val hapticTracker = TeachingWeekdayDragHapticTracker()
+
+                    fun weekdayAt(x: Float): Int? = teachingWeekdayAtDragPosition(
                             xPx = x,
                             rowWidthPx = size.width.toFloat(),
                             spacingPx = daySpacingPx,
-                            selectableDays = selectableDays,
-                        )?.let(currentOnDayClick.value)
-                    }
+                            selectableDays = 1..7,
+                        )
 
                     detectHorizontalDragGestures(
-                        onDragStart = { selectDayAt(it.x) },
-                        onHorizontalDrag = { change, _ -> selectDayAt(change.position.x) },
+                        onDragStart = { offset ->
+                            val day = weekdayAt(offset.x)
+                            hapticTracker.begin(day)
+                            haptics.performHapticFeedback(HapticFeedbackType.LongPress)
+                            day?.takeIf { it in selectableDays }?.let(currentOnDayClick.value)
+                        },
+                        onHorizontalDrag = { change, _ ->
+                            val day = weekdayAt(change.position.x)
+                            if (day != null && hapticTracker.enter(day)) {
+                                haptics.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                                day.takeIf { it in selectableDays }?.let(currentOnDayClick.value)
+                            }
+                        },
+                        onDragEnd = { hapticTracker.end() },
+                        onDragCancel = { hapticTracker.end() },
                     )
                 },
             horizontalArrangement = Arrangement.spacedBy(daySpacing),
@@ -1144,6 +1158,24 @@ internal fun teachingWeekdayAtDragPosition(
     val cellStepPx = cellWidthPx + spacingPx
     val day = floor((xPx + spacingPx / 2f) / cellStepPx).toInt() + 1
     return day.takeIf { it in 1..7 && it in selectableDays }
+}
+
+internal class TeachingWeekdayDragHapticTracker {
+    private var currentDay: Int? = null
+
+    fun begin(day: Int?) {
+        currentDay = day
+    }
+
+    fun enter(day: Int): Boolean {
+        if (day == currentDay) return false
+        currentDay = day
+        return true
+    }
+
+    fun end() {
+        currentDay = null
+    }
 }
 
 @Composable
