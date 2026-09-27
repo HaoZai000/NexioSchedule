@@ -26,6 +26,7 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.asPaddingValues
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -121,10 +122,12 @@ import top.yukonga.miuix.kmp.basic.VerticalDivider
 import top.yukonga.miuix.kmp.blur.layerBackdrop
 import top.yukonga.miuix.kmp.blur.rememberLayerBackdrop
 import top.yukonga.miuix.kmp.icon.MiuixIcons
+import top.yukonga.miuix.kmp.icon.extended.Album
 import top.yukonga.miuix.kmp.icon.extended.Background
 import top.yukonga.miuix.kmp.icon.extended.Close
 import top.yukonga.miuix.kmp.icon.extended.GridView
 import top.yukonga.miuix.kmp.icon.extended.Image
+import top.yukonga.miuix.kmp.icon.extended.Months
 import top.yukonga.miuix.kmp.overlay.BlurBottomSheet
 import top.yukonga.miuix.kmp.overlay.BlurBottomSheetTablet
 import top.yukonga.miuix.kmp.overlay.LocalSheetContentBackdrop
@@ -205,6 +208,9 @@ fun CustomizeScheduleScreen(
     appearance: AppearanceConfig = AppearanceConfig(),
     onAppearanceChange: (AppearanceConfig) -> Unit = {},
     hasWallpaper: Boolean = false,
+    /** 预览页：0=今日，1=课程表；椭圆滑块与取消/应用同一行 */
+    previewPage: Int = 0,
+    onPreviewPageChange: (Int) -> Unit = {},
 ) {
     val densityObj = LocalDensity.current
     val density = densityObj.density
@@ -947,7 +953,8 @@ fun CustomizeScheduleScreen(
                             .fillMaxWidth()
                             .padding(top = statusBarPadding + 16.dp)
                             .padding(horizontal = 20.dp),
-                        horizontalArrangement = Arrangement.SpaceBetween
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically,
                     ) {
                         val animationScope = rememberCoroutineScope()
                         val exitHighlight =
@@ -955,6 +962,18 @@ fun CustomizeScheduleScreen(
                         val applyHighlight =
                             remember(animationScope) { InteractiveHighlight(animationScope) }
                         val hapticFeedback = LocalHapticFeedback.current
+                        val resolvedPreview = previewPage.coerceIn(0, 1)
+                        // 选中滑块位置动画：0=今日，1=课程表
+                        val thumbProgress = remember { Animatable(if (previewPage.coerceIn(0, 1) == 1) 1f else 0f) }
+                        LaunchedEffect(resolvedPreview) {
+                            thumbProgress.animateTo(
+                                targetValue = if (resolvedPreview == 1) 1f else 0f,
+                                animationSpec = tween(
+                                    durationMillis = 280,
+                                    easing = CubicBezierEasing(0.2f, 0.8f, 0.2f, 1f)
+                                )
+                            )
+                        }
                         Box(
                             modifier = Modifier
                                 .width(84.dp)
@@ -964,8 +983,6 @@ fun CustomizeScheduleScreen(
                                     shape = { ContinuousCapsule() },
                                     effects = {
                                         vibrancy()
-                                        blur(2f.dp.toPx())
-                                        lens(12f.dp.toPx(), 12f.dp.toPx())
                                     },
                                     highlight = null,
                                     shadow = { Shadow(alpha = 0.3f) },
@@ -1010,6 +1027,85 @@ fun CustomizeScheduleScreen(
                                 fontWeight = FontWeight.Medium
                             )
                         }
+                        // 中段：今日 / 课程表 预览切换（椭圆滑块，与取消/应用同行）
+                        Box(
+                            modifier = Modifier
+                                .width(120.dp)
+                                .height(40.dp)
+                                .drawBackdrop(
+                                    backdrop = liquidGlassBackdrop,
+                                    shape = { ContinuousCapsule() },
+                                    effects = {
+                                        vibrancy()
+                                    },
+                                    highlight = null,
+                                    shadow = { Shadow(alpha = 0.3f) },
+                                    onDrawSurface = { drawRect(exitContainerColor) }
+                                )
+                                .padding(3.dp)
+                        ) {
+                            Box(modifier = Modifier.fillMaxSize()) {
+                                // 滑块：0.1f 白底，叠在图标下方左右滑动
+                                Box(
+                                    modifier = Modifier
+                                        .fillMaxHeight()
+                                        .fillMaxWidth(0.5f)
+                                        .graphicsLayer {
+                                            translationX = thumbProgress.value * size.width
+                                        }
+                                        .clip(ContinuousCapsule())
+                                        .background(Color.White.copy(alpha = 0.1f))
+                                )
+                                Row(modifier = Modifier.fillMaxSize()) {
+                                    Box(
+                                        modifier = Modifier
+                                            .weight(1f)
+                                            .fillMaxHeight()
+                                            .clickable(
+                                                interactionSource = null,
+                                                indication = null,
+                                                role = Role.Button,
+                                                onClick = {
+                                                    hapticFeedback.performHapticFeedback(HapticFeedbackType.VirtualKey)
+                                                    if (resolvedPreview != 0) onPreviewPageChange(0)
+                                                }
+                                            ),
+                                        contentAlignment = Alignment.Center
+                                    ) {
+                                        Icon(
+                                            imageVector = MiuixIcons.Album,
+                                            contentDescription = "今日",
+                                            modifier = Modifier.size(20.dp),
+                                            tint = if (resolvedPreview == 0) Color.White
+                                            else Color.White.copy(alpha = 0.75f)
+                                        )
+                                    }
+                                    Box(
+                                        modifier = Modifier
+                                            .weight(1f)
+                                            .fillMaxHeight()
+                                            .clickable(
+                                                interactionSource = null,
+                                                indication = null,
+                                                role = Role.Button,
+                                                onClick = {
+                                                    hapticFeedback.performHapticFeedback(HapticFeedbackType.VirtualKey)
+                                                    if (resolvedPreview != 1) onPreviewPageChange(1)
+                                                }
+                                            ),
+                                        contentAlignment = Alignment.Center
+                                    ) {
+                                        Icon(
+                                            imageVector = MiuixIcons.Months,
+                                            contentDescription = "课程表",
+                                            modifier = Modifier.size(20.dp),
+                                            tint = if (resolvedPreview == 1) Color.White
+                                            else Color.White.copy(alpha = 0.75f)
+                                        )
+                                    }
+                                }
+                            }
+                        }
                         Box(
                             modifier = Modifier
                                 .width(84.dp)
@@ -1019,8 +1115,6 @@ fun CustomizeScheduleScreen(
                                     shape = { ContinuousCapsule() },
                                     effects = {
                                         vibrancy()
-                                        blur(2f.dp.toPx())
-                                        lens(12f.dp.toPx(), 12f.dp.toPx())
                                     },
                                     highlight = null,
                                     shadow = { Shadow(alpha = 0.3f) },

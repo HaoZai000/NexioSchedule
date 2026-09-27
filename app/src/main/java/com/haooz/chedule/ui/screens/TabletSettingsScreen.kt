@@ -446,7 +446,8 @@ fun TabletSettingsScreen(
 
     BoxWithConstraints(modifier = Modifier.fillMaxSize()) {
         val density = LocalDensity.current
-        val leftWidth = maxWidth * 0.42f
+        // 左栏固定为屏宽 0.39，不随侧栏展开/收起变化；剩余宽度全给右栏
+        val leftWidth = LocalConfiguration.current.screenWidthDp.dp * 0.39f
         val rightWidth = maxWidth - leftWidth
         // screen 层内容已位于导航栏之外（pager 已按 railPadding 前移），分界就在左栏宽度处
         val dividerX = leftWidth

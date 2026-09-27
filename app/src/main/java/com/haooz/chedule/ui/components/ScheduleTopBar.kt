@@ -40,6 +40,8 @@ import com.haooz.chedule.ui.basic.ProgressiveBlurTopBar
 import com.haooz.chedule.ui.basic.SharedScrollBehavior
 import top.yukonga.miuix.kmp.basic.Text
 import top.yukonga.miuix.kmp.icon.MiuixIcons
+import top.yukonga.miuix.kmp.icon.basic.FastForward
+import top.yukonga.miuix.kmp.icon.extended.Background
 import top.yukonga.miuix.kmp.icon.extended.ConvertFile
 import top.yukonga.miuix.kmp.icon.extended.More
 import top.yukonga.miuix.kmp.icon.extended.Reset
@@ -78,6 +80,8 @@ internal fun ScheduleTopBar(
     onBackToCurrentWeek: () -> Unit,
     onOpenSwitchSchedule: () -> Unit,
     onMoreClick: () -> Unit = {},
+    onJumpWeek: () -> Unit = {},
+    onEnterCustomize: () -> Unit = {},
     isTablet: Boolean = false,
     isShiftMode: Boolean = false,
     liquidGlassBackdrop: com.kyant.backdrop.Backdrop?,
@@ -134,38 +138,60 @@ internal fun ScheduleTopBar(
                         horizontalArrangement = Arrangement.spacedBy(8.dp),
                         verticalAlignment = Alignment.CenterVertically
                     ) {
-                        // 返回本周改由侧栏底部「今」按钮承担
-                        if (!isShiftMode) {
+                        if (isTablet) {
+                            // pad：切换课表/课程管理已在侧栏，右上角直接放跳转周数 + 课表外观
+                            LiquidTopBarButton(
+                                onClick = onJumpWeek,
+                                backdrop = liquidGlassBackdrop,
+                                icon = MiuixIcons.Basic.FastForward,
+                                contentDescription = "跳转周数",
+                                iconSize = 23.dp,
+                                backdropAlpha = backdropAlpha,
+                                shadowAlpha = shadowAlpha,
+                            )
+                            LiquidTopBarButton(
+                                onClick = onEnterCustomize,
+                                backdrop = liquidGlassBackdrop,
+                                icon = MiuixIcons.Background,
+                                contentDescription = "课表外观",
+                                iconSize = 23.dp,
+                                backdropAlpha = backdropAlpha,
+                                shadowAlpha = shadowAlpha,
+                            )
+                        } else {
+                            // 返回本周改由侧栏底部「今」按钮承担
+                            if (!isShiftMode) {
+                                LiquidTopBarButton(
+                                    onClick = {
+                                        onOpenSwitchSchedule()
+                                    },
+                                    backdrop = liquidGlassBackdrop,
+                                    icon = MiuixIcons.Normal.ConvertFile,
+                                    contentDescription = "课表切换",
+                                    iconSize = 27.dp,
+                                    backdropAlpha = backdropAlpha,
+                                    shadowAlpha = shadowAlpha
+                                )
+                            }
                             LiquidTopBarButton(
                                 onClick = {
-                                    onOpenSwitchSchedule()
+                                    onMoreClick()
                                 },
                                 backdrop = liquidGlassBackdrop,
-                                icon = MiuixIcons.Normal.ConvertFile,
-                                contentDescription = "课表切换",
-                                iconSize = 27.dp,
+                                icon = MiuixIcons.More,
+                                contentDescription = "更多",
+                                iconSize = 23.dp,
                                 backdropAlpha = backdropAlpha,
-                                shadowAlpha = shadowAlpha
+                                shadowAlpha = shadowAlpha,
+                                modifier = Modifier.offset {
+                                        val f = buttonFraction.value
+                                        IntOffset(
+                                            x = (-100 * f).dp.roundToPx(),
+                                            y = (45 * f).dp.roundToPx()
+                                        )
+                                    }
                             )
                         }
-                        LiquidTopBarButton(
-                            onClick = {
-                                onMoreClick()
-                            },
-                            backdrop = liquidGlassBackdrop,
-                            icon = MiuixIcons.More,
-                            contentDescription = "更多",
-                            iconSize = 23.dp,
-                            backdropAlpha = backdropAlpha,
-                            shadowAlpha = shadowAlpha,
-                            modifier = Modifier.offset {
-                                    val f = buttonFraction.value
-                                    IntOffset(
-                                        x = (-100 * f).dp.roundToPx(),
-                                        y = (45 * f).dp.roundToPx()
-                                    )
-                                }
-                        )
                     }
                 }
             )

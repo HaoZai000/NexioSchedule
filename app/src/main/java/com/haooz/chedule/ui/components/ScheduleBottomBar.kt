@@ -43,7 +43,7 @@ internal fun ScheduleBottomBar(
     val onSelect: (Int) -> Unit = { idx -> onTabSelected(idx) }
     val iconTint = MiuixTheme.colorScheme.onSurfaceContainer.copy(alpha = 0.8f)
     val navBarBottomInset = WindowInsets.navigationBars.asPaddingValues().calculateBottomPadding()
-    val bottomPadding = maxOf(28.dp, navBarBottomInset + 8.dp)
+    val bottomPadding = maxOf(24.dp, navBarBottomInset + 8.dp)
 
     Box(
         modifier = Modifier

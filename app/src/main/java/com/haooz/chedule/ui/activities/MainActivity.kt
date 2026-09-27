@@ -137,6 +137,7 @@ import com.haooz.chedule.ui.screens.ScheduleGridGeometry
 import com.haooz.chedule.ui.screens.SettingsScreen
 import com.haooz.chedule.ui.screens.ShiftScheduleScreen
 import com.haooz.chedule.ui.screens.TabletCourseManagePane
+import com.haooz.chedule.ui.screens.TabletSwitchSchedulePane
 import com.haooz.chedule.ui.screens.TodayScreen
 import com.haooz.chedule.ui.theme.CourseScheduleTheme
 import com.haooz.chedule.ui.utils.LocalForcedDarkTheme
@@ -1085,6 +1086,21 @@ private fun MorePopupMenus(
                     )
                 }
             )
+            LiquidGlassDropdownMenuItem(
+                text = "课表外观",
+                onClick = {
+                    onTodayMorePopupDismiss()
+                    onEnterCustomize()
+                },
+                icon = {
+                    Icon(
+                        imageVector = MiuixIcons.Background,
+                        contentDescription = null,
+                        tint = MiuixTheme.colorScheme.onSurface,
+                        modifier = Modifier.size(23.dp)
+                    )
+                }
+            )
         }
     }
 }
@@ -1663,10 +1679,10 @@ fun CourseScheduleApp() {
         pageCount = { todayMaxDateOffset * 2 }
     )
 
-    // 主 tab 平移容器：今日/课程表/设置（排班模式为排班/设置），仅点底栏 tab 驱动
+    // 主 tab 平移容器：今日/课程表/我的/课程管理/切换课表（排班模式为排班/设置），仅点底栏/侧栏 tab 驱动
     val mainPagerState = rememberPagerState(
-        initialPage = selectedTab.coerceIn(0, 3),
-        pageCount = { if (isShiftMode) 2 else 4 }
+        initialPage = selectedTab.coerceIn(0, 4),
+        pageCount = { if (isShiftMode) 2 else 5 }
     )
     // 程序化切 tab 期间为 true，避免 currentPage 在动画中途把 selectedTab 拉回去
     var mainTabProgrammatic by remember { mutableStateOf(false) }
@@ -1674,7 +1690,7 @@ fun CourseScheduleApp() {
     // 二级页侧栏点选主 tab（无转场回来后处理）
     LaunchedEffect(com.haooz.chedule.ui.components.TabletNavSideState.pendingMainTab) {
         val pending = com.haooz.chedule.ui.components.TabletNavSideState.pendingMainTab
-        if (pending in 0..3 && shiftModeInitialized) {
+        if (pending in 0..4 && shiftModeInitialized) {
             selectedTab = pending
             mainPagerState.scrollToPage(pending)
             com.haooz.chedule.ui.components.TabletNavSideState.pendingMainTab = -1
@@ -2641,17 +2657,24 @@ fun CourseScheduleApp() {
             val scaffoldContent = @Composable {
                 val onMainTabSelected: (Int) -> Unit = { idx ->
                     if (idx != selectedTab) {
+                        // 先锁状态、立刻改选中，选中遮罩淡入淡出由侧栏自行驱动
                         mainTabProgrammatic = true
                         selectedTab = idx
-                        com.haooz.chedule.ui.utils.CrashLogHelper.trace(
-                            "主页", "tab", "idx=$idx shift=$isShiftMode rail=${navBarStyle == "rail"}"
-                        )
                         coroutineScope.launch {
                             try {
-                                if (todayPagerState.isScrollInProgress) todayPagerState.cancelScroll()
-                                if (pagerState.isScrollInProgress) pagerState.cancelScroll()
-                                if (mainPagerState.isScrollInProgress) mainPagerState.cancelScroll()
-                                mainPagerState.animateMainTabTo(idx)
+                                // pad：只取消主 pager 未完成滚动，尽快落页，保证点击跟手
+                                if (navBarStyle == "rail") {
+                                    if (mainPagerState.isScrollInProgress) mainPagerState.cancelScroll()
+                                    mainPagerState.scrollToPage(idx)
+                                } else {
+                                    if (todayPagerState.isScrollInProgress) todayPagerState.cancelScroll()
+                                    if (pagerState.isScrollInProgress) pagerState.cancelScroll()
+                                    if (mainPagerState.isScrollInProgress) mainPagerState.cancelScroll()
+                                    mainPagerState.animateMainTabTo(idx)
+                                }
+                                com.haooz.chedule.ui.utils.CrashLogHelper.trace(
+                                    "主页", "tab", "idx=$idx shift=$isShiftMode rail=${navBarStyle == "rail"}"
+                                )
                             } finally {
                                 mainTabProgrammatic = false
                             }
@@ -2803,6 +2826,13 @@ fun CourseScheduleApp() {
                                             }
                                         },
                                         onMoreClick = { showMorePopup = true },
+                                        onJumpWeek = { viewModel.showJumpWeekDialog() },
+                                        onEnterCustomize = {
+                                            coroutineScope.launch {
+                                                delay(200.milliseconds)
+                                                enterCustomizePage()
+                                            }
+                                        },
                                         isTablet = isTablet,
                                         isShiftMode = isShiftMode,
                                         liquidGlassBackdrop = chromeBackdrop,
@@ -2867,6 +2897,13 @@ fun CourseScheduleApp() {
                                     isToday = todayIsToday,
                                     onBackToToday = { scrollToTodayTrigger++ },
                                     onMoreClick = { showTodayMorePopup = true },
+                                    onJumpToDate = { todayJumpToDateTrigger++ },
+                                    onEnterCustomize = {
+                                        coroutineScope.launch {
+                                            delay(200.milliseconds)
+                                            enterCustomizePage()
+                                        }
+                                    },
                                     scrollBehavior = todayScrollBehavior,
                                     showMorePopup = showTodayMorePopup,
                                     visible = showTodayTitle,
@@ -3556,6 +3593,14 @@ fun CourseScheduleApp() {
                                     3 -> {
                                         TabletCourseManagePane(
                                             viewModel = viewModel,
+                                            settingsViewModel = settingsViewModel,
+                                            liquidGlassBackdrop = liquidGlassBackdrop,
+                                        )
+                                    }
+                                    4 -> {
+                                        TabletSwitchSchedulePane(
+                                            viewModel = viewModel,
+                                            scheduleViewModel = scheduleViewModel,
                                             settingsViewModel = settingsViewModel,
                                             liquidGlassBackdrop = liquidGlassBackdrop,
                                         )
@@ -4669,6 +4714,25 @@ fun CourseScheduleApp() {
                         applyAppearance(newAppearance)
                     },
                     hasWallpaper = wallpaperBitmap != null,
+                    previewPage = if (selectedTab == 1) 1 else 0,
+                    onPreviewPageChange = { page ->
+                        val target = if (page == 1) 1 else 0
+                        if (selectedTab != target) {
+                            mainTabProgrammatic = true
+                            selectedTab = target
+                            coroutineScope.launch {
+                                try {
+                                    if (navBarStyle == "rail") {
+                                        mainPagerState.scrollToPage(target)
+                                    } else {
+                                        mainPagerState.animateMainTabTo(target)
+                                    }
+                                } finally {
+                                    mainTabProgrammatic = false
+                                }
+                            }
+                        }
+                    },
                 )
             }
         }
@@ -5282,6 +5346,8 @@ private fun TodayTopBar(
     isToday: Boolean = true,
     onBackToToday: () -> Unit = {},
     onMoreClick: () -> Unit = {},
+    onJumpToDate: () -> Unit = {},
+    onEnterCustomize: () -> Unit = {},
     scrollBehavior: SharedScrollBehavior? = null,
     showMorePopup: Boolean = false,
     visible: Boolean = true,
@@ -5327,26 +5393,28 @@ private fun TodayTopBar(
             endAction = { backdropAlpha, shadowAlpha ->
                 if (visible) {
                     if (isTabletLiquidGlass) {
-                        // 返回今日改由侧栏底部「今」按钮承担
+                        // pad：课程管理已在侧栏，右上角直接放跳转日期 + 课表外观
                         Row(
                             horizontalArrangement = Arrangement.spacedBy(8.dp),
                             verticalAlignment = Alignment.CenterVertically
                         ) {
                             LiquidTopBarButton(
-                                onClick = onMoreClick,
+                                onClick = onJumpToDate,
                                 backdrop = liquidGlassBackdrop,
-                                icon = MiuixIcons.More,
-                                contentDescription = "更多",
+                                icon = MiuixIcons.Basic.FastForward,
+                                contentDescription = "跳转日期",
                                 iconSize = 23.dp,
                                 backdropAlpha = backdropAlpha,
                                 shadowAlpha = shadowAlpha,
-                                modifier = Modifier.offset {
-                                    val f = buttonFraction.value
-                                    IntOffset(
-                                        x = (-100 * f).dp.roundToPx(),
-                                        y = (45 * f).dp.roundToPx()
-                                    )
-                                }
+                            )
+                            LiquidTopBarButton(
+                                onClick = onEnterCustomize,
+                                backdrop = liquidGlassBackdrop,
+                                icon = MiuixIcons.Background,
+                                contentDescription = "课表外观",
+                                iconSize = 23.dp,
+                                backdropAlpha = backdropAlpha,
+                                shadowAlpha = shadowAlpha,
                             )
                         }
                     } else {

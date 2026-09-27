@@ -7,8 +7,10 @@ import android.view.RoundedCorner
 import android.view.WindowManager
 import androidx.compose.animation.core.Spring
 import androidx.compose.animation.core.animate
+import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.spring
 import androidx.compose.animation.core.tween
+import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.foundation.background
@@ -72,6 +74,7 @@ import top.yukonga.miuix.kmp.icon.MiuixIcons
 import top.yukonga.miuix.kmp.icon.extended.Album
 import top.yukonga.miuix.kmp.icon.extended.Backup
 import top.yukonga.miuix.kmp.icon.extended.ContactsCircle
+import top.yukonga.miuix.kmp.icon.extended.ConvertFile
 import top.yukonga.miuix.kmp.icon.extended.Months
 import top.yukonga.miuix.kmp.icon.extended.Settings
 import top.yukonga.miuix.kmp.icon.extended.Sidebar
@@ -138,11 +141,14 @@ fun TabletNavExpandAnimator() {
     }
 }
 
-/** 侧栏避让宽度 px。只在 layout/draw 阶段调用。 */
-fun Density.tabletNavSideInsetPx(screenWidthDp: Int): Float {
+/** 侧栏避让宽度 px。竖屏展开为叠层时固定按折叠轨，不随展开变宽。 */
+fun Density.tabletNavSideInsetPx(screenWidthDp: Int, screenHeightDp: Int = screenWidthDp): Float {
     if (screenWidthDp < 600) return 0f
     val expandedWidth = screenWidthDp.dp * TabletNavSideWidthFraction
     val collapsedTotal = TabletNavSideInset + TabletNavIconRailWidth
+    if (screenHeightDp > screenWidthDp) {
+        return collapsedTotal.toPx()
+    }
     return androidx.compose.ui.unit.lerp(
         collapsedTotal,
         expandedWidth,
@@ -151,19 +157,35 @@ fun Density.tabletNavSideInsetPx(screenWidthDp: Int): Float {
 }
 
 /**
- * 内容左避让侧栏。展开进度只在 measure 读，只失效 layout，不进组合。
+ * 目标宽度在展开/折叠那一刻一次性测量出来（只重排一次），
+ * 中间所有帧只做 graphicsLayer 平移，内容树在动画期间零重绘。
+ * 竖屏：展开是纯叠层（侧栏浮在内容上 + 压暗），内容始终按折叠轨避让，布局不动。
+ * 横屏：展开仍让位给侧栏。
  */
 @Composable
 fun tabletNavRailStartPadding(): Modifier {
-    val screenWidthDp = LocalConfiguration.current.screenWidthDp
+    val configuration = LocalConfiguration.current
+    val screenWidthDp = configuration.screenWidthDp
     if (screenWidthDp < 600) return Modifier
+    val isPortrait = configuration.screenHeightDp > configuration.screenWidthDp
     val density = LocalDensity.current
     val collapsedTotalPx = with(density) { (TabletNavSideInset + TabletNavIconRailWidth).toPx() }
     val expandedWidthPx = with(density) { (screenWidthDp.dp * TabletNavSideWidthFraction).toPx() }
-    return TabletNavRailStartPaddingElement(collapsedTotalPx, expandedWidthPx)
+    // 竖屏叠层：内容 start padding 恒为折叠轨，展开不改变布局
+    if (isPortrait) {
+        return TabletNavRailTargetPaddingElement(collapsedTotalPx, collapsedTotalPx)
+    }
+    return TabletNavRailTargetPaddingElement(collapsedTotalPx, expandedWidthPx)
+        .graphicsLayer {
+            val p = TabletNavSideState.expandProgress.floatValue
+            val targetPad =
+                if (TabletNavSideState.expanded) expandedWidthPx else collapsedTotalPx
+            translationX =
+                androidx.compose.ui.util.lerp(collapsedTotalPx, expandedWidthPx, p) - targetPad
+        }
 }
 
-private class TabletNavRailStartPaddingElement(
+private class TabletNavRailTargetPaddingElement(
     private val collapsedTotalPx: Float,
     private val expandedWidthPx: Float,
 ) : LayoutModifier {
@@ -172,11 +194,8 @@ private class TabletNavRailStartPaddingElement(
         measurable: Measurable,
         constraints: Constraints,
     ): MeasureResult {
-        val padPx = androidx.compose.ui.util.lerp(
-            collapsedTotalPx,
-            expandedWidthPx,
-            TabletNavSideState.expandProgress.floatValue,
-        )
+        // 只跟展开布尔，不跟进度：一次伸缩只在这里重排一次
+        val padPx = if (TabletNavSideState.expanded) expandedWidthPx else collapsedTotalPx
         val padInt = padPx.roundToInt().coerceAtLeast(0)
         // 与 Modifier.padding(start=) 同语义：只收窄子约束横向，高度跟内容，不撑满
         val placeable = measurable.measure(
@@ -194,7 +213,7 @@ private class TabletNavRailStartPaddingElement(
 
     override fun equals(other: Any?): Boolean {
         if (this === other) return true
-        if (other !is TabletNavRailStartPaddingElement) return false
+        if (other !is TabletNavRailTargetPaddingElement) return false
         return collapsedTotalPx == other.collapsedTotalPx && expandedWidthPx == other.expandedWidthPx
     }
 
@@ -251,8 +270,10 @@ private class TabletNavPanelWidthElement(
 
 /**
  * 设置页叠层标题槽：左/右栏顶栏标题随侧栏避让平移与分宽。
+ * 竖屏侧栏为叠层，标题不跟随展开；横屏仍随避让。
  * 进度只在 measure 读。
  */
+@Composable
 internal fun Modifier.tabletNavChromeTitleSlot(
     maxWPx: Float,
     collapsedTotalPx: Float,
@@ -260,14 +281,19 @@ internal fun Modifier.tabletNavChromeTitleSlot(
     statusBarPx: Int,
     heightPx: Int,
     isLeftColumn: Boolean,
-): Modifier = this then TabletNavChromeTitleSlotElement(
-    maxWPx = maxWPx,
-    collapsedTotalPx = collapsedTotalPx,
-    expandedWidthPx = expandedWidthPx,
-    statusBarPx = statusBarPx,
-    heightPx = heightPx,
-    isLeftColumn = isLeftColumn,
-)
+): Modifier {
+    val configuration = LocalConfiguration.current
+    val lockCollapsed = configuration.screenHeightDp > configuration.screenWidthDp
+    return this then TabletNavChromeTitleSlotElement(
+        maxWPx = maxWPx,
+        collapsedTotalPx = collapsedTotalPx,
+        expandedWidthPx = expandedWidthPx,
+        statusBarPx = statusBarPx,
+        heightPx = heightPx,
+        isLeftColumn = isLeftColumn,
+        lockCollapsed = lockCollapsed,
+    )
+}
 
 private class TabletNavChromeTitleSlotElement(
     private val maxWPx: Float,
@@ -276,19 +302,25 @@ private class TabletNavChromeTitleSlotElement(
     private val statusBarPx: Int,
     private val heightPx: Int,
     private val isLeftColumn: Boolean,
+    private val lockCollapsed: Boolean = false,
 ) : LayoutModifier {
 
     override fun MeasureScope.measure(
         measurable: Measurable,
         constraints: Constraints,
     ): MeasureResult {
-        val sidePad = androidx.compose.ui.util.lerp(
-            collapsedTotalPx,
-            expandedWidthPx,
-            TabletNavSideState.expandProgress.floatValue,
-        )
+        val sidePad = if (lockCollapsed) {
+            collapsedTotalPx
+        } else {
+            androidx.compose.ui.util.lerp(
+                collapsedTotalPx,
+                expandedWidthPx,
+                TabletNavSideState.expandProgress.floatValue,
+            )
+        }
         val contentW = (maxWPx - sidePad).coerceAtLeast(0f)
-        val leftW = contentW * 0.42f
+        // 左栏标题槽与分栏同步：固定屏宽 0.39（maxWPx 即全屏宽）
+        val leftW = maxWPx * 0.39f
         val x: Int
         val w: Int
         if (isLeftColumn) {
@@ -317,7 +349,8 @@ private class TabletNavChromeTitleSlotElement(
             expandedWidthPx == other.expandedWidthPx &&
             statusBarPx == other.statusBarPx &&
             heightPx == other.heightPx &&
-            isLeftColumn == other.isLeftColumn
+            isLeftColumn == other.isLeftColumn &&
+            lockCollapsed == other.lockCollapsed
     }
 
     override fun hashCode(): Int {
@@ -398,6 +431,15 @@ fun TabletNavSideBar(
     modifier: Modifier = Modifier,
 ) {
     TabletNavExpandAnimator()
+    val configuration = LocalConfiguration.current
+    val isPortrait = configuration.screenHeightDp > configuration.screenWidthDp
+    // 仅竖屏默认折叠（初始化一次）；横屏保持原默认展开
+    LaunchedEffect(Unit) {
+        if (isPortrait) {
+            TabletNavSideState.expanded = false
+            TabletNavSideState.expandProgress.floatValue = 0f
+        }
+    }
     val statusBarPadding = WindowInsets.statusBars.asPaddingValues().calculateTopPadding()
     val topPadding = if (statusBarPadding > 0.dp) statusBarPadding else 36.dp
     val isLightTheme = !isAppDarkTheme()
@@ -428,6 +470,7 @@ fun TabletNavSideBar(
             "课程表" to MiuixIcons.Months,
             "我的" to MiuixIcons.ContactsCircle,
             "课程管理" to MiuixIcons.Backup,
+            "切换课表" to MiuixIcons.ConvertFile,
         )
     }
 
@@ -438,6 +481,32 @@ fun TabletNavSideBar(
     var dataGroupHeightPx by remember { mutableFloatStateOf(0f) }
 
     Box(modifier = modifier.fillMaxSize()) {
+        // 竖屏展开压暗：淡入淡出；折叠时不占命中；独立合成层不进模糊采样
+        if (isPortrait) {
+            AnimatedVisibility(
+                visible = TabletNavSideState.expanded,
+                enter = fadeIn(animationSpec = tween(180)),
+                exit = fadeOut(animationSpec = tween(180)),
+            ) {
+                Box(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .graphicsLayer {
+                            alpha = 0.12f
+                            // 离屏合成，避免被 drawBackdrop/模糊采样进玻璃
+                            compositingStrategy =
+                                androidx.compose.ui.graphics.CompositingStrategy.Offscreen
+                        }
+                        .background(Color.Black)
+                        .clickable(
+                            interactionSource = remember { MutableInteractionSource() },
+                            indication = null,
+                        ) {
+                            TabletNavSideState.expanded = false
+                        }
+                )
+            }
+        }
         Column(
             modifier = Modifier
                 .padding(
@@ -486,56 +555,66 @@ fun TabletNavSideBar(
                 verticalArrangement = Arrangement.spacedBy(0.dp),
             ) {
                 tabs.forEachIndexed { index, (label, icon) ->
-                    // 「数据管理」分组（分界线 + 小标题 + 课程管理）：
-                    // 折叠态只保留今日/课程表/设置；若「课程管理」正被选中则保留该项，
+                    // 「数据管理」分组（分界线 + 小标题 + 课程管理 + 切换课表）：
+                    // 折叠态只保留今日/课程表/我的；若分组内某项正被选中则保留该项，
                     // 并随分界线/标题收拢连贯上移贴近上方选项。
-                    val isDataGroup = !isShiftMode && index == tabs.lastIndex
-                    if (isDataGroup) {
-                        // 分界线 + 小标题：折叠全程只做淡入淡出，并且始终占着自己的高度
-                        Column(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .graphicsLayer {
-                                    alpha = TabletNavSideState.expandProgress.floatValue
-                                }
-                                .onGloballyPositioned {
-                                    dataGroupHeightPx = it.size.height.toFloat()
-                                },
-                            verticalArrangement = Arrangement.spacedBy(0.dp),
-                        ) {
-                            Box(
+                    val dataGroupStart = if (isShiftMode) -1 else tabs.size - 2
+                    val inDataGroup = !isShiftMode && index >= dataGroupStart
+                    if (inDataGroup) {
+                        val isFirstDataItem = index == dataGroupStart
+                        if (isFirstDataItem) {
+                            // 分界线 + 小标题：折叠全程只做淡入淡出，并且始终占着自己的高度
+                            Column(
                                 modifier = Modifier
                                     .fillMaxWidth()
-                                    .padding(
-                                        top = 14.dp,
-                                        bottom = 12.dp,
-                                        start = 10.dp,
-                                        end = 10.dp
-                                    )
-                                    .height(0.8.dp)
-                                    .background(
-                                        if (isLightTheme) Color.Black.copy(alpha = 0.08f)
-                                        else Color.White.copy(alpha = 0.12f)
-                                    )
-                            )
-                            Text(
-                                text = "数据管理",
-                                fontSize = 13.4.sp,
-                                color = MiuixTheme.colorScheme.onSurfaceVariantSummary
-                                    .copy(alpha = 0.6f),
-                                modifier = Modifier
-                                    // 与条目图标同一条左缘
-                                    .padding(start = 10.dp, top = 12.dp, bottom = 6.dp)
-                            )
+                                    .graphicsLayer {
+                                        alpha = TabletNavSideState.expandProgress.floatValue
+                                    }
+                                    .onGloballyPositioned {
+                                        dataGroupHeightPx = it.size.height.toFloat()
+                                    },
+                                verticalArrangement = Arrangement.spacedBy(0.dp),
+                            ) {
+                                Box(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .padding(
+                                            top = 14.dp,
+                                            bottom = 12.dp,
+                                            start = 10.dp,
+                                            end = 10.dp
+                                        )
+                                        .height(0.8.dp)
+                                        .background(
+                                            if (isLightTheme) Color.Black.copy(alpha = 0.08f)
+                                            else Color.White.copy(alpha = 0.12f)
+                                        )
+                                )
+                                Text(
+                                    text = "数据管理",
+                                    fontSize = 13.4.sp,
+                                    color = MiuixTheme.colorScheme.onSurfaceVariantSummary
+                                        .copy(alpha = 0.6f),
+                                    modifier = Modifier
+                                        // 与条目图标同一条左缘
+                                        .padding(start = 10.dp, top = 12.dp, bottom = 6.dp)
+                                )
+                            }
                         }
-                        // 课程管理条目：选中时用反向平移补掉上方留白——展开时在原位
+                        // 分组条目：选中时用反向平移补掉上方留白——展开时在原位
+                        // 第二项还要再让开第一条数据项的行高，才能贴到「我的」下方
+                        val itemHeightPx = with(density) { 52.dp.toPx() }
+                        val extraOffsetPx = (index - dataGroupStart) * itemHeightPx
                         Box(
                             modifier = Modifier.graphicsLayer {
                                 val p = TabletNavSideState.expandProgress.floatValue
                                 // 仅选中项在折叠时上移到「我的」下方；未选中不位移，只原地淡出
                                 translationY =
-                                    if (index == selectedTab) -(1f - p) * dataGroupHeightPx
-                                    else 0f
+                                    if (index == selectedTab) {
+                                        -(1f - p) * (dataGroupHeightPx + extraOffsetPx)
+                                    } else {
+                                        0f
+                                    }
                                 alpha = if (index == selectedTab) 1f else p
                             }
                         ) {
@@ -547,8 +626,7 @@ fun TabletNavSideBar(
                                 selectedBg = selectedBg,
                                 showSelectedBg = true,
                                 showLabel = true,
-                                emphasized = index == selectedTab &&
-                                    TabletNavSideState.expanded,
+                                labelFontWeight = FontWeight.Normal,
                                 // 折叠且未选中时不可见，同时也不应响应点击
                                 onClick = {
                                     if (TabletNavSideState.expanded || index == selectedTab) {
@@ -566,8 +644,6 @@ fun TabletNavSideBar(
                             selectedBg = selectedBg,
                             showSelectedBg = true,
                             showLabel = true,
-                            // 字重只跟布尔展开态，动画中途不触发文本重组
-                            emphasized = index == selectedTab && TabletNavSideState.expanded,
                             onClick = { onTabSelected(index) },
                         )
                     }
@@ -605,7 +681,7 @@ fun TabletNavSideBar(
 
 /**
  * 侧栏条目：展开/折叠共用。
- * 图标与文字始终同黑白主色；选中只靠底色。[showLabel]=false 时不显示右侧文字。
+ * 图标与文字始终同黑白主色；选中遮罩底色淡入淡出。[showLabel]=false 时不显示右侧文字。
  */
 @Composable
 private fun TabletNavSideItem(
@@ -616,7 +692,7 @@ private fun TabletNavSideItem(
     selectedBg: Color,
     showSelectedBg: Boolean,
     showLabel: Boolean,
-    emphasized: Boolean = false,
+    labelFontWeight: FontWeight = FontWeight.Medium,
     onClick: () -> Unit,
 ) {
     Box(
@@ -629,12 +705,19 @@ private fun TabletNavSideItem(
                 onClick = onClick,
             ),
     ) {
-        if (showSelectedBg && selected) {
+        // 选中遮罩：旧的淡出与新的淡入同时交叉进行
+        val maskAlpha by animateFloatAsState(
+            targetValue = if (showSelectedBg && selected) 1f else 0f,
+            animationSpec = tween(durationMillis = 320),
+            label = "navItemMaskAlpha",
+        )
+        if (showSelectedBg) {
             Box(
                 modifier = Modifier
                     .padding(horizontal = 4.dp, vertical = 2.dp)
                     .fillMaxWidth()
                     .height(48.dp)
+                    .graphicsLayer { alpha = maskAlpha }
                     .clip(ContinuousCapsule())
                     .background(selectedBg),
             )
@@ -657,8 +740,8 @@ private fun TabletNavSideItem(
             if (showLabel) {
                 Text(
                     text = label,
-                    fontSize = 15.sp,
-                    fontWeight = if (emphasized) FontWeight.SemiBold else FontWeight.Medium,
+                    fontSize = 16.sp,
+                    fontWeight = labelFontWeight,
                     color = textColor,
                     maxLines = 1,
                     overflow = TextOverflow.Clip,

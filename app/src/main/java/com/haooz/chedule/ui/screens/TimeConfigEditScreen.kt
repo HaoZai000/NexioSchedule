@@ -128,8 +128,12 @@ private data class ConfigAnimState(
     val gesture: Float
 )
 
+/**
+ * 裁切形状。宽度取当次回调的 size，不在构造时捕获外部宽度：
+ * 折叠屏展开 / 分屏 / 横竖屏切换时容器宽度会变，而 clipShape 是 remember 单例，
+ * 捕获旧宽度会让裁切停在旧值（平板上表现为右侧一段被裁掉）。
+ */
 private class ConfigAnimClipShape(
-    private val screenWidth: Float,
     private val screenCornerRadiusPx: Float,
     private val startCornerRadiusPx: Float,
     private val animState: State<ConfigAnimState>
@@ -153,7 +157,7 @@ private class ConfigAnimClipShape(
         val compensate = (1f - s.gesture) / s.scale + s.gesture
         val radiusDp = (radiusPx * compensate / density.density).dp
         return ContinuousRoundedRectangle(radiusDp).createOutline(
-            Size(screenWidth, s.clipBottom),
+            Size(size.width, s.clipBottom),
             layoutDirection,
             density
         )
@@ -615,9 +619,8 @@ fun TimeConfigEditScreen(
     val tabletHorizontalPadding = if (isTablet) 20.dp else 16.dp
 
     val s = animState.value
-    val clipShape = remember {
+    val clipShape = remember(screenCornerRadius, startCornerRadiusPx) {
         ConfigAnimClipShape(
-            screenWidth,
             screenCornerRadius,
             startCornerRadiusPx,
             animState

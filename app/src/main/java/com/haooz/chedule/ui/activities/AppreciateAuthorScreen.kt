@@ -19,7 +19,6 @@ import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.CircleShape
@@ -67,9 +66,12 @@ import top.yukonga.miuix.kmp.blur.rememberLayerBackdrop
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 import top.yukonga.miuix.kmp.utils.scrollEndHaptic
 
-private val RankGold = Color(0xFFE8B84B)
-private val RankSilver = Color(0xFFA8B0BC)
-private val RankBronze = Color(0xFFC48A5A)
+/** 名次金属色： */
+private fun rankAccent(rank: Int, isDark: Boolean): Color = when (rank) {
+    1 -> Color(0xFFE8C26A)
+    2 ->  Color(0xFFC5CDD8)
+    else ->  Color(0xFFD4A574)
+}
 
 @SuppressLint("ConfigurationScreenWidthHeight")
 @Composable
@@ -174,119 +176,109 @@ private fun PodiumStage(entries: List<AppreciationItem>, isTablet: Boolean = fal
     val second = entries.getOrNull(1)
     val third = entries.getOrNull(2)
 
-    // 三个排行全宽铺开（不用赞赏码的 0.8 宽）
-    Box(
-        modifier = Modifier
-            .fillMaxWidth()
-            .height(300.dp)
-            .then(
-                if (first != null) {
-                    Modifier.drawSpotlightGlow(isDark)
-                } else {
-                    Modifier
-                }
-            ),
-        contentAlignment = Alignment.BottomCenter
-    ) {
-        // 固定台座宽度，避免第三名列被 weight 挤压导致文字裁切
-        // 平板三列全宽均分，不套 0.8 宽
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(horizontal = 4.dp, vertical = 12.dp),
-            horizontalArrangement = if (isTablet) Arrangement.SpaceEvenly else Arrangement.Center,
-            verticalAlignment = Alignment.Bottom
+    Column(modifier = Modifier.fillMaxWidth()) {
+        SmallTitle(
+            text = "累计赞助",
+            modifier = Modifier.offset(x = (-16).dp)
+        )
+        // 与赞赏码/捐赠明细同卡容器：宽度与兄弟区块一致，小屏不再被固定台座挤爆
+        Card(
+            cornerRadius = 20.dp,
+            modifier = Modifier.fillMaxWidth(),
+            insideMargin = PaddingValues(0.dp)
         ) {
-            if (second != null) {
-                PodiumColumn(rank = 2, item = second, isDark = isDark)
-            } else {
-                Spacer(modifier = Modifier.width(104.dp))
-            }
-            if (!isTablet) Spacer(modifier = Modifier.width(10.dp))
-            if (first != null) {
-                PodiumColumn(rank = 1, item = first, isDark = isDark)
-            } else {
-                Spacer(modifier = Modifier.width(120.dp))
-            }
-            if (!isTablet) Spacer(modifier = Modifier.width(10.dp))
-            if (third != null) {
-                PodiumColumn(rank = 3, item = third, isDark = isDark)
-            } else {
-                Spacer(modifier = Modifier.width(104.dp))
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .heightIn(min = if (isTablet) 300.dp else 260.dp)
+                    .then(if (first != null) Modifier.drawWinnerAura(isDark) else Modifier),
+                contentAlignment = Alignment.BottomCenter
+            ) {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 14.dp, vertical = 14.dp),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    verticalAlignment = Alignment.Bottom
+                ) {
+                    PodiumColumn(
+                        rank = 2,
+                        item = second,
+                        isDark = isDark,
+                        modifier = Modifier.weight(1f)
+                    )
+                    PodiumColumn(
+                        rank = 1,
+                        item = first,
+                        isDark = isDark,
+                        modifier = Modifier.weight(1f)
+                    )
+                    PodiumColumn(
+                        rank = 3,
+                        item = third,
+                        isDark = isDark,
+                        modifier = Modifier.weight(1f)
+                    )
+                }
             }
         }
     }
 }
 
-private fun Modifier.drawSpotlightGlow(isDark: Boolean): Modifier = this.drawBehind {
-    val glowColor = if (isDark) {
-        Color(0xFFE8B84B).copy(alpha = 0.22f)
-    } else {
-        Color(0xFFFFE9A8).copy(alpha = 0.55f)
-    }
-    val radius = size.minDimension * 0.55f
+/** 第一名背后极淡的暖金氛围光，浅色也克制，不再糊成一团黄斑 */
+private fun Modifier.drawWinnerAura(isDark: Boolean): Modifier = this.drawBehind {
+    val glow = Color(0xFFE8C26A).copy(alpha = 0.14f)
+    val radius = size.minDimension * 0.5f
     drawCircle(
         brush = Brush.radialGradient(
-            colors = listOf(glowColor, Color.Transparent),
-            center = Offset(size.width / 2f, size.height * 0.28f),
+            colors = listOf(glow, Color.Transparent),
+            center = Offset(size.width / 2f, size.height * 0.34f),
             radius = radius * 1.35f
         ),
         radius = radius * 1.35f,
-        center = Offset(size.width / 2f, size.height * 0.28f)
+        center = Offset(size.width / 2f, size.height * 0.34f)
     )
 }
 
 @Composable
 private fun PodiumColumn(
     rank: Int,
-    item: AppreciationItem,
+    item: AppreciationItem?,
     isDark: Boolean,
+    modifier: Modifier = Modifier,
 ) {
-    val rankColor = when (rank) {
-        1 -> RankGold
-        2 -> RankSilver
-        else -> RankBronze
-    }
+    val accent = rankAccent(rank, isDark)
     val avatarSize = when (rank) {
-        1 -> 72.dp
-        2 -> 56.dp
-        else -> 54.dp
+        1 -> 68.dp
+        2 -> 52.dp
+        else -> 50.dp
     }
     val pedestalHeight = when (rank) {
-        1 -> 148.dp
-        2 -> 120.dp
-        else -> 120.dp
-    }
-    val pedestalWidth = when (rank) {
-        1 -> 120.dp
-        2 -> 104.dp
-        else -> 104.dp
-    }
-    val ringWidth = when (rank) {
-        1 -> 3.dp
-        else -> 2.dp
+        1 -> 104.dp
+        2 -> 84.dp
+        else -> 76.dp
     }
     val nameSize = when (rank) {
-        1 -> 14.sp
+        1 -> 13.sp
         else -> 12.sp
     }
 
     Column(
         horizontalAlignment = Alignment.CenterHorizontally,
-        modifier = Modifier.width(pedestalWidth)
+        modifier = modifier
     ) {
-        // 头像 + 金属光环
+        // 头像 + 金属细环（不再大面积染色）
         Box(contentAlignment = Alignment.Center) {
             if (rank == 1) {
                 Box(
                     modifier = Modifier
-                        .size(avatarSize + 16.dp)
+                        .size(avatarSize + 18.dp)
                         .clip(CircleShape)
                         .background(
                             Brush.radialGradient(
                                 colors = listOf(
-                                    RankGold.copy(alpha = 0.35f),
-                                    RankGold.copy(alpha = 0f),
+                                    accent.copy(alpha = 0.22f),
+                                    accent.copy(alpha = 0f),
                                 )
                             )
                         )
@@ -295,77 +287,94 @@ private fun PodiumColumn(
             Box(
                 modifier = Modifier
                     .size(avatarSize)
-                    // 手绘柔光代替 shadow：Compose 圆形阴影在深色下会露八边形
                     .drawBehind {
-                        val glowAlpha = if (rank == 1) 0.28f else 0.18f
                         drawCircle(
-                            color = rankColor.copy(alpha = glowAlpha),
-                            radius = this.size.minDimension / 2f + 3.dp.toPx()
+                            color = accent.copy(alpha = if (rank == 1) 0.20f else 0.10f),
+                            radius = this.size.minDimension / 2f + 2.5.dp.toPx()
                         )
                     }
                     .clip(CircleShape)
-                    .background(MiuixTheme.colorScheme.primary.copy(alpha = 0.15f))
-                    .border(ringWidth, rankColor, CircleShape),
+                    .background(MiuixTheme.colorScheme.surfaceContainerHigh)
+                    .border(
+                        width = if (rank == 1) 2.5.dp else 1.5.dp,
+                        color = accent,
+                        shape = CircleShape
+                    ),
                 contentAlignment = Alignment.Center
             ) {
-                DonorAvatar(item = item, size = avatarSize)
+                if (item != null) {
+                    DonorAvatar(item = item, size = avatarSize)
+                }
             }
         }
 
-        Spacer(modifier = Modifier.height(8.dp))
+        Spacer(modifier = Modifier.height(10.dp))
 
-        // 台座（高度可随内容撑开，避免第三名文字被裁切）
+        // 台座：中性表面 + 金属细节点缀（避免大块金银铜染色显得廉价）
         Box(
             modifier = Modifier
-                .width(pedestalWidth)
+                .fillMaxWidth()
                 .heightIn(min = pedestalHeight)
-                .clip(ContinuousRoundedRectangle(18.dp))
-                .background(
-                    Brush.verticalGradient(
-                        colors = pedestalColors(rankColor, isDark)
-                    )
-                )
+                .clip(ContinuousRoundedRectangle(14.dp))
+                .background(Brush.verticalGradient(pedestalColors(isDark)))
                 .border(
                     width = 1.dp,
                     brush = Brush.verticalGradient(
                         colors = listOf(
-                            Color.White.copy(alpha = if (isDark) 0.18f else 0.55f),
-                            Color.White.copy(alpha = 0.05f),
+                            accent.copy(alpha = if (isDark) 0.36f else 0.28f),
+                            accent.copy(alpha = if (isDark) 0.10f else 0.08f),
                         )
                     ),
-                    shape = ContinuousRoundedRectangle(18.dp)
-                ),
-            contentAlignment = Alignment.Center
+                    shape = ContinuousRoundedRectangle(14.dp)
+                )
+                .drawBehind {
+                    // 顶部金属高光线
+                    val h = 2.dp.toPx()
+                    drawRoundRect(
+                        brush = Brush.horizontalGradient(
+                            colors = listOf(
+                                accent.copy(alpha = 0f),
+                                accent.copy(alpha = if (isDark) 0.55f else 0.45f),
+                                accent.copy(alpha = 0f),
+                            )
+                        ),
+                        topLeft = Offset(0f, 0f),
+                        size = size.copy(height = h),
+                    )
+                },
+            contentAlignment = Alignment.TopCenter
         ) {
             Column(
                 horizontalAlignment = Alignment.CenterHorizontally,
-                modifier = Modifier.padding(horizontal = 6.dp, vertical = 10.dp)
+                modifier = Modifier.padding(horizontal = 8.dp, vertical = 12.dp)
             ) {
                 Text(
                     text = rank.toString(),
-                    fontSize = if (rank == 1) 36.sp else 28.sp,
-                    fontWeight = FontWeight.Bold,
-                    color = rankColor.copy(alpha = if (isDark) 0.9f else 0.75f),
-                    lineHeight = if (rank == 1) 38.sp else 30.sp
+                    fontSize = if (rank == 1) 30.sp else 24.sp,
+                    fontWeight = FontWeight.Medium,
+                    color = accent,
+                    lineHeight = if (rank == 1) 32.sp else 26.sp
                 )
-                Spacer(modifier = Modifier.height(2.dp))
+                Spacer(modifier = Modifier.height(4.dp))
                 Text(
-                    text = item.nickname,
+                    text = item?.nickname ?: "—",
                     fontSize = nameSize,
                     fontWeight = if (rank == 1) FontWeight.SemiBold else FontWeight.Medium,
-                    color = if (isDark) Color(0xFFF4F5F7) else Color(0xFF2A2E36),
+                    color = MiuixTheme.colorScheme.onSurface.copy(
+                        alpha = if (item == null) 0.35f else 1f
+                    ),
                     maxLines = 2,
                     overflow = TextOverflow.Ellipsis,
                     textAlign = TextAlign.Center,
-                    lineHeight = nameSize * 1.2f,
+                    lineHeight = nameSize * 1.25f,
                     modifier = Modifier.fillMaxWidth()
                 )
-                Spacer(modifier = Modifier.height(2.dp))
+                Spacer(modifier = Modifier.height(4.dp))
                 Text(
-                    text = item.amount,
-                    fontSize = if (rank == 1) 15.sp else 13.sp,
+                    text = item?.amount.orEmpty(),
+                    fontSize = if (rank == 1) 14.sp else 12.sp,
                     fontWeight = FontWeight.SemiBold,
-                    color = rankColor.copy(alpha = 0.95f),
+                    color = MiuixTheme.colorScheme.primary,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
                     textAlign = TextAlign.Center,
@@ -376,18 +385,17 @@ private fun PodiumColumn(
     }
 }
 
-private fun pedestalColors(rankColor: Color, isDark: Boolean): List<Color> {
+/** 三列统一中性台座底色，名次差异交给金属描边/数字 */
+private fun pedestalColors(isDark: Boolean): List<Color> {
     return if (isDark) {
         listOf(
-            rankColor.copy(alpha = 0.28f),
-            rankColor.copy(alpha = 0.16f),
-            rankColor.copy(alpha = 0.22f),
+            Color.White.copy(alpha = 0.07f),
+            Color.White.copy(alpha = 0.035f),
         )
     } else {
         listOf(
-            rankColor.copy(alpha = 0.42f),
-            rankColor.copy(alpha = 0.24f),
-            rankColor.copy(alpha = 0.34f),
+            Color(0xFFF3F4F6),
+            Color(0xFFE8EAEE),
         )
     }
 }

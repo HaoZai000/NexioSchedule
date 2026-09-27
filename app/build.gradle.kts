@@ -17,7 +17,7 @@ android {
         minSdk = 31
         targetSdk = 37
         versionCode = 156
-        versionName = "1.5.6-0924"
+        versionName = "1.6.0.1-0924"
 
         ndk {
             abiFilters += listOf("arm64-v8a")
@@ -65,6 +65,7 @@ configurations.all {
 }
 
 dependencies {
+    testImplementation("junit:junit:4.13.2")
     // ===== AndroidX / Compose 基础 =====
     // Compose BOM：统一管理所有 Compose 库版本
     implementation(platform(libs.androidx.compose.bom))
