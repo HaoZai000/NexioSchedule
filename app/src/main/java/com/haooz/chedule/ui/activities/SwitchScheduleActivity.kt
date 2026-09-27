@@ -812,10 +812,11 @@ fun SwitchScheduleScreen(
                         verticalArrangement = Arrangement.spacedBy(12.dp)
                     ) {
                         // 根目录：文件夹（可原地展开）+ 未归档课表；文件夹内课表紧跟其文件夹卡片
-                        folders.forEach { folder ->
+                        folders.forEachIndexed { folderIndex, folder ->
                             // 文件夹卡片与它的课表放同一个 item：高度逐帧变化，
                             // 展开/收回时下方卡片跟着一起被推走，而不是先消失再出现
-                            item(key = "folder:${folder.id}") {
+                            // key 带序号：即便数据层出现重复 id，也不至于 LazyColumn 闪退
+                            item(key = "folder:${folder.id}#$folderIndex") {
                                 Column(modifier = Modifier.animateItem()) {
                                     FolderItem(folder = folder, itemModifier = Modifier)
                                     AnimatedVisibility(

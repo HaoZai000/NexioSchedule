@@ -52,6 +52,9 @@ class CourseRepository private constructor(context: Context) {
     /**
      * 首次装这个版本（或第一次使用）时，把现有课表全部收进「默认文件夹」。
      * 只跑一次：升上来的老用户不会看到课表散在根目录，新用户也从一开始就有分组。
+     *
+     * 备份恢复会清掉迁移标记再跑一遍：此时可能已有同 id 的默认文件夹，
+     * 必须并入而不是再 add 一个，否则 LazyColumn 的 folder key 冲突会闪退。
      */
     private fun migrateSchedulesIntoDefaultFolder() {
         if (prefs.getBoolean(KEY_DEFAULT_FOLDER_MIGRATED, false)) return
@@ -60,13 +63,22 @@ class CourseRepository private constructor(context: Context) {
         val ungrouped = if (folders.isEmpty()) names
         else names.filter { name -> folders.none { name in it.schedules } }
         if (ungrouped.isNotEmpty()) {
-            folders.add(
-                ScheduleFolder(
-                    id = DEFAULT_FOLDER_ID,
-                    name = DEFAULT_FOLDER_NAME,
-                    schedules = ungrouped
+            val existingIndex = folders.indexOfFirst { it.id == DEFAULT_FOLDER_ID }
+            if (existingIndex >= 0) {
+                val existing = folders[existingIndex]
+                val merged = (existing.schedules + ungrouped).distinct()
+                folders[existingIndex] = existing.copy(
+                    schedules = names.filter { it in merged }
                 )
-            )
+            } else {
+                folders.add(
+                    ScheduleFolder(
+                        id = DEFAULT_FOLDER_ID,
+                        name = DEFAULT_FOLDER_NAME,
+                        schedules = ungrouped
+                    )
+                )
+            }
             saveScheduleFolders(folders)
         }
         prefs.edit(commit = true) { putBoolean(KEY_DEFAULT_FOLDER_MIGRATED, true) }
@@ -1442,7 +1454,8 @@ class CourseRepository private constructor(context: Context) {
 
     /**
      * 读取课表文件夹。
-     * 顺带清洗：剔除已被删除的课表名，并保证一个课表只出现在一个文件夹里（保留靠前的那个）。
+     * 顺带清洗：剔除已被删除的课表名，保证一个课表只出现在一个文件夹里（保留靠前的那个），
+     * 并合并重复的文件夹 id（坏备份会让 LazyColumn key 冲突闪退）。
      */
     fun getScheduleFolders(): List<ScheduleFolder> {
         scheduleFoldersCache?.let { return it }
@@ -1458,15 +1471,26 @@ class CourseRepository private constructor(context: Context) {
             emptyList()
         }
         val seen = mutableSetOf<String>()
-        val result = parsed
+        val byId = linkedMapOf<String, ScheduleFolder>()
+        parsed
             .filter { it.id.isNotBlank() }
-            .map { folder ->
+            .forEach { folder ->
                 val kept = folder.schedules
                     .filter { name -> name in allNames && seen.add(name) }
                 // 文件夹内部按全局课表顺序展示
                 val ordered = allNames.filter { it in kept }
-                folder.copy(schedules = ordered)
+                val existing = byId[folder.id]
+                if (existing == null) {
+                    byId[folder.id] = folder.copy(schedules = ordered)
+                } else {
+                    // 同 id 并入第一个：坏备份/重复迁移会写进重复 id，UI Lazy key 会闪退
+                    val merged = (existing.schedules + ordered).distinct()
+                    byId[folder.id] = existing.copy(
+                        schedules = allNames.filter { it in merged }
+                    )
+                }
             }
+        val result = byId.values.toList()
         scheduleFoldersCache = result
         return result
     }
