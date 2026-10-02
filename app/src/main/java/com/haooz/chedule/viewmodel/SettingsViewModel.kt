@@ -5,6 +5,8 @@ import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.haooz.chedule.data.Course
 import com.haooz.chedule.data.CourseRepository
+import com.haooz.chedule.data.HolidayCourseExclusion
+import com.haooz.chedule.data.HolidayManager
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -48,8 +50,21 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
                 }
             }
             buildSet {
-                if (repository.hasCoursesOnDayInWeek(6, week)) add(6)
-                if (repository.hasCoursesOnDayInWeek(7, week)) add(7)
+                for (weekday in 6..7) {
+                    val date = runCatching {
+                        val start = LocalDate.parse(repository.getClassStartTime().replace('/', '-'))
+                        com.haooz.chedule.data.TeachingWeekReorganization
+                            .dateForPosition(start, week, weekday, emptyList())
+                    }.getOrNull()
+                    val hasCourses = if (date != null && isBeforeHolidayExclusionActive(date)) {
+                        com.haooz.chedule.reminder.CourseReminderHelper
+                            .resolveDaySchedule(getApplication(), date, repository)
+                            .courses.isNotEmpty()
+                    } else {
+                        repository.hasCoursesOnDayInWeek(weekday, week)
+                    }
+                    if (hasCourses) add(weekday)
+                }
             }
         } else {
             setOf(6, 7)
@@ -76,8 +91,22 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
                     .resolveDaySchedule(getApplication(), today, repository).courses.isNotEmpty()
             }
         }
-        return !repository.hasDisplayableCoursesOnDay(todayDayOfWeek, week)
+        val today = LocalDate.now()
+        val hasCourses = if (isBeforeHolidayExclusionActive(today)) {
+            com.haooz.chedule.reminder.CourseReminderHelper
+                .resolveDaySchedule(getApplication(), today, repository).courses.isNotEmpty()
+        } else {
+            repository.hasDisplayableCoursesOnDay(todayDayOfWeek, week)
+        }
+        return !hasCourses
     }
+
+    private fun isBeforeHolidayExclusionActive(date: LocalDate): Boolean =
+        HolidayCourseExclusion.isEnabledBeforeHolidayDate(
+            HolidayManager.loadAllByYear(getApplication()),
+            date,
+            HolidayManager.loadBeforeCourseExclusion(getApplication<Application>()),
+        )
 
     private val _showNonCurrentWeek = MutableStateFlow(repository.getShowNonCurrentWeek())
     val showNonCurrentWeek: StateFlow<Boolean> = _showNonCurrentWeek.asStateFlow()

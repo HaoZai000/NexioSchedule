@@ -82,6 +82,7 @@ fun CourseCard(
     course: Course,
     isCurrentWeek: Boolean = true,
     isHoliday: Boolean = false,
+    isCourseCancelled: Boolean = false,
     isWorkSwap: Boolean = false,
     hasMultipleCourses: Boolean = false,
     wallpaperBackdrop: Backdrop? = null,
@@ -177,20 +178,28 @@ fun CourseCard(
     }
 
     val effectiveAlpha = if (hasBlur) cardAlpha * 1.6f else cardAlpha
-    val cardColor = remember(course.colorRes, isCurrentWeek, isHoliday, effectiveAlpha) {
-        if (isCurrentWeek && !isHoliday) {
+    val cardColor = remember(course.colorRes, isCurrentWeek, isHoliday, isCourseCancelled, effectiveAlpha) {
+        if (isCurrentWeek && !isHoliday && !isCourseCancelled) {
             Color(course.colorRes).copy(alpha = effectiveAlpha)
         } else {
             Color(0xFF9E9E9E).copy(alpha = effectiveAlpha * 0.7f)
         }
     }
-    val textColor = remember(course.colorRes, isCurrentWeek, isHoliday, hasBlur, isDark, cardTextColor) {
+    val textColor = remember(
+        course.colorRes,
+        isCurrentWeek,
+        isHoliday,
+        isCourseCancelled,
+        hasBlur,
+        isDark,
+        cardTextColor,
+    ) {
         // 纯色模式仅本周课：黑白 0.74f；非本周/假期沿用灰色
-        if (isCurrentWeek && !isHoliday &&
+        if (isCurrentWeek && !isHoliday && !isCourseCancelled &&
             cardTextColor == com.haooz.chedule.data.CardTextColor.SOLID
         ) {
             if (isDark) Color.White.copy(alpha = 0.74f) else Color.Black.copy(alpha = 0.74f)
-        } else if (isCurrentWeek && !isHoliday) {
+        } else if (isCurrentWeek && !isHoliday && !isCourseCancelled) {
             if (hasBlur) Color(course.colorRes).let { c ->
                 val hsv = FloatArray(3)
                 AndroidColor.RGBToHSV((c.red * 255).toInt(), (c.green * 255).toInt(), (c.blue * 255).toInt(), hsv)
@@ -329,7 +338,8 @@ fun CourseCard(
             ) {
                 CardContent(course, sectionCount, textColor, hasMultipleCourses,
                     isTablet, cardContentAlignment, cardHeight.value, cardHeightPerSection,
-                    isHoliday, isWorkSwap, isCurrentWeek, showClassroom, showTeacher, cardTextScale, isDark)
+                    isHoliday, isWorkSwap, isCurrentWeek, showClassroom, showTeacher, cardTextScale, isDark,
+                    isCourseCancelled)
             }
         }
     } else {
@@ -386,7 +396,8 @@ fun CourseCard(
         ) {
             CardContent(course, sectionCount, textColor, hasMultipleCourses,
                 isTablet, cardContentAlignment, cardHeight.value, cardHeightPerSection,
-                isHoliday, isWorkSwap, isCurrentWeek, showClassroom, showTeacher, cardTextScale, isDark)
+                isHoliday, isWorkSwap, isCurrentWeek, showClassroom, showTeacher, cardTextScale, isDark,
+                isCourseCancelled)
         }
     }
 }
@@ -499,10 +510,10 @@ private fun Modifier.courseCardGesture(
 @Composable
 private fun CardContent(course: Course, sectionCount: Int, textColor: Color, hasMultipleCourses: Boolean,
                         isTablet: Boolean = false, cardContentAlignment: com.haooz.chedule.data.CardContentAlignment = com.haooz.chedule.data.CardContentAlignment.CENTER_CENTER,
-                        cardHeightDp: Float = 0f, cardHeightPerSection: Float = 54f,
-                        isHoliday: Boolean = false, isWorkSwap: Boolean = false, isCurrentWeek: Boolean = true,
-                        showClassroom: Boolean = true, showTeacher: Boolean = true, cardTextScale: Float = 1f,
-                        isDark: Boolean = isAppDarkTheme()) {
+                         cardHeightDp: Float = 0f, cardHeightPerSection: Float = 54f,
+                         isHoliday: Boolean = false, isWorkSwap: Boolean = false, isCurrentWeek: Boolean = true,
+                         showClassroom: Boolean = true, showTeacher: Boolean = true, cardTextScale: Float = 1f,
+                         isDark: Boolean = isAppDarkTheme(), isCourseCancelled: Boolean = false) {
     val infoFontSize = 11.sp * cardTextScale.coerceIn(0.5f, 2.0f)
     val infoLineHeight = 12.sp * cardTextScale.coerceIn(0.5f, 2.0f)
     val courseNameFontSize = 12.7.sp * cardTextScale.coerceIn(0.5f, 2.0f)
@@ -593,22 +604,23 @@ private fun CardContent(course: Course, sectionCount: Int, textColor: Color, has
             )
         }
 
-        val badgeText = when {
-            isHoliday -> "假"
-            isWorkSwap -> "调"
-            else -> null
-        }
-        if (badgeText != null) {
-            val badgeBackground = if (isWorkSwap && isCurrentWeek) {
+        val badge = resolveCourseCardBadge(
+            isHoliday = isHoliday,
+            isCourseCancelled = isCourseCancelled,
+            isWorkSwap = isWorkSwap,
+            isCurrentWeek = isCurrentWeek,
+        )
+        if (badge != null) {
+            val badgeBackground = if (badge.usesWorkSwapStyle) {
                 Color(course.colorRes).copy(alpha = 0.32f)
             } else {
                 if (isDark) Color.White.copy(alpha = 0.1f) else Color.Black.copy(alpha = 0.08f)
             }
             Text(
-                text = badgeText,
+                text = badge.text,
                 fontSize = 9.sp,
                 fontWeight = FontWeight.Medium,
-                color = if (isWorkSwap && isCurrentWeek) {
+                color = if (badge.usesWorkSwapStyle) {
                     if (isDark) Color.White.copy(alpha = 0.8f) else Color.White
                 } else {
                     if (isDark) Color.White.copy(alpha = 0.4f) else Color.Black.copy(alpha = 0.4f)},

@@ -44,6 +44,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import com.haooz.chedule.data.Course
+import com.haooz.chedule.data.HolidayCourseExclusion
 import com.haooz.chedule.ui.effects.edgelight.edgeLight
 import com.haooz.chedule.ui.effects.edgelight.rememberCourseCardEdgeLight
 import com.kyant.backdrop.Backdrop
@@ -87,6 +88,7 @@ fun DayColumn(
     currentWeek: Int = 1,
     isHoliday: Boolean = false,
     holidayExemptCourseIds: Set<String> = emptySet(),
+    holidayCancelledCourseIds: Set<String> = emptySet(),
     isWorkSwap: Boolean = false,
     pendingDay: Int = -1,
     pendingSection: Int = -1,
@@ -270,6 +272,7 @@ fun DayColumn(
                 currentWeek = currentWeek,
                 isHoliday = isHoliday,
                 holidayExemptCourseIds = holidayExemptCourseIds,
+                holidayCancelledCourseIds = holidayCancelledCourseIds,
                 isWorkSwap = isWorkSwap,
                 showBreakDividers = showBreakDividers,
                 morningSections = morningSections,
@@ -312,6 +315,7 @@ private fun CourseCardsLayer(
     currentWeek: Int,
     isHoliday: Boolean,
     holidayExemptCourseIds: Set<String>,
+    holidayCancelledCourseIds: Set<String>,
     isWorkSwap: Boolean,
     showBreakDividers: Boolean,
     morningSections: Int,
@@ -345,7 +349,15 @@ private fun CourseCardsLayer(
     onCourseMenuDismiss: () -> Unit,
     onPendingChange: (Int, Int) -> Unit
 ) {
-    val courseRenderDataList = remember(courses, currentWeek, showBreakDividers, morningSections, afternoonSections, eveningSections) {
+    val courseRenderDataList = remember(
+        courses,
+        currentWeek,
+        holidayCancelledCourseIds,
+        showBreakDividers,
+        morningSections,
+        afternoonSections,
+        eveningSections,
+    ) {
         val coursesBySection = courses.groupBy { courseSlotKey(it) }
         val displayedCourses = mutableListOf<Course>()
         val hiddenCoursesMap = mutableMapOf<String, List<Course>>()
@@ -354,8 +366,13 @@ private fun CourseCardsLayer(
             val (currentWeekCourses, otherCourses) = sectionCourses.partition { it.isActiveInWeek(currentWeek) }
 
             if (currentWeekCourses.isNotEmpty()) {
-                displayedCourses.add(currentWeekCourses.first())
-                val hidden = currentWeekCourses.drop(1) + otherCourses
+                val displaySelection = HolidayCourseExclusion.selectDisplayCourses(
+                    currentWeekCourses,
+                    holidayCancelledCourseIds,
+                )
+                val courseToShow = requireNotNull(displaySelection.representative)
+                displayedCourses.add(courseToShow)
+                val hidden = displaySelection.hidden + otherCourses
                 if (hidden.isNotEmpty()) {
                     hiddenCoursesMap[slotKey] = hidden
                 }
@@ -429,6 +446,7 @@ private fun CourseCardsLayer(
                         isDark = isDark,
                         isCurrentWeek = isCurrentWeekCourse,
                         isHoliday = isHoliday && course.id !in holidayExemptCourseIds,
+                        isCourseCancelled = course.id in holidayCancelledCourseIds,
                         isWorkSwap = isWorkSwap,
                         hasMultipleCourses = renderData.hasHiddenCourses,
                         wallpaperBackdrop = wallpaperBackdrop,
@@ -473,6 +491,7 @@ private fun CourseCardsLayer(
                         isDark = isDark,
                         isCurrentWeek = isCurrentWeekCourse,
                         isHoliday = isHoliday && course.id !in holidayExemptCourseIds,
+                        isCourseCancelled = course.id in holidayCancelledCourseIds,
                         isWorkSwap = isWorkSwap,
                         hasMultipleCourses = idx == 0 && renderData.hasHiddenCourses,
                         wallpaperBackdrop = wallpaperBackdrop,

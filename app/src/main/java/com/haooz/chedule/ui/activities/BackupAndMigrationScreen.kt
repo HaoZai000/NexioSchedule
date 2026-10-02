@@ -38,6 +38,7 @@ import com.google.gson.GsonBuilder
 import com.haooz.chedule.data.Course
 import com.haooz.chedule.data.CourseRepository
 import com.haooz.chedule.data.HolidayCourseExclusion
+import com.haooz.chedule.data.HolidayBeforeCourseExclusion
 import com.haooz.chedule.data.HolidayEndCourseExclusion
 import com.haooz.chedule.data.HolidayManager
 import com.haooz.chedule.data.ShareCodeApi
@@ -1085,6 +1086,7 @@ internal fun icsEffectiveDatesForCourse(
     sectionCount: Int,
     totalWeeks: Int,
     lastWeekWithCourses: Int,
+    beforeExclusion: HolidayBeforeCourseExclusion = HolidayBeforeCourseExclusion(),
 ): List<Pair<Int, LocalDate>> {
     val candidates = (icsDatesForCourse(course, semesterStartDate, rules).map { it.second } +
         entriesByYear.values.flatten().asSequence()
@@ -1105,6 +1107,7 @@ internal fun icsEffectiveDatesForCourse(
             entriesByYear = entriesByYear,
             date = date,
             exclusion = exclusion,
+            beforeExclusion = beforeExclusion,
             candidates = { if (allowed) listOf(course) else emptyList() },
             sectionTimes = { sectionTimes },
             sectionCount = { sectionCount },
@@ -1133,6 +1136,8 @@ private fun buildExportIcs(
     val rules = repository.getTeachingWeekReorganizations(scheduleName)
     val holidayEntries = HolidayManager.loadAllByYear(viewModel.getApplication<android.app.Application>())
     val holidayExclusion = HolidayManager.loadEndCourseExclusion(viewModel.getApplication<android.app.Application>())
+    val holidayBeforeExclusion =
+        HolidayManager.loadBeforeCourseExclusion(viewModel.getApplication<android.app.Application>())
     val sectionCount = repository.getMorningSections(scheduleName) +
         repository.getAfternoonSections(scheduleName) + repository.getEveningSections(scheduleName)
     val lastWeekWithCourses = courses.maxOfOrNull {
@@ -1160,6 +1165,7 @@ private fun buildExportIcs(
             for ((week, actualDate) in icsEffectiveDatesForCourse(
                 course, semesterStartDate, rules, holidayEntries, holidayExclusion,
                 sectionTimes, sectionCount, repository.getTotalWeeks(scheduleName), lastWeekWithCourses,
+                holidayBeforeExclusion,
             )) {
                 val targetDate = Calendar.getInstance().apply {
                     clear()

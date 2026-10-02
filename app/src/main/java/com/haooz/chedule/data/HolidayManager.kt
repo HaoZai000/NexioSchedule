@@ -18,9 +18,13 @@ object HolidayManager {
     private const val KEY_VERSION = "version"
     internal const val BACKUP_KEY = "holiday_entries"
     internal const val BACKUP_EXCLUSION_KEY = "holiday_end_course_exclusion"
+    internal const val BACKUP_BEFORE_EXCLUSION_KEY = "holiday_before_course_exclusion"
     private const val KEY_EXCLUSION_ENABLED = "end_course_exclusion_enabled"
     private const val KEY_EXCLUSION_START_SECTION = "end_course_exclusion_start_section"
     private const val KEY_EXCLUSION_END_SECTION = "end_course_exclusion_end_section"
+    private const val KEY_BEFORE_EXCLUSION_ENABLED = "before_course_exclusion_enabled"
+    private const val KEY_BEFORE_EXCLUSION_START_SECTION = "before_course_exclusion_start_section"
+    private const val KEY_BEFORE_EXCLUSION_END_SECTION = "before_course_exclusion_end_section"
     private const val BACKUP_SCHEMA_VERSION = 1
     private const val BACKUP_SCHEMA_VERSION_KEY = "schema_version"
     private val _dataRevision = MutableStateFlow(0L)
@@ -31,6 +35,7 @@ object HolidayManager {
     data class BackupData(
         val entries: Map<String, String>,
         val exclusion: HolidayEndCourseExclusion,
+        val beforeExclusion: HolidayBeforeCourseExclusion = HolidayBeforeCourseExclusion(),
     )
 
     data class Entry(
@@ -145,11 +150,58 @@ object HolidayManager {
     }
 
     @Synchronized
+    fun loadBeforeCourseExclusion(context: Context): HolidayBeforeCourseExclusion =
+        loadBeforeCourseExclusion(context.getSharedPreferences(PREFS, Context.MODE_PRIVATE))
+
+    internal fun loadBeforeCourseExclusion(
+        preferences: SharedPreferences,
+    ): HolidayBeforeCourseExclusion {
+        val enabled = runCatching { preferences.getBoolean(KEY_BEFORE_EXCLUSION_ENABLED, false) }
+            .getOrDefault(false)
+        val startSection = runCatching {
+            preferences.getInt(KEY_BEFORE_EXCLUSION_START_SECTION, 1)
+        }.getOrDefault(1)
+        val endSection = runCatching {
+            preferences.getInt(KEY_BEFORE_EXCLUSION_END_SECTION, 1)
+        }.getOrDefault(1)
+        return HolidayBeforeCourseExclusion(enabled, startSection, endSection)
+            .takeIf(HolidayBeforeCourseExclusion::isValid)
+            ?: HolidayBeforeCourseExclusion()
+    }
+
+    @Synchronized
+    fun saveBeforeCourseExclusion(
+        context: Context,
+        value: HolidayBeforeCourseExclusion,
+    ): Boolean = saveBeforeCourseExclusion(
+        context.getSharedPreferences(PREFS, Context.MODE_PRIVATE),
+        value,
+    )
+
+    internal fun saveBeforeCourseExclusion(
+        preferences: SharedPreferences,
+        value: HolidayBeforeCourseExclusion,
+    ): Boolean {
+        if (!value.isValid()) return false
+        val previousVersion = runCatching { preferences.getLong(KEY_VERSION, 0L) }.getOrDefault(0L)
+        val newVersion = maxOf(System.currentTimeMillis(), previousVersion + 1L)
+        preferences.edit {
+            putBoolean(KEY_BEFORE_EXCLUSION_ENABLED, value.enabled)
+            putInt(KEY_BEFORE_EXCLUSION_START_SECTION, value.startSection)
+            putInt(KEY_BEFORE_EXCLUSION_END_SECTION, value.endSection)
+            putLong(KEY_VERSION, newVersion)
+        }
+        _dataRevision.value = newVersion
+        return true
+    }
+
+    @Synchronized
     fun exportBackupData(context: Context): Map<String, Any> =
         exportBackupData(context.getSharedPreferences(PREFS, Context.MODE_PRIVATE))
 
     internal fun exportBackupData(preferences: SharedPreferences): Map<String, Any> {
         val exclusion = loadEndCourseExclusion(preferences)
+        val beforeExclusion = loadBeforeCourseExclusion(preferences)
         return mapOf(
             BACKUP_KEY to exportBackupEntries(preferences),
             BACKUP_EXCLUSION_KEY to mapOf(
@@ -158,13 +210,37 @@ object HolidayManager {
                 "startSection" to exclusion.startSection,
                 "endSection" to exclusion.endSection,
             ),
+            BACKUP_BEFORE_EXCLUSION_KEY to mapOf(
+                BACKUP_SCHEMA_VERSION_KEY to BACKUP_SCHEMA_VERSION,
+                "enabled" to beforeExclusion.enabled,
+                "startSection" to beforeExclusion.startSection,
+                "endSection" to beforeExclusion.endSection,
+            ),
         )
     }
 
     fun decodeBackupData(backup: Map<String, Any?>): BackupData = BackupData(
         entries = decodeBackupEntries(backup),
         exclusion = decodeBackupEndCourseExclusion(backup),
+        beforeExclusion = decodeBackupBeforeCourseExclusion(backup),
     )
+
+    internal fun decodeBackupBeforeCourseExclusion(
+        backup: Map<String, Any?>,
+    ): HolidayBeforeCourseExclusion {
+        if (BACKUP_BEFORE_EXCLUSION_KEY !in backup) return HolidayBeforeCourseExclusion()
+        val value = backup[BACKUP_BEFORE_EXCLUSION_KEY]
+        require(value is Map<*, *>) { "Invalid holiday before-course exclusion data" }
+        val schemaVersion = backupInteger(value[BACKUP_SCHEMA_VERSION_KEY])
+        require(schemaVersion == BACKUP_SCHEMA_VERSION) { "Unsupported holiday backup schema" }
+        val enabled = value["enabled"] as? Boolean
+            ?: throw IllegalArgumentException("Invalid holiday before-course exclusion enabled state")
+        val startSection = backupInteger(value["startSection"])
+        val endSection = backupInteger(value["endSection"])
+        val exclusion = HolidayBeforeCourseExclusion(enabled, startSection, endSection)
+        require(exclusion.isValid()) { "Invalid holiday before-course exclusion section range" }
+        return exclusion
+    }
 
     internal fun decodeBackupEndCourseExclusion(
         backup: Map<String, Any?>,
@@ -208,6 +284,9 @@ object HolidayManager {
 
     internal fun restoreBackupData(preferences: SharedPreferences, data: BackupData) {
         require(data.exclusion.isValid()) { "Invalid holiday end-course exclusion section range" }
+        require(data.beforeExclusion.isValid()) {
+            "Invalid holiday before-course exclusion section range"
+        }
         val previousVersion = runCatching { preferences.getLong(KEY_VERSION, 0L) }.getOrDefault(0L)
         val newVersion = maxOf(System.currentTimeMillis(), previousVersion + 1L)
         preferences.edit {
@@ -216,6 +295,9 @@ object HolidayManager {
             putBoolean(KEY_EXCLUSION_ENABLED, data.exclusion.enabled)
             putInt(KEY_EXCLUSION_START_SECTION, data.exclusion.startSection)
             putInt(KEY_EXCLUSION_END_SECTION, data.exclusion.endSection)
+            putBoolean(KEY_BEFORE_EXCLUSION_ENABLED, data.beforeExclusion.enabled)
+            putInt(KEY_BEFORE_EXCLUSION_START_SECTION, data.beforeExclusion.startSection)
+            putInt(KEY_BEFORE_EXCLUSION_END_SECTION, data.beforeExclusion.endSection)
             putLong(KEY_VERSION, newVersion)
         }
         _dataRevision.value = newVersion

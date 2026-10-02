@@ -2588,7 +2588,8 @@ class CourseRepository private constructor(context: Context) {
 
             for ((key, value) in data) {
                 if (key == HolidayManager.BACKUP_KEY ||
-                    key == HolidayManager.BACKUP_EXCLUSION_KEY
+                    key == HolidayManager.BACKUP_EXCLUSION_KEY ||
+                    key == HolidayManager.BACKUP_BEFORE_EXCLUSION_KEY
                 ) continue
                 // 搭配、提醒等应用功能设置不进备份，恢复时也不覆盖设备上的对应配置
                 if (isCombinationBackupKey(key) || isAppFeatureBackupKey(key) || key == KEY_REMINDER_PREFS) continue

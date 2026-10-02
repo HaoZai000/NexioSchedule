@@ -40,7 +40,7 @@ class TodayCoursesProvider : ContentProvider() {
             else -> false
         }
 
-        return when (match) {
+        val cursor = when (match) {
             TODAY_COURSES, TOMORROW_COURSES, DISPLAY_COURSES -> {
                 val columns = projection?.toList() ?: COURSE_COLUMNS
                 require(columns.all { it in COURSE_COLUMNS }) { "Unsupported column requested: $columns" }
@@ -76,6 +76,11 @@ class TodayCoursesProvider : ContentProvider() {
                 }
             }
         }
+        cursor.setNotificationUri(
+            appContext.contentResolver,
+            Uri.parse(todayCoursesProviderCursorNotificationUri(uri.toString())),
+        )
+        return cursor
     }
 
     override fun getType(uri: Uri): String {
@@ -293,7 +298,7 @@ val subText = when {
         val courses: List<Course>,
     )
 
-    private companion object {
+    companion object {
         const val AUTHORITY = "com.haooz.chedule.courses"
         // sx=1 设计基准字号，用于 App 端测量截断
         const val NAME_TEXT_SIZE = 14f
@@ -378,5 +383,26 @@ val subText = when {
             addURI(AUTHORITY, PATH_DISPLAY, DISPLAY_COURSES)
             addURI(AUTHORITY, PATH_STATE, DISPLAY_STATE)
         }
+
+        fun notifyScheduleChanged(context: android.content.Context) {
+            dispatchTodayCoursesProviderNotifications(context.packageName) { uri ->
+                context.contentResolver.notifyChange(Uri.parse(uri), null)
+            }
+        }
     }
+}
+
+internal fun todayCoursesProviderNotificationUris(packageName: String): List<String> =
+    listOf("today", "tomorrow", "display", "state").map { path ->
+        "content://$packageName.courses/$path"
+    }
+
+internal fun todayCoursesProviderCursorNotificationUri(requestUri: String): String =
+    requestUri.substringBefore('#').substringBefore('?')
+
+internal fun dispatchTodayCoursesProviderNotifications(
+    packageName: String,
+    notifyChange: (String) -> Unit,
+) {
+    todayCoursesProviderNotificationUris(packageName).forEach(notifyChange)
 }

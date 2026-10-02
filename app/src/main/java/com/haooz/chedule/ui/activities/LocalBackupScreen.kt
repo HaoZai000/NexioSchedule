@@ -54,6 +54,7 @@ import androidx.compose.ui.unit.sp
 import com.google.gson.Gson
 import com.google.gson.reflect.TypeToken
 import com.haooz.chedule.data.CourseRepository
+import com.haooz.chedule.data.HolidayManager
 import com.haooz.chedule.data.TeachingWeekReorganization
 import com.haooz.chedule.data.TeachingWeekReorganizationRule
 import com.haooz.chedule.data.validateFullScheduleBackupStructure
@@ -331,6 +332,7 @@ internal fun parseBackupPayload(json: String): BackupPayload {
         throw IllegalArgumentException("不是本应用导出的备份文件")
     }
     validateFullScheduleBackupStructure(data)
+    HolidayManager.decodeBackupData(data)
     return BackupPayload.Full(data)
 }
 

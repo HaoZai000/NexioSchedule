@@ -361,6 +361,7 @@ fun TodayScreen(
     val sectionTimes by settingsViewModel.sectionTimes.collectAsState()
     val morningSections by settingsViewModel.morningSections.collectAsState()
     val afternoonSections by settingsViewModel.afternoonSections.collectAsState()
+    val eveningSections by settingsViewModel.eveningSections.collectAsState()
     val smartWeekend by settingsViewModel.smartWeekend.collectAsState()
     val todayShowWallpaper by settingsViewModel.todayShowWallpaper.collectAsState()
     val holidayDataRevision by HolidayManager.dataRevision.collectAsState()
@@ -580,9 +581,18 @@ fun TodayScreen(
                 ) {
                     HolidayManager.getVersion(appContext)
                 }
-                // 与课前提醒/小部件同口径：节假日末日例外仅保留命中课程，调休按映射查课
+                // 与提醒/小部件同口径：假日前移除命中课程，末日仅保留命中课程，调休按映射查课
                 val pageResolution = remember(
-                    pageDate, courses, dataVersion, holidayVersion, classStartTime, totalWeeks
+                    pageDate,
+                    courses,
+                    dataVersion,
+                    holidayVersion,
+                    classStartTime,
+                    totalWeeks,
+                    sectionTimes,
+                    morningSections,
+                    afternoonSections,
+                    eveningSections,
                 ) {
                     com.haooz.chedule.reminder.CourseReminderHelper.resolveDaySchedule(appContext, pageDate)
                 }
@@ -615,6 +625,9 @@ fun TodayScreen(
                     dataVersion,
                     classStartTime,
                     sectionTimes,
+                    morningSections,
+                    afternoonSections,
+                    eveningSections,
                     courses,
                     smartWeekend,
                     totalWeeks,
@@ -705,7 +718,7 @@ fun TodayScreen(
 
                 val tomorrowCourses = remember(
                     isPageToday, pageDate, courses, dataVersion, holidayVersion, classStartTime,
-                    totalWeeks
+                    totalWeeks, sectionTimes, morningSections, afternoonSections, eveningSections,
                 ) {
                     if (!isPageToday) emptyList()
                     else com.haooz.chedule.reminder.CourseReminderHelper
