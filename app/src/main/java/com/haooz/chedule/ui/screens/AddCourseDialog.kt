@@ -220,13 +220,16 @@ fun AddCourseDialog(
 
     var currentOccupiedWeeks by remember { mutableStateOf<Set<Int>>(emptySet()) }
     // 占用计算与剔除合并进同一协程；内容相等时不写状态，避免空 Set 反复重启协程
+    // 必须带上 course?.id：编辑时按 id 排除自身，若切换编辑对象而星期/节次恰好相同
+    // （如周一1-2与默认值一致），缺此 key 会导致协程不重跑，自身周次被误判为占用
     LaunchedEffect(
         form.dayOfWeek,
         form.startSection,
         form.endSection,
         form.isCustomTime,
         form.customStartTime,
-        form.customEndTime
+        form.customEndTime,
+        course?.id
     ) {
         val occupied = getOccupiedWeeks(
             form.dayOfWeek,

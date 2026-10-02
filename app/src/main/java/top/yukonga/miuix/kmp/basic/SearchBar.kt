@@ -74,7 +74,7 @@ import androidx.navigationevent.NavigationEventInfo
 import androidx.navigationevent.compose.NavigationBackHandler
 import androidx.navigationevent.compose.rememberNavigationEventState
 import com.haooz.chedule.ui.effects.edgelight.edgeLight
-import com.haooz.chedule.ui.effects.edgelight.rememberLiquidTopBarButtonEdgeLight
+import com.haooz.chedule.ui.effects.edgelight.rememberDefaultEdgeLight
 import com.haooz.chedule.ui.utils.isAppDarkTheme
 import com.kyant.backdrop.Backdrop
 import com.kyant.backdrop.drawBackdrop
@@ -121,6 +121,8 @@ fun SearchBar(
 ) {
     val currentOnExpandedChange by rememberUpdatedState(onExpandedChange)
     val navigationEventState = rememberNavigationEventState(currentInfo = NavigationEventInfo.None)
+    // 折射随材质档位：最佳保留，均衡及更省档关闭（与液态玻璃按钮一致）
+    val chromeLens = com.haooz.chedule.ui.utils.AppMaterialSettings.chromeLensEnabled()
 
     Column(
         modifier = modifier,
@@ -171,23 +173,27 @@ fun SearchBar(
                         contentAlignment = Alignment.Center
                     ) {
                         if (backdrop != null) {
+                            // 记得住引用：drawBackdrop 按引用比较 effects，每帧新建会导致重新录制采样层
+                            val actionEffects: com.kyant.backdrop.BackdropEffectScope.() -> Unit = remember(chromeLens) {
+                                {
+                                    vibrancy()
+                                    blur(8f.dp.toPx())
+                                    if (chromeLens) lens(14f.dp.toPx(), 14f.dp.toPx())
+                                }
+                            }
                             Box(
                                 modifier = Modifier
                                     .matchParentSize()
                                     .drawBackdrop(
                                         backdrop = backdrop,
                                         shape = { CircleShape },
-                                        effects = {
-                                            vibrancy()
-                                            blur(4f.dp.toPx())
-                                            lens(15f.dp.toPx(), 15f.dp.toPx())
-                                        },
+                                        effects = actionEffects,
                                         highlight = null,
                                         shadow = null,
                                         layerBlock = { alpha = backdropAlpha },
                                         onDrawSurface = {}
                                     )
-                                    .edgeLight(shape = CircleShape, edgeLight = rememberLiquidTopBarButtonEdgeLight(baseColor = MiuixTheme.colorScheme.surfaceContainerHigh))
+                                    .edgeLight(shape = CircleShape, edgeLight = rememberDefaultEdgeLight(baseColor = MiuixTheme.colorScheme.surfaceContainerHigh))
                             )
                         }
                         Box(
@@ -274,6 +280,8 @@ fun InputField(
     val currentOnExpandedChange by rememberUpdatedState(onExpandedChange)
     val internalInteractionSource = interactionSource ?: remember { MutableInteractionSource() }
     val capsuleShape = ContinuousCapsule()
+    // 折射随材质档位：最佳保留，均衡及更省档关闭
+    val chromeLens = com.haooz.chedule.ui.utils.AppMaterialSettings.chromeLensEnabled()
 
     val actualLeadingIcon = leadingIcon ?: {
         Box(
@@ -356,10 +364,18 @@ fun InputField(
         interactionSource = internalInteractionSource,
         decorationBox = { innerTextField ->
             val isLightTheme = !isAppDarkTheme()
-            val containerColor = if (isLightTheme) Color(0xFFFFFFFF).copy(0.76f)
+            val containerColor = if (isLightTheme) Color(0xFFF7F7F7).copy(0.76f)
                 else Color(0xFF242424).copy(0.84f)
             val shadowColor = if (isLightTheme) android.graphics.Color.parseColor("#12000000")
                 else android.graphics.Color.parseColor("#20000000")
+            // 记得住引用：drawBackdrop 按引用比较 effects，每帧新建会导致重新录制采样层
+            val containerEffects: com.kyant.backdrop.BackdropEffectScope.() -> Unit = remember(chromeLens) {
+                {
+                    vibrancy()
+                    blur(8f.dp.toPx())
+                    if (chromeLens) lens(8f.dp.toPx(), 24f.dp.toPx())
+                }
+            }
 
             Box(
                 modifier = Modifier
@@ -406,11 +422,7 @@ fun InputField(
                             .drawBackdrop(
                                 backdrop = backdrop,
                                 shape = { capsuleShape },
-                                effects = {
-                                    vibrancy()
-                                    blur(4f.dp.toPx())
-                                    lens(8f.dp.toPx(), 24f.dp.toPx())
-                                },
+                                effects = containerEffects,
                                 highlight = null,
                                 shadow = null,
                                 layerBlock = {
@@ -418,7 +430,7 @@ fun InputField(
                                 },
                                 onDrawSurface = {}
                             )
-                            .edgeLight(shape = capsuleShape, edgeLight = rememberLiquidTopBarButtonEdgeLight(baseColor = MiuixTheme.colorScheme.surfaceContainerHigh))
+                            .edgeLight(shape = capsuleShape, edgeLight = rememberDefaultEdgeLight(baseColor = containerColor))
                     )
                 }
                 Row(

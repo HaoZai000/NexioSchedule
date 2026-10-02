@@ -31,7 +31,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.zIndex
 import androidx.core.graphics.toColorInt
 import com.haooz.chedule.ui.effects.edgelight.edgeLight
-import com.haooz.chedule.ui.effects.edgelight.rememberLiquidTopBarButtonEdgeLight
+import com.haooz.chedule.ui.effects.edgelight.rememberDefaultEdgeLight
 import com.haooz.chedule.ui.effects.liquidglass.InteractiveHighlight
 import com.haooz.chedule.ui.utils.isAppDarkTheme
 import com.kyant.backdrop.Backdrop
@@ -62,7 +62,7 @@ fun LiquidTopBarButton(
     val hapticFeedback = LocalHapticFeedback.current
     val isLightTheme = !isAppDarkTheme()
     val resolvedContainerColor = if (containerColor != Color.Unspecified) containerColor
-        else if (isLightTheme) Color(0xFFFFFFFF).copy(0.76f)
+        else if (isLightTheme) Color(0xFFF7F7F7).copy(0.76f)
         else Color(0xFF242424).copy(0.84f)
 
     val interactiveHighlight = remember(animationScope) {
@@ -81,7 +81,7 @@ fun LiquidTopBarButton(
     val buttonEffects: com.kyant.backdrop.BackdropEffectScope.() -> Unit = remember(chromeLens) {
         {
             vibrancy()
-            blur(4.dp.toPx())
+            blur(8.dp.toPx())
             // 均衡及以下关闭折射
             if (chromeLens) lens(8f.dp.toPx(), 24f.dp.toPx())
         }
@@ -163,7 +163,7 @@ fun LiquidTopBarButton(
                     },
                     onDrawSurface = buttonOnDrawSurface
                 )
-                .edgeLight(shape = CircleShape, edgeLight = rememberLiquidTopBarButtonEdgeLight(baseColor = resolvedContainerColor))
+                .edgeLight(shape = CircleShape, edgeLight = rememberDefaultEdgeLight(baseColor = resolvedContainerColor))
                 .then(interactiveHighlight.modifier)
                 .then(if (draggable) interactiveHighlight.gestureModifier else interactiveHighlight.pressOnlyModifier)
                 .zIndex(0f)

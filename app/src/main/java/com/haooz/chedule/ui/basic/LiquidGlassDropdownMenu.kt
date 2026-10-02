@@ -14,87 +14,103 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.requiredWidth
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.wrapContentHeight
+import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableFloatStateOf
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.snapshotFlow
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.blur
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.drawBehind
-import androidx.compose.ui.geometry.CornerRadius
-import androidx.compose.ui.geometry.RoundRect
-import androidx.compose.ui.geometry.Size
+import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.Outline
-import androidx.compose.ui.graphics.Path
-import androidx.compose.ui.graphics.Shape
 import androidx.compose.ui.graphics.TransformOrigin
 import androidx.compose.ui.graphics.drawscope.drawIntoCanvas
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.nativeCanvas
+import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.layout.onSizeChanged
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.unit.Density
 import androidx.compose.ui.unit.Dp
-import androidx.compose.ui.unit.LayoutDirection
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.lerp
 import androidx.compose.ui.unit.sp
 import com.haooz.chedule.ui.effects.edgelight.edgeLight
 import com.haooz.chedule.ui.effects.edgelight.rememberDefaultEdgeLight
+import com.haooz.chedule.ui.utils.AppMaterialSettings
+import com.haooz.chedule.ui.utils.PredictiveBackSettings
 import com.haooz.chedule.ui.utils.isAppDarkTheme
 import com.kyant.backdrop.Backdrop
 import com.kyant.backdrop.drawBackdrop
 import com.kyant.backdrop.effects.blur
+import com.kyant.backdrop.effects.lens
 import com.kyant.backdrop.effects.vibrancy
 import com.kyant.capsule.ContinuousRoundedRectangle
-import kotlinx.coroutines.Job
 import kotlinx.coroutines.launch
 import androidx.navigationevent.NavigationEventInfo
 import androidx.navigationevent.NavigationEventTransitionState
 import androidx.navigationevent.compose.NavigationBackHandler
 import androidx.navigationevent.compose.rememberNavigationEventState
-import top.yukonga.miuix.kmp.basic.rememberDynamicCornerRadiusShape
-import com.haooz.chedule.ui.utils.PredictiveBackSettings
 
 private val ShadowPadding = 24.dp
 
+/** 收起态圆形按钮直径，也是容器变换的起点尺寸 */
+private val ButtonDiameter = 42.dp
+
+/** 面板宽度与圆角 */
+private val PanelWidth = 200.dp
+private val PanelCornerRadius = 25.dp
+
 /**
- * 课程表右上角"更多"按钮的下拉菜单。
+ * 课程表右上角「更多」按钮 + 下拉菜单，**同一个控件**：容器变换（container transform）。
  *
- * 动画体系与 [top.yukonga.miuix.kmp.basic.ListPopupContent] 完全一致：
- * - 缩放：0.24f → 1.0f（fraction 驱动，spring 动画）
- * - 裁剪揭示：朝下方向性展开（从顶部向下）
- * - 阴影渐变：进入 fraction 升到 0.78f 时 200ms 渐入，退出降到 0.99f 时 50ms 渐出；
- *   若进入动画未播完就被打断关闭，阴影立即消失
- * - 模糊：进入时 8dp → 0，退出时 0 → 8dp
- * - 圆角随缩放反向放大，保持视觉圆角不变
- * - transformOrigin 从锚点(1f, 0f)动态移动到中心(0.5f, 0.5f)
+ * 收起（fraction=0）：一个 42dp 的玻璃盒，圆角 25dp 被钳到 21dp = 正圆，即那颗圆形按钮，
+ * 内部是 [triggerIcon]。
+ * 展开（fraction=1）：同一个玻璃盒从 42dp 连续长到 [PanelWidth] × 面板高度，左上角固定，
+ * 圆角始终 25dp → 自然变成圆角矩形面板；图标与菜单项都在这个盒子里，随盒子一起被裁剪。
+ *
+ * 没有第二个按钮、没有交叉淡入淡出：尺寸、圆角、玻璃、内容都在同一棵子树里连续变化。
  */
 @Composable
 fun LiquidGlassDropdownMenu(
     show: Boolean,
     backdrop: Backdrop,
     modifier: Modifier = Modifier,
-    fraction: Animatable<Float,*> = remember { Animatable(0f) },
+    fraction: Animatable<Float, *> = remember { Animatable(0f) },
     onDismiss: (() -> Unit)? = null,
     onBackProgress: ((Float) -> Unit)? = null,
     onBackCancelled: (() -> Unit)? = null,
+    triggerIcon: ImageVector? = null,
+    triggerIconSize: Dp = 23.dp,
+    triggerContentDescription: String? = null,
+    onExpand: (() -> Unit)? = null,
+    // 整块控件随所在顶栏一起平移：非当前页时被移出屏幕外
+    offsetPx: () -> Offset = { Offset.Zero },
     content: @Composable ColumnScope.() -> Unit
 ) {
-    // 缩放锚点/菜单透明度动画值（预测性返回也驱动它们，故定义在返回处理之前）
-    val transformOriginProgress = remember { Animatable(0f) }
-    val menuAlpha = remember { Animatable(0f) }
+    val isLightTheme = !isAppDarkTheme()
+    // 与顶栏液态玻璃按钮同色：收起态即那颗按钮，形变过程中玻璃不突变
+    val containerColor = if (isLightTheme) Color(0xFFF7F7F7).copy(0.76f)
+        else Color(0xFF242424).copy(0.84f)
+    val chromeLens = AppMaterialSettings.chromeLensEnabled()
+    val triggerIconTint = if (isLightTheme) Color.Black.copy(0.85f) else Color.White.copy(0.85f)
+    // 锚点迁移进度：比尺寸更快到 1 → 控件先"移到面板中心"，尺寸再跟上（还原原来的手感）
+    val originProgress = remember { Animatable(0f) }
+    // 退出位移回弹：1 →(欠阻尼)→ 0，越过 0 的那段取出来当脉冲，让控件越过终点再弹回
+    val settleBounce = remember { Animatable(1f) }
+
     if (show && onDismiss != null) {
-        // 预测性返回：返回手势进度把菜单缩回锚点（复用 fraction 单一驱动），
-        // 取消回弹恢复、完成关闭；低版本 NavigationBackHandler 自动退化为立即关闭
+        // 预测性返回：手势进度把 fraction 从 1 拉回 0（容器缩回圆形按钮），取消回弹恢复
         val navigationEventState = rememberNavigationEventState(currentInfo = NavigationEventInfo.None)
         val backProgress = remember { Animatable(0f) }
         val coroutineScope = rememberCoroutineScope()
@@ -105,11 +121,9 @@ fun LiquidGlassDropdownMenu(
             onBackCancelled = {
                 onBackCancelled?.invoke()
                 coroutineScope.launch {
-                    // 手势取消：菜单恢复打开状态
                     if (backProgress.value > 0f) {
                         fraction.animateTo(1f, animationSpec = tween(150))
-                        transformOriginProgress.animateTo(1f, animationSpec = tween(150))
-                        menuAlpha.animateTo(1f, animationSpec = tween(150))
+                        originProgress.animateTo(1f, animationSpec = tween(150))
                         backProgress.snapTo(0f)
                     }
                 }
@@ -119,7 +133,6 @@ fun LiquidGlassDropdownMenu(
             },
         )
 
-        // 逐帧收集返回手势进度（单独协程，避免手势期间每帧取消/重启 LaunchedEffect）
         LaunchedEffect(Unit) {
             snapshotFlow { navigationEventState.transitionState }
                 .collect { transitionState ->
@@ -127,191 +140,127 @@ fun LiquidGlassDropdownMenu(
                         transitionState is NavigationEventTransitionState.InProgress &&
                         transitionState.direction == NavigationEventTransitionState.TRANSITIONING_BACK
                     ) {
-                    // 预测性返回动画开关：关闭时不驱动跟随动画（返回仍被拦截，直接关闭）
-                    if (PredictiveBackSettings.enabled) {
-                        val progress = transitionState.latestEvent.progress
-                        backProgress.snapTo(progress)
-                        onBackProgress?.invoke(progress)
-                        // 菜单跟随返回手势从打开状态缩回锚点：
-                        // fraction 驱动缩放/裁剪，transformOriginProgress 驱动缩放锚点移回右上角，
-                        // menuAlpha 跟随淡出，露出锚点处的原按钮
-                        fraction.snapTo(1f - progress)
-                        transformOriginProgress.snapTo(1f - progress)
-                        menuAlpha.snapTo(1f - progress)
-                    }
+                        if (PredictiveBackSettings.enabled) {
+                            val progress = transitionState.latestEvent.progress
+                            backProgress.snapTo(progress)
+                            onBackProgress?.invoke(progress)
+                            fraction.snapTo(1f - progress)
+                            originProgress.snapTo(1f - progress)
+                        }
                     }
                 }
         }
     }
 
-    val isLightTheme = !isAppDarkTheme()
-    val containerColor = if (isLightTheme) Color(0xFFFFFFFF).copy(0.72f)
-        else Color(0xFF242424).copy(0.8f)
-
-    // 内容透明度：进入时从 0.4f 渐显到 1.0f，退出时从 fraction=0.5f 开始消失
-    var contentAlpha by remember { mutableFloatStateOf(0f) }
-    LaunchedEffect(Unit) {
-        var prevFraction = 0f
-        snapshotFlow { fraction.value }
-            .collect { current ->
-                val isEntering = current >= prevFraction
-                prevFraction = current
-                contentAlpha = if (isEntering) {
-                    0.2f + 0.8f * current
-                } else {
-                    if (current > 0.5f) 1f else current * 2f
-                }
-            }
-    }
-
-    // 阴影渐变动画：进入时升到 0.78 显示，退出时降到 0.99 消失
-    val shadowAlphaState = remember { Animatable(0f) }
-    LaunchedEffect(Unit) {
-        var prevFraction = 0f
-        var shadowVisible = false
-        var animJob: Job? = null
-        snapshotFlow { fraction.value }
-            .collect { current ->
-                val isEntering = current >= prevFraction
-                prevFraction = current
-                val newVisible = if (isEntering) current >= 0.78f else current >= 0.99f
-                if (newVisible != shadowVisible) {
-                    shadowVisible = newVisible
-                    animJob?.cancel()
-                    animJob = launch {
-                        if (newVisible) {
-                            shadowAlphaState.animateTo(1f, tween(200))
-                        } else {
-                            if (shadowAlphaState.value >= 1f) {
-                                shadowAlphaState.animateTo(0f, tween(50))
-                            } else {
-                                shadowAlphaState.snapTo(0f)
-                            }
-                        }
-                    }
-                }
-            }
-    }
-
-    val cornerRadius = 25.dp
-    // 裁剪 Shape：fraction=0 时裁为小正方形（对齐右上角），fraction=1 时完整尺寸。
-    // 正方形 + 反向放大的圆角（24dp / 0.24f = 100dp > 半边长）→ 视觉圆形。
-    val clipShape = remember {
-        DropdownClipShape(
-            fractionProgress = { fraction.value },
-            cornerRadius = cornerRadius,
-            buttonDiameter = 42.dp,
-        )
-    }
-
-
     LaunchedEffect(show) {
         if (show) {
+            // 尺寸：沿用原来的缩放曲线
             launch {
                 fraction.animateTo(
                     1f,
                     spring(dampingRatio = 0.78f, stiffness = 240f, visibilityThreshold = 0.0001f)
                 )
             }
+            // 锚点迁移：更快到中心
             launch {
-                transformOriginProgress.animateTo(
+                originProgress.animateTo(
                     1f,
                     spring(dampingRatio = 0.78f, stiffness = 500f, visibilityThreshold = 0.0001f)
                 )
             }
-            launch {
-                menuAlpha.animateTo(1f, tween(120))
-            }
+            // 进入不回弹
+            settleBounce.snapTo(1f)
         } else {
-            // fraction 退出动画与 alpha 退出动画并行
             val exitEasing = CubicBezierEasing(0.0f, 0.0f, 0.0f, 1.0f)
             launch {
                 fraction.animateTo(
                     0f,
-                    spring(dampingRatio = 0.78f, stiffness = 400f, visibilityThreshold = 0.0001f)
+                    spring(dampingRatio = 0.85f, stiffness = 650f, visibilityThreshold = 0.0001f)
                 )
             }
+            // 退出位移回弹：独立一条欠阻尼 spring，与尺寸 spring 解耦
             launch {
-                transformOriginProgress.animateTo(
+                settleBounce.snapTo(1f)
+                settleBounce.animateTo(
                     0f,
-                    tween(450, easing = exitEasing)
+                    spring(dampingRatio = 0.5f, stiffness = 240f, visibilityThreshold = 0.0001f)
                 )
             }
-            menuAlpha.animateTo(0f, tween(400))
+            // 这里必须"等"动画跑完（不能立刻 snapTo，否则会把上面的动画取消掉）；
+            // 用锚点 tween 兜住，结束后再收尾
+            originProgress.animateTo(0f, tween(340, easing = exitEasing))
             fraction.snapTo(0f)
-            transformOriginProgress.snapTo(0f)
-            menuAlpha.snapTo(0f)
+            originProgress.snapTo(0f)
         }
     }
 
-    if (menuAlpha.value <= 0f && !show) return
+    // 读 fraction 驱动尺寸；不钳到 1，保留 spring 过冲（末尾回弹）
+    val f = fraction.value
+    // 面板自然高度：由容器内的内容以全尺寸测量得到，作为高度插值终点
+    var panelHeightPx by remember { mutableIntStateOf(0) }
+    val targetHeight = if (panelHeightPx > 0) {
+        with(LocalDensity.current) { panelHeightPx.toDp() }
+    } else {
+        ButtonDiameter
+    }
+    val width = lerp(ButtonDiameter, PanelWidth, f)
+    val height = lerp(ButtonDiameter, targetHeight, f)
+    // 内容随容器等比缩放（还原原来"内容有缩放"的手感），同样保留过冲
+    val contentScale = (width.value / PanelWidth.value).coerceAtLeast(0f)
 
-    // 外层 Box：padding 给阴影留空间，阴影不被缩放（与 ListPopupContent 结构一致）
-    // offset 随 fraction 渐变：fraction=0 时偏移到按钮中心，fraction=1 时归零
     Box(
-        modifier = modifier
-            .width(200.dp + ShadowPadding * 2)
-            .wrapContentHeight()
-            .padding(ShadowPadding)
-            .drawBehind {
-                val shadowAlpha = shadowAlphaState.value
-                if (shadowAlpha <= 0f) return@drawBehind
-                val baseAlpha = (32 * shadowAlpha).toInt().coerceIn(0, 255)
-                val shadowColor = android.graphics.Color.argb(baseAlpha, 0, 0, 0)
-                val blurRadius = 16f * density
-                val cornerRadiusPx = cornerRadius.toPx()
-                val nativePath = android.graphics.Path().apply {
-                    addRoundRect(
-                        0f, 0f, size.width, size.height,
-                        cornerRadiusPx, cornerRadiusPx,
-                        android.graphics.Path.Direction.CW
-                    )
-                }
-                val paint = Paint().apply {
-                    color = shadowColor
-                    maskFilter = BlurMaskFilter(
-                        blurRadius.coerceAtLeast(0.1f),
-                        BlurMaskFilter.Blur.NORMAL
-                    )
-                }
-                drawIntoCanvas { canvas ->
-                    canvas.nativeCanvas.drawPath(nativePath, paint)
-                }
-            }
+        modifier = modifier.padding(ShadowPadding)
     ) {
-        // 内层 Box：graphicsLayer 缩放 + 裁剪 + 模糊 + 背景 + 边光
         Box(
             modifier = Modifier
-                .fillMaxWidth()
+                .align(Alignment.TopEnd)
                 .graphicsLayer {
-                    val f = fraction.value
-                    val scale = 0.24f + 0.76f * f
-                    scaleX = scale
-                    scaleY = scale
-                    this.alpha = menuAlpha.value
-                    // 从锚点(1f, 0f)动态移动到中心(0.5f, 0.5f)
-                    val startOrigin = TransformOrigin(1f, 0f)
-                    val targetOrigin = TransformOrigin(0.5f, 0.5f)
-                    val f2 = transformOriginProgress.value
-                    transformOrigin = TransformOrigin(
-                        pivotFractionX = startOrigin.pivotFractionX + (targetOrigin.pivotFractionX - startOrigin.pivotFractionX) * f2,
-                        pivotFractionY = startOrigin.pivotFractionY + (targetOrigin.pivotFractionY - startOrigin.pivotFractionY) * f2
-                    )
-                    clip = false
+                    val o = offsetPx()
+                    // 精确还原原实现：整块绕"从右上角 (1,0) 迁到正中心 (0.5,0.5)"的锚点缩放时，
+                    // 盒子右上角相对固定锚点的位移 = ( -0.5·W·p·(1-s), +0.5·H·p·(1-s) )
+                    // p=originProgress、s=当前宽/面板宽；两端位移均归零
+                    val p = originProgress.value
+                    val s = size.width / PanelWidth.toPx()
+                    val k = 0.5f * p * (1f - s)
+                    // 退出位移回弹：取 settleBounce 越过 0 的部分（负值）当脉冲，
+                    // 沿收回方向（右上）越过终点再弹回；进入时 pulse 恒为 0
+                    val pulse = (-settleBounce.value).coerceAtLeast(0f)
+                    val bouncePx = pulse * 20f * density
+                    translationX = o.x - PanelWidth.toPx() * k + bouncePx
+                    translationY = o.y + targetHeight.toPx() * k - bouncePx
                 }
-                .clip(clipShape)
-                .blur(radius = (8f * (1f - fraction.value)).dp)
+                .size(width = width, height = height)
+                .drawBehind {
+                    // 阴影随盒子尺寸/圆角一起变：收起时是圆形的按钮投影
+                    val baseAlpha = if (isLightTheme) 0x1E else 0x2E
+                    val blurRadius = 16f * density
+                    val r = PanelCornerRadius.toPx()
+                    val nativePath = android.graphics.Path().apply {
+                        addRoundRect(
+                            0f, 0f, size.width, size.height, r, r,
+                            android.graphics.Path.Direction.CW
+                        )
+                    }
+                    val paint = Paint().apply {
+                        color = android.graphics.Color.argb(baseAlpha, 0, 0, 0)
+                        maskFilter = BlurMaskFilter(
+                            blurRadius.coerceAtLeast(0.1f),
+                            BlurMaskFilter.Blur.NORMAL
+                        )
+                    }
+                    drawIntoCanvas { canvas ->
+                        canvas.nativeCanvas.drawPath(nativePath, paint)
+                    }
+                }
+                .clip(ContinuousRoundedRectangle(PanelCornerRadius))
                 .drawBackdrop(
                     backdrop = backdrop,
-                    shape = {
-                        val f = fraction.value.coerceIn(0f, 1f)
-                        val avgScale = 0.24f + 0.76f * f
-                        val scaledCornerRadius = cornerRadius / avgScale
-                        ContinuousRoundedRectangle(scaledCornerRadius)
-                    },
+                    shape = { ContinuousRoundedRectangle(PanelCornerRadius) },
+                    // 与顶栏液态玻璃按钮同一套采样效果
                     effects = {
                         vibrancy()
-                        blur(24.dp.toPx())
+                        blur(4.dp.toPx())
+                        if (chromeLens) lens(8.dp.toPx(), 24.dp.toPx())
                     },
                     highlight = null,
                     shadow = null,
@@ -320,18 +269,46 @@ fun LiquidGlassDropdownMenu(
                     }
                 )
                 .edgeLight(
-                    shape = rememberDynamicCornerRadiusShape(
-                        fractionProgress = { fraction.value },
-                        cornerRadius = cornerRadius,
-                    ),
+                    shape = ContinuousRoundedRectangle(PanelCornerRadius),
                     edgeLight = rememberDefaultEdgeLight(baseColor = containerColor)
                 )
         ) {
-            Column(modifier = Modifier
-                .padding(vertical = 8.dp)
-                .graphicsLayer { alpha = contentAlpha }
+            // 菜单内容：按全尺寸铺开、在容器里居中并按中心缩放，随容器长大被逐步裁出来
+            Column(
+                modifier = Modifier
+                    // 居中：缩放中心始终 = 当前卡片整体的正中心
+                    .align(Alignment.Center)
+                    .requiredWidth(PanelWidth)
+                    .wrapContentHeight(align = Alignment.CenterVertically, unbounded = true)
+                    .onSizeChanged { panelHeightPx = it.height }
+                    .graphicsLayer {
+                        alpha = f.coerceIn(0f, 1f)
+                        scaleX = contentScale
+                        scaleY = contentScale
+                        transformOrigin = TransformOrigin(0.5f, 0.5f)
+                    }
+                    .padding(vertical = 8.dp)
             ) {
                 content()
+            }
+
+            // 收起态的图标：就在同一个玻璃盒里，随盒子长大淡出
+            if (triggerIcon != null) {
+                Box(
+                    modifier = Modifier
+                        .align(Alignment.TopEnd)
+                        .size(ButtonDiameter)
+                        .graphicsLayer { alpha = (1f - f * 2.5f).coerceIn(0f, 1f) }
+                        .clickable(enabled = !show && onExpand != null) { onExpand?.invoke() },
+                    contentAlignment = Alignment.Center
+                ) {
+                    Icon(
+                        imageVector = triggerIcon,
+                        contentDescription = triggerContentDescription,
+                        modifier = Modifier.size(triggerIconSize),
+                        tint = triggerIconTint,
+                    )
+                }
             }
         }
     }
@@ -367,58 +344,5 @@ fun LiquidGlassDropdownMenuItem(
                 color = textColor
             )
         }
-    }
-}
-
-/**
- * 下拉菜单裁剪 Shape（参考 CourseDetailScreen.AnimClipShape）。
- *
- * fraction=0 时裁为小正方形（对齐右上角），正方形 + 反向放大的圆角 → 视觉圆形。
- * fraction=1 时为完整尺寸圆角矩形。
- * 尺寸和圆角都除以 scale 来补偿 graphicsLayer 缩放（clip 在未缩放坐标空间中应用）。
- */
-private class DropdownClipShape(
-    private val fractionProgress: () -> Float,
-    private val cornerRadius: Dp,
-    private val buttonDiameter: Dp,
-) : Shape {
-    override fun createOutline(
-        size: Size,
-        layoutDirection: LayoutDirection,
-        density: Density,
-    ): Outline {
-        val f = fractionProgress().coerceIn(0f, 1f)
-        val scale = 0.24f + 0.76f * f
-
-        val buttonPx = with(density) { buttonDiameter.toPx() }
-        // 目标视觉尺寸：fraction=0 时为 buttonDiameter 正方形，fraction=1 时为完整尺寸
-        val targetVisualWidth = buttonPx + (size.width - buttonPx) * f
-        val targetVisualHeight = buttonPx + (size.height - buttonPx) * f
-
-        // clip 坐标系（未缩放）中的尺寸，需除以 scale 补偿
-        val clipWidth = (targetVisualWidth / scale).coerceAtMost(size.width)
-        val clipHeight = (targetVisualHeight / scale).coerceAtMost(size.height)
-
-        // 对齐右上角（与 transformOrigin=(1f,0f) 一致，缩放后该点固定）
-        val left = size.width - clipWidth
-        val top = 0f
-        val right = size.width
-        val bottom = clipHeight
-
-        // 圆角反向放大（与 rememberDynamicCornerRadiusShape 一致）
-        val cornerRadiusPx = with(density) { (cornerRadius / scale).toPx() }
-
-        val path = Path().apply {
-            addRoundRect(
-                RoundRect(
-                    left = left,
-                    top = top,
-                    right = right,
-                    bottom = bottom,
-                    cornerRadius = CornerRadius(cornerRadiusPx, cornerRadiusPx),
-                )
-            )
-        }
-        return Outline.Generic(path)
     }
 }

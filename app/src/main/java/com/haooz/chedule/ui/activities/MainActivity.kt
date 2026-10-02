@@ -98,7 +98,6 @@ import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.state.ToggleableState
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -950,9 +949,14 @@ private fun ShiftLoadingOverlay(
 private fun MorePopupMenus(
     showMorePopup: Boolean,
     onMorePopupDismiss: () -> Unit,
+    onMorePopupExpand: () -> Unit = {},
     showTodayMorePopup: Boolean,
     onTodayMorePopupDismiss: () -> Unit,
+    onTodayMorePopupExpand: () -> Unit = {},
     morePopupFraction: Animatable<Float, *>,
+    todayMorePopupFraction: Animatable<Float, *>,
+    scheduleMenuOffset: () -> Offset = { Offset.Zero },
+    todayMenuOffset: () -> Offset = { Offset.Zero },
     liquidGlassBackdrop: com.kyant.backdrop.Backdrop,
     isShiftMode: Boolean = false,
     onJumpWeek: () -> Unit,
@@ -1002,6 +1006,10 @@ private fun MorePopupMenus(
             onDismiss = onMorePopupDismiss,
             onBackProgress = onMoreBackProgress,
             onBackCancelled = onMoreBackCancelled,
+            triggerIcon = MiuixIcons.More,
+            triggerContentDescription = "更多",
+            onExpand = onMorePopupExpand,
+            offsetPx = scheduleMenuOffset,
         ) {
             LiquidGlassDropdownMenuItem(
                 text = "跳转周数",
@@ -1054,9 +1062,14 @@ private fun MorePopupMenus(
         LiquidGlassDropdownMenu(
             show = showTodayMorePopup,
             backdrop = liquidGlassBackdrop,
+            fraction = todayMorePopupFraction,
             onDismiss = onTodayMorePopupDismiss,
             onBackProgress = onTodayMoreBackProgress,
             onBackCancelled = onTodayMoreBackCancelled,
+            triggerIcon = MiuixIcons.More,
+            triggerContentDescription = "更多",
+            onExpand = onTodayMorePopupExpand,
+            offsetPx = todayMenuOffset,
         ) {
             LiquidGlassDropdownMenuItem(
                 text = "跳转日期",
@@ -2448,10 +2461,10 @@ fun CourseScheduleApp() {
     var scheduleChanged by remember { mutableStateOf(false) }
     var showMorePopup by remember { mutableStateOf(false) }
     var showTodayMorePopup by remember { mutableStateOf(false) }
+    // 课表/今日「更多」菜单展开进度：同一个 Animatable 同时驱动菜单形变与顶栏按钮，
+    // 按钮原地随菜单展开淡出，形成"按钮连贯变为菜单"的单一动画
     val morePopupFraction = remember { Animatable(0f) }
-    // 顶栏"更多"按钮的移开/归位进度，由更多菜单的预测性返回手势驱动（shared 给顶栏与菜单）
-    val scheduleMoreButtonFraction = remember { Animatable(0f) }
-    val todayMoreButtonFraction = remember { Animatable(0f) }
+    val todayMorePopupFraction = remember { Animatable(0f) }
     var todayJumpToDateTrigger by remember { mutableIntStateOf(0) }
 
     val isViewingCurrentWeek = currentViewingWeek == currentWeek
@@ -2879,7 +2892,6 @@ fun CourseScheduleApp() {
                                                 }
                                             }
                                         },
-                                        onMoreClick = { showMorePopup = true },
                                         onJumpWeek = { viewModel.showJumpWeekDialog() },
                                         onEnterCustomize = {
                                             coroutineScope.launch {
@@ -2891,8 +2903,6 @@ fun CourseScheduleApp() {
                                         isShiftMode = isShiftMode,
                                         liquidGlassBackdrop = chromeBackdrop,
                                         scrollBehavior = scheduleScrollBehavior,
-                                        showMorePopup = showMorePopup,
-                                        buttonFractionParam = scheduleMoreButtonFraction,
                                         blurResampleKey = railBlurResampleEpoch.intValue,
                                         blurSampleTrack = com.haooz.chedule.ui.components.tabletNavExpandSampleTrack,
                                     )
@@ -2978,7 +2988,6 @@ fun CourseScheduleApp() {
                                     currentDayOfWeek = todaySelectedDayOfWeek,
                                     isToday = todayIsToday,
                                     onBackToToday = { scrollToTodayTrigger++ },
-                                    onMoreClick = { showTodayMorePopup = true },
                                     onJumpToDate = { todayJumpToDateTrigger++ },
                                     onEnterCustomize = {
                                         coroutineScope.launch {
@@ -2987,9 +2996,7 @@ fun CourseScheduleApp() {
                                         }
                                     },
                                     scrollBehavior = todayScrollBehavior,
-                                    showMorePopup = showTodayMorePopup,
                                     visible = showTodayTitle,
-                                    buttonFractionParam = todayMoreButtonFraction,
                                     blurResampleKey = railBlurResampleEpoch.intValue,
                                     blurSampleTrack = com.haooz.chedule.ui.components.tabletNavExpandSampleTrack,
                                 )
@@ -4523,28 +4530,48 @@ fun CourseScheduleApp() {
         // 组合期同步 mode：SideEffect 会晚一帧
         menuController.colorSchemeMode =
             if (menuDark) ColorSchemeMode.Dark else ColorSchemeMode.Light
+        // 单个「更多」控件随所在顶栏一起滑动：与顶栏同一套 delta 公式；
+        // 非当前页时整块被平移出屏幕，天然只留一份可见
+        val scheduleMoreMenuOffset: () -> Offset = {
+            val page = mainPagerState.currentPage
+            val off = mainPagerState.currentPageOffsetFraction
+            val delta = (if (isShiftMode) 0 else 1) - page - off
+            if (navBarStyle == "rail") Offset(0f, delta * screenHPx) else Offset(delta * screenWPx, 0f)
+        }
+        val todayMoreMenuOffset: () -> Offset = {
+            val page = mainPagerState.currentPage
+            val off = mainPagerState.currentPageOffsetFraction
+            // 排班模式下没有今日页，恒移出屏幕
+            val delta = if (isShiftMode) -1f else (-page - off)
+            if (navBarStyle == "rail") Offset(0f, delta * screenHPx) else Offset(delta * screenWPx, 0f)
+        }
         MiuixTheme(controller = menuController) {
             CompositionLocalProvider(LocalForcedDarkTheme provides forcedDark) {
                 MorePopupMenus(
                     showMorePopup = showMorePopup,
                     onMorePopupDismiss = { showMorePopup = false },
+                    onMorePopupExpand = { showMorePopup = true },
                     showTodayMorePopup = showTodayMorePopup,
                     onTodayMorePopupDismiss = { showTodayMorePopup = false },
+                    onTodayMorePopupExpand = { showTodayMorePopup = true },
                     morePopupFraction = morePopupFraction,
+                    todayMorePopupFraction = todayMorePopupFraction,
+                    scheduleMenuOffset = scheduleMoreMenuOffset,
+                    todayMenuOffset = todayMoreMenuOffset,
                     liquidGlassBackdrop = liquidGlassBackdrop,
                     isShiftMode = isShiftMode,
-                    // 预测性返回手势联动顶栏"更多"按钮：手势推进时按钮归位，取消时恢复移开
+                    // 预测性返回：手势推进时菜单缩回按钮处（按钮随之淡入），取消时恢复展开
                     onMoreBackProgress = { progress ->
-                        coroutineScope.launch { scheduleMoreButtonFraction.snapTo(1f - progress) }
+                        coroutineScope.launch { morePopupFraction.snapTo(1f - progress) }
                     },
                     onMoreBackCancelled = {
-                        coroutineScope.launch { scheduleMoreButtonFraction.animateTo(1f, tween(150)) }
+                        coroutineScope.launch { morePopupFraction.animateTo(1f, tween(150)) }
                     },
                     onTodayMoreBackProgress = { progress ->
-                        coroutineScope.launch { todayMoreButtonFraction.snapTo(1f - progress) }
+                        coroutineScope.launch { todayMorePopupFraction.snapTo(1f - progress) }
                     },
                     onTodayMoreBackCancelled = {
-                        coroutineScope.launch { todayMoreButtonFraction.animateTo(1f, tween(150)) }
+                        coroutineScope.launch { todayMorePopupFraction.animateTo(1f, tween(150)) }
                     },
                     onJumpWeek = { viewModel.showJumpWeekDialog() },
                     onCourseManage = {
@@ -5444,13 +5471,10 @@ private fun TodayTopBar(
     currentDayOfWeek: Int,
     isToday: Boolean = true,
     onBackToToday: () -> Unit = {},
-    onMoreClick: () -> Unit = {},
     onJumpToDate: () -> Unit = {},
     onEnterCustomize: () -> Unit = {},
     scrollBehavior: SharedScrollBehavior? = null,
-    showMorePopup: Boolean = false,
     visible: Boolean = true,
-    buttonFractionParam: Animatable<Float, *>? = null,
     blurResampleKey: Int = 0,
     blurSampleTrack: () -> Float = { 0f },
 ) {
@@ -5465,21 +5489,6 @@ private fun TodayTopBar(
     val dayOfWeekNames = listOf("周一", "周二", "周三", "周四", "周五", "周六", "周日")
     val dayOfWeekName = if (currentDayOfWeek in 1..7) dayOfWeekNames[currentDayOfWeek - 1] else ""
     val titleText = if (isToday) "今天是$dayOfWeekName" else dayOfWeekName
-
-    val buttonFraction = buttonFractionParam ?: remember { Animatable(0f) }
-    LaunchedEffect(showMorePopup) {
-        if (showMorePopup) {
-            buttonFraction.animateTo(
-                1f,
-                tween(340, easing = CubicBezierEasing(0.34f, 1f, 0.3f, 1f))
-            )
-        } else {
-            buttonFraction.animateTo(
-                0f,
-                tween(420, easing = CubicBezierEasing(0.34f, 1.2f, 0.3f, 1f))
-            )
-        }
-    }
 
     // 隐藏时 alpha=0 但仍测量，保证 currentHeightPx 启动即就位
     ProgressiveBlurTopBar(
@@ -5528,22 +5537,8 @@ private fun TodayTopBar(
                             )
                         }
                     } else {
-                        LiquidTopBarButton(
-                            onClick = onMoreClick,
-                            backdrop = liquidGlassBackdrop,
-                            icon = MiuixIcons.More,
-                            contentDescription = "更多",
-                            iconSize = 23.dp,
-                            backdropAlpha = backdropAlpha,
-                            shadowAlpha = shadowAlpha,
-                            modifier = Modifier.offset {
-                                val f = buttonFraction.value
-                                IntOffset(
-                                    x = (-100 * f).dp.roundToPx(),
-                                    y = (45 * f).dp.roundToPx()
-                                )
-                            }
-                        )
+                        // 「更多」按钮由下拉菜单组件自带（收起态即那颗按钮，唯一一份），这里只占位对齐
+                        Spacer(modifier = Modifier.size(42.dp))
                     }
                 }
             },

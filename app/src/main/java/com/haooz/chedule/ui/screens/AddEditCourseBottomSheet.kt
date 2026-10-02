@@ -149,7 +149,8 @@ fun AddEditCourseBottomSheet(
     }
 
     var currentOccupiedWeeks by remember { mutableStateOf<Set<Int>>(emptySet()) }
-    LaunchedEffect(dayOfWeek, startSection, endSection, isCustomTime, customStartTime, customEndTime) {
+    // 必须带上 editCourse?.id：按 id 排除自身，编辑对象变化而星期/节次相同时缺此 key 会误判自身周次为占用
+    LaunchedEffect(dayOfWeek, startSection, endSection, isCustomTime, customStartTime, customEndTime, editCourse?.id) {
         currentOccupiedWeeks = getOccupiedWeeks(
             dayOfWeek,
             startSection,

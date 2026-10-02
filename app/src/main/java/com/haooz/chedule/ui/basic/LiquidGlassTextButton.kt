@@ -93,7 +93,7 @@ fun LiquidGlassTextButton(
     val buttonEffects: com.kyant.backdrop.BackdropEffectScope.() -> Unit = remember(chromeLens) {
         {
             vibrancy()
-            blur(4.dp.toPx())
+            blur(8.dp.toPx())
             // 均衡及以下关闭折射
             if (chromeLens) lens(8f.dp.toPx(), 24f.dp.toPx())
         }

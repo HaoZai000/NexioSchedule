@@ -1,11 +1,5 @@
 package com.haooz.chedule.ui.components
 
-import androidx.compose.animation.AnimatedVisibility
-import androidx.compose.animation.core.Animatable
-import androidx.compose.animation.core.CubicBezierEasing
-import androidx.compose.animation.core.tween
-import androidx.compose.animation.fadeIn
-import androidx.compose.animation.fadeOut
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -15,12 +9,11 @@ import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.asPaddingValues
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBars
 import androidx.compose.foundation.layout.width
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -28,8 +21,6 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.layout
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.Dp
-import androidx.compose.ui.unit.DpOffset
-import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.zIndex
@@ -43,7 +34,6 @@ import top.yukonga.miuix.kmp.icon.MiuixIcons
 import top.yukonga.miuix.kmp.icon.basic.FastForward
 import top.yukonga.miuix.kmp.icon.extended.Background
 import top.yukonga.miuix.kmp.icon.extended.ConvertFile
-import top.yukonga.miuix.kmp.icon.extended.More
 import top.yukonga.miuix.kmp.icon.extended.Reset
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 import java.time.LocalDate
@@ -78,34 +68,16 @@ internal fun ScheduleTopBar(
     isReorganized: Boolean,
     onBackToCurrentWeek: () -> Unit,
     onOpenSwitchSchedule: () -> Unit,
-    onMoreClick: () -> Unit = {},
     onJumpWeek: () -> Unit = {},
     onEnterCustomize: () -> Unit = {},
     isTablet: Boolean = false,
     isShiftMode: Boolean = false,
     liquidGlassBackdrop: com.kyant.backdrop.Backdrop?,
     scrollBehavior: SharedScrollBehavior? = null,
-    showMorePopup: Boolean = false,
-    buttonFractionParam: Animatable<Float, *>? = null,
     blurResampleKey: Int = 0,
     blurSampleTrack: () -> Float = { 0f },
 ) {
     if (!visible || liquidGlassBackdrop == null) return
-
-    val buttonFraction = buttonFractionParam ?: remember { Animatable(0f) }
-    LaunchedEffect(showMorePopup) {
-        if (showMorePopup) {
-            buttonFraction.animateTo(
-                1f,
-                tween(340, easing = CubicBezierEasing(0.34f, 1f, 0.3f, 1f))
-            )
-        } else {
-            buttonFraction.animateTo(
-                0f,
-                tween(420, easing = CubicBezierEasing(0.34f, 1.2f, 0.3f, 1f))
-            )
-        }
-    }
 
     val titleText = when {
         isHoliday -> "放假中"
@@ -164,7 +136,6 @@ internal fun ScheduleTopBar(
                                 shadowAlpha = shadowAlpha,
                             )
                         } else {
-                            // 返回本周改由侧栏底部「今」按钮承担
                             if (!isShiftMode) {
                                 LiquidTopBarButton(
                                     onClick = {
@@ -178,24 +149,8 @@ internal fun ScheduleTopBar(
                                     shadowAlpha = shadowAlpha
                                 )
                             }
-                            LiquidTopBarButton(
-                                onClick = {
-                                    onMoreClick()
-                                },
-                                backdrop = liquidGlassBackdrop,
-                                icon = MiuixIcons.More,
-                                contentDescription = "更多",
-                                iconSize = 23.dp,
-                                backdropAlpha = backdropAlpha,
-                                shadowAlpha = shadowAlpha,
-                                modifier = Modifier.offset {
-                                        val f = buttonFraction.value
-                                        IntOffset(
-                                            x = (-100 * f).dp.roundToPx(),
-                                            y = (45 * f).dp.roundToPx()
-                                        )
-                                    }
-                            )
+                            // 「更多」按钮由下拉菜单组件自带（收起态即那颗按钮，唯一一份），这里只占位对齐
+                            Spacer(modifier = Modifier.size(42.dp))
                         }
                     }
                 }
