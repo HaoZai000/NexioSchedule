@@ -34,6 +34,7 @@ import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import com.google.gson.GsonBuilder
 import com.haooz.chedule.data.Course
 import com.haooz.chedule.data.CourseRepository
@@ -159,6 +160,9 @@ fun BackupAndMigrationScreen(
     var showShareExportConfirmDialog by remember { mutableStateOf(false) }
     var isSharingExport by remember { mutableStateOf(false) }
 
+    // 推送诊断快照（进入页面时读取一次，每次导出完成后刷新）
+    var pushDiag by remember { mutableStateOf<com.haooz.chedule.wearable.PushDiagnostics?>(null) }
+
     val jsonExportLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.CreateDocument("application/json")
     ) { uri ->
@@ -264,6 +268,10 @@ fun BackupAndMigrationScreen(
                 .collect { offset -> listScrollY = offset }
         }
         val density = androidx.compose.ui.platform.LocalDensity.current
+        // 进入页面时读取一次推送诊断快照
+        LaunchedEffect(Unit) {
+            pushDiag = com.haooz.chedule.wearable.WearableScheduleSync.getDiagnostics()
+        }
         LazyColumn(
             state = listState,
             modifier = Modifier.fillMaxSize()
@@ -581,6 +589,8 @@ fun BackupAndMigrationScreen(
                                                             duration = SnackbarDuration.Long
                                                         )
                                                     }
+                                                    // 导出完成后刷新推送诊断显示
+                                                    pushDiag = com.haooz.chedule.wearable.WearableScheduleSync.getDiagnostics()
                                                 }
                                             }
                                         }
@@ -597,6 +607,86 @@ fun BackupAndMigrationScreen(
                                     }
                                 }
                             )
+                        }
+                    }
+                }
+                // 静态提示文案：推送失败时的排查指引
+                item {
+                    Text(
+                        text = "若推送失败：请先在小米运动健康同步一次，并打开手表端应用，再重试导出。",
+                        fontSize = 12.sp,
+                        color = MiuixTheme.colorScheme.onSurfaceVariantSummary,
+                        modifier = Modifier.padding(start = 16.dp, end = 16.dp, bottom = 12.dp)
+                    )
+                }
+                // 推送诊断面板：节点状态 / 权限 / 最近推送结果 / pending 队列
+                item {
+                    val diag = pushDiag
+                    Card(
+                        cornerRadius = 20.dp,
+                        modifier = Modifier.fillMaxWidth(),
+                        insideMargin = PaddingValues(0.dp)
+                    ) {
+                        Column(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(16.dp)
+                        ) {
+                            Text(
+                                text = "推送诊断",
+                                fontSize = 14.sp,
+                                color = MiuixTheme.colorScheme.onSurface,
+                            )
+                            if (diag == null) {
+                                Text(
+                                    text = "读取中…",
+                                    fontSize = 12.sp,
+                                    color = MiuixTheme.colorScheme.onSurfaceVariantSummary,
+                                    modifier = Modifier.padding(top = 6.dp)
+                                )
+                            } else {
+                                val timeFmt = remember { SimpleDateFormat("MM-dd HH:mm:ss", java.util.Locale.getDefault()) }
+                                Text(
+                                    text = buildString {
+                                        append("节点：")
+                                        append(if (diag.nodeConnected) "在线" else "离线")
+                                        if (diag.lastResolveAt > 0L) {
+                                            append("（最近检测 ${timeFmt.format(java.util.Date(diag.lastResolveAt))}）")
+                                        }
+                                    },
+                                    fontSize = 12.sp,
+                                    color = MiuixTheme.colorScheme.onSurfaceVariantSummary,
+                                    modifier = Modifier.padding(top = 6.dp)
+                                )
+                                Text(
+                                    text = "互联权限：" + if (diag.permissionGranted) "已授予" else "未授予",
+                                    fontSize = 12.sp,
+                                    color = MiuixTheme.colorScheme.onSurfaceVariantSummary,
+                                    modifier = Modifier.padding(top = 4.dp)
+                                )
+                                Text(
+                                    text = buildString {
+                                        append("最近推送：")
+                                        if (diag.lastPushOutcome.isEmpty()) {
+                                            append("暂无记录")
+                                        } else {
+                                            append(diag.lastPushOutcome)
+                                            if (diag.lastPushAt > 0L) {
+                                                append("（${timeFmt.format(java.util.Date(diag.lastPushAt))}）")
+                                            }
+                                        }
+                                    },
+                                    fontSize = 12.sp,
+                                    color = MiuixTheme.colorScheme.onSurfaceVariantSummary,
+                                    modifier = Modifier.padding(top = 4.dp)
+                                )
+                                Text(
+                                    text = "排队队列：" + if (diag.pendingQueued) "有课表待补推" else "无",
+                                    fontSize = 12.sp,
+                                    color = MiuixTheme.colorScheme.onSurfaceVariantSummary,
+                                    modifier = Modifier.padding(top = 4.dp)
+                                )
+                            }
                         }
                     }
                 }

@@ -18,6 +18,25 @@ import java.util.concurrent.atomic.AtomicBoolean
 import java.util.concurrent.atomic.AtomicInteger
 
 /**
+ * 推送诊断快照（只读）。由 UI 层在进入页面 / 导出完成后调用 [WearableScheduleSync.getDiagnostics] 获取。
+ * 所有字段均为最近一次的观测值，不保证实时性，仅用于用户排查推送失败原因。
+ */
+data class PushDiagnostics(
+    /** 最近一次节点解析是否成功（true=已发现连接的手表节点） */
+    val nodeConnected: Boolean,
+    /** 最近一次节点解析时间戳（System.currentTimeMillis()），0=尚未解析过 */
+    val lastResolveAt: Long,
+    /** DEVICE_MANAGER 互联权限是否已授予 */
+    val permissionGranted: Boolean,
+    /** 最近一次推送结算结果文案："成功" 或失败原因；空串=尚未发生过推送结算 */
+    val lastPushOutcome: String,
+    /** 最近一次推送结算时间戳，0=尚未发生过推送结算 */
+    val lastPushAt: Long,
+    /** 是否有排队待补推的课表（pendingPush 标志） */
+    val pendingQueued: Boolean,
+)
+
+/**
  * 小米穿戴（手表 rpk）课表推送。
  *
  * 通道：xms-wearable MessageApi ↔ 手表 @system.interconnect
@@ -68,6 +87,24 @@ object WearableScheduleSync {
     @Volatile
     private var manualInFlight: Boolean = false
 
+    // ---- 诊断字段（只读观测，不影响任何推送/ACK/重试/CAS 逻辑） ----
+
+    /** 最近一次节点解析是否成功；由 resolveNodeId / tryResolveNode 路径写入。 */
+    @Volatile
+    private var lastResolveOk: Boolean = false
+
+    /** 最近一次节点解析时间戳。 */
+    @Volatile
+    private var lastResolveAt: Long = 0L
+
+    /** 最近一次推送结算结果文案（"成功" 或失败原因）；空串=尚未发生。 */
+    @Volatile
+    private var lastPushOutcome: String = ""
+
+    /** 最近一次推送结算时间戳。 */
+    @Volatile
+    private var lastPushAt: Long = 0L
+
     /** 触发并消费手动导出结果回调（幂等：先到者胜出，后到者 manualOutcome 已为 null 直接忽略）。 */
     private fun fireManualOutcome(ok: Boolean, reason: String) {
         val cb = manualOutcome ?: return
@@ -103,6 +140,9 @@ object WearableScheduleSync {
                             retryCount.set(0)
                             inFlightSentAt = -1L
                             Log.i(TAG, "push ack confirmed, sentAt=$ackSentAt")
+                            // 诊断：记录 ACK 成功结算
+                            lastPushOutcome = "成功"
+                            lastPushAt = System.currentTimeMillis()
                             // (d) ACK 确认成功：手动导出场景回调成功
                             if (manualInFlight) fireManualOutcome(true, "")
                         }
@@ -206,6 +246,9 @@ object WearableScheduleSync {
                 Log.w(TAG, "push skip ($reason): no node, queued")
                 pendingPush.set(true)
                 pendingScheduleName = scheduleName
+                // 诊断：记录无节点结算
+                lastPushOutcome = "未发现已连接的手表节点"
+                lastPushAt = System.currentTimeMillis()
                 // (a) 无节点：手动导出场景立即回调未发现设备
                 if (reason == "manual-export") fireManualOutcome(false, "no-device")
                 return@execute
@@ -216,6 +259,9 @@ object WearableScheduleSync {
             }
             val auth = authApi ?: run {
                 Log.w(TAG, "authApi null")
+                // 诊断：记录权限失败
+                lastPushOutcome = "权限未授予或授权失败"
+                lastPushAt = System.currentTimeMillis()
                 // (b) 权限未授予/授权失败
                 if (reason == "manual-export") fireManualOutcome(false, "权限未授予或授权失败")
                 return@execute
@@ -243,12 +289,18 @@ object WearableScheduleSync {
                                             "2) 确认手机端小米运动健康/小米穿戴 App 已与手环正常连接、后台运行；" +
                                             "3) 授权后到设置页点一次「导出到手环」手动重试。"
                                     )
+                                    // 诊断：记录权限未授予
+                                    lastPushOutcome = "权限未授予或授权失败"
+                                    lastPushAt = System.currentTimeMillis()
                                     // (b) requestPermission 成功但未授予
                                     if (reason == "manual-export") fireManualOutcome(false, "权限未授予或授权失败")
                                 }
                             }
                             .addOnFailureListener { e ->
                                 Log.w(TAG, "requestPermission fail: ${e.message}")
+                                // 诊断：记录授权请求失败
+                                lastPushOutcome = "权限未授予或授权失败"
+                                lastPushAt = System.currentTimeMillis()
                                 // (b) requestPermission 失败
                                 if (reason == "manual-export") fireManualOutcome(false, "权限未授予或授权失败")
                             }
@@ -256,6 +308,9 @@ object WearableScheduleSync {
                 }
                 .addOnFailureListener { e ->
                     Log.w(TAG, "checkPermission fail: ${e.message}")
+                    // 诊断：记录权限检查失败
+                    lastPushOutcome = "权限未授予或授权失败"
+                    lastPushAt = System.currentTimeMillis()
                     // (b) checkPermissions 失败
                     if (reason == "manual-export") fireManualOutcome(false, "权限未授予或授权失败")
                 }
@@ -353,6 +408,9 @@ object WearableScheduleSync {
             Log.w(TAG, "push give up ($reason): $errMsg (total attempts=${retriesDone + 1})")
             retryCount.set(0)
             inFlightSentAt = -1L
+            // 诊断：记录重试放弃结算
+            lastPushOutcome = "推送失败：$errMsg"
+            lastPushAt = System.currentTimeMillis()
             // (c) 重试彻底放弃：手动导出场景回调失败（带具体 errMsg）
             if (manualInFlight) fireManualOutcome(false, errMsg)
         }
@@ -368,6 +426,9 @@ object WearableScheduleSync {
                         val changed = nodeId != first.id
                         nodeId = first.id
                         Log.i(TAG, "node ready: ${first.id} changed=$changed pending=${pendingPush.get()}")
+                        // 诊断：记录节点在线
+                        lastResolveOk = true
+                        lastResolveAt = System.currentTimeMillis()
                         bindMessageListener(first.id)
                         // 连上后补推排队的课表
                         if (changed || pendingPush.get()) {
@@ -376,20 +437,37 @@ object WearableScheduleSync {
                     } else {
                         Log.w(TAG, "connectedNodes empty")
                         nodeId = null
+                        // 诊断：记录节点离线
+                        lastResolveOk = false
+                        lastResolveAt = System.currentTimeMillis()
                     }
                 }
                 .addOnFailureListener { e ->
                     Log.w(TAG, "getConnectedNodes fail: ${e.message}")
+                    // 诊断：记录节点解析失败
+                    lastResolveOk = false
+                    lastResolveAt = System.currentTimeMillis()
                 }
         } catch (e: Exception) {
             Log.w(TAG, "tryResolveNode fail: ${e.message}")
+            lastResolveOk = false
+            lastResolveAt = System.currentTimeMillis()
         }
     }
 
     private fun resolveNodeId(): String? {
-        nodeId?.let { return it }
+        nodeId?.let {
+            // 诊断：同步命中已有节点
+            lastResolveOk = true
+            lastResolveAt = System.currentTimeMillis()
+            return it
+        }
         tryResolveNode()
-        return nodeId
+        val result = nodeId
+        // 诊断：记录本次同步解析结果
+        lastResolveOk = result != null
+        lastResolveAt = System.currentTimeMillis()
+        return result
     }
 
     private fun bindMessageListener(id: String) {
@@ -419,4 +497,17 @@ object WearableScheduleSync {
             tryResolveNode()
         }, 5, 30, TimeUnit.SECONDS)
     }
+
+    /**
+     * 获取推送诊断快照（只读，任何线程可安全调用，不触发任何推送/绑定/权限请求）。
+     * 返回当前观测到的节点状态、权限、最近推送结果与 pending 队列状态。
+     */
+    fun getDiagnostics(): PushDiagnostics = PushDiagnostics(
+        nodeConnected = lastResolveOk,
+        lastResolveAt = lastResolveAt,
+        permissionGranted = permissionGranted.get(),
+        lastPushOutcome = lastPushOutcome,
+        lastPushAt = lastPushAt,
+        pendingQueued = pendingPush.get(),
+    )
 }
