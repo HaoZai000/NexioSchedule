@@ -55,6 +55,27 @@ object WearableScheduleSync {
     @Volatile
     private var ackTimeoutFuture: ScheduledFuture<*>? = null
 
+    /**
+     * 手动导出推送的结果回调槽（对象级）。
+     * 仅由 exportToWearable 在派发「manual-export」推送前挂入；4 个结算点（无节点/权限失败/重试放弃/ACK 成功）
+     * 触发后立即清空，防止重入与悬挂。自动推送（onScheduleChanged/pushSchedule/node-ready 补推）不触发。
+     * 回调运行在后台 scheduler / binder 线程，不做任何 UI 操作，由调用方自行切主线程。
+     */
+    @Volatile
+    var manualOutcome: ((ok: Boolean, reason: String) -> Unit)? = null
+
+    /** 标记当前在途推送是否来自手动导出；ACK 成功 / 彻底放弃时据此决定是否触发 manualOutcome。 */
+    @Volatile
+    private var manualInFlight: Boolean = false
+
+    /** 触发并消费手动导出结果回调（幂等：先到者胜出，后到者 manualOutcome 已为 null 直接忽略）。 */
+    private fun fireManualOutcome(ok: Boolean, reason: String) {
+        val cb = manualOutcome ?: return
+        manualOutcome = null
+        manualInFlight = false
+        cb(ok, reason)
+    }
+
     private lateinit var appContext: Context
     private var nodeApi: NodeApi? = null
     private var messageApi: MessageApi? = null
@@ -82,6 +103,8 @@ object WearableScheduleSync {
                             retryCount.set(0)
                             inFlightSentAt = -1L
                             Log.i(TAG, "push ack confirmed, sentAt=$ackSentAt")
+                            // (d) ACK 确认成功：手动导出场景回调成功
+                            if (manualInFlight) fireManualOutcome(true, "")
                         }
                     } else {
                         Log.i(TAG, "ignore ack sentAt=$ackSentAt expected=$expected")
@@ -135,6 +158,12 @@ object WearableScheduleSync {
         if (!initialized.get()) {
             init(context)
         }
+        // 若上一轮手动导出结果回调仍悬挂，先触发旧值，避免 UI 永久等待后再挂新回调。
+        manualOutcome?.let { old ->
+            manualOutcome = null
+            manualInFlight = false
+            old(false, "已被新的导出取代")
+        }
         return try {
             val repo = CourseRepository.getInstance(context.applicationContext)
             val json = WatchPayload.buildFullJson(repo, context.applicationContext, scheduleName)
@@ -143,11 +172,14 @@ object WearableScheduleSync {
             val file = java.io.File(dir, "nexio-watch-schedule.json")
             file.writeText(json, Charsets.UTF_8)
             Log.i(TAG, "export json -> ${file.absolutePath}")
+            // 本地导出成功：把结果回调挂到对象槽，推送异步派发，结果由 4 个结算点回调（不再立即回调成功）。
+            manualOutcome = onDone
+            manualInFlight = false
             ensurePermissionThenPush("manual-export", scheduleName)
-            onDone?.invoke(true, file.absolutePath)
             file.absolutePath
         } catch (e: Exception) {
             Log.w(TAG, "export fail: ${e.message}")
+            // 本地导出失败：直接回调（path==null），不走推送结算。
             onDone?.invoke(false, e.message ?: "export fail")
             null
         }
@@ -174,6 +206,8 @@ object WearableScheduleSync {
                 Log.w(TAG, "push skip ($reason): no node, queued")
                 pendingPush.set(true)
                 pendingScheduleName = scheduleName
+                // (a) 无节点：手动导出场景立即回调未发现设备
+                if (reason == "manual-export") fireManualOutcome(false, "no-device")
                 return@execute
             }
             if (permissionGranted.get()) {
@@ -182,6 +216,8 @@ object WearableScheduleSync {
             }
             val auth = authApi ?: run {
                 Log.w(TAG, "authApi null")
+                // (b) 权限未授予/授权失败
+                if (reason == "manual-export") fireManualOutcome(false, "权限未授予或授权失败")
                 return@execute
             }
             auth.checkPermissions(id, arrayOf(Permission.DEVICE_MANAGER))
@@ -207,15 +243,21 @@ object WearableScheduleSync {
                                             "2) 确认手机端小米运动健康/小米穿戴 App 已与手环正常连接、后台运行；" +
                                             "3) 授权后到设置页点一次「导出到手环」手动重试。"
                                     )
+                                    // (b) requestPermission 成功但未授予
+                                    if (reason == "manual-export") fireManualOutcome(false, "权限未授予或授权失败")
                                 }
                             }
                             .addOnFailureListener { e ->
                                 Log.w(TAG, "requestPermission fail: ${e.message}")
+                                // (b) requestPermission 失败
+                                if (reason == "manual-export") fireManualOutcome(false, "权限未授予或授权失败")
                             }
                     }
                 }
                 .addOnFailureListener { e ->
                     Log.w(TAG, "checkPermission fail: ${e.message}")
+                    // (b) checkPermissions 失败
+                    if (reason == "manual-export") fireManualOutcome(false, "权限未授予或授权失败")
                 }
         }
     }
@@ -235,6 +277,8 @@ object WearableScheduleSync {
             return
         }
         pushing.set(true)
+        // 标记在途推送是否来自手动导出，供 ACK 成功/彻底放弃结算时触发 manualOutcome
+        if (reason == "manual-export") manualInFlight = true
         try {
             val repo = CourseRepository.getInstance(appContext)
             // v4 整表推送：一次下发完整学期（课程+周次规则+设置+节次时间+假期），
@@ -309,6 +353,8 @@ object WearableScheduleSync {
             Log.w(TAG, "push give up ($reason): $errMsg (total attempts=${retriesDone + 1})")
             retryCount.set(0)
             inFlightSentAt = -1L
+            // (c) 重试彻底放弃：手动导出场景回调失败（带具体 errMsg）
+            if (manualInFlight) fireManualOutcome(false, errMsg)
         }
     }
 
