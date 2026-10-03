@@ -231,6 +231,69 @@ object WearableScheduleSync {
         ensurePermissionThenPush(reason, scheduleName)
     }
 
+    /**
+     * 拉起手表端课程表 App（进入导出页时由 UI 层自动调用，失败全程静默，不弹任何 UI）。
+     *
+     * 流程（任一前置条件不满足即静默 return，不报错、不弹 Toast/Snackbar、不发起权限请求）：
+     *  1. DEVICE_MANAGER 互联权限未授予 → 静默 return（复用已观测的 [permissionGranted]，
+     *     不主动 requestPermission，避免在导出页弹窗打扰用户；若用户此前已授权过推送，
+     *     此处即为 true，与推送通道共用同一权限状态）；
+     *  2. 无已连接节点 / 节点解析失败 → 静默 return（复用 [resolveNodeId] 的同步解析机制；
+     *     不排队、不补推课表，与推送通道的 pending 队列完全解耦）；
+     *  3. [NodeApi.isWearAppInstalled] 预检：手表端未安装课程表 / 调用失败 → 静默 return；
+     *  4. [NodeApi.launchWearApp]：成功/失败均仅写 Log，不回调 UI。
+     *
+     * 本方法只新增一条独立的「拉起」旁路，不触碰 pushing / ACK / 重试 / 超时 / CAS /
+     * pending 队列 / manualOutcome 任何状态，与现有推送逻辑零耦合。
+     */
+    fun launchWearScheduleApp(context: Context) {
+        if (!initialized.get()) {
+            init(context)
+        }
+        val exec = scheduler ?: Executors.newSingleThreadScheduledExecutor().also { scheduler = it }
+        exec.execute {
+            try {
+                // 1) 权限未授予：静默 return（不主动 requestPermission，避免在导出页弹窗打扰）
+                if (!permissionGranted.get()) {
+                    Log.i(TAG, "launchWearApp skip: DEVICE_MANAGER not granted (silent)")
+                    return@execute
+                }
+                // 2) 解析节点（复用现有同步解析；无节点则静默 return，不排队补推）
+                val id = resolveNodeId()
+                if (id == null) {
+                    Log.i(TAG, "launchWearApp skip: no connected node (silent)")
+                    return@execute
+                }
+                val api = nodeApi ?: run {
+                    Log.i(TAG, "launchWearApp skip: nodeApi null (silent)")
+                    return@execute
+                }
+                // 3) 预检：手表端课程表 App 是否已安装；未安装 / 调用失败均静默 return
+                api.isWearAppInstalled(id)
+                    .addOnSuccessListener { installed ->
+                        if (installed != true) {
+                            Log.i(TAG, "launchWearApp skip: wear app not installed (installed=$installed), node=$id (silent)")
+                            return@addOnSuccessListener
+                        }
+                        // uri 格式按官方文档交叉推断（hap://app/<package>/[path][?k=v]），需真机验证
+                        val uri = "hap://app/com.haooz.chedule/"
+                        api.launchWearApp(id, uri)
+                            .addOnSuccessListener {
+                                Log.i(TAG, "launchWearApp ok: node=$id uri=$uri")
+                            }
+                            .addOnFailureListener { e ->
+                                Log.w(TAG, "launchWearApp fail: ${e.message} (silent)")
+                            }
+                    }
+                    .addOnFailureListener { e ->
+                        Log.w(TAG, "isWearAppInstalled fail: ${e.message} (silent)")
+                    }
+            } catch (e: Exception) {
+                Log.w(TAG, "launchWearScheduleApp error: ${e.message} (silent)")
+            }
+        }
+    }
+
     /** 先确认 DEVICE_MANAGER 授权，再发消息（permission denied 的根因） */
     private fun ensurePermissionThenPush(reason: String, scheduleName: String = "") {
         val exec = scheduler ?: Executors.newSingleThreadScheduledExecutor().also { scheduler = it }

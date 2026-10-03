@@ -272,6 +272,13 @@ fun BackupAndMigrationScreen(
         LaunchedEffect(Unit) {
             pushDiag = com.haooz.chedule.wearable.WearableScheduleSync.getDiagnostics()
         }
+        // 进入导出页时自动拉起手表端课程表 App（失败全程静默：函数内部已吞掉所有异常/无节点/未装/无权限分支，
+        // UI 不新增任何 Toast/Snackbar/Dialog；仅作「打开手表端 App」旁路，不影响下方推送四态 Snackbar 与诊断面板）。
+        LaunchedEffect(mode) {
+            if (mode == ScheduleDataManageMode.Export) {
+                com.haooz.chedule.wearable.WearableScheduleSync.launchWearScheduleApp(context)
+            }
+        }
         LazyColumn(
             state = listState,
             modifier = Modifier.fillMaxSize()
