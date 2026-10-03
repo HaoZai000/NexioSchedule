@@ -7,6 +7,7 @@ import android.widget.Toast
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
@@ -33,6 +34,7 @@ import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import com.google.gson.GsonBuilder
 import com.haooz.chedule.data.Course
 import com.haooz.chedule.data.CourseRepository
@@ -70,6 +72,9 @@ import top.yukonga.miuix.kmp.basic.DropdownItem
 import top.yukonga.miuix.kmp.basic.NativeMiuixTextField
 import top.yukonga.miuix.kmp.basic.Scaffold
 import top.yukonga.miuix.kmp.basic.SmallTitle
+import top.yukonga.miuix.kmp.basic.SnackbarDuration
+import top.yukonga.miuix.kmp.basic.SnackbarHost
+import top.yukonga.miuix.kmp.basic.SnackbarHostState
 import top.yukonga.miuix.kmp.basic.Text
 import top.yukonga.miuix.kmp.basic.TextButton
 import top.yukonga.miuix.kmp.overlay.OverlayDialog
@@ -108,6 +113,10 @@ fun BackupAndMigrationScreen(
     val context = LocalContext.current
     val hapticFeedback = LocalHapticFeedback.current
     val scope = rememberCoroutineScope()
+    // 「导出到手环」四态反馈 Snackbar 状态（Short/Long 经 Mutex 队列，晚到的结果自动排队展示）
+    val snackbarHostState = remember { SnackbarHostState() }
+    // 推送结果回调运行在后台 scheduler / binder 线程，统一 post 回主线程再弹 Snackbar
+    val mainHandler = remember { android.os.Handler(android.os.Looper.getMainLooper()) }
     // 液态玻璃效果的透明下拉颜色
     val liquidGlassDropdownColors = DropdownDefaults.dropdownColors(
         containerColor = androidx.compose.ui.graphics.Color.Transparent,
@@ -150,6 +159,9 @@ fun BackupAndMigrationScreen(
     var pendingExportIcs by remember { mutableStateOf<String?>(null) }
     var showShareExportConfirmDialog by remember { mutableStateOf(false) }
     var isSharingExport by remember { mutableStateOf(false) }
+
+    // 推送诊断快照（进入页面时读取一次，每次导出完成后刷新）
+    var pushDiag by remember { mutableStateOf<com.haooz.chedule.wearable.PushDiagnostics?>(null) }
 
     val jsonExportLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.CreateDocument("application/json")
@@ -245,6 +257,7 @@ fun BackupAndMigrationScreen(
         }
     }
 
+    Box(modifier = Modifier.fillMaxSize()) {
     Scaffold(
         topBar = {}
     ) { paddingValues ->
@@ -255,6 +268,10 @@ fun BackupAndMigrationScreen(
                 .collect { offset -> listScrollY = offset }
         }
         val density = androidx.compose.ui.platform.LocalDensity.current
+        // 进入页面时读取一次推送诊断快照
+        LaunchedEffect(Unit) {
+            pushDiag = com.haooz.chedule.wearable.WearableScheduleSync.getDiagnostics()
+        }
         LazyColumn(
             state = listState,
             modifier = Modifier.fillMaxSize()
@@ -541,25 +558,135 @@ fun BackupAndMigrationScreen(
                                 title = "导出到手环",
                                 summary = "打包JSON并推送到手表/手环",
                                 onClick = {
-                                    scope.launch {
-                                        val path = com.haooz.chedule.wearable.WearableScheduleSync
-                                            .exportToWearable(context, selectedExportSchedule)
-                                        if (path != null) {
-                                            Toast.makeText(
-                                                context,
-                                                "已导出并推送手环\n$path",
-                                                Toast.LENGTH_LONG
-                                            ).show()
-                                        } else {
-                                            Toast.makeText(
-                                                context,
-                                                "导出失败，请确认手环已连接",
-                                                Toast.LENGTH_SHORT
-                                            ).show()
+                                    // localPath 先置空：onDone 在「本地导出失败」时同步回调（此时仍为 null），
+                                    // 在「推送结果」时异步晚到（此时已被赋值为本地路径）。
+                                    var localPath: String? = null
+                                    val resultPath = com.haooz.chedule.wearable.WearableScheduleSync
+                                        .exportToWearable(context, selectedExportSchedule) { ok, reason ->
+                                            val p = localPath
+                                            // 回调运行在后台 scheduler / binder 线程，post 回主线程后再弹 Snackbar
+                                            mainHandler.post {
+                                                scope.launch {
+                                                    when {
+                                                        // 状态①：本地导出失败
+                                                        p == null -> snackbarHostState.showSnackbar(
+                                                            message = "导出失败：${reason.ifEmpty { "未知错误" }}",
+                                                            duration = SnackbarDuration.Long
+                                                        )
+                                                        // 状态②：本地导出成功 + 推送成功
+                                                        ok -> snackbarHostState.showSnackbar(
+                                                            message = "课表已导出，推送成功\n本地文件：$p",
+                                                            duration = SnackbarDuration.Long
+                                                        )
+                                                        // 状态③：本地导出成功，但未发现手环设备
+                                                        reason == "no-device" -> snackbarHostState.showSnackbar(
+                                                            message = "课表已导出到本地；未发现手环设备，请先安装手环端并连接\n本地文件：$p",
+                                                            duration = SnackbarDuration.Long
+                                                        )
+                                                        // 状态④：本地导出成功，推送失败（带原因）
+                                                        else -> snackbarHostState.showSnackbar(
+                                                            message = "课表已导出到本地；推送失败：${reason.ifEmpty { "未知错误" }}\n本地文件：$p",
+                                                            duration = SnackbarDuration.Long
+                                                        )
+                                                    }
+                                                    // 导出完成后刷新推送诊断显示
+                                                    pushDiag = com.haooz.chedule.wearable.WearableScheduleSync.getDiagnostics()
+                                                }
+                                            }
+                                        }
+                                    localPath = resultPath
+                                    if (resultPath != null) {
+                                        // 本地导出成功：先提示正在推送；推送结果由 onDone 回调接管，
+                                        // 经 SnackbarHostState 的 Mutex 队列自动排在本条之后展示。
+                                        scope.launch {
+                                            snackbarHostState.showSnackbar(
+                                                message = "课表已导出到本地，正在推送…",
+                                                duration = SnackbarDuration.Short
+                                            )
                                         }
                                     }
                                 }
                             )
+                        }
+                    }
+                }
+                // 静态提示文案：推送失败时的排查指引
+                item {
+                    Text(
+                        text = "若推送失败：请先在小米运动健康同步一次，并打开手表端应用，再重试导出。",
+                        fontSize = 12.sp,
+                        color = MiuixTheme.colorScheme.onSurfaceVariantSummary,
+                        modifier = Modifier.padding(start = 16.dp, end = 16.dp, bottom = 12.dp)
+                    )
+                }
+                // 推送诊断面板：节点状态 / 权限 / 最近推送结果 / pending 队列
+                item {
+                    val diag = pushDiag
+                    Card(
+                        cornerRadius = 20.dp,
+                        modifier = Modifier.fillMaxWidth(),
+                        insideMargin = PaddingValues(0.dp)
+                    ) {
+                        Column(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(16.dp)
+                        ) {
+                            Text(
+                                text = "推送诊断",
+                                fontSize = 14.sp,
+                                color = MiuixTheme.colorScheme.onSurface,
+                            )
+                            if (diag == null) {
+                                Text(
+                                    text = "读取中…",
+                                    fontSize = 12.sp,
+                                    color = MiuixTheme.colorScheme.onSurfaceVariantSummary,
+                                    modifier = Modifier.padding(top = 6.dp)
+                                )
+                            } else {
+                                val timeFmt = remember { SimpleDateFormat("MM-dd HH:mm:ss", java.util.Locale.getDefault()) }
+                                Text(
+                                    text = buildString {
+                                        append("节点：")
+                                        append(if (diag.nodeConnected) "在线" else "离线")
+                                        if (diag.lastResolveAt > 0L) {
+                                            append("（最近检测 ${timeFmt.format(java.util.Date(diag.lastResolveAt))}）")
+                                        }
+                                    },
+                                    fontSize = 12.sp,
+                                    color = MiuixTheme.colorScheme.onSurfaceVariantSummary,
+                                    modifier = Modifier.padding(top = 6.dp)
+                                )
+                                Text(
+                                    text = "互联权限：" + if (diag.permissionGranted) "已授予" else "未授予",
+                                    fontSize = 12.sp,
+                                    color = MiuixTheme.colorScheme.onSurfaceVariantSummary,
+                                    modifier = Modifier.padding(top = 4.dp)
+                                )
+                                Text(
+                                    text = buildString {
+                                        append("最近推送：")
+                                        if (diag.lastPushOutcome.isEmpty()) {
+                                            append("暂无记录")
+                                        } else {
+                                            append(diag.lastPushOutcome)
+                                            if (diag.lastPushAt > 0L) {
+                                                append("（${timeFmt.format(java.util.Date(diag.lastPushAt))}）")
+                                            }
+                                        }
+                                    },
+                                    fontSize = 12.sp,
+                                    color = MiuixTheme.colorScheme.onSurfaceVariantSummary,
+                                    modifier = Modifier.padding(top = 4.dp)
+                                )
+                                Text(
+                                    text = "排队队列：" + if (diag.pendingQueued) "有课表待补推" else "无",
+                                    fontSize = 12.sp,
+                                    color = MiuixTheme.colorScheme.onSurfaceVariantSummary,
+                                    modifier = Modifier.padding(top = 4.dp)
+                                )
+                            }
                         }
                     }
                 }
@@ -596,6 +723,13 @@ fun BackupAndMigrationScreen(
                 }
             }
         }
+    }
+
+        // 底部 Snackbar 宿主：承载「导出到手环」四态反馈
+        SnackbarHost(
+            state = snackbarHostState,
+            modifier = Modifier.align(Alignment.BottomCenter)
+        )
     }
 
     if (showImportConfirmDialog && pendingImportData != null) {

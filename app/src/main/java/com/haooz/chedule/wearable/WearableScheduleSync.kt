@@ -12,8 +12,29 @@ import com.xiaomi.xms.wearable.node.NodeApi
 import org.json.JSONObject
 import java.util.concurrent.Executors
 import java.util.concurrent.ScheduledExecutorService
+import java.util.concurrent.ScheduledFuture
 import java.util.concurrent.TimeUnit
 import java.util.concurrent.atomic.AtomicBoolean
+import java.util.concurrent.atomic.AtomicInteger
+
+/**
+ * 推送诊断快照（只读）。由 UI 层在进入页面 / 导出完成后调用 [WearableScheduleSync.getDiagnostics] 获取。
+ * 所有字段均为最近一次的观测值，不保证实时性，仅用于用户排查推送失败原因。
+ */
+data class PushDiagnostics(
+    /** 最近一次节点解析是否成功（true=已发现连接的手表节点） */
+    val nodeConnected: Boolean,
+    /** 最近一次节点解析时间戳（System.currentTimeMillis()），0=尚未解析过 */
+    val lastResolveAt: Long,
+    /** DEVICE_MANAGER 互联权限是否已授予 */
+    val permissionGranted: Boolean,
+    /** 最近一次推送结算结果文案："成功" 或失败原因；空串=尚未发生过推送结算 */
+    val lastPushOutcome: String,
+    /** 最近一次推送结算时间戳，0=尚未发生过推送结算 */
+    val lastPushAt: Long,
+    /** 是否有排队待补推的课表（pendingPush 标志） */
+    val pendingQueued: Boolean,
+)
 
 /**
  * 小米穿戴（手表 rpk）课表推送。
@@ -28,6 +49,12 @@ object WearableScheduleSync {
     private const val TAG = "WearableScheduleSync"
     private const val PROTOCOL = "nexio.schedule"
 
+    /** ACK 确认超时：sendMessage 成功后等待手环回 ack 的秒数 */
+    private const val ACK_TIMEOUT_SEC = 5L
+
+    /** 最多重试次数（不含首次发送），即最多共 3 次尝试 */
+    private const val MAX_RETRIES = 2
+
     private val initialized = AtomicBoolean(false)
     private val pushing = AtomicBoolean(false)
     private val pendingPush = AtomicBoolean(false)
@@ -35,6 +62,56 @@ object WearableScheduleSync {
     /** 无节点时暂存的课表名，连上后补推 */
     @Volatile
     private var pendingScheduleName: String = ""
+
+    /** 当前在途推送的 sentAt（取自 payload JSON）；手环 ack 带同一 sentAt 才视为本次推送成功。-1=无在途推送 */
+    @Volatile
+    private var inFlightSentAt: Long = -1L
+
+    /** 已重试次数（不计首次发送）；ACK 成功或彻底放弃时清零 */
+    private val retryCount = AtomicInteger(0)
+
+    /** ACK 超时定时器；收到 ack 后取消 */
+    @Volatile
+    private var ackTimeoutFuture: ScheduledFuture<*>? = null
+
+    /**
+     * 手动导出推送的结果回调槽（对象级）。
+     * 仅由 exportToWearable 在派发「manual-export」推送前挂入；4 个结算点（无节点/权限失败/重试放弃/ACK 成功）
+     * 触发后立即清空，防止重入与悬挂。自动推送（onScheduleChanged/pushSchedule/node-ready 补推）不触发。
+     * 回调运行在后台 scheduler / binder 线程，不做任何 UI 操作，由调用方自行切主线程。
+     */
+    @Volatile
+    var manualOutcome: ((ok: Boolean, reason: String) -> Unit)? = null
+
+    /** 标记当前在途推送是否来自手动导出；ACK 成功 / 彻底放弃时据此决定是否触发 manualOutcome。 */
+    @Volatile
+    private var manualInFlight: Boolean = false
+
+    // ---- 诊断字段（只读观测，不影响任何推送/ACK/重试/CAS 逻辑） ----
+
+    /** 最近一次节点解析是否成功；由 resolveNodeId / tryResolveNode 路径写入。 */
+    @Volatile
+    private var lastResolveOk: Boolean = false
+
+    /** 最近一次节点解析时间戳。 */
+    @Volatile
+    private var lastResolveAt: Long = 0L
+
+    /** 最近一次推送结算结果文案（"成功" 或失败原因）；空串=尚未发生。 */
+    @Volatile
+    private var lastPushOutcome: String = ""
+
+    /** 最近一次推送结算时间戳。 */
+    @Volatile
+    private var lastPushAt: Long = 0L
+
+    /** 触发并消费手动导出结果回调（幂等：先到者胜出，后到者 manualOutcome 已为 null 直接忽略）。 */
+    private fun fireManualOutcome(ok: Boolean, reason: String) {
+        val cb = manualOutcome ?: return
+        manualOutcome = null
+        manualInFlight = false
+        cb(ok, reason)
+    }
 
     private lateinit var appContext: Context
     private var nodeApi: NodeApi? = null
@@ -51,8 +128,32 @@ object WearableScheduleSync {
             val protocol = json.optString("protocol")
             if (protocol.isNotEmpty() && protocol != PROTOCOL) return@OnMessageReceivedListener
             val action = json.optString("action")
-            if (action == "request" || action.isEmpty()) {
-                pushSchedule("watch-request")
+            when (action) {
+                // 手环收到 payload 后回 ack（带同一 sentAt）。仅当与在途推送匹配时才确认成功。
+                "ack" -> {
+                    val ackSentAt = json.optLong("sentAt", -1L)
+                    val expected = inFlightSentAt
+                    if (expected > 0L && ackSentAt == expected) {
+                        // 与 ACK 超时/发送失败路径竞争：用 CAS 抢 pushing，先到者胜出，后到者直接忽略
+                        if (pushing.compareAndSet(true, false)) {
+                            cancelAckTimeout()
+                            retryCount.set(0)
+                            inFlightSentAt = -1L
+                            Log.i(TAG, "push ack confirmed, sentAt=$ackSentAt")
+                            // 诊断：记录 ACK 成功结算
+                            lastPushOutcome = "成功"
+                            lastPushAt = System.currentTimeMillis()
+                            // (d) ACK 确认成功：手动导出场景回调成功
+                            if (manualInFlight) fireManualOutcome(true, "")
+                        }
+                    } else {
+                        Log.i(TAG, "ignore ack sentAt=$ackSentAt expected=$expected")
+                    }
+                }
+                // 手环主动请求推送（首次连接/唤醒）
+                "request", "" -> {
+                    pushSchedule("watch-request")
+                }
             }
         } catch (e: Exception) {
             Log.w(TAG, "handle message fail: ${e.message}")
@@ -97,6 +198,12 @@ object WearableScheduleSync {
         if (!initialized.get()) {
             init(context)
         }
+        // 若上一轮手动导出结果回调仍悬挂，先触发旧值，避免 UI 永久等待后再挂新回调。
+        manualOutcome?.let { old ->
+            manualOutcome = null
+            manualInFlight = false
+            old(false, "已被新的导出取代")
+        }
         return try {
             val repo = CourseRepository.getInstance(context.applicationContext)
             val json = WatchPayload.buildFullJson(repo, context.applicationContext, scheduleName)
@@ -105,11 +212,14 @@ object WearableScheduleSync {
             val file = java.io.File(dir, "nexio-watch-schedule.json")
             file.writeText(json, Charsets.UTF_8)
             Log.i(TAG, "export json -> ${file.absolutePath}")
+            // 本地导出成功：把结果回调挂到对象槽，推送异步派发，结果由 4 个结算点回调（不再立即回调成功）。
+            manualOutcome = onDone
+            manualInFlight = false
             ensurePermissionThenPush("manual-export", scheduleName)
-            onDone?.invoke(true, file.absolutePath)
             file.absolutePath
         } catch (e: Exception) {
             Log.w(TAG, "export fail: ${e.message}")
+            // 本地导出失败：直接回调（path==null），不走推送结算。
             onDone?.invoke(false, e.message ?: "export fail")
             null
         }
@@ -136,6 +246,11 @@ object WearableScheduleSync {
                 Log.w(TAG, "push skip ($reason): no node, queued")
                 pendingPush.set(true)
                 pendingScheduleName = scheduleName
+                // 诊断：记录无节点结算
+                lastPushOutcome = "未发现已连接的手表节点"
+                lastPushAt = System.currentTimeMillis()
+                // (a) 无节点：手动导出场景立即回调未发现设备
+                if (reason == "manual-export") fireManualOutcome(false, "no-device")
                 return@execute
             }
             if (permissionGranted.get()) {
@@ -144,6 +259,11 @@ object WearableScheduleSync {
             }
             val auth = authApi ?: run {
                 Log.w(TAG, "authApi null")
+                // 诊断：记录权限失败
+                lastPushOutcome = "权限未授予或授权失败"
+                lastPushAt = System.currentTimeMillis()
+                // (b) 权限未授予/授权失败
+                if (reason == "manual-export") fireManualOutcome(false, "权限未授予或授权失败")
                 return@execute
             }
             auth.checkPermissions(id, arrayOf(Permission.DEVICE_MANAGER))
@@ -162,16 +282,37 @@ object WearableScheduleSync {
                                 if (ok) {
                                     doPush(reason, scheduleName, id)
                                 } else {
-                                    Log.w(TAG, "push fail ($reason): permission not granted")
+                                    Log.w(
+                                        TAG,
+                                        "push fail ($reason): 互联/消息权限未授予（DEVICE_MANAGER）。" +
+                                            "排查指引：1) 系统设置→应用→NexioSchedule→权限，授予「连接与共享/设备互联/邻近设备」类权限；" +
+                                            "2) 确认手机端小米运动健康/小米穿戴 App 已与手环正常连接、后台运行；" +
+                                            "3) 授权后到设置页点一次「导出到手环」手动重试。"
+                                    )
+                                    // 诊断：记录权限未授予
+                                    lastPushOutcome = "权限未授予或授权失败"
+                                    lastPushAt = System.currentTimeMillis()
+                                    // (b) requestPermission 成功但未授予
+                                    if (reason == "manual-export") fireManualOutcome(false, "权限未授予或授权失败")
                                 }
                             }
                             .addOnFailureListener { e ->
                                 Log.w(TAG, "requestPermission fail: ${e.message}")
+                                // 诊断：记录授权请求失败
+                                lastPushOutcome = "权限未授予或授权失败"
+                                lastPushAt = System.currentTimeMillis()
+                                // (b) requestPermission 失败
+                                if (reason == "manual-export") fireManualOutcome(false, "权限未授予或授权失败")
                             }
                     }
                 }
                 .addOnFailureListener { e ->
                     Log.w(TAG, "checkPermission fail: ${e.message}")
+                    // 诊断：记录权限检查失败
+                    lastPushOutcome = "权限未授予或授权失败"
+                    lastPushAt = System.currentTimeMillis()
+                    // (b) checkPermissions 失败
+                    if (reason == "manual-export") fireManualOutcome(false, "权限未授予或授权失败")
                 }
         }
     }
@@ -191,23 +332,87 @@ object WearableScheduleSync {
             return
         }
         pushing.set(true)
+        // 标记在途推送是否来自手动导出，供 ACK 成功/彻底放弃结算时触发 manualOutcome
+        if (reason == "manual-export") manualInFlight = true
         try {
             val repo = CourseRepository.getInstance(appContext)
             // v4 整表推送：一次下发完整学期（课程+周次规则+设置+节次时间+假期），
             // 手表自行推算任意日期。
             val payload = WatchPayload.buildFullJson(repo, appContext, scheduleName)
-            val api = messageApi ?: return
+            // 提取本次 payload 的 sentAt，作为与手环 ack 配对的关联 ID
+            val sentAt = try {
+                JSONObject(payload).optLong("sentAt", -1L)
+            } catch (e: Exception) {
+                -1L
+            }
+            inFlightSentAt = sentAt
+            val api = messageApi
+            if (api == null) {
+                onPushOutcomeFailure("messageApi null", reason, scheduleName, id)
+                return
+            }
+            // 注意：sendMessage 成功 ≠ 手环收到。成功后仅启动 ACK 超时器；
+            // pushing 保持 true，直到收到匹配 ack 或重试彻底放弃才释放。
             api.sendMessage(id, payload.toByteArray(Charsets.UTF_8))
                 .addOnSuccessListener {
-                    Log.i(TAG, "push ok ($reason), node=$id, bytes=${payload.length}")
+                    Log.i(TAG, "push sent ($reason), node=$id, bytes=${payload.length}, sentAt=$sentAt")
+                    armAckTimeout(reason, scheduleName, id)
                 }
                 .addOnFailureListener { e ->
-                    Log.w(TAG, "push fail ($reason): ${e.message}")
+                    Log.w(TAG, "push send fail ($reason): ${e.message}")
+                    onPushOutcomeFailure(e.message ?: "send fail", reason, scheduleName, id)
                 }
         } catch (e: Exception) {
             Log.w(TAG, "push error ($reason): ${e.message}")
-        } finally {
-            pushing.set(false)
+            onPushOutcomeFailure(e.message ?: "push error", reason, scheduleName, id)
+        }
+    }
+
+    /** 启动 ACK 超时器：[ACK_TIMEOUT_SEC] 秒内未收到匹配 ack 则判失败并走重试。 */
+    private fun armAckTimeout(reason: String, scheduleName: String, id: String) {
+        val exec = scheduler ?: Executors.newSingleThreadScheduledExecutor().also { scheduler = it }
+        cancelAckTimeout()
+        ackTimeoutFuture = exec.schedule({
+            Log.w(TAG, "push ack timeout ($reason): no ack within ${ACK_TIMEOUT_SEC}s, sentAt=$inFlightSentAt")
+            onPushOutcomeFailure("ack timeout", reason, scheduleName, id)
+        }, ACK_TIMEOUT_SEC, TimeUnit.SECONDS)
+    }
+
+    private fun cancelAckTimeout() {
+        ackTimeoutFuture?.cancel(false)
+        ackTimeoutFuture = null
+    }
+
+    /**
+     * 推送失败统一出口（sendMessage 失败 / 异常 / ACK 超时）。
+     * 先用 CAS 抢 pushing：与 ack 成功路径竞争时先到者胜出；抢到后再按退避重试或彻底放弃。
+     * 绝不在持锁状态下调度重试（先释放 pushing 再 schedule），避免 pushing 悬挂。
+     */
+    private fun onPushOutcomeFailure(errMsg: String, reason: String, scheduleName: String, id: String) {
+        cancelAckTimeout()
+        if (!pushing.compareAndSet(true, false)) {
+            // 已被 ack 成功路径处理（pushing 已释放），本次失败结果忽略
+            Log.i(TAG, "push outcome already settled ($reason), ignore failure: $errMsg")
+            return
+        }
+        val retriesDone = retryCount.getAndIncrement()
+        if (retriesDone < MAX_RETRIES) {
+            val backoffSec = if (retriesDone == 0) 1L else 2L
+            Log.w(TAG, "push retry #${retriesDone + 1}/$MAX_RETRIES in ${backoffSec}s ($reason): $errMsg")
+            val exec = scheduler ?: Executors.newSingleThreadScheduledExecutor().also { scheduler = it }
+            exec.schedule({
+                // 退避后重发同一推送；若期间已有新推送占住 pushing，doPush 会把本次并入 pending
+                doPush(reason, scheduleName, id)
+            }, backoffSec, TimeUnit.SECONDS)
+        } else {
+            Log.w(TAG, "push give up ($reason): $errMsg (total attempts=${retriesDone + 1})")
+            retryCount.set(0)
+            inFlightSentAt = -1L
+            // 诊断：记录重试放弃结算
+            lastPushOutcome = "推送失败：$errMsg"
+            lastPushAt = System.currentTimeMillis()
+            // (c) 重试彻底放弃：手动导出场景回调失败（带具体 errMsg）
+            if (manualInFlight) fireManualOutcome(false, errMsg)
         }
     }
 
@@ -221,6 +426,9 @@ object WearableScheduleSync {
                         val changed = nodeId != first.id
                         nodeId = first.id
                         Log.i(TAG, "node ready: ${first.id} changed=$changed pending=${pendingPush.get()}")
+                        // 诊断：记录节点在线
+                        lastResolveOk = true
+                        lastResolveAt = System.currentTimeMillis()
                         bindMessageListener(first.id)
                         // 连上后补推排队的课表
                         if (changed || pendingPush.get()) {
@@ -229,20 +437,37 @@ object WearableScheduleSync {
                     } else {
                         Log.w(TAG, "connectedNodes empty")
                         nodeId = null
+                        // 诊断：记录节点离线
+                        lastResolveOk = false
+                        lastResolveAt = System.currentTimeMillis()
                     }
                 }
                 .addOnFailureListener { e ->
                     Log.w(TAG, "getConnectedNodes fail: ${e.message}")
+                    // 诊断：记录节点解析失败
+                    lastResolveOk = false
+                    lastResolveAt = System.currentTimeMillis()
                 }
         } catch (e: Exception) {
             Log.w(TAG, "tryResolveNode fail: ${e.message}")
+            lastResolveOk = false
+            lastResolveAt = System.currentTimeMillis()
         }
     }
 
     private fun resolveNodeId(): String? {
-        nodeId?.let { return it }
+        nodeId?.let {
+            // 诊断：同步命中已有节点
+            lastResolveOk = true
+            lastResolveAt = System.currentTimeMillis()
+            return it
+        }
         tryResolveNode()
-        return nodeId
+        val result = nodeId
+        // 诊断：记录本次同步解析结果
+        lastResolveOk = result != null
+        lastResolveAt = System.currentTimeMillis()
+        return result
     }
 
     private fun bindMessageListener(id: String) {
@@ -272,4 +497,17 @@ object WearableScheduleSync {
             tryResolveNode()
         }, 5, 30, TimeUnit.SECONDS)
     }
+
+    /**
+     * 获取推送诊断快照（只读，任何线程可安全调用，不触发任何推送/绑定/权限请求）。
+     * 返回当前观测到的节点状态、权限、最近推送结果与 pending 队列状态。
+     */
+    fun getDiagnostics(): PushDiagnostics = PushDiagnostics(
+        nodeConnected = lastResolveOk,
+        lastResolveAt = lastResolveAt,
+        permissionGranted = permissionGranted.get(),
+        lastPushOutcome = lastPushOutcome,
+        lastPushAt = lastPushAt,
+        pendingQueued = pendingPush.get(),
+    )
 }
