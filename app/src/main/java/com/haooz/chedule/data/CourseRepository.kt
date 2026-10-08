@@ -31,10 +31,9 @@ class CourseRepository private constructor(context: Context) {
     private var globalSectionTimesCache: Map<Int, String>? = null
 
     init {
-        // 启动迁移（1.6.4 数据层重构时整个 init 块被连带删掉，这里补回）：
-        // - 文件夹是 1.6.1 才有的，1.5.6 及更早上来的课表散在根目录 → 收进默认文件夹；
-        // - 「一课表一配置」之后，多配置时代攒下的闲置 time_config 只在这里清。
-        // 两者都只跑一次，由标记/幂等条件守门。
+        // 启动迁移，两者都幂等、只跑一次：
+        // - 课表收进默认文件夹（文件夹 1.6.1 才有，1.5.6 及更早的课表还散在根目录）；
+        // - 清理闲置 time_config（判据不可靠时整体跳过，见函数注释）。
         migrateSchedulesIntoDefaultFolder()
         pruneOrphanTimeConfigsIfNeeded()
     }
@@ -1684,14 +1683,13 @@ class CourseRepository private constructor(context: Context) {
         return getScheduleNames().filter { name -> folders.none { name in it.schedules } }
     }
 
-    /** 绑定无效时回退第一个可用配置 */
+    /** 绑定失效时必须回退到旧全局指针的解析值，不能 `firstOrNull()` —— 见 [pruneOrphanTimeConfigsIfNeeded] */
     fun getScheduleTimeConfigId(scheduleId: String): Long {
         val id = prefs.getLong("$SCHEDULE_TIME_CONFIG_PREFIX$scheduleId", 0L)
         if (id != 0L && id in getTimeConfigIds()) {
             return id
         }
-        val firstId = getTimeConfigIds().firstOrNull()
-        return firstId ?: 0L
+        return resolveLegacyCurrentTimeConfigId()
     }
 
     fun setScheduleTimeConfigId(scheduleId: String, timeConfigId: Long) {
@@ -1836,12 +1834,15 @@ class CourseRepository private constructor(context: Context) {
         val json = prefs.getString(key, null)
         val fallback = TimeConfig(id = id, name = "默认配置")
         if (json.isNullOrEmpty()) {
+            // id=0 没数据是全新安装的正常状态；别的 id 读不到 = 配置真丢了，会静默回落 4/4/4
+            if (id != 0L) android.util.Log.e(TAG, "time_config_$id 无数据，回落默认配置")
             return fallback
         }
         val config = try {
             val parsed = TimeConfig.parseSnapshotOrNull(gson, json)
             if (parsed == null) {
-                // 键名不可辨认：丢弃并覆写默认，避免每次启动读到 0 节
+                // 键名全不认得：覆写默认，避免每次启动读到 0 节
+                android.util.Log.e(TAG, "time_config_$id 快照无法辨认，判为损坏：${json.take(120)}")
                 saveTimeConfig(fallback)
                 fallback
             } else {
@@ -1852,7 +1853,8 @@ class CourseRepository private constructor(context: Context) {
                 }
                 sanitized
             }
-        } catch (_: Exception) {
+        } catch (e: Exception) {
+            android.util.Log.e(TAG, "time_config_$id 解析异常，回落默认配置", e)
             fallback
         }
         timeConfigCache[id] = config
@@ -1944,40 +1946,46 @@ class CourseRepository private constructor(context: Context) {
     }
 
     /**
-     * 清理没有任何课表绑定的孤儿时间配置。
+     * 清理没有课表绑定的孤儿时间配置。
      *
-     * 「多配置可切换」时代会攒下一堆配置；改成「一课表一配置」后它们再也不会被用到，
-     * 却仍留在 time_config_ids 里 —— 不仅占空间，还会让同名检查误判。
-     * 必须在确定至少还有一个配置存活时才删，避免把最后一个也清掉导致课表无配置可用。
-     *
-     * 删除不可逆且没有第二份副本，所以把删了哪些留下来记一条 log：一旦出现
-     * 「课表名与绑定键不同步导致误删」，这是唯一能查的线索。
+     * 删除不可逆（prefs 没有回收站），所以只在**能证明没人用**时才动手：还有课表没写下显式
+     * 绑定就整体跳过。1.6.4 曾把在用的配置判成孤儿删掉（判据漏了旧全局指针
+     * `current_time_config_id`），用户时间回落成 4/4/4；现在口径统一到 [collectBoundTimeConfigIds]。
      */
     fun pruneOrphanTimeConfigsIfNeeded() {
         val ids = getTimeConfigIds()
         if (ids.size <= 1) return
-        // 同时并入「原始绑定值」和「回退解析值」：未绑定的课表会回退到第一个配置，
-        // 那个配置虽没被显式绑定却正在被使用，只看原始值会把它误删。
-        val bound = getScheduleNames()
-            .flatMap { name ->
-                listOf(
-                    prefs.getLong("$SCHEDULE_TIME_CONFIG_PREFIX$name", 0L),
-                    getScheduleTimeConfigId(name)
-                )
-            }
-            .toSet()
+        val unbound = getScheduleNames().filterNot { prefs.contains("$SCHEDULE_TIME_CONFIG_PREFIX$it") }
+        if (unbound.isNotEmpty()) {
+            android.util.Log.w(TAG, "课表 $unbound 未绑定时间配置，判据不可靠，跳过清理（ids=$ids）")
+            return
+        }
+        val bound = collectBoundTimeConfigIds()
         val orphans = ids.filter { it !in bound }
-        if (orphans.isEmpty() || orphans.size >= ids.size) return
+        if (orphans.isEmpty()) return
+        if (orphans.size >= ids.size) {
+            android.util.Log.w(TAG, "孤儿配置占满全部候选，判据可疑，不处理（ids=$ids）")
+            return
+        }
         val kept = ids.filter { it in bound }
         saveTimeConfigIds(kept)
-        orphans.forEach { orphan ->
-            prefs.edit { remove("${TIME_CONFIG_PREFIX}$orphan") }
-            timeConfigCache.remove(orphan)
-        }
-        android.util.Log.w(
-            TAG,
-            "pruneOrphanTimeConfigs: 课表=${getScheduleNames()} 保留=$kept 删除=$orphans"
-        )
+        prefs.edit(commit = true) { orphans.forEach { remove("$TIME_CONFIG_PREFIX$it") } }
+        orphans.forEach { timeConfigCache.remove(it) }
+        android.util.Log.w(TAG, "pruneOrphanTimeConfigs: 保留=$kept 删除=$orphans")
+    }
+
+    /**
+     * 判定「正在被使用」的唯一口径：全部 `schedule_time_config_*` 绑定值（含已不存在的课表残留）
+     * + 旧全局指针本身及其解析值（未绑定的课表会回退到它）。
+     */
+    private fun collectBoundTimeConfigIds(): Set<Long> {
+        val bound = prefs.all.keys
+            .filter { it.startsWith(SCHEDULE_TIME_CONFIG_PREFIX) }
+            .map { prefs.getLong(it, 0L) }
+            .toMutableSet()
+        bound.add(prefs.getLong(KEY_CURRENT_TIME_CONFIG_ID, 0L))
+        bound.add(resolveLegacyCurrentTimeConfigId())
+        return bound
     }
 
     fun getCurrentTimeConfig(): TimeConfig {
