@@ -6,8 +6,31 @@ import android.content.Context
 import android.content.Intent
 import android.util.Log
 import com.haooz.chedule.data.CourseRepository
+import com.haooz.chedule.data.HolidayCountdown
+import com.haooz.chedule.data.HolidayManager
+import java.time.LocalDate
+import java.time.temporal.ChronoUnit
 
 class AlarmReceiver : BroadcastReceiver() {
+
+    /** 放假提示标题：有假期名就带上，缺失时退化成通用文案 */
+    private fun holidayStartTitle(name: String): String =
+        if (name.isBlank()) "明天开始放假" else "明天起${name}放假"
+
+    /**
+     * 放假提示正文：从放假日算起的剩余假期天数 + 复课日。
+     * 区间取 [HolidayCountdown] 的连续假期块 —— 与今日页假期倒计时同一套口径。
+     * 极端数据下查不到块时也退化为不带日期的短文案，不让它掉回「明日无课」。
+     */
+    private fun holidayStartMessage(
+        entriesByYear: Map<Int, List<HolidayManager.Entry>>,
+        startDate: LocalDate,
+    ): String {
+        val block = HolidayCountdown.holidayBlockAt(entriesByYear, startDate) ?: return "明天不用上课"
+        val resume = block.endDate.plusDays(1)
+        val days = ChronoUnit.DAYS.between(startDate, block.endDate) + 1L
+        return "共${days}天，${resume.monthValue}月${resume.dayOfMonth}日恢复上课"
+    }
 
     /** 把 1..23 的整数转成中文数字（如 8 -> "八"，23 -> "二十三"），用于"早八"式文案 */
     private fun chineseNumberHour(n: Int): String {
@@ -37,10 +60,8 @@ class AlarmReceiver : BroadcastReceiver() {
                 // 避免用户改时间后旧闹钟带着旧 startTime 算 dedupId，与 checkPending
                 // 用新 startTime 算的 dedupId 双发（均落入不同 dedupId，互相不拦截）。
                 // 如果回查失败再退化为闹钟里快照的 name+section+time。
-                val matchedEarly = CourseReminderHelper.getTodayCourses(context).firstOrNull { course ->
-                    if (courseId.isNotEmpty()) course.id == courseId
-                    else course.name == courseName && course.getTimeDisplayText() == section
-                }
+                val matchedEarly = CourseReminderHelper.getTodayCourses(context)
+                    .firstOrNull { it.id == courseId }
                 val dedupId = if (matchedEarly != null) {
                     val freshStart = CourseReminderHelper.getCourseStartTime(
                         matchedEarly,
@@ -68,16 +89,10 @@ class AlarmReceiver : BroadcastReceiver() {
                 // 关键：闹钟里携带的是"注册那一刻"的课程快照。
                 // 课程可能已被删除、改了时间/教室、或因换课表/云同步换了 ID，
                 // 若直接照快照发送就会弹出旧数据提醒。这里一律以当前课表为准重新解析。
-                val matched = CourseReminderHelper.getTodayCourses(context).firstOrNull { course ->
-                    if (courseId.isNotEmpty()) {
-                        course.id == courseId
-                    } else {
-                        // 旧版闹钟没有 courseId，退化为按课程名+节次匹配
-                        course.name == courseName && course.getTimeDisplayText() == section
-                    }
-                }
+                val matched = CourseReminderHelper.getTodayCourses(context)
+                    .firstOrNull { it.id == courseId }
                 if (matched == null) {
-                    // 课表可能已变更：全量重注册，清掉过期闹钟
+                    // 课表可能已变更（或闹钟没带 courseId）：全量重注册，清掉过期闹钟
                     Log.d("AlarmReceiver", "Stale alarm: $courseName($startTime) no longer in today's schedule")
                     CourseReminderHelper.onAlarmProcessed(context, fullReschedule = true)
                     return
@@ -116,10 +131,40 @@ class AlarmReceiver : BroadcastReceiver() {
             }
 
             CourseReminderHelper.TYPE_NEXT_DAY -> {
-                val tomorrowCourses = CourseReminderHelper.getTomorrowCourses(context)
+                val today = LocalDate.now()
+                val tomorrow = today.plusDays(1)
+                val entriesByYear = HolidayManager.loadAllByYear(context)
+                // 只加载一次假期数据，课程解析与假期判定共用，避免重复读 prefs 且口径不一致
+                val resolution = CourseReminderHelper.resolveDaySchedule(
+                    context, tomorrow, repository, entriesByYear
+                )
+                val tomorrowCourses = resolution.courses
 
-                // 学期未开始（未到开学日期所在周的周一）：默认静默，整个假期不打扰；
-                // 但明天确有课时照常发送 —— 返校/开学前一天正是这一条，别被学期闸门误伤。
+                // 明天放假且明天没课时的两种处理：
+                // - 放假前一天 → 发一条带假期长度和复课日的提示；
+                // - 假期进行中 → 静默。
+                if (resolution.isHolidayDate && tomorrowCourses.isEmpty()) {
+                    val todayIsHoliday = HolidayManager.entriesForDate(entriesByYear, today)
+                        .any { it.type == HolidayManager.TYPE_HOLIDAY }
+                    if (!todayIsHoliday) {
+                        val name = HolidayManager.entriesForDate(entriesByYear, tomorrow)
+                            .firstOrNull { it.type == HolidayManager.TYPE_HOLIDAY }?.name.orEmpty()
+                        CourseReminderHelper.showReminderNotification(
+                            context,
+                            type,
+                            holidayStartTitle(name),
+                            holidayStartMessage(entriesByYear, tomorrow),
+                        )
+                    } else {
+                        Log.d("AlarmReceiver", "Holiday in progress, skipping next-day reminder for $tomorrow")
+                    }
+                    CourseReminderHelper.scheduleNextDayOnly(context)
+                    CourseReminderHelper.onAlarmProcessed(context)
+                    return
+                }
+
+                // 学期未开始：默认静默，整个假期不打扰；
+                // 但明天确有课时照常发送 —— 返校/开学前一天正是这一条
                 if (!CourseReminderHelper.isSemesterStarted(repository) && tomorrowCourses.isEmpty()) {
                     Log.d("AlarmReceiver", "Semester not started and no courses tomorrow, skipping next-day reminder")
                     CourseReminderHelper.onAlarmProcessed(context)

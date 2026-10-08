@@ -109,8 +109,20 @@ fun computeSpecialGridLayout(
 
     fun timeToYClamped(minutes: Int): Float = timeToY(minutes)
 
+    /**
+     * 块顶落在第 g 节的卡片区间内就锚到 g（插到它前面），落在最后一节课之后返回
+     * totalSections + 1（贴表底）。rawTop ≤ 0（早于第一节）自然锚到 1。
+     */
+    fun anchorSectionOf(rawTop: Float): Int {
+        for (g in 1..totalSections) {
+            val top = origSectionTop[g] ?: 0f
+            if (rawTop < top + cardHeightPerSection) return g
+        }
+        return totalSections + 1
+    }
+
     // 高度按真实时长×每分钟像素（避免被午休空隙压缩）；像素以第一节时长为基准
-    data class Band(val rawIndex: Int, val rawTop: Float, val height: Float)
+    data class Band(val rawIndex: Int, val anchorSection: Int, val rawTop: Float, val height: Float)
     val refCardMinutes = secInfos.firstOrNull()?.let { (it.end - it.start).coerceAtLeast(1) } ?: 45
     val sortedBands = specialBlocks.mapIndexed { i, sp ->
         val cs = parseMinutesHm(sp.startTime)
@@ -118,39 +130,52 @@ fun computeSpecialGridLayout(
         val rawTop = timeToYClamped(cs)
         var h = if (ce > cs) (ce - cs) * (cardHeightPerSection / refCardMinutes) else 0f
         if (h < MIN_SPECIAL_HEIGHT_DP) h = MIN_SPECIAL_HEIGHT_DP
-        Band(i, rawTop, h)
+        Band(i, anchorSectionOf(rawTop), rawTop, h)
     }.sortedBy { it.rawTop }
 
-    // 特殊块在其时间起点占位，下方节次/时间轴整体下移
-    fun sectionOffset(g: Int): Float {
-        var off = 0f
-        val top = origSectionTop[g] ?: 0f
-        for (b in sortedBands) if (b.rawTop <= top) off += b.height
-        return off
-    }
-    fun bandOffset(k: Int): Float {
-        var off = 0f
-        for (i in 0 until k) if (sortedBands[i].rawTop <= sortedBands[k].rawTop) off += sortedBands[i].height
-        return off
-    }
-
+    /**
+     * 一次从上到下的扫描排完节次与横带，取代原来「先算节次偏移、再补块位置」的写法。
+     *
+     * 锚点语义：块插入到**它压到的第一个节次之前**（rawTop 落在第 g 节的卡片区间内
+     * 就锚到 g）。于是块永远待在节次边界上，不会骑在课程卡上：
+     * 早先按「块顶 ≤ 节次顶才下移」判定，嵌在节次内部的块既不推动那一节（被卡片盖住，
+     * 又因为点击层在最上层而抢走那一条的课程点击）。
+     */
     val sectionTop = mutableMapOf<Int, Float>()
-    for (g in 1..totalSections) sectionTop[g] = (origSectionTop[g] ?: 0f) + sectionOffset(g)
+    val bandTop = HashMap<Int, Float>() // 块在 specialBlocks 里的下标 -> 顶部 y
+    var cursorY = 0f
+    for (g in 1..totalSections) {
+        for (b in sortedBands) {
+            if (b.anchorSection != g) continue
+            bandTop[b.rawIndex] = cursorY
+            cursorY += b.height
+        }
+        sectionTop[g] = cursorY
+        cursorY += cardHeightPerSection
+        if (g in dividerAfter) cursorY += dividerGap
+    }
+    // 末尾不留悬空的分界缝：晚上 0 节时 totalSections 本身就在 dividerAfter 里，
+    // 循环会在最后补一道缝，后面接的块会凭空上移一截
+    val baseTotal = if (totalSections > 0 && totalSections in dividerAfter) {
+        cursorY - dividerGap
+    } else {
+        cursorY
+    }
+    // 锚点落在最后一节课之后（totalSections + 1）：贴表底依次往下堆
+    var tailY = baseTotal
+    for (b in sortedBands) {
+        if (b.anchorSection != totalSections + 1) continue
+        bandTop[b.rawIndex] = tailY
+        tailY += b.height
+    }
 
     val dividers = dividerAfter.map { g -> (sectionTop[g] ?: 0f) + cardHeightPerSection }
 
-    val specialBands = sortedBands.mapIndexed { k, b ->
+    val specialBands = sortedBands.map { b ->
         val sp = specialBlocks[b.rawIndex]
-        // 钳到 ≥0；落入分界带则下移，避免与午/晚休分界线重合
-        var displayTop = (b.rawTop + bandOffset(k)).coerceAtLeast(0f)
-        for (div in dividers) {
-            if (displayTop >= div && displayTop < div + dividerGap) {
-                displayTop = div + dividerGap
-            }
-        }
         // Gson 旁路可能留下 null 字段，再兜一层避免非空参数 NPE
         SpecialGridBand(
-            displayTop,
+            (bandTop[b.rawIndex] ?: 0f).coerceAtLeast(0f),
             b.height,
             sp.name ?: "",
             sp.startTime ?: "08:00",
@@ -159,7 +184,6 @@ fun computeSpecialGridLayout(
         )
     }
 
-    val baseTotal = (sectionTop[totalSections] ?: 0f) + cardHeightPerSection
     val bandBottomMax = specialBands.maxOfOrNull { it.top + it.height } ?: 0f
     val totalHeight = maxOf(baseTotal, bandBottomMax)
 

@@ -7,6 +7,7 @@ import androidx.compose.animation.core.CubicBezierEasing
 import androidx.compose.animation.core.spring
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ColumnScope
@@ -424,7 +425,12 @@ fun LiquidGlassDropdownMenu(
                             translationX = p * (ButtonDiameter.toPx() / 2f - width.toPx() / 2f)
                             translationY = p * (height.toPx() / 2f - ButtonDiameter.toPx() / 2f)
                         }
-                        .clickable(enabled = !show && onExpand != null) {
+                       // interactiveHighlight 高光提供，不要默认涟漪
+                        .clickable(
+                            enabled = !show && onExpand != null,
+                            interactionSource = remember { MutableInteractionSource() },
+                            indication = null,
+                        ) {
                             hapticFeedback.performHapticFeedback(HapticFeedbackType.Confirm)
                             onExpand?.invoke()
                         },

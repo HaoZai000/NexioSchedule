@@ -46,6 +46,7 @@ import com.haooz.chedule.ui.components.SectionColumn
 import com.haooz.chedule.ui.components.ShiftDayColumn
 import com.haooz.chedule.ui.utils.isAppDarkTheme
 import com.haooz.chedule.ui.utils.overScrollVertical
+import com.haooz.chedule.ui.utils.schedulePageBackgroundColor
 import com.haooz.chedule.viewmodel.ShiftViewModel
 import com.kyant.capsule.ContinuousRoundedRectangle
 import top.yukonga.miuix.kmp.basic.Card
@@ -111,7 +112,7 @@ fun ShiftScheduleScreen(
     }
     val totalSections = maxMorning + maxAfternoon + maxEvening
 
-    val wallpaperBackdropColor = if (isDark) Color(0xFF000000) else Color(0xFFF7F7F7)
+    val wallpaperBackdropColor = schedulePageBackgroundColor(isDark)
 
     Box(modifier = Modifier.fillMaxSize().background(wallpaperBackdropColor)) {
 

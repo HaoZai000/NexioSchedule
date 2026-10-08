@@ -670,7 +670,9 @@ fun TodayScreen(
                                     entriesForDate.any { entry ->
                                         entry.type == HolidayManager.TYPE_WORKSWAP &&
                                             entry.matches(date.toString()) &&
-                                            entry.followWeekday in regularCourseDays
+                                            // 跟随的是绝对日期，按当前课表换算出星期（换课表自动变）
+                                            repository.resolveWorkSwapFollow(entry)?.weekday
+                                                ?.let { it in regularCourseDays } == true
                                     }
                                 if (!hasPotentialCourse) {
                                     null

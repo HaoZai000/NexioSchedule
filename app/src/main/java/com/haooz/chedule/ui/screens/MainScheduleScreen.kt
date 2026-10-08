@@ -95,13 +95,19 @@ import com.haooz.chedule.ui.components.DayColumn
 import com.haooz.chedule.ui.components.SectionColumn
 import com.haooz.chedule.ui.components.SpecialBandClickLayer
 import com.haooz.chedule.ui.components.SpecialBandOverlay
+import com.haooz.chedule.ui.components.SpecialItemEditDialog
 import com.haooz.chedule.ui.components.computeSpecialGridLayout
+import com.haooz.chedule.ui.components.mergeConsecutiveDays
+import com.haooz.chedule.ui.components.nextSpecialItemIds
+import com.haooz.chedule.ui.components.scheduleSectionColumnWidth
 import com.haooz.chedule.ui.components.scheduleContentTopPadding
 import com.haooz.chedule.ui.effects.edgelight.edgeLight
 import com.haooz.chedule.ui.effects.edgelight.rememberCourseCardEdgeLight
+import com.haooz.chedule.ui.utils.courseCardSolidBacking
 import com.haooz.chedule.ui.utils.isAppDarkTheme
 import com.haooz.chedule.ui.utils.overScrollVertical
 import com.haooz.chedule.ui.utils.pagerAxisTakeoverGesture
+import com.haooz.chedule.ui.utils.schedulePageBackgroundColor
 import com.haooz.chedule.viewmodel.CourseViewModel
 import com.haooz.chedule.viewmodel.SettingsViewModel
 import com.kyant.backdrop.backdrops.SharedBlurBackdrop
@@ -156,7 +162,15 @@ data class ScheduleGridGeometry(
     val morningSections: Int,
     val afternoonSections: Int,
     val eveningSections: Int,
-    val showBreakDividers: Boolean
+    val showBreakDividers: Boolean,
+    /**
+     * 列星期 → 数据（星期, 周次）。
+     * 调课日列显示的是 followWeekday/followWeek 的课，落点、冲突检测、写库都要映射回数据坐标，
+     * 否则「列星期 + 页周」写进去的课在本页任何列都不渲染（空白格「添加」走的就是这套映射）。
+     */
+    val columnDataPosition: Map<Int, Pair<Int, Int>> = emptyMap(),
+    /** 教学周重组的休课日列：该列永远渲染为空，落进去的课会静默消失，必须拦掉 */
+    val blockedColumns: Set<Int> = emptySet(),
 )
 
 @SuppressLint("ConfigurationScreenWidthHeight")
@@ -416,6 +430,22 @@ fun MainScheduleScreen(
     }
     val semesterLastDate = dateForTeachingPosition(totalWeeks, 7)
         ?: semesterStartMonday.plusWeeks((totalWeeks - 1).toLong()).plusDays(6)
+    /**
+     * 调休条目 → 该课表下的 (周次, 星期)。
+     *
+     * 库存的是**绝对日期**，这里按当前课表的学期开始时间现算，所以切换课表后
+     * 同一天会算出不同周次，调休列自动改跟随那一周的课（旧版存周次本身，换课表就整体错位）。
+     */
+    val followPositionFor: (HolidayManager.Entry) -> Pair<Int, Int>? = remember(
+        semesterStartDate,
+        teachingWeekReorganizations,
+        currentScheduleId,
+    ) {
+        { swap ->
+            scheduleRepository.resolveWorkSwapFollow(swap, currentScheduleId)
+                ?.let { it.week to it.weekday }
+        }
+    }
 
     // 记忆化版本号：假期编辑返回 bump dataVersion 时才重读 SP
     val holidayVersion = remember(scheduleContext, dataVersion, holidayDataRevision) {
@@ -463,6 +493,7 @@ fun MainScheduleScreen(
     val weekendDaysByWeek: Map<Int, Set<Int>> = remember(
         courses, dataVersion, holidayVersion, smartWeekend, totalWeeks,
         semesterStartMonday, workswapIndex, teachingWeekReorganizations,
+        followPositionFor,
         holidayEntriesByYear, holidayBeforeCourseExclusion, sectionTimes, totalSections,
         currentScheduleId,
     ) {
@@ -499,7 +530,7 @@ fun MainScheduleScreen(
                         ).courses.isNotEmpty()
                     }
                     val hasWorkSwap = dateString?.let {
-                        workswapIndex[it]?.followWeekday?.let { day -> day in 1..7 }
+                        workswapIndex[it]?.let { swap -> followPositionFor(swap) != null }
                     } == true
                     return courses.any { it.dayOfWeek == calendarDay && it.isActiveInWeek(week) } ||
                         hasWorkSwap
@@ -519,7 +550,8 @@ fun MainScheduleScreen(
     /** page -> dayOfWeek -> Triple(显示星期, 显示周次, 课程)；调课日显示 follow 星期/周次 */
     val weekFilteredCourses: Map<Int, Map<Int, Triple<Int, Int, List<Course>>>> = remember(
         coursesByDay, showNonCurrentWeek, dataVersion, holidayVersion,
-        workswapIndex, semesterStartMonday, totalWeeks, teachingWeekReorganizations
+        workswapIndex, semesterStartMonday, totalWeeks, teachingWeekReorganizations,
+        followPositionFor,
     ) {
         if (totalWeeks <= 0) emptyMap()
         else HashMap<Int, Map<Int, Triple<Int, Int, List<Course>>>>(totalWeeks).apply {
@@ -529,8 +561,9 @@ fun MainScheduleScreen(
                     val dateForDay = dateForTeachingPosition(weekForPage, dayOfWeek)
                         ?: return@associateWith Triple(dayOfWeek, weekForPage, emptyList())
                     val swapForDay = workswapIndex[dateForDay.toString()]
-                    val displayDay = swapForDay?.followWeekday?.takeIf { it in 1..7 } ?: dayOfWeek
-                    val displayWeek = swapForDay?.followWeek?.takeIf { it > 0 } ?: weekForPage
+                    val follow = swapForDay?.let { followPositionFor(it) }
+                    val displayDay = follow?.second ?: dayOfWeek
+                    val displayWeek = follow?.first ?: weekForPage
                     val dayCourses = coursesByDay[displayDay] ?: emptyList()
                     val filtered = if (showNonCurrentWeek) dayCourses
                     else dayCourses.filter { it.isActiveInWeek(displayWeek) }
@@ -551,6 +584,7 @@ fun MainScheduleScreen(
         semesterStartMonday,
         totalWeeks,
         teachingWeekReorganizations,
+        followPositionFor,
     ) {
         if (totalWeeks <= 0 || !holidayEndCourseExclusion.enabled) {
             emptyMap()
@@ -570,7 +604,7 @@ fun MainScheduleScreen(
                             emptySet()
                         } else {
                             val swapForDay = workswapIndex[dateForDay.toString()]
-                            val displayWeek = swapForDay?.followWeek?.takeIf { it > 0 } ?: weekForPage
+                            val displayWeek = swapForDay?.let { followPositionFor(it)?.first } ?: weekForPage
                             (weekFilteredCourses[page]?.get(dayOfWeek)?.third ?: emptyList())
                                 .asSequence()
                                 .filter { it.isActiveInWeek(displayWeek) }
@@ -602,6 +636,7 @@ fun MainScheduleScreen(
         semesterStartMonday,
         totalWeeks,
         teachingWeekReorganizations,
+        followPositionFor,
     ) {
         if (totalWeeks <= 0 || !holidayBeforeCourseExclusion.enabled) {
             emptyMap()
@@ -621,7 +656,7 @@ fun MainScheduleScreen(
                             emptySet()
                         } else {
                             val swapForDay = workswapIndex[dateForDay.toString()]
-                            val displayWeek = swapForDay?.followWeek?.takeIf { it > 0 } ?: weekForPage
+                            val displayWeek = swapForDay?.let { followPositionFor(it)?.first } ?: weekForPage
                             HolidayCourseExclusion.cancelledCourseIdsOnDate(
                                 entriesByYear = holidayEntriesByYear,
                                 date = dateForDay,
@@ -640,7 +675,8 @@ fun MainScheduleScreen(
     }
     // page -> dayOfWeek -> (isHoliday, isWorkSwap)，同样预计算
     val weekDayFlags: Map<Int, Map<Int, Pair<Boolean, Boolean>>> = remember(
-        semesterStartMonday, holidayIndex, workswapIndex, totalWeeks, teachingWeekReorganizations
+        semesterStartMonday, holidayIndex, workswapIndex, totalWeeks, teachingWeekReorganizations,
+        followPositionFor,
     ) {
         if (totalWeeks <= 0) emptyMap()
         else HashMap<Int, Map<Int, Pair<Boolean, Boolean>>>(totalWeeks).apply {
@@ -651,7 +687,7 @@ fun MainScheduleScreen(
                         ?: return@associateWith (false to false)
                     val isHoliday = holidayIndex[dateForDay.toString()] != null
                     val isWorkSwap = workswapIndex[dateForDay.toString()]
-                        ?.followWeekday?.takeIf { it in 1..7 } != null
+                        ?.let { followPositionFor(it) != null } ?: false
                     isHoliday to isWorkSwap
                 })
             }
@@ -668,7 +704,12 @@ fun MainScheduleScreen(
 
     // 顶层读一次主题，避免每列/分界带各自挂 prefs 监听
     val scheduleIsDark = isAppDarkTheme()
-    val wallpaperBackdropColor = if (scheduleIsDark) Color(0xFF000000) else Color(0xFFF7F7F7)
+    val wallpaperBackdropColor = schedulePageBackgroundColor(scheduleIsDark)
+    // 无壁纸：网格里的课程卡与长按浮层垫同一份页底色；有壁纸为 null（玻璃层自己盖住）
+    val cardSolidBacking = courseCardSolidBacking(
+        isDark = scheduleIsDark,
+        hasWallpaper = wallpaperBitmap != null
+    )
 
     // onDraw 必须稳定：每次新建会换掉 LayerBackdrop 实例，SharedBlur 与全部课卡采样跟着重建
     val wallpaperBackColorState = rememberUpdatedState(wallpaperBackdropColor)
@@ -911,8 +952,15 @@ fun MainScheduleScreen(
                     // 长按瞬间同步推一次，避免“停滑冲刷”晚于长按导致上层拿到旧页 dayBounds（菜单错位/浮层消失）
                     fun buildGridGeometry(): ScheduleGridGeometry {
                         val boundsMap = mutableMapOf<Int, FloatArray>()
+                        val dataMap = mutableMapOf<Int, Pair<Int, Int>>()
+                        val blocked = mutableSetOf<Int>()
                         for (i in 1..7) {
                             dayBoundsArray[i]?.let { boundsMap[i] = it }
+                            weekFilteredCourses[page]?.get(i)?.let { info ->
+                                dataMap[i] = info.first to info.second
+                            }
+                            // 教学周重组休课日：dateForPosition 返回 null，该列永远空白
+                            if (dateForTeachingPosition(week, i) == null) blocked.add(i)
                         }
                         return ScheduleGridGeometry(
                             dayBounds = boundsMap,
@@ -920,7 +968,9 @@ fun MainScheduleScreen(
                             morningSections = morningSections,
                             afternoonSections = afternoonSections,
                             eveningSections = eveningSections,
-                            showBreakDividers = showBreakDividers
+                            showBreakDividers = showBreakDividers,
+                            columnDataPosition = dataMap,
+                            blockedColumns = blocked,
                         )
                     }
                     val pushFreshGeometry by rememberUpdatedState {
@@ -930,6 +980,16 @@ fun MainScheduleScreen(
                     val pageDayRange = remember(weekendDaysByWeek, week) {
                         (1..5).toList() + (weekendDaysByWeek[week] ?: emptySet()).filter { it in 6..7 }
                     }
+                    // 每个可见列**实际显示的星期**：调休日的列画的是被调星期的课
+                    // （周一补班 → 该列显示周日的课），横带子块必须跟着它走，
+                    // 与下面 DayColumn 用的 displayDayForCol 同源，别再拿列下标当星期。
+                    val pageColumnDays = remember(pageDayRange, weekFilteredCourses, page) {
+                        pageDayRange.map { col ->
+                            weekFilteredCourses[page]?.get(col)?.first ?: col
+                        }
+                    }
+                    val bandStartPadding = (if (isTablet) 24.dp else 0.dp) + scheduleSectionColumnWidth(isTablet)
+                    val bandEndPadding = if (isTablet) 24.dp else 2.dp
                     // 特殊课程横带：作为 Row 下层背景条带，起止时间由左侧时间列标注
                     specialGrid.specialBands.forEach { band ->
                         val bandItems = remember(specialBlocks, band.blockId) {
@@ -942,13 +1002,12 @@ fun MainScheduleScreen(
                                 .height(band.height.dp)
                                 .offset(y = band.top.dp)
                                 // end 与下方 Row 的 end padding 一致，子块才能与 DayColumn 逐列对齐
-                                .padding(
-                                    start = (if (isTablet) 24.dp else 0.dp) + (if (isTablet) 56.dp else 36.dp),
-                                    end = if (isTablet) 24.dp else 2.dp
-                                )
+                                .padding(start = bandStartPadding, end = bandEndPadding)
                         ) {
                             SpecialBandOverlay(
                                 name = band.name,
+                                startTime = band.startTime,
+                                endTime = band.endTime,
                                 hasBlur = wallpaperBitmap != null,
                                 isDark = scheduleIsDark,
                                 cardCornerRadius = cardCornerRadius,
@@ -959,7 +1018,7 @@ fun MainScheduleScreen(
                                 isTablet = isTablet,
                                 wallpaperBackdrop = activeCardBackdrop,
                                 items = bandItems,
-                                dayRange = pageDayRange
+                                dayRange = pageColumnDays
                             )
                         }
                     }
@@ -1033,30 +1092,40 @@ fun MainScheduleScreen(
                                         onPopupStateChange(true)
                                     }
                                 }
+                            // 教学周重组的休课日列永远渲染为空：往里加/粘的课在课表与今日页都看不见
+                            // 键里带上 dateForTeachingPosition：它自己随重组数据重建，
+                            // 否则改完教学周重组回主页会继续用旧判断（漏拦/误拦）
+                            val pausedColumn = remember(page, dayOfWeek, dateForTeachingPosition) {
+                                dateForTeachingPosition(week, dayOfWeek) == null
+                            }
                             val stableOnEmptyClick: (Int) -> Unit =
-                                remember(dayOfWeek, addDayForCol, addWeekForCol) {
+                                remember(dayOfWeek, addDayForCol, addWeekForCol, pausedColumn) {
                                     { section ->
-                                        val defaultWeeks =
-                                            if (addWeekForCol > 0) setOf(addWeekForCol) else emptySet()
-                                        viewModel.showAddDialog(addDayForCol, section, null, defaultWeeks)
+                                        if (!pausedColumn) {
+                                            val defaultWeeks =
+                                                if (addWeekForCol > 0) setOf(addWeekForCol) else emptySet()
+                                            viewModel.showAddDialog(addDayForCol, section, null, defaultWeeks)
+                                        }
                                     }
                                 }
                             val stableOnEmptyLongPress: (Int, Float, Float, Float, Float) -> Unit =
-                                remember(dayOfWeek, addDayForCol, addWeekForCol, onEmptyLongPress) {
+                                remember(dayOfWeek, addDayForCol, addWeekForCol, onEmptyLongPress, pausedColumn) {
                                     { section, centerX, cellTopY, width, height ->
-                                        // 长按进菜单时清掉 pending，避免两层交互叠加
-                                        pendingDay = -1
-                                        pendingSection = -1
-                                        onEmptyLongPress(
-                                            dayOfWeek,
-                                            section,
-                                            centerX,
-                                            cellTopY,
-                                            width,
-                                            height,
-                                            addDayForCol,
-                                            addWeekForCol,
-                                        )
+                                        if (!pausedColumn) {
+                                            // 长按进菜单时清掉 pending，避免两层交互叠加
+                                            pendingDay = -1
+                                            pendingSection = -1
+                                            onEmptyLongPress(
+                                                dayOfWeek,
+                                                section,
+                                                centerX,
+                                                cellTopY,
+                                                width,
+                                                height,
+                                                addDayForCol,
+                                                addWeekForCol,
+                                            )
+                                        }
                                     }
                                 }
                             val stableOnCourseLongPress: (Course, Float, Float, Float, Float, com.kyant.backdrop.Backdrop?, Int) -> Unit =
@@ -1090,6 +1159,7 @@ fun MainScheduleScreen(
                                 pendingSection = pendingSection,
                                 onPendingChange = onPendingChange,
                                 wallpaperBackdrop = activeCardBackdrop,
+                                solidBackingColor = cardSolidBacking,
                                 cardBlurRadius = cardBlurRadius,
                                 cardAlpha = cardAlpha,
                                 cardSurfaceAlpha = cardSurfaceAlpha,
@@ -1137,20 +1207,20 @@ fun MainScheduleScreen(
                         val bandItems = remember(specialBlocks, band.blockId) {
                             specialBlocks.firstOrNull { it.id == band.blockId }?.safeItems ?: emptyList()
                         }
+                        // 壁纸编辑态手势归编辑用，横带不再抢点击（否则误触会弹出「添加安排」）
+                        if (isWallpaperEditing) return@forEach
                         Box(
                             modifier = Modifier
                                 .fillMaxWidth()
                                 .height(band.height.dp)
                                 .offset(y = band.top.dp)
-                                .padding(
-                                    start = (if (isTablet) 24.dp else 0.dp) + (if (isTablet) 56.dp else 36.dp),
-                                    end = if (isTablet) 24.dp else 2.dp
-                                )
+                                .padding(start = bandStartPadding, end = bandEndPadding)
                         ) {
                             SpecialBandClickLayer(
                                 items = bandItems,
-                                dayRange = pageDayRange,
+                                dayRange = pageColumnDays,
                                 onItemClick = { item ->
+                                    hapticFeedback.performHapticFeedback(HapticFeedbackType.Confirm)
                                     specialItemEditingBlockId = band.blockId
                                     specialItemEditingId = item.id
                                     specialItemName = item.name
@@ -1158,6 +1228,7 @@ fun MainScheduleScreen(
                                     showSpecialItemDialog = true
                                 },
                                 onEmptyClick = { day ->
+                                    hapticFeedback.performHapticFeedback(HapticFeedbackType.Confirm)
                                     specialItemEditingBlockId = band.blockId
                                     specialItemEditingId = -1L
                                     specialItemName = ""
@@ -1587,12 +1658,14 @@ fun MainScheduleScreen(
                             Toast.makeText(scheduleContext, "请选择至少一个星期", Toast.LENGTH_SHORT).show()
                         }
                         else -> {
-                            // 不连续点选合并为连续区间，如 {1,3,4} → 两个子块
+                            // 不连续点选合并为连续区间，如 {1,3,4} → 两个子块。
+                            // id 由 nextSpecialItemIds 保证一批内互不相同（见该函数注释）。
                             val ranges = mergeConsecutiveDays(selected)
                             val base = block.safeItems.filter { it.id != specialItemEditingId }
-                            val newItems = ranges.map { (s, e) ->
+                            val ids = nextSpecialItemIds(base, ranges.size)
+                            val newItems = ranges.mapIndexed { i, (s, e) ->
                                 com.haooz.chedule.data.SpecialItem(
-                                    id = System.currentTimeMillis(),
+                                    id = ids[i],
                                     name = trimmedName,
                                     startDay = s,
                                     endDay = e
@@ -1627,154 +1700,7 @@ fun MainScheduleScreen(
     } // CompositionLocalProvider
 }
 
-/** 弹窗里周一~周日的格子标签 */
-private val SPECIAL_WEEK_LABELS = arrayOf("一", "二", "三", "四", "五", "六", "日")
-
-// 已被同横带其他子块占用的星期置灰不可点，避免重叠
-@Composable
-private fun SpecialItemEditDialog(
-    show: Boolean,
-    isEditing: Boolean,
-    name: String,
-    selectedDays: Set<Int>,
-    occupiedDays: Set<Int>,
-    liquidGlassBackdrop: com.kyant.backdrop.Backdrop?,
-    onNameChange: (String) -> Unit,
-    onDayToggle: (Int) -> Unit,
-    onDismiss: () -> Unit,
-    onSave: () -> Unit,
-    onDelete: () -> Unit
-) {
-    OverlayDialog(
-        title = if (isEditing) "编辑安排" else "添加安排",
-        summary = null,
-        show = show,
-        onDismissRequest = onDismiss,
-        liquidGlassBackdrop = liquidGlassBackdrop
-    ) {
-        Column(
-            modifier = Modifier.fillMaxWidth(),
-            verticalArrangement = Arrangement.spacedBy(12.dp)
-        ) {
-            NativeMiuixTextField(
-                value = name,
-                onValueChange = onNameChange,
-                label = "名称",
-                useLabelAsPlaceholder = true,
-                singleLine = true,
-                modifier = Modifier.fillMaxWidth(),
-                requestFocus = show
-            )
-            // 按连续区间分组显示：{1,3,4} → "周一 / 周三~周四"
-            val rangesLabel = if (selectedDays.isEmpty()) {
-                "点选下方星期（不连续可分段保存）"
-            } else {
-                mergeConsecutiveDays(selectedDays.sorted()).joinToString(" / ") { (s, e) ->
-                    if (s == e) "周${SPECIAL_WEEK_LABELS[s - 1]}"
-                    else "周${SPECIAL_WEEK_LABELS[s - 1]}~周${SPECIAL_WEEK_LABELS[e - 1]}"
-                }
-            }
-            Text(
-                text = rangesLabel,
-                style = MiuixTheme.textStyles.body2,
-                color = MiuixTheme.colorScheme.onSurfaceVariantActions
-            )
-            WeekDayRangeSelector(
-                selectedDays = selectedDays,
-                occupiedDays = occupiedDays,
-                onDayToggle = onDayToggle
-            )
-            Row(
-                modifier = Modifier.fillMaxWidth().padding(top = 4.dp),
-                horizontalArrangement = Arrangement.spacedBy(12.dp)
-            ) {
-                TextButton(
-                    text = "取消",
-                    onClick = onDismiss,
-                    modifier = Modifier.weight(1f)
-                )
-                TextButton(
-                    text = "保存",
-                    onClick = onSave,
-                    colors = ButtonDefaults.textButtonColorsPrimary(),
-                    modifier = Modifier.weight(1f)
-                )
-            }
-            if (isEditing) {
-                TextButton(
-                    text = "删除该安排",
-                    onClick = onDelete,
-                    textColor = Color(0xFFF44336),
-                    modifier = Modifier.fillMaxWidth()
-                )
-            }
-        }
-    }
-}
-
-// 已占用置灰不可点；编辑自身时占用方应排除自己对应格子
-@Composable
-private fun WeekDayRangeSelector(
-    selectedDays: Set<Int>,
-    occupiedDays: Set<Int>,
-    onDayToggle: (Int) -> Unit
-) {
-    Row(
-        modifier = Modifier.fillMaxWidth(),
-        horizontalArrangement = Arrangement.spacedBy(6.dp)
-    ) {
-        for (day in 1..7) {
-            val selected = day in selectedDays
-            val occupied = day in occupiedDays && !selected
-            Box(
-                modifier = Modifier
-                    .weight(1f)
-                    .height(40.dp)
-                    .clip(ContinuousRoundedRectangle(10.dp))
-                    .background(
-                        when {
-                            selected -> MiuixTheme.colorScheme.primary
-                            occupied -> MiuixTheme.colorScheme.onSurface.copy(alpha = 0.04f)
-                            else -> MiuixTheme.colorScheme.onSurface.copy(alpha = 0.08f)
-                        }
-                    )
-                    .clickable(enabled = !occupied) { onDayToggle(day) },
-                contentAlignment = Alignment.Center
-            ) {
-                Text(
-                    text = SPECIAL_WEEK_LABELS[day - 1],
-                    style = MiuixTheme.textStyles.body2,
-                    color = when {
-                        selected -> Color.White
-                        occupied -> MiuixTheme.colorScheme.onSurface.copy(alpha = 0.25f)
-                        else -> MiuixTheme.colorScheme.onSurface
-                    }
-                )
-            }
-        }
-    }
-}
-
-// {1,3,4} → [(1,1), (3,4)]；输入需已排序
-private fun mergeConsecutiveDays(sortedDays: List<Int>): List<Pair<Int, Int>> {
-    if (sortedDays.isEmpty()) return emptyList()
-    val ranges = mutableListOf<Pair<Int, Int>>()
-    var start = sortedDays[0]
-    var end = sortedDays[0]
-    for (i in 1 until sortedDays.size) {
-        if (sortedDays[i] == end + 1) {
-            end = sortedDays[i]
-        } else {
-            ranges.add(start to end)
-            start = sortedDays[i]
-            end = sortedDays[i]
-        }
-    }
-    ranges.add(start to end)
-    return ranges
-}
-
-// show 状态读取下沉到子作用域，避免页面顶层因 sheet 开关而重组
+// 特殊安排的编辑弹窗 / 星期选择器 / 区间合并 已抽到 ui/components/SpecialItemEditor.kt，课表页与时间设置页共用
 @Composable
 private fun CourseDetailSheet(
     showState: MutableState<Boolean>,

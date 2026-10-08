@@ -81,13 +81,13 @@ class HolidaySettingsActivity : ComponentActivity() {
                 scope.launch(Dispatchers.IO) {
                     val result = runCatching {
                         val conn = URL(
-                            "https://unpkg.com/holiday-calendar@1.3.0/data/CN/$targetYear.json"
+                            HolidayManager.sourceUrlFor(context, targetYear)
                         ).openConnection() as HttpURLConnection
                         conn.connectTimeout = 10_000
                         conn.readTimeout = 10_000
                         val text = conn.inputStream.bufferedReader().use { it.readText() }
                         conn.disconnect()
-                        HolidayManager.parseApiResponse(text)
+                        HolidayManager.parseSourceResponse(context, text)
                     }.getOrDefault(emptyList())
                     withContext(Dispatchers.Main) {
                         val merged = HolidayManager.mergeApiEntries(context, targetYear, result)

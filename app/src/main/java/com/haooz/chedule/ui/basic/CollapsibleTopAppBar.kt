@@ -20,6 +20,7 @@ import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.Stable
 import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
@@ -482,7 +483,8 @@ fun CollapsibleTopAppBar(
     // 默认取当前页 surface 色（课程表/今日可跟壁纸锁色）；设置页由调用方传入锁应用主题的色
     val gradientColor = gradientColorOverride ?: MiuixTheme.colorScheme.surface
 
-    LaunchedEffect(backdropAlpha.value, shadowAlpha.value) {
+    // 调用方首帧只能拿到兜底初值（表现为「更多」先亮一帧材质才正常）
+    SideEffect {
         onAlphaChanged(backdropAlpha.value, shadowAlpha.value)
     }
 

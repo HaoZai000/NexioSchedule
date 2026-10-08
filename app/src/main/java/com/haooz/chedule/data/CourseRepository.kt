@@ -4,7 +4,6 @@ import android.content.Context
 import android.content.SharedPreferences
 import android.os.Build
 import androidx.core.content.edit
-import androidx.core.graphics.scale
 import com.google.gson.Gson
 import com.google.gson.JsonParser
 import com.google.gson.reflect.TypeToken
@@ -30,6 +29,15 @@ class CourseRepository private constructor(context: Context) {
     private var scheduleNamesCache: List<String>? = null
     private var scheduleFoldersCache: List<ScheduleFolder>? = null
     private var globalSectionTimesCache: Map<Int, String>? = null
+
+    init {
+        // 启动迁移（1.6.4 数据层重构时整个 init 块被连带删掉，这里补回）：
+        // - 文件夹是 1.6.1 才有的，1.5.6 及更早上来的课表散在根目录 → 收进默认文件夹；
+        // - 「一课表一配置」之后，多配置时代攒下的闲置 time_config 只在这里清。
+        // 两者都只跑一次，由标记/幂等条件守门。
+        migrateSchedulesIntoDefaultFolder()
+        pruneOrphanTimeConfigsIfNeeded()
+    }
 
 
     /**
@@ -118,6 +126,13 @@ class CourseRepository private constructor(context: Context) {
             return
         }
         dispatchCourseChanged(action, courseId)
+    }
+
+    /**
+     * 课程数据（增删改/调课/交换）落库后，通知所有监听的 ViewModel 重新加载。
+     */
+    fun notifyCoursesBulkChanged() {
+        dispatchCourseChanged("bulk", "")
     }
 
     /** 更新时间戳（本地修改不被远程覆盖）、失效时间缓存、通知 UI */
@@ -214,16 +229,8 @@ class CourseRepository private constructor(context: Context) {
         private const val KEY_TOTAL_WEEKS = "total_weeks"
         private const val KEY_CLASS_START_TIME = "class_start_time"
         private const val KEY_TEACHING_WEEK_REORGANIZATIONS = "teaching_week_reorganizations"
-        private const val KEY_SHOW_WEEKEND = "show_weekend"
         private const val KEY_SMART_WEEKEND = "smart_weekend"
         private const val KEY_SHOW_NON_CURRENT_WEEK = "show_non_current_week"
-        private const val KEY_QUICK_TIME_ENABLED = "quick_time_enabled"
-        private const val KEY_CLASS_DURATION = "class_duration"
-        private const val KEY_SHORT_BREAK = "short_break"
-        private const val KEY_LONG_BREAK = "long_break"
-        private const val KEY_MORNING_START = "morning_start"
-        private const val KEY_AFTERNOON_START = "afternoon_start"
-        private const val KEY_EVENING_START = "evening_start"
         private const val KEY_CURRENT_SCHEDULE_ID = "current_schedule_id"
         private const val KEY_SCHEDULE_NAMES = "schedule_names"
         private const val KEY_SCHEDULE_FOLDERS = "schedule_folders"
@@ -250,8 +257,6 @@ class CourseRepository private constructor(context: Context) {
         private const val TIME_CONFIG_PREFIX = "time_config_"
         // 不匹配 schedule_{name}_ 前缀，删/迁课表时需单独处理
         private const val SCHEDULE_TIME_CONFIG_PREFIX = "schedule_time_config_"
-        /** 兼容旧备份里的提醒设置嵌套键；已不导出，恢复时跳过 */
-        private const val KEY_REMINDER_PREFS = "reminder_prefs"
 
         /**
          * 小组件 padding 档位的出厂默认档，仅在用户从未手动选过时生效：
@@ -490,17 +495,20 @@ class CourseRepository private constructor(context: Context) {
     /**
      * 调课-移动：仅影响该周。单周直接改位置；多周拆分；目标已有同源则合并。
      * 通知由 ViewModel 统一处理，避免竞态。
+     * @param targetWeek 目标位周次；调休列的 followWeek 与源周不同时为跨周移动，默认同周
      */
     fun moveCourseForWeek(
         sourceCourseId: String,
         week: Int,
         targetDayOfWeek: Int,
         targetStartSection: Int,
-        targetEndSection: Int
+        targetEndSection: Int,
+        targetWeek: Int = week
     ): List<Course> {
         val courses = getAllCourses()
         val result = moveWeekInPlace(
-            courses, sourceCourseId, week, targetDayOfWeek, targetStartSection, targetEndSection
+            courses, sourceCourseId, week, targetDayOfWeek, targetStartSection, targetEndSection,
+            targetWeek
         ) ?: return courses
         saveCourses(result, notify = false)
         return result
@@ -508,13 +516,15 @@ class CourseRepository private constructor(context: Context) {
 
     /**
      * 调课-覆盖：按周删除目标位冲突课后移动。同源课不删，交给 move 合并。
+     * @param week 源课所在周；@param targetWeek 目标位周次（冲突课按它删）
      */
     fun overwriteCourseForWeek(
         sourceCourseId: String,
         week: Int,
         targetDayOfWeek: Int,
         targetStartSection: Int,
-        targetEndSection: Int
+        targetEndSection: Int,
+        targetWeek: Int = week
     ): List<Course> {
         val courses = getAllCourses().toMutableList()
         val source = courses.find { it.id == sourceCourseId } ?: return courses
@@ -533,7 +543,7 @@ class CourseRepository private constructor(context: Context) {
                 existing.startSection <= targetEndSection &&
                 existing.endSection >= targetStartSection
             }
-            .filter { existing -> week in resolveSelectedWeeks(existing) }
+            .filter { existing -> targetWeek in resolveSelectedWeeks(existing) }
             .map { it.id }
             .toList()
 
@@ -541,7 +551,7 @@ class CourseRepository private constructor(context: Context) {
         for (id in conflictIds) {
             val idx = result.indexOfFirst { it.id == id }
             if (idx == -1) continue
-            val updated = removeWeekFrom(result[idx], week, resetWeekType = true)
+            val updated = removeWeekFrom(result[idx], targetWeek, resetWeekType = true)
             if (updated == null) {
                 result.removeAt(idx)
             } else {
@@ -550,14 +560,17 @@ class CourseRepository private constructor(context: Context) {
         }
         // 先落盘中间结果，避免 moveCourseForWeek 重读旧数据
         saveCourses(result, notify = false)
-        return moveCourseForWeek(sourceCourseId, week, targetDayOfWeek, targetStartSection, targetEndSection)
+        return moveCourseForWeek(
+            sourceCourseId, week, targetDayOfWeek, targetStartSection, targetEndSection, targetWeek
+        )
     }
 
     /** 调课-交换：双方各拆出该周实例互换；与对方原位同源时同样走合并 */
     fun swapCoursesForWeek(
         sourceCourseId: String,
         targetCourseId: String,
-        week: Int
+        week: Int,
+        targetWeek: Int = week
     ): List<Course> {
         if (sourceCourseId == targetCourseId) return getAllCourses()
         val courses = getAllCourses().toMutableList()
@@ -572,12 +585,27 @@ class CourseRepository private constructor(context: Context) {
 
         val srcWeeks = resolveSelectedWeeks(src)
         val tgtWeeks = resolveSelectedWeeks(tgt)
-        if (week !in srcWeeks || week !in tgtWeeks) return courses
+        if (week !in srcWeeks || targetWeek !in tgtWeeks) return courses
+
+        // 同源课（同名/同教室/同教师）在双方都在的该周互换：位置换了、内容一样，视觉不变 → 跳过。
+        // 注意必须再比一次节次跨度：占 2 节的课和占 1 节的同名课互换是有实际效果的，不能跳过
+        val srcAtTarget = src.copy(
+            dayOfWeek = tgtPos.first,
+            startSection = tgtPos.second,
+            endSection = tgtPos.third
+        )
+        val sameSpan =
+            (src.endSection - src.startSection) == (tgt.endSection - tgt.startSection)
+        if (sameSpan && isSameCourseIdentity(srcAtTarget, tgt)) return courses
 
         var result: MutableList<Course> = courses
-        moveWeekInPlace(result, src.id, week, tgtPos.first, tgtPos.second, tgtPos.third)?.let { result = it }
+        moveWeekInPlace(
+            result, src.id, week, tgtPos.first, tgtPos.second, tgtPos.third, targetWeek
+        )?.let { result = it }
         // 第一步后源可能已拆分，src.id 仍在原课程（已移除该周）
-        moveWeekInPlace(result, tgt.id, week, srcPos.first, srcPos.second, srcPos.third)?.let { result = it }
+        moveWeekInPlace(
+            result, tgt.id, targetWeek, srcPos.first, srcPos.second, srcPos.third, week
+        )?.let { result = it }
 
         saveCourses(result, notify = false)
         return result
@@ -585,6 +613,8 @@ class CourseRepository private constructor(context: Context) {
 
     /**
      * 按周移动的拆分+合并（原地、不落盘）。
+     * @param targetWeek 目标位周次；默认与 week 相同 = 同周内移动。调休列的 followWeek
+     * 与源周不同时走跨周：源课剔除 week、目标位写入 targetWeek
      * @return 新列表；无需改动时返回 null，调用方跳过落盘
      */
     private fun moveWeekInPlace(
@@ -593,20 +623,41 @@ class CourseRepository private constructor(context: Context) {
         week: Int,
         targetDayOfWeek: Int,
         targetStartSection: Int,
-        targetEndSection: Int
+        targetEndSection: Int,
+        targetWeek: Int = week
     ): MutableList<Course>? {
         val result = courses.toMutableList()
         val sourceIdx = result.indexOfFirst { it.id == sourceCourseId }
         if (sourceIdx == -1) return null
         val source = result[sourceIdx]
 
-        if (source.dayOfWeek == targetDayOfWeek &&
-            source.startSection == targetStartSection &&
-            source.endSection == targetEndSection
-        ) return null
+        val samePosition =
+            source.dayOfWeek == targetDayOfWeek &&
+                source.startSection == targetStartSection &&
+                source.endSection == targetEndSection
+        // 同位置同周 = 无事可做
+        if (samePosition && targetWeek == week) return null
 
         val currentSelectedWeeks = resolveSelectedWeeks(source)
         if (week !in currentSelectedWeeks) return null
+
+        if (samePosition) {
+            // 目标周本来就有这节课：挪过去是同一格同一内容，净效果只是让源周凭空少一节
+            // （用户视角 = 拖了一下课没了）→ 判为无事可做，不落盘
+            if (targetWeek in currentSelectedWeeks) return null
+            // 同位置跨周（调休列：同一天、不同周次）→ 只挪周次，
+            // 不拆成两条同槽记录（拆了也只是并回来，平白多一条）
+            val newWeeks = (currentSelectedWeeks.filter { it != week } + targetWeek)
+                .distinct().sorted()
+            result[sourceIdx] = source.copy(
+                selectedWeeks = newWeeks,
+                startWeek = newWeeks.min(),
+                endWeek = newWeeks.max(),
+                weekType = Course.WEEK_TYPE_ALL,
+                lastModified = System.currentTimeMillis()
+            )
+            return result
+        }
 
         val targetTemp = source.copy(
             dayOfWeek = targetDayOfWeek,
@@ -622,7 +673,7 @@ class CourseRepository private constructor(context: Context) {
             // 合并周次进同源课程
             val mergeTarget = result[mergeTargetIdx]
             val mergeWeeks = resolveSelectedWeeks(mergeTarget).toMutableSet()
-            mergeWeeks.add(week)
+            mergeWeeks.add(targetWeek)
             val sortedWeeks = mergeWeeks.sorted()
             result[mergeTargetIdx] = mergeTarget.copy(
                 selectedWeeks = sortedWeeks,
@@ -646,11 +697,15 @@ class CourseRepository private constructor(context: Context) {
                 )
             }
         } else if (currentSelectedWeeks.size == 1 && currentSelectedWeeks.first() == week) {
-            // 源课程只在该周有效，直接改位置
+            // 源课程只在该周有效，直接改位置；跨周时周次一并换到目标周
             result[sourceIdx] = source.copy(
                 dayOfWeek = targetDayOfWeek,
                 startSection = targetStartSection,
                 endSection = targetEndSection,
+                selectedWeeks = if (targetWeek != week) listOf(targetWeek) else source.selectedWeeks,
+                startWeek = if (targetWeek != week) targetWeek else source.startWeek,
+                endWeek = if (targetWeek != week) targetWeek else source.endWeek,
+                weekType = if (targetWeek != week) Course.WEEK_TYPE_ALL else source.weekType,
                 lastModified = System.currentTimeMillis()
             )
         } else {
@@ -668,9 +723,9 @@ class CourseRepository private constructor(context: Context) {
                 dayOfWeek = targetDayOfWeek,
                 startSection = targetStartSection,
                 endSection = targetEndSection,
-                selectedWeeks = listOf(week),
-                startWeek = week,
-                endWeek = week,
+                selectedWeeks = listOf(targetWeek),
+                startWeek = targetWeek,
+                endWeek = targetWeek,
                 weekType = Course.WEEK_TYPE_ALL,
                 lastModified = System.currentTimeMillis()
             )
@@ -870,15 +925,8 @@ class CourseRepository private constructor(context: Context) {
     }
 
     fun getSmartWeekend(scheduleId: String): Boolean {
+        // 兼容基线 1.5.6：旧 show_weekend 键的一次性迁移在 1.5.6 内就跑完了，这里只读现键
         val key = "${getScheduleKeyPrefix(scheduleId)}$KEY_SMART_WEEKEND"
-        // 兼容旧 key：首次读取时迁移
-        if (!prefs.contains(key)) {
-            val oldKey = "${getScheduleKeyPrefix(scheduleId)}$KEY_SHOW_WEEKEND"
-            val oldVal = prefs.getString(oldKey, "")
-            val smart = !oldVal.isNullOrBlank()
-            prefs.edit { putBoolean(key, smart); remove(oldKey) }
-            return smart
-        }
         return prefs.getBoolean(key, false)
     }
 
@@ -894,10 +942,38 @@ class CourseRepository private constructor(context: Context) {
         return hasWorkSwapOnDay(dayOfWeek, week)
     }
 
-    /** 待配置补班（followWeekday 未设置）不视为有课，避免智能周末误显示 */
+    /** 调休跟随解析结果：绝对日期 + 该日期在**当前课表**下对应的 (周次, 星期) */
+    data class WorkSwapFollow(val date: java.time.LocalDate, val week: Int, val weekday: Int)
+
+    /**
+     * 把调休条目的「跟随绝对日期」换算成当前课表的 (周次, 星期)。
+     *
+     * 关键点：存的是日期，周次每次按**当前课表**的学期开始时间现算。
+     * 切换课表 = 换学期开始时间 → 同一天算出不同周次 → 调休列自动改跟随那一周的课。
+     * （改之前存的是周次本身，换课表就整体错位，跟随到别的日期的课上去。）
+     *
+     * @return null = 这条调休还没配跟随日期
+     */
+    fun resolveWorkSwapFollow(
+        swap: HolidayManager.Entry,
+        scheduleId: String = getCurrentScheduleId(),
+    ): WorkSwapFollow? {
+        val date = swap.followLocalDate()
+            // 老数据/老备份没有 followDate：按当前课表把 (周次, 星期) 还原成日期再走同一条路
+            ?: runCatching { dateForTeachingWeekDay(swap.followWeek, swap.followWeekday, scheduleId) }
+                .getOrNull()
+                ?.takeIf { swap.followWeek > 0 && swap.followWeekday in 1..7 }
+            ?: return null
+        val position = teachingWeekPositionForDate(date, scheduleId)
+        // 教学周重组把这天标成休课日时拿不到 weekday，退回日历星期
+        val weekday = position.weekday ?: date.dayOfWeek.value
+        return WorkSwapFollow(date, position.week.toInt(), weekday)
+    }
+
+    /** 待配置补班（未配跟随日期）不视为有课，避免智能周末误显示 */
     fun hasWorkSwapOnDay(dayOfWeek: Int, week: Int): Boolean {
         val swap = workSwapEntryOnDay(dayOfWeek, week) ?: return false
-        return swap.followWeekday in 1..7
+        return resolveWorkSwapFollow(swap) != null
     }
 
     /**
@@ -908,10 +984,9 @@ class CourseRepository private constructor(context: Context) {
         if (dayOfWeek !in 1..7) return false
         if (getAllCourses().any { it.dayOfWeek == dayOfWeek && it.isActiveInWeek(week) }) return true
         val swap = workSwapEntryOnDay(dayOfWeek, week) ?: return false
-        if (swap.followWeekday !in 1..7) return false
-        val mappedWeek = if (swap.followWeek > 0) swap.followWeek else week
+        val follow = resolveWorkSwapFollow(swap) ?: return false
         return getAllCourses().any {
-            it.dayOfWeek == swap.followWeekday && it.isActiveInWeek(mappedWeek)
+            it.dayOfWeek == follow.weekday && it.isActiveInWeek(follow.week)
         }
     }
 
@@ -1033,88 +1108,6 @@ class CourseRepository private constructor(context: Context) {
             else config.withRoutineTimesApplied(activeRoutineId, updated)
         )
         if (scheduleId == getCurrentScheduleId()) notifyCourseChanged("settings")
-    }
-
-    // 旧版影子 prefs：唯一数据源已是 TimeConfig；这些 getter 仅供版本迁移与 export 兼容。
-    // 日常读写走 TimeConfig，不要在这里新增逻辑。
-    fun getQuickTimeEnabled(): Boolean {
-        val key = "${getScheduleKeyPrefix()}$KEY_QUICK_TIME_ENABLED"
-        return prefs.getBoolean(key, false)
-    }
-
-    fun getClassDuration(): Int {
-        val key = "${getScheduleKeyPrefix()}$KEY_CLASS_DURATION"
-        return safeGetInt(key, 45)
-    }
-
-    fun getShortBreak(): Int {
-        val key = "${getScheduleKeyPrefix()}$KEY_SHORT_BREAK"
-        return safeGetInt(key, 10)
-    }
-
-    fun getLongBreakEnabled(): Boolean {
-        val key = "${getScheduleKeyPrefix()}${KEY_LONG_BREAK}_enabled"
-        return prefs.getBoolean(key, false)
-    }
-
-    fun getLongBreakMorning(): Int {
-        val key = "${getScheduleKeyPrefix()}${KEY_LONG_BREAK}_morning"
-        return safeGetInt(key, 20)
-    }
-
-    fun getLongBreakAfternoon(): Int {
-        val key = "${getScheduleKeyPrefix()}${KEY_LONG_BREAK}_afternoon"
-        return safeGetInt(key, 20)
-    }
-
-    fun getLongBreakEvening(): Int {
-        val key = "${getScheduleKeyPrefix()}${KEY_LONG_BREAK}_evening"
-        return safeGetInt(key, 20)
-    }
-
-    fun getLongBreakMorningSection(): Int {
-        val key = "${getScheduleKeyPrefix()}${KEY_LONG_BREAK}_morning_section"
-        return safeGetInt(key, 2)
-    }
-
-    fun getLongBreakAfternoonSection(): Int {
-        val key = "${getScheduleKeyPrefix()}${KEY_LONG_BREAK}_afternoon_section"
-        return safeGetInt(key, 2)
-    }
-
-    fun getLongBreakEveningSection(): Int {
-        val key = "${getScheduleKeyPrefix()}${KEY_LONG_BREAK}_evening_section"
-        return safeGetInt(key, 2)
-    }
-
-    fun getMorningStartHour(): Int {
-        val key = "${getScheduleKeyPrefix()}$KEY_MORNING_START"
-        return safeGetInt(key, 8)
-    }
-
-    fun getMorningStartMinute(): Int {
-        val key = "${getScheduleKeyPrefix()}${KEY_MORNING_START}_min"
-        return safeGetInt(key, 0)
-    }
-
-    fun getAfternoonStartHour(): Int {
-        val key = "${getScheduleKeyPrefix()}$KEY_AFTERNOON_START"
-        return safeGetInt(key, 14)
-    }
-
-    fun getAfternoonStartMinute(): Int {
-        val key = "${getScheduleKeyPrefix()}${KEY_AFTERNOON_START}_min"
-        return safeGetInt(key, 0)
-    }
-
-    fun getEveningStartHour(): Int {
-        val key = "${getScheduleKeyPrefix()}$KEY_EVENING_START"
-        return safeGetInt(key, 18)
-    }
-
-    fun getEveningStartMinute(): Int {
-        val key = "${getScheduleKeyPrefix()}${KEY_EVENING_START}_min"
-        return safeGetInt(key, 30)
     }
 
     fun getPreClassReminder(): Boolean {
@@ -1761,8 +1754,8 @@ class CourseRepository private constructor(context: Context) {
     fun getTimeConfigIds(): List<Long> {
         timeConfigIdsCache?.let { return it }
         val idsStr = prefs.getString(KEY_TIME_CONFIG_IDS, null)
-        val ids = if (idsStr == null) {
-            listOf(0L)
+        val parsed = if (idsStr == null) {
+            null
         } else {
             // 兼容两种格式：逗号分隔 "1,2,3" 和 JSON 数组 "[1,2,3]"
             val cleaned = idsStr.trim()
@@ -1777,8 +1770,35 @@ class CourseRepository private constructor(context: Context) {
                 cleaned.split(",").mapNotNull { it.toLongOrNull() }
             }
         }
+        // 列表缺失/被还原成空，但配置本身还在 → 扫现存键重建，别让读取方掉到 id=0 的默认配置
+        val ids = when {
+            parsed == null -> rebuildTimeConfigIdsFromKeys() ?: listOf(0L)
+            parsed.isEmpty() -> rebuildTimeConfigIdsFromKeys() ?: emptyList()
+            else -> parsed
+        }
         timeConfigIdsCache = ids
         return ids
+    }
+
+    /**
+     * `time_config_ids` 丢失时，从现存的 `time_config_{id}` 键反推重建并落盘。
+     *
+     * 无版本依赖的通用自愈：不管是备份还原把键冲掉、还是老数据残留，只要配置还在就自己爬起来。
+     * 否则 [getScheduleTimeConfigId] 会因为「绑定 id 不在列表里」而回退到第一个配置，
+     * 读到 `time_config_0` 不存在 → 节数与时间被**静默**重置成 4/4/4 默认值。
+     *
+     * @return 扫到了配置则返回（已落盘），一个都没有则返回 null 交回上层走原逻辑
+     */
+    private fun rebuildTimeConfigIdsFromKeys(): List<Long>? {
+        val scanned = prefs.all.keys
+            .filter { it.startsWith(TIME_CONFIG_PREFIX) && it != KEY_TIME_CONFIG_IDS }
+            .mapNotNull { it.removePrefix(TIME_CONFIG_PREFIX).toLongOrNull() }
+            .distinct()
+            .sorted()
+            .takeIf { it.isNotEmpty() } ?: return null
+        saveTimeConfigIds(scanned)
+        android.util.Log.w(TAG, "time_config_ids 缺失/为空，已从现存配置键重建: $scanned")
+        return scanned
     }
 
     /** 持久化时间配置 ID 列表并同步缓存 */
@@ -1888,12 +1908,25 @@ class CourseRepository private constructor(context: Context) {
     /**
      * 保存某个作息方案的时间数据，并广播变更让课表页重算。
      * 节次骨架不在这里改——它属于课表，由时间配置页统一管理。
+     *
+     * @return false 表示没找到目标作息、什么都没写（withRoutineReplaced 静默返回原值）。
+     * 曾经有「保存成功但课表纹丝不动」的反馈无法复现，命中不到时必须留下日志。
      */
-    fun saveRoutine(routineId: Long, edited: TimeConfig, nameOverride: String? = null) {
+    fun saveRoutine(routineId: Long, edited: TimeConfig, nameOverride: String? = null): Boolean {
         val scheduleId = getCurrentScheduleId()
         val base = getTimeConfig(getScheduleTimeConfigId(scheduleId))
-        saveTimeConfig(base.withRoutineReplaced(routineId, edited.routineOf(routineId, nameOverride)))
+        val routine = edited.routineOf(routineId, nameOverride)
+        if (base.routineById(routineId) == null) {
+            android.util.Log.w(
+                TAG,
+                "saveRoutine: 目标作息不存在 config=${base.id} routineId=$routineId " +
+                    "现有=${base.safeRoutines.map { it.id }}，本次保存被丢弃"
+            )
+            return false
+        }
+        saveTimeConfig(base.withRoutineReplaced(routineId, routine))
         notifyCourseChanged("settings")
+        return true
     }
 
     fun deleteTimeConfig(id: Long) {
@@ -2212,59 +2245,10 @@ class CourseRepository private constructor(context: Context) {
                 if (routineId == null) updated
                 else base.withRoutineTimesApplied(routineId, updated)
             )
-            writeLegacyTimeShadowPrefs(scheduleId, config)
         } finally {
             batchingSettings = false
         }
         commitSettingsChanged()
-    }
-
-    /** 旧影子键无读取方，仅 export 兼容旧版回滚；合并为一次提交 */
-    private fun writeLegacyTimeShadowPrefs(scheduleId: String, config: TimeConfig) {
-        val prefix = getScheduleKeyPrefix(scheduleId)
-        prefs.edit {
-            putBoolean("${prefix}$KEY_QUICK_TIME_ENABLED", config.quickTimeEnabled)
-            putInt("${prefix}$KEY_CLASS_DURATION", config.classDuration)
-            putInt("${prefix}$KEY_SHORT_BREAK", config.shortBreak)
-            putBoolean("${prefix}${KEY_LONG_BREAK}_enabled", config.longBreakEnabled)
-            putInt("${prefix}${KEY_LONG_BREAK}_morning", config.longBreakMorning)
-            putInt("${prefix}${KEY_LONG_BREAK}_afternoon", config.longBreakAfternoon)
-            putInt("${prefix}${KEY_LONG_BREAK}_evening", config.longBreakEvening)
-            putInt("${prefix}${KEY_LONG_BREAK}_morning_section", config.longBreakMorningSection)
-            putInt("${prefix}${KEY_LONG_BREAK}_afternoon_section", config.longBreakAfternoonSection)
-            putInt("${prefix}${KEY_LONG_BREAK}_evening_section", config.longBreakEveningSection)
-            putInt("${prefix}$KEY_MORNING_START", config.morningStartHour)
-            putInt("${prefix}${KEY_MORNING_START}_min", config.morningStartMinute)
-            putInt("${prefix}$KEY_AFTERNOON_START", config.afternoonStartHour)
-            putInt("${prefix}${KEY_AFTERNOON_START}_min", config.afternoonStartMinute)
-            putInt("${prefix}$KEY_EVENING_START", config.eveningStartHour)
-            putInt("${prefix}${KEY_EVENING_START}_min", config.eveningStartMinute)
-        }
-    }
-
-    fun migrateToTimeConfigsIfNeeded() {
-        if (prefs.contains(KEY_TIME_CONFIG_IDS)) return
-        val currentConfig = TimeConfig.fromRepository(this).copy(id = 0L, name = "默认配置")
-        prefs.edit {
-            putString(KEY_TIME_CONFIG_IDS, "0")
-            putLong(KEY_CURRENT_TIME_CONFIG_ID, 0L)
-        }
-        saveTimeConfig(currentConfig)
-    }
-
-    /**
-     * 为未绑定课表各建独立配置：修复历史上 getScheduleTimeConfigId 回退共享
-     * 第一个配置导致「改 A 波及 B」；内容 copy 自回退目标，用户所见时间不变。
-     */
-    private fun migrateScheduleTimeConfigBindingsIfNeeded() {
-        for (name in getScheduleNames()) {
-            val boundKey = "$SCHEDULE_TIME_CONFIG_PREFIX$name"
-            if (prefs.contains(boundKey)) continue
-            val fallbackId = getTimeConfigIds().firstOrNull() ?: continue
-            val fallback = getTimeConfig(fallbackId)
-            val newId = addTimeConfig(fallback.copy(id = 0L, name = name))
-            setScheduleTimeConfigId(name, newId)
-        }
     }
 
     /**
@@ -2368,7 +2352,7 @@ class CourseRepository private constructor(context: Context) {
                     key == HolidayManager.BACKUP_BEFORE_EXCLUSION_KEY
                 ) continue
                 // 搭配、提醒等应用功能设置不进备份，恢复时也不覆盖设备上的对应配置
-                if (isCombinationBackupKey(key) || isAppFeatureBackupKey(key) || key == KEY_REMINDER_PREFS) continue
+                if (isCombinationBackupKey(key) || isAppFeatureBackupKey(key)) continue
                 when (value) {
                     is String -> putString(key, value)
                     is Boolean -> putBoolean(key, value)

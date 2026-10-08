@@ -25,6 +25,14 @@ import com.haooz.chedule.ui.utils.isAppDarkTheme
 import com.kyant.capsule.ContinuousRoundedRectangle
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 
+/**
+ * 左侧时间列宽度。横带要自己留出同样宽的起始边，子块才能和 DayColumn 逐列对齐，
+ * 所以调用方一律取这个常量，别再各自写死一份。
+ */
+@Composable
+fun scheduleSectionColumnWidth(isTablet: Boolean): androidx.compose.ui.unit.Dp =
+    if (isTablet) 56.dp else 36.dp
+
 @Composable
 fun SectionColumn(
     totalSections: Int = 11,
@@ -69,7 +77,7 @@ fun SectionColumn(
     }
     val totalHeight = effectiveGrid.totalHeight.toInt()
 
-    val sectionWidth = if (isTablet) 56.dp else 36.dp
+    val sectionWidth = scheduleSectionColumnWidth(isTablet)
 
     Box(
         modifier = modifier

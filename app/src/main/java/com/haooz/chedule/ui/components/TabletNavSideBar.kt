@@ -9,7 +9,6 @@ import android.view.RoundedCorner
 import android.view.WindowManager
 import androidx.compose.animation.core.Spring
 import androidx.compose.animation.core.animate
-import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.spring
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.AnimatedVisibility
@@ -21,6 +20,7 @@ import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.WindowInsets
@@ -40,6 +40,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -51,7 +52,9 @@ import androidx.compose.ui.layout.LayoutModifier
 import androidx.compose.ui.layout.Measurable
 import androidx.compose.ui.layout.MeasureResult
 import androidx.compose.ui.layout.MeasureScope
+import androidx.compose.ui.layout.boundsInRoot
 import androidx.compose.ui.layout.onGloballyPositioned
+import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
@@ -63,8 +66,12 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.haooz.chedule.ui.activities.MainActivity
+import com.haooz.chedule.ui.basic.DropdownPanelDragSelectState
+import com.haooz.chedule.ui.basic.dropdownPanelDragSelect
+import com.haooz.chedule.ui.basic.dropdownPanelEntry
 import com.haooz.chedule.ui.effects.edgelight.edgeLight
 import com.haooz.chedule.ui.effects.edgelight.rememberDefaultEdgeLight
+import com.haooz.chedule.ui.effects.liquidglass.InteractiveHighlight
 import com.haooz.chedule.ui.utils.isAppDarkTheme
 import com.kyant.backdrop.Backdrop
 import com.kyant.backdrop.drawBackdrop
@@ -85,18 +92,20 @@ import kotlin.math.roundToInt
 
 /**
  * 平板左侧导航全局状态。
- * pad 只保留侧边态：true=展开（图标+文字），false=折叠（仅图标）。
+ * 只保留侧边态：true = 展开（图标+文字），false = 折叠（仅图标）。
  */
 object TabletNavSideState {
     /** 展开=完整侧栏；折叠=仅图标轨 */
     var expanded by mutableStateOf(true)
+
     /**
      * 展开进度 0=折叠图标轨，1=完整侧栏。
-     * 只在 layout/draw/graphicsLayer 读，禁止在组合期读——
+     * 只在 layout/draw/graphicsLayer 读，禁止在组合期读 ——
      * 否则 CourseScheduleApp 整树会随动画每帧重组，平板展开/缩回直接掉帧。
      */
     val expandProgress = mutableFloatStateOf(1f)
-    /** 二级页点选主 tab 后 MainActivity 待处理下标；-1 无 */
+
+    /** 二级页点选主 tab 后 MainActivity 待处理下标；-1 = 无 */
     var pendingMainTab by mutableStateOf(-1)
 }
 
@@ -105,24 +114,39 @@ val tabletNavExpandSampleTrack: () -> Float = { TabletNavSideState.expandProgres
 
 /** 展开侧栏占位宽度占屏宽比例 */
 const val TabletNavSideWidthFraction = 0.22f
+
 /** 折叠态遮罩（玻璃）宽度 */
 val TabletNavIconRailWidth = 84.dp
+
 /** 图标中心相对遮罩左缘的固定位置（折叠态即 84/2，面板内居中） */
 private val TabletNavIconCenterX = 42.dp
+
 /** 图标尺寸，展开/折叠不变 */
 private val TabletNavIconSize = 28.dp
+
 /** 遮罩内边距，展开/折叠始终保持 8 */
 private val TabletNavMaskPadding = 8.dp
+
 /** 遮罩相对屏幕左缘的间距，展开/折叠保持不变（不贴边、也不左跳） */
 val TabletNavSideInset = 12.dp
+
 /** 遮罩底缘间距，保持不变 */
 private val TabletNavBottomInset = 12.dp
+
 /**
- * 条目内图标额外左偏：遮罩内边距 + 此值 + 图标半宽 = 44（相对遮罩左缘）。
- * 折叠时在 88 宽玻璃内居中；展开时中线相对遮罩不动。
+ * 条目内图标额外左偏：遮罩内边距 8 + 此值 20 + 图标半宽 14 = 图标中心 42（相对遮罩左缘）。
+ * 折叠时图标在 84 宽轨内居中；展开时中线相对遮罩不动。
  */
 private val TabletNavIconAlignStart =
     TabletNavIconCenterX - TabletNavMaskPadding - TabletNavIconSize / 2f
+
+/**
+ * 条目内选中遮罩的四周内缩。
+ * 滑选高光必须用同一套值（见 [TabletNavSideItem] 的 dropdownPanelEntry），
+ * 否则一个满幅、一个内缩，两个遮罩叠一起对不齐。
+ */
+private val TabletNavItemMaskHPadding = 4.dp
+private val TabletNavItemMaskVPadding = 2.dp
 
 private val TabletNavExpandSpec = spring<Float>(
     dampingRatio = Spring.DampingRatioNoBouncy,
@@ -159,10 +183,12 @@ fun Density.tabletNavSideInsetPx(screenWidthDp: Int, screenHeightDp: Int = scree
 }
 
 /**
- * 目标宽度在展开/折叠那一刻一次性测量出来（只重排一次），
- * 中间所有帧只做 graphicsLayer 平移，内容树在动画期间零重绘。
- * 竖屏：展开是纯叠层（侧栏浮在内容上 + 压暗），内容始终按折叠轨避让，布局不动。
+ * 内容区左侧的避让宽度。
+ * 竖屏：展开是纯叠层（侧栏浮在内容上 + 压暗），内容恒按折叠轨避让，展开不改变布局。
  * 横屏：展开仍让位给侧栏。
+ *
+ * 目标宽度在展开/折叠那一刻一次性测量出来（只重排一次），中间所有帧只做
+ * graphicsLayer 平移，动画期间内容树零重绘。
  */
 @Composable
 fun tabletNavRailStartPadding(): Modifier {
@@ -196,7 +222,7 @@ private class TabletNavRailTargetPaddingElement(
         measurable: Measurable,
         constraints: Constraints,
     ): MeasureResult {
-        // 只跟展开布尔，不跟进度：一次伸缩只在这里重排一次
+        /** 只跟展开布尔、不跟进度：一次伸缩只在这里重排一次 */
         val padPx = if (TabletNavSideState.expanded) expandedWidthPx else collapsedTotalPx
         val padInt = padPx.roundToInt().coerceAtLeast(0)
         // 与 Modifier.padding(start=) 同语义：只收窄子约束横向，高度跟内容，不撑满
@@ -226,9 +252,7 @@ private class TabletNavRailTargetPaddingElement(
     }
 }
 
-/**
- * 侧栏玻璃面板宽度随展开进度在 layout 期插值，不进组合。
- */
+/** 侧栏玻璃面板宽度随展开进度在 layout 期插值，不进组合 */
 internal fun Modifier.tabletNavPanelWidth(
     collapsedWidthPx: Float,
     expandedWidthPx: Float,
@@ -272,8 +296,7 @@ private class TabletNavPanelWidthElement(
 
 /**
  * 设置页叠层标题槽：左/右栏顶栏标题随侧栏避让平移与分宽。
- * 竖屏侧栏为叠层，标题不跟随展开；横屏仍随避让。
- * 进度只在 measure 读。
+ * 竖屏侧栏为叠层，标题不跟随展开；横屏仍随避让。进度只在 measure 读。
  */
 @Composable
 internal fun Modifier.tabletNavChromeTitleSlot(
@@ -367,8 +390,7 @@ private class TabletNavChromeTitleSlotElement(
 }
 
 /**
- * 整块玻璃遮罩圆角：屏幕圆角 − 遮罩相对屏幕的间距。
- * 取不到系统圆角时退回 28.dp。
+ * 整块玻璃遮罩圆角：屏幕圆角 − 左缘间距；取不到系统圆角时退回 28.dp。
  */
 @Composable
 private fun rememberTabletNavMaskCorner(): Dp {
@@ -423,7 +445,7 @@ fun navigateMainTabFromSecondary(context: Context, tab: Int) {
 
 /**
  * pad 侧边导航：展开/折叠是同一套布局的连续变形。
- * 遮罩左缘间距不变、遮罩内边距恒为 8.dp，图标因此始终落在同一条竖直线上；
+ * 遮罩左缘间距与内边距恒定，图标因此始终落在同一条竖直线上；
  * 折叠只收窄遮罩宽度并淡出文字，不整体平移。
  * 宽度/文字透明度只在 layout/draw 读进度，不进组合。
  */
@@ -454,9 +476,27 @@ fun TabletNavSideBar(
     val containerColor =
         if (isLightTheme) Color(0xFFFFFFFF).copy(0.8f) else Color(0xFF242424).copy(0.8f)
     val solidContainer = if (isLightTheme) Color(0xFFFBFBFB) else Color(0xFF1C1C1E)
-    val selectedBg =
-        if (isLightTheme) Color.Black.copy(0.06f) else Color.White.copy(0.1f)
     val defaultEdgeLight = rememberDefaultEdgeLight(baseColor = containerColor)
+    // 按压高光：跟手光晕，按哪亮哪。
+    val animationScope = rememberCoroutineScope()
+    val interactiveHighlight = remember(animationScope) {
+        InteractiveHighlight(
+            animationScope = animationScope,
+            // 倍率随展开进度反向补偿：展开 ×0.4 / 收起 ×0.7 —— 两者乘出的绝对半径
+            // 接近（minDimension 变小、倍率变大），光晕视觉大小不随伸缩跳变。
+            // 读的是 draw 阶段的进度，不会因此触发重组。
+            radiusScale = {
+                0.7f - 0.3f * TabletNavSideState.expandProgress.floatValue.coerceIn(0f, 1f)
+            },
+            radiusBaseDp = 150.dp,
+            // 只要光晕：整幅 8% 加白叠在 84~270dp 宽的整条侧栏上就是整块泛白
+            drawFlatOverlay = false,
+        )
+    }
+    // 滑动点选：复用弹窗菜单那套跟手滑选，状态自持。
+    // 侧栏无滚动 → fitsOnScreen 默认 true，走完整滑选分支。
+    val dragSelect = remember { DropdownPanelDragSelectState() }
+    val hapticFeedback = LocalHapticFeedback.current
     // 玻璃遮罩圆角：屏幕圆角 − 左缘间距，不写死
     val sideCorner = rememberTabletNavMaskCorner()
     val density = LocalDensity.current
@@ -484,11 +524,11 @@ fun TabletNavSideBar(
     // 左缘间距恒定：不贴边，折叠只改遮罩宽度，栏体不平移
     val panelStartInset = TabletNavSideInset
 
-    // 「数据管理」区块实测高度：用作下方条目的反向平移量，使其折叠后紧贴上方选项
+    // 「数据管理」区块实测高度：折叠后选中项靠反向平移抵消它，贴到上方选项
     var dataGroupHeightPx by remember { mutableFloatStateOf(0f) }
 
     Box(modifier = modifier.fillMaxSize()) {
-        // 竖屏展开压暗：淡入淡出；折叠时不占命中；独立合成层不进模糊采样
+        // 竖屏展开压暗：淡入淡出；折叠时不占命中。离屏合成，不进玻璃模糊采样
         if (isPortrait) {
             AnimatedVisibility(
                 visible = TabletNavSideState.expanded,
@@ -538,9 +578,18 @@ fun TabletNavSideBar(
                             )
                             .edgeLight(shape = ContinuousRoundedRectangle(sideCorner), edgeLight = defaultEdgeLight)
                     } else {
-                        Modifier.background(solidContainer, ContinuousRoundedRectangle(sideCorner))
+                        // 无玻璃分支没有 drawBackdrop 的 clipPath 兜底：
+                        // 高光是矩形 drawRect，不自己裁会溢出圆角画成方光块
+                        Modifier
+                            .background(solidContainer, ContinuousRoundedRectangle(sideCorner))
+                            .clip(ContinuousRoundedRectangle(sideCorner))
                     }
                 )
+                // 高光画在材质之上、条目内容之下（内容在 drawContent 里更靠内，后画）
+                .then(interactiveHighlight.modifier)
+                // 触发挂整条面板：手指落在任意条目上都有光晕。
+                // observeConsumed=true，条目的 clickable 消费事件不影响它跟手
+                .then(interactiveHighlight.gestureModifier)
                 .padding(TabletNavMaskPadding),
             verticalArrangement = Arrangement.spacedBy(4.dp),
             horizontalAlignment = Alignment.Start,
@@ -550,27 +599,41 @@ fun TabletNavSideBar(
                 label = "导航",
                 selected = false,
                 textColor = textColor,
-                selectedBg = selectedBg,
-                showSelectedBg = false,
                 showLabel = false,
                 onClick = { TabletNavSideState.expanded = !TabletNavSideState.expanded },
             )
 
-            // 页签之间更紧；与上方「导航」的间距仍由外层 spacedBy 控制
+            // 页签之间更紧；与上方「导航」的间距仍由外层 spacedBy 控制。
+            // 滑动点选挂这一层：正好只覆盖页签，「导航」折叠按钮与底部「今」
+            // 都在手势节点之外，各自 clickable 不会被 down.consume() 波及。
             Column(
-                modifier = Modifier.fillMaxWidth(),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    // 手势与条目坐标必须同源：条目用 boundsInRoot 减这个值，
+                    // 手指用的是本节点的局部坐标，原点必须是同一个
+                    .onGloballyPositioned {
+                        dragSelect.panelTopInRoot = it.boundsInRoot().top
+                    }
+                    .dropdownPanelDragSelect(
+                        state = dragSelect,
+                        // 现读、不能捕获（pointerInput(Unit) 的 lambda 只在首次组合跑一次）。
+                        // 折叠态 fraction<0.98 时手势层直接放行且不消费，条目点击照常 ——
+                        // 折叠时上移到「我的」下方的那颗数据项才点得到。
+                        fraction = { TabletNavSideState.expandProgress.floatValue },
+                        hapticFeedback = hapticFeedback,
+                    ),
                 verticalArrangement = Arrangement.spacedBy(0.dp),
             ) {
                 tabs.forEachIndexed { index, (label, icon) ->
                     // 「数据管理」分组（分界线 + 小标题 + 课程管理 + 切换课表）：
                     // 折叠态只保留今日/课程表/我的；若分组内某项正被选中则保留该项，
-                    // 并随分界线/标题收拢连贯上移贴近上方选项。
+                    // 并随分界线/标题收拢上移贴近上方选项。
                     val dataGroupStart = if (isShiftMode) -1 else tabs.size - 2
                     val inDataGroup = !isShiftMode && index >= dataGroupStart
                     if (inDataGroup) {
                         val isFirstDataItem = index == dataGroupStart
                         if (isFirstDataItem) {
-                            // 分界线 + 小标题：折叠全程只做淡入淡出，并且始终占着自己的高度
+                            // 分界线 + 小标题：折叠全程只做淡入淡出，并始终占着自己的高度
                             Column(
                                 modifier = Modifier
                                     .fillMaxWidth()
@@ -608,8 +671,8 @@ fun TabletNavSideBar(
                                 )
                             }
                         }
-                        // 分组条目：选中时用反向平移补掉上方留白——展开时在原位
-                        // 第二项还要再让开第一条数据项的行高，才能贴到「我的」下方
+                        // 分组条目：选中时用反向平移补掉上方留白（展开时在原位）。
+                        // 第二项还要再让开第一条数据项的行高，才能贴到「我的」下方。
                         val itemHeightPx = with(density) { 52.dp.toPx() }
                         val extraOffsetPx = (index - dataGroupStart) * itemHeightPx
                         Box(
@@ -630,11 +693,12 @@ fun TabletNavSideBar(
                                 label = label,
                                 selected = index == selectedTab,
                                 textColor = textColor,
-                                selectedBg = selectedBg,
-                                showSelectedBg = true,
                                 showLabel = true,
                                 labelFontWeight = FontWeight.Normal,
-                                // 折叠且未选中时不可见，同时也不应响应点击
+                                selectState = dragSelect,
+                                // 折叠且未选中时不可见：既不进滑选命中（否则会高亮
+                                // 一个看不见的项），也不响应点击
+                                selectEnabled = TabletNavSideState.expanded || index == selectedTab,
                                 onClick = {
                                     if (TabletNavSideState.expanded || index == selectedTab) {
                                         onTabSelected(index)
@@ -648,9 +712,8 @@ fun TabletNavSideBar(
                             label = label,
                             selected = index == selectedTab,
                             textColor = textColor,
-                            selectedBg = selectedBg,
-                            showSelectedBg = true,
                             showLabel = true,
+                            selectState = dragSelect,
                             onClick = { onTabSelected(index) },
                         )
                     }
@@ -688,7 +751,11 @@ fun TabletNavSideBar(
 
 /**
  * 侧栏条目：展开/折叠共用。
- * 图标与文字始终同黑白主色；选中遮罩底色淡入淡出。[showLabel]=false 时不显示右侧文字。
+ * 图标与文字始终同黑白主色；[showLabel]=false 时不显示右侧文字。
+ *
+ * 选中遮罩只有一份：由 dropdownPanelEntry 画，跟手态与静止态共用它。
+ * 早期版本另有一个直接绘制的静态遮罩，两层同形同位叠着纯属浪费，
+ * 而且一个淡入淡出、一个即时切换，视觉上会打架。
  */
 @Composable
 private fun TabletNavSideItem(
@@ -696,12 +763,35 @@ private fun TabletNavSideItem(
     label: String,
     selected: Boolean,
     textColor: Color,
-    selectedBg: Color,
-    showSelectedBg: Boolean,
     showLabel: Boolean,
     labelFontWeight: FontWeight = FontWeight.Medium,
+    /** 滑动点选状态；null = 不进选择区（「导航」折叠按钮在手势节点之外） */
+    selectState: DropdownPanelDragSelectState? = null,
+    /** 参与选择时是否可命中；折叠态的隐藏项传 false，避免高亮看不见的项 */
+    selectEnabled: Boolean = true,
     onClick: () -> Unit,
 ) {
+    // 滑动点选：登记纵向区间 + 命中遮罩，与弹窗菜单共用 DropdownPanelDragSelect。
+    // 条目自己的 clickable 保留：折叠态手势层不消费（fraction<0.98 直接放行），
+    // 上移到「我的」下方的那颗数据项仍要点得到；展开态 down 被手势层消费，
+    // clickable 的 awaitFirstDown(requireUnconsumed=true) 起不来，不会双重触发。
+    val selectModifier = if (selectState != null) {
+        Modifier.dropdownPanelEntry(
+            enabled = selectEnabled,
+            // 唯一一层遮罩：内缩 + 胶囊裁剪
+            highlightPadding = PaddingValues(
+                horizontal = TabletNavItemMaskHPadding,
+                vertical = TabletNavItemMaskVPadding,
+            ),
+            highlightShape = ContinuousCapsule(),
+            // 静止态亮在当前选中项；手指一动就改听命于命中项
+            selected = selected,
+            action = onClick,
+            state = selectState,
+        )
+    } else {
+        Modifier
+    }
     Box(
         modifier = Modifier
             .fillMaxWidth()
@@ -710,26 +800,10 @@ private fun TabletNavSideItem(
                 interactionSource = remember { MutableInteractionSource() },
                 indication = null,
                 onClick = onClick,
-            ),
-    ) {
-        // 选中遮罩：旧的淡出与新的淡入同时交叉进行
-        val maskAlpha by animateFloatAsState(
-            targetValue = if (showSelectedBg && selected) 1f else 0f,
-            animationSpec = tween(durationMillis = 320),
-            label = "navItemMaskAlpha",
-        )
-        if (showSelectedBg) {
-            Box(
-                modifier = Modifier
-                    .padding(horizontal = 4.dp, vertical = 2.dp)
-                    .fillMaxWidth()
-                    .height(48.dp)
-                    .graphicsLayer { alpha = maskAlpha }
-                    .clip(ContinuousCapsule())
-                    .background(selectedBg),
             )
-        }
-
+            // 登记与遮罩挂在 clickable 之后：节点 bounds 不变，drawBehind 叠加顺序也对
+            .then(selectModifier),
+    ) {
         Row(
             modifier = Modifier
                 .fillMaxWidth()

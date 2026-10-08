@@ -14,16 +14,19 @@ import androidx.compose.animation.EnterExitState
 import androidx.compose.animation.EnterTransition
 import androidx.compose.animation.ExitTransition
 import androidx.compose.animation.core.Animatable
+import androidx.compose.animation.core.EaseOut
 import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.animateFloat
 import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.spring
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.expandVertically
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.shrinkVertically
 import androidx.compose.foundation.background
-import androidx.compose.foundation.gestures.detectTapGestures
+import androidx.compose.foundation.gestures.awaitEachGesture
+import androidx.compose.foundation.gestures.awaitFirstDown
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -42,7 +45,9 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableIntStateOf
@@ -66,7 +71,12 @@ import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.rememberGraphicsLayer
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.input.nestedscroll.nestedScroll
+import androidx.compose.ui.input.pointer.PointerEventPass
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.onClick as onSemanticsClick
+import androidx.compose.ui.semantics.role
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.state.ToggleableState
@@ -84,6 +94,7 @@ import com.haooz.chedule.ui.basic.collapsibleTopInset
 import com.haooz.chedule.ui.basic.rememberSharedScrollBehavior
 import com.haooz.chedule.ui.effects.edgelight.edgeLight
 import com.haooz.chedule.ui.effects.edgelight.rememberDefaultEdgeLight
+import com.haooz.chedule.ui.effects.liquidglass.InteractiveHighlight
 import com.haooz.chedule.ui.theme.CourseScheduleTheme
 import com.haooz.chedule.ui.utils.ApiCompat
 import com.haooz.chedule.ui.utils.applyThemeAwareSystemBars
@@ -125,6 +136,8 @@ import top.yukonga.miuix.kmp.preference.CheckboxPreference
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 import top.yukonga.miuix.kmp.utils.PressFeedbackType
 import top.yukonga.miuix.kmp.utils.scrollEndHaptic
+import kotlin.math.abs
+import kotlin.math.sign
 import kotlin.time.Duration.Companion.milliseconds
 import androidx.compose.ui.graphics.Color as ComposeColor
 import com.kyant.backdrop.backdrops.layerBackdrop as liquidGlassLayerBackdrop
@@ -567,6 +580,11 @@ fun SwitchScheduleScreen(
             },
             bottomBar = {
                 var navBarVisible by remember { mutableStateOf(false) }
+                // 滑动选择状态（LiquidGlassDropdownMenu 同款单一状态）
+                val dragSelect = remember { BottomBarDragSelectState() }
+                // 胶囊水平内边距：既是内容留白，也是滑选格子换算的左缘
+                // （与下方 capsule 的 padding(horizontal = ...) 同一个值，改这里两处一起变）
+                val bottomBarHPadding = 7.dp
                 LaunchedEffect(isEditMode) {
                     if (isEditMode) {
                         navBarVisible = true
@@ -608,6 +626,16 @@ fun SwitchScheduleScreen(
                         if (!isAppDarkTheme()) Color(0xFFFFFFFF).copy(0.6f)
                         else Color(0xFF121212).copy(0.54f)
 
+                    // 按压高光：整条胶囊按哪亮哪（与主页底栏同一套，直接用组件默认配色）。
+                    // 触发挂整条胶囊；下面的总手势会消费事件，但 gestureModifier 是
+                    // observeConsumed=true 的纯视觉观察者，照常跟手。
+                    val bottomBarScope = rememberCoroutineScope()
+                    val interactiveHighlight = remember(bottomBarScope) {
+                        InteractiveHighlight(animationScope = bottomBarScope)
+                    }
+                    // 左右跟手推移的累计位移(px) —— 与主页底栏 LiquidBottomTabs 的
+                    // offsetAnimation 同角色，归一化/回弹参数也逐字一致
+                    val barDragOffset = remember { Animatable(0f) }
 
                     Box(
                         modifier = Modifier
@@ -633,6 +661,19 @@ fun SwitchScheduleScreen(
                             modifier = Modifier
                                 .fillMaxWidth(0.72f)
                                 .height(56.dp)
+                                // 与主页底栏同一套形变（公式/常数逐字一致）：
+                                // 按住 → 放大 16dp/宽；左右滑 → 推移，按栏宽归一化后 EaseOut 压到 ±4dp。
+                                // 放在 drawBackdrop 之前 = 包住材质、高光与条目，整条一起动。
+                                .graphicsLayer {
+                                    val fraction =
+                                        (barDragOffset.value / size.width).coerceIn(-1f, 1f)
+                                    translationX = 4f.dp.toPx() * fraction.sign *
+                                        EaseOut.transform(abs(fraction))
+                                    val press = interactiveHighlight.pressProgress
+                                    val s = 1f + 16f.dp.toPx() / size.width * press
+                                    scaleX = s
+                                    scaleY = s
+                                }
                                 .drawBackdrop(
                                     backdrop = liquidGlassBackdrop,
                                     shape = { ContinuousCapsule() },
@@ -648,7 +689,82 @@ fun SwitchScheduleScreen(
                                     shape = ContinuousCapsule(),
                                     edgeLight = rememberDefaultEdgeLight(baseColor = containerColor)
                                 )
-                                .padding(horizontal = 7.dp, vertical = 3.5.dp)
+                                // 高光画在材质之上、条目之下（条目在 drawContent 里更靠内），
+                                // 且被 drawBackdrop 的 clipPath 裁进胶囊外形
+                                .then(interactiveHighlight.modifier)
+                                .then(interactiveHighlight.gestureModifier)
+                                // 底栏唯一手势：滑动选择 + 左右跟手推移 + 松手回弹。
+                                // 单一状态（与 LiquidGlassDropdownMenu 同款）：按下即命中，
+                                // 点按就是「滑动距离为 0 的滑选」，两者同一条路径，
+                                // 所以条目上不再有自己的手势。消费事件防止外层也来一份。
+                                .pointerInput(bottomBarScope) {
+                                    val touchSlop = viewConfiguration.touchSlop
+                                    awaitEachGesture {
+                                        // 条目等宽（都 weight(1f)），按格下标换算命中；
+                                        // 在手势内现算，栏宽变化后下次按下即生效
+                                        val contentLeft = bottomBarHPadding.toPx()
+                                        val cellWidth = (
+                                            (size.width - contentLeft * 2f) /
+                                                dragSelect.itemCount.coerceAtLeast(1)
+                                            ).coerceAtLeast(1f)
+                                        fun hitAt(x: Float) = dragSelect.hitTest(
+                                            ((x - contentLeft) / cellWidth).toInt()
+                                        )
+
+                                        val down = awaitFirstDown(requireUnconsumed = false)
+                                        down.consume()
+                                        var lastHit = hitAt(down.position.x)
+                                        var lastX = down.position.x
+                                        var dragging = false
+                                        while (true) {
+                                            val event =
+                                                awaitPointerEvent(PointerEventPass.Main)
+                                            val change =
+                                                event.changes.firstOrNull { it.id == down.id }
+                                            if (change == null || !change.pressed) {
+                                                // 松手：先取出命中项再清态，最后执行
+                                                val hit = dragSelect.selected
+                                                dragSelect.clear()
+                                                // 回弹；纯点按没位移时 0→0 立即结束
+                                                bottomBarScope.launch {
+                                                    barDragOffset.animateTo(
+                                                        0f,
+                                                        spring(1f, 300f, 0.5f)
+                                                    )
+                                                }
+                                                hit?.action?.invoke()
+                                                break
+                                            }
+                                            if (!dragging && abs(
+                                                    change.position.x - down.position.x
+                                                ) > touchSlop
+                                            ) {
+                                                dragging = true
+                                            }
+                                            if (dragging) {
+                                                // 左右推移：主页底栏同款。awaitEachGesture 是
+                                                // 受限挂起作用域，suspend 调用只能进协程
+                                                val target = barDragOffset.value +
+                                                    change.position.x - lastX
+                                                bottomBarScope.launch {
+                                                    barDragOffset.snapTo(target)
+                                                }
+                                            }
+                                            lastX = change.position.x
+                                            // 逐帧改命中：滑动高光跟着手指走
+                                            val hit = hitAt(change.position.x)
+                                            if (hit != null && hit !== lastHit) {
+                                                // 仅「换了一项」才震，按下即命中的那一下不震
+                                                hapticFeedback.performHapticFeedback(
+                                                    HapticFeedbackType.TextHandleMove
+                                                )
+                                            }
+                                            lastHit = hit
+                                            change.consume()
+                                        }
+                                    }
+                                }
+                                .padding(horizontal = bottomBarHPadding, vertical = 3.5.dp)
                         ) {
                             Row(
                                 modifier = Modifier.fillMaxSize(),
@@ -657,6 +773,8 @@ fun SwitchScheduleScreen(
                             ) {
                                 BottomBarItem(
                                     icon = MiuixIcons.Forward,
+                                    state = dragSelect,
+                                    index = 0,
                                     label = "分享",
                                     enabled = selectedFolders.isEmpty() && selectedSchedules.size == 1 && !isSharingSchedule,
                                     onClick = {
@@ -679,6 +797,8 @@ fun SwitchScheduleScreen(
                                 )
                                 BottomBarItem(
                                     icon = MiuixIcons.Edit,
+                                    state = dragSelect,
+                                    index = 1,
                                     label = "编辑",
                                     enabled = checkedCount == 1,
                                     onClick = {
@@ -704,6 +824,8 @@ fun SwitchScheduleScreen(
                                 )
                                 BottomBarItem(
                                     icon = MiuixIcons.MoveFile,
+                                    state = dragSelect,
+                                    index = 2,
                                     label = "移动",
                                     enabled = selectedSchedules.isNotEmpty() && selectedFolders.isEmpty(),
                                     onClick = {
@@ -714,6 +836,8 @@ fun SwitchScheduleScreen(
                                 )
                                 BottomBarItem(
                                     icon = MiuixIcons.Delete,
+                                    state = dragSelect,
+                                    index = 3,
                                     label = "删除",
                                     enabled = checkedCount >= 1,
                                     onClick = {
@@ -1652,14 +1776,76 @@ private fun MoveTargetRow(
     }
 }
 
+/**
+ * 底栏滑动选择的单项登记：松手时要执行的动作 + 是否可用。
+ *
+ * 不登记位置区间 —— 四个条目都是 `weight(1f)` 等宽格，命中由手势侧按格下标换算。
+ */
+private class BottomBarItemEntry {
+    var enabled = true
+    var action: (() -> Unit)? = null
+}
+
+/**
+ * 底栏滑动选择状态，与 `LiquidGlassDropdownMenu` 的跟手滑选同款**单一状态**设计：
+ * 按下即命中 → 逐帧改命中 → 松手执行命中项；**点按 = 滑动距离为 0 的滑选**，
+ * 两者共用同一条路径。
+ *
+ * 因此条目上不能再挂 detectTapGestures/clickable —— 两个手势状态互相抢事件，
+ * 正是菜单版「先按住再滑动会跳状态」的根因（无障碍改走 semantics onClick）。
+ */
+private class BottomBarDragSelectState {
+    /** 按格下标登记；map 而非 list：下标由调用方显式给，不依赖组合顺序 */
+    private val entries = mutableMapOf<Int, BottomBarItemEntry>()
+
+    /** 当前命中项；null = 松手不执行（禁用项 / 落在条目之外的 padding 区） */
+    var selected by mutableStateOf<BottomBarItemEntry?>(null)
+        private set
+
+    /** 参与换算的条目数（= 内容区格数） */
+    val itemCount: Int get() = entries.size
+
+    fun register(index: Int, entry: BottomBarItemEntry) {
+        entries[index] = entry
+    }
+
+    fun unregister(index: Int, entry: BottomBarItemEntry) {
+        if (entries[index] === entry) entries.remove(index)
+        if (selected === entry) selected = null
+    }
+
+    fun hitTest(index: Int): BottomBarItemEntry? {
+        val hit = entries[index]?.takeIf { it.enabled }
+        selected = hit
+        return hit
+    }
+
+    fun clear() {
+        selected = null
+    }
+}
+
 @Composable
 private fun RowScope.BottomBarItem(
     icon: androidx.compose.ui.graphics.vector.ImageVector,
     label: String,
     enabled: Boolean,
+    state: BottomBarDragSelectState,
+    index: Int,
     onClick: () -> Unit
 ) {
-    var isPressed by remember { mutableStateOf(false) }
+    val entry = remember { BottomBarItemEntry() }
+    DisposableEffect(state, entry, index) {
+        state.register(index, entry)
+        onDispose { state.unregister(index, entry) }
+    }
+    // 每次重组刷新，拿不到最新 onClick / enabled 的话会执行旧闭包
+    SideEffect {
+        entry.action = onClick
+        entry.enabled = enabled
+    }
+    // 命中即按压：点按与滑选是同一条路径，pressAlpha 的弹簧负责进出过渡
+    val isPressed = state.selected === entry
     val pressAlpha by animateFloatAsState(
         targetValue = if (isPressed) 1f else 0f,
         animationSpec = tween(150),
@@ -1674,16 +1860,14 @@ private fun RowScope.BottomBarItem(
     else ComposeColor.Black.copy(alpha = 0.06f * pressAlpha)
     Column(
         modifier = Modifier
-            .pointerInput(enabled) {
-                if (enabled) {
-                    detectTapGestures(
-                        onPress = {
-                            isPressed = true
-                            tryAwaitRelease()
-                            isPressed = false
-                        },
-                        onTap = { onClick() }
-                    )
+            // 条目自己不挂手势（单一状态，见 BottomBarDragSelectState）：
+            // 点按与滑选统一由胶囊上的总手势处理，这里只补无障碍语义。
+            // semantics onClick 不产生手势、不抢事件；禁用时动作直接不执行。
+            .semantics {
+                role = Role.Button
+                onSemanticsClick(label = label) {
+                    if (enabled) onClick()
+                    true
                 }
             }
             .drawWithContent {

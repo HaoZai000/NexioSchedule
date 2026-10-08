@@ -47,6 +47,7 @@ import androidx.compose.ui.unit.sp
 import androidx.core.content.ContextCompat
 import androidx.core.content.edit
 import com.haooz.chedule.R
+import com.haooz.chedule.data.HolidayManager
 import com.haooz.chedule.ui.basic.CollapsibleTopAppBarDefaults
 import com.haooz.chedule.ui.basic.OverlayDropdownMenu
 import com.haooz.chedule.ui.basic.SharedScrollBehavior
@@ -85,6 +86,8 @@ fun PreferenceSettingsScreen(
                 ?: "https://gitee.com/XingHeYuZhuan-gh/shiguang_warehouse"
         )
     }
+
+    var holidaySource by remember { mutableStateOf(HolidayManager.holidaySource(context)) }
 
     val weatherPrefs = remember { context.getSharedPreferences("weather_prefs", Context.MODE_PRIVATE) }
     var weatherSource by remember { mutableStateOf(weatherPrefs.getString("weather_source", "caiyun") ?: "caiyun") }
@@ -487,6 +490,36 @@ fun PreferenceSettingsScreen(
                                 title = "天气数据源",
                                 summary = weatherLocationSummary,
                                 entry = weatherSourceEntry,
+                                collapseOnSelection = true,
+                                liquidGlassBackdrop = liquidGlassBackdrop,
+                                dropdownColors = liquidGlassDropdownColors,
+                            )
+
+                            val holidaySourceEntry = DropdownEntry(
+                                items = listOf(
+                                    DropdownItem(
+                                        text = "国务院",
+                                        selected = holidaySource == HolidayManager.SOURCE_HOLIDAY_CALENDAR,
+                                        onClick = {
+                                            holidaySource = HolidayManager.SOURCE_HOLIDAY_CALENDAR
+                                            HolidayManager.setHolidaySource(context, holidaySource)
+                                        }
+                                    ),
+                                    DropdownItem(
+                                        text = "APIHubs",
+                                        selected = holidaySource == HolidayManager.SOURCE_APIHUBS,
+                                        onClick = {
+                                            holidaySource = HolidayManager.SOURCE_APIHUBS
+                                            HolidayManager.setHolidaySource(context, holidaySource)
+                                        }
+                                    ),
+                                )
+                            )
+
+                            OverlayDropdownMenu(
+                                title = "节假日数据源",
+                                summary = "假期与调休安排的获取来源",
+                                entry = holidaySourceEntry,
                                 collapseOnSelection = true,
                                 liquidGlassBackdrop = liquidGlassBackdrop,
                                 dropdownColors = liquidGlassDropdownColors,

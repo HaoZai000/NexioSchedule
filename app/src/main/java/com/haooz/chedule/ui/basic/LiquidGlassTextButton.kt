@@ -42,7 +42,7 @@ import top.yukonga.miuix.kmp.theme.MiuixTheme
 
 /**
  * 底部悬浮液态玻璃按钮。效果对齐 [com.haooz.chedule.ui.components.BackToNowFloatingButton]：
- * graphicsLayer clip=false，layerBlock 可拉伸不裁切。无 ShadowPadding 外溢预留。
+ * graphicsLayer clip=false，形变不裁切。无 ShadowPadding 外溢预留。
  * 依赖 Activity 已有的 liquidGlassBackdrop 采样层。
  */
 @Composable
@@ -60,7 +60,11 @@ fun LiquidGlassTextButton(
     val hapticFeedback = LocalHapticFeedback.current
     val isLightTheme = !isAppDarkTheme()
     val interactiveHighlight = remember(animationScope) {
-        InteractiveHighlight(animationScope = animationScope)
+        InteractiveHighlight(
+            animationScope = animationScope,
+            // 浅色提到 0.1（深色本就是 0.15）：浅色默认档 0.05 对这个材质太弱
+            lightPeakAlpha = 0.1f,
+        )
     }
     val interactionSource = remember { MutableInteractionSource() }
 
@@ -113,9 +117,9 @@ fun LiquidGlassTextButton(
                 clip = false
                 transformOrigin = TransformOrigin.Center
 
-                // 与下拉菜单面板共用同一套形变算法（computeDragTransform），
-                // 跟手手感完全一致。传 shapeAspectRatio = 1f：本按钮是 fillMaxWidth
-                // 的长条，实测 360x40 会让 penaltyY = 0.11 把纵向形变砍到面板的 1/6。
+                // 与下拉菜单面板共用同一套形变算法（computeDragTransform），跟手手感一致。
+                // shapeAspectRatio = 1f：本按钮是 fillMaxWidth 的长条（360x40），
+                // 按实测长宽比算 penaltyY ≈ 0.11，纵向拉伸会被砍到九分之一。
                 val drag = computeDragTransform(
                     width = size.width,
                     height = size.height,

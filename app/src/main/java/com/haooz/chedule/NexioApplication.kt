@@ -37,6 +37,11 @@ class NexioApplication : Application() {
         warmUpSharedPreferences()
         cleanupTransientFiles()
         initWearableSync()
+        // 调休映射迁移：旧版存「第几周+星期几」，周次相对课表，换课表就错位。
+        // 一次性换算成绝对日期（followDate），之后按当前课表实时折算。走后台线程避免拖慢冷启动。
+        Thread {
+            runCatching { com.haooz.chedule.data.HolidayManager.migrateLegacyFollowDates(this) }
+        }.start()
     }
 
     /** 手表课表推送：启动注册，课程变更走 CourseRepository 监听 */

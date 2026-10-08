@@ -300,9 +300,19 @@ object ScheduleAppearance {
             appContext.getSharedPreferences(LEGACY_PREFS, Context.MODE_PRIVATE)
         }.getOrNull() ?: return
 
-        // 单搭配时代 id恒为 0；取combination_ids 的首个仅是为稳妥
-        val legacyId = legacy.getString(LEGACY_KEY_COMBINATION_IDS, null)
-            ?.split(",")?.mapNotNull { it.trim().toLongOrNull() }?.firstOrNull() ?: 0L
+        // 迁「当前正在用的那套」：1.5.6 及更早存有 current_combination_id 指针，
+        // 只取 combination_ids 首个会在多搭配老数据上迁错（迁成用户没在用的那套）。
+        val legacyIds = legacy.getString(LEGACY_KEY_COMBINATION_IDS, null)
+            ?.split(",")?.mapNotNull { it.trim().toLongOrNull() }
+            ?.takeIf { it.isNotEmpty() }
+        val currentId = runCatching {
+            legacy.getLong(LEGACY_KEY_CURRENT_COMBINATION_ID, Long.MIN_VALUE)
+        }.getOrDefault(Long.MIN_VALUE)
+        val legacyId = when {
+            legacyIds == null -> 0L
+            currentId in legacyIds -> currentId
+            else -> legacyIds.first()
+        }
 
         // 快照坏掉（键名对不上/ JSON 损坏）时**不迁**，交给 getStyle() 走
         // restoreAfterBadSnapshot 按壁纸重测光，避免把默认值当用户设置落盘
@@ -334,6 +344,7 @@ object ScheduleAppearance {
     private const val LEGACY_STYLE_PREFIX = "combination_style_"
     private const val LEGACY_WALLPAPER_PREFIX = "combination_wallpaper_"
     private const val LEGACY_KEY_COMBINATION_IDS = "combination_ids"
+    private const val LEGACY_KEY_CURRENT_COMBINATION_ID = "current_combination_id"
 
     /** 批量保存外观参数，块内写入合并为一次提交；可嵌套 */
     fun batchSave(block: () -> Unit) {

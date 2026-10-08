@@ -88,13 +88,27 @@ object CourseScheduleDateBounds {
                 // rather than stretching the regular schedule scan over an arbitrary date gap.
                 if (lastDate != firstDate) return@mapNotNull null
                 val datePosition = TeachingWeekReorganization.mapDate(semesterStartDate, firstDate, rules)
-                val explicitPauseMapping = entry.followWeek > 0 && entry.followWeekday in 1..7
+                // 跟随的是绝对日期，周次按当前课表现算；老数据没有 followDate 才回退到存的周次
+                val followDate = entry.followLocalDate()
+                val followPosition = followDate?.let {
+                    TeachingWeekReorganization.mapDate(semesterStartDate, it, rules)
+                }
+                val explicitPauseMapping = followDate != null ||
+                    (entry.followWeek > 0 && entry.followWeekday in 1..7)
                 if (datePosition.isReorganizationPause && !explicitPauseMapping) return@mapNotNull null
-                val displayWeek = entry.followWeek.takeIf { it > 0 }?.toLong()
-                    ?: currentWeek.toLong() + datePosition.week - todayPosition.week
+                val displayWeek = when {
+                    followPosition != null -> followPosition.week
+                    entry.followWeek > 0 -> entry.followWeek.toLong()
+                    else -> currentWeek.toLong() + datePosition.week - todayPosition.week
+                }
                 if (displayWeek !in 1L..lastAllowedWeek.toLong()) return@mapNotNull null
-                val displayDay = entry.followWeekday.takeIf { it in 1..7 }
-                    ?: datePosition.weekday ?: firstDate.dayOfWeek.value
+                val legacyDay = entry.followWeekday.takeIf { it in 1..7 }
+                val displayDay = when {
+                    followPosition?.weekday != null -> followPosition.weekday!!
+                    legacyDay != null -> legacyDay
+                    followDate != null -> followDate.dayOfWeek.value
+                    else -> datePosition.weekday ?: firstDate.dayOfWeek.value
+                }
                 if (courses.any {
                         it.dayOfWeek == displayDay && it.isActiveInWeek(displayWeek.toInt())
                     }

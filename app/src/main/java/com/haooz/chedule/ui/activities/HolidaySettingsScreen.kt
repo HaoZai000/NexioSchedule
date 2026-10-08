@@ -179,6 +179,8 @@ fun HolidaySettingsScreen(
     var endYear by remember { mutableIntStateOf(year) }
     var endMonth by remember { mutableIntStateOf(1) }
     var endDay by remember { mutableIntStateOf(1) }
+    // UI 依旧显示「第几周 + 星期几」，但这只是**当前课表**下的投影：
+    // 存档的是绝对日期（followDate），换课表时按新课表的学期开始时间重算 → 周次自动变。
     var followWeek by remember { mutableStateOf("1") }
     var followWeekManuallySelected by remember { mutableStateOf(false) }
     var followWeekday by remember { mutableStateOf("1") }
@@ -208,6 +210,17 @@ fun HolidaySettingsScreen(
             1
         }.toString()
     }
+
+    /** 当前课表下「第 week 周 星期 weekday」对应的那一天 —— 把 UI 上的周次落回绝对日期 */
+    fun dateOfTeachingWeek(week: Int, weekday: Int): LocalDate? =
+        runCatching {
+            TeachingWeekReorganization.dateForPosition(
+                semesterStartDate,
+                week,
+                weekday,
+                teachingWeekReorganizations,
+            )
+        }.getOrNull()
 
     fun originalWeekDate(week: Int, weekday: Int): LocalDate? =
         TeachingWeekReorganization.dateForPosition(
@@ -347,19 +360,28 @@ fun HolidaySettingsScreen(
         endYear = end.year
         endMonth = end.monthValue
         endDay = end.dayOfMonth
-        followWeek = if (entry.type == HolidayManager.TYPE_WORKSWAP && entry.followWeek > 0) {
-            entry.followWeek.toString()
-        } else if (entry.type == HolidayManager.TYPE_WORKSWAP) {
-            weekOfDate(startYear, startMonth, startDay)
+        // 调休日还没配映射时，按「补班日倒序、从假期最后一个工作日往前拿」预填一个建议值。
+        // 只填进弹窗不落库：用户点保存才生效，没配过的条目库里保持 -1（不会擅自改课表）。
+        val suggestion = if (entry.type == HolidayManager.TYPE_WORKSWAP) {
+            HolidayManager.suggestWorkSwapFollowTargets(context, entries)
+                .firstOrNull { it.date == entry.date && it.type == HolidayManager.TYPE_WORKSWAP }
+                ?.takeIf { it.followLocalDate() != null }
+        } else null
+        // 已存的绝对日期 → 老数据的 (周次,星期) → 建议值，统一按**当前课表**投影成 (周次,星期)
+        val initialFollow = entry.followLocalDate()
+            ?: followDate(context, entry.followWeek.toString(), entry.followWeekday.toString())
+            ?: suggestion?.followLocalDate()
+        if (initialFollow != null) {
+            val position = TeachingWeekReorganization.mapDate(
+                semesterStartDate, initialFollow, teachingWeekReorganizations
+            )
+            followWeek = position.week.coerceIn(1L, currentTotalWeeks.toLong()).toString()
+            followWeekday = (position.weekday ?: initialFollow.dayOfWeek.value).toString()
         } else {
-            "1"
+            followWeek = weekOfDate(startYear, startMonth, startDay)
+            followWeekday = "1"
         }
-        followWeekday = if (entry.followWeekday > 0) {
-            entry.followWeekday.toString()
-        } else {
-            "1"
-        }
-        followWeekManuallySelected = entry.followWeek > 0
+        followWeekManuallySelected = entry.followLocalDate() != null
         showDialog = true
     }
 
@@ -385,6 +407,12 @@ fun HolidaySettingsScreen(
             Toast.makeText(context, "请明确选择有效的跟随周次和星期", Toast.LENGTH_SHORT).show()
             return
         }
+        // UI 上的「第 X 周 星期 Y」只是当前课表的投影，落库一律转成绝对日期
+        val followDateValue = if (isHoliday) null else dateOfTeachingWeek(week, weekday)
+        if (!isHoliday && followDateValue == null) {
+            Toast.makeText(context, "该周次在当前课表下没有对应日期", Toast.LENGTH_SHORT).show()
+            return
+        }
         // 按开始日期所属年份落库，避免 UI 选中年与日期年不一致时 workSwap 查不到
         val entryYear = runCatching { LocalDate.parse(startDate).year }.getOrDefault(year)
         val oldYear = editingEntry?.let { editingEntryStorageYear }
@@ -397,8 +425,8 @@ fun HolidaySettingsScreen(
             endDate = endDate,
             name = name.ifBlank { if (isHoliday) "节假日" else "调休工作日" },
             type = dialogType,
-            followWeek = if (isHoliday) -1 else week,
-            followWeekday = if (isHoliday) -1 else weekday,
+            // 存绝对日期；旧字段 followWeek/followWeekday 一律不再写入
+            followDate = followDateValue?.toString() ?: "",
             custom = true,
         )
         val saved = HolidayManager.updateEntries(context, affectedYears) { current ->
@@ -1860,10 +1888,16 @@ private fun entrySummary(entry: HolidayManager.Entry): String {
         }
         "${displayDate(entry.date)}$endSuffix"
     } else {
-        val mapping = if (entry.followWeek > 0 && entry.followWeekday in 1..7) {
-            "第${entry.followWeek}周${WEEKDAYS[entry.followWeekday - 1]}"
-        } else {
-            "待配置补班课程"
+        // 存的是绝对日期就显示日期（周次是相对课表的，写死在列表里会误导）；
+        // 只有尚未迁移的老数据才回退显示周次
+        val mapping = when {
+            entry.followLocalDate() != null -> {
+                val date = entry.followLocalDate()!!
+                "上 ${date.monthValue}月${date.dayOfMonth}日 的课"
+            }
+            entry.followWeek > 0 && entry.followWeekday in 1..7 ->
+                "第${entry.followWeek}周${WEEKDAYS[entry.followWeekday - 1]}"
+            else -> "待配置补班课程"
         }
         "${displayDate(entry.date)} · $mapping"
     }
@@ -1957,6 +1991,7 @@ private fun EntryEditDialog(
                 )
             }
             if (!isHoliday) {
+                // 显示成日期，让用户能核对「补的是哪一天」；存档也是这个日期
                 val date = followDate(context, followWeek, followWeekday)
                 Row(
                     Modifier.fillMaxWidth(),
@@ -2005,6 +2040,18 @@ private fun EntryEditDialog(
                         modifier = Modifier.weight(1f),
                     )
                 }
+                // 国家级数据只说「哪天补班」，不说「补哪天的课」，上面是推算出来的预填值，
+                // 各校安排未必一致 —— 明确告诉用户：以学校通知为准，保存后才生效。
+                Text(
+                    "已按假期末尾推算预填，请以学校通知为准，保存后生效",
+                    style = MiuixTheme.textStyles.body1.copy(
+                        fontSize = 13.sp,
+                        color = MiuixTheme.colorScheme.onSurfaceVariantSummary,
+                    ),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(start = 16.dp, end = 16.dp, bottom = 4.dp),
+                )
             }
             Row(
                 Modifier.fillMaxWidth(),

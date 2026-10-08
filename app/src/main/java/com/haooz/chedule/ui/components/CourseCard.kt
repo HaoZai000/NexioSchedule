@@ -90,6 +90,15 @@ fun CourseCard(
     cardAlpha: Float = 0.15f,
     /** 有壁纸时白/黑底不透明度（卡片不透明度） */
     cardSurfaceAlpha: Float = 0.15f,
+    /**
+     * 垫在卡片**最底部**的纯色，通常由调用方传页面底色 @0.8f。
+     *
+     * 无壁纸时课程色自身只有 0.1~0.4 透明度，浮层悬在网格上会透出底下的格线，
+     * 垫一层不透明度更高的底色才立得住。有壁纸时玻璃层采样的是不透明壁纸层，
+     * 垫色会被整块盖住，所以一般只在无壁纸路径传。
+     * null = 不垫（网格里的卡片走默认）。
+     */
+    solidBackingColor: Color? = null,
     cardHeightPerSection: Float = 54f,
     // 自定义时间课显式指定高度；null 时按节次数算
     customCardHeightDp: Float? = null,
@@ -152,8 +161,9 @@ fun CourseCard(
         )
         if (!sinkPressed) sinkActive = false
     }
+
+    val lastRippleToken = remember { mutableIntStateOf(landRipple.token) }
     if (landRipple.token != 0) {
-        val lastRippleToken = remember { mutableIntStateOf(landRipple.token) }
         LaunchedEffect(landRipple.token) {
             if (landRipple.token == lastRippleToken.intValue) return@LaunchedEffect
             lastRippleToken.intValue = landRipple.token
@@ -289,6 +299,14 @@ fun CourseCard(
                         cardBoundsPx[2] = coordinates.size.width.toFloat()
                         cardBoundsPx[3] = coordinates.size.height.toFloat()
                     }
+                    // 垫底纯色画在采样层之前（更靠外=更早画），被玻璃采样盖住属预期
+                    .then(
+                        if (solidBackingColor != null) {
+                            Modifier.background(solidBackingColor, backdropShape)
+                        } else {
+                            Modifier
+                        }
+                    )
                     .drawBackdrop(
                         backdrop = wallpaperBackdrop,
                         shape = { backdropShape },
@@ -367,6 +385,11 @@ fun CourseCard(
                     } else {
                         Modifier
                     }
+                )
+                // 垫底纯色在下、课程色在上（链条越靠前越先画）
+                .then(
+                    if (solidBackingColor != null) Modifier.background(solidBackingColor, cardShape)
+                    else Modifier
                 )
                 .background(cardColor, cardShape)
                 .onGloballyPositioned { coordinates ->

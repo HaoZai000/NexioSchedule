@@ -47,8 +47,6 @@ object IslandNotificationHelper {
     // 到点后由精确闹钟自动收起，不依赖每分钟对账
     const val ISLAND_STARTED_VISIBLE_MS = 15_000L
     private const val ISLAND_DISMISS_RC_BASE = 72000
-    // 历史版本遗留 ID：发送前清理，避免与当前岛重叠
-    private val LEGACY_ISLAND_NOTIFICATION_IDS = intArrayOf(1001, 1002)
 
     private val scope = CoroutineScope(Dispatchers.IO)
     // 串行化 Shizuku bypass，避免并发导致 XMSF 网络状态错乱
@@ -342,16 +340,9 @@ object IslandNotificationHelper {
         manager.cancel(ISLAND_NOTIFICATION_ID)
         manager.cancel(ISLAND_STARTED_NOTIFICATION_ID)
         manager.cancel(ISLAND_IN_CLASS_NOTIFICATION_ID)
-        for (id in LEGACY_ISLAND_NOTIFICATION_IDS) manager.cancel(id)
         manager.cancel(ISLAND_TEST_NOTIFICATION_ID)
         manager.cancel(ISLAND_STARTED_TEST_NOTIFICATION_ID)
         manager.cancel(ISLAND_IN_CLASS_TEST_NOTIFICATION_ID)
-    }
-
-    // 只清理历史遗留 ID，避免与本次倒计时岛并存
-    private fun cancelLegacyIslandNotifications(context: Context) {
-        val manager = context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
-        for (id in LEGACY_ISLAND_NOTIFICATION_IDS) manager.cancel(id)
     }
 
     // courseStartMillis 是课程开始时间的唯一真源，倒计时/文案/已上课态都由它派生
@@ -821,7 +812,6 @@ object IslandNotificationHelper {
             return
         }
 
-        cancelLegacyIslandNotifications(context)
         // 上一节残留的「已上课 / 课中」岛先收起，避免与本次倒计时岛并存
         cancelIslandState(context, ISLAND_STARTED_NOTIFICATION_ID)
         cancelIslandState(context, ISLAND_IN_CLASS_NOTIFICATION_ID)
@@ -875,7 +865,6 @@ object IslandNotificationHelper {
         val startTime = formatClock(courseStartTimestamp)
         val endTime = formatClock(courseEndTimestamp)
 
-        cancelLegacyIslandNotifications(context)
         // 清掉上一轮测试的「已上课 / 课中」岛，避免与本次倒计时岛并存
         cancelIslandState(context, ISLAND_STARTED_TEST_NOTIFICATION_ID)
         cancelIslandState(context, ISLAND_IN_CLASS_TEST_NOTIFICATION_ID)

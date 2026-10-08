@@ -72,6 +72,7 @@ import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
@@ -99,8 +100,6 @@ import com.haooz.chedule.ui.effects.liquidglass.InteractiveHighlight
 import com.haooz.chedule.ui.utils.isAppDarkTheme
 import com.haooz.chedule.ui.utils.overScrollVertical
 import com.kyant.backdrop.drawBackdrop
-import com.kyant.backdrop.effects.blur
-import com.kyant.backdrop.effects.lens
 import com.kyant.backdrop.effects.vibrancy
 import com.kyant.backdrop.shadow.Shadow
 import com.kyant.capsule.ContinuousCapsule
@@ -251,7 +250,7 @@ fun CustomizeScheduleScreen(
     }
 
     val primaryColor = MiuixTheme.colorScheme.primary
-    val exitContainerColor = Color.White.copy(0.08f)
+    val exitContainerColor = Color(0xFF363636).copy(0.8f)
     val exitIconColor = Color.White
 
     var showApplyLoading by remember { mutableStateOf(false) }
@@ -412,6 +411,9 @@ fun CustomizeScheduleScreen(
     val toolAlphaAnim = remember { Animatable(0f) }
     val toolOffsetYAnim = remember { Animatable(toolOffsetTargetPx) }
     val toolBlurAnim = remember { Animatable(8f) }
+    // 工具栏实测高度（px）。用它把「洞底→屏底」的中点换算成 padding(bottom)，
+    // 不写死 56dp，按钮尺寸变化时也不会失准。首帧为 0，下一帧由 onSizeChanged 修正。
+    var toolRowHeightPx by remember { mutableFloatStateOf(0f) }
 
     // 新建搭配后自动进入编辑模式
     LaunchedEffect(pendingEnterCutout) {
@@ -707,6 +709,18 @@ fun CustomizeScheduleScreen(
             val cardHeightPx = cardWidthPx * snapshotAspect
             val cardWidthDp = with(densityObj) { cardWidthPx.toDp() }
             val cardHeightDp = with(densityObj) { cardHeightPx.toDp() }
+
+            val cutoutScaleProg = ((cardScaleAnim.value - 0.65f) / (1f - 0.65f)).coerceIn(0f, 1f)
+            val cutoutBaseOffsetY = screenH * 0.028f +
+                cutoutOffsetY.value + sheetOffsetY.value
+            val cutoutCenterY = screenH / 2f + cutoutBaseOffsetY * (1f - cutoutScaleProg)
+            val cutoutBottom = cutoutCenterY + cardHeightPx / 2f
+            val cutoutToBottomGap = (screenH - cutoutBottom).coerceAtLeast(0f)
+            val toolNudgeDp = 8.dp
+            val toolBottomPadding = with(densityObj) {
+                val raw = (cutoutToBottomGap / 2f - toolRowHeightPx / 2f).toDp() + toolNudgeDp
+                if (raw < 0.dp) 0.dp else raw
+            }
 
             val targetScaleX = cardWidthPx / screenW
             val targetScaleY = cardHeightPx / screenH
@@ -1218,8 +1232,8 @@ fun CustomizeScheduleScreen(
                     Row(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .padding(bottom = 30.dp)
-                            .offset(y = 7.dp)
+                            .onSizeChanged { toolRowHeightPx = it.height.toFloat() }
+                            .padding(bottom = toolBottomPadding)
                             .graphicsLayer {
                                 alpha = toolAlphaAnim.value
                                 translationY = toolOffsetYAnim.value

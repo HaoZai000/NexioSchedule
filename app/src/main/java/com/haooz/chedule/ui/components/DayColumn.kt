@@ -19,8 +19,12 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
 import androidx.compose.runtime.key
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -44,6 +48,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import com.haooz.chedule.data.Course
+import kotlinx.coroutines.delay
 import com.haooz.chedule.data.HolidayCourseExclusion
 import com.haooz.chedule.ui.effects.edgelight.edgeLight
 import com.haooz.chedule.ui.effects.edgelight.rememberCourseCardEdgeLight
@@ -94,6 +99,7 @@ fun DayColumn(
     pendingSection: Int = -1,
     onPendingChange: (day: Int, section: Int) -> Unit = { _, _ -> },
     wallpaperBackdrop: Backdrop? = null,
+    solidBackingColor: Color? = null,
     cardBlurRadius: Float = 4f,
     cardAlpha: Float = 0.15f,
     cardSurfaceAlpha: Float = 0.15f,
@@ -292,6 +298,7 @@ fun DayColumn(
                 showTeacher = showTeacher,
                 cardRefraction = cardRefraction,
                 wallpaperBackdrop = wallpaperBackdrop,
+                solidBackingColor = solidBackingColor,
                 cardBlurRadius = cardBlurRadius,
                 draggingCourseIds = draggingCourseIds,
                 touchState = touchState,
@@ -335,6 +342,7 @@ private fun CourseCardsLayer(
     showTeacher: Boolean,
     cardRefraction: com.haooz.chedule.data.CardRefractionLevel,
     wallpaperBackdrop: Backdrop?,
+    solidBackingColor: Color? = null,
     cardBlurRadius: Float,
     draggingCourseIds: Set<String>,
     touchState: com.haooz.chedule.ui.screens.ScheduleTouchState? = null,
@@ -453,6 +461,7 @@ private fun CourseCardsLayer(
                         cardBlurRadius = cardBlurRadius,
                         cardAlpha = cardAlpha,
                         cardSurfaceAlpha = cardSurfaceAlpha,
+                        solidBackingColor = solidBackingColor,
                         cardHeightPerSection = cardHeightPerSection,
                         customCardHeightDp = layout.heightDp,
                         cardCornerRadius = cardCornerRadius,
@@ -475,7 +484,9 @@ private fun CourseCardsLayer(
         }
 
         renderData.segments.forEachIndexed { idx, (segStartSection, segEndSection) ->
-            val displayCourse = remember(course.id, segStartSection, segEndSection) {
+            // 键必须带 course 本身：只记 id/节次时，改课程颜色/名称/教室后课程对象变了但键没变，
+            // 分段副本会被缓存成旧值，卡片要等到重新进入/滑走才刷新
+            val displayCourse = remember(course, segStartSection, segEndSection) {
                 course.copy(startSection = segStartSection, endSection = segEndSection)
             }
             val segOffset = (grid.sectionTop[segStartSection] ?: 0f).toInt()
@@ -498,6 +509,7 @@ private fun CourseCardsLayer(
                         cardBlurRadius = cardBlurRadius,
                         cardAlpha = cardAlpha,
                         cardSurfaceAlpha = cardSurfaceAlpha,
+                        solidBackingColor = solidBackingColor,
                         cardHeightPerSection = cardHeightPerSection,
                         cardCornerRadius = cardCornerRadius,
                         isTablet = isTablet,
@@ -719,9 +731,42 @@ private fun computeCustomTimeLayout(
     return CustomTimeLayout(top, (bottom - top).coerceAtLeast(0f))
 }
 
+/**
+ * 当前时刻是否落在 [startTime]~[endTime] 内，用于给"正在进行"的横带加高亮。
+ *
+ * 自带 30 秒节拍，状态读在调用方自己的作用域里 —— 只有横带重组，不会带动整页。
+ */
+@Composable
+internal fun rememberIsOngoing(startTime: String, endTime: String): Boolean {
+    var ongoing by remember(startTime, endTime) { mutableStateOf(false) }
+    LaunchedEffect(startTime, endTime) {
+        while (true) {
+            val now = java.time.LocalTime.now()
+            val nowMinutes = now.hour * 60 + now.minute
+            ongoing = parseSpecialHm(startTime)?.let { s ->
+                val e = parseSpecialHm(endTime) ?: return@let false
+                nowMinutes in s until e
+            } ?: false
+            delay(30_000L)
+        }
+    }
+    return ongoing
+}
+
+private fun parseSpecialHm(time: String?): Int? {
+    if (time.isNullOrBlank()) return null
+    val parts = time.split(":")
+    if (parts.size != 2) return null
+    val h = parts[0].toIntOrNull() ?: return null
+    val m = parts[1].toIntOrNull() ?: return null
+    return h * 60 + m
+}
+
 @Composable
 fun SpecialBandOverlay(
     name: String,
+    startTime: String,
+    endTime: String,
     hasBlur: Boolean,
     isDark: Boolean,
     cardCornerRadius: Float,
@@ -733,14 +778,19 @@ fun SpecialBandOverlay(
     wallpaperBackdrop: Backdrop?,
     // 子块为空时退化为整条显示名称
     items: List<com.haooz.chedule.data.SpecialItem> = emptyList(),
-    // 智能周末下可能只有 1..5，决定列宽与子块定位
+    // **每个可见列实际显示的星期**（长度=列数），不是列下标：调休日该列画的是被调星期的课。
+    // 智能周末下可能只有 1..5，调休时也可能与列下标不一致，决定子块定位与列宽
     dayRange: List<Int> = emptyList()
 ) {
     val shownName = name.ifBlank { "特殊课程" }
     // 默认 cardAlpha=0.15 时因子为 1；仅保护最终 alpha
     val alphaFactor = cardAlpha / 0.15f
     val effectiveCornerRadius = if (isTablet) cardCornerRadius * 1.3f else cardCornerRadius
-    val bgColor = if (isDark) {
+    val isOngoing = rememberIsOngoing(startTime, endTime)
+    val bgColor = if (isOngoing) {
+        // 进行中：底色抬一档，和左侧时间列的 currentSection 高亮同一套视觉语言
+        Color(0xFF3482FF).copy(alpha = (0.16f * alphaFactor).coerceIn(0f, 1f))
+    } else if (isDark) {
         Color.White.copy(alpha = (0.06f * alphaFactor).coerceIn(0f, 1f))
     } else {
         Color.Black.copy(alpha = (0.04f * alphaFactor).coerceIn(0f, 1f))
@@ -882,6 +932,7 @@ private fun SpecialBandBody(
         return
     }
 
+    val segments = remember(items, dayRange) { buildSpecialBandSegments(items, dayRange) }
     BoxWithConstraints(modifier = Modifier.fillMaxSize()) {
         val dayCount = dayRange.size
         val dayWidth = maxWidth / dayCount
@@ -893,19 +944,21 @@ private fun SpecialBandBody(
         }
         val itemTextColor = if (isDark) Color.White.copy(alpha = 0.78f) else Color.Black.copy(alpha = 0.74f)
 
-        items.forEach { item ->
-            val fromIdx = dayRange.indexOf(item.startDay)
-            val toIdx = dayRange.indexOf(item.endDay)
-            if (fromIdx < 0 || toIdx < 0 || toIdx < fromIdx) return@forEach
+        segments.forEach { seg ->
+            val item = seg.item ?: return@forEach
+            // 没排安排的星期不画任何东西（曾试过常驻 "+" 提示，太吵）。
+            // 横带自身的底色是整条连续的，空格子读作「这段还没排」而不是「条带子断了」；
+            // 点击层仍铺满空格子，点一下就是新增安排，弹窗会预选该星期。
+            val lastIdx = dayRange.size - 1
             Box(
                 modifier = Modifier
-                    .offset(x = dayWidth * fromIdx)
-                    .width(dayWidth * (toIdx - fromIdx + 1))
+                    .offset(x = dayWidth * seg.startIndex)
+                    .width(dayWidth * (seg.endIndex - seg.startIndex + 1))
                     .fillMaxHeight()
                     // 首/尾卡外侧 +2，与内侧相邻间距 4dp 均衡
                     .padding(
-                        start = if (fromIdx == 0) 4.dp else 2.dp,
-                        end = if (toIdx == dayRange.size - 1) 4.dp else 2.dp,
+                        start = if (seg.startIndex == 0) 4.dp else 2.dp,
+                        end = if (seg.endIndex == lastIdx) 4.dp else 2.dp,
                         top = 4.dp,
                         bottom = 4.dp
                     )
@@ -935,29 +988,30 @@ fun SpecialBandClickLayer(
 ) {
     if (dayRange.isEmpty()) return
 
+    val segments = remember(items, dayRange) { buildSpecialBandSegments(items, dayRange) }
     BoxWithConstraints(modifier = Modifier.fillMaxSize()) {
         val dayWidth = maxWidth / dayRange.size
 
-        items.forEach { item ->
-            val fromIdx = dayRange.indexOf(item.startDay)
-            val toIdx = dayRange.indexOf(item.endDay)
-            if (fromIdx < 0 || toIdx < 0 || toIdx < fromIdx) return@forEach
+        segments.forEach { seg ->
+            val item = seg.item
             Box(
                 modifier = Modifier
-                    .offset(x = dayWidth * fromIdx)
-                    .width(dayWidth * (toIdx - fromIdx + 1))
+                    .offset(x = dayWidth * seg.startIndex)
+                    .width(dayWidth * (seg.endIndex - seg.startIndex + 1))
                     .fillMaxHeight()
                     .clickable(
+                        enabled = item != null,
                         interactionSource = remember { MutableInteractionSource() },
                         indication = null
-                    ) { onItemClick(item) }
+                    ) { item?.let(onItemClick) }
             )
         }
 
         // 未被覆盖的星期可点击新增；填满后无空白格即天然禁止再加
-        dayRange.forEachIndexed { idx, day ->
-            val occupied = items.any { item -> day in item.startDay..item.endDay }
-            if (!occupied) {
+        segments.forEach { seg ->
+            if (seg.item != null) return@forEach
+            for (idx in seg.startIndex..seg.endIndex) {
+                val day = dayRange[idx]
                 Box(
                     modifier = Modifier
                         .offset(x = dayWidth * idx)
@@ -971,4 +1025,39 @@ fun SpecialBandClickLayer(
             }
         }
     }
+}
+
+/** 横带里一段连续列：item 为 null 表示这段列还没排安排 */
+internal data class SpecialBandSegment(
+    val item: com.haooz.chedule.data.SpecialItem?,
+    val startIndex: Int,
+    val endIndex: Int
+)
+
+/**
+ * 把「列 → 该列实际显示的星期」解析成横带内的连续区段。
+ *
+ * [columnDays] 是**列位置对应的显示星期**，不是列下标：调休日的列显示的是被调星期
+ * （周一补班 → 该列画周日的课），子块必须跟着显示星期走，否则「周日早读」会留在周位列上。
+ * 早先直接拿 1..7 当列下标查 indexOf，调休周整排错位。
+ *
+ * 相邻同 id 的列合成一段，避免一个「周一~周五」的子块被逐列拆成一排小格；
+ * 两段不相邻的同日子块（如调休后周一与周日都显示周日）会各画各的，不连成一条。
+ */
+internal fun buildSpecialBandSegments(
+    items: List<com.haooz.chedule.data.SpecialItem>,
+    columnDays: List<Int>
+): List<SpecialBandSegment> {
+    if (columnDays.isEmpty()) return emptyList()
+    val segments = mutableListOf<SpecialBandSegment>()
+    columnDays.forEachIndexed { idx, day ->
+        val item = items.firstOrNull { day in it.startDay..it.endDay }
+        val last = segments.lastOrNull()
+        if (last != null && last.item?.id == item?.id && last.endIndex == idx - 1) {
+            segments[segments.lastIndex] = last.copy(endIndex = idx)
+        } else {
+            segments.add(SpecialBandSegment(item, idx, idx))
+        }
+    }
+    return segments
 }

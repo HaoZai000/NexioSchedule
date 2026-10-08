@@ -1087,8 +1087,18 @@ internal fun icsEffectiveDatesForCourse(
         val position = TeachingWeekReorganization.mapDate(semesterStartDate, date, rules)
         val swap = HolidayManager.entriesForDate(entriesByYear, date)
             .firstOrNull { it.type == HolidayManager.TYPE_WORKSWAP }
-        val weekday = swap?.followWeekday?.takeIf { it in 1..7 } ?: position.weekday
-        val week = (swap?.followWeek?.takeIf { it > 0 }?.toLong() ?: position.week)
+        // 调休跟随的是绝对日期，按当前课表换算 (周次, 星期)；老数据无 followDate 才回退
+        val followDate = swap?.followLocalDate()
+        val followPosition = followDate?.let {
+            TeachingWeekReorganization.mapDate(semesterStartDate, it, rules)
+        }
+        val weekday = followPosition?.weekday
+            ?: swap?.followWeekday?.takeIf { it in 1..7 }
+            ?: followDate?.dayOfWeek?.value
+            ?: position.weekday
+        val week = (followPosition?.week
+            ?: swap?.followWeek?.takeIf { it > 0 }?.toLong()
+            ?: position.week)
             .takeIf { it in 1L..Int.MAX_VALUE.toLong() }?.toInt() ?: return@mapNotNull null
         val allowed = CourseReminderHelper.canResolveCourseCandidates(
             position, swap, week, totalWeeks, lastWeekWithCourses,

@@ -625,7 +625,7 @@ object CourseReminderHelper {
 
     private fun cancelCourseStartAlarms(context: Context, alarmManager: AlarmManager) {
         val intent = Intent(context, CourseStartReceiver::class.java)
-        // 新固定 ID 的到点闹钟（真实 + 测试）
+        // 固定 ID 的到点闹钟（真实 + 测试）
         for (rc in intArrayOf(LIVE_COUNTDOWN_ID, LIVE_TEST_COUNTDOWN_ID)) {
             val pending = PendingIntent.getBroadcast(
                 context,
@@ -634,17 +634,6 @@ object CourseReminderHelper {
                 PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
             )
             alarmManager.cancel(pending)
-        }
-        // 旧版按课程名 hash 派生 RC 的残留
-        val allCourses = CourseRepository(context).getAllCourses()
-        for (course in allCourses) {
-            val pendingIntent = PendingIntent.getBroadcast(
-                context,
-                10000 + course.name.hashCode(),
-                intent,
-                PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
-            )
-            alarmManager.cancel(pendingIntent)
         }
     }
 
@@ -743,7 +732,7 @@ object CourseReminderHelper {
                 putExtra(EXTRA_REMINDER_TYPE, TYPE_PRE_CLASS)
                 putExtra(EXTRA_COURSE_NAME, course.name)
                 putExtra(EXTRA_COURSE_SECTION, course.getTimeDisplayText())
-                // START_TIME 作 fallback（旧闹钟无 EXTRA_COURSE_ID 时按 name+section+time 匹配）
+                // START_TIME 作闹钟里的课程时间快照：回查失败时用它拼 dedupId
                 putExtra(EXTRA_COURSE_START_TIME, startTime)
                 putExtra(EXTRA_COURSE_ID, course.id)
             }
@@ -1042,7 +1031,7 @@ object CourseReminderHelper {
     ): Boolean {
         val hasTeachingPosition = !datePosition.isReorganizationPause && datePosition.weekday != null
         val explicitlyMappedPause = workSwapEntry?.let {
-            it.type == HolidayManager.TYPE_WORKSWAP && it.followWeek > 0 && it.followWeekday in 1..7
+            it.type == HolidayManager.TYPE_WORKSWAP && it.hasFollowMapping()
         } == true
         return (hasTeachingPosition || explicitlyMappedPause) &&
             displayWeek in 1..totalWeeks && displayWeek <= lastWeekWithCourses
@@ -1075,11 +1064,13 @@ object CourseReminderHelper {
         val holidayEntries = HolidayManager.entriesForDate(entriesByYear, date)
         val targetEntry = holidayEntries.firstOrNull { it.type == HolidayManager.TYPE_WORKSWAP }
         val datePosition = repository.teachingWeekPositionForDate(date)
-        val isWorkSwap = targetEntry?.followWeekday?.let { it in 1..7 } == true
-        val displayDay = targetEntry?.followWeekday?.takeIf { it in 1..7 }
+        // 跟随绝对日期 → 按当前课表换算成 (周次, 星期)；换课表自动跟随那一周的课
+        val follow = targetEntry?.let { repository.resolveWorkSwapFollow(it) }
+        val isWorkSwap = follow != null
+        val displayDay = follow?.weekday
             ?: datePosition.weekday ?: calendarDay
-        // 未配置调休覆盖时，用教学周映射相对今天的偏移，并避免今日调休 followWeek 污染。
-        val displayWeek = targetEntry?.followWeek?.takeIf { it > 0 }
+        // 未配置调休覆盖时，用教学周映射相对今天的偏移，并避免今日调休跟随周次污染。
+        val displayWeek = follow?.week
             ?: alignedStoredWeekForDate(repository, date)
         val exclusion = HolidayManager.loadEndCourseExclusion(context)
         val beforeExclusion = HolidayManager.loadBeforeCourseExclusion(context)
@@ -2106,13 +2097,6 @@ object CourseReminderHelper {
         manager.cancel(LIVE_TEST_COUNTDOWN_ID)
         manager.cancel(LIVE_TEST_STARTED_ID)
         manager.cancel(LIVE_TEST_IN_CLASS_ID)
-        // 旧版按课程名 hash 的残留 ID
-        val legacyId = countdownPrefs.getInt("notificationId", 0)
-        if (legacyId != 0 && legacyId != LIVE_COUNTDOWN_ID && legacyId != LIVE_TEST_COUNTDOWN_ID) {
-            manager.cancel(legacyId)
-            manager.cancel(legacyId + 1)
-            manager.cancel(legacyId + 2)
-        }
         countdownPrefs.edit {
             putBoolean("active", false)
                 .putBoolean("in_class_active", false)

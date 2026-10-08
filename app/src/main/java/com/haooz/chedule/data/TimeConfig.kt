@@ -111,7 +111,11 @@ data class TimeRoutine(
                 eveningStartMinute = raw.eveningStartMinute,
                 sectionTimes = raw.sectionTimes ?: emptyMap(),
                 sectionNames = raw.sectionNames ?: emptyMap(),
-                specialBlocks = raw.safeSpecialBlocks
+                // 保留 null 与空列表的区别：null = 该作息从没写过特殊课程（老数据），
+                // 空列表 = 用户清空过。抹平会让「清空」在切作息后被顶层镜像复活。
+                specialBlocks = raw.specialBlocks?.let { list ->
+                    (list as List<*>).mapNotNull { SpecialBlock.fromRaw(it) }
+                }
             )
 
             is Map<*, *> -> {
@@ -351,7 +355,6 @@ data class TimeConfig(
     }
 
     private fun applyRoutine(r: TimeRoutine): TimeConfig {
-        val blocks = r.safeSpecialBlocks
         return copy(
             quickTimeEnabled = r.quickTimeEnabled,
             classDuration = r.classDuration,
@@ -371,7 +374,11 @@ data class TimeConfig(
             eveningStartMinute = r.eveningStartMinute,
             sectionTimes = r.sectionTimes.takeIf { it.isNotEmpty() } ?: sectionTimes,
             sectionNames = r.sectionNames.takeIf { it.isNotEmpty() } ?: sectionNames,
-            specialBlocks = blocks.takeIf { it.isNotEmpty() } ?: safeSpecialBlocks
+            // 特殊课程不能用「空集合=未配置」的回退口径：**空列表就是「一条都没有」的合法状态**。
+            // 早先写成 blocks.takeIf{isNotEmpty} ?: safeSpecialBlocks，于是「删光特殊课程」
+            // 只改到该作息、切过去又被顶层镜像（旧值）填回来，删不掉。
+            // 只有该作息压根没有这个字段（老数据）才回退顶层。
+            specialBlocks = if (r.specialBlocks != null) r.safeSpecialBlocks else safeSpecialBlocks
         )
     }
 
@@ -676,7 +683,7 @@ data class TimeConfig(
             startMinute = startMinute,
             classDuration = classDuration,
             shortBreak = shortBreak,
-            longBreak = if (longBreakEnabled) longBreak else 0,
+            longBreak = if (longBreakEnabled) longBreak else shortBreak,
             longBreakSection = longBreakSection
         )
     }
@@ -743,36 +750,5 @@ data class TimeConfig(
             else -> emptyMap()
         }
 
-        fun fromRepository(repository: CourseRepository): TimeConfig {
-            val sectionTimes = mutableMapOf<String, String>()
-            for (period in listOf("morning", "afternoon", "evening")) {
-                val times = repository.getPeriodTimes(period)
-                for ((idx, time) in times) {
-                    sectionTimes["${period}_$idx"] = time
-                }
-            }
-            return TimeConfig(
-                morningSections = repository.getMorningSections(),
-                afternoonSections = repository.getAfternoonSections(),
-                eveningSections = repository.getEveningSections(),
-                quickTimeEnabled = repository.getQuickTimeEnabled(),
-                classDuration = repository.getClassDuration(),
-                shortBreak = repository.getShortBreak(),
-                longBreakEnabled = repository.getLongBreakEnabled(),
-                longBreakMorning = repository.getLongBreakMorning(),
-                longBreakAfternoon = repository.getLongBreakAfternoon(),
-                longBreakEvening = repository.getLongBreakEvening(),
-                longBreakMorningSection = repository.getLongBreakMorningSection(),
-                longBreakAfternoonSection = repository.getLongBreakAfternoonSection(),
-                longBreakEveningSection = repository.getLongBreakEveningSection(),
-                morningStartHour = repository.getMorningStartHour(),
-                morningStartMinute = repository.getMorningStartMinute(),
-                afternoonStartHour = repository.getAfternoonStartHour(),
-                afternoonStartMinute = repository.getAfternoonStartMinute(),
-                eveningStartHour = repository.getEveningStartHour(),
-                eveningStartMinute = repository.getEveningStartMinute(),
-                sectionTimes = sectionTimes
-            )
-        }
     }
 }

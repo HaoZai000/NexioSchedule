@@ -78,6 +78,8 @@ import com.haooz.chedule.ui.basic.CollapsibleTopAppBar
 import com.haooz.chedule.ui.basic.LiquidTopBarButton
 import com.haooz.chedule.ui.basic.ProgressiveBlurTopBar
 import com.haooz.chedule.ui.basic.rememberSharedScrollBehavior
+import com.haooz.chedule.ui.components.SpecialItemsEditorSection
+import com.haooz.chedule.ui.components.describeSpecialDays
 import com.haooz.chedule.ui.effects.motion.OobeCubicOutEasing
 import com.haooz.chedule.ui.effects.motion.OobeFifthpowerOutEasing
 import com.haooz.chedule.ui.effects.motion.OobeQuadraticOutEasing
@@ -190,9 +192,44 @@ private fun parseTimeHm(time: String): Pair<Int, Int> {
     }
 }
 
-/** 特殊时段块列表项的摘要文本 */
-private fun specialBlockSummary(block: SpecialBlock): String
-= "${block.startTime}-${block.endTime}"
+/**
+ * 保存前的时间冲突检查结果。
+ *
+ * [blocking] 节次互相重叠 → 不允许保存（沿用旧口径）。
+ * [warnings] 只要有一边是特殊课程 → 只提示，允许用户「仍然保存」：
+ * 块压在节次上现在能正确排开，且老数据可能本来就重叠，硬拦会让用户改别处也存不下去。
+ */
+private data class OverlapCheck(
+    val blocking: String? = null,
+    val warnings: List<String> = emptyList()
+) {
+    val hasBlocking: Boolean get() = blocking != null
+    val hasWarnings: Boolean get() = warnings.isNotEmpty()
+}
+
+private fun formatTimeRangeForDisplay(timeStr: String): String = timeStr.replace('-', '–')
+
+/** 特殊时段块列表项的摘要文本：时段 + 已排的星期 */
+private fun specialBlockSummary(block: SpecialBlock): String {
+    // 纯展示文案，时间区间也用 en dash，与项目其它区间（如「第1–3节」）一致。
+    // ⚠️ 别改 block.startTime/endTime 本身：那是 "HH:mm" 单值，拼接与解析都另有约定。
+    val base = "${block.startTime}–${block.endTime}"
+    val items = block.safeItems
+    if (items.isEmpty()) return base
+    val days = items.flatMap { it.startDay..it.endDay }.distinct().sorted()
+    val dayLabel = if (days.size >= 7) "每天" else describeSpecialDays(days.toSet())
+    return "$base · $dayLabel"
+}
+
+/** 解析 "HH:mm" → 分钟数；解析失败返回 null（不猜默认值，猜错会静默改时间） */
+private fun parseHhMmToMinutes(time: String?): Int? {
+    if (time.isNullOrBlank()) return null
+    val parts = time.split(":")
+    if (parts.size != 2) return null
+    val h = parts[0].toIntOrNull() ?: return null
+    val m = parts[1].toIntOrNull() ?: return null
+    return h * 60 + m
+}
 
 // 解析失败返回 Int.MAX_VALUE，使无法解析的条目排序时落在末尾
 private fun parseTimeToMinutesForSort(time: String): Int {
@@ -249,7 +286,12 @@ fun TimeConfigEditScreen(
     var afternoonSections by remember(timeConfig) { mutableIntStateOf(timeConfig.afternoonSections) }
     var eveningSections by remember(timeConfig) { mutableIntStateOf(timeConfig.eveningSections) }
 
-    var quickTimeEnabled by remember(timeConfig) { mutableStateOf(timeConfig.quickTimeEnabled) }
+    // 快捷设置开关只控制参数卡片展开，不落数据层。
+    // 数据层的 quickTimeEnabled 是"课表按参数实时计算"的总开关：为 true 时课表
+    // 完全无视 sectionTimes，为 false 且 sectionTimes 为空时会掉回内置默认时间。
+    // 曾经就因为开关把 false 落库、而用户时间只存在参数里，导致"更新后校时变回默认"。
+    // 所以这里与数据层字段解耦；保存时见下方 quickTimeEnabled = false 的迁移注释。
+    var quickExpanded by remember(timeConfig) { mutableStateOf(timeConfig.quickTimeEnabled) }
     var classDuration by remember(timeConfig) { mutableIntStateOf(timeConfig.classDuration) }
     var shortBreak by remember(timeConfig) { mutableIntStateOf(timeConfig.shortBreak) }
     var longBreakEnabled by remember(timeConfig) { mutableStateOf(timeConfig.longBreakEnabled) }
@@ -292,14 +334,7 @@ fun TimeConfigEditScreen(
     var tempSpecialEndHour by remember { mutableIntStateOf(8) }
     var tempSpecialEndMinute by remember { mutableIntStateOf(40) }
 
-    // 添加入口必须从空白初值开始，不能沿用上一次编辑的内容
-    fun resetSpecialTemp() {
-        tempSpecialName = ""
-        tempSpecialStartHour = 8
-        tempSpecialStartMinute = 0
-        tempSpecialEndHour = 8
-        tempSpecialEndMinute = 40
-    }
+    // 添加入口必须从空白初值开始，不能沿用上一次编辑的内容（resetSpecialTemp 见下方）
 
     // ---- 作息自身的元信息：生效日期（一级列表 summary 显示的就是它）与删除 ----
     val editingRoutine = timeConfig.safeRoutines.firstOrNull { it.id == routineId }
@@ -320,6 +355,7 @@ fun TimeConfigEditScreen(
     var showSpecialDeleteConfirm by remember { mutableStateOf(false) }
 
     var showOverlapDialog by remember { mutableStateOf(false) }
+    var showOverlapWarningDialog by remember { mutableStateOf(false) }
     var overlapMessage by remember { mutableStateOf("") }
 
     // ===================== Morph Animation =====================
@@ -554,6 +590,21 @@ fun TimeConfigEditScreen(
     var afternoonTimes by remember(timeConfig) { mutableStateOf(timeConfig.getPeriodTimes("afternoon")) }
     var eveningTimes by remember(timeConfig) { mutableStateOf(timeConfig.getPeriodTimes("evening")) }
 
+    // 特殊课程弹窗的「重新开始填」逻辑放在这儿：要读下面的 morningTimes，
+    // Kotlin 不允许局部函数前向捕获后面才声明的变量。
+    // 默认时段跟着第一节课走（第1节开始前 40 分钟），别再写死 08:00-08:40 ——
+    // 那几乎必然和第1节 08:00-08:45 撞车，用户一添加就踩重叠。
+    fun resetSpecialTemp() {
+        tempSpecialName = ""
+        val firstSectionStart = parseHhMmToMinutes(morningTimes[1]?.substringBefore("-")) ?: (8 * 60)
+        val startMin = (firstSectionStart - 40).coerceAtLeast(0)
+        tempSpecialStartHour = startMin / 60
+        tempSpecialStartMinute = startMin % 60
+        val endMin = (startMin + 40).coerceAtMost(23 * 60 + 59)
+        tempSpecialEndHour = endMin / 60
+        tempSpecialEndMinute = endMin % 60
+    }
+
     // key 同 sectionTimes，如 "morning_1" -> "早自习"
     var sectionNames by remember(timeConfig) { mutableStateOf(timeConfig.sectionNames) }
     var tempSectionName by remember { mutableStateOf("") }
@@ -570,9 +621,9 @@ fun TimeConfigEditScreen(
         return if (name != null) "第${abs}节 $name" else "第${abs}节"
     }
 
-    // 仅检查当前节数范围内的节次
-    fun checkTimeOverlap(): String? {
-        data class TimeRange(val start: Int, val end: Int, val label: String)
+    // 仅检查当前节数范围内的节次 + 当前特殊课程块
+    fun checkTimeOverlap(): OverlapCheck {
+        data class TimeRange(val start: Int, val end: Int, val label: String, val isSection: Boolean)
 
         // 解析 "HH:MM-HH:MM" → 分钟区间；空串或格式非法返回 null（显式跳过）
         fun parseRange(text: String): IntRange? {
@@ -593,28 +644,102 @@ fun TimeConfigEditScreen(
         for ((section, timeStr) in morningTimes) {
             if (section > morningSections) continue
             val range = parseRange(timeStr) ?: continue
-            allTimes.add(TimeRange(range.first, range.last, "上午第${section}节"))
+            allTimes.add(TimeRange(range.first, range.last, "上午第${section}节", true))
         }
         for ((section, timeStr) in afternoonTimes) {
             if (section > afternoonSections) continue
             val range = parseRange(timeStr) ?: continue
-            allTimes.add(TimeRange(range.first, range.last, "下午第${section}节"))
+            allTimes.add(TimeRange(range.first, range.last, "下午第${section}节", true))
         }
         for ((section, timeStr) in eveningTimes) {
             if (section > eveningSections) continue
             val range = parseRange(timeStr) ?: continue
-            allTimes.add(TimeRange(range.first, range.last, "晚上第${section}节"))
+            allTimes.add(TimeRange(range.first, range.last, "晚上第${section}节", true))
         }
+        // 特殊课程块也上时间轴：早读/大课间与节次同处一条时间线，重叠会让横带骑到课程卡上。
+        for (block in specialBlocks) {
+            val s = parseRange("${block.startTime}-${block.endTime}") ?: continue
+            if (s.last <= s.first) continue
+            val label = block.name.ifBlank { "特殊课程" }
+            allTimes.add(TimeRange(s.first, s.last, label, false))
+        }
+
+        var blocking: String? = null
+        val warnings = mutableListOf<String>()
         for (i in allTimes.indices) {
             for (j in i + 1 until allTimes.size) {
                 val a = allTimes[i]
                 val b = allTimes[j]
                 if (a.start < b.end && b.start < a.end) {
-                    return "${a.label} 与 ${b.label}"
+                    // 节次互相重叠沿用旧口径：直接拦保存。
+                    if (a.isSection && b.isSection) {
+                        if (blocking == null) blocking = "${a.label} 与 ${b.label}"
+                    } else {
+                        warnings.add("${a.label} 与 ${b.label}")
+                    }
                 }
             }
         }
-        return null
+        return OverlapCheck(blocking, warnings)
+    }
+
+    /** 真正落库并退出。顶栏保存与「仍然保存」共用，避免两处各写一份字段清单。 */
+    fun commitSave() {
+        val finalSectionTimes = mutableMapOf<String, String>()
+        for ((k, v) in morningTimes) if (k <= morningSections) finalSectionTimes["morning_$k"] = v
+        for ((k, v) in afternoonTimes) if (k <= afternoonSections) finalSectionTimes["afternoon_$k"] = v
+        for ((k, v) in eveningTimes) if (k <= eveningSections) finalSectionTimes["evening_$k"] = v
+        // 过滤掉超出当前节数范围的自定义名称
+        val finalSectionNames = mutableMapOf<String, String>()
+        for ((k, v) in sectionNames) {
+            val parts = k.split("_")
+            if (parts.size != 2) continue
+            val period = parts[0]
+            val idx = parts[1].toIntOrNull() ?: continue
+            val count = when (period) {
+                "morning" -> morningSections
+                "afternoon" -> afternoonSections
+                "evening" -> eveningSections
+                else -> 0
+            }
+            if (idx in 1..count) finalSectionNames[k] = v
+        }
+
+        val newConfig = timeConfig.copy(
+            name = routineName,
+            morningSections = morningSections,
+            afternoonSections = afternoonSections,
+            eveningSections = eveningSections,
+            // 保存统一落 sectionTimes（所见即所存），quickTimeEnabled
+            // 恒为 false：老数据若为 true，本次保存即完成迁移——
+            // 编辑页显示值（morningTimes 等）本来就来自参数实时计算，
+            // 落成 sectionTimes 后课表不再依赖 quickTimeEnabled，
+            // 从此开关状态、节次手改都不会再互相打架。
+            quickTimeEnabled = false,
+            classDuration = classDuration,
+            shortBreak = shortBreak,
+            longBreakEnabled = longBreakEnabled,
+            longBreakMorning = longBreakMorning,
+            longBreakAfternoon = longBreakAfternoon,
+            longBreakEvening = longBreakEvening,
+            longBreakMorningSection = longBreakMorningSection,
+            longBreakAfternoonSection = longBreakAfternoonSection,
+            longBreakEveningSection = longBreakEveningSection,
+            morningStartHour = morningStartHour,
+            morningStartMinute = morningStartMinute,
+            afternoonStartHour = afternoonStartHour,
+            afternoonStartMinute = afternoonStartMinute,
+            eveningStartHour = eveningStartHour,
+            eveningStartMinute = eveningStartMinute,
+            sectionTimes = finalSectionTimes,
+            sectionNames = finalSectionNames,
+            specialBlocks = specialBlocks
+        ).withRoutineMeta(
+            routineId,
+            month = routineEffectiveMonth,
+            day = routineEffectiveDay
+        )
+        triggerExitAndBack(onSavePending = { onSave(newConfig) })
     }
 
     val backgroundColor = MiuixTheme.colorScheme.surface
@@ -710,62 +835,18 @@ fun TimeConfigEditScreen(
                                     LiquidTopBarButton(
                                         onClick = {
                                             hapticFeedback.performHapticFeedback(HapticFeedbackType.Confirm)
-                                            val overlapMsg = checkTimeOverlap()
-                                            if (overlapMsg != null) {
-                                                overlapMessage = overlapMsg
-                                                showOverlapDialog = true
-                                                return@LiquidTopBarButton
-                                            }
-                                            val finalSectionTimes = mutableMapOf<String, String>()
-                                            for ((k, v) in morningTimes) if (k <= morningSections) finalSectionTimes["morning_$k"] = v
-                                            for ((k, v) in afternoonTimes) if (k <= afternoonSections) finalSectionTimes["afternoon_$k"] = v
-                                            for ((k, v) in eveningTimes) if (k <= eveningSections) finalSectionTimes["evening_$k"] = v
-                                            // 过滤掉超出当前节数范围的自定义名称
-                                            val finalSectionNames = mutableMapOf<String, String>()
-                                            for ((k, v) in sectionNames) {
-                                                val parts = k.split("_")
-                                                if (parts.size != 2) continue
-                                                val period = parts[0]
-                                                val idx = parts[1].toIntOrNull() ?: continue
-                                                val count = when (period) {
-                                                    "morning" -> morningSections
-                                                    "afternoon" -> afternoonSections
-                                                    "evening" -> eveningSections
-                                                    else -> 0
+                                            val check = checkTimeOverlap()
+                                            when {
+                                                check.hasBlocking -> {
+                                                    overlapMessage = check.blocking!!
+                                                    showOverlapDialog = true
                                                 }
-                                                if (idx in 1..count) finalSectionNames[k] = v
+                                                check.hasWarnings -> {
+                                                    overlapMessage = check.warnings.joinToString("\n")
+                                                    showOverlapWarningDialog = true
+                                                }
+                                                else -> commitSave()
                                             }
-
-                                            val newConfig = timeConfig.copy(
-                                                name = routineName,
-                                                morningSections = morningSections,
-                                                afternoonSections = afternoonSections,
-                                                eveningSections = eveningSections,
-                                                quickTimeEnabled = quickTimeEnabled,
-                                                classDuration = classDuration,
-                                                shortBreak = shortBreak,
-                                                longBreakEnabled = longBreakEnabled,
-                                                longBreakMorning = longBreakMorning,
-                                                longBreakAfternoon = longBreakAfternoon,
-                                                longBreakEvening = longBreakEvening,
-                                                longBreakMorningSection = longBreakMorningSection,
-                                                longBreakAfternoonSection = longBreakAfternoonSection,
-                                                longBreakEveningSection = longBreakEveningSection,
-                                                morningStartHour = morningStartHour,
-                                                morningStartMinute = morningStartMinute,
-                                                afternoonStartHour = afternoonStartHour,
-                                                afternoonStartMinute = afternoonStartMinute,
-                                                eveningStartHour = eveningStartHour,
-                                                eveningStartMinute = eveningStartMinute,
-                                                sectionTimes = finalSectionTimes,
-                                                sectionNames = finalSectionNames,
-                                                specialBlocks = specialBlocks
-                                            ).withRoutineMeta(
-                                                routineId,
-                                                month = routineEffectiveMonth,
-                                                day = routineEffectiveDay
-                                            )
-                                            triggerExitAndBack(onSavePending = { onSave(newConfig) })
                                         },
                                         backdrop = liquidGlassBackdrop,
                                         icon = MiuixIcons.Ok,
@@ -868,11 +949,11 @@ fun TimeConfigEditScreen(
 
                                 item(key = "quick_settings") {
                                     val bottomEndRadius by animateDpAsState(
-                                        if (quickTimeEnabled) 32.dp else 20.dp,
+                                        if (quickExpanded) 32.dp else 20.dp,
                                         label = "bottomEnd"
                                     )
                                     val bottomStartRadius by animateDpAsState(
-                                        if (quickTimeEnabled) 32.dp else 20.dp,
+                                        if (quickExpanded) 32.dp else 20.dp,
                                         label = "bottomStart"
                                     )
                                     val cardModifier = Modifier.fillMaxWidth().squircleSurface(
@@ -891,7 +972,7 @@ fun TimeConfigEditScreen(
                                             Row(
                                                 modifier = Modifier.fillMaxWidth()
                                                     .clickable {
-                                                        quickTimeEnabled = !quickTimeEnabled
+                                                        quickExpanded = !quickExpanded
                                                     }
                                                     .padding(horizontal = 16.dp, vertical = 14.dp),
                                                 horizontalArrangement = Arrangement.SpaceBetween,
@@ -904,11 +985,11 @@ fun TimeConfigEditScreen(
                                                     color = MiuixTheme.colorScheme.onSurface
                                                 )
                                                 Switch(
-                                                    checked = quickTimeEnabled,
-                                                    onCheckedChange = { quickTimeEnabled = it })
+                                                    checked = quickExpanded,
+                                                    onCheckedChange = { quickExpanded = it })
                                             }
                                             AnimatedVisibility(
-                                                visible = quickTimeEnabled,
+                                                visible = quickExpanded,
                                                 enter = expandVertically(),
                                                 exit = shrinkVertically()
                                             ) {
@@ -1181,7 +1262,7 @@ fun TimeConfigEditScreen(
                                                     title = getSectionTitle("morning", relSection),
                                                     endActions = {
                                                         Text(
-                                                            timeStr,
+                                                            formatTimeRangeForDisplay(timeStr),
                                                             fontSize = 14.5.sp,
                                                             color = MiuixTheme.colorScheme.onSurfaceVariantActions
                                                         )
@@ -1220,7 +1301,7 @@ fun TimeConfigEditScreen(
                                                     title = getSectionTitle("afternoon", relSection),
                                                     endActions = {
                                                         Text(
-                                                            timeStr,
+                                                            formatTimeRangeForDisplay(timeStr),
                                                             fontSize = 14.5.sp,
                                                             color = MiuixTheme.colorScheme.onSurfaceVariantActions
                                                         )
@@ -1259,7 +1340,7 @@ fun TimeConfigEditScreen(
                                                     title = getSectionTitle("evening", relSection),
                                                     endActions = {
                                                         Text(
-                                                            timeStr,
+                                                            formatTimeRangeForDisplay(timeStr),
                                                             fontSize = 14.5.sp,
                                                             color = MiuixTheme.colorScheme.onSurfaceVariantActions
                                                         )
@@ -1656,6 +1737,28 @@ fun TimeConfigEditScreen(
                                         modifier = Modifier.weight(1f)
                                     )
                                 }
+                                // 按星期的安排：原来只能回课表页点横带逐格填，这里一并能改
+                                val editingSpecialBlock = specialBlocks.getOrNull(editingSpecialIndex)
+                                if (editingSpecialIndex != -1) {
+                                    Text(
+                                        text = "按星期的安排",
+                                        fontSize = 15.sp,
+                                        color = MiuixTheme.colorScheme.onBackground,
+                                        modifier = Modifier.padding(start = 12.dp)
+                                    )
+                                    SpecialItemsEditorSection(
+                                        items = editingSpecialBlock?.safeItems ?: emptyList(),
+                                        onItemsChange = { newItems ->
+                                            val target = editingSpecialIndex
+                                            if (target in specialBlocks.indices) {
+                                                specialBlocks = specialBlocks.mapIndexed { idx, b ->
+                                                    if (idx == target) b.copy(items = newItems) else b
+                                                }
+                                            }
+                                        },
+                                        liquidGlassBackdrop = liquidGlassBackdrop
+                                    )
+                                }
                                 Row(
                                     modifier = Modifier.fillMaxWidth().padding(top = 4.dp),
                                     horizontalArrangement = Arrangement.spacedBy(12.dp)
@@ -1976,6 +2079,56 @@ fun TimeConfigEditScreen(
                                     },
                                     modifier = Modifier.fillMaxWidth()
                                 )
+                            }
+                        }
+
+                        // 特殊课程与其它时间重叠：只警告。块会插到被压节次之前排开，
+                        // 渲染不会坏；老数据也可能本来就重叠，给「仍然保存」出口。
+                        OverlayDialog(
+                            title = "时间重叠（可继续保存）",
+                            show = showOverlapWarningDialog,
+                            onDismissRequest = { showOverlapWarningDialog = false },
+                            liquidGlassBackdrop = liquidGlassBackdrop
+                        ) {
+                            Column(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalAlignment = Alignment.CenterHorizontally
+                            ) {
+                                Text(
+                                    text = overlapMessage,
+                                    style = MiuixTheme.textStyles.body1,
+                                    color = MiuixTheme.colorScheme.onSurface
+                                )
+                                Spacer(modifier = Modifier.height(4.dp))
+                                Text(
+                                    text = "特殊课程会排在该时段之前，确认无误可继续保存",
+                                    style = MiuixTheme.textStyles.footnote2,
+                                    color = MiuixTheme.colorScheme.onSurfaceVariantActions
+                                )
+                                Spacer(modifier = Modifier.height(16.dp))
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    horizontalArrangement = Arrangement.spacedBy(12.dp)
+                                ) {
+                                    TextButton(
+                                        text = "返回修改",
+                                        onClick = {
+                                            hapticFeedback.performHapticFeedback(HapticFeedbackType.Confirm)
+                                            showOverlapWarningDialog = false
+                                        },
+                                        modifier = Modifier.weight(1f)
+                                    )
+                                    TextButton(
+                                        text = "仍然保存",
+                                        onClick = {
+                                            hapticFeedback.performHapticFeedback(HapticFeedbackType.Confirm)
+                                            showOverlapWarningDialog = false
+                                            commitSave()
+                                        },
+                                        colors = ButtonDefaults.textButtonColorsPrimary(),
+                                        modifier = Modifier.weight(1f)
+                                    )
+                                }
                             }
                         }
 
