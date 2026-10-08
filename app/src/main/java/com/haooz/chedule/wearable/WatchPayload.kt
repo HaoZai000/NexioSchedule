@@ -13,7 +13,8 @@ import org.json.JSONObject
  * 协议与手表 `src/common/sync.js` 的整表分支对齐，跨端字段改动必须两边同步：
  * - 顶层：protocol=nexio.schedule / version=4 / action=replace / sentAt / schedule_name
  * - settings：class_start_time 开学日、current_week 实时教学周（手表据此校准调休合并周
- *   偏移）、total_weeks、morning|afternoon|evening_sections
+ *   偏移）、total_weeks、morning|afternoon|evening_sections、
+ *   pre_class_reminder_minutes 课前提醒提前量（手表「快上课了」判定用，缺省手表端取 15）
  * - times：相对节次号 -> "HH:mm-HH:mm"（getPeriodTimes 原格式）
  * - courses：整学期全部课程，不过滤周次；dayOfWeek 1=周一…7=周日；
  *   startWeek/endWeek 为原始值（0=未设置），weekType 0全周/1单周/2双周，
@@ -73,6 +74,8 @@ object WatchPayload {
             .put("morning_sections", repository.getMorningSections(sid))
             .put("afternoon_sections", repository.getAfternoonSections(sid))
             .put("evening_sections", repository.getEveningSections(sid))
+            // 手表据此判定「快上课了」的提前量；不下发时手表端固定用 15 分钟。
+            .put("pre_class_reminder_minutes", repository.getPreClassReminderMinutes())
 
         val times = JSONObject()
             .put("morning", periodTimesJson(repository, "morning", sid))
