@@ -215,7 +215,20 @@ private fun DayOfWeekRow(
                 }
             )
     ) {
-        Spacer(modifier = Modifier.width(if (isTablet) 56.dp else 36.dp))
+        val year = (weekDates.firstOrNull()?.year ?: LocalDate.now().year).toString()
+        Column(
+            modifier = Modifier
+                .width(if (isTablet) 56.dp else 36.dp)
+                .height(40.dp),
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.Center
+        ) {
+            Text(
+                text = year,
+                style = MiuixTheme.textStyles.footnote2,
+                color = MiuixTheme.colorScheme.onSurfaceVariantActions
+            )
+        }
         dayRange.forEach { dayOfWeek ->
             val index = dayOfWeek - 1
             val name = DAY_NAMES[index]
