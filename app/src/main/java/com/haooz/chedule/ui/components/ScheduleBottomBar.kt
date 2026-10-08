@@ -16,6 +16,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.ColorFilter
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.haooz.chedule.ui.utils.LiquidNavSettings
 import com.kyant.backdrop.Backdrop
 import top.yukonga.miuix.kmp.icon.MiuixIcons
 import top.yukonga.miuix.kmp.icon.extended.Album
@@ -41,6 +42,7 @@ internal fun ScheduleBottomBar(
     if (navBarStyle == "rail" || liquidGlassBackdrop == null) return
 
     val onSelect: (Int) -> Unit = { idx -> onTabSelected(idx) }
+    val liquidGlass = LiquidNavSettings.enabled
     val iconTint = MiuixTheme.colorScheme.onSurfaceContainer.copy(alpha = 0.8f)
     val navBarBottomInset = WindowInsets.navigationBars.asPaddingValues().calculateBottomPadding()
     val bottomPadding = maxOf(24.dp, navBarBottomInset + 8.dp)
@@ -56,6 +58,7 @@ internal fun ScheduleBottomBar(
                 selectedTabIndex = { selectedTab },
                 onTabSelected = { onSelect(it) },
                 backdrop = liquidGlassBackdrop,
+                liquidGlass = liquidGlass,
                 tabsCount = 2,
                 modifier = Modifier
                     .fillMaxWidth(0.42f)
@@ -85,6 +88,7 @@ internal fun ScheduleBottomBar(
                 selectedTabIndex = { selectedTab },
                 onTabSelected = { onSelect(it) },
                 backdrop = liquidGlassBackdrop,
+                liquidGlass = liquidGlass,
                 tabsCount = 3,
                 modifier = Modifier
                     .fillMaxWidth(0.63f)

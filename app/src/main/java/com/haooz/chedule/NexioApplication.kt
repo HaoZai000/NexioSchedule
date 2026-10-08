@@ -1,6 +1,7 @@
 package com.haooz.chedule
 
 import android.app.Application
+import com.haooz.chedule.ui.utils.LiquidNavSettings
 import com.haooz.chedule.ui.utils.PredictiveBackSettings
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -27,6 +28,9 @@ class NexioApplication : Application() {
         // 预测性返回动画开关：应用启动即同步到全局单例（应用设置中可切换）
         PredictiveBackSettings.enabled = getSharedPreferences("app_preferences", MODE_PRIVATE)
             .getBoolean(PredictiveBackSettings.KEY_PREDICTIVE_BACK_ANIMATION, true)
+        // 液态玻璃导航开关：应用启动即同步到全局状态（应用设置中可切换）
+        LiquidNavSettings.enabled = getSharedPreferences("app_preferences", MODE_PRIVATE)
+            .getBoolean(LiquidNavSettings.KEY_LIQUID_BOTTOM_NAV, true)
         // 应用材质档位：按钮/低栏等 chrome 折射随档降级
         com.haooz.chedule.ui.utils.AppMaterialSettings.load(this)
         com.haooz.chedule.ui.utils.CrashLogHelper.install(this)

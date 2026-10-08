@@ -284,6 +284,20 @@ fun PreferenceSettingsScreen(
                                 liquidGlassBackdrop = liquidGlassBackdrop,
                                 dropdownColors = liquidGlassDropdownColors,
                             )
+                            SwitchPreference(
+                                title = "液态玻璃导航",
+                                summary = "为导航栏启用液态玻璃效果",
+                                checked = com.haooz.chedule.ui.utils.LiquidNavSettings.enabled,
+                                onCheckedChange = {
+                                    com.haooz.chedule.ui.utils.LiquidNavSettings.enabled = it
+                                    appPrefs.edit {
+                                        putBoolean(
+                                            com.haooz.chedule.ui.utils.LiquidNavSettings.KEY_LIQUID_BOTTOM_NAV,
+                                            it
+                                        )
+                                    }
+                                }
+                            )
                             if (islandNotification) {
                                 SwitchPreference(
                                     title = "小米超级岛光效",
