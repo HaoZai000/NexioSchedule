@@ -352,6 +352,7 @@ fun TodayScreen(
     liquidGlassBackdrop: Backdrop? = null,
     showClassroom: Boolean = true,
     showTeacher: Boolean = true,
+    showQuoteCard: Boolean = true,
     /** 主界面 resume/节假日版本变化时递增，强制今日页重读 HolidayManager */
     holidayDataTick: Int = 0,
 ) {
@@ -757,16 +758,18 @@ fun TodayScreen(
                                     )
                                 }
                             }
-                            Spacer(modifier = Modifier.height(12.dp))
-                            QuoteCard(
-                                isPageToday = isPageToday,
-                                todayCourses = if (isPageToday) pageCourses else emptyList(),
-                                tomorrowCourses = tomorrowCourses,
-                                sectionTimes = sectionTimes,
-                                wallpaperBackdrop = if (hasWallpaper) cardBackdrop else null,
-                                blurRadius = cardBlurRadius,
-                                surfaceOpacity = highlightCardOpacity
-                            )
+                            if (showQuoteCard) {
+                                Spacer(modifier = Modifier.height(12.dp))
+                                QuoteCard(
+                                    isPageToday = isPageToday,
+                                    todayCourses = if (isPageToday) pageCourses else emptyList(),
+                                    tomorrowCourses = tomorrowCourses,
+                                    sectionTimes = sectionTimes,
+                                    wallpaperBackdrop = if (hasWallpaper) cardBackdrop else null,
+                                    blurRadius = cardBlurRadius,
+                                    surfaceOpacity = highlightCardOpacity
+                                )
+                            }
                             if (isPageToday) {
                                 Spacer(modifier = Modifier.height(12.dp))
                                 TodayAssistantCard(
@@ -850,16 +853,18 @@ fun TodayScreen(
                                 }
                             }
                         }
-                        item {
-                            QuoteCard(
-                                isPageToday = isPageToday,
-                                todayCourses = if (isPageToday) pageCourses else emptyList(),
-                                tomorrowCourses = tomorrowCourses,
-                                sectionTimes = sectionTimes,
-                                wallpaperBackdrop = if (hasWallpaper) cardBackdrop else null,
-                                blurRadius = cardBlurRadius,
-                                surfaceOpacity = highlightCardOpacity
-                            )
+                        if (showQuoteCard) {
+                            item {
+                                QuoteCard(
+                                    isPageToday = isPageToday,
+                                    todayCourses = if (isPageToday) pageCourses else emptyList(),
+                                    tomorrowCourses = tomorrowCourses,
+                                    sectionTimes = sectionTimes,
+                                    wallpaperBackdrop = if (hasWallpaper) cardBackdrop else null,
+                                    blurRadius = cardBlurRadius,
+                                    surfaceOpacity = highlightCardOpacity
+                                )
+                            }
                         }
                         if (isPageToday) {
                             item {

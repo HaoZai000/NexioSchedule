@@ -327,6 +327,9 @@ fun CustomizeScheduleScreen(
         currentCombinationIndex,
         sheetResetKey
     ) { mutableStateOf(appearance.wallpaperBlur) }
+    var showQuoteCardValue by remember(currentCombinationIndex, sheetResetKey) {
+        mutableStateOf(appearance.showQuoteCard)
+    }
 
     val context = LocalContext.current
     var themeModeValue by remember(currentCombinationIndex, sheetResetKey) {
@@ -356,7 +359,8 @@ fun CustomizeScheduleScreen(
         showClassroom = showClassroomValue,
         showTeacher = showTeacherValue,
         cardRefraction = cardRefractionValue,
-        wallpaperBlur = wallpaperBlurValue
+        wallpaperBlur = wallpaperBlurValue,
+        showQuoteCard = showQuoteCardValue
     )
     LaunchedEffect(effectValue, cardAlphaValue, cardSurfaceAlphaValue) { onAppearanceChange(buildAppearance()) }
     LaunchedEffect(wallpaperBrightnessValue) { onAppearanceChange(buildAppearance()) }
@@ -376,6 +380,7 @@ fun CustomizeScheduleScreen(
     LaunchedEffect(showTeacherValue) { onAppearanceChange(buildAppearance()) }
     LaunchedEffect(cardRefractionValue) { onAppearanceChange(buildAppearance()) }
     LaunchedEffect(wallpaperBlurValue) { onAppearanceChange(buildAppearance()) }
+    LaunchedEffect(showQuoteCardValue) { onAppearanceChange(buildAppearance()) }
 
     val customizeButtonAlpha = remember { Animatable(1f) }
 
@@ -1466,6 +1471,26 @@ fun CustomizeScheduleScreen(
                     }
                 }
                 val customizeSheetContent: @Composable () -> Unit = {
+                    SheetCard {
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(horizontal = 16.dp, vertical = 12.dp),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Text(
+                                text = "显示语录卡片",
+                                fontWeight = FontWeight.Medium,
+                                fontSize = 17.sp,
+                                color = MiuixTheme.colorScheme.onSurface
+                            )
+                            Switch(
+                                checked = showQuoteCardValue,
+                                onCheckedChange = { showQuoteCardValue = it }
+                            )
+                        }
+                    }
                     SheetCard {
                         Column {
                             SliderItem(

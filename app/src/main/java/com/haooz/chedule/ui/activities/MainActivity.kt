@@ -405,7 +405,8 @@ class MainActivity : ComponentActivity() {
                         showClassroom = ScheduleAppearance.getShowClassroom(),
                         showTeacher = ScheduleAppearance.getShowTeacher(),
                         cardRefraction = ScheduleAppearance.getCardRefraction(),
-                        wallpaperBlur = ScheduleAppearance.getWallpaperBlur()
+                        wallpaperBlur = ScheduleAppearance.getWallpaperBlur(),
+                        showQuoteCard = ScheduleAppearance.getShowQuoteCard()
                     )
                 } catch (_: Exception) {
                 }
@@ -1471,7 +1472,8 @@ fun CourseScheduleApp(privacyConsented: Boolean = true) {
                     showClassroom = value.showClassroom,
                     showTeacher = value.showTeacher,
                     cardRefraction = value.cardRefraction,
-                    wallpaperBlur = value.wallpaperBlur
+                    wallpaperBlur = value.wallpaperBlur,
+                    showQuoteCard = value.showQuoteCard
                 )
             }
         }
@@ -1506,7 +1508,8 @@ fun CourseScheduleApp(privacyConsented: Boolean = true) {
             showTeacher = ScheduleAppearance.getShowTeacher(),
             cardRefraction = ScheduleAppearance.getCardRefraction(),
             wallpaperIsLight = ScheduleAppearance.getWallpaperIsLight(),
-            wallpaperBlur = ScheduleAppearance.getWallpaperBlur()
+            wallpaperBlur = ScheduleAppearance.getWallpaperBlur(),
+            showQuoteCard = ScheduleAppearance.getShowQuoteCard()
         )
 
     // 加载单搭配；有伴生缓存则跳过 IO
@@ -3330,6 +3333,7 @@ fun CourseScheduleApp(privacyConsented: Boolean = true) {
                                             liquidGlassBackdrop = liquidGlassBackdrop,
                                             showClassroom = displayAppearance.showClassroom,
                                             showTeacher = displayAppearance.showTeacher,
+                                            showQuoteCard = displayAppearance.showQuoteCard,
                                             onListScrollInProgress = { todayListScrollInProgress.value = it },
                                         )
                                             }
@@ -4699,6 +4703,9 @@ fun CourseScheduleApp(privacyConsented: Boolean = true) {
                             )
                             ScheduleAppearance.saveWallpaperBlur(
                                 appearanceToSave.wallpaperBlur
+                            )
+                            ScheduleAppearance.saveShowQuoteCard(
+                                appearanceToSave.showQuoteCard
                             )
                         }
                         // 「应用」才写入偏好

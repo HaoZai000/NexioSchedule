@@ -124,11 +124,13 @@ data class CombinationStyle(
     val showClassroom: Boolean = true,
     val showTeacher: Boolean = true,
     val cardRefraction: CardRefractionLevel? = null,
-    val wallpaperBlur: Boolean = false
+    val wallpaperBlur: Boolean = false,
+    val showQuoteCard: Boolean? = null
 ) {
     val safeAlignment: CardContentAlignment get() = cardContentAlignment ?: CardContentAlignment.CENTER_CENTER
     val safeTextColor: CardTextColor get() = cardTextColor ?: CardTextColor.COLORFUL
     val safeRefraction: CardRefractionLevel get() = cardRefraction ?: CardRefractionLevel.DEFAULT
+    val safeShowQuoteCard: Boolean get() = showQuoteCard ?: true
     val safeCardTextScale: Float get() = if (cardTextScale > 0f) cardTextScale else 1f
     val safeCardSurfaceAlpha: Float get() = cardSurfaceAlpha?.takeIf { it in 0f..1f } ?: CARD_SURFACE_ALPHA_DEFAULT
 
@@ -151,7 +153,7 @@ data class CombinationStyle(
             "cardCornerRadius", "wallpaperBrightness", "wallpaperIsLight",
             "showBreakDividers", "cardContentAlignment", "cardTextColor",
             "cardTextScale", "showClassroom", "showTeacher", "cardRefraction",
-            "wallpaperBlur"
+            "wallpaperBlur", "showQuoteCard"
         )
 
         /**
@@ -186,7 +188,8 @@ data class Combination(
     var showTeacher: Boolean = true,
     var cardRefraction: CardRefractionLevel = CardRefractionLevel.DEFAULT,
     var wallpaperIsLight: Boolean? = null,
-    var wallpaperBlur: Boolean = false
+    var wallpaperBlur: Boolean = false,
+    var showQuoteCard: Boolean = true
 )
 
 /**
@@ -212,7 +215,8 @@ data class AppearanceConfig(
     val showClassroom: Boolean = true,
     val showTeacher: Boolean = true,
     val cardRefraction: CardRefractionLevel = CardRefractionLevel.DEFAULT,
-    val wallpaperBlur: Boolean = false
+    val wallpaperBlur: Boolean = false,
+    val showQuoteCard: Boolean = true
 ) {
     companion object {
         fun fromCombination(c: Combination): AppearanceConfig = AppearanceConfig(
@@ -230,7 +234,8 @@ data class AppearanceConfig(
             showClassroom = c.showClassroom,
             showTeacher = c.showTeacher,
             cardRefraction = c.cardRefraction,
-            wallpaperBlur = c.wallpaperBlur
+            wallpaperBlur = c.wallpaperBlur,
+            showQuoteCard = c.showQuoteCard
         )
     }
 }
@@ -450,6 +455,9 @@ object ScheduleAppearance {
     fun saveWallpaperBlur(blur: Boolean) = updateStyle { it.copy(wallpaperBlur = blur) }
     fun getWallpaperBlur(): Boolean = getStyle().wallpaperBlur
 
+    fun saveShowQuoteCard(show: Boolean) = updateStyle { it.copy(showQuoteCard = show) }
+    fun getShowQuoteCard(): Boolean = getStyle().safeShowQuoteCard
+
     // ⚠️ 下课烟花开关**不在本文件**：它的真实读写方是 `ClassEndEffectSettings`
     // （`app_preferences` 的 `class_end_fireworks`）。外观曾在这里重复定义一份同键属性，
     // 但零调用点且读的是本文件，读到的永远是默认值 —— 已删除，别再加回来。
@@ -594,7 +602,8 @@ object ScheduleAppearance {
             showTeacher = style.showTeacher,
             cardRefraction = style.safeRefraction,
             wallpaperIsLight = style.wallpaperIsLight,
-            wallpaperBlur = style.wallpaperBlur
+            wallpaperBlur = style.wallpaperBlur,
+            showQuoteCard = style.safeShowQuoteCard
         )
     }
 }
