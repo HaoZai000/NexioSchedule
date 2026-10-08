@@ -2983,8 +2983,6 @@ fun CourseScheduleApp(privacyConsented: Boolean = true) {
                                     TodayTopBar(
                                         liquidGlassBackdrop = chromeBackdrop,
                                         navBarStyle = navBarStyle,
-                                        currentDayOfWeek = todaySelectedDayOfWeek,
-                                        isToday = todayIsToday,
                                         onBackToToday = { scrollToTodayTrigger++ },
                                         onJumpToDate = { todayJumpToDateTrigger++ },
                                         onEnterCustomize = {
@@ -5541,8 +5539,6 @@ private fun SettingsTopBar(
 private fun TodayTopBar(
     liquidGlassBackdrop: com.kyant.backdrop.Backdrop?,
     navBarStyle: String,
-    currentDayOfWeek: Int,
-    isToday: Boolean = true,
     onBackToToday: () -> Unit = {},
     onJumpToDate: () -> Unit = {},
     onEnterCustomize: () -> Unit = {},
@@ -5563,9 +5559,7 @@ private fun TodayTopBar(
     } else {
         Modifier
     }
-    val dayOfWeekNames = listOf("周一", "周二", "周三", "周四", "周五", "周六", "周日")
-    val dayOfWeekName = if (currentDayOfWeek in 1..7) dayOfWeekNames[currentDayOfWeek - 1] else ""
-    val titleText = if (isToday) "今天是$dayOfWeekName" else dayOfWeekName
+    val titleText = "今日课表"
 
     // 隐藏时 alpha=0 但仍测量，保证 currentHeightPx 启动即就位
     ProgressiveBlurTopBar(

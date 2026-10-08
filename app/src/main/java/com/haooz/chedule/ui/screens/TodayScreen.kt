@@ -719,7 +719,8 @@ fun TodayScreen(
                         .resolveDaySchedule(appContext, forTomorrow = true).courses
                 }
 
-                val dateText = pageDate.format(DATE_FORMATTER)
+                val dateText = pageDate.format(DATE_FORMATTER) +
+                        " 周" + listOf("一", "二", "三", "四", "五", "六", "日")[pageDate.dayOfWeek.value - 1]
 
                 if (isTablet) {
                     Row(
