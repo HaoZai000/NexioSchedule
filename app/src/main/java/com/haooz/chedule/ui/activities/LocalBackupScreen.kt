@@ -91,7 +91,7 @@ import java.util.Date
 import java.util.Locale
 import kotlin.time.Duration.Companion.milliseconds
 
-private const val BACKUP_DIR_NAME = "Neixo_Schedule"
+private const val BACKUP_DIR_NAME = "Nexio_Schedule"
 
 /** 解析单个备份文件前允许的最大体积，避免把超大/无关文件整个读进内存 */
 private const val MAX_BACKUP_PARSE_BYTES = 8L * 1024 * 1024

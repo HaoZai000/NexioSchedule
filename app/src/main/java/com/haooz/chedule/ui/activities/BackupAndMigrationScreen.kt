@@ -361,7 +361,7 @@ fun BackupAndMigrationScreen(
                         Column(modifier = Modifier.fillMaxWidth()) {
                             ArrowPreference(
                                 title = "JSON 文件导入",
-                                summary = "支持拾光课程表/Neixo课程表",
+                                summary = "支持拾光课程表/Nexio课程表",
                                 onClick = {
                                     jsonFilePickerLauncher.launch(
                                         arrayOf("application/json", "*/*")
@@ -430,7 +430,7 @@ fun BackupAndMigrationScreen(
                     Column(modifier = Modifier.fillMaxWidth()) {
                         ArrowPreference(
                             title = "JSON 文件导入",
-                            summary = "支持拾光课程表/Neixo课程表",
+                            summary = "支持拾光课程表/Nexio课程表",
                             onClick = {
                                 jsonFilePickerLauncher.launch(
                                     arrayOf("application/json", "*/*")
