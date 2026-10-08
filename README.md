@@ -1,12 +1,15 @@
 <div align="center">
 
+<img src="docs/picture/Nexio.svg" width="96">
+
 # Nexio课程表
 
 一款基于 Jetpack Compose 的 Android 课程表应用，支持自定义课表外观、教务系统导入、多格式课表导入、WebDAV 同步、桌面小组件等功能。
 
-[![Stars](https://img.shields.io/github/stars/HaoZai000/NexioSchedule?style=flat-square&color=yellow)](https://github.com/HaoZai000/NexioSchedule/stargazers)
-[![Downloads](https://img.shields.io/github/downloads/HaoZai000/NexioSchedule/total?style=flat-square&color=orange)](https://github.com/HaoZai000/NexioSchedule/releases)
-[![Latest Release](https://img.shields.io/github/v/release/HaoZai000/NexioSchedule?style=flat-square&color=blue)](https://github.com/HaoZai000/NexioSchedule/releases/latest)
+[![Stars](https://img.shields.io/github/stars/HaoZai000/NexioSchedule?style=flat-square&color=yellow&logo=github)](https://github.com/HaoZai000/NexioSchedule/stargazers)
+[![Downloads](https://img.shields.io/github/downloads/HaoZai000/NexioSchedule/total?style=flat-square&color=orange&logo=github)](https://github.com/HaoZai000/NexioSchedule/releases)
+[![Latest Release](https://img.shields.io/github/v/release/HaoZai000/NexioSchedule?style=flat-square&color=blue&logo=github)](https://github.com/HaoZai000/NexioSchedule/releases/latest)
+[![License](https://img.shields.io/github/license/HaoZai000/NexioSchedule?style=flat-square&logo=github)](LICENSE)
 
 #### 一起交流与讨论：加入 [QQ频道](https://pd.qq.com/s/cfwkl5q9q?b=9) · [加入QQ群【Nexio课程表交流群】](https://qun.qq.com/universal-share/share?ac=1&authKey=WYfwJ8DnrMhTZKqVb3gcvB6DS2vUReemmQ3e5EnjKFLdErKvpfychIOGHbtG7ZJR&busi_data=eyJncm91cENvZGUiOiIxMDAxNTUxNzQxIiwidG9rZW4iOiJTQnFRNjJqUHlic0p5VVcySDBBSTFJazY0TU1udElDZlp6TjlCa3FXcmFKcjM5YUVxL2hFcktSb1FQcUtTWmt5IiwidWluIjoiNDM5MDg5NzAzIn0%3D&data=sPDFjZgIpm44b9AEDzaKAru_3W-z3w_t3XXP-N6O7DKkCSbdSyyZctJlzKDIbabYcLU7Qv8YeCKaJF_4rJYXtA&svctype=4&tempid=h5_group_info)
 
@@ -69,10 +72,9 @@
 ## 预览界面
 
 | 主课程表 | 课表外观 | 添加课程 |
-|----------|----------|----------|
+|:--------:|:--------:|:--------:|
 | ![主课程表](docs/picture/主课程表.png) | ![课表外观](docs/picture/课表外观.png) | ![添加课程](docs/picture/添加课程.png) |
 | 教务导入 | 课程提醒 | 桌面小部件 |
-|----------|----------|----------|
 | ![教务导入](docs/picture/教务导入.png) | ![课程提醒](docs/picture/课程提醒.png) | ![桌面小部件](docs/picture/桌面小部件.png) |
 
 ## 项目结构
@@ -143,7 +145,7 @@ app/src/main/java/com/haooz/chedule/
 
 - **语言**: Kotlin
 - **UI 框架**: Jetpack Compose + Material3
-- **UI 组件**: [MiUiX](https://github.com/compose-miuix-ui/miuix)
+- **UI 组件**: [Miuix](https://github.com/compose-miuix-ui/miuix)
 - **圆角形状**: [Kyant Shapes](https://github.com/Kyant0/kyant-shapes)
 - **数据存储**: SharedPreferences + Gson
 - **网络同步**: WebDAV
