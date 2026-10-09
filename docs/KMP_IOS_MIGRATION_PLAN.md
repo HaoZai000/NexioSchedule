@@ -3,18 +3,18 @@
 > 目标平台：**iOS**（iPad 一并覆盖）  
 > 策略：渐进式，全程不打断 1.6.x 正常发版  
 > 制定日期：2026-10-08 · 最近更新：2026-10-09（Kotlin 2.4.10，AGP 9.2.1，CMP 1.12.0）  
-> 代码状态：`master` `c80e504`，Android 侧 `assembleDebug` 通过；**iOS 尚未接入**
+> 代码状态：`master` `9d13813`，Android 侧 `assembleDebug` 通过；**iOS 尚未接入**
 
 ---
 
 ## 🔄 接手须知（新会话 / 新人从这一节开始）
 
-> 这一节是为了让**没有任何历史上下文的人**能直接接手。写到这里的代码状态是 `master` = `c80e504`。
+> 这一节是为了让**没有任何历史上下文的人**能直接接手。写到这里的代码状态是 `master` = `9d13813`。
 > 三条最重要的事实：**① 有测试没入库 ② 别推翻下面那几条决定 ③ 网络层的 Native 实现是空壳。**
 
 ### 1. 现状一句话
 
-`:app` 仍是 Android-only（迁移主体，505 处 Android 专用 import，146 个文件）；
+`:app` 仍是 Android-only（迁移主体，501 处 Android 专用 import，144 个文件）；
 数据层与 `data/school/` 已整体下沉 `:core`，**节假日纯逻辑集群也已全部下沉**（⑨）；
 `:miuix` / `:backdrop` 已是 KMP 模块，
 但 **`skikoMain` 从未针对 Native 编译过**；**iOS 尚未接入** —— 没有 iOS target、没有 Xcode 工程，
@@ -49,20 +49,16 @@
 | ✅ **`java.time` → kotlinx-datetime** | **已完成**（2026-10-09）：`:app` 全部 22 个文件换血，`:core` 补 `DateExt` 兼容层 + 12 个差分等价用例（详见「当前进展 ⑧」） | — |
 | ✅ **节假日四个纯逻辑文件下沉 `:core`** | **已完成**（2026-10-09）：`CourseScheduleDateBounds` / `TeachingWeekReorganization` / `HolidayCourseExclusion` / `HolidayCountdown` 全部进 commonMain（详见「当前进展 ⑨」） | — |
 | ✅ **`HolidayManager` 存储层下沉 `:core`** | **已完成**（2026-10-09）：`Context`/`org.json`/Gson/`@Synchronized`/`CourseRepository` 反向依赖全部处理掉，节假日整条链现在完全跨平台（详见「当前进展 ⑩」） | — |
-| **`CourseRepository` 下沉**（37 点 / 2819 行）—— **下一步，前置已全部就位** | 序列化能力 **⑪ 已全部备好**（`Course` / `ScheduleFolder` / `TimeConfig` 一族 / 标量列表）。剩下：全局单例 → Kotlin/Native 线程模型（风险 **R4**）、`String.format`/`Calendar`/`Build.BRAND` 等清尾 | 中高 |
+| ✅ **`CourseRepository` 下沉 `:core`** | **已完成**（2026-10-09）：**数据层全部完成**，顺带修掉两个「用户无法恢复自己备份」的真实缺陷（见「当前进展 ⑫」） | — |
 
-> **搬迁清单（⑪ 收尾时盘的，下次直接照做）**
->
-> | 项 | 数量 | 处理 |
-> |---|---:|---|
-> | `CourseRepository.getInstance(context)` / `CourseRepository(context)` 调用点 | **59 处 / 31 文件** | 改成无参单例（`AppStorage` 式启动注入） |
-> | `prefs: SharedPreferences` | 1 | → `AppStorage.store(PREFS_NAME)` |
-> | Gson 调用 | 21 | → `ScheduleCodec`（已就位） |
-> | `System.currentTimeMillis()` | 12 | → `Clock.System.now()` |
-> | `String.format(Locale.ROOT, "%04d/%02d/%02d", …)` | 3 | → 手写 pad |
-> | `java.util.Calendar.getInstance()` | 1 | → `Clock` |
-> | `Build.BRAND` / `Build.MANUFACTURER`（小米检测） | 1 | 需要平台抽象或注入 |
-> | 单例 `synchronized(this)` | 1 | → 已有的 `synchronizedOn` |
+**数据层已全部完成**（⑫）。剩下的候选：
+
+| 候选 | 说明 | 风险 |
+|---|---|---|
+| **`ScheduleAppearance`（610 行）/ `ScheduleBackup`（450 行）** | 外观含 Bitmap 处理；备份含文件 IO + WebDAV。都在 `:app`，属数据层收尾 | 中 |
+| **`WallpaperTransform.kt`（0 专有点）** | 已中立，可直接搬 | 极低 |
+| **Gson 4 条通道** | 见下一行 | 高 |
+| **阶段 5 的 UI 迁移** | 61.7k 行 Compose UI，`LocalConfiguration` 42 处 / `LocalContext` 32 处 | 大，按批次 |
 | **Gson 迁移**（文档风险表里的 **R2，最高**） | **真实备份已到手**（2026-10-09）→ 前置调研做完，配置要求已量出（见「🔬 R2 前置调研」）。仍需 `@Serializable` + 显式字段清单。⚠ `TeachingWeekReorganization` 的 Gson **已经换掉了**（⑨-b），剩的是单课表备份 / 分享码 / 教务导入 + 全量备份 4 条通道 | 高 —— 数据格式一变，存量用户读不出来。**已从「未知风险」降为「有明确配置要求」** |
 | **Native HTTP** | 需 macOS 定 iOS target；引入 Ktor 会顶掉协程版本（见下方决定表） | 高，但属 iOS 侧独立交付 |
 
@@ -245,7 +241,7 @@ AppFiles.init(
 
 ---
 
-## 📍 当前进展（更新于 2026-10-09 · 已合入 master `c80e504`）
+## 📍 当前进展（更新于 2026-10-09 · 已合入 master `9d13813`）
 
 > **安全网**：`master` 上打了永久标签 `backup/pre-merge-20261009`（合并前的状态）。
 > 万一发现遗漏，`git branch <名字> backup/pre-merge-20261009` 即可恢复 —— 
@@ -277,7 +273,7 @@ AppFiles.init(
 
 | 模块 | 源文件 | 行数 | 源集 | 状态 |
 |---|---:|---:|---|---|
-| `:core` | 30 (+15 平台实现) | ~5,540 | common / android / **jvm / linuxX64(门禁)** | 数据层下沉 + 8 套跨平台抽象 + 日期补齐层（⑧）+ **整个节假日链**（⑨⑩，含存储层） |
+| `:core` | 33 (+15 平台实现) | ~8,869 | common / android / **jvm / linuxX64(门禁)** | **整个数据层**（课程/时间配置/节假日/课表名/文件夹/备份）+ 9 套跨平台抽象 |
 | `:backdrop` | 64 | 5,458 | common / android / skiko | KMP 化，含 edgelight + capsule；**skikoMain 未针对 Native 编译过** |
 | `:miuix` | 103 | 26,464 | common / android / skiko | KMP 化；**skikoMain 未针对 Native 编译过** |
 | `:app` | 148 | 69,983 | android | Android-only，**剩余迁移主体** |
@@ -401,6 +397,63 @@ class HttpResult(code, bytes, truncated = false)   // 超限返回 truncated=tru
 ```
 
 顺手修掉：这两个仓库原本各自 `new OkHttpClient()`（第 11、12 套连接池），现在复用 `HttpService`。
+
+### ✅ 已完成批次 · ⑫ `CourseRepository` 下沉 `:core` —— **数据层全部完成**（2026-10-09）
+
+**`:app/data` 只剩 `ScheduleAppearance` / `ScheduleBackup` / `WallpaperTransform`
+与两个按决定必须留在 `:app` 的 Android actual（`SharedPreferencesStore` / `FileAppFile`）。**
+`TimeConfigSnapshotParser.kt` 一并删除 —— 它的注释写明「等阶段 2 换成 kotlinx.serialization
+之后应当移回 `TimeConfig.Companion`」，现在就是那个时候。
+
+| 原来 | 现在 |
+|---|---|
+| `Context` + `SharedPreferences` | `AppStorage.store(PREFS_NAME)`（文件名 `course_schedule_prefs` 未变） |
+| `getInstance(context)` / `invoke(context)` | 无参单例（**59 处调用点**去掉实参） |
+| 单例初始化 `synchronized(this)` | 已有的 `synchronizedOn` |
+| Gson（21 处） | `ScheduleCodec`（⑪ 备好的） |
+| `System.currentTimeMillis()` ×12 | `Clock.System.now()` |
+| `String.format(Locale.ROOT, "%04d/%02d/%02d", …)` ×3 | `DateExt.formatSlashDate()` |
+| `java.util.Calendar` | `todayLocalDate()` |
+| `java.util.UUID.randomUUID()` | `randomUuidV4()`（`PlatformInfo` 早就备好了） |
+| `Build.BRAND` / `MANUFACTURER`（小米检测） | `currentDeviceInfo()` |
+| `CopyOnWriteArrayList`（监听器多播） | `@Volatile` 不可变列表 + 写时复制（读走快照、写不阻塞读，语义一致） |
+| `MutableMap.putIfAbsent` / `toSortedSet` | 等价展开（都是 JVM 专有） |
+| `prefs.getString(k, null)` ×12 | `KeyValueStore.getStringOrNull(k)`（新增扩展） |
+| `prefs.edit(commit = true)` ×8 | `KeyValueStore.edit {}`（都是提交即写盘） |
+
+新增 `:core` **`AppearancePrefs`**：把外观的 prefs 文件名与键名下沉 ——
+`CourseRepository.isCombinationBackupKey` 要用它们，而 `:core` 不能反向依赖
+`:app` 的 `ScheduleAppearance`。`:app` 侧用 `const val` 转发，取值同源、不会抄错。
+
+#### ★★ ⑫-a 顺带修掉两个**真实缺陷**（与迁移无关，被真实备份测出来的）★★
+
+真实备份导入时**被自己的校验器拒绝**，报 `belongs to an unknown schedule`：
+
+| # | 残留键 | 成因 |
+|---|---|---|
+| 1 | `schedule_folder_map` | **代码里已无任何引用的老版本遗留键**，但还在老用户 prefs 里，会被 `exportAllPreferences` 原样导出 → 导入必被拒 |
+| 2 | `schedule_time_config_{已删除的课表名}` | 删课表清的是 `schedule_{名}_*`，而绑定键用的是**另一个前缀** `schedule_time_config_`，没被一起清掉。真实备份里有 **13 个**这样的残留名（`schedule_names` 只有 5 个） |
+
+后果一样：**用户连自己的备份都恢复不了**（这份真实备份正好命中）。
+已把校验器改成接受这两类残留 —— 恢复流程本来就会先删掉全部 `schedule_*` 前缀再按备份写回，
+残留写回去与现状一致，无害。
+
+#### ⑫-b 安全网：文档「阶段 2.3」要求的那条 round-trip 终于能测了
+
+以前测不了 —— `exportAllPreferences` / `importAllPreferences` 在 `:app`，而 `:app` 没有测试源集。
+搬进 `:core` 之后，**这是搬它最大的回报**。新增 `FullBackupRoundTripTest`（3 用例，未入库）：
+把真实备份灌进 `InMemoryKeyValueStore` 后
+
+1. `exportAllPreferences()` 能**还原出同一份备份**（键集合 + 逐键值；课程串是逐字透传）
+2. **导出 → 导入 → 导出：二次、三次导出与首次完全一致** ← 文档要求的正是这条
+3. 导入后课表名 / 23 门课 / 3 个时间配置 / 作息方案都读得出来
+
+> 比较方式用「语义相等」：数字统一 Double、Set 转 List 后比 Map。
+> 按 ⑪-a 的结论，字段顺序不是契约，写逐字断言只会被无意义的顺序差异绊住。
+> ⚠ 测试里 `holiday_settings` 必须用**另一个** store —— 节假日数据在独立的 prefs 文件里，
+> 混在一起会让 `exportAllPreferences` 多出 `entries_2026` 等原始键。
+
+`:core:jvmTest` **227 → 230 全绿**。
 
 ### ✅ 已完成批次 · ⑪ R2 数据层：模型编解码的显式字段清单（2026-10-09）
 
