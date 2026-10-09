@@ -252,7 +252,9 @@ object ClassDndHelper {
     private fun takeOver(context: Context): Boolean {
         val mode = currentMode(context)
         if (!canWriteState(context)) {
-            NexioLog.w(TAG, "takeOver skipped: mode=$mode requires notification policy access")
+            // 未授予通知策略权限是**永久性条件**，不是异常：绝大多数用户从未开启，
+            // 原先每节课都会刷一条 w。降为 d，避免淹没真正的异常日志。
+            NexioLog.d(TAG, "takeOver skipped: mode=$mode requires notification policy access")
             return false
         }
         val before = readCurrentState(context, mode)
@@ -263,7 +265,8 @@ object ClassDndHelper {
         // 写入前后毫无变化、又不等于目标值 → 系统拒绝了这次写入（权限被回收 / ROM 拦截）。
         // 不判失败的话后面会当它已生效，还拿这个错值当下课校验基准，表现就是全程没反应。
         if (before != null && accepted == before && accepted != targetState(mode)) {
-            NexioLog.w(TAG, "takeOver rejected by system: mode=$mode state=$accepted target=${targetState(mode)}")
+            // 权限被回收时每节课都会命中同一分支，属永久性条件而非瞬时异常，降为 d。
+            NexioLog.d(TAG, "takeOver rejected by system: mode=$mode state=$accepted target=${targetState(mode)}")
             return false
         }
 
@@ -295,8 +298,9 @@ object ClassDndHelper {
         if (requireConsistency) {
             val current = readCurrentState(context, mode)
             if (current == null) {
-                // 读不到就不还原，避免覆盖用户手动设置
-                NexioLog.w(TAG, "handBack skipped: cannot read system state")
+                // 读不到就不还原，避免覆盖用户手动设置。
+                // 未授予策略权限时每节课都会命中，降为 d。
+                NexioLog.d(TAG, "handBack skipped: cannot read system state")
                 clearSession(context)
                 return
             }
@@ -317,7 +321,8 @@ object ClassDndHelper {
         // 有快照却写不回去（多半是权限被回收）：保留会话等权限恢复，别把快照丢掉，
         // 否则手机就再也没有自动退出勿扰的机会了。没有快照则没什么可还原，正常收尾。
         if (hasSnapshot && !applyOriginalSnapshot(context, mode)) {
-            NexioLog.w(TAG, "handBack deferred: keep session until state can be restored")
+            // 同上：权限被回收时每节课都命中，会把真正的异常刷没。
+            NexioLog.d(TAG, "handBack deferred: keep session until state can be restored")
             return
         }
         NexioLog.d(TAG, "handBack restored original state mode=$mode")

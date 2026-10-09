@@ -25,7 +25,9 @@ import com.haooz.chedule.ui.activities.MainActivity
 import com.haooz.chedule.widget.WidgetUpdateCache
 import java.time.LocalDate
 import java.util.Calendar
+import com.haooz.chedule.data.LOG_LEVEL_DEBUG
 import com.haooz.chedule.data.NexioLog
+import com.haooz.chedule.data.logMinLevel
 
 object CourseReminderHelper {
 
@@ -46,11 +48,19 @@ object CourseReminderHelper {
     @Volatile
     private var debugLogs: Boolean? = null
 
-    /** 仅 debug 包打热路径日志，release 避免每分钟字符串拼接 */
+    /**
+     * 仅 debug 包打热路径日志，release 避免每分钟字符串拼接。
+     *
+     * 现在与 [logMinLevel] 统一：门面的默认值已经是 WARN，所以 release 包本就不打 d；
+     * debug 包则放开到 DEBUG 以便排查提醒链路。
+     */
     private fun debugEnabled(context: Context): Boolean {
         debugLogs?.let { return it }
         val enabled = try {
-            (context.applicationInfo.flags and android.content.pm.ApplicationInfo.FLAG_DEBUGGABLE) != 0
+            val debuggable =
+                (context.applicationInfo.flags and android.content.pm.ApplicationInfo.FLAG_DEBUGGABLE) != 0
+            if (debuggable && logMinLevel > LOG_LEVEL_DEBUG) logMinLevel = LOG_LEVEL_DEBUG
+            debuggable
         } catch (_: Exception) {
             false
         }

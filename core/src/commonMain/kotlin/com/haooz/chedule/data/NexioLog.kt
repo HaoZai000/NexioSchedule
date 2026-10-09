@@ -32,56 +32,78 @@ package com.haooz.chedule.data
  */
 expect fun platformLog(level: Int, tag: String, message: String, throwable: Throwable?)
 
-internal const val LOG_LEVEL_VERBOSE = 0
-internal const val LOG_LEVEL_DEBUG = 1
-internal const val LOG_LEVEL_INFO = 2
-internal const val LOG_LEVEL_WARN = 3
-internal const val LOG_LEVEL_ERROR = 4
+/** 级别常量，对外公开以便 `:app` 设置门槛（如 debug 包放开到 DEBUG） */
+const val LOG_LEVEL_VERBOSE = 0
+const val LOG_LEVEL_DEBUG = 1
+const val LOG_LEVEL_INFO = 2
+const val LOG_LEVEL_WARN = 3
+const val LOG_LEVEL_ERROR = 4
 
 /**
- * 全局日志开关。关掉后 [PlatformLog] 完全不被调用，调用点上的字符串拼接也一并省掉 ——
+ * 全局日志开关。关掉后 [platformLog] 完全不被调用，调用点上的字符串拼接也一并省掉 ——
  * 这是高频日志唯一有意义的优化点。
  */
 var logEnabled: Boolean = true
 
+/**
+ * 最低输出级别，低于此级别直接丢弃（连字符串拼接都不会发生）。
+ *
+ * 迁移时 166 处日志是**原样保留**的，所以线上噪音与迁移前一致 —— 但迁移前就一直偏多，
+ * 主要来自两类：
+ *
+ * 1. **每节课必打的 `w`** —— `ClassDndHelper` 在「通知策略权限未授予」时每次上课都打一条
+ *    `takeOver skipped: mode=... requires notification policy access`。这个权限多数用户
+ *    从未授予，于是每节课都刷一条 `w`，而它其实是**永久性条件**，不是异常。
+ * 2. **热路径 `d`** —— 每分钟级触发（`scheduleOne` / `reconcileIsland` / `handBack`），
+ *    release 包也在打。
+ *
+ * 默认 [LOG_LEVEL_WARN]：保留 `w` / `e` 的排查价值，滤掉 `d` / `i` 的流水。
+ * 想临时看全量排查问题时，置 `logMinLevel = LOG_LEVEL_DEBUG` 即可（设置项会接这个）。
+ */
+var logMinLevel: Int = LOG_LEVEL_WARN
+
+internal inline fun emit(level: Int, tag: String, message: String, throwable: Throwable?) {
+    if (logEnabled && level >= logMinLevel) platformLog(level, tag, message, throwable)
+}
+
 object NexioLog {
     fun v(tag: String, message: String) {
-        if (logEnabled) platformLog(LOG_LEVEL_VERBOSE, tag, message, null)
+        emit(LOG_LEVEL_VERBOSE, tag, message, null)
     }
 
     fun v(tag: String, message: String, throwable: Throwable?) {
-        if (logEnabled) platformLog(LOG_LEVEL_VERBOSE, tag, message, throwable)
+        emit(LOG_LEVEL_VERBOSE, tag, message, throwable)
     }
 
     fun d(tag: String, message: String) {
-        if (logEnabled) platformLog(LOG_LEVEL_DEBUG, tag, message, null)
+        emit(LOG_LEVEL_DEBUG, tag, message, null)
     }
 
     fun d(tag: String, message: String, throwable: Throwable?) {
-        if (logEnabled) platformLog(LOG_LEVEL_DEBUG, tag, message, throwable)
+        emit(LOG_LEVEL_DEBUG, tag, message, throwable)
     }
 
     fun i(tag: String, message: String) {
-        if (logEnabled) platformLog(LOG_LEVEL_INFO, tag, message, null)
+        emit(LOG_LEVEL_INFO, tag, message, null)
     }
 
     fun i(tag: String, message: String, throwable: Throwable?) {
-        if (logEnabled) platformLog(LOG_LEVEL_INFO, tag, message, throwable)
+        emit(LOG_LEVEL_INFO, tag, message, throwable)
     }
 
     fun w(tag: String, message: String) {
-        if (logEnabled) platformLog(LOG_LEVEL_WARN, tag, message, null)
+        emit(LOG_LEVEL_WARN, tag, message, null)
     }
 
     fun w(tag: String, message: String, throwable: Throwable?) {
-        if (logEnabled) platformLog(LOG_LEVEL_WARN, tag, message, throwable)
+        emit(LOG_LEVEL_WARN, tag, message, throwable)
     }
 
     fun e(tag: String, message: String) {
-        if (logEnabled) platformLog(LOG_LEVEL_ERROR, tag, message, null)
+        emit(LOG_LEVEL_ERROR, tag, message, null)
     }
 
     fun e(tag: String, message: String, throwable: Throwable?) {
-        if (logEnabled) platformLog(LOG_LEVEL_ERROR, tag, message, throwable)
+        emit(LOG_LEVEL_ERROR, tag, message, throwable)
     }
 }
