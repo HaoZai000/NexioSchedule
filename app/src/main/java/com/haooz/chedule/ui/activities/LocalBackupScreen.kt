@@ -572,34 +572,33 @@ fun LocalBackupScreen(
                             dropdownColors = liquidGlassDropdownColors,
                         )
 
-                        if (scheduleNames.isNotEmpty()) {
-                            val scheduleEntry = DropdownEntry(
-                                items = scheduleNames.map { name ->
-                                    DropdownItem(
-                                        text = name,
-                                        selected = selectedSchedule == name,
-                                        onClick = { selectedSchedule = name }
-                                    )
-                                }
-                            )
-                            OverlayDropdownMenu(
-                                title = "选择课表",
-                                summary = if (backupMode == "single") {
-                                    if (selectedSchedule.isNotEmpty()) null else "请选择要备份的课表"
-                                } else "全部备份模式下无需选择",
-                                entry = scheduleEntry,
-                                collapseOnSelection = true,
-                                enabled = backupMode == "single",
-                                liquidGlassBackdrop = liquidGlassBackdrop,
-                                dropdownColors = liquidGlassDropdownColors,
-                            )
-                        } else {
-                            Text(
-                                text = "暂无课表数据",
-                                fontSize = 14.sp,
-                                color = MiuixTheme.colorScheme.onSurfaceVariantActions,
-                                modifier = Modifier.padding(horizontal = 16.dp, vertical = 14.dp)
-                            )
+                        if (backupMode == "single") {
+                            if (scheduleNames.isNotEmpty()) {
+                                val scheduleEntry = DropdownEntry(
+                                    items = scheduleNames.map { name ->
+                                        DropdownItem(
+                                            text = name,
+                                            selected = selectedSchedule == name,
+                                            onClick = { selectedSchedule = name }
+                                        )
+                                    }
+                                )
+                                OverlayDropdownMenu(
+                                    title = "选择课表",
+                                    summary = if (selectedSchedule.isNotEmpty()) null else "请选择要备份的课表",
+                                    entry = scheduleEntry,
+                                    collapseOnSelection = true,
+                                    liquidGlassBackdrop = liquidGlassBackdrop,
+                                    dropdownColors = liquidGlassDropdownColors,
+                                )
+                            } else {
+                                Text(
+                                    text = "暂无课表数据",
+                                    fontSize = 14.sp,
+                                    color = MiuixTheme.colorScheme.onSurfaceVariantActions,
+                                    modifier = Modifier.padding(horizontal = 16.dp, vertical = 14.dp)
+                                )
+                            }
                         }
                     }
                 }

@@ -1260,7 +1260,7 @@ private fun TabletSemesterPane(
                     )
                     SwitchPreference(
                         title = "智能显示周末",
-                        summary = "开启后隐藏无课的周六日",
+                        summary = "开启后隐藏无课的周六/周日列",
                         checked = smartWeekend,
                         onCheckedChange = { settingsViewModel.setSmartWeekend(it) }
                     )

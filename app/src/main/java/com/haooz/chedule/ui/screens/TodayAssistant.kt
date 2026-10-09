@@ -67,7 +67,8 @@ import kotlin.time.Duration.Companion.milliseconds
 // 中国天气网 type（中文）→ 图标
 private fun getWeatherIconRes(type: String, isNight: Boolean = false): Int = when {
     type.contains("冰雹") || type.contains("雷") -> R.drawable.icon_t_storm
-    type.contains("雾") || type.contains("霾") || type.contains("浮尘") ||
+    type.contains("雾") -> if (isNight) R.drawable.icon_fog_night else R.drawable.icon_fog
+    type.contains("霾") || type.contains("浮尘") ||
         type.contains("扬沙") || type.contains("沙尘") -> R.drawable.icon_float_dirt
     type.contains("冻雨") -> R.drawable.icon_ice_rain
     type.contains("雨夹雪") -> R.drawable.icon_light_snow

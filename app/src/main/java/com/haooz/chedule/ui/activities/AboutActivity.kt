@@ -670,8 +670,7 @@ fun AboutScreen(
                                 .padding(
                                     bottom = WindowInsets.navigationBars.asPaddingValues()
                                         .calculateBottomPadding()
-                                )
-                                .fillParentMaxHeight(),
+                                ),
                         ) {
                             var expanded by remember { mutableStateOf(true) }
                             val rotation by animateFloatAsState(
@@ -1059,7 +1058,7 @@ fun AboutScreen(
                                     // 隐私政策入口 + 撤回同意：用户可随时查阅政策或撤回授权
                                     Row(
                                         verticalAlignment = Alignment.CenterVertically,
-                                        horizontalArrangement = Arrangement.spacedBy(20.dp),
+                                        horizontalArrangement = Arrangement.spacedBy(12.dp),
                                         modifier = Modifier.padding(top = 6.dp)
                                     ) {
                                         Text(
