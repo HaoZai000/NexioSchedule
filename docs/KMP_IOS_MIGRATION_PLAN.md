@@ -3,18 +3,18 @@
 > 目标平台：**iOS**（iPad 一并覆盖）  
 > 策略：渐进式，全程不打断 1.6.x 正常发版  
 > 制定日期：2026-10-08 · 最近更新：2026-10-09（Kotlin 2.4.10，AGP 9.2.1，CMP 1.12.0）  
-> 代码状态：`master` `9d13813`，Android 侧 `assembleDebug` 通过；**iOS 尚未接入**
+> 代码状态：`master` `ec04a04`，Android 侧 `assembleDebug` 通过；**iOS 尚未接入**
 
 ---
 
 ## 🔄 接手须知（新会话 / 新人从这一节开始）
 
-> 这一节是为了让**没有任何历史上下文的人**能直接接手。写到这里的代码状态是 `master` = `9d13813`。
+> 这一节是为了让**没有任何历史上下文的人**能直接接手。写到这里的代码状态是 `master` = `ec04a04`。
 > 三条最重要的事实：**① 有测试没入库 ② 别推翻下面那几条决定 ③ 网络层的 Native 实现是空壳。**
 
 ### 1. 现状一句话
 
-`:app` 仍是 Android-only（迁移主体，501 处 Android 专用 import，144 个文件）；
+`:app` 仍是 Android-only（迁移主体，499 处 Android 专用 import，143 个文件）；
 数据层与 `data/school/` 已整体下沉 `:core`，**节假日纯逻辑集群也已全部下沉**（⑨）；
 `:miuix` / `:backdrop` 已是 KMP 模块，
 但 **`skikoMain` 从未针对 Native 编译过**；**iOS 尚未接入** —— 没有 iOS target、没有 Xcode 工程，
@@ -50,15 +50,20 @@
 | ✅ **节假日四个纯逻辑文件下沉 `:core`** | **已完成**（2026-10-09）：`CourseScheduleDateBounds` / `TeachingWeekReorganization` / `HolidayCourseExclusion` / `HolidayCountdown` 全部进 commonMain（详见「当前进展 ⑨」） | — |
 | ✅ **`HolidayManager` 存储层下沉 `:core`** | **已完成**（2026-10-09）：`Context`/`org.json`/Gson/`@Synchronized`/`CourseRepository` 反向依赖全部处理掉，节假日整条链现在完全跨平台（详见「当前进展 ⑩」） | — |
 | ✅ **`CourseRepository` 下沉 `:core`** | **已完成**（2026-10-09）：**数据层全部完成**，顺带修掉两个「用户无法恢复自己备份」的真实缺陷（见「当前进展 ⑫」） | — |
+| ✅ **`ScheduleBackup` 下沉 `:core`** | **已完成**（2026-10-09）：WebDAV 收敛到 `HttpService`，iOS 侧不再有第二处网络实现要写（见「当前进展 ⑬」） | — |
 
-**数据层已全部完成**（⑫）。剩下的候选：
+**数据层已全部完成**（⑫⑬）。`:app/data` 只剩两个**按归属不该进 `:core`** 的文件
+（见 ⑬-c）：`ScheduleAppearance`（Bitmap）/ `WallpaperTransform`（Compose `Offset`），
+它们的归属是阶段 5 的 `:ui-shared`。
+
+剩下的候选：
 
 | 候选 | 说明 | 风险 |
 |---|---|---|
-| **`ScheduleAppearance`（610 行）/ `ScheduleBackup`（450 行）** | 外观含 Bitmap 处理；备份含文件 IO + WebDAV。都在 `:app`，属数据层收尾 | 中 |
-| **`WallpaperTransform.kt`（0 专有点）** | 已中立，可直接搬 | 极低 |
-| **Gson 4 条通道** | 见下一行 | 高 |
+| **Native HTTP 实现**（`HttpService.native`） | **iOS 的硬阻塞**：现在它是「调用即抛」的占位。WebDAV 已经收敛到它，所以只剩这一处。写它本身不需要 macOS（`ktor-client-cio` 或 cinterop 都能编 linuxX64），但**验证需要真机/模拟器** | 中（引入 Ktor 会顶协程版本 → 需单独评估） |
+| **Gson 4 条通道**（10 个文件） | 全在 `:app` 的 UI/导入导出层。**现阶段不需要动** —— Gson 留在 `:app` 是允许的，只有阶段 5 把 UI 搬进共享模块时才必须清掉 | 高（等 UI 迁移时再做） |
 | **阶段 5 的 UI 迁移** | 61.7k 行 Compose UI，`LocalConfiguration` 42 处 / `LocalContext` 32 处 | 大，按批次 |
+| **阶段 5 前置：建 `:ui-shared`** | CMP 共享 UI 模块；`ScheduleAppearance` / `WallpaperTransform` 的归属地 | 中 |
 | **Gson 迁移**（文档风险表里的 **R2，最高**） | **真实备份已到手**（2026-10-09）→ 前置调研做完，配置要求已量出（见「🔬 R2 前置调研」）。仍需 `@Serializable` + 显式字段清单。⚠ `TeachingWeekReorganization` 的 Gson **已经换掉了**（⑨-b），剩的是单课表备份 / 分享码 / 教务导入 + 全量备份 4 条通道 | 高 —— 数据格式一变，存量用户读不出来。**已从「未知风险」降为「有明确配置要求」** |
 | **Native HTTP** | 需 macOS 定 iOS target；引入 Ktor 会顶掉协程版本（见下方决定表） | 高，但属 iOS 侧独立交付 |
 
@@ -241,7 +246,7 @@ AppFiles.init(
 
 ---
 
-## 📍 当前进展（更新于 2026-10-09 · 已合入 master `9d13813`）
+## 📍 当前进展（更新于 2026-10-09 · 已合入 master `ec04a04`）
 
 > **安全网**：`master` 上打了永久标签 `backup/pre-merge-20261009`（合并前的状态）。
 > 万一发现遗漏，`git branch <名字> backup/pre-merge-20261009` 即可恢复 —— 
@@ -273,7 +278,7 @@ AppFiles.init(
 
 | 模块 | 源文件 | 行数 | 源集 | 状态 |
 |---|---:|---:|---|---|
-| `:core` | 33 (+15 平台实现) | ~8,869 | common / android / **jvm / linuxX64(门禁)** | **整个数据层**（课程/时间配置/节假日/课表名/文件夹/备份）+ 9 套跨平台抽象 |
+| `:core` | 34 (+15 平台实现) | ~9,365 | common / android / **jvm / linuxX64(门禁)** | **整个数据层**（课程/时间配置/节假日/课表名/文件夹/备份/WebDAV）+ 9 套跨平台抽象 |
 | `:backdrop` | 64 | 5,458 | common / android / skiko | KMP 化，含 edgelight + capsule；**skikoMain 未针对 Native 编译过** |
 | `:miuix` | 103 | 26,464 | common / android / skiko | KMP 化；**skikoMain 未针对 Native 编译过** |
 | `:app` | 148 | 69,983 | android | Android-only，**剩余迁移主体** |
@@ -397,6 +402,63 @@ class HttpResult(code, bytes, truncated = false)   // 超限返回 truncated=tru
 ```
 
 顺手修掉：这两个仓库原本各自 `new OkHttpClient()`（第 11、12 套连接池），现在复用 `HttpService`。
+
+### ✅ 已完成批次 · ⑬ `ScheduleBackup` 下沉 `:core` —— WebDAV 收敛到 `HttpService`（2026-10-09）
+
+**`:app/data` 只剩 `ScheduleAppearance`（含 Bitmap）与 `WallpaperTransform`（依赖 Compose `Offset`）
+及两个按决定必须留在 `:app` 的 Android actual。**
+
+| 原来 | 现在 |
+|---|---|
+| `Context` + `getSharedPreferences("webdav_config", …)` | `AppStorage.store("webdav_config")`（文件名 + 4 个键名逐字未变） |
+| **OkHttp**（`OkHttpClient` / `Request` / `Credentials.basic`） | **[HttpService]** —— `request()` 支持 PROPFIND / MKCOL / PUT / GET / DELETE，超时 10/30 与原来一致 |
+| `SimpleDateFormat` ×4 | `DateExt` 的 `formatCompactStamp` / `formatDisplayDateTime` / `parseCompactStamp` |
+| Gson（备份外层信封） | `JsonSupport` |
+| `Thread.sleep` | `delay`（本来就在协程里） |
+| `Dispatchers.IO` | `ioDispatcher`（Kotlin/Native 上没有 `Dispatchers.IO`） |
+| `CourseReminderHelper.onHolidayDataChanged(context)` | 构造时注入的回调（`:core` 不能反向依赖 `:app` 的提醒模块） |
+
+新增 `:core` 的 `basicAuthHeader()`（stdlib `Base64`，等价 OkHttp 的 `Credentials.basic`）。
+
+> **这一步的实际价值**：WebDAV 原先直接用 OkHttp，是「Native 上跑不了」的一处死角。
+> 收敛到 `HttpService` 之后，**iOS 的 WebDAV 备份/恢复只等 `HttpService.native` 落地**，
+> 不再有第二处网络实现要写。
+
+#### ⑬-a 请求形状逐条照抄（这是唯一能防「编译全绿、真机才发现」的手段）
+
+本地起不了 WebDAV 服务器，所以新增 `WebDavManagerContractTest`（12 用例，未入库）：
+塞一个**记录请求的假 `HttpService`**（`http` 字段用 `internal var` —— 与 `StatsReporter` 同一套路），
+把发出去的请求逐条钉死：
+
+| 用例 | 断言 |
+|---|---|
+| `testConnection` | PROPFIND + `Depth: 0` + 正确 `Authorization`；401 / 404 分支文案 |
+| `backupAllData` | 请求序列 `PROPFIND base → PROPFIND backups → PUT`；URL；`contentType`；body 信封形状（`version` / `backupTime` / `backupId` / `data`，id 形如 `backup_yyyyMMdd_HHmmss`） |
+| 目录不存在 | 走 `MKCOL`；**405 视为已存在**（原实现就是这么判的） |
+| `listBackups` | `Depth: 1`；只认 `backup_` 前缀的 `.json`（喂真实 PROPFIND XML） |
+| `restoreLatestBackup` | 取**最新**那个（按 id 排序）、写进仓储、**并触发回调**；404 / 空列表分支 |
+| `deleteBackup` | `DELETE`；404 也算成功 |
+| `basicAuthHeader` | 与 `Credentials.basic` 的等价形式一致 |
+| 时间戳格式 | 与 `SimpleDateFormat` 对拍 |
+
+#### ⑬-b 两处**有意的**差异（都写进了代码注释与测试）
+
+1. OkHttp 的 `response.message`（reason phrase）在 `HttpResult` 里没有对应物 →
+   `testConnection` 的失败文案由「服务器返回: `<code> <message>`」变成「服务器返回: `<code>`」。
+2. `SimpleDateFormat` 默认 **lenient**，会把不存在的日期滚过去（2026 非闰年，
+   `20260229` → 3 月 1 日）；本实现**严格**，返回 null → `BackupInfo` 回退显示原始 id。
+   备份 id 只会由 `formatCompactStamp` 从真实日期生成，格式坏只可能是文件被改名，
+   **显示原始 id 比显示一个滚出来的假日期更诚实**。
+
+#### ⑬-c 一个**不做**的决定：`WallpaperTransform` 留在 `:app`
+
+它只依赖 `androidx.compose.ui.geometry.Offset`（61 行纯几何数学）。曾试着搬进 `:core`，
+但 `:core` 没有 Compose 依赖 —— 为 61 行数学把 Compose 拉进数据模块不划算
+（而且 CMP 依赖可能顶掉协程版本，正是「不引入 Ktor」那条决定要防的事）。
+**它的归属是阶段 5 的 `:ui-shared`，不是 `:core`。**
+`ScheduleAppearance` 同理（Bitmap 解码/缩放/压缩 + LruCache），属 UI/媒体层。
+
+`:core:jvmTest` **230 → 241 全绿**。
 
 ### ✅ 已完成批次 · ⑫ `CourseRepository` 下沉 `:core` —— **数据层全部完成**（2026-10-09）
 
