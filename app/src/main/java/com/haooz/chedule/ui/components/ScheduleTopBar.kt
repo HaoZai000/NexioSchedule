@@ -26,11 +26,11 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.zIndex
-import com.haooz.chedule.ui.basic.CollapsibleTopAppBar
-import com.haooz.chedule.ui.basic.CollapsibleTopAppBarDefaults.CollapsedHeight
+import top.yukonga.miuix.kmp.layout.CollapsibleTopAppBar
+import top.yukonga.miuix.kmp.layout.CollapsibleTopAppBarDefaults.CollapsedHeight
 import com.haooz.chedule.ui.basic.LiquidTopBarButton
-import com.haooz.chedule.ui.basic.ProgressiveBlurTopBar
-import com.haooz.chedule.ui.basic.SharedScrollBehavior
+import top.yukonga.miuix.kmp.layout.ProgressiveBlurTopBar
+import top.yukonga.miuix.kmp.layout.SharedScrollBehavior
 import top.yukonga.miuix.kmp.basic.Text
 import top.yukonga.miuix.kmp.icon.MiuixIcons
 import top.yukonga.miuix.kmp.icon.basic.FastForward

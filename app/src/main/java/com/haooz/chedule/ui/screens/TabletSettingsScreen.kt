@@ -83,9 +83,9 @@ import com.haooz.chedule.ui.activities.WidgetIntroScreen
 import com.haooz.chedule.ui.basic.LiquidGlassTextButton
 import com.haooz.chedule.ui.basic.LiquidTopBarButton
 import com.haooz.chedule.ui.components.tabletNavChromeTitleSlot
-import com.haooz.chedule.ui.basic.ProgressiveBlurTopBar
-import com.haooz.chedule.ui.basic.SharedScrollBehavior
-import com.haooz.chedule.ui.basic.rememberSharedScrollBehavior
+import top.yukonga.miuix.kmp.layout.ProgressiveBlurTopBar
+import top.yukonga.miuix.kmp.layout.SharedScrollBehavior
+import top.yukonga.miuix.kmp.layout.rememberSharedScrollBehavior
 import com.haooz.chedule.ui.utils.LocalOverScrollState
 import com.haooz.chedule.ui.utils.OverScrollState
 import com.haooz.chedule.ui.utils.overScrollVertical
@@ -120,6 +120,7 @@ import java.net.HttpURLConnection
 import java.net.URL
 import java.time.LocalDate
 import kotlin.time.Duration.Companion.milliseconds
+import top.yukonga.miuix.kmp.layout.CollapsibleTopAppBarDefaults
 
 /**
  * 平板设置页目的地：原一级 + 原二级入口全部平铺在左栏；
@@ -162,7 +163,7 @@ object TabletSettingsUiState {
 fun TabletSettingsChromeOverlay() {
     val selected = TabletSettingsUiState.selected
     val statusBar = mainWindowTopInset()
-    val collapsedH = com.haooz.chedule.ui.basic.CollapsibleTopAppBarDefaults.CollapsedHeight
+    val collapsedH = top.yukonga.miuix.kmp.layout.CollapsibleTopAppBarDefaults.CollapsedHeight
     val titleColor = MiuixTheme.colorScheme.onSurface
     val density = LocalDensity.current
     val screenWidthDp = LocalConfiguration.current.screenWidthDp
@@ -249,7 +250,7 @@ private val TabletPaneBlurHeight: Dp
 
 /**
  * 本栏顶部表面色遮罩 / 右上角按钮共用的 alpha。
- * 判定与手机 [com.haooz.chedule.ui.basic.CollapsibleTopAppBar] 的 showButtonShadow 完全一致：
+ * 判定与手机 [CollapsibleTopAppBar] 的 showButtonShadow 完全一致：
  * - contentOffset（手机 SharedScrollBehavior 约定，向下滚为负）超过 10dp
  * - 或未滚动时的底部越界（offset < 0）
  * 不吸收顶部橡皮筋；回弹只清越界，不把已滚动量抹掉。
@@ -384,7 +385,7 @@ fun TabletSettingsScreen(
     val paneHorizontal = 20.dp
     // 顶栏折叠标题高度：左右内容都从这条线下方开始，避免被 MainActivity 叠层标题压住
     val chromeTop = mainWindowTopInset() +
-            com.haooz.chedule.ui.basic.CollapsibleTopAppBarDefaults.CollapsedHeight +
+            top.yukonga.miuix.kmp.layout.CollapsibleTopAppBarDefaults.CollapsedHeight +
             12.dp
 
     // 手机端底部按钮画在各 Activity；pad 内嵌 Screen 时需要在右栏叠层补回
@@ -1153,7 +1154,7 @@ private fun TabletSemesterPane(
     shiftViewModel: ShiftViewModel,
     isShiftMode: Boolean,
     liquidGlassBackdrop: com.kyant.backdrop.Backdrop?,
-    scrollBehavior: com.haooz.chedule.ui.basic.SharedScrollBehavior? = null,
+    scrollBehavior: top.yukonga.miuix.kmp.layout.SharedScrollBehavior? = null,
 ) {
     val context = LocalContext.current
     val hapticFeedback = LocalHapticFeedback.current
@@ -1184,7 +1185,7 @@ private fun TabletSemesterPane(
     var tempTotalWeeks by remember { mutableIntStateOf(totalWeeks) }
 
     val chromeTop = mainWindowTopInset() +
-            com.haooz.chedule.ui.basic.CollapsibleTopAppBarDefaults.CollapsedHeight +
+            top.yukonga.miuix.kmp.layout.CollapsibleTopAppBarDefaults.CollapsedHeight +
             12.dp
 
     LazyColumn(

@@ -14,9 +14,14 @@ import androidx.compose.ui.hapticfeedback.HapticFeedback
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalHapticFeedback
+import com.haooz.chedule.ui.utils.AppMaterialSettings
+import com.haooz.chedule.ui.utils.PredictiveBackSettings
+import top.yukonga.miuix.kmp.material.LocalChromeLensEnabled
+import top.yukonga.miuix.kmp.material.LocalUseFakeProgressiveBlur
 import top.yukonga.miuix.kmp.theme.ColorSchemeMode
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 import top.yukonga.miuix.kmp.theme.ThemeController
+import top.yukonga.miuix.kmp.utils.LocalPredictiveBackEnabled
 
 /** 应用触感反馈开关对应的 SharedPreferences 文件与键 */
 const val APP_PREFS_NAME = "app_preferences"
@@ -90,7 +95,16 @@ fun CourseScheduleTheme(
     MiuixTheme(
         controller = controller,
         content = {
-            CompositionLocalProvider(LocalHapticFeedback provides gatedHaptic) {
+            CompositionLocalProvider(
+                LocalHapticFeedback provides gatedHaptic,
+                // :miuix 需要的 App 能力注入点。搬迁前这些组件直接读 AppMaterialSettings /
+                // PredictiveBackSettings / isAppDarkTheme()，构成 :miuix → :app 的反向依赖，
+                // 无法进 commonMain。改为 App 在根部 provide，模块内任何位置都能读到，
+                // 效果与迁移前一致（28 处 ProgressiveBlurTopBar 调用点无需逐个改）。
+                LocalChromeLensEnabled provides AppMaterialSettings.chromeLensEnabled(),
+                LocalUseFakeProgressiveBlur provides AppMaterialSettings.progressiveBlurUseFake(),
+                LocalPredictiveBackEnabled provides PredictiveBackSettings.enabled,
+            ) {
                 content()
             }
         }

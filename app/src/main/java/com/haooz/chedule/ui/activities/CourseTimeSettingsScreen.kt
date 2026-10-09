@@ -40,10 +40,10 @@ import androidx.compose.ui.unit.sp
 import com.haooz.chedule.data.CourseRepository
 import com.haooz.chedule.data.TimeConfig
 import com.haooz.chedule.data.TimeRoutine
-import com.haooz.chedule.ui.basic.CollapsibleTopAppBarDefaults
+import top.yukonga.miuix.kmp.layout.CollapsibleTopAppBarDefaults
 import com.haooz.chedule.ui.basic.OverlayDropdownMenu
-import com.haooz.chedule.ui.basic.SharedScrollBehavior
-import com.haooz.chedule.ui.basic.collapsibleTopInset
+import top.yukonga.miuix.kmp.layout.SharedScrollBehavior
+import top.yukonga.miuix.kmp.layout.collapsibleTopInset
 import com.haooz.chedule.ui.utils.isAppDarkTheme
 import com.haooz.chedule.ui.utils.overScrollVertical
 import com.kyant.capsule.ContinuousRoundedRectangle

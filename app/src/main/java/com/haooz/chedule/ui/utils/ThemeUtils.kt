@@ -16,9 +16,12 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import com.haooz.chedule.data.ScheduleAppearance
 import com.haooz.chedule.data.ThemeMode
+import top.yukonga.miuix.kmp.theme.rememberAppSettingDark as miuixRememberAppSettingDark
 
-// 壁纸强制主题：非 null 时 isAppDarkTheme 直接用该值，今日页/课程表页按壁纸亮暗锁定
-val LocalForcedDarkTheme = staticCompositionLocalOf<Boolean?> { null }
+// 壁纸强制主题：非 null 时 isAppDarkTheme 直接用该值，今日页/课程表页按壁纸亮暗锁定。
+// 已搬进 :miuix 的 theme 包（BlurBottomSheet 在模块内要用它提供 null 阻止渗色），
+// 这里保留一个别名，:app 内 15 处引用无需改动，且与模块内是同一个 CompositionLocal 实例。
+val LocalForcedDarkTheme = top.yukonga.miuix.kmp.theme.LocalForcedDarkTheme
 
 /**
  * 课程表 / 排班页底色（无壁纸时铺满页面的那一层）。
@@ -47,11 +50,11 @@ fun courseCardSolidBacking(isDark: Boolean, hasWallpaper: Boolean): Color? =
  * [isAppDarkTheme] 是 `@Composable`，绘制里调不了，而高光亮度要按主题分流。
  *
  * 由 [isAppDarkTheme] 每次组合后写入。写同值不触发失效，开销可忽略。
+ *
+ * 实例已搬到 backdrop（InteractiveHighlight 在 :miuix 内读它），这里只做别名，
+ * 保证 :app 写入的值就是 :miuix 读到的值。
  */
-object AppThemeSnapshot {
-    /** true = 深色主题 */
-    val isDark = mutableStateOf(false)
-}
+val AppThemeSnapshot = com.kyant.backdrop.AppThemeSnapshot
 
 /**
  * 当前可见主页面背后是否为壁纸，理由同 [AppThemeSnapshot]：draw 阶段读不到页面状态，
@@ -60,10 +63,7 @@ object AppThemeSnapshot {
  * 由 MainActivity 写入。典型用途：浅色模式下高光默认压到 0.05（近白底加白会被截断
  * 成白斑），但今日页 / 课程表页有壁纸时背景不是近白 —— 此时给到 0.1。
  */
-object PageBackdropSnapshot {
-    /** true = 当前可见的主页面背后是壁纸 */
-    val hasWallpaper = mutableStateOf(false)
-}
+val PageBackdropSnapshot = com.kyant.backdrop.PageBackdropSnapshot
 
 /** 当前生效的深浅色；顺带把结果写进 [AppThemeSnapshot] 供 draw 阶段读取 */
 @Composable
@@ -79,30 +79,10 @@ fun isAppDarkTheme(): Boolean {
 }
 
 // 不经过壁纸强制覆盖，只读 theme_mode
+// 实现已搬进 :miuix（theme/AppDarkTheme.android.kt），因为 BlurBottomSheet 在
+// :miuix 内也需要读同一个偏好，构成反向依赖。这里转调，行为与迁移前一致。
 @Composable
-fun rememberAppSettingDark(): Boolean {
-    val context = LocalContext.current
-    val prefs = remember { context.getSharedPreferences("app_theme_prefs", Context.MODE_PRIVATE) }
-    val themeMode = remember { mutableStateOf(prefs.getString("theme_mode", "system") ?: "system") }
-
-    DisposableEffect(prefs) {
-        val listener = SharedPreferences.OnSharedPreferenceChangeListener { _: SharedPreferences, key: String? ->
-            if (key == "theme_mode") {
-                themeMode.value = prefs.getString("theme_mode", "system") ?: "system"
-            }
-        }
-        prefs.registerOnSharedPreferenceChangeListener(listener)
-        onDispose {
-            prefs.unregisterOnSharedPreferenceChangeListener(listener)
-        }
-    }
-
-    return when (themeMode.value) {
-        "dark" -> true
-        "light" -> false
-        else -> isSystemInDarkTheme()
-    }
-}
+fun rememberAppSettingDark(): Boolean = miuixRememberAppSettingDark()
 
 // 仅影响今日页/课程表页，与全局 theme_mode 隔离
 @Composable

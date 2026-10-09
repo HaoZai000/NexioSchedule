@@ -48,10 +48,10 @@ import androidx.core.content.ContextCompat
 import androidx.core.content.edit
 import com.haooz.chedule.R
 import com.haooz.chedule.data.HolidayManager
-import com.haooz.chedule.ui.basic.CollapsibleTopAppBarDefaults
+import top.yukonga.miuix.kmp.layout.CollapsibleTopAppBarDefaults
 import com.haooz.chedule.ui.basic.OverlayDropdownMenu
-import com.haooz.chedule.ui.basic.SharedScrollBehavior
-import com.haooz.chedule.ui.basic.collapsibleTopInset
+import top.yukonga.miuix.kmp.layout.SharedScrollBehavior
+import top.yukonga.miuix.kmp.layout.collapsibleTopInset
 import com.haooz.chedule.ui.screens.ClassEndEffectSettings
 import com.haooz.chedule.ui.screens.invalidateWeatherCache
 import com.haooz.chedule.ui.utils.overScrollVertical

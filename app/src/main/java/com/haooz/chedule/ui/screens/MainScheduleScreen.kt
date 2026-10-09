@@ -90,7 +90,7 @@ import com.haooz.chedule.data.HolidayManager
 import com.haooz.chedule.data.TeachingWeekReorganization
 import com.haooz.chedule.reminder.CourseReminderHelper
 import com.haooz.chedule.ui.basic.LiquidTopBarButton
-import com.haooz.chedule.ui.basic.SharedScrollBehavior
+import top.yukonga.miuix.kmp.layout.SharedScrollBehavior
 import com.haooz.chedule.ui.components.DayColumn
 import com.haooz.chedule.ui.components.SectionColumn
 import com.haooz.chedule.ui.components.SpecialBandClickLayer
@@ -101,8 +101,8 @@ import com.haooz.chedule.ui.components.mergeConsecutiveDays
 import com.haooz.chedule.ui.components.nextSpecialItemIds
 import com.haooz.chedule.ui.components.scheduleSectionColumnWidth
 import com.haooz.chedule.ui.components.scheduleContentTopPadding
-import com.haooz.chedule.ui.effects.edgelight.edgeLight
-import com.haooz.chedule.ui.effects.edgelight.rememberCourseCardEdgeLight
+import com.kyant.backdrop.edgelight.edgeLight
+import com.haooz.chedule.ui.utils.rememberCourseCardEdgeLight
 import com.haooz.chedule.ui.utils.courseCardSolidBacking
 import com.haooz.chedule.ui.utils.isAppDarkTheme
 import com.haooz.chedule.ui.utils.overScrollVertical
