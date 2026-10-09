@@ -69,12 +69,12 @@ class HolidaySettingsActivity : ComponentActivity() {
             val currentDate = remember { todayLocalDate() }
             var year by remember { mutableIntStateOf(currentDate.year) }
             var entries by remember {
-                mutableStateOf(HolidayManager.load(context, year))
+                mutableStateOf(HolidayManager.load(year))
             }
             var loading by remember { mutableStateOf(false) }
 
             fun reload() {
-                entries = HolidayManager.load(context, year)
+                entries = HolidayManager.load(year)
             }
 
             fun requestYear(targetYear: Int) {
@@ -83,16 +83,16 @@ class HolidaySettingsActivity : ComponentActivity() {
                 scope.launch(Dispatchers.IO) {
                     val result = runCatching {
                         val conn = URL(
-                            HolidayManager.sourceUrlFor(context, targetYear)
+                            HolidayManager.sourceUrlFor(targetYear)
                         ).openConnection() as HttpURLConnection
                         conn.connectTimeout = 10_000
                         conn.readTimeout = 10_000
                         val text = conn.inputStream.bufferedReader().use { it.readText() }
                         conn.disconnect()
-                        HolidayManager.parseSourceResponse(context, text)
+                        HolidayManager.parseSourceResponse(text)
                     }.getOrDefault(emptyList())
                     withContext(Dispatchers.Main) {
-                        val merged = HolidayManager.mergeApiEntries(context, targetYear, result)
+                        val merged = HolidayManager.mergeApiEntries(targetYear, result)
                         if (targetYear == year) reload()
                         loading = false
                         if (merged && result.isNotEmpty()) {

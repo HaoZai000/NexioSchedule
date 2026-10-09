@@ -1248,11 +1248,11 @@ fun CourseScheduleApp(privacyConsented: Boolean = true) {
     // 节假日/调休保存不走课程 reload；resume 时对比 HolidayManager 版本，变了才 bump dataVersion
     var seenHolidayVersion by remember {
         mutableLongStateOf(
-            com.haooz.chedule.data.HolidayManager.getVersion(context)
+            com.haooz.chedule.data.HolidayManager.getVersion()
         )
     }
     LaunchedEffect(resumeCount, holidayDataRevision) {
-        val holidayV = com.haooz.chedule.data.HolidayManager.getVersion(context)
+        val holidayV = com.haooz.chedule.data.HolidayManager.getVersion()
         if (holidayV != seenHolidayVersion) {
             seenHolidayVersion = holidayV
             viewModel.bumpDataVersion()
@@ -1742,7 +1742,7 @@ fun CourseScheduleApp(privacyConsented: Boolean = true) {
     }
     // 节假日/调休保存后需能重算跳周；resume 时刷新版本号
     val holidayVersion = remember(resumeCount, holidayDataRevision, context) {
-        com.haooz.chedule.data.HolidayManager.getVersion(context)
+        com.haooz.chedule.data.HolidayManager.getVersion()
     }
 
     val basePage = (currentWeek - 1).coerceIn(0, (totalWeeks - 1).coerceAtLeast(0))

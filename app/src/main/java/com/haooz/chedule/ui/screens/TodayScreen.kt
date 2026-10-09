@@ -577,7 +577,7 @@ fun TodayScreen(
                     holidayDataRevision,
                     countdownNow,
                 ) {
-                    HolidayManager.getVersion(appContext)
+                    HolidayManager.getVersion()
                 }
                 // 与提醒/小部件同口径：假日前移除命中课程，末日仅保留命中课程，调休按映射查课
                 val pageResolution = remember(
@@ -633,7 +633,7 @@ fun TodayScreen(
                     if (!isPageToday) {
                         null
                     } else {
-                        val registeredEntriesByYear = HolidayManager.loadAllByYear(appContext)
+                        val registeredEntriesByYear = HolidayManager.loadAllByYear()
                         val holidayPeriods = HolidayCountdown.holidayPeriodsFromStoredEntries(
                             registeredEntriesByYear
                         )

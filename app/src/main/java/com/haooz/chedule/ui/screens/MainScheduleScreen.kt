@@ -470,7 +470,7 @@ fun MainScheduleScreen(
 
     // 记忆化版本号：假期编辑返回 bump dataVersion 时才重读 SP
     val holidayVersion = remember(scheduleContext, dataVersion, holidayDataRevision) {
-        HolidayManager.getVersion(scheduleContext)
+        HolidayManager.getVersion()
     }
     val holidayEntriesByYear = remember(
         scheduleContext,
@@ -478,7 +478,7 @@ fun MainScheduleScreen(
         holidayDataRevision,
         holidayVersion,
     ) {
-        HolidayManager.loadAllByYear(scheduleContext)
+        HolidayManager.loadAllByYear()
     }
     val holidayEntriesByDate = remember(
         holidayEntriesByYear,
@@ -492,10 +492,10 @@ fun MainScheduleScreen(
         )
     }
     val holidayEndCourseExclusion = remember(scheduleContext, holidayVersion) {
-        HolidayManager.loadEndCourseExclusion(scheduleContext)
+        HolidayManager.loadEndCourseExclusion()
     }
     val holidayBeforeCourseExclusion = remember(scheduleContext, holidayVersion) {
-        HolidayManager.loadBeforeCourseExclusion(scheduleContext)
+        HolidayManager.loadBeforeCourseExclusion()
     }
 
     // 日期索引复用提醒解析的同日/同类型优先级，并且只查询当前学期可见日期

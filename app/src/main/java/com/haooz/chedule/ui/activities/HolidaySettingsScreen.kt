@@ -165,10 +165,10 @@ fun HolidaySettingsScreen(
         repository.getAfternoonSections(currentScheduleId) +
         repository.getEveningSections(currentScheduleId)
     val endCourseExclusion = remember(context, holidayDataRevision) {
-        HolidayManager.loadEndCourseExclusion(context)
+        HolidayManager.loadEndCourseExclusion()
     }
     val beforeCourseExclusion = remember(context, holidayDataRevision) {
-        HolidayManager.loadBeforeCourseExclusion(context)
+        HolidayManager.loadBeforeCourseExclusion()
     }
     var showSectionRangeDialog by remember { mutableStateOf(false) }
     var editingBeforeCourseExclusion by remember { mutableStateOf(false) }
@@ -371,7 +371,7 @@ fun HolidaySettingsScreen(
         // 调休日还没配映射时，按「补班日倒序、从假期最后一个工作日往前拿」预填一个建议值。
         // 只填进弹窗不落库：用户点保存才生效，没配过的条目库里保持 -1（不会擅自改课表）。
         val suggestion = if (entry.type == HolidayManager.TYPE_WORKSWAP) {
-            HolidayManager.suggestWorkSwapFollowTargets(context, entries)
+            HolidayManager.suggestWorkSwapFollowTargets(entries)
                 .firstOrNull { it.date == entry.date && it.type == HolidayManager.TYPE_WORKSWAP }
                 ?.takeIf { it.followLocalDate() != null }
         } else null
@@ -437,7 +437,7 @@ fun HolidaySettingsScreen(
             followDate = followDateValue?.toString() ?: "",
             custom = true,
         )
-        val saved = HolidayManager.updateEntries(context, affectedYears) { current ->
+        val saved = HolidayManager.updateEntries(affectedYears) { current ->
             val updated = current.mapValues { it.value.toMutableList() }.toMutableMap()
             editingEntry?.let { old ->
                 updated[oldYear!!] = HolidayManager.withoutEntry(updated.getValue(oldYear), old)
@@ -464,7 +464,7 @@ fun HolidaySettingsScreen(
     fun deleteEntry() {
         val deleted = editingEntry?.let { old ->
             val oldYear = editingEntryStorageYear
-            HolidayManager.updateEntries(context, setOf(oldYear)) { current ->
+            HolidayManager.updateEntries(setOf(oldYear)) { current ->
                 val retained = HolidayManager.withoutEntry(current.getValue(oldYear), old)
                 current + (oldYear to retained)
             }
@@ -669,7 +669,7 @@ fun HolidaySettingsScreen(
                         checked = beforeCourseExclusion.enabled,
                         onCheckedChange = { enabled ->
                             val updated = beforeCourseExclusion.copy(enabled = enabled)
-                            if (HolidayManager.saveBeforeCourseExclusion(context, updated)) {
+                            if (HolidayManager.saveBeforeCourseExclusion(updated)) {
                                 CourseReminderHelper.onHolidayDataChanged(context)
                             }
                         },
@@ -703,7 +703,7 @@ fun HolidaySettingsScreen(
                         checked = endCourseExclusion.enabled,
                         onCheckedChange = { enabled ->
                             val updated = endCourseExclusion.copy(enabled = enabled)
-                            if (HolidayManager.saveEndCourseExclusion(context, updated)) {
+                            if (HolidayManager.saveEndCourseExclusion(updated)) {
                                 CourseReminderHelper.onHolidayDataChanged(context)
                             }
                         },
@@ -828,7 +828,6 @@ fun HolidaySettingsScreen(
                 pendingEndSection in pendingStartSection..configuredSectionCount
             val saved = rangeFitsCurrentSchedule && if (editingBeforeCourseExclusion) {
                 HolidayManager.saveBeforeCourseExclusion(
-                    context,
                     beforeCourseExclusion.copy(
                         startSection = pendingStartSection,
                         endSection = pendingEndSection,
@@ -836,7 +835,6 @@ fun HolidaySettingsScreen(
                 )
             } else {
                 HolidayManager.saveEndCourseExclusion(
-                    context,
                     endCourseExclusion.copy(
                         startSection = pendingStartSection,
                         endSection = pendingEndSection,

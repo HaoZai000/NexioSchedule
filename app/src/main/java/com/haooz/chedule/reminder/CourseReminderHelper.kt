@@ -1080,7 +1080,7 @@ object CourseReminderHelper {
         holidayEntriesByYear: Map<Int, List<HolidayEntry>>?,
     ): DayScheduleResolution {
         val calendarDay = date.dayOfWeek.isoDayNumber
-        val entriesByYear = holidayEntriesByYear ?: HolidayManager.loadAllByYear(context)
+        val entriesByYear = holidayEntriesByYear ?: HolidayManager.loadAllByYear()
         val holidayEntries = HolidayManager.entriesForDate(entriesByYear, date)
         val targetEntry = holidayEntries.firstOrNull { it.type == HolidayManager.TYPE_WORKSWAP }
         val datePosition = repository.teachingWeekPositionForDate(date)
@@ -1092,8 +1092,8 @@ object CourseReminderHelper {
         // 未配置调休覆盖时，用教学周映射相对今天的偏移，并避免今日调休跟随周次污染。
         val displayWeek = follow?.week
             ?: alignedStoredWeekForDate(repository, date)
-        val exclusion = HolidayManager.loadEndCourseExclusion(context)
-        val beforeExclusion = HolidayManager.loadBeforeCourseExclusion(context)
+        val exclusion = HolidayManager.loadEndCourseExclusion()
+        val beforeExclusion = HolidayManager.loadBeforeCourseExclusion()
         return resolveDaySchedule(
             date = date,
             entriesByYear = entriesByYear,

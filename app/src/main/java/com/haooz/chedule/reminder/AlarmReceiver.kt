@@ -138,7 +138,7 @@ class AlarmReceiver : BroadcastReceiver() {
             CourseReminderHelper.TYPE_NEXT_DAY -> {
                 val today = todayLocalDate()
                 val tomorrow = today.plusDays(1)
-                val entriesByYear = HolidayManager.loadAllByYear(context)
+                val entriesByYear = HolidayManager.loadAllByYear()
                 // 只加载一次假期数据，课程解析与假期判定共用，避免重复读 prefs 且口径不一致
                 val resolution = CourseReminderHelper.resolveDaySchedule(
                     context, tomorrow, repository, entriesByYear

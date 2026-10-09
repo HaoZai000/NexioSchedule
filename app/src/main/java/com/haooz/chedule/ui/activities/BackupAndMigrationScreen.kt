@@ -1136,10 +1136,10 @@ private fun buildExportIcs(
     val sectionTimes = repository.getSectionTimes(scheduleName)
     val semesterStartDate = LocalDate.parse(repository.getClassStartTime(scheduleName).replace('/', '-'))
     val rules = repository.getTeachingWeekReorganizations(scheduleName)
-    val holidayEntries = HolidayManager.loadAllByYear(viewModel.getApplication<android.app.Application>())
-    val holidayExclusion = HolidayManager.loadEndCourseExclusion(viewModel.getApplication<android.app.Application>())
+    val holidayEntries = HolidayManager.loadAllByYear()
+    val holidayExclusion = HolidayManager.loadEndCourseExclusion()
     val holidayBeforeExclusion =
-        HolidayManager.loadBeforeCourseExclusion(viewModel.getApplication<android.app.Application>())
+        HolidayManager.loadBeforeCourseExclusion()
     val sectionCount = repository.getMorningSections(scheduleName) +
         repository.getAfternoonSections(scheduleName) + repository.getEveningSections(scheduleName)
     val lastWeekWithCourses = courses.maxOfOrNull {

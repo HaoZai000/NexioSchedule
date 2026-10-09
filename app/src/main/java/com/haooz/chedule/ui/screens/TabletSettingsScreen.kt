@@ -1597,7 +1597,7 @@ private fun TabletHolidayPane(
     val scope = rememberCoroutineScope()
     val currentDate = remember { todayLocalDate() }
     var year by remember { mutableIntStateOf(currentDate.year) }
-    var entries by remember { mutableStateOf(HolidayManager.load(context, year)) }
+    var entries by remember { mutableStateOf(HolidayManager.load(year)) }
     var loading by remember { mutableStateOf(false) }
     val latestYear by rememberUpdatedState(year)
 
@@ -1608,17 +1608,17 @@ private fun TabletHolidayPane(
                 val targetYear = latestYear
                 val result = runCatching {
                     val conn = URL(
-                        HolidayManager.sourceUrlFor(context, targetYear)
+                        HolidayManager.sourceUrlFor(targetYear)
                     ).openConnection() as HttpURLConnection
                     conn.connectTimeout = 10_000
                     conn.readTimeout = 10_000
                     val text = conn.inputStream.bufferedReader().use { it.readText() }
                     conn.disconnect()
-                    HolidayManager.parseSourceResponse(context, text)
+                    HolidayManager.parseSourceResponse(text)
                 }.getOrDefault(emptyList())
                 withContext(Dispatchers.Main) {
-                    val merged = HolidayManager.mergeApiEntries(context, targetYear, result)
-                    entries = HolidayManager.load(context, latestYear)
+                    val merged = HolidayManager.mergeApiEntries(targetYear, result)
+                    entries = HolidayManager.load(latestYear)
                     loading = false
                     if (merged && result.isNotEmpty()) {
                         // API 合并同样要重排提醒并刷小部件，不能只改本地 SP
@@ -1648,9 +1648,9 @@ private fun TabletHolidayPane(
         entries = entries,
         onYearChange = { y ->
             year = y
-            entries = HolidayManager.load(context, y)
+            entries = HolidayManager.load(y)
         },
-        reload = { entries = HolidayManager.load(context, year) },
+        reload = { entries = HolidayManager.load(year) },
         onTeachingWeekReorganizationsChanged = onTeachingWeekReorganizationsChanged,
     )
 }

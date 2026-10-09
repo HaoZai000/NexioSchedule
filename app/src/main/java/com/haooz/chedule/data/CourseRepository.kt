@@ -998,7 +998,7 @@ class CourseRepository private constructor(context: Context) : PeriodTimeSource 
     private fun workSwapEntryOnDay(dayOfWeek: Int, week: Int): HolidayEntry? {
         if (dayOfWeek !in 1..7) return null
         val date = runCatching { dateForTeachingWeekDay(week, dayOfWeek) }.getOrNull() ?: return null
-        return HolidayManager.workSwap(appContext, date)
+        return HolidayManager.workSwap(date)
     }
 
     fun getShowNonCurrentWeek(): Boolean {
@@ -2324,7 +2324,7 @@ class CourseRepository private constructor(context: Context) : PeriodTimeSource 
             result[KEY_CURRENT_SCHEDULE_ID] = getCurrentScheduleId()
         }
         ensureEmptyScheduleCourseEntries(result, getScheduleNames())
-        result.putAll(HolidayManager.exportBackupData(appContext))
+        result.putAll(HolidayManager.exportBackupData())
         // 文件夹用清洗后的结果导出：历史坏数据里的幽灵课表名不应进备份
         result[KEY_SCHEDULE_FOLDERS] = gson.toJson(getScheduleFolders())
         return result
@@ -2397,7 +2397,7 @@ class CourseRepository private constructor(context: Context) : PeriodTimeSource 
                 }
             }
         }
-        HolidayManager.restoreBackupData(appContext, holidayBackup)
+        HolidayManager.restoreBackupData(holidayBackup)
         invalidateAllCaches()
         if (!preserveFolderMembership) migrateSchedulesIntoDefaultFolder()
         dispatchCourseChanged("restore", "")

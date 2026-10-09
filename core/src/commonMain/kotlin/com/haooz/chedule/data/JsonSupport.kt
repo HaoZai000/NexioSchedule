@@ -42,10 +42,13 @@ private val json = Json {
     isLenient = true
 }
 
-/** 解析 JSON 文本为对象。格式非法时抛 [kotlinx.serialization.SerializationException]（对应 org.json 的 JSONException）。 */
+/** 解析 JSON 文本为任意元素。格式非法时抛 [kotlinx.serialization.SerializationException]（对应 Gson 的 JsonSyntaxException / org.json 的 JSONException）。 */
+fun parseJsonElement(text: String): JsonElement = json.parseToJsonElement(text)
+
+/** 解析 JSON 文本为对象。格式非法或顶层不是对象时抛异常。 */
 fun parseJsonObject(text: String): JsonObject = json.parseToJsonElement(text).jsonObject
 
-/** 解析 JSON 文本为数组。 */
+/** 解析 JSON 文本为数组。格式非法或顶层不是数组时抛异常。 */
 fun parseJsonArray(text: String): JsonArray = json.parseToJsonElement(text).jsonArray
 
 /** 由键值对构造对象（对应 `JSONObject().apply { put(k, v) }`）。 */
@@ -95,6 +98,24 @@ private fun JsonElement.toOrgJsonText(): String =
  */
 private fun String.toOrgJsonInt(): Int? = toDoubleOrNull()?.takeIf { !it.isNaN() }?.toInt()
 private fun String.toOrgJsonLong(): Long? = toDoubleOrNull()?.takeIf { !it.isNaN() }?.toLong()
+
+// ---- 「原始值」读取：给 `opt(key) as? X` 风格的代码用 ----
+
+/**
+ * 对应 org.json 的 **`opt(key)`** —— 返回「原始值」而不是强制转成某种类型。
+ *
+ * 返回形状与 Gson 的 `ObjectTypeAdapter` 一致（见 [jsonToPlainValue]）：
+ * 字符串 → `String`、数字 → `Double`、布尔 → `Boolean`、对象 → `Map`、数组 → `List`、
+ * null / 缺键 → `null`。
+ *
+ * 这样 `item.opt("date") as? String`、`isStoredInteger(item.opt("type"))` 这类
+ * 判断可以**逐字保留**，不用改写成 `optString` / `optInt`（那两个会做强制转换，
+ * 语义不同 —— 例如 `optString` 会把数字 `1` 转成 `"1"`）。
+ */
+fun JsonObject.optRaw(key: String): Any? = jsonToPlainValue(this[key])
+
+/** 对应 org.json 的 `optJSONObject(index)` 的「原始值」版本。 */
+fun JsonArray.optRaw(index: Int): Any? = jsonToPlainValue(getOrNull(index))
 
 // ---- JsonObject 读取（对应 org.json 的 optXxx / isNull）----
 

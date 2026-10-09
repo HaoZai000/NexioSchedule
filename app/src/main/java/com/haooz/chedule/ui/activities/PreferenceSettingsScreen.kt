@@ -87,7 +87,7 @@ fun PreferenceSettingsScreen(
         )
     }
 
-    var holidaySource by remember { mutableStateOf(HolidayManager.holidaySource(context)) }
+    var holidaySource by remember { mutableStateOf(HolidayManager.holidaySource()) }
 
     val weatherPrefs = remember { context.getSharedPreferences("weather_prefs", Context.MODE_PRIVATE) }
     var weatherSource by remember { mutableStateOf(weatherPrefs.getString("weather_source", "caiyun") ?: "caiyun") }
@@ -488,7 +488,7 @@ fun PreferenceSettingsScreen(
                                         selected = holidaySource == HolidayManager.SOURCE_HOLIDAY_CALENDAR,
                                         onClick = {
                                             holidaySource = HolidayManager.SOURCE_HOLIDAY_CALENDAR
-                                            HolidayManager.setHolidaySource(context, holidaySource)
+                                            HolidayManager.setHolidaySource(holidaySource)
                                         }
                                     ),
                                     DropdownItem(
@@ -496,7 +496,7 @@ fun PreferenceSettingsScreen(
                                         selected = holidaySource == HolidayManager.SOURCE_APIHUBS,
                                         onClick = {
                                             holidaySource = HolidayManager.SOURCE_APIHUBS
-                                            HolidayManager.setHolidaySource(context, holidaySource)
+                                            HolidayManager.setHolidaySource(holidaySource)
                                         }
                                     ),
                                 )

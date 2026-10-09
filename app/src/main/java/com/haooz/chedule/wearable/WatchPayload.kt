@@ -104,12 +104,16 @@ object WatchPayload {
             .toString()
     }
 
-    /** HolidayEntry → 手表 holidays 数组（字段与 Entry.toJson 一致） */
+    /** HolidayEntry → 手表 holidays 数组（字段与 HolidayEntry.toJson 一致） */
     private fun buildHolidaysJson(context: Context): JSONArray {
         val arr = JSONArray()
-        val entries = HolidayManager.loadAllByYear(context).values.flatten()
+        val entries = HolidayManager.loadAllByYear().values.flatten()
         for (entry in entries) {
-            arr.put(entry.toJson())
+            // ⚠ 必须包一层 JSONObject(...)：entry.toJson() 现在返回 kotlinx 的 JsonObject
+            // （不是 org.json 的类型），直接 put 进去会被 org.json 当成未知对象转成
+            // 一个**带引号的字符串**，手表侧就解析不出结构了。转成 JSON 文本再解析回来
+            // 得到的还是同一个对象，载荷逐字不变。
+            arr.put(JSONObject(entry.toJson().toString()))
         }
         return arr
     }

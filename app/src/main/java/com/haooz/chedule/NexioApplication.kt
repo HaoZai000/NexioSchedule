@@ -57,7 +57,14 @@ class NexioApplication : Application() {
         // 调休映射迁移：旧版存「第几周+星期几」，周次相对课表，换课表就错位。
         // 一次性换算成绝对日期（followDate），之后按当前课表实时折算。走后台线程避免拖慢冷启动。
         Thread {
-            runCatching { com.haooz.chedule.data.HolidayManager.migrateLegacyFollowDates(this) }
+            // 日期解析由这里注入：:core 不能反向依赖还在 :app 的 CourseRepository。
+            // 仓储构造不出来时**整段跳过**（连迁移标记都不写），与原实现一致。
+            runCatching {
+                val repository = com.haooz.chedule.data.CourseRepository(this)
+                com.haooz.chedule.data.HolidayManager.migrateLegacyFollowDates { week, weekday ->
+                    runCatching { repository.dateForTeachingWeekDay(week, weekday) }.getOrNull()
+                }
+            }
         }.start()
     }
 

@@ -105,14 +105,14 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
     }
 
     private fun isBeforeHolidayExclusionActive(date: LocalDate): Boolean {
-        val exclusion = HolidayManager.loadBeforeCourseExclusion(getApplication<Application>())
+        val exclusion = HolidayManager.loadBeforeCourseExclusion()
         // 短路：isEnabledBeforeHolidayDate 的第一个判断就是 enabled，但 Kotlin 实参是急切
         // 求值的，不挡这一下就会让「没开启该功能」的用户每次都白跑 loadAllByYear
         // （SharedPreferences 全量解析 + 逐年 Gson 反序列化）。本方法是主线程
         // remember 里的课表/今日/排班周末判定链路上的一环，节次时间一改就会重跑。
         if (!exclusion.enabled || !exclusion.isValid()) return false
         return HolidayCourseExclusion.isEnabledBeforeHolidayDate(
-            HolidayManager.loadAllByYear(getApplication()),
+            HolidayManager.loadAllByYear(),
             date,
             exclusion,
         )
