@@ -1,5 +1,7 @@
 package com.haooz.chedule.reminder
 
+import com.haooz.chedule.data.HolidayEntry
+
 import com.haooz.chedule.data.localDateTimeAt
 
 import com.haooz.chedule.data.minusDays
@@ -1042,7 +1044,7 @@ object CourseReminderHelper {
 
     internal fun canResolveCourseCandidates(
         datePosition: TeachingWeekPosition,
-        workSwapEntry: HolidayManager.Entry?,
+        workSwapEntry: HolidayEntry?,
         displayWeek: Int,
         totalWeeks: Int,
         lastWeekWithCourses: Int,
@@ -1075,7 +1077,7 @@ object CourseReminderHelper {
         context: Context,
         date: LocalDate,
         repository: CourseRepository,
-        holidayEntriesByYear: Map<Int, List<HolidayManager.Entry>>?,
+        holidayEntriesByYear: Map<Int, List<HolidayEntry>>?,
     ): DayScheduleResolution {
         val calendarDay = date.dayOfWeek.isoDayNumber
         val entriesByYear = holidayEntriesByYear ?: HolidayManager.loadAllByYear(context)
@@ -1129,7 +1131,7 @@ object CourseReminderHelper {
 
     internal fun resolveDaySchedule(
         date: LocalDate,
-        entriesByYear: Map<Int, List<HolidayManager.Entry>>,
+        entriesByYear: Map<Int, List<HolidayEntry>>,
         exclusion: HolidayEndCourseExclusion,
         displayDayOfWeek: Int,
         displayWeek: Int,

@@ -1,5 +1,8 @@
 package com.haooz.chedule.wearable
 
+import com.haooz.chedule.data.HolidayEntry
+import com.haooz.chedule.data.toJson
+
 import android.content.Context
 import com.haooz.chedule.data.CourseRepository
 import com.haooz.chedule.data.HolidayManager
@@ -19,7 +22,7 @@ import com.haooz.chedule.data.NexioLog
  * - courses：整学期全部课程，不过滤周次；dayOfWeek 1=周一…7=周日；
  *   startWeek/endWeek 为原始值（0=未设置），weekType 0全周/1单周/2双周，
  *   selectedWeeks 非空时优先于上面三者
- * - holidays：HolidayManager.Entry[]，缺失则手表无法显示调休日
+ * - holidays：HolidayEntry[]，缺失则手表无法显示调休日
  *
  * 手表端周次 = floorDiv(开学日到当天天数 + (开学日星期-1), 7) + 1，再用 current_week
  * 校准偏移（±2 内吸收）；周次过滤与 Course.isActiveInWeek 严格一致。
@@ -101,7 +104,7 @@ object WatchPayload {
             .toString()
     }
 
-    /** HolidayManager.Entry → 手表 holidays 数组（字段与 Entry.toJson 一致） */
+    /** HolidayEntry → 手表 holidays 数组（字段与 Entry.toJson 一致） */
     private fun buildHolidaysJson(context: Context): JSONArray {
         val arr = JSONArray()
         val entries = HolidayManager.loadAllByYear(context).values.flatten()

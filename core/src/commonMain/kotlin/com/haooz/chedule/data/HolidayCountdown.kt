@@ -15,7 +15,7 @@ import kotlinx.datetime.LocalTime
 /** Pure date/time rules for the holiday countdown shown on the Today page. */
 object HolidayCountdown {
     fun millisUntilNextMinute(epochMillis: Long): Long =
-        60_000L - Math.floorMod(epochMillis, 60_000L)
+        60_000L - epochMillis.mod(60_000L)
 
     data class HolidayPeriod(
         val startDate: LocalDate,
@@ -23,10 +23,10 @@ object HolidayCountdown {
     )
 
     fun holidayPeriodsFromStoredEntries(
-        entriesByYear: Map<Int, List<HolidayManager.Entry>>,
+        entriesByYear: Map<Int, List<HolidayEntry>>,
     ): List<HolidayPeriod> = entriesByYear.flatMap { (storageYear, entries) ->
         entries.asSequence()
-            .filter { it.type == HolidayManager.TYPE_HOLIDAY }
+            .filter { it.type == HolidayEntry.TYPE_HOLIDAY }
             .mapNotNull { entry ->
                 val start = runCatching { LocalDate.parse(entry.date) }.getOrNull()
                     ?: return@mapNotNull null
@@ -190,14 +190,14 @@ object HolidayCountdown {
      * 提醒文案必须跟随这里，否则会出现「今日页显示放假 8 天、明日提醒却说 1 天」的分裂。
      */
     fun holidayBlockAt(
-        entriesByYear: Map<Int, List<HolidayManager.Entry>>,
+        entriesByYear: Map<Int, List<HolidayEntry>>,
         date: LocalDate,
     ): HolidayBlock? {
         val period = mergeHolidayPeriods(holidayPeriodsFromStoredEntries(entriesByYear))
             .firstOrNull { date >= it.startDate && date <= it.endDate }
             ?: return null
-        val name = HolidayManager.entriesForDate(entriesByYear, period.startDate)
-            .firstOrNull { it.type == HolidayManager.TYPE_HOLIDAY }?.name.orEmpty()
+        val name = HolidayEntries.entriesForDate(entriesByYear, period.startDate)
+            .firstOrNull { it.type == HolidayEntry.TYPE_HOLIDAY }?.name.orEmpty()
         return HolidayBlock(name = name, startDate = period.startDate, endDate = period.endDate)
     }
 

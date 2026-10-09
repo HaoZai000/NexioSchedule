@@ -1,6 +1,8 @@
 /** 备份与迁移页面 - Screen */
 package com.haooz.chedule.ui.activities
 
+import com.haooz.chedule.data.HolidayEntry
+
 import android.annotation.SuppressLint
 import android.content.Intent
 import android.widget.Toast
@@ -1070,7 +1072,7 @@ internal fun icsEffectiveDatesForCourse(
     course: Course,
     semesterStartDate: LocalDate,
     rules: List<TeachingWeekReorganizationRule>,
-    entriesByYear: Map<Int, List<HolidayManager.Entry>>,
+    entriesByYear: Map<Int, List<HolidayEntry>>,
     exclusion: HolidayEndCourseExclusion,
     sectionTimes: Map<Int, String>,
     sectionCount: Int,

@@ -1,5 +1,7 @@
 package com.haooz.chedule.ui.screens
 
+import com.haooz.chedule.data.HolidayEntry
+
 import com.haooz.chedule.data.minusDays
 import com.haooz.chedule.data.nowLocalTime
 import com.haooz.chedule.data.plusDays
@@ -455,7 +457,7 @@ fun MainScheduleScreen(
      * 库存的是**绝对日期**，这里按当前课表的学期开始时间现算，所以切换课表后
      * 同一天会算出不同周次，调休列自动改跟随那一周的课（旧版存周次本身，换课表就整体错位）。
      */
-    val followPositionFor: (HolidayManager.Entry) -> Pair<Int, Int>? = remember(
+    val followPositionFor: (HolidayEntry) -> Pair<Int, Int>? = remember(
         semesterStartDate,
         teachingWeekReorganizations,
         currentScheduleId,
@@ -497,12 +499,12 @@ fun MainScheduleScreen(
     }
 
     // 日期索引复用提醒解析的同日/同类型优先级，并且只查询当前学期可见日期
-    val holidayIndex: Map<String, HolidayManager.Entry> = remember(holidayEntriesByDate) {
+    val holidayIndex: Map<String, HolidayEntry> = remember(holidayEntriesByDate) {
         holidayEntriesByDate.mapNotNull { (date, entries) ->
             entries.firstOrNull { it.type == HolidayManager.TYPE_HOLIDAY }?.let { date to it }
         }.toMap()
     }
-    val workswapIndex: Map<String, HolidayManager.Entry> = remember(holidayEntriesByDate) {
+    val workswapIndex: Map<String, HolidayEntry> = remember(holidayEntriesByDate) {
         holidayEntriesByDate.mapNotNull { (date, entries) ->
             entries.firstOrNull { it.type == HolidayManager.TYPE_WORKSWAP }?.let { date to it }
         }.toMap()

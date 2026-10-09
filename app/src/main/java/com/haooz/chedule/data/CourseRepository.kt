@@ -960,7 +960,7 @@ class CourseRepository private constructor(context: Context) : PeriodTimeSource 
      * @return null = 这条调休还没配跟随日期
      */
     fun resolveWorkSwapFollow(
-        swap: HolidayManager.Entry,
+        swap: HolidayEntry,
         scheduleId: String = getCurrentScheduleId(),
     ): WorkSwapFollow? {
         val date = swap.followLocalDate()
@@ -995,7 +995,7 @@ class CourseRepository private constructor(context: Context) : PeriodTimeSource 
         }
     }
 
-    private fun workSwapEntryOnDay(dayOfWeek: Int, week: Int): HolidayManager.Entry? {
+    private fun workSwapEntryOnDay(dayOfWeek: Int, week: Int): HolidayEntry? {
         if (dayOfWeek !in 1..7) return null
         val date = runCatching { dateForTeachingWeekDay(week, dayOfWeek) }.getOrNull() ?: return null
         return HolidayManager.workSwap(appContext, date)

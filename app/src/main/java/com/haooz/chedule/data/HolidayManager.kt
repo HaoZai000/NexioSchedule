@@ -51,8 +51,9 @@ object HolidayManager {
     private const val KEY_FOLLOW_DATE_MIGRATED = "follow_date_migrated"
     private val _dataRevision = MutableStateFlow(0L)
     val dataRevision = _dataRevision.asStateFlow()
-    const val TYPE_HOLIDAY = 0
-    const val TYPE_WORKSWAP = 1
+    // 条目类型常量转发到 :core 的 HolidayEntry，调用点 `HolidayManager.TYPE_HOLIDAY` 保持可用
+    const val TYPE_HOLIDAY = HolidayEntry.TYPE_HOLIDAY
+    const val TYPE_WORKSWAP = HolidayEntry.TYPE_WORKSWAP
 
     data class BackupData(
         val entries: Map<String, String>,
@@ -60,54 +61,14 @@ object HolidayManager {
         val beforeExclusion: HolidayBeforeCourseExclusion = HolidayBeforeCourseExclusion(),
     )
 
-    data class Entry(
-        val date: String,
-        val endDate: String = "",
-        val name: String,
-        val type: Int,
-        /**
-         * 调休「上哪一天的课」的**绝对日期**（yyyy-MM-dd，空 = 未配置）。
-         *
-         * ⚠ 这是唯一可信来源。周次是相对「课表学期开始时间」算出来的，同一对 (周次,星期)
-         * 在不同课表下指向完全不同的日期 —— 早先存 followWeek/followWeekday 导致一切换课表
-         * 调休列就跟错课。现在存绝对日期，读取时按**当前课表**实时换算，换课表自动跟随。
-         */
-        val followDate: String = "",
-        /** 旧数据兼容：仅用于迁移/老备份还原，读取一律走 [followDate] */
-        val followWeek: Int = -1,
-        /** 旧数据兼容：仅用于迁移/老备份还原，读取一律走 [followDate] */
-        val followWeekday: Int = -1,
-        val custom: Boolean = false,
-    ) {
-        fun matches(target: String): Boolean {
-            val targetDate = runCatching { LocalDate.parse(target) }.getOrNull() ?: return false
-            val startDate = runCatching { LocalDate.parse(date) }.getOrNull() ?: return false
-            val lastDate = if (endDate.isBlank()) {
-                startDate
-            } else {
-                runCatching { LocalDate.parse(endDate) }.getOrNull() ?: return false
-            }
-            return targetDate >= startDate && targetDate <= lastDate
-        }
-
-        /** 调休跟随的绝对日期；未配置/格式坏 → null */
-        fun followLocalDate(): LocalDate? =
-            followDate.takeIf { it.isNotBlank() }
-                ?.let { runCatching { LocalDate.parse(it) }.getOrNull() }
-
-        /** 是否已配好跟随日期（老数据用 followWeek/followWeekday 也暂时算已配，等迁移） */
-        fun hasFollowMapping(): Boolean =
-            followLocalDate() != null || (followWeek > 0 && followWeekday in 1..7)
-
-        fun toJson() = JSONObject().apply {
-            put("date", date); put("endDate", endDate); put("name", name); put("type", type)
-            put("followDate", followDate)
-            put("followWeek", followWeek); put("followWeekday", followWeekday); put("custom", custom)
-        }
-    }
+    /** 纯查询转发到 :core 的 [HolidayEntries]（原实现整体下沉，行为逐字未变）。 */
+    fun entriesForDate(
+        entriesByYear: Map<Int, List<HolidayEntry>>,
+        date: LocalDate,
+    ): List<HolidayEntry> = HolidayEntries.entriesForDate(entriesByYear, date)
 
     @Synchronized
-    fun load(context: Context, year: Int): List<Entry> {
+    fun load(context: Context, year: Int): List<HolidayEntry> {
         val raw = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
             .getString("$KEY_PREFIX$year", null) ?: return emptyList()
         val array = runCatching { JSONArray(raw) }.getOrNull() ?: return emptyList()
@@ -116,7 +77,7 @@ object HolidayManager {
         }
     }
 
-    internal fun readEntriesSafely(size: Int, readEntry: (Int) -> Entry): List<Entry> =
+    internal fun readEntriesSafely(size: Int, readEntry: (Int) -> HolidayEntry): List<HolidayEntry> =
         buildList {
             repeat(size) { index ->
                 runCatching { readEntry(index) }
@@ -128,7 +89,7 @@ object HolidayManager {
 
     /** Loads all years with saved holiday entries, retaining the storage year for schedule lookup. */
     @Synchronized
-    fun loadAllByYear(context: Context): Map<Int, List<Entry>> {
+    fun loadAllByYear(context: Context): Map<Int, List<HolidayEntry>> {
         val preferences = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
         val years = storedEntryYears(preferences.all.keys)
         return years.associateWith { load(context, it) }
@@ -376,29 +337,11 @@ object HolidayManager {
         return year.takeIf { it.toString() == value }
     }
 
-    fun entriesForDate(entriesByYear: Map<Int, List<Entry>>, date: LocalDate): List<Entry> {
-        val storageYearPriority = buildList {
-            add(date.year)
-            add(date.year - 1)
-            addAll(entriesByYear.keys.filter { it < date.year - 1 }.sortedDescending())
-        }.distinct()
-
-        val yearRank = storageYearPriority.withIndex().associate { it.value to it.index }
-        return storageYearPriority.flatMap { year ->
-            entriesByYear[year].orEmpty()
-                .filter { it.matches(date.toString()) }
-                .map { year to it }
-        }.sortedWith(
-            compareByDescending<Pair<Int, Entry>> { it.second.custom }
-                .thenBy { yearRank.getValue(it.first) }
-        ).map { it.second }
-    }
-
     fun entriesOverlapping(
-        entriesByYear: Map<Int, List<Entry>>,
+        entriesByYear: Map<Int, List<HolidayEntry>>,
         firstDate: LocalDate,
         lastDate: LocalDate,
-    ): List<Entry> {
+    ): List<HolidayEntry> {
         if (lastDate < firstDate) return emptyList()
         return entriesByYear.toSortedMap().flatMap { (year, entries) ->
             entries.filter { entry ->
@@ -413,16 +356,16 @@ object HolidayManager {
                 endDate >= firstDate && startDate <= lastDate
             }.map { year to it }
         }.sortedWith(
-            compareBy<Pair<Int, Entry>> { it.second.custom }
+            compareBy<Pair<Int, HolidayEntry>> { it.second.custom }
                 .thenBy { it.first }
         ).map { it.second }
     }
 
     fun entriesByDateRange(
-        entriesByYear: Map<Int, List<Entry>>,
+        entriesByYear: Map<Int, List<HolidayEntry>>,
         firstDate: LocalDate,
         lastDate: LocalDate,
-    ): Map<String, List<Entry>> {
+    ): Map<String, List<HolidayEntry>> {
         if (lastDate < firstDate) return emptyMap()
         return buildMap {
             var date = firstDate
@@ -436,12 +379,12 @@ object HolidayManager {
         }
     }
 
-    fun withoutCustomWorkSwapsOnDate(entries: List<Entry>, date: String): List<Entry> =
+    fun withoutCustomWorkSwapsOnDate(entries: List<HolidayEntry>, date: String): List<HolidayEntry> =
         entries.filterNot {
             it.type == TYPE_WORKSWAP && it.custom && it.date == date
         }
 
-    fun withoutEntry(entries: List<Entry>, entry: Entry): List<Entry> =
+    fun withoutEntry(entries: List<HolidayEntry>, entry: HolidayEntry): List<HolidayEntry> =
         buildList {
             var removed = false
             entries.forEach { candidate ->
@@ -462,14 +405,14 @@ object HolidayManager {
     internal fun isStoredOptionalBooleanValid(value: Any?, present: Boolean): Boolean =
         !present || value is Boolean
 
-    internal fun allStoredRowsValid(size: Int, readEntry: (Int) -> Entry): Boolean =
+    internal fun allStoredRowsValid(size: Int, readEntry: (Int) -> HolidayEntry): Boolean =
         (0 until size).all { index ->
             runCatching { readEntry(index) }
                 .getOrNull()
                 ?.let(::isValidEntry) == true
         }
 
-    private fun parseStoredEntry(item: JSONObject): Entry? {
+    private fun parseStoredEntry(item: JSONObject): HolidayEntry? {
         val date = item.opt("date") as? String ?: return null
         val endDate = if (item.has("endDate")) item.opt("endDate") as? String ?: return null else ""
         val name = item.opt("name") as? String ?: return null
@@ -482,7 +425,7 @@ object HolidayManager {
             item.opt("followDate") as? String ?: return null
         } else ""
 
-        val entry = Entry(
+        val entry = HolidayEntry(
             date = date,
             endDate = endDate,
             name = name,
@@ -501,7 +444,7 @@ object HolidayManager {
                 number >= Int.MIN_VALUE && number <= Int.MAX_VALUE
         } == true
 
-    private fun isValidEntry(entry: Entry): Boolean {
+    private fun isValidEntry(entry: HolidayEntry): Boolean {
         if (entry.type !in TYPE_HOLIDAY..TYPE_WORKSWAP || entry.name.isBlank()) return false
         val startDate = runCatching { LocalDate.parse(entry.date) }.getOrNull() ?: return false
         val endDate = if (entry.endDate.isBlank()) {
@@ -525,7 +468,7 @@ object HolidayManager {
         json.isJsonArray && json.asJsonArray.all { parseBackupEntry(it) != null }
     }.getOrDefault(false)
 
-    private fun parseBackupEntry(element: JsonElement): Entry? {
+    private fun parseBackupEntry(element: JsonElement): HolidayEntry? {
         if (!element.isJsonObject) return null
         val item = element.asJsonObject
         val date = backupString(item.get("date")) ?: return null
@@ -547,7 +490,7 @@ object HolidayManager {
         val followDate = if (item.has("followDate")) {
             backupString(item.get("followDate")) ?: return null
         } else ""
-        return Entry(
+        return HolidayEntry(
             date = date,
             endDate = endDate,
             name = name,
@@ -575,7 +518,7 @@ object HolidayManager {
     fun updateEntries(
         context: Context,
         years: Set<Int>,
-        transform: (Map<Int, List<Entry>>) -> Map<Int, List<Entry>>,
+        transform: (Map<Int, List<HolidayEntry>>) -> Map<Int, List<HolidayEntry>>,
     ): Boolean = synchronized(this) {
         if (years.isEmpty()) return@synchronized true
         val prefs = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
@@ -608,7 +551,7 @@ object HolidayManager {
         true
     }
 
-    fun save(context: Context, year: Int, entries: List<Entry>): Boolean =
+    fun save(context: Context, year: Int, entries: List<HolidayEntry>): Boolean =
         updateEntries(context, setOf(year)) { current -> current + (year to entries) }
 
     /** 假期/调休数据的版本号，保存时更新，供 UI 判断是否需要刷新 */
@@ -626,11 +569,11 @@ object HolidayManager {
         return hit != null
     }
 
-    fun workSwap(context: Context, date: LocalDate): Entry? =
+    fun workSwap(context: Context, date: LocalDate): HolidayEntry? =
         entriesForDate(loadAllByYear(context), date)
             .firstOrNull { it.type == TYPE_WORKSWAP }
 
-    fun mergeApiEntries(context: Context, year: Int, apiEntries: List<Entry>): Boolean {
+    fun mergeApiEntries(context: Context, year: Int, apiEntries: List<HolidayEntry>): Boolean {
         if (apiEntries.isEmpty()) return true
         // 调休日的「上哪天的课」 —— 那是推算值不是权威数据，
         // 只在用户打开编辑弹窗时预填
@@ -660,9 +603,9 @@ object HolidayManager {
             .getOrNull()
             ?.takeIf { it.toString() == value }
 
-    fun parseApiResponse(json: String): List<Entry> = runCatching {
+    fun parseApiResponse(json: String): List<HolidayEntry> = runCatching {
         val dates = JSONObject(json).getJSONArray("dates")
-        val result = mutableListOf<Entry>()
+        val result = mutableListOf<HolidayEntry>()
         for (i in 0 until dates.length()) {
             val item = dates.getJSONObject(i)
             val type = when (item.optString("type")) {
@@ -672,7 +615,7 @@ object HolidayManager {
             }
             val date = item.optString("date")
             if (parseApiDate(date) != null) {
-                result += Entry(
+                result += HolidayEntry(
                     date = date,
                     name = item.optString("name_cn", item.optString("name", date)),
                     type = type,
@@ -682,9 +625,9 @@ object HolidayManager {
         mergeConsecutive(result)
     }.getOrDefault(emptyList())
 
-    internal fun mergeConsecutive(entries: List<Entry>): List<Entry> {
+    internal fun mergeConsecutive(entries: List<HolidayEntry>): List<HolidayEntry> {
         val sorted = entries.sortedBy { it.date }
-        val result = mutableListOf<Entry>()
+        val result = mutableListOf<HolidayEntry>()
         for (entry in sorted) {
             val previous = result.lastOrNull()
             if (previous != null && entry.type == TYPE_HOLIDAY && previous.type == TYPE_HOLIDAY &&
@@ -730,7 +673,7 @@ object HolidayManager {
     }
 
     /** 按当前数据源解析响应；与 [sourceUrlFor] 同源，避免 URL 与解析器错配 */
-    fun parseSourceResponse(context: Context, json: String): List<Entry> =
+    fun parseSourceResponse(context: Context, json: String): List<HolidayEntry> =
         if (holidaySource(context) == SOURCE_HOLIDAY_CALENDAR) parseApiResponse(json)
         else parseApiHubsResponse(json)
 
@@ -741,19 +684,19 @@ object HolidayManager {
      * 这个源会把圣诞、感恩节、记者节、下元节、七夕……一堆**不放假**的日子也标成
      * 「节日当天」，按名字或 holiday_today 导入会多出一堆假假期。
      */
-    fun parseApiHubsResponse(json: String): List<Entry> = runCatching {
+    fun parseApiHubsResponse(json: String): List<HolidayEntry> = runCatching {
         val rows = JSONObject(json).getJSONObject("data").getJSONArray("list")
-        val result = mutableListOf<Entry>()
+        val result = mutableListOf<HolidayEntry>()
         for (i in 0 until rows.length()) {
             val item = rows.getJSONObject(i)
             val date = formatCompactDate(item.optString("date")) ?: continue
             when {
-                item.optInt("holiday_recess", 2) == 1 -> result += Entry(
+                item.optInt("holiday_recess", 2) == 1 -> result += HolidayEntry(
                     date = date,
                     name = item.optString("holiday_cn").ifBlank { "节假日" },
                     type = TYPE_HOLIDAY,
                 )
-                item.optInt("holiday_overtime", NO_OVERTIME) != NO_OVERTIME -> result += Entry(
+                item.optInt("holiday_overtime", NO_OVERTIME) != NO_OVERTIME -> result += HolidayEntry(
                     date = date,
                     name = item.optString("holiday_overtime_cn").ifBlank { "调休工作日" },
                     type = TYPE_WORKSWAP,
@@ -776,7 +719,7 @@ object HolidayManager {
      * 只动还没配过映射的条目；用户手工保存过的条目（custom=true）由
      * [mergeApiEntries] 原样保留，不会被覆盖。
      */
-    fun suggestWorkSwapFollowTargets(context: Context, entries: List<Entry>): List<Entry> {
+    fun suggestWorkSwapFollowTargets(context: Context, entries: List<HolidayEntry>): List<HolidayEntry> {
         val swaps = entries.filter { it.type == TYPE_WORKSWAP && it.followLocalDate() == null }
         if (swaps.isEmpty()) return entries
 
@@ -810,7 +753,7 @@ object HolidayManager {
         }
         // 补班日归属哪段假期：先按名字（去掉「补班/调休」后缀）匹配，匹配不到退化为最近的一段，
         // 这样 2026 的 09-20 才不会被误挂到更近的中秋（官方把它归在国庆）。
-        val swapsByBlock = LinkedHashMap<String, MutableList<Pair<Entry, LocalDate>>>()
+        val swapsByBlock = LinkedHashMap<String, MutableList<Pair<HolidayEntry, LocalDate>>>()
         for ((swap, date) in swapDates) {
             val baseName = swap.name.removeSuffix("补班").removeSuffix("调休")
             val blockName = blocks.keys.firstOrNull {
@@ -819,7 +762,7 @@ object HolidayManager {
             swapsByBlock.getOrPut(blockName) { mutableListOf() } += swap to date
         }
 
-        val assigned = HashMap<Entry, LocalDate>()
+        val assigned = HashMap<HolidayEntry, LocalDate>()
         for ((blockName, items) in swapsByBlock) {
             val days = blocks.getValue(blockName).sorted()
             // 假期吃掉的工作日（周一~周五），按日期先后
@@ -900,4 +843,18 @@ object HolidayManager {
         }
         prefs.edit { putBoolean(KEY_FOLLOW_DATE_MIGRATED, true) }
     }
+}
+
+/**
+ * 条目 → JSON。
+ *
+ * ⚠ **刻意留在 `:app`**：它产出的串会以 `entries_{年}` 为键**直接落盘**（见 [HolidayManager.updateEntries]），
+ * 是数据兼容红线 —— 换 JSON 库必须逐字对齐。`HolidayEntry` 本体已下沉 `:core`，
+ * 这里用扩展函数把存储格式留在原地，等 `HolidayManager` 整体下沉时再一并换 `JsonSupport`，
+ * 并配合真实用户数据的 round-trip 回归。
+ */
+internal fun HolidayEntry.toJson() = JSONObject().apply {
+    put("date", date); put("endDate", endDate); put("name", name); put("type", type)
+    put("followDate", followDate)
+    put("followWeek", followWeek); put("followWeekday", followWeekday); put("custom", custom)
 }

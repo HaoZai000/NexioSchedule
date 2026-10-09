@@ -27,7 +27,7 @@ object CourseScheduleDateBounds {
         totalWeeks: Int,
         lastWeekWithCourses: Int,
         courses: List<Course>,
-        workSwapEntries: List<HolidayManager.Entry>,
+        workSwapEntries: List<HolidayEntry>,
         teachingWeekReorganizations: List<TeachingWeekReorganizationRule> = emptyList(),
     ): Bounds? {
         val lastAllowedWeek = minOf(totalWeeks, lastWeekWithCourses)
@@ -79,7 +79,7 @@ object CourseScheduleDateBounds {
             .toList()
 
         val workSwapDates = workSwapEntries.asSequence()
-            .filter { it.type == HolidayManager.TYPE_WORKSWAP }
+            .filter { it.type == HolidayEntry.TYPE_WORKSWAP }
             .mapNotNull { entry ->
                 val firstDate = runCatching { LocalDate.parse(entry.date) }.getOrNull()
                     ?: return@mapNotNull null
@@ -277,7 +277,7 @@ object CourseScheduleDateBounds {
         )
     }
 
-    private fun ceilDiv(value: Long, divisor: Long): Long = -Math.floorDiv(-value, divisor)
+    private fun ceilDiv(value: Long, divisor: Long): Long = -(-value).floorDiv(divisor)
 
     private fun ceilDivPositive(value: Long, divisor: Long): Long =
         value / divisor + if (value % divisor == 0L) 0L else 1L

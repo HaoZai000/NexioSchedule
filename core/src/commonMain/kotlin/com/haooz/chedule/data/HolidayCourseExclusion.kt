@@ -18,7 +18,7 @@ import kotlinx.datetime.LocalTime
  */
 object HolidayCourseExclusion {
     fun resolveDayCourses(
-        entriesByYear: Map<Int, List<HolidayManager.Entry>>,
+        entriesByYear: Map<Int, List<HolidayEntry>>,
         date: LocalDate,
         exclusion: HolidayEndCourseExclusion,
         candidates: () -> List<Course>,
@@ -26,8 +26,8 @@ object HolidayCourseExclusion {
         sectionCount: () -> Int,
         beforeExclusion: HolidayBeforeCourseExclusion = HolidayBeforeCourseExclusion(),
     ): HolidayDayCourseResolution {
-        val isHolidayDate = HolidayManager.entriesForDate(entriesByYear, date)
-            .any { it.type == HolidayManager.TYPE_HOLIDAY }
+        val isHolidayDate = HolidayEntries.entriesForDate(entriesByYear, date)
+            .any { it.type == HolidayEntry.TYPE_HOLIDAY }
         val isExclusionActive = isHolidayDate && isEnabledOnDate(entriesByYear, date, exclusion)
         val isBeforeExclusionActive = !isHolidayDate &&
             isEnabledBeforeHolidayDate(entriesByYear, date, beforeExclusion)
@@ -74,40 +74,40 @@ object HolidayCourseExclusion {
  * 是有意为之的取舍。
  */
 fun isBeforeHolidayDate(
-        entriesByYear: Map<Int, List<HolidayManager.Entry>>,
+        entriesByYear: Map<Int, List<HolidayEntry>>,
         date: LocalDate,
     ): Boolean {
-        if (HolidayManager.entriesForDate(entriesByYear, date)
-                .any { it.type == HolidayManager.TYPE_HOLIDAY } || date == LOCAL_DATE_MAX
+        if (HolidayEntries.entriesForDate(entriesByYear, date)
+                .any { it.type == HolidayEntry.TYPE_HOLIDAY } || date == LOCAL_DATE_MAX
         ) return false
 
-        return HolidayManager.entriesForDate(entriesByYear, date.plusDays(1))
-            .any { it.type == HolidayManager.TYPE_HOLIDAY }
+        return HolidayEntries.entriesForDate(entriesByYear, date.plusDays(1))
+            .any { it.type == HolidayEntry.TYPE_HOLIDAY }
     }
 
     fun isEnabledBeforeHolidayDate(
-        entriesByYear: Map<Int, List<HolidayManager.Entry>>,
+        entriesByYear: Map<Int, List<HolidayEntry>>,
         date: LocalDate,
         exclusion: HolidayBeforeCourseExclusion,
     ): Boolean = exclusion.enabled && exclusion.isValid() && isBeforeHolidayDate(entriesByYear, date)
 
     fun isEnabledOnDate(
-        entriesByYear: Map<Int, List<HolidayManager.Entry>>,
+        entriesByYear: Map<Int, List<HolidayEntry>>,
         date: LocalDate,
         exclusion: HolidayEndCourseExclusion,
     ): Boolean = exclusion.enabled && exclusion.isValid() && isLastHolidayDate(entriesByYear, date)
 
     fun isLastHolidayDate(
-        entriesByYear: Map<Int, List<HolidayManager.Entry>>,
+        entriesByYear: Map<Int, List<HolidayEntry>>,
         date: LocalDate,
     ): Boolean {
-        val isHoliday = HolidayManager.entriesForDate(entriesByYear, date)
-            .any { it.type == HolidayManager.TYPE_HOLIDAY }
+        val isHoliday = HolidayEntries.entriesForDate(entriesByYear, date)
+            .any { it.type == HolidayEntry.TYPE_HOLIDAY }
         if (!isHoliday) return false
         if (date == LOCAL_DATE_MAX) return true
 
-        return HolidayManager.entriesForDate(entriesByYear, date.plusDays(1))
-            .none { it.type == HolidayManager.TYPE_HOLIDAY }
+        return HolidayEntries.entriesForDate(entriesByYear, date.plusDays(1))
+            .none { it.type == HolidayEntry.TYPE_HOLIDAY }
     }
 
     fun matchesCourse(
@@ -187,7 +187,7 @@ fun isBeforeHolidayDate(
     }
 
     fun cancelledCourseIdsOnDate(
-        entriesByYear: Map<Int, List<HolidayManager.Entry>>,
+        entriesByYear: Map<Int, List<HolidayEntry>>,
         date: LocalDate,
         exclusion: HolidayBeforeCourseExclusion,
         candidates: List<Course>,

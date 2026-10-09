@@ -3,8 +3,6 @@ package com.haooz.chedule.data
 import kotlinx.datetime.daysUntil
 import kotlinx.datetime.isoDayNumber
 
-import com.google.gson.Gson
-import com.google.gson.reflect.TypeToken
 import kotlinx.datetime.LocalDate
 
 // ── 节假日与调休 · 调休改周规则 ──────────────────────────
@@ -22,7 +20,7 @@ object TeachingWeekReorganization {
     const val SCHEMA_VERSION = 1
     private const val SCHEMA_VERSION_KEY = "schema_version"
     private const val RULES_KEY = "rules"
-    private val gson = Gson()
+
 
     /**
      * Returns a user-facing validation error, or null for a complete, non-overlapping ruleset.
@@ -305,16 +303,36 @@ object TeachingWeekReorganization {
         return null
     }
 
+    /**
+     * 序列化为备份用的 JSON 串。
+     *
+     * ⚠ **这是持久化格式**（存进 prefs / 进备份文件），输出必须与迁移前 Gson 的产出**逐字一致**。
+     * 原实现是 `gson.toJson(toBackupValue(rules))`，现在换成 [toJsonElement] + `toString()`：
+     * 键顺序 = 插入顺序，无空白，数字不带小数点 —— 已用真实 Gson 产出对拍过（见
+     * `TeachingWeekReorganizationJsonTest`）。
+     */
     fun encode(rules: List<TeachingWeekReorganizationRule>, totalWeeks: Int): String {
         val error = validationError(rules, totalWeeks)
         require(error == null) { error!! }
-        return gson.toJson(toBackupValue(rules))
+        return toJsonElement(toBackupValue(rules)).toString()
     }
 
+    /**
+     * 反序列化。
+     *
+     * 原实现是 `gson.fromJson<Map<String, Any>>(raw, TypeToken…)` —— Gson 会把 JSON 解成
+     * 「嵌套 `LinkedHashMap` + `Double` 数字」，[fromBackupValue] 就是照那个形状写的。
+     * 这里用 [parseJsonObject] + [jsonToPlainValue] 还原出同样的形状，因此
+     * **`fromBackupValue` 一行都不用改**。
+     *
+     * 行为对齐：JSON 非法 / 顶层不是对象时，抛 `IllegalArgumentException`
+     * （Gson 抛 `JsonSyntaxException`，但原实现外面套了 `runCatching` 再转成同一个异常）。
+     */
     fun decode(raw: String, totalWeeks: Int): List<TeachingWeekReorganizationRule> {
-        val data = runCatching {
-            gson.fromJson<Map<String, Any>>(raw, object : TypeToken<Map<String, Any>>() {}.type)
-        }.getOrNull() ?: throw IllegalArgumentException("Invalid teaching-week reorganization data")
+        val data = runCatching { parseJsonObject(raw) }
+            .getOrNull()
+            ?.let { jsonToPlainValue(it) as? Map<*, *> }
+            ?: throw IllegalArgumentException("Invalid teaching-week reorganization data")
         return fromBackupValue(data, present = true, totalWeeks = totalWeeks)
     }
 

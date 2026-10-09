@@ -185,3 +185,35 @@ fun JsonArray.optString(index: Int, fallback: String = ""): String =
 
 /** 对应 `length()`。用 [JsonArray.size] 亦可，这里提供同名方法便于机械替换。 */
 fun JsonArray.length(): Int = size
+
+/**
+ * [JsonElement] → 纯 Kotlin 值（`Map` / `List` / `String` / `Double` / `Boolean` / null）。
+ *
+ * 用来替代 **Gson 的 `fromJson<Map<String, Any>>(raw, TypeToken…)`** —— 那条路径把 JSON
+ * 解析成「嵌套的 `LinkedHashMap` + `Double` 数字」，本项目好几处解析器（如
+ * `TeachingWeekReorganization.fromBackupValue`、`HolidayManager.decodeBackup*`）
+ * 正是按这个形状写的（`(value as? Number)?.toDouble()`）。
+ *
+ * ## 与 Gson 的对齐点（别改）
+ *
+ * 1. **数字一律转 `Double`**：Gson 的 `ObjectTypeAdapter` 读 NUMBER 就是 `in.nextDouble()`，
+ *    所以 `1` 到这里也是 `1.0`。调用方 `(value as? Number).toDouble()` 两种都吃。
+ * 2. **只有 `isString` 的 primitive 才是 `String`**：JSON 里的 `"1"` 是字符串、`1` 是数字，
+ *    这个区分不能丢（Gson 也是分开的）。
+ * 3. **对象保持插入顺序**：返回 `LinkedHashMap`，与 Gson 的 `LinkedTreeMap` 一致。
+ * 4. `JsonNull` → `null`（Gson 的 `Map<String,Any>` 里 null 就是 null）。
+ */
+fun jsonToPlainValue(element: JsonElement?): Any? = when (element) {
+    null, is JsonNull -> null
+    is JsonObject -> LinkedHashMap<String, Any?>(element.size).apply {
+        element.forEach { (key, value) -> put(key, jsonToPlainValue(value)) }
+    }
+    is JsonArray -> element.map { jsonToPlainValue(it) }
+    is JsonPrimitive -> when {
+        element.isString -> element.content
+        element.content == "true" -> true
+        element.content == "false" -> false
+        else -> element.content.toDoubleOrNull() ?: element.content
+    }
+    else -> element.toString()
+}

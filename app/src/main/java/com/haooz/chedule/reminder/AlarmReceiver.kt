@@ -1,6 +1,8 @@
 /** 课程提醒闹钟接收器 */
 package com.haooz.chedule.reminder
 
+import com.haooz.chedule.data.HolidayEntry
+
 import com.haooz.chedule.data.plusDays
 import com.haooz.chedule.data.todayLocalDate
 import kotlinx.datetime.daysUntil
@@ -26,7 +28,7 @@ class AlarmReceiver : BroadcastReceiver() {
      * 极端数据下查不到块时也退化为不带日期的短文案，不让它掉回「明日无课」。
      */
     private fun holidayStartMessage(
-        entriesByYear: Map<Int, List<HolidayManager.Entry>>,
+        entriesByYear: Map<Int, List<HolidayEntry>>,
         startDate: LocalDate,
     ): String {
         val block = HolidayCountdown.holidayBlockAt(entriesByYear, startDate) ?: return "明天不用上课"

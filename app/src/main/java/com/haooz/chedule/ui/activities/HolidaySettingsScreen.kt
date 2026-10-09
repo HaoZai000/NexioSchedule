@@ -1,5 +1,7 @@
 package com.haooz.chedule.ui.activities
 
+import com.haooz.chedule.data.HolidayEntry
+
 import com.haooz.chedule.data.lengthOfMonth
 import com.haooz.chedule.data.minusDays
 import com.haooz.chedule.data.plusDays
@@ -140,7 +142,7 @@ fun HolidaySettingsScreen(
     scrollBehavior: SharedScrollBehavior?,
     liquidGlassBackdrop: Backdrop?,
     year: Int,
-    entries: List<HolidayManager.Entry>,
+    entries: List<HolidayEntry>,
     onYearChange: (Int) -> Unit,
     reload: () -> Unit,
     onTeachingWeekReorganizationsChanged: () -> Unit = {},
@@ -176,7 +178,7 @@ fun HolidaySettingsScreen(
     var showDialog by remember { mutableStateOf(false) }
     var showDeleteConfirm by remember { mutableStateOf(false) }
     var dialogType by remember { mutableIntStateOf(HolidayManager.TYPE_HOLIDAY) }
-    var editingEntry by remember { mutableStateOf<HolidayManager.Entry?>(null) }
+    var editingEntry by remember { mutableStateOf<HolidayEntry?>(null) }
     var editingEntryStorageYear by remember { mutableIntStateOf(year) }
     var name by remember { mutableStateOf("") }
     var startYear by remember { mutableIntStateOf(year) }
@@ -351,7 +353,7 @@ fun HolidaySettingsScreen(
         showDialog = true
     }
 
-    fun startEditing(entry: HolidayManager.Entry) {
+    fun startEditing(entry: HolidayEntry) {
         val start = runCatching { LocalDate.parse(entry.date) }.getOrNull()
             ?: LocalDate(year, 1, 1)
         val end = runCatching { LocalDate.parse(entry.endDate.ifBlank { entry.date }) }.getOrNull()
@@ -426,7 +428,7 @@ fun HolidaySettingsScreen(
             add(entryYear)
             oldYear?.let(::add)
         }
-        val newEntry = HolidayManager.Entry(
+        val newEntry = HolidayEntry(
             date = startDate,
             endDate = endDate,
             name = name.ifBlank { if (isHoliday) "节假日" else "调休工作日" },
@@ -1839,8 +1841,8 @@ private fun DataManagementCard(
 
 @Composable
 private fun HolidayEntriesCard(
-    entries: List<HolidayManager.Entry>,
-    onEdit: (HolidayManager.Entry) -> Unit,
+    entries: List<HolidayEntry>,
+    onEdit: (HolidayEntry) -> Unit,
 ) {
     Card(
         modifier = Modifier.fillMaxWidth(),
@@ -1856,8 +1858,8 @@ private fun HolidayEntriesCard(
 
 @Composable
 private fun EntryRow(
-    entry: HolidayManager.Entry,
-    onEdit: (HolidayManager.Entry) -> Unit,
+    entry: HolidayEntry,
+    onEdit: (HolidayEntry) -> Unit,
 ) {
     ArrowPreference(
         title = entry.name,
@@ -1885,7 +1887,7 @@ private fun followDate(
     return CourseRepository.getInstance(context).dateForTeachingWeekDay(week, weekday)
 }
 
-private fun entrySummary(entry: HolidayManager.Entry): String {
+private fun entrySummary(entry: HolidayEntry): String {
     return if (entry.type == HolidayManager.TYPE_HOLIDAY) {
         val endSuffix = if (entry.endDate.isNotBlank()) {
             " 至 ${displayDate(entry.endDate)}"
