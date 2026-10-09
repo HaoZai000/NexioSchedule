@@ -24,24 +24,28 @@ import com.kyant.backdrop.backdrops.layerBackdrop as liquidGlassLayerBackdrop
  *
  * ## 为什么抽这个
  *
- * 隐私政策 / 开源协议 / 更新日志三个页面原来的 Activity 壳**逐字相同**，
- * 只差一个标题和一个 Screen 函数 —— 三份 96 行的重复代码。
- * 抽出来之后，这三页各自只剩「标题 + 内容」两个变量。
+ * 原来 14 个 Activity 壳的 `setContent` **逐字相同**，只差标题、Screen 函数、
+ * 以及个别 Activity 级副作用（如偏好设置页的主题栏联动）。抽出来之后，路由侧
+ * 每页只剩「标题 + 内容」两个变量。
  *
  * ## 玻璃采样的层级（改之前先看这段）
  *
  * `backdrop` 是**内容层**的采样源，只包内容；顶栏的玻璃按钮必须放在**层外**，
- * 否则会自己采样自己形成循环。这是原来三份代码里都带注释强调的点，别合并层级。
+ * 否则会自己采样自己形成循环。这是原来十几份代码里都带注释强调的点，别合并层级。
  *
  * @param title 顶栏标题（折叠前的大标题同字）
  * @param onBack 返回回调。路由化之后传 `router::popBack` 或宿主的退出逻辑
- * @param content 内容区。**必须把 [SharedScrollBehavior] 透给 Screen**，否则折叠标题不联动
+ * @param content 内容区。**必须把 [SharedScrollBehavior] 透给 Screen**，否则折叠标题不联动；
+ *   需要玻璃采样的 Screen 也拿得到 [liquidGlassBackdrop]（原来由各 Activity 创建后传入）
  */
 @Composable
 fun DocumentPageScaffold(
     title: String,
     onBack: () -> Unit,
-    content: @Composable (scrollBehavior: SharedScrollBehavior) -> Unit,
+    content: @Composable (
+        scrollBehavior: SharedScrollBehavior,
+        liquidGlassBackdrop: com.kyant.backdrop.Backdrop,
+    ) -> Unit,
 ) {
     val backgroundColor = MiuixTheme.colorScheme.surface
     val backdrop = rememberLayerBackdrop {
@@ -90,7 +94,7 @@ fun DocumentPageScaffold(
                     Modifier.liquidGlassLayerBackdrop(liquidGlassBackdrop)
                 )
             ) {
-                content(scrollBehavior)
+                content(scrollBehavior, liquidGlassBackdrop)
             }
         }
     }

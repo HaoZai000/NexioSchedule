@@ -59,8 +59,6 @@ import com.haooz.chedule.ui.navigation.LocalAppRouter
 import com.haooz.chedule.ui.activities.CourseReminderActivity
 import com.haooz.chedule.ui.activities.CourseTimeSettingsActivity
 import com.haooz.chedule.ui.activities.HolidaySettingsActivity
-import com.haooz.chedule.ui.activities.PreferenceSettingsActivity
-import com.haooz.chedule.ui.activities.UpdateSettingsActivity
 import com.haooz.chedule.ui.activities.WidgetIntroActivity
 import top.yukonga.miuix.kmp.layout.CollapsibleTopAppBarDefaults
 import top.yukonga.miuix.kmp.layout.SharedScrollBehavior
@@ -526,26 +524,24 @@ fun SettingsScreen(
                             Column(
                                 modifier = Modifier.fillMaxWidth()
                             ) {
+                                // LocalAppRouter.current 是 @Composable 调用，必须在组合层取
+                                val appRouter = LocalAppRouter.current
                                 ArrowPreference(
                                     title = "应用偏好设置",
                                     // 只在偏好设置页仍在栈上时压暗；
                                     // 单独打开更新设置时不应连带压暗本项
                                     onClick = {
                                         FeatureLog.preference("open")
-                                        val intent = Intent(context, PreferenceSettingsActivity::class.java)
-                                        context.startActivity(intent)
+                                        appRouter.navigate(AppRoute.PreferenceSettings)
                                     }
                                 )
                                 ArrowPreference(
                                     title = "更新设置",
                                     onClick = {
                                         FeatureLog.update("open")
-                                        val intent = Intent(context, UpdateSettingsActivity::class.java)
-                                        context.startActivity(intent)
+                                        appRouter.navigate(AppRoute.UpdateSettings)
                                     }
                                 )
-                                // LocalAppRouter.current 是 @Composable 调用，必须在组合层取
-                                val appRouter = LocalAppRouter.current
                                 ArrowPreference(
                                     title = "关于应用",
                                     onClick = {

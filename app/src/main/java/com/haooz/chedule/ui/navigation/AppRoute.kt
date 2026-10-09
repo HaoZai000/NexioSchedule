@@ -60,6 +60,31 @@ sealed interface AppRoute {
         override val id: String get() = "privacy_policy"
     }
 
+    /** 应用偏好设置（Manifest label「应用偏好设置」）。 */
+    data object PreferenceSettings : AppRoute {
+        override val id: String get() = "preference_settings"
+    }
+
+    /** 更新设置（「更新设置」）。 */
+    data object UpdateSettings : AppRoute {
+        override val id: String get() = "update_settings"
+    }
+
+    /** 交流与反馈（「交流与反馈」）。 */
+    data object Communication : AppRoute {
+        override val id: String get() = "communication"
+    }
+
+    /** 本地备份（「本地备份」）。 */
+    data object LocalBackup : AppRoute {
+        override val id: String get() = "local_backup"
+    }
+
+    /** 捐赠支持（「捐赠支持」）。 */
+    data object AppreciateAuthor : AppRoute {
+        override val id: String get() = "appreciate_author"
+    }
+
     companion object {
         /** 按 [id] 还原路由；未知 id 返回 null（版本回退/脏数据时由调用方兜底）。 */
         fun fromId(id: String): AppRoute? = when (id) {
@@ -67,6 +92,11 @@ sealed interface AppRoute {
             Changelog.id -> Changelog
             License.id -> License
             PrivacyPolicy.id -> PrivacyPolicy
+            PreferenceSettings.id -> PreferenceSettings
+            UpdateSettings.id -> UpdateSettings
+            Communication.id -> Communication
+            LocalBackup.id -> LocalBackup
+            AppreciateAuthor.id -> AppreciateAuthor
             else -> null
         }
     }

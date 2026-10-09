@@ -40,6 +40,8 @@ import com.haooz.chedule.data.Course
 import com.haooz.chedule.data.CourseRepository
 import com.haooz.chedule.data.HolidayCourseExclusion
 import com.haooz.chedule.data.HolidayBeforeCourseExclusion
+import com.haooz.chedule.ui.navigation.AppRoute
+import com.haooz.chedule.ui.navigation.LocalAppRouter
 import com.haooz.chedule.data.HolidayEndCourseExclusion
 import com.haooz.chedule.data.HolidayManager
 import com.haooz.chedule.ui.utils.ShareCodeApi
@@ -584,12 +586,13 @@ fun BackupAndMigrationScreen(
                         insideMargin = PaddingValues(0.dp)
                     ) {
                         Column(modifier = Modifier.fillMaxWidth()) {
+                            // LocalAppRouter.current 是 @Composable 调用，必须在组合层取
+                            val appRouter = LocalAppRouter.current
                             ArrowPreference(
                                 title = "本地备份",
                                 summary = "备份课表数据到设备存储",
                                 onClick = {
-                                    val intent = Intent(context, LocalBackupActivity::class.java)
-                                    context.startActivity(intent)
+                                    appRouter.navigate(AppRoute.LocalBackup)
                                 }
                             )
                             ArrowPreference(

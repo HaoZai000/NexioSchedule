@@ -3,8 +3,6 @@ package com.haooz.chedule.ui.navigation
 import androidx.activity.compose.BackHandler
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.core.tween
-import androidx.compose.animation.fadeIn
-import androidx.compose.animation.fadeOut
 import androidx.compose.animation.slideInHorizontally
 import androidx.compose.animation.slideOutHorizontally
 import androidx.compose.animation.togetherWith
@@ -71,12 +69,15 @@ fun AppNavHost(
         modifier = modifier,
         transitionSpec = {
             val duration = 220
+            // 刻意**不用** fadeIn/fadeOut：子页是全屏不透明的，转场期间一旦带透明度，
+            // 底下的主界面就会透出来，看起来像「页面飘在半透明底上」。
+            // 只滑不淡 —— 页面全程不透明，滑入/滑出就是干净的推入/推出。
             if (router.lastDirection == NavDirection.Pop) {
-                (slideInHorizontally(tween(duration)) { -it / 4 } + fadeIn(tween(duration))) togetherWith
-                    (slideOutHorizontally(tween(duration)) { it } + fadeOut(tween(duration)))
+                slideInHorizontally(tween(duration)) { -it / 4 } togetherWith
+                    slideOutHorizontally(tween(duration)) { it }
             } else {
-                (slideInHorizontally(tween(duration)) { it } + fadeIn(tween(duration))) togetherWith
-                    (slideOutHorizontally(tween(duration)) { -it / 4 } + fadeOut(tween(duration)))
+                slideInHorizontally(tween(duration)) { it } togetherWith
+                    slideOutHorizontally(tween(duration)) { -it / 4 }
             }
         },
         label = "AppNavHost",

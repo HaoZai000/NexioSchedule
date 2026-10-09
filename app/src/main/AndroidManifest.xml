@@ -136,30 +136,6 @@
             android:theme="@style/Theme.课程表"
             android:windowSoftInputMode="adjustResize" />
         <activity
-            android:name=".ui.activities.AppreciateAuthorActivity"
-            android:exported="false"
-            android:configChanges="orientation|screenSize|screenLayout|keyboardHidden|mnc|colorMode|density|fontScale|fontWeightAdjustment|keyboard|layoutDirection|locale|mcc|navigation|smallestScreenSize|touchscreen|uiMode"
-            android:label="捐赠支持"
-            android:theme="@style/Theme.课程表" />
-        <activity
-            android:name=".ui.activities.UpdateSettingsActivity"
-            android:exported="false"
-            android:configChanges="orientation|screenSize|screenLayout|keyboardHidden|mnc|colorMode|density|fontScale|fontWeightAdjustment|keyboard|layoutDirection|locale|mcc|navigation|smallestScreenSize|touchscreen|uiMode"
-            android:label="更新设置"
-            android:theme="@style/Theme.课程表" />
-        <activity
-            android:name=".ui.activities.CommunicationActivity"
-            android:exported="false"
-            android:configChanges="orientation|screenSize|screenLayout|keyboardHidden|mnc|colorMode|density|fontScale|fontWeightAdjustment|keyboard|layoutDirection|locale|mcc|navigation|smallestScreenSize|touchscreen|uiMode"
-            android:label="交流与反馈"
-            android:theme="@style/Theme.课程表" />
-        <activity
-            android:name=".ui.activities.PreferenceSettingsActivity"
-            android:exported="false"
-            android:configChanges="orientation|screenSize|screenLayout|keyboardHidden|mnc|colorMode|density|fontScale|fontWeightAdjustment|keyboard|layoutDirection|locale|mcc|navigation|smallestScreenSize|touchscreen|uiMode"
-            android:label="应用偏好设置"
-            android:theme="@style/Theme.课程表" />
-        <activity
             android:name=".ui.activities.WebDavSettingsActivity"
             android:exported="false"
             android:configChanges="orientation|screenSize|screenLayout|keyboardHidden|mnc|colorMode|density|fontScale|fontWeightAdjustment|keyboard|layoutDirection|locale|mcc|navigation|smallestScreenSize|touchscreen|uiMode"
@@ -206,13 +182,6 @@
             android:exported="false"
             android:configChanges="orientation|screenSize|screenLayout|keyboardHidden|mnc|colorMode|density|fontScale|fontWeightAdjustment|keyboard|layoutDirection|locale|mcc|navigation|smallestScreenSize|touchscreen|uiMode"
             android:label="课表备份"
-            android:theme="@style/Theme.课程表"
-            android:windowSoftInputMode="adjustResize" />
-        <activity
-            android:name=".ui.activities.LocalBackupActivity"
-            android:exported="false"
-            android:configChanges="orientation|screenSize|screenLayout|keyboardHidden|mnc|colorMode|density|fontScale|fontWeightAdjustment|keyboard|layoutDirection|locale|mcc|navigation|smallestScreenSize|touchscreen|uiMode"
-            android:label="本地备份"
             android:theme="@style/Theme.课程表"
             android:windowSoftInputMode="adjustResize" />
 

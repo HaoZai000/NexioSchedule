@@ -453,9 +453,7 @@ fun AboutScreen(
                                     ArrowPreference(
                                         title = "交流与反馈",
                                         onClick = {
-                                            val intent =
-                                                Intent(context, CommunicationActivity::class.java)
-                                            context.startActivity(intent)
+                                            onNavigate(AppRoute.Communication)
                                         }
                                     )
                                 }
@@ -476,9 +474,7 @@ fun AboutScreen(
                                             )
                                         },
                                         onClick = {
-                                            val intent =
-                                                Intent(context, AppreciateAuthorActivity::class.java)
-                                            context.startActivity(intent)
+                                            onNavigate(AppRoute.AppreciateAuthor)
                                         }
                                     )
                                 }
