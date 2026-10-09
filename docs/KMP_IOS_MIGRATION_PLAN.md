@@ -3,13 +3,13 @@
 > 目标平台：**iOS**（iPad 一并覆盖）  
 > 策略：渐进式，全程不打断 1.6.x 正常发版  
 > 制定日期：2026-10-08 · 最近更新：2026-10-09（Kotlin 2.4.10，AGP 9.2.1，CMP 1.12.0）  
-> 代码状态：`master` `0ce3c8a`，Android 侧 `assembleDebug` 通过；**iOS 尚未接入**
+> 代码状态：`master` `90b0754`，Android 侧 `assembleDebug` 通过；**iOS 尚未接入**
 
 ---
 
 ## 🔄 接手须知（新会话 / 新人从这一节开始）
 
-> 这一节是为了让**没有任何历史上下文的人**能直接接手。写到这里的代码状态是 `master` = `0ce3c8a`。
+> 这一节是为了让**没有任何历史上下文的人**能直接接手。写到这里的代码状态是 `master` = `90b0754`。
 > 三条最重要的事实：**① 有测试没入库 ② 别推翻下面那几条决定 ③ 网络层的 Native 实现是空壳。**
 
 ### 1. 现状一句话
@@ -249,7 +249,7 @@ AppFiles.init(
 
 ---
 
-## 📍 当前进展（更新于 2026-10-09 · 已合入 master `0ce3c8a`）
+## 📍 当前进展（更新于 2026-10-09 · 已合入 master `90b0754`）
 
 > **安全网**：`master` 上打了永久标签 `backup/pre-merge-20261009`（合并前的状态）。
 > 万一发现遗漏，`git branch <名字> backup/pre-merge-20261009` 即可恢复 —— 
@@ -406,7 +406,11 @@ class HttpResult(code, bytes, truncated = false)   // 超限返回 truncated=tru
 
 顺手修掉：这两个仓库原本各自 `new OkHttpClient()`（第 11、12 套连接池），现在复用 `HttpService`。
 
-### 🎯 UI 导航改造（阶段 5 前置）· 增量 1 已完成（2026-10-09，提交 `0ce3c8a`）
+### 🎯 UI 导航改造（阶段 5 前置）· 增量 1+2 已完成（2026-10-09）
+
+> **增量 1**（`0ce3c8a`）：路由器基础设施 + AboutActivity 宿主化（4 条路由），删 3 个 Activity
+> **增量 1.5**（`a1e7f7e`）：修复返回丢滚动状态（`SaveableStateHolder`）
+> **增量 2**（`90b0754`）：宿主迁到 `MainActivity`，`AboutActivity` 删除。Manifest 23 → **19**
 
 **跨端的硬前提：CMP 在 iOS 上跑在 `UIViewController` 里，没有 Activity。**
 更关键的是 —— **导航状态原本活在 Android 的 Activity back stack 里，iOS 拿不到**。
@@ -469,6 +473,44 @@ class HttpResult(code, bytes, truncated = false)   // 超限返回 truncated=tru
    **别提前造全套**（与「别提前造 `Notifier`/`ScreenInfo`」同一条）。
 4. **WebView / Activity 结果类页面先不动**：`EducationalImportActivity`（WebView +
    `@JavascriptInterface` 桥接）、`AiImportActivity` 先当「平台功能页」留着，用 route 跳过去再回来。
+
+#### 增量 2 的关键设计：主界面走「常驻底座」而不是「路由条目」
+
+`AppRouter` 的栈**从空开始**，只有 `navigate()` 之后才有子页叠加在主界面上。
+主界面 `CourseScheduleApp` **永远保持组合、不参与路由的 save/restore** ——
+这与拆 Activity 时代「跳到子页时主 Activity 只是 stop 没有销毁」的语义完全一致。
+若把主界面也塞进 `AnimatedContent` + `SaveableStateHolder`，
+`rememberSaveable` 能救回来，但 `remember { mutableStateOf }` 之类救不回来
+—— `CourseScheduleApp` 里有大量这类状态（pager 位置 / 壁纸映射 / …），
+丢了就是「切到设置再回来 pager 位置变了」。
+
+`AppRouter` API 相应简化：
+| 属性/方法 | 语义 |
+|---|---|
+| `hasOverlay` | 是否有子页叠加（false 时 `BackHandler` 不拦截，返回键交给 Android 宿主） |
+| `current` | 当前叠加的路由（`AppRoute?`），没有子页时为 null |
+| `navigate(route)` | 入栈 |
+| `popBack()` | 出栈；栈空返回 false，返回键不拦截 |
+
+删掉了 `AppRoute.Main` —— 主界面不是路由，是常驻底座。
+
+新增 `LocalAppRouter`（CompositionLocal）：让 `SettingsScreen` / `TabletSettingsScreen`
+这些深处的 Composable 能发起路由跳转，不经过 Activity 引用。
+⚠ `LocalAppRouter.current` 是 `@Composable` 调用，**必须在组合层取**，
+不能放进 `onClick` lambda 里。
+
+`AppNavHost` 的 `BackHandler` 改为 `enabled = router.hasOverlay`：
+- 有子页 → 路由器出栈
+- 没子页 → 不拦截，**Android 宿主的预测性返回 /「退出即隐藏后台」照常生效**
+
+#### 📌 后续增量
+
+1. 按软柿子优先把剩下的薄壳逐个变成路由（`WidgetIntroActivity` 168 行、`CourseReminderActivity` 155 行、
+   `PreferenceSettingsActivity` 104 行、`UpdateSettingsActivity` 100 行…）
+2. **平台专有面抽接口**：等真搬某个 screen 时再抽它用到的那几个，
+   **别提前造全套**（与「别提前造 `Notifier`/`ScreenInfo`」同一条）
+3. **WebView / Activity 结果类页面先不动**：`EducationalImportActivity`（WebView +
+   `@JavascriptInterface` 桥接）、`AiImportActivity` 先当「平台功能页」留着，用 route 跳过去再回来
 
 > **判据**：某个 Screen「可以共享了」= 它的 Composable 不依赖任何 `android.*` /
 > `LocalContext` / `LocalConfiguration` / Activity 回调。
