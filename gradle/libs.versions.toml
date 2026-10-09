@@ -2,7 +2,9 @@
 
 [versions]
 # 构建工具
-agp = "9.2.1"                         # Android Gradle Plugin
+agp = "9.2.1"                        # Android Gradle Plugin
+composeMultiplatform = "1.12.0"     # Compose Multiplatform（backdrop 模块用；Android 上映射回 AndroidX Compose）
+kyantShapes = "1.2.1"              # io.github.kyant0:shapes，backdrop 的依赖，本项目 ui/effects/shapes 同源
 kotlin = "2.4.10"                     # Kotlin 编译器（含 Compose 编译插件）
 
 # 跨平台（:core KMP 模块）
@@ -58,7 +60,8 @@ miuix-navigation3 = { group = "top.yukonga.miuix.kmp", name = "miuix-navigation3
 gson = { group = "com.google.code.gson", name = "gson", version.ref = "gson" }                                     # JSON 序列化
 okhttp = { group = "com.squareup.okhttp3", name = "okhttp", version = "4.12.0" }                                  # HTTP 客户端
 
-# ===== 跨平台（:core KMP 模块）=====
+# ===== 跨平台 =====
+kyant-shapes = { group = "io.github.kyant0", name = "shapes", version.ref = "kyantShapes" }
 kotlinx-datetime = { group = "org.jetbrains.kotlinx", name = "kotlinx-datetime", version.ref = "kotlinxDatetime" } # java.time 的 KMP 替代
 
 # Shizuku
@@ -75,5 +78,6 @@ materialKolor-utilities = { group = "com.materialkolor", name = "material-color-
 android-application = { id = "com.android.application", version.ref = "agp" }     # Android 应用插件
 android-kmp-library = { id = "com.android.kotlin.multiplatform.library" }         # AGP 9 起 KMP 模块的 Android 目标专用插件；classpath 上已有，不可带版本
 kotlin-compose = { id = "org.jetbrains.kotlin.plugin.compose", version.ref = "kotlin" }  # Compose 编译插件
+compose-multiplatform = { id = "org.jetbrains.compose", version.ref = "composeMultiplatform" }
 kotlin-multiplatform = { id = "org.jetbrains.kotlin.multiplatform" }  # KMP 插件（:core）；AGP 9 内置 Kotlin 工具链，classpath 上已有，不能再声明版本否则报
 # 注：AGP 9.0 起内置 Kotlin 支持，不再需要 org.jetbrains.kotlin.android 插件

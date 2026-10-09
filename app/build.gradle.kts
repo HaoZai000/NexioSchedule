@@ -72,6 +72,10 @@ dependencies {
     // 领域模型：Course / ScheduleFolder / TimeConfig。包名不变，import 无需改动
     implementation(project(":core"))
 
+    // ===== 液态玻璃效果库（fork 自 io.github.kyant0:backdrop 2.0.1，KMP）=====
+    // 取代原先直接放在 :app 里的 com/kyant/backdrop（Android-only fork）
+    implementation(project(":backdrop"))
+
     // ===== 小米穿戴（手表 interconnect） =====
     implementation(fileTree(mapOf("dir" to "libs", "include" to listOf("*.jar", "*.aar"))))
 

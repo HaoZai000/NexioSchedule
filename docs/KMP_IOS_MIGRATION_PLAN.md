@@ -75,29 +75,88 @@ iOS 走的是 **Kotlin/Native**，不是 JVM。这一条决定了所有工作量
 
 ## 四、分阶段路线
 
-### 阶段 0 · 技术预研与地基（1~2 周）——**先验证，再投入**
+### 阶段 0 · 技术预研与地基
 
-这一步不做完，后面所有排期都是猜测。三个必须拿到结论的验证：
+这一步不做完，后面所有排期都是猜测。四件事，已完成三件：
 
-**验证 1（最高优先级）：backdrop 在 iOS 上能否复现**  
-`com/kyant/backdrop` 重度依赖 `RenderEffect` / AGSL（Android GPU 着色器）。`ui/effects/liquidglass`、`edgelight`、`background` 全建立在它之上，iOS 的 Skia 后端没有对应物。
+**✅ 验证 1：backdrop 在 iOS 上能否复现 —— 能，而且不用我们做任何事**
 
-- 做法：写一个最小 CMP demo（iOS 模拟器跑），用 Skia 的 `BlurEffect` + 自定义 SkSL 尝试复现单层模糊与折射。
-- **判定**：能复现 → 阶段 6 批次 4 正常排期；复现成本过高 → 接受「Android 保留原效果、iOS 降级为普通模糊」，用 expect/actual 隔离，并在阶段 3 就把接口定死。
+原判断「backdrop 重度依赖 AGSL、iOS 的 Skia 后端没有对应物、必须先写 demo 验证」**是错的**：
 
-**验证 2：kotlinx-datetime 替换后的日期一致性**  
-项目里 `SimpleDateFormat` 依赖 JVM 默认 Locale 与时区，换过去后行为必须逐点对齐。这类 bug 只会在线上用户身上爆。
+- 上游是 `io.github.kyant0:backdrop`（仓库 `Kyant0/AndroidLiquidGlass`）
+- **已有现成 KMP 移植** `promicx/KMPLiquidGlass`：
+  Android 走 RenderEffect（API 31+）/ AGSL（API 33+），
+  iOS / Desktop / Web 走 **SkSL**（Skia RuntimeEffect + ImageFilter）。
+  其 README 写明「Both implementations produce visually equivalent results」。
+- 本地 fork 的 `com/kyant/backdrop`（5,184 行）是 Android-only 快照，**迁移时直接换依赖**，
+  只需把 fork 的定制改动搬到 KMP 版，不需要手写 SkSL。
 
-- 做法：挑 `Holidays.kt`（1,781 行）里节假日推算与调休映射的核心路径，写等价实现单文件验证边界（项目无 test 源集，沿用「单文件 `java Xxx.java`」的验证手法）。
+**✅ 验证 1b：Miuix fork 的改动量 —— 实测 3,179 行，不是 27,425 行**
 
-**验证 3：iOS 通知配额下的滚动预约策略**  
-64 条上限 vs 一学期几百节课。需要原型验证：
+Miuix 官方也是完整 KMP 库（有 `miuix-core-iosarm64` / `miuix-blur-iosarm64` / `miuix-desktop` 等 artifact）。
+拿上游 `miuix-ui:0.9.3` 的 commonMain（82 文件）与本地 fork（90 文件）逐文件 diff，结果：
 
+| 项 | 数量 |
+|---|---:|
+| 完全相同（可直接用官方 artifact） | **50 文件** |
+| 有改动 | 30 文件 |
+| 仅本地有（定制新增） | 10 文件 |
+| 仅上游有 | 2 文件 |
+| **总差异行数** | **3,179** |
+
+改动集中的几个大件：`ListPopup.kt` 683→1429、`NavigationRail.kt` 640→296、
+`DynamicColors.kt` 10→337、`SearchBar.kt` 331→501、`ListPopupLayout.kt` 262→438。
+
+而且**这些改动本身几乎没有 Android 耦合**：核心文件里 `NumberPicker` / `Dropdown` / `Button` /
+`Slider` / `NavigationRail` / `LiquidOverlayDropdownPopup` 的 Android-only import 均为 **0**。
+全项目合计只有约 15 处，主要是：
+
+- `androidx.navigationevent.*`（4 处，`SearchBar` 的返回处理，CMP 无对应 → 需抽象）
+- `android.graphics.BlurMaskFilter` / `Paint` / `Color.parseColor`（约 5 处 → CMP 有替代）
+- `android.os.Build` / `android.provider.Settings` / `android.util.Log` / `Context`（少量）
+
+→ **结论：Miuix 迁移 = 把 3,179 行定制挪到官方 KMP artifact 上，再抽掉约 15 处平台 API。**
+不是重写 27,425 行。风险远低于预估。
+
+**✅ 验证 2：kotlinx-datetime 与 java.time 的等价性 —— 已完成**
+
+已在 `:core` 建立 `jvmTest`，同一批日期（闰年、世纪年、跨年、月末）同时喂给两套 API 断言等价，
+11 个用例全部通过，覆盖 `parse` / 构造 / `plus(n,unit)` / `daysUntil` / `isoDayNumber` / `monthNumber` /
+`toEpochDays` / `fromEpochDays` / 比较运算与取反优先级 / `lengthOfMonth` / `todayIn` / Int 收窄边界。
+
+**结论：替换是语义等价的，日期迁移可以放心做。** 每改一处日期代码都跑 `./gradlew :core:jvmTest`。
+
+**✅ 验证 3：真正的 Android-only 绘制代码只占 2,756 行**
+
+不是 61.7k 行 UI，而是其中的自研特效：
+
+| 子包 | 行数 | 依赖 | iOS 结论 |
+|---|---:|---|---|
+| `edgelight/` | 911 | **`android.graphics.RuntimeShader`（原生 API，非 Compose）** | ⚠️ **唯一需要真正重写的** |
+| `miuix/` | 743 | `Context` / `ActivityManager` / `navigationevent` | 系统能力，expect/actual 即可 |
+| `liquidglass/` | 510 | backdrop 的 RuntimeShader | 随 backdrop 换依赖即解决 |
+| `background/` | 344 | GLSL + `top.yukonga.miuix.kmp.blur.RuntimeShader` | Miuix 是 KMP 库，换 artifact 即可 |
+
+**edgelight 是 UI 共享的唯一真实阻塞点**：它直接用 Android 13 原生的 `android.graphics.RuntimeShader`，
+CMP 无对应物，且用得很广（顶栏按钮、下拉菜单、底部 Tab、DayColumn、回到今天悬浮按钮、平板侧边栏…）。
+
+补充查证（比原估计乐观）：源库里没有叫 edgelight 的东西，对应的是 backdrop 的 **`highlight`**，
+两者**同为 AGSL**，且项目的 shader 是从 backdrop **复制粘贴**来的 ——
+`EdgeLightShaders.kt` 的 `RoundedRectSDF` 与 backdrop 逐行相同，
+`EdgeLightStyle.Directional(angle, falloff)` 的 shader 与上游 `DefaultHighlightShaderString` 几乎逐行一致。
+差别只有三处：多一个 `Glow` 样式（上游没有）、多 `width`/`blurRadius` 参数、用原生 RuntimeShader 而非 Compose 的。
+
+所以实际工作量是：
+- `Directional` → KMP 移植版的 highlight 已用 SkSL 实现过，**可直接复用/对照**
+- `Glow` → 需自己写一个 SkSL（外发光 = 模糊描边，逻辑简单）
+- `Uniform` → 无 shader，降级路径已存在
+- 若不想等：`isRuntimeShaderSupported()` 守卫会让 iOS 自动走 `Uniform`，先降级上线也行
+
+**⬜ 验证 4（未做）：iOS 通知配额下的滚动预约策略**
+64 条上限 vs 一学期几百节课：
 - 只预约未来 N 天内的前 64 条，App 每次前台启动时补充；
 - 课表变更时批量重算（取消全部 + 重新预约）；
 - 验证 `UNCalendarNotificationTrigger` 在跨夏令时/跨年的行为。
-
-**产出：** Go / No-Go 决策 + `:core` 模块骨架（先空壳，只配 `androidTarget` + `iosArm64` + `iosSimulatorArm64`）。
 
 ---
 
@@ -234,7 +293,7 @@ Android actual **必须继续走 SharedPreferences**，否则老用户数据全�
 | 批次 1 | `SettingsScreen`、`CourseEditScreen`、`AddCourseDialog` 等表单类 | 少，Toast / Intent        |
 | 批次 2 | `CourseDetailScreen`、`TimeConfigEditScreen`（2,259 行）       | 中，haptics + 配置查询        |
 | 批次 3 | `MainScheduleScreen`、`CustomizeScheduleScreen`（1,951 行）    | 大，平板/折叠屏判定              |
-| 批次 4 | `ui/effects/*`（液态玻璃 / 边缘光）                                 | **最大**，取决于阶段 0 验证 1 的结论 |
+| 批次 4 | `ui/effects/*` 2,756 行（liquidglass 510 换依赖 / background 344 换 artifact / miuix 743 expect-actual / **edgelight 911 需 SkSL 重写**） | **唯一有真实重写量的一批** |
 | 批次 5 | 教务导入（WKWebView 桥接重写，1,080 行）                               | 大，需 iOS 平台代码            |
 | 批次 6 | 提醒专项（滚动预约，见验证 3）                                           | 大，架构约束                  |
 | 批次 7 | WidgetKit 小部件（Swift 重写）                                    | 独立排期                    |
@@ -291,7 +350,7 @@ iosMain      ktor-client-darwin      → NSURLSession
 
 | #  | 风险                                         | 影响             | 应对                                      |
 | -- | ------------------------------------------ | -------------- | --------------------------------------- |
-| R1 | backdrop / AGSL 在 iOS 无法复现                 | 视觉效果降级，批次 4 阻塞 | **阶段 0 先验证**；接受降级 + expect/actual 隔离    |
+| ~~R1~~ | ~~backdrop / AGSL 在 iOS 无法复现~~                 | — | **已排除**：有现成 KMP 移植（SkSL，视觉等价），换依赖即可 |
 | R2 | Gson 替换破坏 4 条序列化通道                         | 用户数据丢失         | 分层替换 + round-trip 回归 + 旧格式读取路径          |
 | R3 | iOS 本地通知 64 条上限                            | 提醒漏发           | 滚动预约策略，阶段 0 原型验证                        |
 | R4 | Kotlin/Native 线程模型撞全局单例                    | 崩溃 / 状态错乱      | 阶段 3 改显式注入，阶段 4 专项验证                    |
@@ -315,13 +374,13 @@ iosMain      ktor-client-darwin      → NSURLSession
 
 ## 七、立即可做的第一步
 
-从**阶段 0 验证 1** 开始——它是唯一可能推翻整个排期的未知数：
+阶段 0 的四项预研已完成三项，结论都比预估乐观。**阶段 0 的三个验证做完才动全面投入**这条红线仍然有效，但它的内容已经落地为：
 
 1. 建一个独立的最小 CMP demo 工程（不影响主项目），target 只开 `iosSimulatorArm64`；
 2. 把 `com/kyant/backdrop/effects/Blur.kt` 和 `RenderEffect.kt` 抄进去，尝试用 Skia 复现；
 3. 跑起来看效果，判定「可复现 / 需降级」。
 
-同时并行启动**阶段 1**的代码搬迁（1,411 行，风险极低，不受验证 1 结论影响）：
+**阶段 1** 的代码搬迁（1,411 行）已完成：:core 现有 Course / ScheduleFolder / TimeConfig / CourseTimeResolver / PeriodTimeSource，:app 与 :core 编译均通过。接下来是：
 
 ```kotlin
 // settings.gradle.kts

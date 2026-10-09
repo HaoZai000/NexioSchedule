@@ -7,6 +7,8 @@
 //   - 插件是 com.android.kotlin.multiplatform.library，不是 com.android.library
 //   - Android 目标配置写在 kotlin { android { ... } } 里，不是顶层的 android { }
 
+import org.gradle.api.tasks.testing.Test
+
 plugins {
     alias(libs.plugins.kotlin.multiplatform)
     alias(libs.plugins.android.kmp.library)
@@ -28,5 +30,6 @@ kotlin {
             // 报 "Cannot access class kotlinx.datetime.LocalDate"。
             api(libs.kotlinx.datetime)
         }
+
     }
 }

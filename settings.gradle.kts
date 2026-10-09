@@ -25,6 +25,7 @@ dependencyResolutionManagement {
 
 rootProject.name = "Nexio课程表"
 include(":app")
+include(":backdrop")
 include(":core")
  
 
