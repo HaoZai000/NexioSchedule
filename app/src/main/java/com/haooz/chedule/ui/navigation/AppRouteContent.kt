@@ -453,12 +453,7 @@ private fun HolidaySettingsRoute(router: AppRouter) {
 
 /**
  * WebDAV 云备份设置（原 WebDavSettingsActivity，170 行）。
- *
  * 顶栏「测试连接」（[endAction]）+ 底部「备份到云端 / 从云端恢复」（[overlay]）。
- *
- * ⚠ **底部两个按钮曾经在薄壳迁移时被漏掉**：状态变量 `backingUp` / `restoring` /
- * `onBackup` / `onRestore` 全都在、只是没人渲染 —— **编译器抓不到**（赋值也算「使用」），
- * 页面照样 BUILD SUCCESSFUL，只有真机点进去才发现按钮没了。
  * 教训：迁完壳，要按「原 Activity 里的可交互元素逐个对账」，不能只信编译。
  */
 @Composable

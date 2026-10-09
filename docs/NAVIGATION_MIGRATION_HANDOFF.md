@@ -12,19 +12,25 @@
 为什么必须做：CMP 在 iOS 上跑在 `UIViewController` 里，没有 Activity；
 **导航状态原本活在 Android 的 Activity back stack 里，iOS 拿不到**。
 
-**现状：Manifest 23 → 4**
+**现状：Manifest 23 → 3 —— Activity 侧已收工**
 
 | 剩余 Activity | 行数 | 状态 |
 |---|---:|---|
 | `MainActivity` | 5903 | ✅ **宿主**（3 页 pager 常驻底座 + `AppNavHost` 叠加层） |
-| `SwitchScheduleActivity` | 1928 | ⬜ 待迁（**内联 5 个 Composable**，需先抽 `SwitchScheduleScreen`） |
 | `EducationalImportActivity` | 671 | ⛔ **按决定保留**（WebView + `@JavascriptInterface` 平台页） |
 | `ImportAlias` | — | Manifest alias（指向 MainActivity，保留） |
+
+> **`SwitchScheduleActivity` 是死代码，已直接删除**（见坑 15）。它没有路由 —— 也不需要：
+> 手机端在 `MainActivity` 里内联渲染 `SwitchScheduleScreen`（带卡片形变动画，与路由转场冲突），
+> 平板走 `TabletSwitchSchedulePane`。**不是所有 Activity 都要变成路由。**
 
 已迁 **16 条路由**：About / Changelog / License / PrivacyPolicy / PreferenceSettings /
 UpdateSettings / Communication / LocalBackup / AppreciateAuthor / ScheduleImport /
 ScheduleExport / ScheduleBackup / AiImport / WidgetIntro / CourseReminder / HolidaySettings /
 WebDavSettings / CourseTimeSettings / CourseManage。
+
+（16 条 = 「About 系 4 + 设置系 4 + 数据管理 3 + 带额外元素 5」；课程管理/时间设置是带内部
+二级页的两个大页，也走路由。**切换课表不走路由**，原因见下方坑 15。）
 
 代码基线：`master` `fcb77c1`；增量 6（CourseTimeSettings `da3bdf9`）、增量 7（CourseManage）
 都在 `1c6d2e7` 之上。
@@ -149,7 +155,17 @@ MainActivity.setContent
     应与原 Activity 一致（顶栏返回那个会被 `DocumentPageScaffold` 吃掉）。
     已全量对账 7 个已删 Activity：只有 WebDAV 少了 2 个，其余一致。
 
-14. **子页里的 `viewModel()` 现在拿到的是宿主的实例**
+14. 🔴 **迁之前先确认「这个 Activity 还有没有人启动」—— 死代码直接删，别硬造路由**
+    `SwitchScheduleActivity`（1928 行，Manifest 里挂着）**全项目零启动点**：
+    `git log -S "SwitchScheduleActivity::class.java"` 查不到任何一次 Intent 启动。
+    真相是它早就退役了 —— 手机端在 `MainActivity` 里内联渲染 `SwitchScheduleScreen`
+    （带卡片↔全屏形变动画：`showSwitchSchedule` / `switchAnimProgress`），平板走
+    `TabletSwitchSchedulePane`。给它加路由反而会造出第二条互相打架的入口。
+    ⇒ 处理：把 `SwitchScheduleScreen` + 4 个私有 Composable 抽成独立文件，Activity 直接删。
+    ⇒ **判据**：某个 Screen 已在主界面/分栏里被内联渲染，**且**Activity 无启动点 → 删 Activity。
+    反过来，若 Activity 有启动点但现在走的是另一条路（两条并存），那才是真的要合并。
+
+15. **子页里的 `viewModel()` 现在拿到的是宿主的实例**
     原来每个 Activity 有独立 ViewModelStore，`CourseManageActivity` 里的 `CourseViewModel`
     是新实例；单宿主后与 `MainActivity` 共用同一个。好处是改完课返回主界面立刻是新的；
     ⚠ 若某页依赖「自己的 ViewModel 是干净的」，要显式传或自己 `viewModel(key=...)`。
@@ -174,12 +190,16 @@ MainActivity.setContent
 2. ✅ **迁 `CourseManageActivity`**（571 行）—— 已完成。快捷菜单、删除确认、课程编辑
    全在 Activity 里，结构与时间设置页同构；多出来的三块叠加内容
    （`CourseEditScreen` / 快捷菜单遮罩+快照 / `ShortcutMenu`）留在根 `Box`（见坑 11）。
-3. **迁 `SwitchScheduleActivity`**（1928 行）：先把内联的 `SwitchScheduleScreen`
-   （5 个 Composable）抽成独立文件，再按套路走。
-4. 之后：`HttpService.native`（iOS 硬阻塞）/ 建 `:ui-shared`（`AppRouteContent`、
-   `DocumentPageScaffold`、16 个 Screen 的归宿）。
+3. ✅ **`SwitchScheduleActivity` 已删除**（死代码，见坑 14）；`SwitchScheduleScreen`
+   + 4 个私有 Composable 抽到 `ui/activities/SwitchScheduleScreen.kt`，逐行零改动。
+
+### Activity 侧已收工，下一步转 KMP 本身
+
+4. `HttpService.native`（iOS 硬阻塞，WebDAV 只等这一处）/ 建 `:ui-shared`
+   （`AppRouteContent`、`DocumentPageScaffold`、16 个 Screen 的归宿）。
 5. **别动**：`EducationalImportActivity`（WebView 平台页）；Gson 的 10 个文件全在
    `:app` UI 层，**现阶段不需要动**（阶段 5 搬 UI 时才必须清）。
+6. 已知未做：路由的**预测性返回动画**（`PredictiveBackHandler`），目前只有 `BackHandler`。
 
 ---
 
